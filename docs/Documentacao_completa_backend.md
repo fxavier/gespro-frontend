@@ -1,5 +1,40 @@
 # GestPro ERP – Backend Modular (Spring Modulith + DDD + Hexagonal)
 
+## Índice Geral
+
+1. [Visão Geral](#1-visão-geral)
+2. [Stack Tecnológica](#2-stack-tecnológica)
+3. [Arquitectura – Diagramas C4](#3-arquitectura--diagramas-c4)
+4. [Arquitectura Hexagonal por Módulo](#4-arquitectura-hexagonal-por-módulo)
+5. [Estrutura de Projecto](#5-estrutura-de-projecto-maven--spring-modulith)
+6. [Bounded Contexts & Mapeamento](#6-bounded-contexts--mapeamento-dos-modelos-typescript)
+7. [Multi-tenancy & Segurança](#7-multi-tenancy--segurança)
+8. [Convenções de API](#8-convenções-de-api)
+9. [Diagramas ERD](#9-diagramas-erd-mermaid--exemplo)
+10. [Fluxos de Negócio e Processos](#10-fluxos-de-negócio-e-processos-financeiros-mermaid)
+    - [Requisição de Compra](#101-fluxo-de-requisição-de-compra)
+    - [Venda POS](#102-fluxo-de-venda-pos)
+    - [Ticket / Suporte](#103-fluxo-de-ticket--suporte)
+    - [Nota de Crédito](#104-anulação-de-fatura-via-nota-de-crédito)
+    - [Faturação Completa](#105-fluxo-completo-de-faturação)
+    - [Inventário Completo](#106-fluxo-completo-de-inventário)
+    - [Recursos Humanos](#107-fluxo-completo-de-recursos-humanos)
+    - [Procurement Completo](#108-fluxo-completo-de-procurement)
+    - [Abertura de Contas Contabilísticas](#109-fluxo-completo-de-abertura-de-contas-contabilísticas)
+    - [Abertura e Fecho de Caixa](#1010-fluxo-completo-de-abertura-e-fecho-de-caixa)
+    - [Configuração do Ano Contabilístico](#1011-fluxo-completo-de-configuração-de-ano-contabilístico)
+    - [Abertura do Ano Contabilístico](#1012-fluxo-de-abertura-do-ano-contabilístico)
+    - [Fecho do Ano Contabilístico](#1013-fluxo-de-fecho-do-ano-contabilístico)
+    - [Lançamentos Contabilísticos](#1014-fluxo-de-lançamentos-contabilísticos)
+    - [Reconciliação Bancária](#1015-fluxo-de-reconciliação-bancária)
+    - [DRE](#1016-fluxo-de-demonstração-dos-resultados-dre)
+    - [Produção Industrial](#1017-fluxos-do-módulo-de-produção)
+    - [Fecho Contabilístico Mensal](#1018-fecho-contabilístico-mensal)
+11. [Diagramas de Sequência](#11-diagramas-de-sequência-exemplos)
+12. [Convenções de Mapeamento](#12-convenções-de-mapeamento-ts--java)
+13. [Roadmap](#13-roadmap-de-implementação)
+14. [Checklist](#14-checklist-rápido)
+
 ## 1. Visão Geral
 
 O GestPro ERP é um backend corporativo modular construído em **Spring Boot 3.3 + Spring Modulith**, seguindo:
@@ -442,7 +477,140 @@ flowchart LR
   AUD -->|Rejeitado| FIM["Comunicar Rejeição"]
 ```
 
-### 10.5. Fluxo de Lançamentos Contabilísticos
+### 10.5. Fluxo Completo de Faturação
+
+```mermaid
+flowchart LR
+  ORIG["Pedido / Contrato / Ordem de Serviço"] --> PREP["Preparar Dados de Faturação"]
+  PREP --> VAL["Validar Impostos, Séries e Cliente"]
+  VAL -->|OK| EMIT["Emitir Fatura / Nota Débito"]
+  EMIT --> ASS["Assinar Digitalmente / Numerar"]
+  ASS --> DIST["Enviar para Cliente (Email/Portal)"]
+  EMIT --> AR["Registar em Contas a Receber"]
+  AR --> COB["Controlar Cobrança e Status"]
+  COB --> RECEB["Registar Pagamento"]
+  RECEB --> CONTAB["Gerar Lançamentos e Receitas"]
+  CONTAB --> REP["Atualizar Relatórios (DRE, IVA, Dashboards)"]
+  VAL -->|Erro| AJUSTE["Corrigir Dados (Cliente, Impostos)"]
+  AJUSTE --> PREP
+```
+
+### 10.6. Fluxo Completo de Inventário
+
+```mermaid
+flowchart LR
+  DEM["Necessidade / Previsão"] --> PLANEIO["Planeamento de Stock"]
+  PLANEIO --> COMPRA["Requisições e Compras"]
+  COMPRA --> RECEP["Recepção Física e QA"]
+  RECEP --> ARMAZ["Armazenamento e Endereçamento"]
+  ARMAZ --> MOV["Movimentações (Transferências / Reservas)"]
+  MOV --> DISP["Disponibilidade em Tempo Real"]
+  DISP --> CONS["Consumo / Saída para Produção ou Vendas"]
+  CONS --> AJUST["Ajustes e Inventário Físico"]
+  AJUST --> COST["Recalcular Custos e Valorações"]
+  COST --> REL["Publicar KPIs (Rotação, Ruptura)"]
+```
+
+### 10.7. Fluxo Completo de Recursos Humanos
+
+```mermaid
+flowchart LR
+  NEC["Necessidade de Talento"] --> VAGA["Abrir Vaga"]
+  VAGA --> RECRUTA["Recrutamento e Seleção"]
+  RECRUTA --> CONTRATA["Admissão e Onboarding"]
+  CONTRATA --> REG["Registar Dados do Colaborador"]
+  REG --> TEMPO["Gestão de Assiduidade e Férias"]
+  TEMPO --> PAY["Processar Payroll"]
+  PAY --> BENEF["Gerir Benefícios e Obrigações Fiscais"]
+  BENEF --> AVAL["Avaliações de Desempenho"]
+  AVAL --> DESENV["Planos de Formação / Upskilling"]
+  DESENV --> ENC["Encerramento ou Retenção"]
+  ENC --> ANAL["Analytics RH (Turnover, Headcount)"]
+```
+
+### 10.8. Fluxo Completo de Procurement
+
+```mermaid
+flowchart LR
+  NECMAT["Necessidades Planeadas / Requisições"] --> WF_REQ["Workflow de Aprovação"]
+  WF_REQ --> SOURCING["Sourcing e Convites de Cotação"]
+  SOURCING --> ANALISE["Comparar Cotações"]
+  ANALISE --> NEGOCIA["Negociação e Seleção do Fornecedor"]
+  NEGOCIA --> PEDIDO["Emitir Pedido de Compra"]
+  PEDIDO --> ENTREGA["Acompanhar Entregas e SLAs"]
+  ENTREGA --> RECEP_INV["Receber e Validar Itens"]
+  RECEP_INV --> FATURAS["Conciliar Fatura vs Pedido vs Recepção"]
+  FATURAS --> PAGTO["Programar Pagamentos"]
+  PAGTO --> PERFORMANCE["Avaliar Desempenho do Fornecedor"]
+```
+
+### 10.9. Fluxo Completo de Abertura de Contas Contabilísticas
+
+```mermaid
+flowchart LR
+  NECPLAN["Necessidade (novo negócio / centro de custo)"] --> PLANO["Analisar Plano de Contas"]
+  PLANO --> PROPOSTA["Propor Código e Estrutura"]
+  PROPOSTA --> VALIDA["Validar Natureza e Regras de Lançamento"]
+  VALIDA --> APROV["Aprovação por Contabilidade / Auditoria"]
+  APROV --> CAD["Criar Conta no Sistema"]
+  CAD --> PARAM["Configurar Regras Automáticas e Integrações"]
+  PARAM --> PUB["Disponibilizar para Lançamentos e Relatórios"]
+```
+
+### 10.10. Fluxo Completo de Abertura e Fecho de Caixa
+
+```mermaid
+flowchart LR
+  INI["Início do Dia"] --> ABERTURA["Registrar Abertura com Fundo Inicial"]
+  ABERTURA --> VENDAS["Captar Vendas e Movimentos"]
+  VENDAS --> AUDITORIA["Contagens Parciais / Auditoria"]
+  AUDITORIA --> FECHO_REQ["Solicitar Fecho"]
+  FECHO_REQ --> CONTA["Conferir Numerário e Meios de Pagamento"]
+  CONTA --> AJUS_CAIXA["Registrar Diferenças"]
+  AJUS_CAIXA --> FECHO["Fechar Caixa e Emitir Relatório"]
+  FECHO --> BANCAR["Depositar / Transferir Valores"]
+  BANCAR --> CONTACX["Gerar Lançamentos Contábeis"]
+```
+
+### 10.11. Fluxo Completo de Configuração de Ano Contabilístico
+
+```mermaid
+flowchart LR
+  DIREC["Diretrizes Financeiras / Legais"] --> PARAM_ANO["Definir Períodos (Mensal/Trimestral)"]
+  PARAM_ANO --> BLOQ["Definir Políticas de Bloqueio e Fecho"]
+  BLOQ --> SERIE["Configurar Séries e Calendário Fiscal"]
+  SERIE --> RATEIO["Configurar Rateios, Centros de Custo e Metas"]
+  RATEIO --> TESTE["Testar Integrações e Automatismos"]
+  TESTE --> COMUNICA["Comunicar às Equipas"]
+```
+
+### 10.12. Fluxo de Abertura do Ano Contabilístico
+
+```mermaid
+flowchart LR
+  PREV_ANO["Fecho do Ano Anterior"] --> SALDOS["Transportar Saldos Iniciais"]
+  SALDOS --> VALIDAS["Validar Contas de Resultado e Balanço"]
+  VALIDAS --> PARAM_AB["Abrir Períodos no ERP"]
+  PARAM_AB --> TESTE_DOC["Testar Primeiro Lançamento"]
+  TESTE_DOC --> LIBERA["Liberar Operações para as Áreas"]
+  LIBERA --> MONIT["Monitorizar Primeiros Movimentos"]
+```
+
+### 10.13. Fluxo de Fecho do Ano Contabilístico
+
+```mermaid
+flowchart LR
+  ENC_MES["Fechos Mensais Concluídos"] --> AJUSTES["Ajustes de Encerramento (Provisões, Impostos)"]
+  AJUSTES --> INVENT["Inventários Físicos e Avaliações"]
+  INVENT --> CONSOL["Conciliações e Conferências Finais"]
+  CONSOL --> RECLASS["Reclassificações e Reabertura se necessário"]
+  RECLASS --> BALANC["Gerar Balanço e DRE anuais"]
+  BALANC --> AUDI["Submeter à Auditoria / Conselho Fiscal"]
+  AUDI --> BLOQ_ANO["Bloquear Ano e Armazenar Documentos"]
+  BLOQ_ANO --> PRX_ANO["Preparar Abertura do Próximo Ano"]
+```
+
+### 10.14. Fluxo de Lançamentos Contabilísticos
 
 ```mermaid
 flowchart LR
@@ -456,7 +624,7 @@ flowchart LR
   EVENT --> INT["Integrações (BI, Auditoria)"]
 ```
 
-### 10.6. Fluxo de Reconciliação Bancária
+### 10.15. Fluxo de Reconciliação Bancária
 
 ```mermaid
 flowchart LR
@@ -469,7 +637,7 @@ flowchart LR
   FECHO --> DASH["Atualizar Cash-Flow e Relatórios"]
 ```
 
-### 10.7. Fluxo de Demonstração dos Resultados (DRE)
+### 10.16. Fluxo de Demonstração dos Resultados (DRE)
 
 ```mermaid
 flowchart LR
@@ -481,9 +649,9 @@ flowchart LR
   ANALISE --> SHARE["Publicar Dashboard / PDF"]
 ```
 
-### 10.8. Fluxos do Módulo de Produção
+### 10.17. Fluxos do Módulo de Produção
 
-#### 10.8.1. Planeamento e Ordem de Produção
+#### 10.17.1. Planeamento e Ordem de Produção
 
 ```mermaid
 flowchart LR
@@ -494,7 +662,7 @@ flowchart LR
   APROV_OP --> LIB["Libertar Ordem para Chão de Fábrica"]
 ```
 
-#### 10.8.2. Execução e Consumo de Materiais
+#### 10.17.2. Execução e Consumo de Materiais
 
 ```mermaid
 flowchart LR
@@ -505,7 +673,7 @@ flowchart LR
   QTD --> RES["Atualizar Stock e Custos de Produção"]
 ```
 
-#### 10.8.3. Qualidade, Encerramento e Expedição
+#### 10.17.3. Qualidade, Encerramento e Expedição
 
 ```mermaid
 flowchart LR
@@ -518,7 +686,7 @@ flowchart LR
   CUSTO --> FIN["Enviar Custos para Contabilidade"]
 ```
 
-### 10.9. Fecho Contabilístico Mensal
+### 10.18. Fecho Contabilístico Mensal
 
 ```mermaid
 flowchart LR
