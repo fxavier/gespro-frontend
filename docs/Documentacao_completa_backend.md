@@ -16,20 +16,21 @@
     - [Venda POS](#102-fluxo-de-venda-pos)
     - [Ticket / Suporte](#103-fluxo-de-ticket--suporte)
     - [Nota de Crédito](#104-anulação-de-fatura-via-nota-de-crédito)
-    - [Faturação Completa](#105-fluxo-completo-de-faturação)
-    - [Inventário Completo](#106-fluxo-completo-de-inventário)
-    - [Recursos Humanos](#107-fluxo-completo-de-recursos-humanos)
-    - [Procurement Completo](#108-fluxo-completo-de-procurement)
-    - [Abertura de Contas Contabilísticas](#109-fluxo-completo-de-abertura-de-contas-contabilísticas)
-    - [Abertura e Fecho de Caixa](#1010-fluxo-completo-de-abertura-e-fecho-de-caixa)
-    - [Configuração do Ano Contabilístico](#1011-fluxo-completo-de-configuração-de-ano-contabilístico)
-    - [Abertura do Ano Contabilístico](#1012-fluxo-de-abertura-do-ano-contabilístico)
-    - [Fecho do Ano Contabilístico](#1013-fluxo-de-fecho-do-ano-contabilístico)
-    - [Lançamentos Contabilísticos](#1014-fluxo-de-lançamentos-contabilísticos)
-    - [Reconciliação Bancária](#1015-fluxo-de-reconciliação-bancária)
-    - [DRE](#1016-fluxo-de-demonstração-dos-resultados-dre)
-    - [Produção Industrial](#1017-fluxos-do-módulo-de-produção)
-    - [Fecho Contabilístico Mensal](#1018-fecho-contabilístico-mensal)
+    - [Nota de Débito Complementar](#105-nota-de-débito-complementar)
+    - [Faturação Completa](#106-fluxo-completo-de-faturação)
+    - [Inventário Completo](#107-fluxo-completo-de-inventário)
+    - [Recursos Humanos](#108-fluxo-completo-de-recursos-humanos)
+    - [Procurement Completo](#109-fluxo-completo-de-procurement)
+    - [Abertura de Contas Contabilísticas](#1010-fluxo-completo-de-abertura-de-contas-contabilísticas)
+    - [Abertura e Fecho de Caixa](#1011-fluxo-completo-de-abertura-e-fecho-de-caixa)
+    - [Configuração do Ano Contabilístico](#1012-fluxo-completo-de-configuração-de-ano-contabilístico)
+    - [Abertura do Ano Contabilístico](#1013-fluxo-de-abertura-do-ano-contabilístico)
+    - [Fecho do Ano Contabilístico](#1014-fluxo-de-fecho-do-ano-contabilístico)
+    - [Lançamentos Contabilísticos](#1015-fluxo-de-lançamentos-contabilísticos)
+    - [Reconciliação Bancária](#1016-fluxo-de-reconciliação-bancária)
+    - [DRE](#1017-fluxo-de-demonstração-dos-resultados-dre)
+    - [Produção Industrial](#1018-fluxos-do-módulo-de-produção)
+    - [Fecho Contabilístico Mensal](#1019-fecho-contabilístico-mensal)
 11. [Diagramas de Sequência](#11-diagramas-de-sequência-exemplos)
 12. [Convenções de Mapeamento](#12-convenções-de-mapeamento-ts--java)
 13. [Roadmap](#13-roadmap-de-implementação)
@@ -477,7 +478,82 @@ flowchart LR
   AUD -->|Rejeitado| FIM["Comunicar Rejeição"]
 ```
 
-### 10.5. Fluxo Completo de Faturação
+### 10.5. Nota de Débito Complementar
+
+As **notas de débito** são usadas para ajustar faturas já emitidas, adicionando
+custos (juros de mora, serviços adicionais, diferenças cambiais) sem perder o
+vínculo fiscal com o documento original. No GestPro, o fluxo respeita as regras
+de contabilização e de séries fiscais configuradas no módulo
+`finance-accounting-module`.
+
+**Cenários suportados**
+
+- Ajustes pós-faturação com referência obrigatória ao documento de origem.
+- Aplicação de juros por atraso em contas a receber.
+- Complementos contratuais aprovados em `projects-module` ou `services-module`.
+
+#### Processo Operacional
+
+```mermaid
+flowchart LR
+  START["Solicitação de Ajuste"] --> ORIG["Selecionar Fatura de Origem"]
+  ORIG --> CALC["Calcular Diferença / Juros"]
+  CALC --> VAL["Validar Fiscal e Limites do Cliente"]
+  VAL -->|OK| APROV["Workflow de Aprovação"]
+  VAL -->|Erro| REV["Rever Dados / Corrigir"]
+  APROV --> EMIT["Emitir Nota de Débito"]
+  EMIT --> ASS["Assinar / Numerar"]
+  ASS --> DIST["Enviar ao Cliente"]
+  EMIT --> AR["Atualizar Contas a Receber"]
+  AR --> IVA["Recalcular Impostos / Retenções"]
+  IVA --> CONT["Gerar Lançamentos Contabilísticos"]
+  CONT --> KPIS["Atualizar DRE / Dashboards"]
+```
+
+#### Fluxo de Dados e Integrações
+
+```mermaid
+flowchart TD
+  subgraph Frontend
+    UI["Next.js - Formulário Nota Débito"]
+  end
+
+  subgraph Backend["GestPro Backend"]
+    API["/api/v1/finance/debit-notes"]
+    APP["DebitNoteApplicationService"]
+    DOMAIN["DebitNote Aggregate"]
+    EVENTS["Domain Events (DebitNoteIssued)"]
+  end
+
+  CRM["CRM Clientes"]
+  ARLEDGER["Sub-ledger Contas a Receber"]
+  TAX["Módulo Fiscal / IVA"]
+  REPORTS["Analytics & DRE"]
+
+  UI -->|JSON (clienteId, faturaOrigemId, itens, juros)| API
+  API --> APP
+  APP --> DOMAIN
+  DOMAIN --> EVENTS
+  APP --> CRM
+  APP --> ARLEDGER
+  APP --> TAX
+  EVENTS --> REPORTS
+```
+
+**Payload principal**
+
+| Campo | Origem | Observações |
+| --- | --- | --- |
+| `invoiceId` | Seleção UI / API | Garante vínculo fiscal. |
+| `reasonCode` | Catálogo `shared-kernel` | Enum padronizado (JUROS, DIF_CAMB, SERV_ADIC). |
+| `debitLines[]` | Input do utilizador | Valores positivos, com impostos associados. |
+| `interestPolicyId` | `finance-accounting-module` | Opcional, aplica juros automáticos. |
+| `attachments[]` | Upload UI | Evidências (ordens de serviço, contratos). |
+
+Após a emissão, o evento `DebitNoteIssued` aciona listeners que alimentam
+`conta-receber`, reprocessam impostos e actualizam relatórios de faturação.
+
+### 10.6. Fluxo Completo de Faturação
 
 ```mermaid
 flowchart LR
@@ -495,7 +571,7 @@ flowchart LR
   AJUSTE --> PREP
 ```
 
-### 10.6. Fluxo Completo de Inventário
+### 10.7. Fluxo Completo de Inventário
 
 ```mermaid
 flowchart LR
@@ -511,7 +587,7 @@ flowchart LR
   COST --> REL["Publicar KPIs (Rotação, Ruptura)"]
 ```
 
-### 10.7. Fluxo Completo de Recursos Humanos
+### 10.8. Fluxo Completo de Recursos Humanos
 
 ```mermaid
 flowchart LR
@@ -528,7 +604,7 @@ flowchart LR
   ENC --> ANAL["Analytics RH (Turnover, Headcount)"]
 ```
 
-### 10.8. Fluxo Completo de Procurement
+### 10.9. Fluxo Completo de Procurement
 
 ```mermaid
 flowchart LR
@@ -544,7 +620,7 @@ flowchart LR
   PAGTO --> PERFORMANCE["Avaliar Desempenho do Fornecedor"]
 ```
 
-### 10.9. Fluxo Completo de Abertura de Contas Contabilísticas
+### 10.10. Fluxo Completo de Abertura de Contas Contabilísticas
 
 ```mermaid
 flowchart LR
@@ -557,7 +633,7 @@ flowchart LR
   PARAM --> PUB["Disponibilizar para Lançamentos e Relatórios"]
 ```
 
-### 10.10. Fluxo Completo de Abertura e Fecho de Caixa
+### 10.11. Fluxo Completo de Abertura e Fecho de Caixa
 
 ```mermaid
 flowchart LR
@@ -572,7 +648,7 @@ flowchart LR
   BANCAR --> CONTACX["Gerar Lançamentos Contábeis"]
 ```
 
-### 10.11. Fluxo Completo de Configuração de Ano Contabilístico
+### 10.12. Fluxo Completo de Configuração de Ano Contabilístico
 
 ```mermaid
 flowchart LR
@@ -584,7 +660,7 @@ flowchart LR
   TESTE --> COMUNICA["Comunicar às Equipas"]
 ```
 
-### 10.12. Fluxo de Abertura do Ano Contabilístico
+### 10.13. Fluxo de Abertura do Ano Contabilístico
 
 ```mermaid
 flowchart LR
@@ -596,7 +672,7 @@ flowchart LR
   LIBERA --> MONIT["Monitorizar Primeiros Movimentos"]
 ```
 
-### 10.13. Fluxo de Fecho do Ano Contabilístico
+### 10.14. Fluxo de Fecho do Ano Contabilístico
 
 ```mermaid
 flowchart LR
@@ -610,7 +686,7 @@ flowchart LR
   BLOQ_ANO --> PRX_ANO["Preparar Abertura do Próximo Ano"]
 ```
 
-### 10.14. Fluxo de Lançamentos Contabilísticos
+### 10.15. Fluxo de Lançamentos Contabilísticos
 
 ```mermaid
 flowchart LR
@@ -624,7 +700,7 @@ flowchart LR
   EVENT --> INT["Integrações (BI, Auditoria)"]
 ```
 
-### 10.15. Fluxo de Reconciliação Bancária
+### 10.16. Fluxo de Reconciliação Bancária
 
 ```mermaid
 flowchart LR
@@ -637,7 +713,7 @@ flowchart LR
   FECHO --> DASH["Atualizar Cash-Flow e Relatórios"]
 ```
 
-### 10.16. Fluxo de Demonstração dos Resultados (DRE)
+### 10.17. Fluxo de Demonstração dos Resultados (DRE)
 
 ```mermaid
 flowchart LR
@@ -649,9 +725,9 @@ flowchart LR
   ANALISE --> SHARE["Publicar Dashboard / PDF"]
 ```
 
-### 10.17. Fluxos do Módulo de Produção
+### 10.18. Fluxos do Módulo de Produção
 
-#### 10.17.1. Planeamento e Ordem de Produção
+#### 10.18.1. Planeamento e Ordem de Produção
 
 ```mermaid
 flowchart LR
@@ -662,7 +738,7 @@ flowchart LR
   APROV_OP --> LIB["Libertar Ordem para Chão de Fábrica"]
 ```
 
-#### 10.17.2. Execução e Consumo de Materiais
+#### 10.18.2. Execução e Consumo de Materiais
 
 ```mermaid
 flowchart LR
@@ -673,7 +749,7 @@ flowchart LR
   QTD --> RES["Atualizar Stock e Custos de Produção"]
 ```
 
-#### 10.17.3. Qualidade, Encerramento e Expedição
+#### 10.18.3. Qualidade, Encerramento e Expedição
 
 ```mermaid
 flowchart LR
@@ -686,7 +762,7 @@ flowchart LR
   CUSTO --> FIN["Enviar Custos para Contabilidade"]
 ```
 
-### 10.18. Fecho Contabilístico Mensal
+### 10.19. Fecho Contabilístico Mensal
 
 ```mermaid
 flowchart LR
