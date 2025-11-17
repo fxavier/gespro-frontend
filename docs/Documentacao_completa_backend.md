@@ -250,6 +250,19 @@ TS: Todos os Dashboard* e Relatorio*.
 
 Módulo: analytics-module – projections/event consumers.
 
+### 6.13. Produção Industrial
+
+TS: OrdemProducao, ListaMaterial (BOM), RequisicaoMaterial, Maquina,
+Turno, RegistoProducao, ControleQualidade, PlanoProducao,
+CapacidadeProducao, IndicadorProducao.
+
+Módulo: production-module
+
+- Aggregates principais: PlanoProducao, OrdemProducao, RegistoProducao,
+  ControleQualidade, IndicadorProducao.
+- Eventos publicados para inventário (consumo/entrada de stock) e
+  finanças (custos de produção).
+
 ## 7. Multi-tenancy & Segurança
 
 - Todas as entidades de negócio possuem tenantId.
@@ -373,7 +386,7 @@ erDiagram
     PLANO_CONTAS ||--o{ PARTIDA_CONTABIL : "usada_em"
 ```
 
-## 10. Fluxos de Negócio (Mermaid)
+## 10. Fluxos de Negócio e Processos Financeiros (Mermaid)
 
 ### 10.1. Fluxo de Requisição de Compra
 
@@ -413,6 +426,107 @@ flowchart LR
   T4 -->|Sim| T5["Marcar como Resolvido / Fechado"]
   T5 --> T6["Solicitar Avaliação do Cliente"]
   T4 -->|Não| T3
+```
+
+### 10.4. Anulação de Fatura via Nota de Crédito
+
+```mermaid
+flowchart LR
+  FAT["Fatura Emitida"] --> SOL["Solicitação de Anulação"]
+  SOL --> AUD["Análise Financeira / Fiscal"]
+  AUD -->|Aprovado| NC["Emitir Nota de Crédito"]
+  NC --> REG["Registar Nota em Contas a Receber"]
+  REG --> AJU["Ajustar Lançamentos Contabilísticos"]
+  AJU --> IVA["Atualizar Impostos / IVA"]
+  IVA --> CLI["Notificar Cliente"]
+  AUD -->|Rejeitado| FIM["Comunicar Rejeição"]
+```
+
+### 10.5. Fluxo de Lançamentos Contabilísticos
+
+```mermaid
+flowchart LR
+  DOC["Documento de Origem (Fatura, Recibo, Folha de Pagamento)"] --> REGRA["Mapeamento Plano de Contas"]
+  REGRA --> PREP["Preparar Partidas Débito/Crédito"]
+  PREP --> VAL["Validação Automática (saldo = 0)"]
+  VAL -->|OK| POST["Persistir Lançamento"]
+  VAL -->|Erro| AJUSTE["Ajustar Regras / Dados"]
+  POST --> CONS["Atualizar Balancete e DRE"]
+  POST --> EVENT["Publicar Evento ContabilLancado"]
+  EVENT --> INT["Integrações (BI, Auditoria)"]
+```
+
+### 10.6. Fluxo de Reconciliação Bancária
+
+```mermaid
+flowchart LR
+  EXT["Importar Extratos Bancários"] --> MATCH["Matching Automático (Regra por Referência/Valor)"]
+  MATCH -->|Encontrado| CONC["Conciliar e Gerar Registos"]
+  MATCH -->|Pendentes| ANALISE["Análise Manual"]
+  ANALISE --> AJU["Criar Ajustes / Lançamentos"]
+  CONC --> APROV["Aprovação do Gestor Financeiro"]
+  APROV --> FECHO["Fechar Período de Reconciliação"]
+  FECHO --> DASH["Atualizar Cash-Flow e Relatórios"]
+```
+
+### 10.7. Fluxo de Demonstração dos Resultados (DRE)
+
+```mermaid
+flowchart LR
+  LANC["Lançamentos Contabilísticos" ] --> CLASS["Classificar em Rubricas (Receita, COGS, Opex)"]
+  CLASS --> RATEIO["Aplicar Rateios / Centros de Custo"]
+  RATEIO --> AGREG["Consolidar por Período"]
+  AGREG --> DRE["Gerar DRE"]
+  DRE --> ANALISE["Análises e KPI (Margem Bruta, EBITDA)"]
+  ANALISE --> SHARE["Publicar Dashboard / PDF"]
+```
+
+### 10.8. Fluxos do Módulo de Produção
+
+#### 10.8.1. Planeamento e Ordem de Produção
+
+```mermaid
+flowchart LR
+  DEM["Demanda (Pedidos / Forecast)"] --> PLANO["Plano Mestre de Produção"]
+  PLANO --> CAP["Verificar Capacidade e Materiais"]
+  CAP --> OP["Gerar Ordem de Produção"]
+  OP --> APROV_OP["Aprovação (Planeamento)"]
+  APROV_OP --> LIB["Libertar Ordem para Chão de Fábrica"]
+```
+
+#### 10.8.2. Execução e Consumo de Materiais
+
+```mermaid
+flowchart LR
+  LIB["Ordem Libertada"] --> REQMAT["Requisição de Materiais (BOM)"]
+  REQMAT --> PICK["Separação / Picking no Armazém"]
+  PICK --> PROD["Registar Consumo e Progresso"]
+  PROD --> QTD["Apontamento Quantitativo e Tempo"]
+  QTD --> RES["Atualizar Stock e Custos de Produção"]
+```
+
+#### 10.8.3. Qualidade, Encerramento e Expedição
+
+```mermaid
+flowchart LR
+  PROD["Produção Concluída"] --> QUALI["Inspeção de Qualidade"]
+  QUALI -->|Aprovado| ENC["Encerrar Ordem"]
+  QUALI -->|Rejeitado| RETRAB["Abrir Não Conformidade / Retrabalho"]
+  ENC --> ARMAZ["Mover para Stock de Produto Acabado"]
+  ARMAZ --> EXP["Disponível para Expedição / Venda"]
+  ENC --> CUSTO["Gerar Custo Padrão / Real"]
+  CUSTO --> FIN["Enviar Custos para Contabilidade"]
+```
+
+### 10.9. Fecho Contabilístico Mensal
+
+```mermaid
+flowchart LR
+  PREP["Encerrar Operações do Mês"] --> PROV["Conferir Provisões e Ajustes"]
+  PROV --> DEP["Processar Depreciações e Rateios"]
+  DEP --> REV["Revisão por Controladoria"]
+  REV --> BLOQ["Bloquear Período"]
+  BLOQ --> REL["Publicar Relatórios Oficiais"]
 ```
 
 ## 11. Diagramas de Sequência (Exemplos)
