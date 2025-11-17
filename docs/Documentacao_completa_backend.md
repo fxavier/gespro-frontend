@@ -530,7 +530,7 @@ flowchart TD
   TAX["Módulo Fiscal / IVA"]
   REPORTS["Analytics & DRE"]
 
-  UI -->|JSON (clienteId, faturaOrigemId, itens, juros)| API
+  UI -->|"JSON: clienteId, faturaOrigemId, itens, juros"| API
   API --> APP
   APP --> DOMAIN
   DOMAIN --> EVENTS
