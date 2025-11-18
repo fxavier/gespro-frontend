@@ -21,65 +21,31 @@ import {
   AlertTriangle,
   Building
 } from 'lucide-react';
+import { cotacoesMock } from '@/data/cotacoes';
+import type { Cotacao } from '@/types/procurement';
 
 export default function CotacoesPage() {
   const [termoPesquisa, setTermoPesquisa] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
 
-  const cotacoes = [
-    {
-      id: 'COT-001',
-      numero: 'COT-2024-001',
-      data: '2024-01-15',
-      requisicaoId: 'REQ-2024-001',
-      status: 'enviada',
-      dataValidade: '2024-01-25',
-      fornecedores: 3,
-      fornecedoresRespondidos: 2,
-      itens: 5,
-      melhorOferta: 42000.00
-    },
-    {
-      id: 'COT-002',
-      numero: 'COT-2024-002',
-      data: '2024-01-14',
-      requisicaoId: 'REQ-2024-003',
-      status: 'respondida',
-      dataValidade: '2024-01-22',
-      fornecedores: 4,
-      fornecedoresRespondidos: 4,
-      itens: 8,
-      melhorOferta: 8200.00
-    },
-    {
-      id: 'COT-003',
-      numero: 'COT-2024-003',
-      data: '2024-01-13',
-      requisicaoId: null,
-      status: 'rascunho',
-      dataValidade: '2024-01-28',
-      fornecedores: 0,
-      fornecedoresRespondidos: 0,
-      itens: 3,
-      melhorOferta: null
-    },
-    {
-      id: 'COT-004',
-      numero: 'COT-2024-004',
-      data: '2024-01-10',
-      requisicaoId: 'REQ-2024-002',
-      status: 'vencida',
-      dataValidade: '2024-01-20',
-      fornecedores: 3,
-      fornecedoresRespondidos: 1,
-      itens: 3,
-      melhorOferta: 13500.00
-    }
-  ];
+  const cotacoes = cotacoesMock;
+
+  const getTotalFornecedores = (cotacao: Cotacao) => cotacao.fornecedores.length;
+
+  const getFornecedoresRespondidos = (cotacao: Cotacao) =>
+    cotacao.fornecedores.filter((f) => f.status === 'respondida').length;
+
+  const getMelhorOferta = (cotacao: Cotacao) => {
+    const valores = cotacao.fornecedores
+      .map((f) => f.valorTotal)
+      .filter((valor): valor is number => typeof valor === 'number');
+    if (!valores.length) return null;
+    return Math.min(...valores);
+  };
 
   const cotacoesFiltradas = cotacoes.filter(cot => {
     const correspondeNome = cot.numero.toLowerCase().includes(termoPesquisa.toLowerCase()) ||
-                           (cot.requisicaoId && cot.requisicaoId.toLowerCase().includes(termoPesquisa.toLowerCase()));
+                           (cot.requisicaoCompraId && cot.requisicaoCompraId.toLowerCase().includes(termoPesquisa.toLowerCase()));
     const correspondeStatus = statusFiltro === 'todos' || cot.status === statusFiltro;
     
     return correspondeNome && correspondeStatus;
@@ -248,58 +214,64 @@ export default function CotacoesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cotacoesFiltradas.map((cot) => (
-                  <TableRow key={cot.id}>
-                    <TableCell className="font-medium">{cot.numero}</TableCell>
-                    <TableCell>{new Date(cot.data).toLocaleDateString('pt-MZ')}</TableCell>
-                    <TableCell>
-                      {cot.requisicaoId ? (
-                        <Link href={`/procurement/requisicoes/${cot.requisicaoId}`} className="text-blue-600 hover:underline">
-                          {cot.requisicaoId}
-                        </Link>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{cot.itens}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <Building className="h-4 w-4" />
-                        <span>{cot.fornecedores}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={cot.fornecedoresRespondidos === cot.fornecedores ? 'default' : 'secondary'}>
-                        {cot.fornecedoresRespondidos}/{cot.fornecedores}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {cot.melhorOferta ? (
-                        <span className="font-medium text-green-600">
-                          MT {cot.melhorOferta.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{new Date(cot.dataValidade).toLocaleDateString('pt-MZ')}</TableCell>
-                    <TableCell>
-                      <Badge variant={obterCorStatus(cot.status) as any} className="flex items-center w-fit">
-                        {obterIconeStatus(cot.status)}
-                        {cot.status.charAt(0).toUpperCase() + cot.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/procurement/cotacoes/${cot.id}`}>
-                            <Eye className="h-4 w-4" />
+                {cotacoesFiltradas.map((cot) => {
+                  const totalFornecedores = getTotalFornecedores(cot);
+                  const respostas = getFornecedoresRespondidos(cot);
+                  const melhorOferta = getMelhorOferta(cot);
+
+                  return (
+                    <TableRow key={cot.id}>
+                      <TableCell className="font-medium">{cot.numero}</TableCell>
+                      <TableCell>{new Date(cot.data).toLocaleDateString('pt-MZ')}</TableCell>
+                      <TableCell>
+                        {cot.requisicaoCompraId ? (
+                          <Link href={`/procurement/requisicoes/${cot.requisicaoCompraId}`} className="text-blue-600 hover:underline">
+                            {cot.requisicaoCompraId}
                           </Link>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{cot.itens.length}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-1">
+                          <Building className="h-4 w-4" />
+                          <span>{totalFornecedores}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={respostas === totalFornecedores && totalFornecedores > 0 ? 'default' : 'secondary'}>
+                          {respostas}/{totalFornecedores}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {melhorOferta !== null ? (
+                          <span className="font-medium text-green-600">
+                            MT {melhorOferta.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{new Date(cot.dataValidade).toLocaleDateString('pt-MZ')}</TableCell>
+                      <TableCell>
+                        <Badge variant={obterCorStatus(cot.status) as any} className="flex items-center w-fit">
+                          {obterIconeStatus(cot.status)}
+                          {cot.status.charAt(0).toUpperCase() + cot.status.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/procurement/cotacoes/${cot.id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
