@@ -194,6 +194,12 @@ const menuItems: MenuItem[] = [
     children: [
       { title: 'Dashboard', href: '/rh', icon: LayoutDashboard },
       { title: 'Colaboradores', href: '/rh/colaboradores', icon: Users },
+      { title: 'Assiduidade', href: '/rh/assiduidade', icon: Clock },
+      { title: 'Ausências', href: '/rh/ausencias', icon: UserX },
+      { title: 'Avaliações', href: '/rh/avaliacoes', icon: Award },
+      { title: 'Benefícios', href: '/rh/beneficios', icon: Heart },
+      { title: 'Documentos', href: '/rh/documentos', icon: FileText },
+      { title: 'Formações', href: '/rh/formacoes', icon: GraduationCap },
       { title: 'Payroll', href: '/rh/payroll', icon: DollarSign },
       { title: 'Férias', href: '/rh/ferias', icon: Calendar },
       { title: 'Recrutamento', href: '/rh/recrutamento', icon: Target }
