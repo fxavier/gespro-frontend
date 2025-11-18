@@ -1,10 +1,12 @@
 
 'use client';
 
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { SYSTEM_MODULES } from '@/data/system-modules';
 import { 
   Building2, 
   Users, 
@@ -199,6 +201,70 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Módulos do Sistema */}
+        <section className="mt-12 space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Bounded Contexts &amp; Módulos
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Mapeamento dos modelos TypeScript e módulos Spring Modulith com acesso rápido aos dashboards.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {SYSTEM_MODULES.map((module) => {
+              const Icon = module.icon;
+              return (
+                <Card key={module.id} className="flex flex-col">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className={`${module.accentColor} rounded-xl p-2 text-white`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{module.title}</CardTitle>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {module.springModule}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {module.typescriptModels.length} modelos
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      {module.description}
+                    </p>
+                    <div className="mt-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase dark:text-gray-400">
+                        Modelos TypeScript
+                      </p>
+                      <p className="text-sm text-gray-900 dark:text-gray-100">
+                        {module.typescriptModels.join(', ')}
+                      </p>
+                    </div>
+                    <ul className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                      {module.responsibilities.map((responsibility) => (
+                        <li key={responsibility} className="flex items-start space-x-2">
+                          <span className="mt-1 h-2 w-2 rounded-full bg-blue-500 dark:bg-blue-400" />
+                          <span>{responsibility}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Button asChild variant="outline" className="mt-6 w-full">
+                      <Link href={module.dashboardPath}>Abrir Dashboard</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
       </main>
     </div>
   );
