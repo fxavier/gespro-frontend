@@ -53,6 +53,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { MovimentacaoAtivo, TipoMovimentacao } from '@/types/inventario';
+import { movimentacoesMock } from '@/data/movimentacoes';
 
 export default function MovimentacoesPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,126 +62,8 @@ export default function MovimentacoesPage() {
   const [localizacaoFilter, setLocalizacaoFilter] = useState<string>('todos');
 
   // Dados de exemplo
-  const movimentacoes: MovimentacaoAtivo[] = [
-    {
-      id: '1',
-      ativoId: '1',
-      ativoNome: 'Computador Dell OptiPlex 3090',
-      tipo: 'transferencia',
-      localizacaoOrigem: '1',
-      localizacaoOrigemNome: 'Armazém Principal',
-      localizacaoDestino: '3',
-      localizacaoDestinoNome: 'Departamento de TI',
-      responsavelOrigem: 'Almoxarife',
-      responsavelOrigemNome: 'Pedro Silva',
-      responsavelDestino: '1',
-      responsavelDestinoNome: 'Carlos Fernandes',
-      dataMovimentacao: new Date('2024-01-15'),
-      motivo: 'Alocação para novo funcionário do TI',
-      observacoes: 'Equipamento testado e funcionando corretamente',
-      guiaMovimentacao: 'GM-2024-001',
-      confirmada: true,
-      dataConfirmacao: new Date('2024-01-15'),
-      confirmdadaPor: 'Carlos Fernandes',
-      criadoEm: new Date('2024-01-15'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '2',
-      ativoId: '2',
-      ativoNome: 'Portátil Lenovo ThinkPad E15',
-      tipo: 'emprestimo',
-      localizacaoOrigem: '2',
-      localizacaoOrigemNome: 'Escritório Central',
-      responsavelOrigem: '2',
-      responsavelOrigemNome: 'Maria Santos',
-      responsavelDestino: '6',
-      responsavelDestinoNome: 'João Costa',
-      dataMovimentacao: new Date('2024-01-20'),
-      dataPrevisaoDevolucao: new Date('2024-02-20'),
-      motivo: 'Trabalho temporário em projeto externo',
-      observacoes: 'Empréstimo por 30 dias',
-      guiaMovimentacao: 'GM-2024-002',
-      confirmada: false,
-      criadoEm: new Date('2024-01-20'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '3',
-      ativoId: '4',
-      ativoNome: 'Impressora HP LaserJet Pro',
-      tipo: 'entrada',
-      localizacaoDestino: '2',
-      localizacaoDestinoNome: 'Escritório Central',
-      responsavelDestino: '4',
-      responsavelDestinoNome: 'Ana Costa',
-      dataMovimentacao: new Date('2023-06-01'),
-      motivo: 'Aquisição nova - Compra HP Store',
-      observacoes: 'Equipamento novo, ainda na garantia',
-      guiaMovimentacao: 'GM-2023-015',
-      confirmada: true,
-      dataConfirmacao: new Date('2023-06-01'),
-      confirmdadaPor: 'Ana Costa',
-      criadoEm: new Date('2023-06-01'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '4',
-      ativoId: '5',
-      ativoNome: 'Mesa de Escritório Executive',
-      tipo: 'devolucao',
-      localizacaoOrigem: '4',
-      localizacaoOrigemNome: 'Sala Diretoria',
-      localizacaoDestino: '6',
-      localizacaoDestinoNome: 'Sala de Conferências',
-      responsavelOrigem: '7',
-      responsavelOrigemNome: 'Diretor Geral',
-      responsavelDestino: '5',
-      responsavelDestinoNome: 'Sofia Nunes',
-      dataMovimentacao: new Date('2024-01-25'),
-      motivo: 'Fim do período de uso exclusivo',
-      observacoes: 'Mesa devolvida em bom estado',
-      guiaMovimentacao: 'GM-2024-003',
-      confirmada: true,
-      dataConfirmacao: new Date('2024-01-25'),
-      confirmdadaPor: 'Sofia Nunes',
-      criadoEm: new Date('2024-01-25'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '5',
-      ativoId: '8',
-      ativoNome: 'Servidor Dell PowerEdge',
-      tipo: 'baixa',
-      localizacaoOrigem: '7',
-      localizacaoOrigemNome: 'Área Técnica',
-      dataMovimentacao: new Date('2024-01-30'),
-      motivo: 'Equipamento obsoleto - fim da vida útil',
-      observacoes: 'Disco rígido destruído conforme política de segurança',
-      guiaMovimentacao: 'GM-2024-004',
-      confirmada: false,
-      criadoEm: new Date('2024-01-30'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '6',
-      ativoId: '9',
-      ativoNome: 'Cadeira Ergonômica Office Pro',
-      tipo: 'ajuste',
-      localizacaoOrigem: '2',
-      localizacaoOrigemNome: 'Escritório Central',
-      localizacaoDestino: '2',
-      localizacaoDestinoNome: 'Escritório Central',
-      dataMovimentacao: new Date('2024-02-01'),
-      motivo: 'Ajuste de inventário após auditoria',
-      observacoes: 'Correção de localização no sistema',
-      confirmada: true,
-      dataConfirmacao: new Date('2024-02-01'),
-      confirmdadaPor: 'Auditor',
-      criadoEm: new Date('2024-02-01'),
-      criadoPor: 'admin'
-    }
-  ];
+  const movimentacoes: MovimentacaoAtivo[] = movimentacoesMock;
+
 
   const localizacoes = [
     { id: '1', nome: 'Armazém Principal' },
