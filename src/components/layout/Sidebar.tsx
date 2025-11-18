@@ -326,9 +326,9 @@ export default function Sidebar() {
               </Badge>
             )}
             {isExpanded ? (
-              <ChevronDown className="ml-2 h-4 w-4 flex-shrink-0" />
+              <ChevronDown className="ml-2 h-4 w-4 flex-shrink-0 text-[#1877F2] group-hover:text-white" />
             ) : (
-              <ChevronRight className="ml-2 h-4 w-4 flex-shrink-0" />
+              <ChevronRight className="ml-2 h-4 w-4 flex-shrink-0 text-[#1877F2] group-hover:text-white" />
             )}
           </Button>
           
