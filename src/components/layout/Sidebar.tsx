@@ -402,7 +402,7 @@ export default function Sidebar() {
         {!isCollapsed && (
           <Link href="/dashboard" className="flex items-center space-x-2">
             <Store className="h-6 w-6" />
-            <span className="text-lg font-semibold">Sistema ERP</span>
+            <span className="text-lg font-semibold">GesPro ERP</span>
           </Link>
         )}
         <Button
@@ -428,8 +428,8 @@ export default function Sidebar() {
       {!isCollapsed && (
         <div className="border-t border-border/50 p-4">
           <div className="text-xs text-muted-foreground text-center">
-            <p>Sistema ERP v1.0</p>
-            <p>© 2024 Todos os direitos reservados</p>
+            <p>GesPro ERP v1.0</p>
+            <p>© 2025 Todos os direitos reservados</p>
           </div>
         </div>
       )}
