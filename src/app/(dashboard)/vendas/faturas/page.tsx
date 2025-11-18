@@ -239,8 +239,10 @@ export default function FaturacaoPage() {
                     <TableCell>{statusBadge(fatura.statusFatura)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Eye className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" asChild>
+                          <Link href={`/vendas/faturas/${fatura.id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
                         </Button>
                         <Button variant="ghost" size="icon">
                           <Download className="h-4 w-4" />
