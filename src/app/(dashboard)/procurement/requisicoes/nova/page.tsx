@@ -24,6 +24,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import type { RequisicaoCompra, ItemRequisicao } from '@/types/procurement';
+import { loadRequisicoes, saveRequisicoes } from '@/lib/storage/requisicao-storage';
 
 export default function NovaRequisicaoPage() {
   const router = useRouter();
@@ -142,7 +143,7 @@ export default function NovaRequisicaoPage() {
     setSalvando(true);
 
     try {
-      const requisicoes = JSON.parse(localStorage.getItem('requisicoes') || '[]');
+      const requisicoes = loadRequisicoes();
       
       const novaRequisicao: RequisicaoCompra = {
         id: `REQ-${Date.now()}`,
@@ -166,7 +167,7 @@ export default function NovaRequisicaoPage() {
       };
 
       requisicoes.push(novaRequisicao);
-      localStorage.setItem('requisicoes', JSON.stringify(requisicoes));
+      saveRequisicoes(requisicoes);
 
       toast.success(
         status === 'rascunho' 

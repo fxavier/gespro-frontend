@@ -23,10 +23,12 @@ import {
   Clock
 } from 'lucide-react';
 import type { RequisicaoCompra, ItemRequisicao } from '@/types/procurement';
+import { loadRequisicoes, saveRequisicoes } from '@/lib/storage/requisicao-storage';
 
 export default function EditarRequisicaoPage() {
   const router = useRouter();
   const params = useParams();
+  const requisicaoId = (Array.isArray(params.id) ? params.id[0] : params.id) || '';
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
@@ -63,42 +65,44 @@ export default function EditarRequisicaoPage() {
   ];
 
   useEffect(() => {
-    carregarRequisicao();
-  }, [params.id]);
+    const carregarRequisicao = () => {
+      try {
+        const requisicoes = loadRequisicoes();
+        const req = requisicoes.find((r: RequisicaoCompra) => r.id === requisicaoId);
+        
+        if (req) {
+          if (req.status !== 'rascunho' && req.status !== 'pendente') {
+            toast.error('Esta requisição não pode ser editada');
+            router.push(`/procurement/requisicoes/${requisicaoId}`);
+            return;
+          }
 
-  const carregarRequisicao = () => {
-    try {
-      const requisicoes = JSON.parse(localStorage.getItem('requisicoes') || '[]');
-      const req = requisicoes.find((r: RequisicaoCompra) => r.id === params.id);
-      
-      if (req) {
-        if (req.status !== 'rascunho' && req.status !== 'pendente') {
-          toast.error('Esta requisição não pode ser editada');
-          router.push(`/procurement/requisicoes/${params.id}`);
-          return;
+          setFormData({
+            solicitanteNome: req.solicitanteNome,
+            departamento: req.departamento,
+            prioridade: req.prioridade,
+            justificativa: req.justificativa,
+            observacoes: req.observacoes || '',
+            dataEntregaDesejada: req.dataEntregaDesejada || '',
+            centroCustoId: req.centroCustoId || ''
+          });
+          setItens(req.itens);
+        } else {
+          toast.error('Requisição não encontrada');
+          router.push('/procurement/requisicoes');
         }
-
-        setFormData({
-          solicitanteNome: req.solicitanteNome,
-          departamento: req.departamento,
-          prioridade: req.prioridade,
-          justificativa: req.justificativa,
-          observacoes: req.observacoes || '',
-          dataEntregaDesejada: req.dataEntregaDesejada || '',
-          centroCustoId: req.centroCustoId || ''
-        });
-        setItens(req.itens);
-      } else {
-        toast.error('Requisição não encontrada');
-        router.push('/procurement/requisicoes');
+      } catch (error) {
+        toast.error('Erro ao carregar requisição');
+        console.error(error);
+      } finally {
+        setCarregando(false);
       }
-    } catch (error) {
-      toast.error('Erro ao carregar requisição');
-      console.error(error);
-    } finally {
-      setCarregando(false);
+    };
+
+    if (requisicaoId) {
+      carregarRequisicao();
     }
-  };
+  }, [requisicaoId, router]);
 
   const adicionarItem = () => {
     const novoItem: ItemRequisicao = {
@@ -171,8 +175,8 @@ export default function EditarRequisicaoPage() {
     setSalvando(true);
 
     try {
-      const requisicoes = JSON.parse(localStorage.getItem('requisicoes') || '[]');
-      const index = requisicoes.findIndex((r: RequisicaoCompra) => r.id === params.id);
+      const requisicoes = loadRequisicoes();
+      const index = requisicoes.findIndex((r: RequisicaoCompra) => r.id === requisicaoId);
       
       if (index === -1) {
         toast.error('Requisição não encontrada');
@@ -194,7 +198,7 @@ export default function EditarRequisicaoPage() {
       };
 
       requisicoes[index] = requisicaoAtualizada;
-      localStorage.setItem('requisicoes', JSON.stringify(requisicoes));
+      saveRequisicoes(requisicoes);
 
       toast.success(
         status === 'rascunho' 
@@ -203,7 +207,7 @@ export default function EditarRequisicaoPage() {
       );
 
       setTimeout(() => {
-        router.push(`/procurement/requisicoes/${params.id}`);
+        router.push(`/procurement/requisicoes/${requisicaoId}`);
       }, 1000);
 
     } catch (error) {

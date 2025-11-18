@@ -28,43 +28,47 @@ import {
   History
 } from 'lucide-react';
 import type { RequisicaoCompra } from '@/types/procurement';
+import { loadRequisicoes, saveRequisicoes } from '@/lib/storage/requisicao-storage';
 
 export default function DetalhesRequisicaoPage() {
   const router = useRouter();
   const params = useParams();
+  const requisicaoId = (Array.isArray(params.id) ? params.id[0] : params.id) || '';
   const [requisicao, setRequisicao] = useState<RequisicaoCompra | null>(null);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    carregarRequisicao();
-  }, [params.id]);
-
-  const carregarRequisicao = () => {
-    try {
-      const requisicoes = JSON.parse(localStorage.getItem('requisicoes') || '[]');
-      const req = requisicoes.find((r: RequisicaoCompra) => r.id === params.id);
-      
-      if (req) {
-        setRequisicao(req);
-      } else {
-        toast.error('Requisição não encontrada');
-        router.push('/procurement/requisicoes');
+    const carregarRequisicao = () => {
+      try {
+        const requisicoes = loadRequisicoes();
+        const req = requisicoes.find((r: RequisicaoCompra) => r.id === requisicaoId);
+        
+        if (req) {
+          setRequisicao(req);
+        } else {
+          toast.error('Requisição não encontrada');
+          router.push('/procurement/requisicoes');
+        }
+      } catch (error) {
+        toast.error('Erro ao carregar requisição');
+        console.error(error);
+      } finally {
+        setCarregando(false);
       }
-    } catch (error) {
-      toast.error('Erro ao carregar requisição');
-      console.error(error);
-    } finally {
-      setCarregando(false);
+    };
+
+    if (requisicaoId) {
+      carregarRequisicao();
     }
-  };
+  }, [requisicaoId, router]);
 
   const excluirRequisicao = () => {
     if (!confirm('Tem certeza que deseja excluir esta requisição?')) return;
 
     try {
-      const requisicoes = JSON.parse(localStorage.getItem('requisicoes') || '[]');
-      const novasRequisicoes = requisicoes.filter((r: RequisicaoCompra) => r.id !== params.id);
-      localStorage.setItem('requisicoes', JSON.stringify(novasRequisicoes));
+      const requisicoes = loadRequisicoes();
+      const novasRequisicoes = requisicoes.filter((r: RequisicaoCompra) => r.id !== requisicaoId);
+      saveRequisicoes(novasRequisicoes);
       
       toast.success('Requisição excluída com sucesso');
       router.push('/procurement/requisicoes');
