@@ -26,84 +26,14 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { usePagination } from '@/hooks/usePagination';
+import { requisicoesComprasMock } from '@/data/requisicoes-compras';
 
 export default function ComprasRequisicoesPage() {
   const [termoPesquisa, setTermoPesquisa] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [prioridadeFiltro, setPrioridadeFiltro] = useState('todas');
 
-  const requisicoes = [
-    {
-      id: 'REQ-001',
-      numero: 'REQ-2024-001',
-      data: '2024-01-15',
-      solicitante: 'João Silva',
-      departamento: 'TI',
-      prioridade: 'alta',
-      status: 'em_aprovacao',
-      itens: 5,
-      valorTotal: 45000.00,
-      dataEntregaDesejada: '2024-02-01',
-      nivelAprovacao: 2,
-      totalNiveis: 3
-    },
-    {
-      id: 'REQ-002',
-      numero: 'REQ-2024-002',
-      data: '2024-01-14',
-      solicitante: 'Maria Santos',
-      departamento: 'Compras',
-      prioridade: 'media',
-      status: 'aprovada',
-      itens: 3,
-      valorTotal: 12500.00,
-      dataEntregaDesejada: '2024-01-25',
-      nivelAprovacao: 3,
-      totalNiveis: 3
-    },
-    {
-      id: 'REQ-003',
-      numero: 'REQ-2024-003',
-      data: '2024-01-13',
-      solicitante: 'Pedro Costa',
-      departamento: 'Manutenção',
-      prioridade: 'urgente',
-      status: 'pendente',
-      itens: 8,
-      valorTotal: 8900.00,
-      dataEntregaDesejada: '2024-01-20',
-      nivelAprovacao: 0,
-      totalNiveis: 2
-    },
-    {
-      id: 'REQ-004',
-      numero: 'REQ-2024-004',
-      data: '2024-01-12',
-      solicitante: 'Ana Oliveira',
-      departamento: 'Administrativo',
-      prioridade: 'baixa',
-      status: 'rejeitada',
-      itens: 2,
-      valorTotal: 3200.00,
-      dataEntregaDesejada: '2024-02-10',
-      nivelAprovacao: 1,
-      totalNiveis: 2
-    },
-    {
-      id: 'REQ-005',
-      numero: 'REQ-2024-005',
-      data: '2024-01-11',
-      solicitante: 'Carlos Mendes',
-      departamento: 'Produção',
-      prioridade: 'alta',
-      status: 'convertida',
-      itens: 12,
-      valorTotal: 67800.00,
-      dataEntregaDesejada: '2024-01-30',
-      nivelAprovacao: 3,
-      totalNiveis: 3
-    }
-  ];
+  const requisicoes = requisicoesComprasMock;
 
   const requisicoesFiltradas = requisicoes.filter(req => {
     const correspondeNome = req.numero.toLowerCase().includes(termoPesquisa.toLowerCase()) ||
