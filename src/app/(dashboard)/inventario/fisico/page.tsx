@@ -78,6 +78,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { InventarioFisico, StatusInventarioFisico } from '@/types/inventario';
+import { inventariosFisicosMock } from '@/data/inventarios-fisicos';
 
 export default function InventarioFisicoPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -87,91 +88,8 @@ export default function InventarioFisicoPage() {
   const [activeTab, setActiveTab] = useState('inventarios');
 
   // Dados de exemplo
-  const inventarios: InventarioFisico[] = [
-    {
-      id: '1',
-      codigo: 'INV-2024-001',
-      titulo: 'Inventário Anual 2024',
-      descricao: 'Inventário físico anual de todos os ativos da empresa',
-      status: 'em_andamento',
-      dataInicio: new Date('2024-01-15'),
-      dataPrevistaConclusao: new Date('2024-02-15'),
-      responsavelId: '1',
-      responsavelNome: 'Carlos Fernandes',
-      localizacaoId: undefined,
-      localizacaoNome: 'Todas as localizações',
-      totalItens: 247,
-      itensContados: 156,
-      itensPendentes: 91,
-      divergenciasEncontradas: 12,
-      observacoes: 'Inventário em progresso, sem grandes divergências até o momento',
-      criadoEm: new Date('2024-01-10'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '2',
-      codigo: 'INV-2024-002',
-      titulo: 'Auditoria TI - Q1',
-      descricao: 'Auditoria trimestral dos equipamentos de informática',
-      status: 'concluido',
-      dataInicio: new Date('2024-01-05'),
-      dataConclusao: new Date('2024-01-07'),
-      dataPrevistaConclusao: new Date('2024-01-10'),
-      responsavelId: '1',
-      responsavelNome: 'Carlos Fernandes',
-      localizacaoId: '3',
-      localizacaoNome: 'Departamento de TI',
-      totalItens: 45,
-      itensContados: 45,
-      itensPendentes: 0,
-      divergenciasEncontradas: 2,
-      relatorio: 'Encontradas 2 divergências: 1 computador não localizado (PC-015) e 1 impressora com número de série incorreto',
-      observacoes: 'Auditoria concluída com sucesso. Divergências documentadas e corrigidas.',
-      criadoEm: new Date('2024-01-02'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '3',
-      codigo: 'INV-2024-003',
-      titulo: 'Verificação Mobiliário',
-      descricao: 'Verificação do mobiliário das salas de conferência',
-      status: 'agendado',
-      dataInicio: new Date('2024-02-20'),
-      dataPrevistaConclusao: new Date('2024-02-22'),
-      responsavelId: '5',
-      responsavelNome: 'Sofia Nunes',
-      localizacaoId: '6',
-      localizacaoNome: 'Sala de Conferências',
-      totalItens: 25,
-      itensContados: 0,
-      itensPendentes: 25,
-      divergenciasEncontradas: 0,
-      observacoes: 'Inventário agendado para verificação do mobiliário após renovação',
-      criadoEm: new Date('2024-02-10'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '4',
-      codigo: 'INV-2023-015',
-      titulo: 'Inventário Veículos',
-      descricao: 'Inventário semestral da frota de veículos',
-      status: 'cancelado',
-      dataInicio: new Date('2023-12-01'),
-      dataPrevistaConclusao: new Date('2023-12-05'),
-      responsavelId: '3',
-      responsavelNome: 'João Silva',
-      localizacaoId: '1',
-      localizacaoNome: 'Armazém Principal',
-      totalItens: 8,
-      itensContados: 3,
-      itensPendentes: 5,
-      divergenciasEncontradas: 1,
-      motivoCancelamento: 'Falta de disponibilidade dos veículos em viagem',
-      observacoes: 'Cancelado devido a viagens não programadas. Reagendar para janeiro.',
-      criadoEm: new Date('2023-11-25'),
-      criadoPor: 'admin'
-    }
-  ];
+  const inventarios: InventarioFisico[] = inventariosFisicosMock;
+
 
   const localizacoes = [
     { id: '1', nome: 'Armazém Principal' },

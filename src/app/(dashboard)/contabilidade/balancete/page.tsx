@@ -1,88 +1,30 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { FileBarChart } from 'lucide-react';
-import { Balancete, LancamentoContabil, PlanoContas } from '@/types/contabilidade';
+import { Balancete } from '@/types/contabilidade';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import Link from 'next/link';
+import { gerarBalancetePeriodo } from '@/lib/contabilidade/balancete';
 
 export default function BalancetePage() {
   const [dataInicio, setDataInicio] = useState(new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]);
   const [dataFim, setDataFim] = useState(new Date().toISOString().split('T')[0]);
   const [balancete, setBalancete] = useState<Balancete | null>(null);
 
-  const gerarBalancete = () => {
-    const lancamentos: LancamentoContabil[] = JSON.parse(localStorage.getItem('lancamentos_contabeis') || '[]');
-    const contas: PlanoContas[] = JSON.parse(localStorage.getItem('plano_contas') || '[]');
-
-    const lancamentosFiltrados = lancamentos.filter(l => {
-      const dataLanc = new Date(l.data);
-      return dataLanc >= new Date(dataInicio) && dataLanc <= new Date(dataFim);
-    });
-
-    const movimentacoes = new Map<string, { debitos: number; creditos: number }>();
-
-    lancamentosFiltrados.forEach(lancamento => {
-      lancamento.partidas.forEach(partida => {
-        const current = movimentacoes.get(partida.contaId) || { debitos: 0, creditos: 0 };
-        
-        if (partida.tipo === 'debito') {
-          current.debitos += partida.valor;
-        } else {
-          current.creditos += partida.valor;
-        }
-        
-        movimentacoes.set(partida.contaId, current);
-      });
-    });
-
-    const contasBalancete = contas
-      .filter(c => c.aceitaLancamento)
-      .map(conta => {
-        const mov = movimentacoes.get(conta.id) || { debitos: 0, creditos: 0 };
-        const saldoAnterior = 0;
-        
-        let saldoAtual: number;
-        if (conta.natureza === 'devedora') {
-          saldoAtual = saldoAnterior + mov.debitos - mov.creditos;
-        } else {
-          saldoAtual = saldoAnterior + mov.creditos - mov.debitos;
-        }
-
-        return {
-          codigo: conta.codigo,
-          nome: conta.nome,
-          tipo: conta.tipo,
-          saldoAnterior,
-          debitos: mov.debitos,
-          creditos: mov.creditos,
-          saldoAtual
-        };
-      })
-      .filter(c => c.debitos > 0 || c.creditos > 0 || c.saldoAtual !== 0);
-
-    const totalDebitos = contasBalancete.reduce((sum, c) => sum + c.debitos, 0);
-    const totalCreditos = contasBalancete.reduce((sum, c) => sum + c.creditos, 0);
-
-    const balanceteGerado: Balancete = {
-      periodo: `${new Date(dataInicio).toLocaleDateString('pt-PT')} - ${new Date(dataFim).toLocaleDateString('pt-PT')}`,
-      dataInicio,
-      dataFim,
-      contas: contasBalancete,
-      totalDebitos,
-      totalCreditos
-    };
-
-    setBalancete(balanceteGerado);
-  };
+  const gerarBalancete = useCallback(() => {
+    const resultado = gerarBalancetePeriodo({ dataInicio, dataFim });
+    setBalancete(resultado);
+  }, [dataInicio, dataFim]);
 
   useEffect(() => {
     gerarBalancete();
-  }, []);
+  }, [gerarBalancete]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-MZ', {
@@ -129,6 +71,12 @@ export default function BalancetePage() {
               />
             </div>
             <Button onClick={gerarBalancete}>Gerar Balancete</Button>
+          </div>
+          <div className="mt-4 flex justify-between items-center text-sm text-muted-foreground">
+            <span>Precisa registrar um balancete oficial?</span>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/contabilidade/balancete/nova">Criar Balancete</Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

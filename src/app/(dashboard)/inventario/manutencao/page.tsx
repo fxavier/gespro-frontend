@@ -66,6 +66,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { ManutencaoAtivo, StatusManutencao, TipoManutencao } from '@/types/inventario';
+import { manutencoesMock } from '@/data/manutencoes';
 
 export default function ManutencaoPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,122 +76,8 @@ export default function ManutencaoPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Dados de exemplo
-  const manutencoes: ManutencaoAtivo[] = [
-    {
-      id: '1',
-      ativoId: '1',
-      ativoNome: 'Computador Dell OptiPlex 3090',
-      tipo: 'preventiva',
-      titulo: 'Limpeza e atualização mensal',
-      descricao: 'Limpeza interna, verificação de hardware e atualizações de software',
-      status: 'agendada',
-      prioridade: 'media',
-      dataAgendada: new Date('2024-02-15'),
-      responsavelId: '1',
-      responsavelNome: 'Carlos Fernandes',
-      custoEstimado: 500,
-      observacoes: 'Manutenção de rotina mensal',
-      criadoEm: new Date('2024-01-15'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '2',
-      ativoId: '4',
-      ativoNome: 'Impressora HP LaserJet Pro',
-      tipo: 'corretiva',
-      titulo: 'Reparo do sistema de alimentação de papel',
-      descricao: 'Impressora com problema de encravamento de papel constante',
-      status: 'em_andamento',
-      prioridade: 'alta',
-      dataAgendada: new Date('2024-01-20'),
-      dataInicio: new Date('2024-01-20'),
-      responsavelId: '3',
-      responsavelNome: 'João Silva',
-      custoEstimado: 1200,
-      custoReal: 850,
-      fornecedorId: '4',
-      fornecedorNome: 'HP Store',
-      observacoes: 'Problemas recorrentes desde dezembro',
-      criadoEm: new Date('2024-01-18'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '3',
-      ativoId: '3',
-      ativoNome: 'Toyota Hilux 2022',
-      tipo: 'preventiva',
-      titulo: 'Revisão dos 15.000 km',
-      descricao: 'Revisão programada conforme manual do fabricante',
-      status: 'concluida',
-      prioridade: 'media',
-      dataAgendada: new Date('2023-12-01'),
-      dataInicio: new Date('2023-12-01'),
-      dataConclusao: new Date('2023-12-01'),
-      responsavelId: '5',
-      responsavelNome: 'Oficina Toyota',
-      custoEstimado: 3500,
-      custoReal: 3200,
-      fornecedorId: '3',
-      fornecedorNome: 'Toyota Moçambique',
-      relatorio: 'Veículo em excelentes condições. Trocados óleo, filtros e verificações gerais.',
-      proximaManutencao: new Date('2024-06-01'),
-      criadoEm: new Date('2023-11-15'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '4',
-      ativoId: '8',
-      ativoNome: 'Servidor Dell PowerEdge',
-      tipo: 'corretiva',
-      titulo: 'Substituição de disco rígido',
-      descricao: 'Disco rígido apresentando setores defeituosos',
-      status: 'cancelada',
-      prioridade: 'critica',
-      dataAgendada: new Date('2024-01-30'),
-      responsavelId: '1',
-      responsavelNome: 'Carlos Fernandes',
-      custoEstimado: 8000,
-      motivoCancelamento: 'Equipamento será substituído por um novo servidor',
-      observacoes: 'Cancelada devido ao fim da vida útil do equipamento',
-      criadoEm: new Date('2024-01-28'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '5',
-      ativoId: '5',
-      ativoNome: 'Mesa de Escritório Executive',
-      tipo: 'preventiva',
-      titulo: 'Vistoria semestral',
-      descricao: 'Verificação de estrutura e ajustes necessários',
-      status: 'agendada',
-      prioridade: 'baixa',
-      dataAgendada: new Date('2024-03-01'),
-      responsavelId: '7',
-      responsavelNome: 'Equipe de Manutenção',
-      custoEstimado: 200,
-      criadoEm: new Date('2024-02-01'),
-      criadoPor: 'admin'
-    },
-    {
-      id: '6',
-      ativoId: '2',
-      ativoNome: 'Portátil Lenovo ThinkPad E15',
-      tipo: 'corretiva',
-      titulo: 'Reparo da tela danificada',
-      descricao: 'Tela com rachaduras após queda acidental',
-      status: 'orcamento',
-      prioridade: 'alta',
-      dataAgendada: new Date('2024-02-20'),
-      responsavelId: '2',
-      responsavelNome: 'Maria Santos',
-      custoEstimado: 4500,
-      fornecedorId: '2',
-      fornecedorNome: 'Lenovo Store',
-      observacoes: 'Aguardando aprovação de orçamento',
-      criadoEm: new Date('2024-02-05'),
-      criadoPor: 'admin'
-    }
-  ];
+  const manutencoes: ManutencaoAtivo[] = manutencoesMock;
+
 
   const filteredManutencoes = manutencoes.filter(manutencao => {
     const matchesSearch = 

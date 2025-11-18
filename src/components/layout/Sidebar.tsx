@@ -156,6 +156,7 @@ const menuItems: MenuItem[] = [
       { title: 'Plano de Contas', href: '/contabilidade/plano-contas', icon: BookOpen },
       { title: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText },
       { title: 'Reconciliação', href: '/contabilidade/reconciliacao', icon: Landmark },
+      { title: 'Balancete', href: '/contabilidade/balancete', icon: FileBarChart },
       { title: 'Faturação', href: '/faturacao/dashboard', icon: Receipt },
       { title: 'Relatórios', href: '/contabilidade/dre', icon: BarChart3 }
     ]
@@ -167,6 +168,9 @@ const menuItems: MenuItem[] = [
       { title: 'Dashboard Vendas', href: '/vendas/dashboard', icon: LayoutDashboard },
       { title: 'Pedidos', href: '/vendas/pedidos', icon: ShoppingCart },
       { title: 'POS', href: '/pos', icon: Store },
+      { title: 'Faturas', href: '/vendas/faturas', icon: Receipt },
+      { title: 'Notas de Crédito', href: '/vendas/notas-credito', icon: RotateCcw },
+      { title: 'Notas de Débito', href: '/vendas/notas-debito', icon: AlertCircle },
       { title: 'Vendedores', href: '/vendas/vendedores', icon: Users },
       { title: 'Comissões', href: '/vendas/comissoes', icon: DollarSign },
       { title: 'Histórico', href: '/vendas/historico', icon: History },
