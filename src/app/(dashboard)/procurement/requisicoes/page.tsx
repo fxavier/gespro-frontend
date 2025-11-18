@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,90 +23,27 @@ import {
   FileText,
   TrendingUp
 } from 'lucide-react';
+import type { RequisicaoCompra } from '@/types/procurement';
+import { loadRequisicoes } from '@/lib/storage/requisicao-storage';
 
 export default function RequisicoesCompraPage() {
   const [termoPesquisa, setTermoPesquisa] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [prioridadeFiltro, setPrioridadeFiltro] = useState('todas');
+  const [requisicoes, setRequisicoes] = useState<RequisicaoCompra[]>([]);
+  const [carregando, setCarregando] = useState(true);
 
-  // Dados mock das requisições
-  const requisicoes = [
-    {
-      id: 'REQ-001',
-      numero: 'REQ-2024-001',
-      data: '2024-01-15',
-      solicitante: 'João Silva',
-      departamento: 'TI',
-      prioridade: 'alta',
-      status: 'em_aprovacao',
-      itens: 5,
-      valorTotal: 45000.00,
-      dataEntregaDesejada: '2024-02-01',
-      nivelAprovacao: 2,
-      totalNiveis: 3
-    },
-    {
-      id: 'REQ-002',
-      numero: 'REQ-2024-002',
-      data: '2024-01-14',
-      solicitante: 'Maria Santos',
-      departamento: 'Compras',
-      prioridade: 'media',
-      status: 'aprovada',
-      itens: 3,
-      valorTotal: 12500.00,
-      dataEntregaDesejada: '2024-01-25',
-      nivelAprovacao: 3,
-      totalNiveis: 3
-    },
-    {
-      id: 'REQ-003',
-      numero: 'REQ-2024-003',
-      data: '2024-01-13',
-      solicitante: 'Pedro Costa',
-      departamento: 'Manutenção',
-      prioridade: 'urgente',
-      status: 'pendente',
-      itens: 8,
-      valorTotal: 8900.00,
-      dataEntregaDesejada: '2024-01-20',
-      nivelAprovacao: 0,
-      totalNiveis: 2
-    },
-    {
-      id: 'REQ-004',
-      numero: 'REQ-2024-004',
-      data: '2024-01-12',
-      solicitante: 'Ana Oliveira',
-      departamento: 'Administrativo',
-      prioridade: 'baixa',
-      status: 'rejeitada',
-      itens: 2,
-      valorTotal: 3200.00,
-      dataEntregaDesejada: '2024-02-10',
-      nivelAprovacao: 1,
-      totalNiveis: 2
-    },
-    {
-      id: 'REQ-005',
-      numero: 'REQ-2024-005',
-      data: '2024-01-11',
-      solicitante: 'Carlos Mendes',
-      departamento: 'Produção',
-      prioridade: 'alta',
-      status: 'convertida',
-      itens: 12,
-      valorTotal: 67800.00,
-      dataEntregaDesejada: '2024-01-30',
-      nivelAprovacao: 3,
-      totalNiveis: 3
-    }
-  ];
+  useEffect(() => {
+    const dados = loadRequisicoes();
+    setRequisicoes(dados);
+    setCarregando(false);
+  }, []);
 
   const requisicoesFiltradas = requisicoes.filter(req => {
-    const correspondeNome = req.numero.toLowerCase().includes(termoPesquisa.toLowerCase()) ||
-                           req.solicitante.toLowerCase().includes(termoPesquisa.toLowerCase()) ||
-                           req.departamento.toLowerCase().includes(termoPesquisa.toLowerCase());
+    const termo = termoPesquisa.toLowerCase();
+    const correspondeNome = req.numero.toLowerCase().includes(termo) ||
+                           (req.solicitanteNome || '').toLowerCase().includes(termo) ||
+                           req.departamento.toLowerCase().includes(termo);
     const correspondeStatus = statusFiltro === 'todos' || req.status === statusFiltro;
     const correspondePrioridade = prioridadeFiltro === 'todas' || req.prioridade === prioridadeFiltro;
     
@@ -154,8 +91,19 @@ export default function RequisicoesCompraPage() {
     total: requisicoes.length,
     pendentes: requisicoes.filter(r => r.status === 'pendente' || r.status === 'em_aprovacao').length,
     aprovadas: requisicoes.filter(r => r.status === 'aprovada').length,
-    valorTotal: requisicoes.reduce((total, r) => total + r.valorTotal, 0)
+    valorTotal: requisicoes.reduce((total, r) => total + (r.valorTotal || 0), 0)
   };
+
+  if (carregando) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <div className="text-center">
+          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4 animate-spin" />
+          <p className="text-gray-500">Carregando requisições...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -305,51 +253,61 @@ export default function RequisicoesCompraPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {requisicoesFiltradas.map((req) => (
-                  <TableRow key={req.id}>
-                    <TableCell className="font-medium">{req.numero}</TableCell>
-                    <TableCell>{new Date(req.data).toLocaleDateString('pt-MZ')}</TableCell>
-                    <TableCell>{req.solicitante}</TableCell>
-                    <TableCell>{req.departamento}</TableCell>
-                    <TableCell>
-                      <Badge className={obterCorPrioridade(req.prioridade)}>
-                        {req.prioridade.charAt(0).toUpperCase() + req.prioridade.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{req.itens}</TableCell>
-                    <TableCell className="font-medium">
-                      MT {req.valorTotal.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell>{new Date(req.dataEntregaDesejada).toLocaleDateString('pt-MZ')}</TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {req.nivelAprovacao}/{req.totalNiveis}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={obterCorStatus(req.status) as any} className="flex items-center w-fit">
-                        {obterIconeStatus(req.status)}
-                        {req.status.replace('_', ' ').charAt(0).toUpperCase() + req.status.replace('_', ' ').slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/procurement/requisicoes/${req.id}`}>
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        {(req.status === 'rascunho' || req.status === 'pendente') && (
+                {requisicoesFiltradas.map((req) => {
+                  const aprovados = req.aprovacoes?.filter((aprovacao) => aprovacao.status === 'aprovado').length ?? 0;
+                  const totalNiveis = req.aprovacoes?.length ?? 0;
+                  const statusLabel = req.status.replace(/_/g, ' ');
+
+                  return (
+                    <TableRow key={req.id}>
+                      <TableCell className="font-medium">{req.numero}</TableCell>
+                      <TableCell>{new Date(req.data).toLocaleDateString('pt-MZ')}</TableCell>
+                      <TableCell>{req.solicitanteNome}</TableCell>
+                      <TableCell>{req.departamento}</TableCell>
+                      <TableCell>
+                        <Badge className={obterCorPrioridade(req.prioridade)}>
+                          {req.prioridade.charAt(0).toUpperCase() + req.prioridade.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{req.itens.length}</TableCell>
+                      <TableCell className="font-medium">
+                        MT {(req.valorTotal || 0).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        {req.dataEntregaDesejada
+                          ? new Date(req.dataEntregaDesejada).toLocaleDateString('pt-MZ')
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {aprovados}/{totalNiveis}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={obterCorStatus(req.status) as any} className="flex items-center w-fit">
+                          {obterIconeStatus(req.status)}
+                          {statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
                           <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/procurement/requisicoes/${req.id}/editar`}>
-                              <Edit className="h-4 w-4" />
+                            <Link href={`/procurement/requisicoes/${req.id}`}>
+                              <Eye className="h-4 w-4" />
                             </Link>
                           </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          {(req.status === 'rascunho' || req.status === 'pendente') && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href={`/procurement/requisicoes/${req.id}/editar`}>
+                                <Edit className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
