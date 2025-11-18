@@ -14,6 +14,7 @@ import {
   Package,
   Users,
   Building,
+  Building2,
   FileText,
   Receipt,
   BarChart3,
@@ -80,7 +81,10 @@ import {
   Calculator as CalcIcon,
   Gauge,
   ShieldCheck,
-  FileBarChart2
+  FileBarChart2,
+  PackageSearch,
+  History,
+  LineChart
 } from 'lucide-react';
 import {
   Tooltip,
@@ -104,230 +108,137 @@ const menuItems: MenuItem[] = [
     icon: LayoutDashboard,
   },
   {
-    title: 'POS',
-    href: '/pos',
-    icon: ShoppingCart,
-    badge: 'Novo'
+    title: 'Core Tenancy & Shared Kernel',
+    icon: Building2,
+    children: [{ title: 'Dashboard', href: '/core-tenancy', icon: LayoutDashboard }]
   },
   {
-    title: 'Vendas',
-    icon: TrendingUp,
-    children: [
-      { title: 'Dashboard', href: '/vendas', icon: LayoutDashboard },
-      { title: 'Pedidos', href: '/vendas/pedidos', icon: ShoppingCart, badge: 'Novo' },
-      { title: 'Vendedores', href: '/vendas/vendedores', icon: Users, badge: 'Novo' },
-      { title: 'Comissões', href: '/vendas/comissoes', icon: DollarSign, badge: 'Novo' },
-      { title: 'Histórico de Vendas', href: '/vendas/historico', icon: TrendingUp },
-      { title: 'Devoluções', href: '/vendas/devolucoes', icon: RotateCcw },
-      { title: 'Trocas', href: '/vendas/trocas', icon: RefreshCw }
-    ]
-  },
-  {
-    title: 'Compras',
-    icon: ShoppingBag,
-    children: [
-      { title: 'Dashboard', href: '/compras', icon: LayoutDashboard },
-      { title: 'Pedidos de Compra', href: '/compras/pedidos', icon: ShoppingCart },
-      { title: 'Ordens de Compra', href: '/compras/ordens', icon: FileCheck }
-    ]
-  },
-  {
-    title: 'Stock',
-    icon: Package,
-    badge: 'Novo',
-    children: [
-      { title: 'Dashboard', href: '/stock', icon: LayoutDashboard },
-      { title: 'Produtos', href: '/produtos', icon: Package },
-      { title: 'Movimentação', href: '/stock/movimentacao', icon: PackageOpen },
-      { title: 'Reposição', href: '/stock/reposicao', icon: PackagePlus }
-    ]
-  },
-  {
-    title: 'Clientes',
+    title: 'CRM – Clientes',
     icon: Users,
     children: [
-      { title: 'Dashboard', href: '/clientes', icon: LayoutDashboard },
-      { title: 'Lista de Clientes', href: '/clientes/lista', icon: Users }
+      { title: 'Dashboard', href: '/clientes/dashboard', icon: LayoutDashboard },
+      { title: 'Clientes', href: '/clientes', icon: Users },
+      { title: 'Segmentação', href: '/clientes/segmentacao', icon: PieChart },
+      { title: 'Relatórios', href: '/clientes/relatorios', icon: FileText }
     ]
   },
   {
-    title: 'Fornecedores',
-    icon: Building,
+    title: 'Fornecedores & Procurement',
+    icon: PackageSearch,
     children: [
-      { title: 'Dashboard', href: '/fornecedores', icon: LayoutDashboard },
-      { title: 'Lista de Fornecedores', href: '/fornecedores/lista', icon: Building },
-      { title: 'Contas a Pagar', href: '/fornecedores/contas-pagar', icon: CreditCard }
-    ]
-  },
-  {
-    title: 'Procurement',
-    icon: ShoppingBag,
-    badge: 'Novo',
-    children: [
-      { title: 'Dashboard', href: '/procurement', icon: LayoutDashboard },
-      { title: 'Requisições de Compra', href: '/procurement/requisicoes', icon: ClipboardList },
+      { title: 'Dashboard Procurement', href: '/procurement', icon: LayoutDashboard },
+      { title: 'Dashboard Fornecedores', href: '/fornecedores/dashboard', icon: LayoutDashboard },
+      { title: 'Fornecedores', href: '/fornecedores', icon: Building },
+      { title: 'Requisições', href: '/procurement/requisicoes', icon: ClipboardList },
       { title: 'Cotações', href: '/procurement/cotacoes', icon: FileText },
-      { title: 'Pedidos de Compra', href: '/procurement/pedidos', icon: FileCheck },
-      { title: 'Recebimentos', href: '/procurement/recebimentos', icon: Truck },
-      { title: 'Aprovações', href: '/procurement/aprovacoes', icon: UserCheck }
+      { title: 'Pedidos de Compra', href: '/procurement/pedidos', icon: FileCheck }
     ]
   },
   {
-    title: 'Faturação',
-    icon: FileText,
-    children: [
-      { title: 'Dashboard', href: '/faturacao/dashboard', icon: LayoutDashboard },
-      { title: 'Faturas', href: '/faturacao', icon: Receipt },
-      { title: 'Nova Fatura', href: '/faturacao/nova', icon: FileText },
-      { title: 'Nota de Crédito', href: '/faturacao/nota-credito', icon: FileMinus },
-      { title: 'Cotações', href: '/faturacao/cotacoes', icon: FileText },
-      { title: 'Fatura Proforma', href: '/faturacao/proforma', icon: FileBarChart }
-    ]
-  },
-  {
-    title: 'Inventário',
-    icon: Archive,
-    badge: 'Novo',
+    title: 'Inventário & Ativos',
+    icon: Factory,
     children: [
       { title: 'Dashboard', href: '/inventario', icon: LayoutDashboard },
-      { title: 'Ativos', href: '/inventario/ativos', icon: Package, badge: 'Novo' },
-      { title: 'Localizações', href: '/inventario/localizacoes', icon: MapPin, badge: 'Novo' },
-      { title: 'Movimentações', href: '/inventario/movimentacoes', icon: ArrowRightLeft, badge: 'Novo' },
-      { title: 'Categorias', href: '/inventario/categorias', icon: Layers, badge: 'Novo' },
-      { title: 'Manutenção', href: '/inventario/manutencao', icon: Wrench, badge: 'Novo' },
-      { title: 'Amortização', href: '/inventario/amortizacao', icon: Calculator, badge: 'Novo' },
-      { title: 'Inventário Físico', href: '/inventario/fisico', icon: ClipboardList, badge: 'Novo' },
-      { title: 'Relatórios', href: '/inventario/relatorios', icon: FileSpreadsheet, badge: 'Novo' },
-      { title: 'Abate de Stock', href: '/inventario/abate', icon: Minus },
-      { title: 'Transferências', href: '/inventario/transferencias', icon: ArrowRightLeft },
-      { title: 'Reconciliação', href: '/inventario/reconciliacao', icon: RefreshCw }
+      { title: 'Produtos', href: '/produtos', icon: Package },
+      { title: 'Ativos', href: '/inventario/ativos', icon: Archive },
+      { title: 'Movimentações', href: '/inventario/movimentacoes', icon: ArrowRightLeft },
+      { title: 'Inventário Físico', href: '/inventario/fisico', icon: ClipboardList },
+      { title: 'Manutenção', href: '/inventario/manutencao', icon: Wrench }
     ]
   },
   {
-    title: 'Transporte',
-    icon: Truck,
-    badge: 'Novo',
+    title: 'Finanças & Contabilidade',
+    icon: Landmark,
     children: [
-      { title: 'Dashboard', href: '/transporte', icon: LayoutDashboard },
-      { title: 'Veículos', href: '/transporte/veiculos', icon: Truck },
-      { title: 'Motoristas', href: '/transporte/motoristas', icon: User },
-      { title: 'Rotas', href: '/transporte/rotas', icon: MapPin },
-      { title: 'Entregas', href: '/transporte/entregas', icon: Package },
-      { title: 'Manutenção', href: '/transporte/manutencao', icon: Wrench },
-      { title: 'Combustível', href: '/transporte/combustivel', icon: Fuel }
+      { title: 'Dashboard', href: '/contabilidade', icon: LayoutDashboard },
+      { title: 'Plano de Contas', href: '/contabilidade/plano-contas', icon: BookOpen },
+      { title: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText },
+      { title: 'Reconciliação', href: '/contabilidade/reconciliacao', icon: Landmark },
+      { title: 'Faturação', href: '/faturacao/dashboard', icon: Receipt },
+      { title: 'Relatórios', href: '/contabilidade/dre', icon: BarChart3 }
     ]
   },
   {
-    title: 'Gestão de Projetos',
-    icon: FolderKanban,
-    badge: 'Novo',
+    title: 'Vendas & POS',
+    icon: ShoppingCart,
+    children: [
+      { title: 'Dashboard Vendas', href: '/vendas/dashboard', icon: LayoutDashboard },
+      { title: 'Pedidos', href: '/vendas/pedidos', icon: ShoppingCart },
+      { title: 'POS', href: '/pos', icon: Store },
+      { title: 'Vendedores', href: '/vendas/vendedores', icon: Users },
+      { title: 'Comissões', href: '/vendas/comissoes', icon: DollarSign },
+      { title: 'Histórico', href: '/vendas/historico', icon: History },
+      { title: 'Devoluções', href: '/vendas/devolucoes', icon: RotateCcw }
+    ]
+  },
+  {
+    title: 'Projectos',
+    icon: Briefcase,
     children: [
       { title: 'Dashboard', href: '/projetos', icon: LayoutDashboard },
       { title: 'Projetos', href: '/projetos/lista', icon: FolderKanban },
       { title: 'Tarefas', href: '/projetos/tarefas', icon: CheckSquare },
-      { title: 'Equipes', href: '/projetos/equipes', icon: Users },
       { title: 'Timesheet', href: '/projetos/timesheet', icon: Clock },
-      { title: 'Cronograma', href: '/projetos/cronograma', icon: GanttChart },
-      { title: 'Orçamentos', href: '/projetos/orcamentos', icon: Wallet },
-      { title: 'Documentos', href: '/projetos/documentos', icon: Paperclip },
       { title: 'Relatórios', href: '/projetos/relatorios', icon: FileSpreadsheet }
     ]
   },
   {
-    title: 'Gestão de Tickets',
+    title: 'Recursos Humanos & Payroll',
+    icon: UserCog,
+    children: [
+      { title: 'Dashboard', href: '/rh', icon: LayoutDashboard },
+      { title: 'Colaboradores', href: '/rh/colaboradores', icon: Users },
+      { title: 'Payroll', href: '/rh/payroll', icon: DollarSign },
+      { title: 'Férias', href: '/rh/ferias', icon: Calendar },
+      { title: 'Recrutamento', href: '/rh/recrutamento', icon: Target }
+    ]
+  },
+  {
+    title: 'Serviços & Agendamentos',
+    icon: Wrench,
+    children: [
+      { title: 'Dashboard', href: '/servicos', icon: LayoutDashboard },
+      { title: 'Lista de Serviços', href: '/servicos/lista', icon: Wrench },
+      { title: 'Agendamentos', href: '/servicos/agendamentos', icon: Calendar },
+      { title: 'Contratos', href: '/servicos/contratos', icon: FileText },
+      { title: 'Pacotes', href: '/servicos/pacotes', icon: Layers }
+    ]
+  },
+  {
+    title: 'Suporte & Tickets',
     icon: Ticket,
-    badge: 'Novo',
     children: [
       { title: 'Dashboard', href: '/tickets', icon: LayoutDashboard },
-      { title: 'Todos os Tickets', href: '/tickets/lista', icon: Ticket },
-      { title: 'Caixa de Entrada', href: '/tickets/caixa-entrada', icon: Inbox },
-      { title: 'Atribuídos a Mim', href: '/tickets/meus', icon: UserCircle },
-      { title: 'Urgentes', href: '/tickets/urgentes', icon: AlertCircle },
-      { title: 'Resolvidos', href: '/tickets/resolvidos', icon: CheckCircle },
-      { title: 'Categorias', href: '/tickets/categorias', icon: FolderOpen },
+      { title: 'Tickets', href: '/tickets/lista', icon: Ticket },
       { title: 'Base de Conhecimento', href: '/tickets/base-conhecimento', icon: BookText },
       { title: 'Relatórios', href: '/tickets/relatorios', icon: FileSpreadsheet }
     ]
   },
   {
-    title: 'Recursos Humanos',
-    icon: UserCog,
-    badge: 'Novo',
+    title: 'Transporte & Logística',
+    icon: Truck,
     children: [
-      { title: 'Dashboard', href: '/rh', icon: LayoutDashboard },
-      { title: 'Colaboradores', href: '/rh/colaboradores', icon: Users },
-      { title: 'Payroll', href: '/rh/payroll', icon: DollarSign },
-      { title: 'Plano de Férias', href: '/rh/ferias', icon: Calendar },
-      { title: 'Ausências', href: '/rh/ausencias', icon: UserX },
-      { title: 'Assiduidade', href: '/rh/assiduidade', icon: Clock },
-      { title: 'Avaliações', href: '/rh/avaliacoes', icon: Award },
-      { title: 'Formações', href: '/rh/formacoes', icon: GraduationCap },
-      { title: 'Benefícios', href: '/rh/beneficios', icon: Heart },
-      { title: 'Recrutamento', href: '/rh/recrutamento', icon: Target },
-      { title: 'Documentos', href: '/rh/documentos', icon: FileText }
+      { title: 'Dashboard', href: '/transporte', icon: LayoutDashboard },
+      { title: 'Veículos', href: '/transporte/veiculos', icon: Truck },
+      { title: 'Rotas', href: '/transporte/rotas', icon: MapPin },
+      { title: 'Manutenção', href: '/transporte/manutencao', icon: Wrench }
     ]
   },
   {
-    title: 'Produção',
+    title: 'Analytics',
+    icon: LineChart,
+    children: [{ title: 'Dashboard', href: '/analytics', icon: LayoutDashboard }]
+  },
+  {
+    title: 'Produção Industrial',
     icon: Factory,
-    badge: 'Novo',
     children: [
       { title: 'Dashboard', href: '/producao', icon: LayoutDashboard },
-      { title: 'Estrutura de Produto (BOM)', href: '/producao/estrutura', icon: Component },
-      { title: 'Roteiros de Produção', href: '/producao/roteiros', icon: Route },
       { title: 'Ordens de Produção', href: '/producao/ordens', icon: ClipboardList },
-      { title: 'Planeamento (MRP)', href: '/producao/planeamento', icon: CalcIcon },
-      { title: 'Capacidade (CRP)', href: '/producao/capacidade', icon: Gauge },
-      { title: 'Mão de Obra', href: '/producao/mao-obra', icon: Users },
-      { title: 'Custos de Produção', href: '/producao/custos', icon: DollarSign },
+      { title: 'Planeamento', href: '/producao/planeamento', icon: CalcIcon },
       { title: 'Qualidade', href: '/producao/qualidade', icon: ShieldCheck },
       { title: 'Relatórios', href: '/producao/relatorios', icon: FileBarChart2 }
     ]
-  },
-  {
-    title: 'Contabilidade',
-    icon: BookOpen,
-    badge: 'Novo',
-    children: [
-      { title: 'Dashboard', href: '/contabilidade', icon: LayoutDashboard },
-      { title: 'Plano de Contas', href: '/contabilidade/plano-contas', icon: BookOpen },
-      { title: 'Diários', href: '/contabilidade/diarios', icon: BookMarked },
-      { title: 'Razão Geral', href: '/contabilidade/razao-geral', icon: Layers },
-      { title: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText },
-      { title: 'Centros de Custo', href: '/contabilidade/centros-custo', icon: PieChart },
-      { title: 'Reconciliação Bancária', href: '/contabilidade/reconciliacao', icon: Landmark },
-      { title: 'DRE', href: '/contabilidade/dre', icon: BarChart3 },
-      { title: 'Balancete', href: '/contabilidade/balancete', icon: FileBarChart },
-      { title: 'Configurações', href: '/contabilidade/configuracoes', icon: Cog }
-    ]
-  },
-  {
-    title: 'Caixa',
-    icon: DollarSign,
-    children: [
-      { title: 'Gestão de Caixa', href: '/caixa', icon: DollarSign },
-      { title: 'Abertura de Caixa', href: '/caixa/abertura', icon: Calculator },
-      { title: 'Fechamento de Caixa', href: '/caixa/fechamento', icon: CreditCard }
-    ]
-  },
-  {
-    title: 'Serviços',
-    icon: Wrench,
-    children: [
-      { title: 'Lista de Serviços', href: '/servicos', icon: Wrench },
-      { title: 'Categorias', href: '/servicos/categorias', icon: Layers },
-      { title: 'Novo Serviço', href: '/servicos/novo', icon: FileText }
-    ]
-  },
-  {
-    title: 'Relatórios',
-    href: '/relatorios',
-    icon: BarChart3,
-  },
-  {
-    title: 'Configurações',
-    href: '/configuracoes',
-    icon: Settings,
   }
 ];
 
