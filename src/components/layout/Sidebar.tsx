@@ -48,6 +48,7 @@ import {
   FileMinus,
   BookMarked,
   Layers,
+  Tag,
   PackageOpen,
   PackagePlus,
   MapPin,
@@ -140,6 +141,7 @@ const menuItems: MenuItem[] = [
     children: [
       { title: 'Dashboard', href: '/inventario', icon: LayoutDashboard },
       { title: 'Produtos', href: '/produtos', icon: Package },
+      { title: 'Categorias', href: '/inventario/categorias', icon: Tag },
       { title: 'Ativos', href: '/inventario/ativos', icon: Archive },
       { title: 'Movimentações', href: '/inventario/movimentacoes', icon: ArrowRightLeft },
       { title: 'Inventário Físico', href: '/inventario/fisico', icon: ClipboardList },

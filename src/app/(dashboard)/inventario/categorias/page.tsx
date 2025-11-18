@@ -70,7 +70,9 @@ import {
   DollarSign,
   Activity,
   Folder,
-  FolderOpen
+  FolderOpen,
+  ShoppingCart,
+  Boxes
 } from 'lucide-react';
 
 interface Categoria {
@@ -110,12 +112,31 @@ interface Grupo {
   criadoPor: string;
 }
 
+interface CategoriaProduto {
+  id: string;
+  codigo: string;
+  nome: string;
+  descricao?: string;
+  tipo: 'acabado' | 'materia_prima' | 'consumo' | 'servico';
+  segmento: 'industrial' | 'comercial' | 'servicos';
+  classeFiscal: string;
+  politicaReposicao: 'minmax' | 'sob_demanda' | 'just_in_time';
+  estoqueMinimo: number;
+  estoqueMaximo: number;
+  produtosAtivos: number;
+  skuAtivos: number;
+  valorEstoque: number;
+  ativo: boolean;
+  atualizadoEm: Date;
+}
+
 export default function CategoriasPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'ativa' | 'inativa'>('todos');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('categorias');
+  const [tipoProdutoFiltro, setTipoProdutoFiltro] = useState<'todos' | 'acabado' | 'materia_prima' | 'consumo' | 'servico'>('todos');
 
   // Dados de exemplo para categorias
   const categorias: Categoria[] = [
@@ -282,6 +303,94 @@ export default function CategoriasPage() {
     }
   ];
 
+  const categoriasProdutos: CategoriaProduto[] = [
+    {
+      id: 'CP-001',
+      codigo: 'TEC-ACAB',
+      nome: 'Tecnologia - Produtos Acabados',
+      descricao: 'Equipamentos e produtos tecnológicos prontos para venda',
+      tipo: 'acabado',
+      segmento: 'comercial',
+      classeFiscal: '8471.50.10',
+      politicaReposicao: 'minmax',
+      estoqueMinimo: 25,
+      estoqueMaximo: 120,
+      produtosAtivos: 58,
+      skuAtivos: 24,
+      valorEstoque: 3250000,
+      ativo: true,
+      atualizadoEm: new Date('2024-01-12')
+    },
+    {
+      id: 'CP-002',
+      codigo: 'MAT-PRIMA',
+      nome: 'Matérias-primas industriais',
+      descricao: 'Matérias-primas críticas para produção',
+      tipo: 'materia_prima',
+      segmento: 'industrial',
+      classeFiscal: '3901.10.20',
+      politicaReposicao: 'just_in_time',
+      estoqueMinimo: 80,
+      estoqueMaximo: 200,
+      produtosAtivos: 32,
+      skuAtivos: 15,
+      valorEstoque: 1875000,
+      ativo: true,
+      atualizadoEm: new Date('2024-02-05')
+    },
+    {
+      id: 'CP-003',
+      codigo: 'SERV-SUP',
+      nome: 'Serviços de suporte',
+      descricao: 'Categorias de serviços vinculados a contratos de suporte',
+      tipo: 'servico',
+      segmento: 'servicos',
+      classeFiscal: '9983.00.00',
+      politicaReposicao: 'sob_demanda',
+      estoqueMinimo: 0,
+      estoqueMaximo: 0,
+      produtosAtivos: 12,
+      skuAtivos: 6,
+      valorEstoque: 0,
+      ativo: true,
+      atualizadoEm: new Date('2024-01-30')
+    },
+    {
+      id: 'CP-004',
+      codigo: 'CONSUMO',
+      nome: 'Materiais de consumo',
+      descricao: 'Materiais para escritório e operação diária',
+      tipo: 'consumo',
+      segmento: 'comercial',
+      classeFiscal: '4820.10.00',
+      politicaReposicao: 'minmax',
+      estoqueMinimo: 150,
+      estoqueMaximo: 500,
+      produtosAtivos: 78,
+      skuAtivos: 36,
+      valorEstoque: 245000,
+      ativo: false,
+      atualizadoEm: new Date('2023-12-18')
+    },
+    {
+      id: 'CP-005',
+      codigo: 'TEC-SERV',
+      nome: 'Serviços Tecnológicos',
+      descricao: 'Serviços recorrentes e contratos de suporte técnico',
+      tipo: 'servico',
+      segmento: 'servicos',
+      classeFiscal: '9985.00.00',
+      politicaReposicao: 'sob_demanda',
+      estoqueMinimo: 0,
+      estoqueMaximo: 0,
+      produtosAtivos: 9,
+      skuAtivos: 4,
+      valorEstoque: 0,
+      ativo: true,
+      atualizadoEm: new Date('2024-02-10')
+    }
+  ];
+
   const filteredCategorias = categorias.filter(categoria => {
     const matchesSearch = 
       categoria.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -308,6 +417,19 @@ export default function CategoriasPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const filteredCategoriasProdutos = categoriasProdutos.filter((categoria) => {
+    const matchesSearch =
+      categoria.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      categoria.codigo.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      statusFilter === 'todos' ||
+      (statusFilter === 'ativa' && categoria.ativo) ||
+      (statusFilter === 'inativa' && !categoria.ativo);
+    const matchesTipo = tipoProdutoFiltro === 'todos' || categoria.tipo === tipoProdutoFiltro;
+
+    return matchesSearch && matchesStatus && matchesTipo;
+  });
+
   const {
     currentPage: currentPageCat,
     totalPages: totalPagesCat,
@@ -328,6 +450,16 @@ export default function CategoriasPage() {
     handleItemsPerPageChange: handleItemsPerPageChangeGrp,
   } = usePagination({ data: filteredGrupos, initialItemsPerPage: 10 });
 
+  const {
+    currentPage: currentPageProd,
+    totalPages: totalPagesProd,
+    itemsPerPage: itemsPerPageProd,
+    paginatedData: paginatedCategoriasProdutos,
+    totalItems: totalItemsProd,
+    handlePageChange: handlePageChangeProd,
+    handleItemsPerPageChange: handleItemsPerPageChangeProd,
+  } = usePagination({ data: filteredCategoriasProdutos, initialItemsPerPage: 8 });
+
   const getIconComponent = (iconName: string) => {
     const icons: { [key: string]: any } = {
       Monitor, Car, Building, Package, Wrench, Heart, Layers, Tag
@@ -335,27 +467,43 @@ export default function CategoriasPage() {
     return icons[iconName] || Package;
   };
 
-  const handleToggleStatus = (item: any, type: 'categoria' | 'grupo') => {
+  const getLabelByTab = (tab: string) => {
+    if (tab === 'produtos') return 'Categoria de Produto';
+    if (tab === 'grupos') return 'Grupo';
+    return 'Categoria';
+  };
+
+  const getLabelByType = (type: 'categoria' | 'grupo' | 'produto') => {
+    if (type === 'produto') return 'Categoria de Produto';
+    if (type === 'grupo') return 'Grupo';
+    return 'Categoria';
+  };
+
+  const handleToggleStatus = (item: any, type: 'categoria' | 'grupo' | 'produto') => {
+    const label = getLabelByType(type);
+    const isActive = type === 'categoria' ? item.ativa : item.ativo;
     toast({
-      title: `${type === 'categoria' ? 'Categoria' : 'Grupo'} ${item.ativa || item.ativo ? 'desativada' : 'ativada'}`,
-      description: `${item.nome} foi ${item.ativa || item.ativo ? 'desativada' : 'ativada'} com sucesso`,
+      title: `${label} ${isActive ? 'desativada' : 'ativada'}`,
+      description: `${item.nome} foi ${isActive ? 'desativada' : 'ativada'} com sucesso`,
     });
   };
 
-  const handleDelete = (item: any, type: 'categoria' | 'grupo') => {
+  const handleDelete = (item: any, type: 'categoria' | 'grupo' | 'produto') => {
+    const label = getLabelByType(type);
     toast({
-      title: `${type === 'categoria' ? 'Categoria' : 'Grupo'} removida`,
+      title: `${label} removida`,
       description: `${item.nome} foi removida do sistema`,
       variant: "destructive"
     });
   };
 
   const handleSave = () => {
+    const label = getLabelByTab(activeTab);
     setIsDialogOpen(false);
     setEditingItem(null);
     toast({
-      title: editingItem ? "Item atualizado" : "Item criado",
-      description: "As informações foram salvas com sucesso",
+      title: editingItem ? `${label} atualizada` : `${label} criada`,
+      description: `${label} salva com sucesso`,
     });
   };
 
@@ -366,30 +514,36 @@ export default function CategoriasPage() {
     totalGrupos: grupos.length,
     gruposAtivos: grupos.filter(g => g.ativo).length,
     totalAtivos: categorias.reduce((acc, c) => acc + c.totalAtivos, 0),
-    valorTotal: categorias.reduce((acc, c) => acc + c.valorTotal, 0)
+    valorTotal: categorias.reduce((acc, c) => acc + c.valorTotal, 0),
+    totalCategoriasProdutos: categoriasProdutos.length,
+    categoriasProdutosAtivas: categoriasProdutos.filter(c => c.ativo).length,
+    produtosAtivos: categoriasProdutos.reduce((acc, c) => acc + c.produtosAtivos, 0),
+    valorEstoqueProdutos: categoriasProdutos.reduce((acc, c) => acc + c.valorEstoque, 0)
   };
+
+  const currentLabel = getLabelByTab(activeTab);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Categorias e Grupos</h1>
-          <p className="text-muted-foreground">Organize e classifique os ativos da empresa</p>
+          <h1 className="text-3xl font-bold">Categorias de Ativos e Produtos</h1>
+          <p className="text-muted-foreground">Organize ativos, grupos e categorias de produtos do inventário</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditingItem(null)}>
               <Plus className="h-4 w-4 mr-2" />
-              Nova {activeTab === 'categorias' ? 'Categoria' : 'Grupo'}
+              Nova {currentLabel}
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingItem ? 'Editar' : 'Nova'} {activeTab === 'categorias' ? 'Categoria' : 'Grupo'}
+                {editingItem ? 'Editar' : 'Nova'} {currentLabel}
               </DialogTitle>
               <DialogDescription>
-                Configure as informações {activeTab === 'categorias' ? 'da categoria' : 'do grupo'}
+                Configure as informações {currentLabel === 'Grupo' ? 'do grupo' : 'da categoria'}
               </DialogDescription>
             </DialogHeader>
             
@@ -397,11 +551,29 @@ export default function CategoriasPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="codigo">Código *</Label>
-                  <Input id="codigo" placeholder={activeTab === 'categorias' ? "CAT-XXX" : "GRP-XXX"} />
+                  <Input
+                    id="codigo"
+                    placeholder={
+                      activeTab === 'categorias'
+                        ? 'CAT-XXX'
+                        : activeTab === 'grupos'
+                          ? 'GRP-XXX'
+                          : 'PROD-XXX'
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="nome">Nome *</Label>
-                  <Input id="nome" placeholder={`Nome ${activeTab === 'categorias' ? 'da categoria' : 'do grupo'}`} />
+                  <Input
+                    id="nome"
+                    placeholder={
+                      activeTab === 'grupos'
+                        ? 'Nome do grupo'
+                        : activeTab === 'produtos'
+                          ? 'Nome da categoria de produto'
+                          : 'Nome da categoria'
+                    }
+                  />
                 </div>
               </div>
 
@@ -503,7 +675,7 @@ export default function CategoriasPage() {
                     </div>
                   </div>
                 </>
-              ) : (
+              ) : activeTab === 'grupos' ? (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="categorias">Categorias *</Label>
@@ -536,6 +708,69 @@ export default function CategoriasPage() {
                     </Select>
                   </div>
                 </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="tipoProduto">Tipo de produto *</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="acabado">Produto acabado</SelectItem>
+                          <SelectItem value="materia_prima">Matéria-prima</SelectItem>
+                          <SelectItem value="consumo">Material de consumo</SelectItem>
+                          <SelectItem value="servico">Serviço</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="segmento">Segmento *</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o segmento" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="industrial">Industrial</SelectItem>
+                          <SelectItem value="comercial">Comercial</SelectItem>
+                          <SelectItem value="servico">Serviços</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="classeFiscal">Classe Fiscal *</Label>
+                      <Input id="classeFiscal" placeholder="Ex: 8471.50.10" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="politicaReposicao">Política de Reposição *</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="minmax">Min/Max</SelectItem>
+                          <SelectItem value="just_in_time">Just in Time</SelectItem>
+                          <SelectItem value="sob_demanda">Sob demanda</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="estoqueMinimo">Estoque mínimo</Label>
+                      <Input id="estoqueMinimo" type="number" min={0} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="estoqueMaximo">Estoque máximo</Label>
+                      <Input id="estoqueMaximo" type="number" min={0} />
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -544,7 +779,7 @@ export default function CategoriasPage() {
                 Cancelar
               </Button>
               <Button onClick={handleSave}>
-                {editingItem ? 'Atualizar' : 'Criar'} {activeTab === 'categorias' ? 'Categoria' : 'Grupo'}
+                {editingItem ? 'Atualizar' : 'Criar'} {currentLabel}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -552,7 +787,7 @@ export default function CategoriasPage() {
       </div>
 
       {/* Estatísticas Rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -626,11 +861,62 @@ export default function CategoriasPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Cat. Produtos</p>
+                <p className="text-2xl font-bold">{estatisticas.totalCategoriasProdutos}</p>
+              </div>
+              <ShoppingCart className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Cat. Prod. Ativas</p>
+                <p className="text-2xl font-bold">{estatisticas.categoriasProdutosAtivas}</p>
+              </div>
+              <Boxes className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Produtos Ativos</p>
+                <p className="text-2xl font-bold">{estatisticas.produtosAtivos}</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-teal-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Valor em Estoque</p>
+                <p className="text-2xl font-bold">
+                  MT {(estatisticas.valorEstoqueProdutos / 1000000).toFixed(2)}M
+                </p>
+              </div>
+              <DollarSign className="h-8 w-8 text-amber-600" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="categorias">Categorias</TabsTrigger>
+          <TabsTrigger value="produtos">Categorias de Produtos</TabsTrigger>
           <TabsTrigger value="grupos">Grupos</TabsTrigger>
         </TabsList>
 
@@ -812,6 +1098,183 @@ export default function CategoriasPage() {
                 totalItems={totalItemsCat}
                 onPageChange={handlePageChangeCat}
                 onItemsPerPageChange={handleItemsPerPageChangeCat}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="produtos">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Pesquisar por código ou nome..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value: 'todos' | 'ativa' | 'inativa') => setStatusFilter(value)}
+                >
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os Status</SelectItem>
+                    <SelectItem value="ativa">Ativas</SelectItem>
+                    <SelectItem value="inativa">Inativas</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={tipoProdutoFiltro}
+                  onValueChange={(value: 'todos' | 'acabado' | 'materia_prima' | 'consumo' | 'servico') =>
+                    setTipoProdutoFiltro(value)
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os tipos</SelectItem>
+                    <SelectItem value="acabado">Produto acabado</SelectItem>
+                    <SelectItem value="materia_prima">Matéria-prima</SelectItem>
+                    <SelectItem value="consumo">Material de consumo</SelectItem>
+                    <SelectItem value="servico">Serviço</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Classe Fiscal</TableHead>
+                    <TableHead>Política</TableHead>
+                    <TableHead>Estoque Min/Máx</TableHead>
+                    <TableHead>Produtos</TableHead>
+                    <TableHead>Valor em Estoque</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Atualização</TableHead>
+                    <TableHead>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedCategoriasProdutos.length > 0 ? (
+                    paginatedCategoriasProdutos.map((categoria) => (
+                      <TableRow key={categoria.id}>
+                        <TableCell className="font-medium">{categoria.codigo}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-semibold">{categoria.nome}</p>
+                            {categoria.descricao && (
+                              <p className="text-sm text-muted-foreground">{categoria.descricao}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {categoria.tipo.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{categoria.classeFiscal}</TableCell>
+                        <TableCell className="capitalize">
+                          {categoria.politicaReposicao.replaceAll('_', ' ')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <span className="font-medium">{categoria.estoqueMinimo}</span> / {categoria.estoqueMaximo}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <p className="font-medium">{categoria.produtosAtivos} produtos</p>
+                            <p className="text-muted-foreground text-xs">{categoria.skuAtivos} SKUs</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          MT {categoria.valorEstoque.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={categoria.ativo ? 'default' : 'secondary'}>
+                            {categoria.ativo ? 'Ativa' : 'Inativa'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{categoria.atualizadoEm.toLocaleDateString('pt-MZ')}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Abrir menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setEditingItem(categoria);
+                                  setIsDialogOpen(true);
+                                  setActiveTab('produtos');
+                                }}
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleToggleStatus(categoria, 'produto')}>
+                                {categoria.ativo ? (
+                                  <>
+                                    <XCircle className="h-4 w-4 mr-2" />
+                                    Desativar
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    Ativar
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(categoria, 'produto')}
+                                className="text-destructive"
+                                disabled={categoria.produtosAtivos > 0}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Remover
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={11} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <ShoppingCart className="h-12 w-12 opacity-50" />
+                          <p>Nenhuma categoria de produto encontrada</p>
+                          <p className="text-sm">Tente ajustar os filtros ou criar uma nova categoria</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+
+              <PaginationControls
+                currentPage={currentPageProd}
+                totalPages={totalPagesProd}
+                itemsPerPage={itemsPerPageProd}
+                totalItems={totalItemsProd}
+                onPageChange={handlePageChangeProd}
+                onItemsPerPageChange={handleItemsPerPageChangeProd}
               />
             </CardContent>
           </Card>
