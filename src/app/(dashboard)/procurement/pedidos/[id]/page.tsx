@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -253,7 +254,7 @@ const PEDIDOS: Record<string, PedidoCompra> = {
 
 const statusConfig: Record<
   PedidoCompra['status'],
-  { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; icon: JSX.Element }
+  { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; icon: ReactNode }
 > = {
   rascunho: { label: 'Rascunho', variant: 'secondary', icon: <Clock className="h-3 w-3" /> },
   enviado: { label: 'Enviado', variant: 'outline', icon: <Mail className="h-3 w-3" /> },

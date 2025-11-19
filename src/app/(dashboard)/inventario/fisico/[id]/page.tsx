@@ -27,8 +27,10 @@ import {
 } from 'lucide-react';
 
 const statusConfig: Record<InventarioFisico['status'], { label: string; variant: 'default' | 'secondary' | 'destructive'; icon: React.ComponentType<{ className?: string }> }> = {
+  planejado: { label: 'Planeado', variant: 'secondary', icon: Calendar },
   agendado: { label: 'Agendado', variant: 'secondary', icon: Calendar },
   em_andamento: { label: 'Em andamento', variant: 'default', icon: RefreshCw },
+  pausado: { label: 'Pausado', variant: 'secondary', icon: PauseCircle },
   concluido: { label: 'Concluído', variant: 'default', icon: CheckCircle },
   cancelado: { label: 'Cancelado', variant: 'destructive', icon: StopCircle }
 };
@@ -40,18 +42,21 @@ const formatDate = (value?: Date | string) => {
 };
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function InventarioFisicoDetalhePage({ params }: PageProps) {
-  const inventario = inventariosFisicosMock.find((item) => item.id === params.id);
+export default async function InventarioFisicoDetalhePage({ params }: PageProps) {
+  const { id } = await params;
+  const inventario = inventariosFisicosMock.find((item) => item.id === id);
 
   if (!inventario) {
     notFound();
   }
 
   const statusInfo = statusConfig[inventario.status];
-  const progresso = Math.round((inventario.itensContados / inventario.totalItens) * 100);
+  const progresso = inventario.totalItens
+    ? Math.round(((inventario.itensContados ?? 0) / inventario.totalItens) * 100)
+    : 0;
 
   const divergencias = inventario.divergenciasEncontradas
     ? Array.from({ length: inventario.divergenciasEncontradas }).map((_, index) => ({

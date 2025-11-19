@@ -371,8 +371,8 @@ export default function NovaOrdemPage() {
       .map(op => ({
         operacao: op.nome,
         centroTrabalho: op.centroTrabalho,
-        capacidadeDisponivel: op.capacidadeDisponivel,
-        impacto: op.capacidadeDisponivel < 50 ? 'alto' : 'medio'
+        capacidadeDisponivel: op.capacidadeDisponivel ?? 0,
+        impacto: (op.capacidadeDisponivel ?? 0) < 50 ? 'alto' : 'medio'
       }));
     
     setValidacaoCapacidade({

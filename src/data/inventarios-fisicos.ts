@@ -4,6 +4,7 @@ export const inventariosFisicosMock: InventarioFisico[] = [
   {
     id: '1',
     codigo: 'INV-2024-001',
+    nome: 'Inventário Anual 2024',
     titulo: 'Inventário Anual 2024',
     descricao: 'Inventário físico anual de todos os ativos da empresa',
     status: 'em_andamento',
@@ -17,12 +18,15 @@ export const inventariosFisicosMock: InventarioFisico[] = [
     itensPendentes: 91,
     divergenciasEncontradas: 12,
     observacoes: 'Inventário em progresso, sem grandes divergências até o momento',
+    equipeContagem: [],
+    ajustesRealizados: false,
     criadoEm: new Date('2024-01-10T10:00:00.000Z'),
     criadoPor: 'admin'
   },
   {
     id: '2',
     codigo: 'INV-2024-002',
+    nome: 'Auditoria TI - Q1',
     titulo: 'Auditoria TI - Q1',
     descricao: 'Auditoria trimestral dos equipamentos de informática',
     status: 'concluido',
@@ -39,12 +43,15 @@ export const inventariosFisicosMock: InventarioFisico[] = [
     divergenciasEncontradas: 2,
     relatorio: 'Encontradas 2 divergências: 1 computador não localizado e 1 impressora com série incorreta',
     observacoes: 'Auditoria concluída com sucesso. Divergências documentadas e corrigidas.',
+    equipeContagem: [],
+    ajustesRealizados: true,
     criadoEm: new Date('2024-01-02T11:00:00.000Z'),
     criadoPor: 'admin'
   },
   {
     id: '3',
     codigo: 'INV-2024-003',
+    nome: 'Verificação Mobiliário',
     titulo: 'Verificação Mobiliário',
     descricao: 'Verificação do mobiliário das salas de conferência',
     status: 'agendado',
@@ -59,12 +66,15 @@ export const inventariosFisicosMock: InventarioFisico[] = [
     itensPendentes: 25,
     divergenciasEncontradas: 0,
     observacoes: 'Inventário agendado para verificação do mobiliário após renovação',
+    equipeContagem: [],
+    ajustesRealizados: false,
     criadoEm: new Date('2024-02-10T10:00:00.000Z'),
     criadoPor: 'admin'
   },
   {
     id: '4',
     codigo: 'INV-2023-015',
+    nome: 'Inventário Veículos',
     titulo: 'Inventário Veículos',
     descricao: 'Inventário semestral da frota de veículos',
     status: 'cancelado',
@@ -80,6 +90,8 @@ export const inventariosFisicosMock: InventarioFisico[] = [
     divergenciasEncontradas: 1,
     motivoCancelamento: 'Falta de disponibilidade dos veículos em viagem',
     observacoes: 'Cancelado devido a viagens não programadas. Reagendar para janeiro.',
+    equipeContagem: [],
+    ajustesRealizados: false,
     criadoEm: new Date('2023-11-25T09:00:00.000Z'),
     criadoPor: 'admin'
   }

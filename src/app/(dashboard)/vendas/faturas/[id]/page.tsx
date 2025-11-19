@@ -1,8 +1,4 @@
-'use client';
-
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -39,11 +35,13 @@ const statusConfig: Record<Fatura['statusFatura'], { label: string; variant: 'de
   cancelada: { label: 'Cancelada', variant: 'secondary', icon: XCircle }
 };
 
-type Params = { id: string };
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
 
-export default function FaturaDetalhePage({ params }: { params: Params }) {
-  const router = useRouter();
-  const fatura = useMemo(() => faturasMock.find((item) => item.id === params.id), [params.id]);
+export default async function FaturaDetalhePage({ params }: PageProps) {
+  const { id } = await params;
+  const fatura = faturasMock.find((item) => item.id === id);
 
   if (!fatura) {
     return (
@@ -55,9 +53,11 @@ export default function FaturaDetalhePage({ params }: { params: Params }) {
               <h1 className="text-2xl font-semibold">Fatura não encontrada</h1>
               <p className="text-muted-foreground">Verifique se o identificador está correcto ou volte à listagem.</p>
             </div>
-            <Button className="gap-2" onClick={() => router.push('/vendas/faturas')}>
-              <ArrowLeft className="h-4 w-4" />
-              Voltar para faturas
+            <Button className="gap-2" asChild>
+              <Link href="/vendas/faturas">
+                <ArrowLeft className="h-4 w-4" />
+                Voltar para faturas
+              </Link>
             </Button>
           </CardContent>
         </Card>

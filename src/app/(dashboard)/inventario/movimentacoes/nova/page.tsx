@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +64,7 @@ interface Ativo {
   modelo?: string;
 }
 
-export default function NovaMovimentacaoPage() {
+function NovaMovimentacaoPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
@@ -625,7 +625,9 @@ export default function NovaMovimentacaoPage() {
                     <Select 
                       value={formData.localizacaoOrigem} 
                       onValueChange={(value) => updateFormData('localizacaoOrigem', value)}
-                      disabled={ativoSelecionado && ['transferencia', 'emprestimo', 'devolucao', 'saida', 'baixa'].includes(formData.tipo)}
+                      disabled={Boolean(
+                        ativoSelecionado && ['transferencia', 'emprestimo', 'devolucao', 'saida', 'baixa'].includes(formData.tipo)
+                      )}
                     >
                       <SelectTrigger className={errors.localizacaoOrigem ? 'border-red-500' : ''}>
                         <SelectValue placeholder="Selecione a localização" />
@@ -808,5 +810,13 @@ export default function NovaMovimentacaoPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NovaMovimentacaoPage() {
+  return (
+    <Suspense fallback={<div className="p-6">A carregar formulário...</div>}>
+      <NovaMovimentacaoPageContent />
+    </Suspense>
   );
 }
