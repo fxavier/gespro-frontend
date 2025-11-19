@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dataRegistro: new Date().toISOString(),
         configuracoesFiscais: {
           regimeIva: 'normal',
-          taxaIvaDefault: 17,
+          taxaIvaDefault: 16,
           seriesFaturas: [
             {
               id: 'serie_1',

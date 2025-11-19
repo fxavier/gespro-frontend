@@ -1,11 +1,13 @@
 
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import {
   BookOpen,
+  BookMarked,
+  BookText,
   FileText,
   TrendingUp,
   TrendingDown,
@@ -15,6 +17,7 @@ import {
   Landmark,
   AlertCircle
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   ChartContainer,
@@ -96,6 +99,58 @@ export default function ContabilidadeDashboardPage() {
       valor: 45000,
       vencimento: '2024-02-20',
       dias: 10
+    }
+  ];
+
+  type StatAccent = 'positive' | 'negative';
+
+  type AcessoContabil = {
+    title: string;
+    description: string;
+    href: string;
+    icon: LucideIcon;
+    stats: { label: string; value: string; accent?: StatAccent }[];
+    highlights: string[];
+    cta: string;
+    badge?: string;
+  };
+
+  const acessosContabeis: AcessoContabil[] = [
+    {
+      title: 'Diários Contabilísticos',
+      description:
+        'Registe e acompanhe lançamentos segregados por diário com integração direta com vendas, compras e tesouraria.',
+      href: '/contabilidade/diarios',
+      icon: BookMarked,
+      badge: 'Novo',
+      stats: [
+        { label: 'Lançamentos no mês', value: '112', accent: 'positive' },
+        { label: 'Pendentes', value: `${estatisticas.lancamentosPendentes}`, accent: 'negative' }
+      ],
+      highlights: [
+        'Diários dedicados para vendas, compras, caixa, banco e manuais',
+        'Validação automática de débitos e créditos antes da publicação',
+        'Atualização imediata dos saldos do plano de contas'
+      ],
+      cta: 'Abrir Diários'
+    },
+    {
+      title: 'Razão Geral (General Ledger)',
+      description:
+        'Analise saldos e movimentos por conta com drill-down completo até ao lançamento original.',
+      href: '/contabilidade/razao-geral',
+      icon: BookText,
+      badge: 'Novo',
+      stats: [
+        { label: 'Contas com movimento', value: '126' },
+        { label: 'Último fecho', value: 'Jun 2024', accent: 'positive' }
+      ],
+      highlights: [
+        'Estrutura hierárquica por nível e centro de custo',
+        'Resumo instantâneo de débitos, créditos e saldo acumulado',
+        'Exportação direta para CSV e partilha com auditoria'
+      ],
+      cta: 'Abrir Razão Geral'
     }
   ];
 
@@ -319,6 +374,61 @@ export default function ContabilidadeDashboardPage() {
           </ChartContainer>
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {acessosContabeis.map((acesso) => (
+          <Card key={acesso.title}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <acesso.icon className="h-5 w-5 text-indigo-600" />
+                  {acesso.title}
+                </CardTitle>
+                {acesso.badge && (
+                  <Badge variant="secondary" className="text-xs">
+                    {acesso.badge}
+                  </Badge>
+                )}
+              </div>
+              <CardDescription>{acesso.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {acesso.stats.map((stat) => (
+                  <div key={`${acesso.title}-${stat.label}`}>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">{stat.label}</p>
+                    <p
+                      className={`text-xl font-semibold ${
+                        stat.accent === 'positive'
+                          ? 'text-green-600'
+                          : stat.accent === 'negative'
+                            ? 'text-red-600'
+                            : ''
+                      }`}
+                    >
+                      {stat.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {acesso.highlights.map((highlight) => (
+                  <div
+                    key={`${acesso.title}-${highlight}`}
+                    className="flex items-center gap-2 text-sm text-muted-foreground"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                    <span>{highlight}</span>
+                  </div>
+                ))}
+              </div>
+              <Button asChild className="w-full">
+                <Link href={acesso.href}>{acesso.cta}</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       <Card>
         <CardHeader>

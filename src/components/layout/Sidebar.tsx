@@ -155,6 +155,8 @@ const menuItems: MenuItem[] = [
       { title: 'Dashboard', href: '/contabilidade', icon: LayoutDashboard },
       { title: 'Plano de Contas', href: '/contabilidade/plano-contas', icon: BookOpen },
       { title: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText },
+      { title: 'Diários', href: '/contabilidade/diarios', icon: BookMarked },
+      { title: 'Razão Geral', href: '/contabilidade/razao-geral', icon: BookText },
       { title: 'Reconciliação', href: '/contabilidade/reconciliacao', icon: Landmark },
       { title: 'Balancete', href: '/contabilidade/balancete', icon: FileBarChart },
       { title: 'Faturação', href: '/faturacao/dashboard', icon: Receipt },
