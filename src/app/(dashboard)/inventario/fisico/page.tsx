@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,11 +99,13 @@ export default function InventarioFisicoPage() {
     { id: '6', nome: 'Sala de Conferências' }
   ];
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
   const filteredInventarios = inventarios.filter(inventario => {
     const matchesSearch = 
-      inventario.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inventario.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (inventario.responsavelNome && inventario.responsavelNome.toLowerCase().includes(searchTerm.toLowerCase()));
+      (!!inventario.titulo && inventario.titulo.toLowerCase().includes(normalizedSearch)) ||
+      inventario.codigo.toLowerCase().includes(normalizedSearch) ||
+      (inventario.responsavelNome && inventario.responsavelNome.toLowerCase().includes(normalizedSearch));
     
     const matchesStatus = statusFilter === 'todos' || inventario.status === statusFilter;
     const matchesLocalizacao = localizacaoFilter === 'todos' || inventario.localizacaoId === localizacaoFilter;
@@ -121,7 +124,12 @@ export default function InventarioFisicoPage() {
   } = usePagination({ data: filteredInventarios, initialItemsPerPage: 10 });
 
   const getStatusInfo = (status: StatusInventarioFisico) => {
-    const statusMap = {
+    const statusMap: Record<StatusInventarioFisico, { label: string; icon: ReactNode; color: string }> = {
+      planejado: {
+        label: 'Planeado',
+        icon: <Calendar className="h-3 w-3" />,
+        color: 'bg-blue-100 text-blue-800'
+      },
       agendado: { 
         label: 'Agendado', 
         icon: <Calendar className="h-3 w-3" />, 
@@ -132,10 +140,10 @@ export default function InventarioFisicoPage() {
         icon: <PlayCircle className="h-3 w-3" />, 
         color: 'bg-yellow-100 text-yellow-800' 
       },
-      pausado: { 
-        label: 'Pausado', 
-        icon: <PauseCircle className="h-3 w-3" />, 
-        color: 'bg-orange-100 text-orange-800' 
+      pausado: {
+        label: 'Pausado',
+        icon: <PauseCircle className="h-3 w-3" />,
+        color: 'bg-orange-100 text-orange-800'
       },
       concluido: { 
         label: 'Concluído', 
@@ -188,19 +196,37 @@ export default function InventarioFisicoPage() {
   };
 
   // Estatísticas
+  const concluidosList = inventarios.filter(i => i.status === 'concluido');
   const estatisticas = {
     totalInventarios: inventarios.length,
     emAndamento: inventarios.filter(i => i.status === 'em_andamento').length,
-    concluidos: inventarios.filter(i => i.status === 'concluido').length,
-    totalDivergencias: inventarios.reduce((acc, i) => acc + i.divergenciasEncontradas, 0),
-    acuracidadeMedia: inventarios
-      .filter(i => i.status === 'concluido')
-      .reduce((acc, i) => acc + ((i.totalItens - i.divergenciasEncontradas) / i.totalItens * 100), 0) / 
-      Math.max(inventarios.filter(i => i.status === 'concluido').length, 1)
+    concluidos: concluidosList.length,
+    totalDivergencias: inventarios.reduce((acc, i) => acc + (i.divergenciasEncontradas ?? 0), 0),
+    acuracidadeMedia:
+      concluidosList.length === 0
+        ? 0
+        : concluidosList.reduce((acc, i) => {
+            if (!i.totalItens || i.totalItens === 0) {
+              return acc;
+            }
+            const divergencias = i.divergenciasEncontradas ?? 0;
+            return acc + ((i.totalItens - divergencias) / i.totalItens) * 100;
+          }, 0) / concluidosList.length
   };
 
   // Dados para contagem em tempo real
   const contagemAtual = inventarios.find(i => i.status === 'em_andamento');
+  const contagemAtualTotais = contagemAtual
+    ? {
+        totalItens: contagemAtual.totalItens ?? 0,
+        itensContados: contagemAtual.itensContados ?? 0,
+        itensPendentes: contagemAtual.itensPendentes ?? 0,
+        divergencias: contagemAtual.divergenciasEncontradas ?? 0
+      }
+    : null;
+  const contagemAtualProgresso = contagemAtualTotais && contagemAtualTotais.totalItens
+    ? (contagemAtualTotais.itensContados / contagemAtualTotais.totalItens) * 100
+    : 0;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -455,8 +481,15 @@ export default function InventarioFisicoPage() {
                   {paginatedData.length > 0 ? (
                     paginatedData.map((inventario) => {
                       const statusInfo = getStatusInfo(inventario.status);
-                      const progresso = (inventario.itensContados / inventario.totalItens) * 100;
-                      const isPrazoVencido = inventario.dataPrevistaConclusao < new Date() && inventario.status !== 'concluido' && inventario.status !== 'cancelado';
+                      const progresso = inventario.totalItens
+                        ? ((inventario.itensContados ?? 0) / inventario.totalItens) * 100
+                        : 0;
+                      const divergencias = inventario.divergenciasEncontradas ?? 0;
+                      const isPrazoVencido =
+                        inventario.dataPrevistaConclusao !== undefined &&
+                        inventario.dataPrevistaConclusao < new Date() &&
+                        inventario.status !== 'concluido' &&
+                        inventario.status !== 'cancelado';
                       
                       return (
                         <TableRow key={inventario.id} className={isPrazoVencido ? 'bg-red-50' : ''}>
@@ -465,7 +498,10 @@ export default function InventarioFisicoPage() {
                             <div className="space-y-1">
                               <div className="font-medium">{inventario.titulo}</div>
                               <div className="text-sm text-muted-foreground">
-                                {inventario.dataInicio.toLocaleDateString('pt-PT')} - {inventario.dataPrevistaConclusao.toLocaleDateString('pt-PT')}
+                                {inventario.dataInicio.toLocaleDateString('pt-PT')} -
+                                {inventario.dataPrevistaConclusao
+                                  ? ` ${inventario.dataPrevistaConclusao.toLocaleDateString('pt-PT')}`
+                                  : ' A definir'}
                               </div>
                             </div>
                           </TableCell>
@@ -491,10 +527,8 @@ export default function InventarioFisicoPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {inventario.divergenciasEncontradas > 0 ? (
-                              <Badge variant="destructive">
-                                {inventario.divergenciasEncontradas}
-                              </Badge>
+                            {divergencias > 0 ? (
+                              <Badge variant="destructive">{divergencias}</Badge>
                             ) : (
                               <Badge variant="default">0</Badge>
                             )}
@@ -608,31 +642,31 @@ export default function InventarioFisicoPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">{contagemAtual.totalItens}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">{contagemAtualTotais?.totalItens ?? 0}</div>
                       <div className="text-sm text-muted-foreground">Total de Itens</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">{contagemAtual.itensContados}</div>
+                      <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{contagemAtualTotais?.itensContados ?? 0}</div>
                       <div className="text-sm text-muted-foreground">Contados</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600">{contagemAtual.itensPendentes}</div>
+                      <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-600">{contagemAtualTotais?.itensPendentes ?? 0}</div>
                       <div className="text-sm text-muted-foreground">Pendentes</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-red-600">{contagemAtual.divergenciasEncontradas}</div>
+                      <div className="text-center">
+                      <div className="text-2xl font-bold text-red-600">{contagemAtualTotais?.divergencias ?? 0}</div>
                       <div className="text-sm text-muted-foreground">Divergências</div>
                     </div>
                   </div>
                   
-                  <div className="mt-6">
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Progresso da Contagem</span>
-                      <span>{((contagemAtual.itensContados / contagemAtual.totalItens) * 100).toFixed(1)}%</span>
-                    </div>
-                    <Progress value={(contagemAtual.itensContados / contagemAtual.totalItens) * 100} className="h-3" />
+                    <div className="mt-6">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span>Progresso da Contagem</span>
+                      <span>{contagemAtualProgresso.toFixed(1)}%</span>
+                      </div>
+                    <Progress value={contagemAtualProgresso} className="h-3" />
                   </div>
 
                   <div className="mt-6 flex gap-2">

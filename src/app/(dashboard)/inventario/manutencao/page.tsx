@@ -110,9 +110,14 @@ export default function ManutencaoPage() {
         color: 'bg-blue-100 text-blue-800' 
       },
       em_andamento: { 
-        label: 'Em Andamento', 
+        label: 'Em andamento', 
         icon: <PlayCircle className="h-3 w-3" />, 
         color: 'bg-yellow-100 text-yellow-800' 
+      },
+      em_curso: {
+        label: 'Em curso',
+        icon: <PlayCircle className="h-3 w-3" />,
+        color: 'bg-yellow-100 text-yellow-800'
       },
       orcamento: { 
         label: 'Orçamento', 
@@ -133,14 +138,15 @@ export default function ManutencaoPage() {
     return statusMap[status];
   };
 
-  const getPrioridadeInfo = (prioridade: string) => {
+  const getPrioridadeInfo = (prioridade?: string) => {
     const prioridadeMap = {
       baixa: { label: 'Baixa', color: 'bg-gray-100 text-gray-800' },
       media: { label: 'Média', color: 'bg-blue-100 text-blue-800' },
       alta: { label: 'Alta', color: 'bg-orange-100 text-orange-800' },
       critica: { label: 'Crítica', color: 'bg-red-100 text-red-800' }
     };
-    return prioridadeMap[prioridade as keyof typeof prioridadeMap] || prioridadeMap.media;
+    const key = prioridade as keyof typeof prioridadeMap | undefined;
+    return key ? prioridadeMap[key] : prioridadeMap.media;
   };
 
   const getTipoInfo = (tipo: TipoManutencao) => {

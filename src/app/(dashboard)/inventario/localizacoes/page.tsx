@@ -260,7 +260,7 @@ export default function LocalizacoesPage() {
     });
   };
 
-  const getHierarquiaCompleta = (localizacao: Localizacao) => {
+  const getHierarquiaCompleta = (localizacao: Localizacao): string => {
     if (!localizacao.localizacaoPai) return localizacao.nome;
     
     const pai = localizacoes.find(l => l.id === localizacao.localizacaoPai);

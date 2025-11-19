@@ -42,11 +42,12 @@ const formatDateTime = (value?: Date | string) => {
 };
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function MovimentacaoDetalhePage({ params }: PageProps) {
-  const movimentacao = movimentacoesMock.find((item) => item.id === params.id);
+export default async function MovimentacaoDetalhePage({ params }: PageProps) {
+  const { id } = await params;
+  const movimentacao = movimentacoesMock.find((item) => item.id === id);
 
   if (!movimentacao) {
     notFound();

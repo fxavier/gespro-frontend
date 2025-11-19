@@ -55,11 +55,12 @@ const formatDateTime = (value?: Date | string) => {
 };
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function DetalheAtivoPage({ params }: PageProps) {
-  const ativo = ativosMock.find((item) => item.id === params.id);
+export default async function DetalheAtivoPage({ params }: PageProps) {
+  const { id } = await params;
+  const ativo = ativosMock.find((item) => item.id === id);
 
   if (!ativo) {
     notFound();

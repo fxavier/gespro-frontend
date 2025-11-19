@@ -503,7 +503,7 @@ export default function RelatoriosPage() {
                         <ArrowDownRight className="h-3 w-3 text-red-600" />
                       )}
                       <span className={`text-xs ${stat.mudanca > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {Math.abs(stat.mudança)}%
+                        {Math.abs(stat.mudanca)}%
                       </span>
                     </div>
                   )}

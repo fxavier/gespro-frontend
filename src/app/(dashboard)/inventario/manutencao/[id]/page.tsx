@@ -49,11 +49,12 @@ const formatDate = (value?: Date | string) => {
 };
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function ManutencaoDetalhePage({ params }: PageProps) {
-  const manutencao = manutencoesMock.find((item) => item.id === params.id);
+export default async function ManutencaoDetalhePage({ params }: PageProps) {
+  const { id } = await params;
+  const manutencao = manutencoesMock.find((item) => item.id === id);
 
   if (!manutencao) {
     notFound();

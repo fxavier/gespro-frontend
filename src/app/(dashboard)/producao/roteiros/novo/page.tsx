@@ -97,7 +97,7 @@ export default function NovoRoteiroPage() {
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return formData.codigo && formData.nome && formData.produto && formData.categoria;
+        return Boolean(formData.codigo && formData.nome && formData.produto && formData.categoria);
       case 2:
         return operacoes.length > 0;
       default:

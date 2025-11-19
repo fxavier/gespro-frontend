@@ -224,8 +224,8 @@ export default function ConfiguracaoComissoesPage() {
       });
     } else {
       const newRegra: RegraComissao = {
-        id: `${Date.now()}`,
-        ...novaRegra as RegraComissao
+        ...(novaRegra as RegraComissao),
+        id: `${Date.now()}`
       };
       setRegras([...regras, newRegra]);
       toast({

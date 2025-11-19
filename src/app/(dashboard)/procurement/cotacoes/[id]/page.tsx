@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 const statusConfig = {
@@ -58,8 +58,9 @@ const getRespostaVencedora = (cotacao: Cotacao, resposta: RespostaFornecedor) =>
   return resposta.fornecedorId === cotacao.vencedorId;
 };
 
-export default function CotacaoDetalhePage({ params }: PageProps) {
-  const cotacao = cotacoesMock.find((cot) => cot.id === params.id);
+export default async function CotacaoDetalhePage({ params }: PageProps) {
+  const { id } = await params;
+  const cotacao = cotacoesMock.find((cot) => cot.id === id);
 
   if (!cotacao) {
     notFound();
