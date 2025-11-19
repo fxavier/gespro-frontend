@@ -16,7 +16,7 @@ export const faturasMock: Fatura[] = [
         quantidade: 2,
         precoUnitario: 60000,
         desconto: 0,
-        taxaIva: 0.17,
+        taxaIva: 0.16,
         subtotal: 120000,
         ivaItem: 20400,
         total: 140400
@@ -48,7 +48,7 @@ export const faturasMock: Fatura[] = [
         quantidade: 1,
         precoUnitario: 35000,
         desconto: 2000,
-        taxaIva: 0.17,
+        taxaIva: 0.16,
         subtotal: 33000,
         ivaItem: 5610,
         total: 38610
@@ -78,7 +78,7 @@ export const faturasMock: Fatura[] = [
         quantidade: 25,
         precoUnitario: 1000,
         desconto: 0,
-        taxaIva: 0.17,
+        taxaIva: 0.16,
         subtotal: 25000,
         ivaItem: 4250,
         total: 29250
@@ -111,7 +111,7 @@ export const notasCreditoMock: NotaCredito[] = [
         quantidade: 1,
         precoUnitario: 60000,
         desconto: 0,
-        taxaIva: 0.17,
+        taxaIva: 0.16,
         subtotal: 60000,
         ivaItem: 10200,
         total: 70200
@@ -138,7 +138,7 @@ export const notasCreditoMock: NotaCredito[] = [
         quantidade: 5,
         precoUnitario: 1000,
         desconto: 0,
-        taxaIva: 0.17,
+        taxaIva: 0.16,
         subtotal: 5000,
         ivaItem: 850,
         total: 5850
@@ -168,7 +168,7 @@ export const notasDebitoMock: NotaDebito[] = [
         quantidade: 3,
         precoUnitario: 4500,
         desconto: 0,
-        taxaIva: 0.17,
+        taxaIva: 0.16,
         subtotal: 13500,
         ivaItem: 2295,
         total: 15795
@@ -195,7 +195,7 @@ export const notasDebitoMock: NotaDebito[] = [
         quantidade: 1,
         precoUnitario: 80000,
         desconto: -5000,
-        taxaIva: 0.17,
+        taxaIva: 0.16,
         subtotal: 85000,
         ivaItem: 14450,
         total: 99450

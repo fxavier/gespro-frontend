@@ -70,8 +70,8 @@ export default function PedidosPage() {
       itens: [],
       subtotal: 12500,
       desconto: 0,
-      iva: 2125,
-      total: 14625,
+      iva: 2000,
+      total: 14500,
       lojaId: '1',
       lojaNome: 'Loja Centro',
       criadoPor: 'sistema',
@@ -108,8 +108,8 @@ export default function PedidosPage() {
       itens: [],
       subtotal: 18000,
       desconto: 0,
-      iva: 3060,
-      total: 21060,
+      iva: 2880,
+      total: 20880,
       faturaId: 'FAT-2024-001',
       lojaId: '2',
       lojaNome: 'Loja Norte',
@@ -143,8 +143,8 @@ export default function PedidosPage() {
       criadoEm: new Date(2024, 0, Math.floor(Math.random() * 30) + 1)
     })).map(pedido => ({
       ...pedido,
-      iva: Math.floor(pedido.subtotal * 0.17),
-      total: pedido.subtotal - pedido.desconto + Math.floor(pedido.subtotal * 0.17)
+      iva: Math.floor(pedido.subtotal * 0.16),
+      total: pedido.subtotal - pedido.desconto + Math.floor(pedido.subtotal * 0.16)
     }))
   ];
 
