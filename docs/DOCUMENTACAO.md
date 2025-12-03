@@ -115,18 +115,12 @@ Cada módulo segue o mesmo padrão: exporta um componente React client-side (`'u
 ### Fluxo de Procurement Integrado
 ```mermaid
 graph LR
-  A[Requisição (Compras/Requisições)] --> B[Aprovação multiescala
-(Procurement/Aprovações)]
-  B --> C[Pedido de Compra
-(Procurement/Pedidos)]
-  C --> D[Recepção Física
-(Compras/Recepção)]
-  D --> E[Validação de Stock
-StockValidationService]
-  E --> F[Facturação & Pagamento
-/financeiro]
-  F --> G[Análise de Fornecedores
-/fornecedores]
+  A[Requisição<br/>Compras/Requisições] --> B[Aprovação multiescala<br/>Procurement/Aprovações]
+  B --> C[Pedido de Compra<br/>Procurement/Pedidos]
+  C --> D[Recepção Física<br/>Compras/Recepção]
+  D --> E[Validação de Stock<br/>StockValidationService]
+  E --> F[Facturação & Pagamento<br/>/financeiro]
+  F --> G[Análise de Fornecedores<br/>/fornecedores]
 ```
 
 ### Fluxo Comercial com Comissões
