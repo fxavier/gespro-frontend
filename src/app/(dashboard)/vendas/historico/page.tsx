@@ -31,7 +31,7 @@ export default function VendasHistoricoPage() {
   const [termoPesquisa, setTermoPesquisa] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [metodoPagamentoFiltro, setMetodoPagamentoFiltro] = useState('todos');
-  const [periodoFiltro, setPeriodoFiltro] = useState('hoje');
+  const [periodoFiltro, setPeriodoFiltro] = useState('todos');
 
   const vendas = [
     {
@@ -40,17 +40,15 @@ export default function VendasHistoricoPage() {
       cliente: 'João Silva',
       clienteId: 'C001',
       dataVenda: '2024-01-15 14:30',
-      subtotal: 2450.00,
+      subtotal: 2450.0,
       desconto: 0,
-      iva: 416.50,
-      total: 2866.50,
+      iva: 416.5,
+      total: 2866.5,
       metodoPagamento: 'dinheiro',
       status: 'finalizada',
       vendedor: 'Maria Santos',
       observacoes: '',
-      itens: [
-        { produto: 'Arroz 25kg', quantidade: 2, preco: 1225.00, total: 2450.00 }
-      ]
+      itens: [{ produto: 'Arroz 25kg', quantidade: 2, preco: 1225.0, total: 2450.0 }]
     },
     {
       id: 'V002',
@@ -58,7 +56,7 @@ export default function VendasHistoricoPage() {
       cliente: 'Maria Santos',
       clienteId: 'C003',
       dataVenda: '2024-01-15 13:45',
-      subtotal: 1890.50,
+      subtotal: 1890.5,
       desconto: 94.53,
       iva: 305.39,
       total: 2101.36,
@@ -67,7 +65,7 @@ export default function VendasHistoricoPage() {
       vendedor: 'João Silva',
       observacoes: 'Desconto de 5%',
       itens: [
-        { produto: 'Smartphone Samsung A54', quantidade: 1, preco: 18500.00, total: 18500.00 }
+        { produto: 'Smartphone Samsung A54', quantidade: 1, preco: 18500.0, total: 18500.0 }
       ]
     },
     {
@@ -76,17 +74,17 @@ export default function VendasHistoricoPage() {
       cliente: 'Carlos Mendes',
       clienteId: 'C004',
       dataVenda: '2024-01-15 12:15',
-      subtotal: 3200.00,
+      subtotal: 3200.0,
       desconto: 0,
-      iva: 544.00,
-      total: 3744.00,
+      iva: 544.0,
+      total: 3744.0,
       metodoPagamento: 'mpesa',
       status: 'finalizada',
       vendedor: 'Ana Costa',
       observacoes: '',
       itens: [
-        { produto: 'Detergente Líquido 1L', quantidade: 20, preco: 65.00, total: 1300.00 },
-        { produto: 'Coca-Cola 500ml', quantidade: 50, preco: 35.00, total: 1750.00 }
+        { produto: 'Detergente Líquido 1L', quantidade: 20, preco: 65.0, total: 1300.0 },
+        { produto: 'Coca-Cola 500ml', quantidade: 50, preco: 35.0, total: 1750.0 }
       ]
     },
     {
@@ -111,8 +109,8 @@ export default function VendasHistoricoPage() {
       cliente: 'Empresa ABC Lda',
       clienteId: 'C002',
       dataVenda: '2024-01-14 16:20',
-      subtotal: 12500.00,
-      desconto: 625.00,
+      subtotal: 12500.0,
+      desconto: 625.0,
       iva: 2018.75,
       total: 13893.75,
       metodoPagamento: 'transferencia',
@@ -120,15 +118,101 @@ export default function VendasHistoricoPage() {
       vendedor: 'Maria Santos',
       observacoes: 'Desconto empresarial de 5%',
       itens: [
-        { produto: 'Arroz 25kg', quantidade: 10, preco: 1225.00, total: 12250.00 },
-        { produto: 'Óleo 1L', quantidade: 3, preco: 89.50, total: 268.50 }
+        { produto: 'Arroz 25kg', quantidade: 10, preco: 1225.0, total: 12250.0 },
+        { produto: 'Óleo 1L', quantidade: 3, preco: 89.5, total: 268.5 }
       ]
+    },
+    {
+      id: 'V006',
+      numero: 'V2024/006',
+      cliente: 'Tech Solutions Lda',
+      clienteId: 'C006',
+      dataVenda: '2024-01-14 10:10',
+      subtotal: 4820.0,
+      desconto: 241.0,
+      iva: 777.35,
+      total: 5356.35,
+      metodoPagamento: 'cartao',
+      status: 'finalizada',
+      vendedor: 'Paulo Matola',
+      observacoes: 'Compra com desconto de fidelidade',
+      itens: [
+        { produto: 'Router Wi-Fi', quantidade: 2, preco: 1800.0, total: 3600.0 },
+        { produto: 'Cabo de Rede 10m', quantidade: 5, preco: 244.0, total: 1220.0 }
+      ]
+    },
+    {
+      id: 'V007',
+      numero: 'V2024/007',
+      cliente: 'Farmácia Central',
+      clienteId: 'C007',
+      dataVenda: '2024-01-14 09:40',
+      subtotal: 9750.0,
+      desconto: 0,
+      iva: 1657.5,
+      total: 11407.5,
+      metodoPagamento: 'transferencia',
+      status: 'finalizada',
+      vendedor: 'Maria Santos',
+      observacoes: 'Entrega agendada para amanhã',
+      itens: [{ produto: 'Álcool Gel 500ml', quantidade: 150, preco: 65.0, total: 9750.0 }]
+    },
+    {
+      id: 'V008',
+      numero: 'V2024/008',
+      cliente: 'Mercantil Maputo',
+      clienteId: 'C008',
+      dataVenda: '2024-01-13 17:25',
+      subtotal: 4200.0,
+      desconto: 0,
+      iva: 714.0,
+      total: 4914.0,
+      metodoPagamento: 'mpesa',
+      status: 'devolvida',
+      vendedor: 'João Silva',
+      observacoes: 'Devolvido por produto danificado',
+      itens: [
+        { produto: 'Feijão 1kg', quantidade: 30, preco: 70.0, total: 2100.0 },
+        { produto: 'Massa Esparguete 500g', quantidade: 40, preco: 52.5, total: 2100.0 }
+      ]
+    },
+    {
+      id: 'V009',
+      numero: 'V2024/009',
+      cliente: 'Padaria Central',
+      clienteId: 'C009',
+      dataVenda: '2024-01-13 15:05',
+      subtotal: 2650.0,
+      desconto: 132.5,
+      iva: 427.88,
+      total: 2945.38,
+      metodoPagamento: 'dinheiro',
+      status: 'finalizada',
+      vendedor: 'Ana Costa',
+      observacoes: 'Desconto por volume',
+      itens: [{ produto: 'Farinha de Trigo 50kg', quantidade: 10, preco: 265.0, total: 2650.0 }]
+    },
+    {
+      id: 'V010',
+      numero: 'V2024/010',
+      cliente: 'Construtora Horizonte',
+      clienteId: 'C010',
+      dataVenda: '2024-01-12 18:10',
+      subtotal: 15800.0,
+      desconto: 790.0,
+      iva: 2533.5,
+      total: 17543.5,
+      metodoPagamento: 'transferencia',
+      status: 'finalizada',
+      vendedor: 'Carlos Mendes',
+      observacoes: 'Pagamento antecipado',
+      itens: [{ produto: 'Cimento 50kg', quantidade: 100, preco: 158.0, total: 15800.0 }]
     }
   ];
 
   const statusOptions = ['finalizada', 'cancelada', 'devolvida'];
   const metodosPagamento = ['dinheiro', 'cartao', 'mpesa', 'transferencia'];
-  const periodosOptions = ['hoje', 'ontem', 'semana', 'mes', 'ano'];
+  const periodosOptions = ['todos', 'hoje', 'ontem', 'semana', 'mes', 'ano'];
 
   const vendasFiltradas = vendas.filter(venda => {
     const correspondeNumero = venda.numero.toLowerCase().includes(termoPesquisa.toLowerCase()) ||
@@ -332,6 +416,7 @@ export default function VendasHistoricoPage() {
                 <SelectValue placeholder="Período" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="hoje">Hoje</SelectItem>
                 <SelectItem value="ontem">Ontem</SelectItem>
                 <SelectItem value="semana">Esta Semana</SelectItem>

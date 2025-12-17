@@ -16,6 +16,8 @@ import {
 	Receipt,
 	User,
 	ShoppingCart,
+	Smartphone,
+	Wallet,
 } from 'lucide-react';
 
 interface ProdutoPOS {
@@ -300,6 +302,24 @@ export default function POSPage() {
 							>
 								<CreditCard className='h-4 w-4' />
 								Cartão
+							</Button>
+							<Button
+								variant='outline'
+								className='gap-2'
+								disabled={carrinho.length === 0}
+								onClick={finalizarVenda}
+							>
+								<Smartphone className='h-4 w-4' />
+								Mpesa
+							</Button>
+							<Button
+								variant='outline'
+								className='gap-2'
+								disabled={carrinho.length === 0}
+								onClick={finalizarVenda}
+							>
+								<Wallet className='h-4 w-4' />
+								Emola
 							</Button>
 						</div>
 
