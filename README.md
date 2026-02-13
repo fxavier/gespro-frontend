@@ -17,6 +17,7 @@ Toda a documentação funcional reorganizada, incluindo diagramas e descrição 
 
 - Documentação funcional (frontend): [`docs/DOCUMENTACAO.md`](docs/DOCUMENTACAO.md)
 - Documentação técnica do backend Spring Modulith: [`docs/BACKEND_MODULITH.md`](docs/BACKEND_MODULITH.md)
+- Plano de backend com Prisma (requisitos, design e tasks): [`docs/BACKEND_PRISMA_IMPLEMENTACAO.md`](docs/BACKEND_PRISMA_IMPLEMENTACAO.md)
 
 ## Stack
 - Next.js 15 (App Router) + React 19 + TypeScript 5.
