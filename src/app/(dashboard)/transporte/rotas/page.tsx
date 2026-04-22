@@ -594,7 +594,7 @@ export default function RotasPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="dataPlanejada">Data Planejada *</Label>
+                    <Label htmlFor="dataPlanejada">Data Planeada *</Label>
                     <Input id="dataPlanejada" type="date" />
                   </div>
                   <div className="space-y-2">

@@ -306,8 +306,13 @@ const menuItems: MenuItem[] = [
 		icon: Truck,
 		children: [
 			{ title: 'Dashboard', href: '/transporte', icon: LayoutDashboard },
-			{ title: 'Veículos', href: '/transporte/veiculos', icon: Truck },
+			{ title: 'Atividades', href: '/transporte/atividades', icon: ClipboardList },
+			{ title: 'Viaturas', href: '/transporte/veiculos', icon: Truck },
+			{ title: 'Documentos de Viaturas', href: '/transporte/veiculos/documentos', icon: FileText },
+			{ title: 'Motoristas', href: '/transporte/motoristas', icon: User },
+			{ title: 'Documentos de Motoristas', href: '/transporte/motoristas/documentos', icon: FileText },
 			{ title: 'Rotas', href: '/transporte/rotas', icon: MapPin },
+			{ title: 'Combustível', href: '/transporte/combustivel', icon: Fuel },
 			{ title: 'Manutenção', href: '/transporte/manutencao', icon: Wrench },
 		],
 	},
@@ -543,8 +548,8 @@ export default function Sidebar() {
 			{!isCollapsed && (
 				<div className='border-t border-border/50 p-4'>
 					<div className='text-xs text-muted-foreground text-center'>
-						<p>GesPro ERP v1.0</p>
-						<p>© 2025 Todos os direitos reservados</p>
+						<p>Sistema ERP v1.0</p>
+						<p>© 2026 Todos os direitos reservados.</p>
 					</div>
 				</div>
 			)}

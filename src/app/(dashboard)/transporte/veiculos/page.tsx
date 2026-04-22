@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,15 +13,13 @@ import {
   Truck,
   Plus,
   Search,
-  Filter,
   Edit,
   Trash2,
-  Eye,
   AlertCircle,
   CheckCircle,
   Wrench,
-  Calendar,
-  Fuel
+  AlertTriangle,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Select,
@@ -39,135 +38,229 @@ import {
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { usePagination } from '@/hooks/usePagination';
 import { toast } from 'sonner';
-import type { Veiculo } from '@/types/transporte';
+import type { Viatura } from '@/types/transporte';
 
-const veiculosMock: Veiculo[] = [
+// ---------------------------------------------------------------
+// Dados mock — 4 viaturas com documentos variados
+// (válidos, próximos a expirar, expirados)
+// ---------------------------------------------------------------
+const viaturasMock: Viatura[] = [
   {
     id: '1',
-    tenantId: '1',
     matricula: 'ABC-1234',
     marca: 'Toyota',
     modelo: 'Hilux',
-    ano: 2022,
-    cor: 'Branco',
-    tipo: 'caminhao',
-    capacidadeCarga: 1000,
+    tipoViatura: 'ligeiro_mercadorias',
+    capacidade: 1000,
     unidadeCapacidade: 'kg',
-    consumoMedio: 12.5,
-    status: 'disponivel',
-    kmAtual: 45000,
-    ultimaManutencao: '2024-01-10',
-    proximaManutencao: '2024-04-10',
-    seguro: {
-      seguradora: 'Seguradora XYZ',
-      numeroApolice: 'SEG-12345',
-      dataValidade: '2024-12-31',
-      valorCobertura: 500000
-    },
-    inspecao: {
-      dataUltimaInspecao: '2023-12-15',
-      dataProximaInspecao: '2024-12-15',
-      status: 'valida'
-    },
-    licenca: {
-      numeroLicenca: 'LIC-98765',
-      dataValidade: '2024-11-30',
-      status: 'valida'
-    },
-    dataCriacao: '2022-01-15',
-    dataAtualizacao: '2024-01-15'
+    localActividade: 'Maputo',
+    dataInicioActividade: new Date('2022-01-15'),
+    motoristaResponsavelId: 'mot-1',
+    motoristaResponsavelNome: 'João Machava',
+    estado: 'disponivel',
+    documentos: [
+      {
+        id: 'doc-1-1',
+        viaturaId: '1',
+        tipo: 'livrete',
+        numero: 'LV-2022-001',
+        dataEmissao: new Date('2022-01-15'),
+        dataValidade: new Date('2027-01-15'),
+        entidadeEmissora: 'INATTER',
+        estado: 'valido',
+        prazoAlertaDias: 30,
+      },
+      {
+        id: 'doc-1-2',
+        viaturaId: '1',
+        tipo: 'seguro',
+        numero: 'SEG-2024-001',
+        dataEmissao: new Date('2024-01-01'),
+        dataValidade: new Date('2025-01-01'),
+        entidadeEmissora: 'Seguradora Nacional',
+        estado: 'valido',
+        prazoAlertaDias: 30,
+      },
+      {
+        id: 'doc-1-3',
+        viaturaId: '1',
+        tipo: 'inspecao',
+        numero: 'INSP-2024-001',
+        dataEmissao: new Date('2024-03-01'),
+        dataValidade: new Date('2025-03-01'),
+        entidadeEmissora: 'INATTER',
+        estado: 'valido',
+        prazoAlertaDias: 30,
+      },
+    ],
+    criadoEm: new Date('2022-01-15'),
+    actualizadoEm: new Date('2024-01-15'),
   },
   {
     id: '2',
-    tenantId: '1',
     matricula: 'XYZ-5678',
     marca: 'Nissan',
     modelo: 'NP300',
-    ano: 2021,
-    cor: 'Prata',
-    tipo: 'caminhao',
-    capacidadeCarga: 800,
-    unidadeCapacidade: 'kg',
-    consumoMedio: 11.8,
-    status: 'em_rota',
-    kmAtual: 62000,
-    ultimaManutencao: '2023-12-20',
-    proximaManutencao: '2024-03-20',
-    seguro: {
-      seguradora: 'Seguradora ABC',
-      numeroApolice: 'SEG-54321',
-      dataValidade: '2024-10-15',
-      valorCobertura: 450000
-    },
-    inspecao: {
-      dataUltimaInspecao: '2023-11-10',
-      dataProximaInspecao: '2024-11-10',
-      status: 'valida'
-    },
-    licenca: {
-      numeroLicenca: 'LIC-45678',
-      dataValidade: '2024-09-30',
-      status: 'valida'
-    },
-    dataCriacao: '2021-03-20',
-    dataAtualizacao: '2024-01-10'
+    tipoViatura: 'ligeiro_passageiros',
+    capacidade: 5,
+    unidadeCapacidade: 'passageiros',
+    localActividade: 'Beira',
+    dataInicioActividade: new Date('2021-03-20'),
+    motoristaResponsavelId: 'mot-2',
+    motoristaResponsavelNome: 'Carlos Sitoe',
+    estado: 'em_actividade',
+    documentos: [
+      {
+        id: 'doc-2-1',
+        viaturaId: '2',
+        tipo: 'livrete',
+        numero: 'LV-2021-002',
+        dataEmissao: new Date('2021-03-20'),
+        dataValidade: new Date('2026-03-20'),
+        entidadeEmissora: 'INATTER',
+        estado: 'valido',
+        prazoAlertaDias: 30,
+      },
+      {
+        id: 'doc-2-2',
+        viaturaId: '2',
+        tipo: 'seguro',
+        numero: 'SEG-2024-002',
+        dataEmissao: new Date('2024-01-15'),
+        // Expira em ~20 dias a partir de hoje — próximo a expirar
+        dataValidade: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+        entidadeEmissora: 'Seguradora Nacional',
+        estado: 'proximo_expirar',
+        prazoAlertaDias: 30,
+      },
+      {
+        id: 'doc-2-3',
+        viaturaId: '2',
+        tipo: 'inspecao',
+        numero: 'INSP-2024-002',
+        dataEmissao: new Date('2024-02-01'),
+        // Expira em ~15 dias a partir de hoje — próximo a expirar
+        dataValidade: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+        entidadeEmissora: 'INATTER',
+        estado: 'proximo_expirar',
+        prazoAlertaDias: 30,
+      },
+    ],
+    criadoEm: new Date('2021-03-20'),
+    actualizadoEm: new Date('2024-01-10'),
   },
   {
     id: '3',
-    tenantId: '1',
     matricula: 'DEF-9012',
     marca: 'Isuzu',
-    modelo: 'D-Max',
-    ano: 2020,
-    cor: 'Azul',
-    tipo: 'caminhao',
-    capacidadeCarga: 1200,
-    unidadeCapacidade: 'kg',
-    consumoMedio: 13.2,
-    status: 'manutencao',
-    kmAtual: 85000,
-    ultimaManutencao: '2024-01-05',
-    proximaManutencao: '2024-04-05',
-    seguro: {
-      seguradora: 'Seguradora XYZ',
-      numeroApolice: 'SEG-67890',
-      dataValidade: '2024-08-20',
-      valorCobertura: 400000
-    },
-    inspecao: {
-      dataUltimaInspecao: '2023-10-05',
-      dataProximaInspecao: '2024-02-20',
-      status: 'proxima_vencer'
-    },
-    licenca: {
-      numeroLicenca: 'LIC-23456',
-      dataValidade: '2024-07-15',
-      status: 'valida'
-    },
-    observacoes: 'Em manutenção preventiva - troca de óleo e filtros',
-    dataCriacao: '2020-05-10',
-    dataAtualizacao: '2024-01-05'
-  }
+    modelo: 'FTR',
+    tipoViatura: 'pesado_mercadorias',
+    capacidade: 10,
+    unidadeCapacidade: 'ton',
+    localActividade: 'Nampula',
+    dataInicioActividade: new Date('2020-05-10'),
+    estado: 'em_manutencao',
+    observacoes: 'Em manutenção preventiva — troca de óleo e filtros',
+    documentos: [
+      {
+        id: 'doc-3-1',
+        viaturaId: '3',
+        tipo: 'livrete',
+        numero: 'LV-2020-003',
+        dataEmissao: new Date('2020-05-10'),
+        dataValidade: new Date('2025-05-10'),
+        entidadeEmissora: 'INATTER',
+        estado: 'valido',
+        prazoAlertaDias: 30,
+      },
+      {
+        id: 'doc-3-2',
+        viaturaId: '3',
+        tipo: 'seguro',
+        numero: 'SEG-2023-003',
+        dataEmissao: new Date('2023-01-01'),
+        // Expirado — data no passado
+        dataValidade: new Date('2024-01-01'),
+        entidadeEmissora: 'Seguradora Nacional',
+        estado: 'expirado',
+        prazoAlertaDias: 30,
+      },
+      {
+        id: 'doc-3-3',
+        viaturaId: '3',
+        tipo: 'inspecao',
+        numero: 'INSP-2023-003',
+        dataEmissao: new Date('2023-03-01'),
+        // Expirado — data no passado
+        dataValidade: new Date('2024-03-01'),
+        entidadeEmissora: 'INATTER',
+        estado: 'expirado',
+        prazoAlertaDias: 30,
+      },
+    ],
+    criadoEm: new Date('2020-05-10'),
+    actualizadoEm: new Date('2024-01-05'),
+  },
+  {
+    id: '4',
+    matricula: 'GHI-3456',
+    marca: 'Mercedes-Benz',
+    modelo: 'Sprinter',
+    tipoViatura: 'pesado_passageiros',
+    capacidade: 20,
+    unidadeCapacidade: 'passageiros',
+    localActividade: 'Maputo',
+    dataInicioActividade: new Date('2019-08-01'),
+    estado: 'inactiva',
+    observacoes: 'Aguarda renovação de documentação',
+    documentos: [
+      {
+        id: 'doc-4-1',
+        viaturaId: '4',
+        tipo: 'livrete',
+        numero: 'LV-2019-004',
+        dataEmissao: new Date('2019-08-01'),
+        dataValidade: new Date('2024-08-01'),
+        entidadeEmissora: 'INATTER',
+        // Expirado
+        estado: 'expirado',
+        prazoAlertaDias: 30,
+      },
+      {
+        id: 'doc-4-2',
+        viaturaId: '4',
+        tipo: 'licenca',
+        numero: 'LIC-2019-004',
+        dataEmissao: new Date('2019-08-01'),
+        dataValidade: new Date('2024-08-01'),
+        entidadeEmissora: 'Ministério dos Transportes',
+        // Expirado
+        estado: 'expirado',
+        prazoAlertaDias: 30,
+      },
+    ],
+    criadoEm: new Date('2019-08-01'),
+    actualizadoEm: new Date('2024-01-01'),
+  },
 ];
 
 export default function VeiculosPage() {
-  const [veiculos, setVeiculos] = useState<Veiculo[]>(veiculosMock);
+  const [veiculos, setVeiculos] = useState<Viatura[]>(viaturasMock);
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
   const [dialogAberto, setDialogAberto] = useState(false);
-  const [veiculoSelecionado, setVeiculoSelecionado] = useState<Veiculo | null>(null);
-  const [formData, setFormData] = useState<Partial<Veiculo>>({
+  const [veiculoSelecionado, setVeiculoSelecionado] = useState<Viatura | null>(null);
+  const [formData, setFormData] = useState<Partial<Viatura>>({
     matricula: '',
     marca: '',
     modelo: '',
-    ano: new Date().getFullYear(),
-    tipo: 'caminhao',
-    capacidadeCarga: 0,
+    tipoViatura: 'ligeiro_mercadorias',
+    capacidade: 0,
     unidadeCapacidade: 'kg',
-    consumoMedio: 0,
-    status: 'disponivel',
-    kmAtual: 0
+    localActividade: '',
+    estado: 'disponivel',
+    documentos: [],
   });
 
   const dadosFiltrados = useMemo(() => {
@@ -177,8 +270,8 @@ export default function VeiculosPage() {
         veiculo.marca.toLowerCase().includes(busca.toLowerCase()) ||
         veiculo.modelo.toLowerCase().includes(busca.toLowerCase());
       
-      const matchStatus = filtroStatus === 'todos' || veiculo.status === filtroStatus;
-      const matchTipo = filtroTipo === 'todos' || veiculo.tipo === filtroTipo;
+      const matchStatus = filtroStatus === 'todos' || veiculo.estado === filtroStatus;
+      const matchTipo = filtroTipo === 'todos' || veiculo.tipoViatura === filtroTipo;
       
       return matchBusca && matchStatus && matchTipo;
     });
@@ -197,10 +290,10 @@ export default function VeiculosPage() {
   const estatisticas = useMemo(() => {
     return {
       total: veiculos.length,
-      disponiveis: veiculos.filter(v => v.status === 'disponivel').length,
-      emRota: veiculos.filter(v => v.status === 'em_rota').length,
-      manutencao: veiculos.filter(v => v.status === 'manutencao').length,
-      inativos: veiculos.filter(v => v.status === 'inativo').length
+      disponiveis: veiculos.filter(v => v.estado === 'disponivel').length,
+      emActividade: veiculos.filter(v => v.estado === 'em_actividade').length,
+      manutencao: veiculos.filter(v => v.estado === 'em_manutencao').length,
+      inactivas: veiculos.filter(v => v.estado === 'inactiva').length,
     };
   }, [veiculos]);
 
@@ -210,25 +303,24 @@ export default function VeiculosPage() {
       matricula: '',
       marca: '',
       modelo: '',
-      ano: new Date().getFullYear(),
-      tipo: 'caminhao',
-      capacidadeCarga: 0,
+      tipoViatura: 'ligeiro_mercadorias',
+      capacidade: 0,
       unidadeCapacidade: 'kg',
-      consumoMedio: 0,
-      status: 'disponivel',
-      kmAtual: 0
+      localActividade: '',
+      estado: 'disponivel',
+      documentos: [],
     });
     setDialogAberto(true);
   };
 
-  const handleEditarVeiculo = (veiculo: Veiculo) => {
+  const handleEditarVeiculo = (veiculo: Viatura) => {
     setVeiculoSelecionado(veiculo);
     setFormData(veiculo);
     setDialogAberto(true);
   };
 
   const handleSalvar = () => {
-    if (!formData.matricula || !formData.marca || !formData.modelo) {
+    if (!formData.matricula || !formData.marca || !formData.modelo || !formData.localActividade) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
@@ -236,63 +328,52 @@ export default function VeiculosPage() {
     if (veiculoSelecionado) {
       setVeiculos(veiculos.map(v => 
         v.id === veiculoSelecionado.id 
-          ? { ...v, ...formData, dataAtualizacao: new Date().toISOString() }
+          ? { ...v, ...formData, actualizadoEm: new Date() }
           : v
       ));
-      toast.success('Veículo atualizado com sucesso!');
+      toast.success('Viatura actualizada com sucesso!');
     } else {
-      const novoVeiculo: Veiculo = {
-        ...formData as Veiculo,
+      const novaViatura: Viatura = {
+        ...(formData as Viatura),
         id: Date.now().toString(),
-        tenantId: '1',
-        seguro: {
-          seguradora: '',
-          numeroApolice: '',
-          dataValidade: '',
-          valorCobertura: 0
-        },
-        inspecao: {
-          dataProximaInspecao: '',
-          status: 'valida'
-        },
-        licenca: {
-          numeroLicenca: '',
-          dataValidade: '',
-          status: 'valida'
-        },
-        dataCriacao: new Date().toISOString(),
-        dataAtualizacao: new Date().toISOString()
+        documentos: [],
+        criadoEm: new Date(),
+        actualizadoEm: new Date(),
+        dataInicioActividade: formData.dataInicioActividade ?? new Date(),
       };
-      setVeiculos([novoVeiculo, ...veiculos]);
-      toast.success('Veículo cadastrado com sucesso!');
+      setVeiculos([novaViatura, ...veiculos]);
+      toast.success('Viatura cadastrada com sucesso!');
     }
 
     setDialogAberto(false);
   };
 
   const handleExcluir = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este veículo?')) {
+    if (confirm('Tem certeza que deseja excluir esta viatura?')) {
       setVeiculos(veiculos.filter(v => v.id !== id));
-      toast.success('Veículo excluído com sucesso!');
+      toast.success('Viatura excluída com sucesso!');
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (estado: string) => {
     const badges: Record<string, { variant: 'default' | 'destructive' | 'secondary' | 'outline'; label: string; icon: any }> = {
       disponivel: { variant: 'default', label: 'Disponível', icon: CheckCircle },
-      em_rota: { variant: 'secondary', label: 'Em Rota', icon: Truck },
-      manutencao: { variant: 'destructive', label: 'Manutenção', icon: Wrench },
-      inativo: { variant: 'outline', label: 'Inativo', icon: AlertCircle }
+      em_actividade: { variant: 'secondary', label: 'Em Actividade', icon: Truck },
+      em_manutencao: { variant: 'destructive', label: 'Manutenção', icon: Wrench },
+      inactiva: { variant: 'outline', label: 'Inactiva', icon: AlertCircle },
+      abatida: { variant: 'outline', label: 'Abatida', icon: AlertCircle },
     };
-    return badges[status] || badges.disponivel;
+    return badges[estado] || badges.disponivel;
   };
 
   const getTipoLabel = (tipo: string) => {
     const tipos: Record<string, string> = {
-      carro: 'Carro',
-      caminhao: 'Caminhão',
-      moto: 'Moto',
-      van: 'Van'
+      ligeiro_passageiros: 'Ligeiro Passageiros',
+      ligeiro_mercadorias: 'Ligeiro Mercadorias',
+      pesado_mercadorias: 'Pesado Mercadorias',
+      pesado_passageiros: 'Pesado Passageiros',
+      motociclo: 'Motociclo',
+      outro: 'Outro',
     };
     return tipos[tipo] || tipo;
   };
@@ -301,12 +382,12 @@ export default function VeiculosPage() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Gestão de Veículos</h1>
-          <p className="text-muted-foreground">Cadastro e controlo da frota de veículos</p>
+          <h1 className="text-3xl font-bold">Gestão de Viaturas</h1>
+          <p className="text-muted-foreground">Cadastro e controlo da frota de viaturas</p>
         </div>
         <Button className="gap-2" onClick={handleNovoVeiculo}>
           <Plus className="h-4 w-4" />
-          Novo Veículo
+          Nova Viatura
         </Button>
       </div>
 
@@ -330,8 +411,8 @@ export default function VeiculosPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground">Em Rota</p>
-              <p className="text-3xl font-bold text-blue-600">{estatisticas.emRota}</p>
+              <p className="text-sm text-muted-foreground">Em Actividade</p>
+              <p className="text-3xl font-bold text-blue-600">{estatisticas.emActividade}</p>
             </div>
           </CardContent>
         </Card>
@@ -346,8 +427,8 @@ export default function VeiculosPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground">Inativos</p>
-              <p className="text-3xl font-bold text-gray-600">{estatisticas.inativos}</p>
+              <p className="text-sm text-muted-foreground">Inactivas</p>
+              <p className="text-3xl font-bold text-gray-600">{estatisticas.inactivas}</p>
             </div>
           </CardContent>
         </Card>
@@ -373,14 +454,15 @@ export default function VeiculosPage() {
             
             <Select value={filtroStatus} onValueChange={setFiltroStatus}>
               <SelectTrigger>
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos os Status</SelectItem>
+                <SelectItem value="todos">Todos os Estados</SelectItem>
                 <SelectItem value="disponivel">Disponível</SelectItem>
-                <SelectItem value="em_rota">Em Rota</SelectItem>
-                <SelectItem value="manutencao">Manutenção</SelectItem>
-                <SelectItem value="inativo">Inativo</SelectItem>
+                <SelectItem value="em_actividade">Em Actividade</SelectItem>
+                <SelectItem value="em_manutencao">Em Manutenção</SelectItem>
+                <SelectItem value="inactiva">Inactiva</SelectItem>
+                <SelectItem value="abatida">Abatida</SelectItem>
               </SelectContent>
             </Select>
 
@@ -390,10 +472,12 @@ export default function VeiculosPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos os Tipos</SelectItem>
-                <SelectItem value="carro">Carro</SelectItem>
-                <SelectItem value="caminhao">Caminhão</SelectItem>
-                <SelectItem value="moto">Moto</SelectItem>
-                <SelectItem value="van">Van</SelectItem>
+                <SelectItem value="ligeiro_passageiros">Ligeiro Passageiros</SelectItem>
+                <SelectItem value="ligeiro_mercadorias">Ligeiro Mercadorias</SelectItem>
+                <SelectItem value="pesado_mercadorias">Pesado Mercadorias</SelectItem>
+                <SelectItem value="pesado_passageiros">Pesado Passageiros</SelectItem>
+                <SelectItem value="motociclo">Motociclo</SelectItem>
+                <SelectItem value="outro">Outro</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -402,7 +486,7 @@ export default function VeiculosPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Veículos ({dadosFiltrados.length})</CardTitle>
+          <CardTitle>Lista de Viaturas ({dadosFiltrados.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -410,53 +494,44 @@ export default function VeiculosPage() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-4 font-medium">Matrícula</th>
-                  <th className="text-left p-4 font-medium">Veículo</th>
+                  <th className="text-left p-4 font-medium">Marca / Modelo</th>
                   <th className="text-left p-4 font-medium">Tipo</th>
-                  <th className="text-left p-4 font-medium">Capacidade</th>
-                  <th className="text-left p-4 font-medium">KM Atual</th>
-                  <th className="text-left p-4 font-medium">Consumo</th>
-                  <th className="text-left p-4 font-medium">Status</th>
-                  <th className="text-left p-4 font-medium">Ações</th>
+                  <th className="text-left p-4 font-medium">Estado</th>
+                  <th className="text-left p-4 font-medium">Motorista Responsável</th>
+                  <th className="text-left p-4 font-medium">Alertas</th>
+                  <th className="text-left p-4 font-medium">Acções</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedData.map((veiculo) => {
-                  const statusInfo = getStatusBadge(veiculo.status);
+                  const statusInfo = getStatusBadge(veiculo.estado);
                   const StatusIcon = statusInfo.icon;
-                  
+                  const temDocumentosExpirados = veiculo.documentos.some(
+                    (doc) => doc.estado === 'expirado',
+                  );
+                  const temDocumentosProximosExpirar = veiculo.documentos.some(
+                    (doc) => doc.estado === 'proximo_expirar',
+                  );
+
                   return (
                     <tr key={veiculo.id} className="border-b hover:bg-muted/50">
                       <td className="p-4">
                         <div className="flex items-center gap-2">
                           <Truck className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{veiculo.matricula}</span>
+                          <Link
+                            href={`/transporte/veiculos/${veiculo.id}`}
+                            className="font-medium hover:underline flex items-center gap-1"
+                          >
+                            {veiculo.matricula}
+                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                          </Link>
                         </div>
                       </td>
                       <td className="p-4">
-                        <div>
-                          <div className="font-medium">{veiculo.marca} {veiculo.modelo}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {veiculo.ano} • {veiculo.cor}
-                          </div>
-                        </div>
+                        <div className="font-medium">{veiculo.marca} {veiculo.modelo}</div>
                       </td>
                       <td className="p-4">
-                        <Badge variant="outline">{getTipoLabel(veiculo.tipo)}</Badge>
-                      </td>
-                      <td className="p-4">
-                        {veiculo.capacidadeCarga} {veiculo.unidadeCapacidade}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          {veiculo.kmAtual.toLocaleString()} km
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1">
-                          <Fuel className="h-4 w-4 text-muted-foreground" />
-                          {veiculo.consumoMedio} km/l
-                        </div>
+                        <Badge variant="outline">{getTipoLabel(veiculo.tipoViatura)}</Badge>
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
@@ -465,6 +540,31 @@ export default function VeiculosPage() {
                             {statusInfo.label}
                           </Badge>
                         </div>
+                      </td>
+                      <td className="p-4">
+                        {veiculo.motoristaResponsavelNome ? (
+                          <span className="text-sm">{veiculo.motoristaResponsavelNome}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {temDocumentosExpirados ? (
+                          <div className="flex items-center gap-1 text-red-600">
+                            <AlertCircle className="h-4 w-4" />
+                            <span className="text-xs font-medium">Documentos expirados</span>
+                          </div>
+                        ) : temDocumentosProximosExpirar ? (
+                          <div className="flex items-center gap-1 text-yellow-600">
+                            <AlertTriangle className="h-4 w-4" />
+                            <span className="text-xs font-medium">A expirar em breve</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-green-600">
+                            <CheckCircle className="h-4 w-4" />
+                            <span className="text-xs font-medium">OK</span>
+                          </div>
+                        )}
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
@@ -494,7 +594,7 @@ export default function VeiculosPage() {
           {dadosFiltrados.length === 0 && (
             <div className="text-center py-12">
               <Truck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum veículo encontrado</p>
+              <p className="text-muted-foreground">Nenhuma viatura encontrada</p>
             </div>
           )}
 
@@ -515,7 +615,7 @@ export default function VeiculosPage() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {veiculoSelecionado ? 'Editar Veículo' : 'Novo Veículo'}
+              {veiculoSelecionado ? 'Editar Viatura' : 'Nova Viatura'}
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -530,25 +630,27 @@ export default function VeiculosPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tipo">Tipo *</Label>
+                <Label htmlFor="tipoViatura">Tipo de Viatura *</Label>
                 <Select 
-                  value={formData.tipo} 
-                  onValueChange={(value: any) => setFormData({ ...formData, tipo: value })}
+                  value={formData.tipoViatura} 
+                  onValueChange={(value: any) => setFormData({ ...formData, tipoViatura: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="carro">Carro</SelectItem>
-                    <SelectItem value="caminhao">Caminhão</SelectItem>
-                    <SelectItem value="moto">Moto</SelectItem>
-                    <SelectItem value="van">Van</SelectItem>
+                    <SelectItem value="ligeiro_passageiros">Ligeiro Passageiros</SelectItem>
+                    <SelectItem value="ligeiro_mercadorias">Ligeiro Mercadorias</SelectItem>
+                    <SelectItem value="pesado_mercadorias">Pesado Mercadorias</SelectItem>
+                    <SelectItem value="pesado_passageiros">Pesado Passageiros</SelectItem>
+                    <SelectItem value="motociclo">Motociclo</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="marca">Marca *</Label>
                 <Input
@@ -567,34 +669,16 @@ export default function VeiculosPage() {
                   placeholder="Hilux"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="ano">Ano *</Label>
-                <Input
-                  id="ano"
-                  type="number"
-                  value={formData.ano}
-                  onChange={(e) => setFormData({ ...formData, ano: parseInt(e.target.value) })}
-                />
-              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="cor">Cor</Label>
-                <Input
-                  id="cor"
-                  value={formData.cor || ''}
-                  onChange={(e) => setFormData({ ...formData, cor: e.target.value })}
-                  placeholder="Branco"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="capacidade">Capacidade de Carga *</Label>
+                <Label htmlFor="capacidade">Capacidade *</Label>
                 <Input
                   id="capacidade"
                   type="number"
-                  value={formData.capacidadeCarga}
-                  onChange={(e) => setFormData({ ...formData, capacidadeCarga: parseFloat(e.target.value) })}
+                  value={formData.capacidade}
+                  onChange={(e) => setFormData({ ...formData, capacidade: parseFloat(e.target.value) })}
                 />
               </div>
               <div className="space-y-2">
@@ -610,48 +694,57 @@ export default function VeiculosPage() {
                     <SelectItem value="kg">kg</SelectItem>
                     <SelectItem value="ton">ton</SelectItem>
                     <SelectItem value="m3">m³</SelectItem>
+                    <SelectItem value="passageiros">passageiros</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="consumo">Consumo Médio (km/l)</Label>
-                <Input
-                  id="consumo"
-                  type="number"
-                  step="0.1"
-                  value={formData.consumoMedio}
-                  onChange={(e) => setFormData({ ...formData, consumoMedio: parseFloat(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="km">KM Atual</Label>
-                <Input
-                  id="km"
-                  type="number"
-                  value={formData.kmAtual}
-                  onChange={(e) => setFormData({ ...formData, kmAtual: parseInt(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
+                <Label htmlFor="estado">Estado *</Label>
                 <Select 
-                  value={formData.status} 
-                  onValueChange={(value: any) => setFormData({ ...formData, status: value })}
+                  value={formData.estado} 
+                  onValueChange={(value: any) => setFormData({ ...formData, estado: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="disponivel">Disponível</SelectItem>
-                    <SelectItem value="em_rota">Em Rota</SelectItem>
-                    <SelectItem value="manutencao">Manutenção</SelectItem>
-                    <SelectItem value="inativo">Inativo</SelectItem>
+                    <SelectItem value="em_actividade">Em Actividade</SelectItem>
+                    <SelectItem value="em_manutencao">Em Manutenção</SelectItem>
+                    <SelectItem value="inactiva">Inactiva</SelectItem>
+                    <SelectItem value="abatida">Abatida</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="localActividade">Local de Actividade *</Label>
+              <Input
+                id="localActividade"
+                value={formData.localActividade || ''}
+                onChange={(e) => setFormData({ ...formData, localActividade: e.target.value })}
+                placeholder="Maputo"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dataInicioActividade">Data de Início de Actividade *</Label>
+              <Input
+                id="dataInicioActividade"
+                type="date"
+                value={
+                  formData.dataInicioActividade
+                    ? new Date(formData.dataInicioActividade).toISOString().split('T')[0]
+                    : ''
+                }
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    dataInicioActividade: e.target.value ? new Date(e.target.value) : undefined,
+                  })
+                }
+              />
             </div>
 
             <div className="space-y-2">
@@ -669,7 +762,7 @@ export default function VeiculosPage() {
               Cancelar
             </Button>
             <Button onClick={handleSalvar}>
-              {veiculoSelecionado ? 'Atualizar' : 'Cadastrar'}
+              {veiculoSelecionado ? 'Actualizar' : 'Cadastrar'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,14 +16,10 @@ import {
   Edit,
   Trash2,
   Phone,
-  Mail,
   Calendar,
-  Award,
-  TrendingUp,
   AlertCircle,
   CheckCircle,
-  Clock,
-  Package
+  ExternalLink,
 } from 'lucide-react';
 import {
   Select,
@@ -41,111 +38,188 @@ import {
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { usePagination } from '@/hooks/usePagination';
 import { toast } from 'sonner';
-import type { Motorista } from '@/types/transporte';
+import type { Motorista, DocumentoMotorista } from '@/types/transporte';
 
+// ---------------------------------------------------------------
+// Dados mock — 4 motoristas com documentos variados
+// (válidos, próximos a expirar, expirados)
+// ---------------------------------------------------------------
 const motoristasMock: Motorista[] = [
   {
+    // Motorista 1: Carlos Santos — carta válida até 2027, BI válido, disponível
     id: '1',
-    tenantId: '1',
-    nome: 'Carlos Santos',
-    email: 'carlos.santos@email.com',
-    telefone: '+258 84 123 4567',
-    nuit: '123456789',
-    endereco: 'Av. Julius Nyerere, 1234, Maputo',
-    dataNascimento: '1985-03-15',
-    cartaConducao: {
-      numero: 'CNH-12345',
-      categoria: ['B', 'C', 'D'],
-      dataEmissao: '2015-06-20',
-      dataValidade: '2025-06-20',
-      status: 'valida'
+    nomeCompleto: 'Carlos Santos',
+    contacto: '+258 84 123 4567',
+    morada: 'Av. Julius Nyerere, 1234, Maputo',
+    numeroBI: '123456789A',
+    numeroCarta: 'CNH-12345',
+    categoriaCarta: ['B', 'C', 'D'],
+    dataEmissaoCarta: new Date('2017-06-20'),
+    validadeCarta: new Date('2027-06-20'),
+    localActividade: 'Maputo',
+    estadoOperacional: 'activo',
+    documentos: [
+      {
+        id: 'doc-1-1',
+        motoristaId: '1',
+        tipo: 'carta_conducao',
+        numero: 'CNH-12345',
+        dataEmissao: new Date('2017-06-20'),
+        dataValidade: new Date('2027-06-20'),
+        entidadeEmissora: 'INATTER',
+        estado: 'valido',
+      },
+      {
+        id: 'doc-1-2',
+        motoristaId: '1',
+        tipo: 'bi',
+        numero: '123456789A',
+        dataEmissao: new Date('2020-01-10'),
+        dataValidade: new Date('2030-01-10'),
+        entidadeEmissora: 'Arquivo de Identificação Civil',
+        estado: 'valido',
+      },
+    ] as DocumentoMotorista[],
+    disponibilidade: {
+      disponivel: true,
+      fonte: 'sistema',
     },
-    status: 'ativo',
-    avaliacaoMedia: 4.8,
-    totalEntregas: 450,
-    entregasNoTempo: 425,
-    entregasAtrasadas: 20,
-    entregasFalhadas: 5,
-    dataCriacao: '2020-01-15',
-    dataAtualizacao: '2024-01-15'
+    criadoEm: new Date('2020-01-15'),
+    actualizadoEm: new Date('2024-01-15'),
   },
   {
+    // Motorista 2: Ana Pereira — carta válida até 2028, BI próximo a expirar (~20 dias), disponível
     id: '2',
-    tenantId: '1',
-    nome: 'Ana Pereira',
-    email: 'ana.pereira@email.com',
-    telefone: '+258 82 987 6543',
-    nuit: '987654321',
-    endereco: 'Rua da Resistência, 567, Maputo',
-    dataNascimento: '1990-07-22',
-    cartaConducao: {
-      numero: 'CNH-54321',
-      categoria: ['B', 'C'],
-      dataEmissao: '2018-03-10',
-      dataValidade: '2028-03-10',
-      status: 'valida'
+    nomeCompleto: 'Ana Pereira',
+    contacto: '+258 82 987 6543',
+    morada: 'Rua da Resistência, 567, Maputo',
+    numeroBI: '987654321B',
+    numeroCarta: 'CNH-54321',
+    categoriaCarta: ['B', 'C'],
+    dataEmissaoCarta: new Date('2018-03-10'),
+    validadeCarta: new Date('2028-03-10'),
+    localActividade: 'Maputo',
+    estadoOperacional: 'activo',
+    documentos: [
+      {
+        id: 'doc-2-1',
+        motoristaId: '2',
+        tipo: 'carta_conducao',
+        numero: 'CNH-54321',
+        dataEmissao: new Date('2018-03-10'),
+        dataValidade: new Date('2028-03-10'),
+        entidadeEmissora: 'INATTER',
+        estado: 'valido',
+      },
+      {
+        id: 'doc-2-2',
+        motoristaId: '2',
+        tipo: 'bi',
+        numero: '987654321B',
+        dataEmissao: new Date('2019-05-15'),
+        // Expira em ~20 dias a partir de hoje — próximo a expirar
+        dataValidade: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+        entidadeEmissora: 'Arquivo de Identificação Civil',
+        estado: 'proximo_expirar',
+      },
+    ] as DocumentoMotorista[],
+    disponibilidade: {
+      disponivel: true,
+      fonte: 'sistema',
     },
-    status: 'ativo',
-    avaliacaoMedia: 4.9,
-    totalEntregas: 320,
-    entregasNoTempo: 310,
-    entregasAtrasadas: 8,
-    entregasFalhadas: 2,
-    dataCriacao: '2021-05-20',
-    dataAtualizacao: '2024-01-10'
+    criadoEm: new Date('2021-05-20'),
+    actualizadoEm: new Date('2024-01-10'),
   },
   {
+    // Motorista 3: João Machado — carta EXPIRADA (2024-03-15), BI válido, disponível
     id: '3',
-    tenantId: '1',
-    nome: 'João Machado',
-    email: 'joao.machado@email.com',
-    telefone: '+258 86 555 7890',
-    nuit: '456789123',
-    endereco: 'Av. 25 de Setembro, 890, Maputo',
-    dataNascimento: '1988-11-05',
-    cartaConducao: {
-      numero: 'CNH-67890',
-      categoria: ['B'],
-      dataEmissao: '2016-09-15',
-      dataValidade: '2024-03-15',
-      status: 'proxima_vencer'
+    nomeCompleto: 'João Machado',
+    contacto: '+258 86 555 7890',
+    morada: 'Av. 25 de Setembro, 890, Maputo',
+    numeroBI: '111222333C',
+    numeroCarta: 'CNH-67890',
+    categoriaCarta: ['B'],
+    dataEmissaoCarta: new Date('2014-03-15'),
+    validadeCarta: new Date('2024-03-15'),
+    localActividade: 'Beira',
+    estadoOperacional: 'activo',
+    observacoes: 'Carta de condução expirada — renovação pendente',
+    documentos: [
+      {
+        id: 'doc-3-1',
+        motoristaId: '3',
+        tipo: 'carta_conducao',
+        numero: 'CNH-67890',
+        dataEmissao: new Date('2014-03-15'),
+        // Expirado — data no passado
+        dataValidade: new Date('2024-03-15'),
+        entidadeEmissora: 'INATTER',
+        estado: 'expirado',
+      },
+      {
+        id: 'doc-3-2',
+        motoristaId: '3',
+        tipo: 'bi',
+        numero: '111222333C',
+        dataEmissao: new Date('2021-07-20'),
+        dataValidade: new Date('2031-07-20'),
+        entidadeEmissora: 'Arquivo de Identificação Civil',
+        estado: 'valido',
+      },
+    ] as DocumentoMotorista[],
+    disponibilidade: {
+      disponivel: true,
+      fonte: 'sistema',
     },
-    status: 'ativo',
-    avaliacaoMedia: 4.5,
-    totalEntregas: 280,
-    entregasNoTempo: 260,
-    entregasAtrasadas: 15,
-    entregasFalhadas: 5,
-    observacoes: 'Carta de condução próxima do vencimento',
-    dataCriacao: '2021-08-10',
-    dataAtualizacao: '2024-01-05'
+    criadoEm: new Date('2021-08-10'),
+    actualizadoEm: new Date('2024-01-05'),
   },
   {
+    // Motorista 4: Maria Costa — carta válida até 2029, em férias (rh_api), indisponível
     id: '4',
-    tenantId: '1',
-    nome: 'Maria Costa',
-    email: 'maria.costa@email.com',
-    telefone: '+258 84 222 3333',
-    nuit: '789123456',
-    endereco: 'Rua dos Continuadores, 123, Maputo',
-    dataNascimento: '1992-04-18',
-    cartaConducao: {
-      numero: 'CNH-11111',
-      categoria: ['B', 'C', 'D', 'E'],
-      dataEmissao: '2019-01-20',
-      dataValidade: '2029-01-20',
-      status: 'valida'
+    nomeCompleto: 'Maria Costa',
+    contacto: '+258 84 222 3333',
+    morada: 'Rua dos Continuadores, 123, Maputo',
+    numeroBI: '444555666D',
+    numeroCarta: 'CNH-11111',
+    categoriaCarta: ['B', 'C', 'D', 'E'],
+    dataEmissaoCarta: new Date('2019-01-20'),
+    validadeCarta: new Date('2029-01-20'),
+    localActividade: 'Maputo',
+    estadoOperacional: 'activo',
+    observacoes: 'Em férias — retorno previsto para 15/02/2025',
+    documentos: [
+      {
+        id: 'doc-4-1',
+        motoristaId: '4',
+        tipo: 'carta_conducao',
+        numero: 'CNH-11111',
+        dataEmissao: new Date('2019-01-20'),
+        dataValidade: new Date('2029-01-20'),
+        entidadeEmissora: 'INATTER',
+        estado: 'valido',
+      },
+      {
+        id: 'doc-4-2',
+        motoristaId: '4',
+        tipo: 'bi',
+        numero: '444555666D',
+        dataEmissao: new Date('2022-03-05'),
+        dataValidade: new Date('2032-03-05'),
+        entidadeEmissora: 'Arquivo de Identificação Civil',
+        estado: 'valido',
+      },
+    ] as DocumentoMotorista[],
+    disponibilidade: {
+      disponivel: false,
+      motivo: 'ferias',
+      dataInicio: new Date('2025-01-20'),
+      dataFim: new Date('2025-02-15'),
+      fonte: 'rh_api',
     },
-    status: 'ferias',
-    avaliacaoMedia: 4.7,
-    totalEntregas: 195,
-    entregasNoTempo: 185,
-    entregasAtrasadas: 8,
-    entregasFalhadas: 2,
-    observacoes: 'Em férias até 15/02/2024',
-    dataCriacao: '2022-03-01',
-    dataAtualizacao: '2024-01-20'
-  }
+    criadoEm: new Date('2022-03-01'),
+    actualizadoEm: new Date('2025-01-20'),
+  },
 ];
 
 export default function MotoristasPage() {
@@ -155,30 +229,25 @@ export default function MotoristasPage() {
   const [dialogAberto, setDialogAberto] = useState(false);
   const [motoristaSelecionado, setMotoristaSelecionado] = useState<Motorista | null>(null);
   const [formData, setFormData] = useState<Partial<Motorista>>({
-    nome: '',
-    email: '',
-    telefone: '',
-    nuit: '',
-    endereco: '',
-    dataNascimento: '',
-    status: 'ativo',
-    cartaConducao: {
-      numero: '',
-      categoria: [],
-      dataEmissao: '',
-      dataValidade: '',
-      status: 'valida'
-    }
+    nomeCompleto: '',
+    contacto: '',
+    morada: '',
+    estadoOperacional: 'activo',
+    numeroCarta: '',
+    categoriaCarta: [],
+    disponibilidade: {
+      disponivel: true,
+      fonte: 'manual',
+    },
   });
 
   const dadosFiltrados = useMemo(() => {
     return motoristas.filter(motorista => {
       const matchBusca = busca === '' || 
-        motorista.nome.toLowerCase().includes(busca.toLowerCase()) ||
-        motorista.telefone.includes(busca) ||
-        motorista.email?.toLowerCase().includes(busca.toLowerCase());
+        motorista.nomeCompleto.toLowerCase().includes(busca.toLowerCase()) ||
+        motorista.contacto.includes(busca);
       
-      const matchStatus = filtroStatus === 'todos' || motorista.status === filtroStatus;
+      const matchStatus = filtroStatus === 'todos' || motorista.estadoOperacional === filtroStatus;
       
       return matchBusca && matchStatus;
     });
@@ -195,42 +264,32 @@ export default function MotoristasPage() {
   } = usePagination({ data: dadosFiltrados, initialItemsPerPage: 10 });
 
   const estatisticas = useMemo(() => {
-    const ativos = motoristas.filter(m => m.status === 'ativo');
-    const totalEntregas = motoristas.reduce((acc, m) => acc + m.totalEntregas, 0);
-    const totalNoTempo = motoristas.reduce((acc, m) => acc + m.entregasNoTempo, 0);
-    const taxaSucesso = totalEntregas > 0 ? (totalNoTempo / totalEntregas) * 100 : 0;
-    const avaliacaoMedia = motoristas.length > 0 
-      ? motoristas.reduce((acc, m) => acc + m.avaliacaoMedia, 0) / motoristas.length 
-      : 0;
-
+    const hoje = new Date();
     return {
       total: motoristas.length,
-      ativos: ativos.length,
-      ferias: motoristas.filter(m => m.status === 'ferias').length,
-      inativos: motoristas.filter(m => m.status === 'inativo').length,
-      totalEntregas,
-      taxaSucesso,
-      avaliacaoMedia
+      activos: motoristas.filter(m => m.estadoOperacional === 'activo').length,
+      disponiveis: motoristas.filter(m => m.disponibilidade.disponivel).length,
+      comAlertas: motoristas.filter(
+        m =>
+          m.validadeCarta < hoje ||
+          m.documentos.some(doc => doc.estado !== 'valido'),
+      ).length,
     };
   }, [motoristas]);
 
   const handleNovoMotorista = () => {
     setMotoristaSelecionado(null);
     setFormData({
-      nome: '',
-      email: '',
-      telefone: '',
-      nuit: '',
-      endereco: '',
-      dataNascimento: '',
-      status: 'ativo',
-      cartaConducao: {
-        numero: '',
-        categoria: [],
-        dataEmissao: '',
-        dataValidade: '',
-        status: 'valida'
-      }
+      nomeCompleto: '',
+      contacto: '',
+      morada: '',
+      estadoOperacional: 'activo',
+      numeroCarta: '',
+      categoriaCarta: [],
+      disponibilidade: {
+        disponivel: true,
+        fonte: 'manual',
+      },
     });
     setDialogAberto(true);
   };
@@ -242,35 +301,36 @@ export default function MotoristasPage() {
   };
 
   const handleSalvar = () => {
-    if (!formData.nome || !formData.telefone || !formData.dataNascimento) {
+    if (!formData.nomeCompleto || !formData.contacto) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
-    if (!formData.cartaConducao?.numero || !formData.cartaConducao?.dataValidade) {
+    if (!formData.numeroCarta || !formData.categoriaCarta || formData.categoriaCarta.length === 0) {
       toast.error('Preencha os dados da carta de condução');
+      return;
+    }
+
+    if (!formData.dataEmissaoCarta || !formData.validadeCarta) {
+      toast.error('Preencha as datas de emissão e validade da carta');
       return;
     }
 
     if (motoristaSelecionado) {
       setMotoristas(motoristas.map(m => 
         m.id === motoristaSelecionado.id 
-          ? { ...m, ...formData, dataAtualizacao: new Date().toISOString() }
+          ? { ...m, ...formData, actualizadoEm: new Date() }
           : m
       ));
-      toast.success('Motorista atualizado com sucesso!');
+      toast.success('Motorista actualizado com sucesso!');
     } else {
       const novoMotorista: Motorista = {
-        ...formData as Motorista,
+        ...(formData as Motorista),
         id: Date.now().toString(),
-        tenantId: '1',
-        avaliacaoMedia: 0,
-        totalEntregas: 0,
-        entregasNoTempo: 0,
-        entregasAtrasadas: 0,
-        entregasFalhadas: 0,
-        dataCriacao: new Date().toISOString(),
-        dataAtualizacao: new Date().toISOString()
+        documentos: [],
+        disponibilidade: formData.disponibilidade ?? { disponivel: true, fonte: 'manual' },
+        criadoEm: new Date(),
+        actualizadoEm: new Date(),
       };
       setMotoristas([novoMotorista, ...motoristas]);
       toast.success('Motorista cadastrado com sucesso!');
@@ -286,28 +346,22 @@ export default function MotoristasPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (estadoOperacional: string) => {
     const badges: Record<string, { variant: 'default' | 'destructive' | 'secondary' | 'outline'; label: string; icon: any }> = {
-      ativo: { variant: 'default', label: 'Ativo', icon: CheckCircle },
-      inativo: { variant: 'outline', label: 'Inativo', icon: AlertCircle },
-      ferias: { variant: 'secondary', label: 'Férias', icon: Clock },
-      licenca: { variant: 'secondary', label: 'Licença', icon: Clock }
+      activo: { variant: 'default', label: 'Activo', icon: CheckCircle },
+      inactivo: { variant: 'outline', label: 'Inactivo', icon: AlertCircle },
+      suspenso: { variant: 'destructive', label: 'Suspenso', icon: AlertCircle },
     };
-    return badges[status] || badges.ativo;
+    return badges[estadoOperacional] || badges.activo;
   };
 
-  const getCartaStatusBadge = (status: string) => {
-    const badges: Record<string, { variant: 'default' | 'destructive' | 'secondary'; label: string }> = {
-      valida: { variant: 'default', label: 'Válida' },
-      vencida: { variant: 'destructive', label: 'Vencida' },
-      proxima_vencer: { variant: 'secondary', label: 'Próxima a Vencer' }
-    };
-    return badges[status] || badges.valida;
-  };
-
-  const calcularTaxaSucesso = (motorista: Motorista) => {
-    if (motorista.totalEntregas === 0) return 0;
-    return ((motorista.entregasNoTempo / motorista.totalEntregas) * 100).toFixed(1);
+  const getCartaStatusBadge = (motorista: Motorista) => {
+    const hoje = new Date();
+    const validade = new Date(motorista.validadeCarta);
+    const diasRestantes = Math.ceil((validade.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+    if (diasRestantes < 0) return { variant: 'destructive' as const, label: 'Expirada' };
+    if (diasRestantes <= 30) return { variant: 'secondary' as const, label: 'Próxima a Expirar' };
+    return { variant: 'default' as const, label: 'Válida' };
   };
 
   return (
@@ -335,24 +389,24 @@ export default function MotoristasPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground">Ativos</p>
-              <p className="text-3xl font-bold text-green-600">{estatisticas.ativos}</p>
+              <p className="text-sm text-muted-foreground">Activos</p>
+              <p className="text-3xl font-bold text-green-600">{estatisticas.activos}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground">Taxa de Sucesso</p>
-              <p className="text-3xl font-bold text-blue-600">{estatisticas.taxaSucesso.toFixed(1)}%</p>
+              <p className="text-sm text-muted-foreground">Disponíveis</p>
+              <p className="text-3xl font-bold text-blue-600">{estatisticas.disponiveis}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground">Avaliação Média</p>
-              <p className="text-3xl font-bold text-yellow-600">{estatisticas.avaliacaoMedia.toFixed(1)}</p>
+              <p className="text-sm text-muted-foreground">Com Alertas</p>
+              <p className="text-3xl font-bold text-red-600">{estatisticas.comAlertas}</p>
             </div>
           </CardContent>
         </Card>
@@ -376,14 +430,13 @@ export default function MotoristasPage() {
             
             <Select value={filtroStatus} onValueChange={setFiltroStatus}>
               <SelectTrigger>
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder="Estado Operacional" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos os Status</SelectItem>
-                <SelectItem value="ativo">Ativo</SelectItem>
-                <SelectItem value="ferias">Férias</SelectItem>
-                <SelectItem value="licenca">Licença</SelectItem>
-                <SelectItem value="inativo">Inativo</SelectItem>
+                <SelectItem value="todos">Todos os Estados</SelectItem>
+                <SelectItem value="activo">Activo</SelectItem>
+                <SelectItem value="inactivo">Inactivo</SelectItem>
+                <SelectItem value="suspenso">Suspenso</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -397,10 +450,10 @@ export default function MotoristasPage() {
         <CardContent>
           <div className="space-y-4">
             {paginatedData.map((motorista) => {
-              const statusInfo = getStatusBadge(motorista.status);
-              const cartaStatusInfo = getCartaStatusBadge(motorista.cartaConducao.status);
+              const statusInfo = getStatusBadge(motorista.estadoOperacional);
+              const cartaStatusInfo = getCartaStatusBadge(motorista);
               const StatusIcon = statusInfo.icon;
-              const taxaSucesso = calcularTaxaSucesso(motorista);
+              const cartaExpirada = motorista.validadeCarta < new Date();
               
               return (
                 <div key={motorista.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -411,71 +464,62 @@ export default function MotoristasPage() {
                       </div>
                       
                       <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-semibold">{motorista.nome}</h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            href={`/transporte/motoristas/${motorista.id}`}
+                            className="text-lg font-semibold hover:underline flex items-center gap-1"
+                          >
+                            {motorista.nomeCompleto}
+                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                          </Link>
                           <div className="flex items-center gap-1">
                             <StatusIcon className="h-4 w-4" />
                             <Badge variant={statusInfo.variant as any}>
                               {statusInfo.label}
                             </Badge>
                           </div>
+                          {!motorista.disponibilidade.disponivel && (
+                            <Badge variant="secondary">
+                              {motorista.disponibilidade.motivo === 'ferias' ? 'Férias' :
+                               motorista.disponibilidade.motivo === 'ausencia' ? 'Ausência' :
+                               motorista.disponibilidade.motivo === 'suspensao' ? 'Suspenso' : 'Indisponível'}
+                            </Badge>
+                          )}
+                          {cartaExpirada && (
+                            <div className="flex items-center gap-1 text-red-600">
+                              <AlertCircle className="h-4 w-4" />
+                              <span className="text-xs font-medium">Carta expirada</span>
+                            </div>
+                          )}
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4" />
-                            <span>{motorista.telefone}</span>
+                            <span>{motorista.contacto}</span>
                           </div>
-                          {motorista.email && (
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-4 w-4" />
-                              <span>{motorista.email}</span>
-                            </div>
-                          )}
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
-                            <span>CNH: {motorista.cartaConducao.numero}</span>
+                            <span>Carta: {motorista.numeroCarta}</span>
                             <Badge variant={cartaStatusInfo.variant as any} className="text-xs">
                               {cartaStatusInfo.label}
                             </Badge>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Categorias:</span>
-                            <span>{motorista.cartaConducao.categoria.join(', ')}</span>
+                            <span>{motorista.categoriaCarta.join(', ')}</span>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t">
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
-                              <Package className="h-4 w-4" />
-                              <span>Entregas</span>
+                          {motorista.disponibilidade.disponivel ? (
+                            <div className="flex items-center gap-1 text-green-600">
+                              <CheckCircle className="h-4 w-4" />
+                              <span className="text-xs font-medium">Disponível</span>
                             </div>
-                            <p className="text-lg font-semibold">{motorista.totalEntregas}</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
-                              <TrendingUp className="h-4 w-4" />
-                              <span>Taxa Sucesso</span>
-                            </div>
-                            <p className="text-lg font-semibold text-green-600">{taxaSucesso}%</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
-                              <Award className="h-4 w-4" />
-                              <span>Avaliação</span>
-                            </div>
-                            <p className="text-lg font-semibold text-yellow-600">
-                              {motorista.avaliacaoMedia.toFixed(1)} ⭐
-                            </p>
-                          </div>
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
+                          ) : (
+                            <div className="flex items-center gap-1 text-orange-600">
                               <AlertCircle className="h-4 w-4" />
-                              <span>Falhadas</span>
+                              <span className="text-xs font-medium">Indisponível</span>
                             </div>
-                            <p className="text-lg font-semibold text-red-600">{motorista.entregasFalhadas}</p>
-                          </div>
+                          )}
                         </div>
 
                         {motorista.observacoes && (
@@ -538,69 +582,73 @@ export default function MotoristasPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="nome">Nome Completo *</Label>
-                <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  placeholder="Nome completo do motorista"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="nomeCompleto">Nome Completo *</Label>
+              <Input
+                id="nomeCompleto"
+                value={formData.nomeCompleto || ''}
+                onChange={(e) => setFormData({ ...formData, nomeCompleto: e.target.value })}
+                placeholder="Nome completo do motorista"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="telefone">Telefone *</Label>
+                <Label htmlFor="contacto">Contacto Telefónico *</Label>
                 <Input
-                  id="telefone"
-                  value={formData.telefone}
-                  onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                  id="contacto"
+                  value={formData.contacto || ''}
+                  onChange={(e) => setFormData({ ...formData, contacto: e.target.value })}
                   placeholder="+258 84 123 4567"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="numeroBI">Número do BI</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={formData.email || ''}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="email@exemplo.com"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nuit">NUIT</Label>
-                <Input
-                  id="nuit"
-                  value={formData.nuit || ''}
-                  onChange={(e) => setFormData({ ...formData, nuit: e.target.value })}
-                  placeholder="123456789"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dataNascimento">Data de Nascimento *</Label>
-                <Input
-                  id="dataNascimento"
-                  type="date"
-                  value={formData.dataNascimento}
-                  onChange={(e) => setFormData({ ...formData, dataNascimento: e.target.value })}
+                  id="numeroBI"
+                  value={formData.numeroBI || ''}
+                  onChange={(e) => setFormData({ ...formData, numeroBI: e.target.value })}
+                  placeholder="123456789A"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="endereco">Endereço</Label>
+              <Label htmlFor="morada">Morada</Label>
               <Input
-                id="endereco"
-                value={formData.endereco || ''}
-                onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                id="morada"
+                value={formData.morada || ''}
+                onChange={(e) => setFormData({ ...formData, morada: e.target.value })}
                 placeholder="Endereço completo"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="localActividade">Local de Actividade</Label>
+                <Input
+                  id="localActividade"
+                  value={formData.localActividade || ''}
+                  onChange={(e) => setFormData({ ...formData, localActividade: e.target.value })}
+                  placeholder="Maputo"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estadoOperacional">Estado Operacional</Label>
+                <Select 
+                  value={formData.estadoOperacional} 
+                  onValueChange={(value: any) => setFormData({ ...formData, estadoOperacional: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="activo">Activo</SelectItem>
+                    <SelectItem value="inactivo">Inactivo</SelectItem>
+                    <SelectItem value="suspenso">Suspenso</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="border-t pt-4 space-y-4">
@@ -608,28 +656,22 @@ export default function MotoristasPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="cnh">Número da CNH *</Label>
+                  <Label htmlFor="numeroCarta">Número da Carta *</Label>
                   <Input
-                    id="cnh"
-                    value={formData.cartaConducao?.numero || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      cartaConducao: { ...formData.cartaConducao!, numero: e.target.value }
-                    })}
+                    id="numeroCarta"
+                    value={formData.numeroCarta || ''}
+                    onChange={(e) => setFormData({ ...formData, numeroCarta: e.target.value })}
                     placeholder="CNH-12345"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="categorias">Categorias</Label>
+                  <Label htmlFor="categorias">Categorias da Carta *</Label>
                   <Input
                     id="categorias"
-                    value={formData.cartaConducao?.categoria?.join(', ') || ''}
+                    value={formData.categoriaCarta?.join(', ') || ''}
                     onChange={(e) => setFormData({ 
                       ...formData, 
-                      cartaConducao: { 
-                        ...formData.cartaConducao!, 
-                        categoria: e.target.value.split(',').map(c => c.trim()).filter(c => c)
-                      }
+                      categoriaCarta: e.target.value.split(',').map(c => c.trim()).filter(c => c)
                     })}
                     placeholder="B, C, D (separadas por vírgula)"
                   />
@@ -638,48 +680,24 @@ export default function MotoristasPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dataEmissao">Data de Emissão</Label>
+                  <Label htmlFor="dataEmissaoCarta">Data de Emissão da Carta *</Label>
                   <Input
-                    id="dataEmissao"
+                    id="dataEmissaoCarta"
                     type="date"
-                    value={formData.cartaConducao?.dataEmissao || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      cartaConducao: { ...formData.cartaConducao!, dataEmissao: e.target.value }
-                    })}
+                    value={formData.dataEmissaoCarta ? new Date(formData.dataEmissaoCarta).toISOString().split('T')[0] : ''}
+                    onChange={(e) => setFormData({ ...formData, dataEmissaoCarta: new Date(e.target.value) })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dataValidade">Data de Validade *</Label>
+                  <Label htmlFor="validadeCarta">Validade da Carta *</Label>
                   <Input
-                    id="dataValidade"
+                    id="validadeCarta"
                     type="date"
-                    value={formData.cartaConducao?.dataValidade || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      cartaConducao: { ...formData.cartaConducao!, dataValidade: e.target.value }
-                    })}
+                    value={formData.validadeCarta ? new Date(formData.validadeCarta).toISOString().split('T')[0] : ''}
+                    onChange={(e) => setFormData({ ...formData, validadeCarta: new Date(e.target.value) })}
                   />
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select 
-                value={formData.status} 
-                onValueChange={(value: any) => setFormData({ ...formData, status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="ferias">Férias</SelectItem>
-                  <SelectItem value="licenca">Licença</SelectItem>
-                  <SelectItem value="inativo">Inativo</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="space-y-2">
@@ -697,7 +715,7 @@ export default function MotoristasPage() {
               Cancelar
             </Button>
             <Button onClick={handleSalvar}>
-              {motoristaSelecionado ? 'Atualizar' : 'Cadastrar'}
+              {motoristaSelecionado ? 'Actualizar' : 'Cadastrar'}
             </Button>
           </DialogFooter>
         </DialogContent>
