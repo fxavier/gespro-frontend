@@ -1,120 +1,211 @@
+/**
+ * Listagem de Clientes — Server Component (NUNCA 'use client').
+ *
+ * Padrão golden standard:
+ * - Schema de filtros derivado de FilterClienteSchema
+ * - safeParse com defaults (nunca .parse — evita 500 em URL inválido)
+ * - Dados carregados directamente do serviço (nunca fetch à API própria)
+ * - Suspense por secção com skeleton
+ * - FilterBar sincronizada com URL
+ * - DataTable cursor-paginada
+ */
 
-'use client';
-
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { redirect } from 'next/navigation';
+import { Plus, Users, UserCheck, UserX, TrendingUp } from 'lucide-react';
+import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { clienteService } from '@/server/services/comercial/cliente.service';
+import { FilterClienteSchema } from '@/lib/validations/clientes';
 import { Button } from '@/components/ui/button';
-import {
-  BarChart3,
-  Users,
-  FileText,
-  MapPin,
-  Phone,
-  History,
-  TrendingUp,
-  Plus,
-  ArrowRight
-} from 'lucide-react';
+import { PageHeader, FilterBar, KpiCard } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { ClientesTable } from './_components/clientes-table';
+import { TableSkeleton, KpiSkeleton } from './_components/table-skeletons';
 
-export default function ClientesPage() {
-  const modules = [
-    {
-      title: 'Dashboard',
-      description: 'Visão geral e análise da base de clientes',
-      icon: BarChart3,
-      href: '/clientes/dashboard',
-      color: 'bg-blue-500'
-    },
-    {
-      title: 'Lista de Clientes',
-      description: 'Gestão completa de clientes',
-      icon: Users,
-      href: '/clientes/lista',
-      color: 'bg-green-500'
-    },
-    {
-      title: 'Novo Cliente',
-      description: 'Criar novo cliente',
-      icon: Plus,
-      href: '/clientes/novo',
-      color: 'bg-purple-500'
-    },
-    {
-      title: 'Contactos',
-      description: 'Gestão de contactos por cliente',
-      icon: Phone,
-      href: '/clientes/contactos',
-      color: 'bg-orange-500'
-    },
-    {
-      title: 'Endereços',
-      description: 'Gestão de endereços de facturação e entrega',
-      icon: MapPin,
-      href: '/clientes/enderecos',
-      color: 'bg-red-500'
-    },
-    {
-      title: 'Histórico',
-      description: 'Histórico de transações com clientes',
-      icon: History,
-      href: '/clientes/historico',
-      color: 'bg-indigo-500'
-    },
-    {
-      title: 'Segmentação',
-      description: 'Análise e categorização de clientes',
-      icon: TrendingUp,
-      href: '/clientes/segmentacao',
-      color: 'bg-cyan-500'
-    },
-    {
-      title: 'Relatórios',
-      description: 'Relatórios e análises de clientes',
-      icon: FileText,
-      href: '/clientes/relatorios',
-      color: 'bg-pink-500'
-    }
-  ];
+// ─── Schema URL ───────────────────────────────────────────────────────────────
+
+const FiltroClienteUrlSchema = FilterClienteSchema.extend({
+  take: z.coerce.number().int().positive().max(100).default(25),
+  cursor: z.string().optional(),
+  orderBy: z.enum(['nome', 'createdAt', 'categoria', 'creditoUtilizadoMT']).default('createdAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
+
+type FiltroClienteUrl = z.infer<typeof FiltroClienteUrlSchema>;
+
+const FILTROS_DEFAULT: FiltroClienteUrl = {
+  take: 25,
+  orderBy: 'createdAt',
+  order: 'desc',
+};
+
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+
+async function ClientesKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const resultado = await runWithTenantContext({ tenantId, userId }, () =>
+    clienteService.listar({ take: 100, orderBy: 'createdAt', order: 'desc' }, { tenantId, userId })
+  );
+
+  // Contagens simples a partir dos primeiros 100 registos (proxy; substituir por contarPorStatus no futuro)
+  const total = resultado.items.length;
+  const ativos = resultado.items.filter((c) => c.status === 'ATIVO').length;
+  const inativos = resultado.items.filter((c) => c.status !== 'ATIVO').length;
+  const vips = resultado.items.filter((c) => c.categoria === 'VIP').length;
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard
+        title="Total de Clientes"
+        value={String(total)}
+        icon={<Users className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Clientes Activos"
+        value={String(ativos)}
+        icon={<UserCheck className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Clientes Inactivos"
+        value={String(inativos)}
+        icon={<UserX className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Clientes VIP"
+        value={String(vips)}
+        icon={<TrendingUp className="h-5 w-5" />}
+      />
+    </div>
+  );
+}
+
+// ─── Tabela ────────────────────────────────────────────────────────────────────
+
+async function ClientesTableSection({
+  filtros,
+  tenantId,
+  userId,
+}: {
+  filtros: FiltroClienteUrl;
+  tenantId: string;
+  userId: string;
+}) {
+  const result = await runWithTenantContext({ tenantId, userId }, () =>
+    clienteService.listar(
+      {
+        q: filtros.q,
+        tipo: filtros.tipo,
+        status: filtros.status,
+        categoria: filtros.categoria,
+        segmento: filtros.segmento,
+        cursor: filtros.cursor,
+        take: filtros.take,
+        orderBy: filtros.orderBy,
+        order: filtros.order,
+      },
+      { tenantId, userId }
+    )
+  );
+
+  return (
+    <ClientesTable
+      data={result.items}
+      nextCursor={result.nextCursor}
+      currentOrderBy={filtros.orderBy}
+      currentOrderDir={filtros.order}
+    />
+  );
+}
+
+// ─── Filtros ──────────────────────────────────────────────────────────────────
+
+const FILTER_CONFIGS: FilterConfig[] = [
+  {
+    key: 'tipo',
+    label: 'Tipo',
+    placeholder: 'Todos os tipos',
+    options: [
+      { label: 'Pessoa Física', value: 'FISICA' },
+      { label: 'Pessoa Jurídica', value: 'JURIDICA' },
+      { label: 'Revendedor', value: 'REVENDEDOR' },
+    ],
+  },
+  {
+    key: 'status',
+    label: 'Estado',
+    placeholder: 'Todos os estados',
+    options: [
+      { label: 'Activo', value: 'ATIVO' },
+      { label: 'Inactivo', value: 'INATIVO' },
+      { label: 'Suspenso', value: 'SUSPENSO' },
+    ],
+  },
+  {
+    key: 'categoria',
+    label: 'Categoria',
+    placeholder: 'Todas',
+    options: [
+      { label: 'VIP', value: 'VIP' },
+      { label: 'Regular', value: 'REGULAR' },
+      { label: 'Novo', value: 'NOVO' },
+    ],
+  },
+];
+
+// ─── Página ───────────────────────────────────────────────────────────────────
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function ClientesPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  const rawParams = await searchParams;
+  const flatParams = Object.fromEntries(
+    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+  );
+
+  const parseResult = FiltroClienteUrlSchema.safeParse(flatParams);
+  const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Gestão de Clientes
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Módulo completo de gestão de clientes com todas as funcionalidades
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {modules.map((module) => {
-          const Icon = module.icon;
-          return (
-            <Link key={module.href} href={module.href}>
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{module.title}</CardTitle>
-                    <div className={`${module.color} p-2 rounded-lg`}>
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {module.description}
-                  </p>
-                  <Button variant="ghost" className="mt-4 w-full justify-between">
-                    Acessar
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
+      <PageHeader
+        title="Clientes"
+        description="Gerencie os clientes da empresa com todos os detalhes comerciais"
+        breadcrumbs={[{ label: 'Clientes' }]}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/clientes/novo">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Cliente
             </Link>
-          );
-        })}
-      </div>
+          </Button>
+        }
+      />
+
+      <Suspense fallback={<KpiSkeleton />}>
+        <ClientesKpis tenantId={tenantId} userId={userId} />
+      </Suspense>
+
+      <FilterBar
+        searchPlaceholder="Pesquisar por nome, NUIT, email ou código…"
+        searchKey="q"
+        filters={FILTER_CONFIGS}
+      />
+
+      <Suspense
+        key={JSON.stringify(filtros)}
+        fallback={<TableSkeleton rows={10} cols={7} />}
+      >
+        <ClientesTableSection filtros={filtros} tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }

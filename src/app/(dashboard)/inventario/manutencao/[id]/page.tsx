@@ -1,223 +1,195 @@
-'use client';
+/**
+ * Detalhe de Manutenção — Server Component.
+ */
 
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Edit } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { manutencaoService } from '@/server/services/inventario/manutencao.service';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Separator } from '@/components/ui/separator';
-import { manutencoesMock } from '@/data/manutencoes';
-import type { ManutencaoAtivo } from '@/types/inventario';
-import {
-  ArrowLeft,
-  Wrench,
-  Calendar,
-  DollarSign,
-  User,
-  AlertTriangle,
-  CheckCircle,
-  PauseCircle,
-  XCircle,
-  FileText,
-  MessageSquare,
-  Timer,
-  Package
-} from 'lucide-react';
+import { PageHeader, DetailShell, StatusBadge } from '@/components/patterns';
+import { ManutencaoAcoes } from '../_components/manutencao-acoes';
 
-const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  agendada: { label: 'Agendada', variant: 'secondary' },
-  em_andamento: { label: 'Em andamento', variant: 'default' },
-  em_curso: { label: 'Em andamento', variant: 'default' },
-  concluida: { label: 'Concluída', variant: 'default' },
-  concluido: { label: 'Concluída', variant: 'default' },
-  cancelada: { label: 'Cancelada', variant: 'destructive' },
-  orcamento: { label: 'Em orçamento', variant: 'outline' }
+const STATUS_VARIANTES = {
+  AGENDADA: 'info',
+  EM_ANDAMENTO: 'warning',
+  ORCAMENTO: 'secondary',
+  CONCLUIDA: 'success',
+  CANCELADA: 'destructive',
+} as const;
+
+const STATUS_LABELS: Record<string, string> = {
+  AGENDADA: 'Agendada',
+  EM_ANDAMENTO: 'Em Andamento',
+  ORCAMENTO: 'Orçamento',
+  CONCLUIDA: 'Concluída',
+  CANCELADA: 'Cancelada',
 };
 
-const prioridadeColors: Record<string, string> = {
-  baixa: 'bg-emerald-100 text-emerald-800',
-  media: 'bg-blue-100 text-blue-800',
-  alta: 'bg-orange-100 text-orange-800',
-  critica: 'bg-red-100 text-red-800'
+const TIPO_LABELS: Record<string, string> = {
+  PREVENTIVA: 'Preventiva',
+  CORRETIVA: 'Corretiva',
+  INSPECAO: 'Inspecção',
+  CALIBRACAO: 'Calibração',
 };
 
-const formatDate = (value?: Date | string) => {
-  if (!value) return '-';
-  const date = value instanceof Date ? value : new Date(value);
-  return date.toLocaleDateString('pt-MZ');
+const PRIORIDADE_LABELS: Record<string, string> = {
+  BAIXA: 'Baixa',
+  MEDIA: 'Média',
+  ALTA: 'Alta',
+  CRITICA: 'Crítica',
 };
 
-interface PageProps {
+const fmt = (d: Date | null | undefined) =>
+  d ? new Date(d).toLocaleDateString('pt-MZ', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+const fmtMt = (v: string | null | undefined) =>
+  v
+    ? `MT ${Number(v).toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : '—';
+
+interface Props {
   params: Promise<{ id: string }>;
 }
 
-export default async function ManutencaoDetalhePage({ params }: PageProps) {
+export default async function ManutencaoDetalhePage({ params }: Props) {
   const { id } = await params;
-  const manutencao = manutencoesMock.find((item) => item.id === id);
 
-  if (!manutencao) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  let manutencao;
+  try {
+    manutencao = await runWithTenantContext({ tenantId, userId }, () =>
+      manutencaoService.obterManutencao(id, { tenantId, userId })
+    );
+  } catch {
     notFound();
   }
 
-  const statusInfo = statusLabels[manutencao.status] ?? { label: manutencao.status, variant: 'outline' };
-  const prioridadeClass = prioridadeColors[manutencao.prioridade ?? 'media'] ?? 'bg-slate-100 text-slate-800';
+  if (!manutencao) notFound();
+
+  const podeEditar = !['CONCLUIDA', 'CANCELADA'].includes(manutencao.status);
+  const variant = STATUS_VARIANTES[manutencao.status as keyof typeof STATUS_VARIANTES] ?? 'default';
+
+  const metadata = [
+    { label: 'Tipo', value: TIPO_LABELS[manutencao.tipo] ?? manutencao.tipo },
+    { label: 'Prioridade', value: manutencao.prioridade ? (PRIORIDADE_LABELS[manutencao.prioridade] ?? manutencao.prioridade) : '—' },
+    { label: 'Data Agendada', value: fmt(manutencao.dataAgendada) },
+    { label: 'Data Início', value: fmt(manutencao.dataInicio) },
+    { label: 'Data Conclusão', value: fmt(manutencao.dataConclusao) },
+    { label: 'Custo Estimado', value: fmtMt(manutencao.custoEstimado) },
+    { label: 'Custo Real', value: fmtMt(manutencao.custoReal) },
+  ];
+
+  const tabDetalhes = (
+    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+      <div className="sm:col-span-2">
+        <dt className="text-sm font-medium text-muted-foreground">Descrição</dt>
+        <dd className="mt-1 text-sm whitespace-pre-wrap">{manutencao.descricao}</dd>
+      </div>
+      {manutencao.procedimentos && (
+        <div className="sm:col-span-2">
+          <dt className="text-sm font-medium text-muted-foreground">Procedimentos</dt>
+          <dd className="mt-1 text-sm whitespace-pre-wrap">{manutencao.procedimentos}</dd>
+        </div>
+      )}
+      {manutencao.observacoes && (
+        <div className="sm:col-span-2">
+          <dt className="text-sm font-medium text-muted-foreground">Observações</dt>
+          <dd className="mt-1 text-sm">{manutencao.observacoes}</dd>
+        </div>
+      )}
+      {manutencao.proximaManutencao && (
+        <div>
+          <dt className="text-sm font-medium text-muted-foreground">Próxima Manutenção</dt>
+          <dd className="mt-1 text-sm">{fmt(manutencao.proximaManutencao)}</dd>
+        </div>
+      )}
+    </dl>
+  );
+
+  const tabCustos = (
+    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+      <div>
+        <dt className="text-sm font-medium text-muted-foreground">Custo Estimado</dt>
+        <dd className="mt-1 text-sm tabular-nums font-medium">{fmtMt(manutencao.custoEstimado)}</dd>
+      </div>
+      <div>
+        <dt className="text-sm font-medium text-muted-foreground">Custo Real</dt>
+        <dd className="mt-1 text-sm tabular-nums font-medium">{fmtMt(manutencao.custoReal)}</dd>
+      </div>
+      <div>
+        <dt className="text-sm font-medium text-muted-foreground">Mão de Obra</dt>
+        <dd className="mt-1 text-sm tabular-nums">{fmtMt(manutencao.custoMaoObra)}</dd>
+      </div>
+      <div>
+        <dt className="text-sm font-medium text-muted-foreground">Peças</dt>
+        <dd className="mt-1 text-sm tabular-nums">{fmtMt(manutencao.custoPecas)}</dd>
+      </div>
+    </dl>
+  );
+
+  const tabRelatorio = manutencao.relatorio ? (
+    <p className="text-sm whitespace-pre-wrap">{manutencao.relatorio}</p>
+  ) : (
+    <p className="text-sm text-muted-foreground">Sem relatório disponível.</p>
+  );
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/inventario/manutencao">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <h1 className="text-3xl font-bold">{manutencao.titulo}</h1>
-            <Badge className={prioridadeClass}>Prioridade {manutencao.prioridade}</Badge>
-            <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1 ml-12">Ativo: {manutencao.ativoNome}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <FileText className="h-4 w-4 mr-2" />
-            Gerar relatório
-          </Button>
-          <Button variant="outline">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Enviar atualização
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Tipo</p>
-            <p className="text-2xl font-bold capitalize">{manutencao.tipo}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Data agendada</p>
-              <p className="text-xl font-semibold">{formatDate(manutencao.dataAgendada)}</p>
-            </div>
-            <Calendar className="h-6 w-6 text-blue-600" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Custo estimado</p>
-            <p className="text-2xl font-bold">{manutencao.custoEstimado ? `MT ${manutencao.custoEstimado.toLocaleString('pt-MZ')}` : '-'}</p>
-            {manutencao.custoReal && (
-              <p className="text-xs text-muted-foreground">Custo real: MT {manutencao.custoReal.toLocaleString('pt-MZ')}</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Responsável</p>
-            <p className="text-xl font-semibold">{manutencao.responsavelNome}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
-              Descrição da Manutenção
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Resumo</p>
-              <p>{manutencao.descricao}</p>
-            </div>
-            {manutencao.observacoes && (
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Observações</p>
-                <p>{manutencao.observacoes}</p>
+    <div className="p-6">
+      <DetailShell
+        header={
+          <PageHeader
+            title={manutencao.titulo}
+            description={`Tipo: ${TIPO_LABELS[manutencao.tipo] ?? manutencao.tipo}`}
+            breadcrumbs={[
+              { label: 'Inventário', href: '/inventario' },
+              { label: 'Manutenção', href: '/inventario/manutencao' },
+              { label: manutencao.titulo },
+            ]}
+            badge={
+              <StatusBadge
+                status={manutencao.status}
+                variant={variant}
+                label={STATUS_LABELS[manutencao.status]}
+              />
+            }
+            actions={
+              <div className="flex items-center gap-2">
+                {podeEditar && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/inventario/manutencao/${id}/editar`}>
+                      <Edit className="h-4 w-4 mr-1.5" />
+                      Editar
+                    </Link>
+                  </Button>
+                )}
+                <ManutencaoAcoes id={id} status={manutencao.status} />
               </div>
-            )}
-            <Separator />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <Package className="h-5 w-5 text-purple-600" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Ativo</p>
-                  <p className="font-semibold">{manutencao.ativoNome}</p>
-                </div>
-              </div>
-              {manutencao.fornecedorNome && (
-                <div className="flex items-center gap-3">
-                  <User className="h-5 w-5 text-teal-600" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Fornecedor</p>
-                    <p className="font-semibold">{manutencao.fornecedorNome}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Timer className="h-5 w-5" />
-              Cronograma
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Início</span>
-              <span className="font-semibold">{formatDate(manutencao.dataInicio)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Conclusão</span>
-              <span className="font-semibold">{formatDate(manutencao.dataConclusao)}</span>
-            </div>
-            {manutencao.proximaManutencao && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Próxima manutenção</span>
-                <span className="font-semibold">{formatDate(manutencao.proximaManutencao)}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {manutencao.relatorio && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Relatório final
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{manutencao.relatorio}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {manutencao.motivoCancelamento && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-600">
-              <XCircle className="h-5 w-5" />
-              Motivo do cancelamento
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{manutencao.motivoCancelamento}</p>
-          </CardContent>
-        </Card>
-      )}
+            }
+          />
+        }
+        tabs={[
+          { key: 'detalhes', label: 'Detalhes', content: tabDetalhes },
+          { key: 'custos', label: 'Custos', content: tabCustos },
+          { key: 'relatorio', label: 'Relatório', content: tabRelatorio },
+          ...(manutencao.motivoCancelamento
+            ? [
+                {
+                  key: 'cancelamento',
+                  label: 'Cancelamento',
+                  content: <p className="text-sm text-destructive">{manutencao.motivoCancelamento}</p>,
+                },
+              ]
+            : []),
+        ]}
+        metadata={metadata}
+      />
     </div>
   );
 }

@@ -1,0 +1,10 @@
+// Datasource + generator. Modelos de domínio vivem em ficheiros irmãos
+// (prisma/schema/<modulo>.prisma). Só o orquestrador toca neste ficheiro.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

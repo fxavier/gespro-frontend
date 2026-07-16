@@ -1,0 +1,741 @@
+// WS D — Finanças: Caixa, Contabilidade PGC-NIRF, Faturação
+// Regras:
+//   - Dinheiro: Decimal @db.Decimal(18,2); taxas: Decimal @db.Decimal(9,6)
+//   - Documentos emitidos/lançados são append-only (imutáveis)
+//   - FK cross-domínio são escalares (sem @relation inter-WS)
+//   - tenantId em todos os modelos; nunca vem do cliente
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum StatusSessaoCaixa {
+  ABERTA
+  FECHADA
+  CANCELADA
+}
+
+enum TipoMovimentoCaixa {
+  ABERTURA
+  VENDA
+  RECEBIMENTO
+  SANGRIA
+  REFORCO
+  DEVOLUCAO
+  FECHAMENTO
+  AJUSTE
+}
+
+enum ClassePGC {
+  CLASSE_1 // Meios monetários e equivalentes
+  CLASSE_2 // Terceiros
+  CLASSE_3 // Existências
+  CLASSE_4 // Imobilizações
+  CLASSE_5 // Capital e reservas
+  CLASSE_6 // Gastos
+  CLASSE_7 // Rendimentos
+  CLASSE_8 // Resultados
+}
+
+enum TipoConta {
+  ATIVO
+  PASSIVO
+  CAPITAL_PROPRIO
+  RENDIMENTO
+  GASTO
+  RESULTADO
+}
+
+enum NaturezaConta {
+  DEVEDORA
+  CREDORA
+
+  @@map("NaturezaConta")
+}
+
+enum TipoDiario {
+  VENDAS
+  COMPRAS
+  CAIXA
+  BANCO
+  OPERACOES
+  SALARIOS
+  ABERTURA
+  ENCERRAMENTO
+  OUTROS
+}
+
+enum StatusLancamento {
+  RASCUNHO
+  LANCADO
+  ESTORNADO
+}
+
+enum OrigemLancamento {
+  MANUAL
+  VENDA
+  COMPRA
+  PAGAMENTO
+  RECEBIMENTO
+  AJUSTE
+  AMORTIZACAO
+  PRODUCAO
+  CAIXA
+  RECONCILIACAO
+}
+
+enum TipoPartida {
+  DEBITO
+  CREDITO
+}
+
+enum TipoContaBancaria {
+  CORRENTE
+  POUPANCA
+  DEPOSITO_PRAZO
+}
+
+enum StatusReconciliacao {
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum TipoCentroCusto {
+  DEPARTAMENTO
+  PROJETO
+  FILIAL
+  OUTRO
+}
+
+/// Cobre TODOS os documentos sequenciais do sistema (fiscais + operacionais).
+/// Numeração centralizada em D via proximoNumeroSerie(tx, tipo, ctx).
+enum TipoSerieDocumento {
+  // Faturação (WS D)
+  FATURA
+  NOTA_CREDITO
+  NOTA_DEBITO
+  PROFORMA
+  COTACAO_COMERCIAL
+  RECIBO
+  // Comercial / POS (WS C)
+  VENDA
+  SESSAO_CAIXA
+  // Compras (WS B)
+  REQUISICAO_COMPRA
+  COTACAO_RFQ
+  PEDIDO_COMPRA
+  CONTA_PAGAR
+  PAGAMENTO
+  RECEBIMENTO
+  // Produção (WS E)
+  ORDEM_PRODUCAO
+  // Operações / Transporte (WS F)
+  ATIVIDADE
+  TICKET
+  ENTREGA
+}
+
+enum StatusFatura {
+  RASCUNHO
+  EMITIDA
+  PAGA
+  PARCIALMENTE_PAGA
+  VENCIDA
+  CANCELADA
+}
+
+enum StatusNotaCredito {
+  RASCUNHO
+  EMITIDA
+  LIQUIDADA
+  CANCELADA
+}
+
+enum StatusNotaDebito {
+  RASCUNHO
+  EMITIDA
+  LIQUIDADA
+  CANCELADA
+}
+
+enum StatusProforma {
+  RASCUNHO
+  ENVIADA
+  ACEITE
+  CONVERTIDA
+  EXPIRADA
+  CANCELADA
+}
+
+enum StatusCotacaoComercial {
+  RASCUNHO
+  ENVIADA
+  ACEITE
+  REJEITADA
+  CONVERTIDA
+  EXPIRADA
+  CANCELADA
+}
+
+// ---------------------------------------------------------------------------
+// CAIXA
+// ---------------------------------------------------------------------------
+
+/// Sessão de caixa: abertura e fecho diário por responsável.
+/// Append-only: erros corrigem-se por nova sessão; nunca se actualiza saldo directamente.
+model SessaoCaixa {
+  id             String           @id @default(cuid())
+  tenantId       String
+  responsavelId  String           // FK User (escalar, sem @relation cross-WS)
+  numero         String           // série sequencial via proximoNumeroSerie(tx, 'SESSAO_CAIXA', ctx)
+  dataAbertura   DateTime         @default(now())
+  dataFechamento DateTime?
+  fundoInicial   Decimal          @db.Decimal(18, 2)
+  fundoFinal     Decimal?         @db.Decimal(18, 2)
+  totalEntradas  Decimal          @default(0) @db.Decimal(18, 2)
+  totalSaidas    Decimal          @default(0) @db.Decimal(18, 2)
+  diferenca      Decimal?         @db.Decimal(18, 2)
+  status         StatusSessaoCaixa @default(ABERTA)
+  observacoes    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  movimentos     MovimentoCaixa[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, dataAbertura])
+  @@index([tenantId, responsavelId])
+}
+
+/// Movimento de caixa: cada entrada/saída registada dentro de uma sessão.
+/// Imutável após criação; erros corrigem-se com movimento de ajuste.
+model MovimentoCaixa {
+  id                   String             @id @default(cuid())
+  tenantId             String
+  sessaoCaixaId        String
+  tipo                 TipoMovimentoCaixa
+  valor                Decimal            @db.Decimal(18, 2)
+  descricao            String
+  documentoOrigemId    String?            // FK polimórfico (escalar; tipo indica entidade)
+  documentoOrigemTipo  String?            // ex.: 'Fatura', 'NotaCredito', 'Venda'
+  responsavelId        String             // FK User (escalar)
+  dataMovimento        DateTime           @default(now())
+  observacoes          String?
+  createdAt            DateTime           @default(now())
+
+  sessaoCaixa  SessaoCaixa @relation(fields: [sessaoCaixaId], references: [id])
+
+  @@index([tenantId, sessaoCaixaId])
+  @@index([tenantId, tipo, dataMovimento])
+  @@index([tenantId, dataMovimento])
+}
+
+// ---------------------------------------------------------------------------
+// CONTABILIDADE PGC-NIRF
+// ---------------------------------------------------------------------------
+
+/// Plano Geral de Contas (PGC-NIRF, Decreto 70/2009).
+/// Estrutura hierárquica por código e nível; seed populado a partir do xlsx oficial.
+model ContaPGC {
+  id              String        @id @default(cuid())
+  tenantId        String
+  codigo          String        // ex.: "1", "1.1", "1.1.1", "1.1.1.1"
+  nome            String
+  classe          ClassePGC     // classes 1–8
+  tipo            TipoConta
+  natureza        NaturezaConta
+  nivel           Int           // 1=classe, 2=grupo, 3=subgrupo, 4=conta analítica
+  contaPaiId      String?       // auto-referência (escalar; relação abaixo)
+  aceitaLancamento Boolean      @default(false) // só contas folha aceitam lançamentos
+  ativo           Boolean       @default(true)
+  descricao       String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  contaPai    ContaPGC?         @relation("ContaPGCHierarquia", fields: [contaPaiId], references: [id])
+  subContas   ContaPGC[]        @relation("ContaPGCHierarquia")
+  partidas    PartidaLancamento[]
+  contasBancarias ContaBancaria[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, classe])
+  @@index([tenantId, nivel])
+  @@index([tenantId, ativo])
+}
+
+/// Diário contabilístico: agrupa lançamentos por natureza operacional.
+model Diario {
+  id        String     @id @default(cuid())
+  tenantId  String
+  codigo    String
+  nome      String
+  tipo      TipoDiario
+  ativo     Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  lancamentos Lancamento[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, tipo])
+}
+
+/// Centro de custo: dimensão analítica cruzada com lançamentos.
+model CentroCusto {
+  id              String          @id @default(cuid())
+  tenantId        String
+  codigo          String
+  nome            String
+  descricao       String?
+  tipo            TipoCentroCusto
+  responsavelId   String?         // FK User (escalar)
+  orcamento       Decimal?        @db.Decimal(18, 2)
+  ativo           Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  partidas PartidaLancamento[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, tipo])
+  @@index([tenantId, ativo])
+}
+
+/// Lançamento contabilístico. Após LANCADO é imutável; correccções por estorno.
+model Lancamento {
+  id                  String           @id @default(cuid())
+  tenantId            String
+  numero              String           // número sequencial dentro do diário/exercício
+  data                DateTime
+  tipo                String           // 'MANUAL' | 'AUTOMATICO'
+  origem              OrigemLancamento
+  diarioId            String
+  documentoOrigemId   String?          // FK polimórfico escalar
+  documentoOrigemTipo String?
+  historico           String
+  valorTotal          Decimal          @db.Decimal(18, 2) // soma dos débitos = soma dos créditos
+  status              StatusLancamento @default(RASCUNHO)
+  lancamentoEstornoId String?          // ID do lançamento que estorna este (se ESTORNADO)
+  periodoFiscal       String           // ex.: "2024-01" (YYYY-MM) para agrupamento
+  observacoes         String?
+  criadoPorId         String           // FK User (escalar)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  diario   Diario              @relation(fields: [diarioId], references: [id])
+  partidas PartidaLancamento[]
+
+  // Número é único por diário+período+tenant (sequencial por diário/exercício)
+  @@unique([tenantId, diarioId, periodoFiscal, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, data])
+  @@index([tenantId, periodoFiscal])
+  @@index([tenantId, origem])
+  @@index([tenantId, diarioId, data])
+}
+
+/// Partida de lançamento (linha de débito ou crédito).
+/// Invariante: soma(débitos) == soma(créditos) por lançamento.
+model PartidaLancamento {
+  id           String      @id @default(cuid())
+  tenantId     String
+  lancamentoId String
+  contaId      String
+  centroCustoId String?
+  tipo         TipoPartida
+  valor        Decimal     @db.Decimal(18, 2)
+  historico    String?
+  createdAt    DateTime    @default(now())
+
+  lancamento Lancamento @relation(fields: [lancamentoId], references: [id])
+  conta      ContaPGC   @relation(fields: [contaId], references: [id])
+  centroCusto CentroCusto? @relation(fields: [centroCustoId], references: [id])
+
+  @@index([tenantId, lancamentoId])
+  @@index([tenantId, contaId])
+  @@index([tenantId, contaId, tipo])
+}
+
+// ---------------------------------------------------------------------------
+// BANCA
+// ---------------------------------------------------------------------------
+
+/// Conta bancária ligada a uma conta do PGC.
+model ContaBancaria {
+  id              String            @id @default(cuid())
+  tenantId        String
+  banco           String
+  agencia         String
+  numeroConta     String
+  tipoConta       TipoContaBancaria
+  moeda           String            @default("MZN")
+  saldoAtual      Decimal           @db.Decimal(18, 2) @default(0)
+  contaContabilId String            // FK ContaPGC (escalar; relação abaixo)
+  ativo           Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  contaContabil     ContaPGC               @relation(fields: [contaContabilId], references: [id])
+  reconciliacoes    ReconciliacaoBancaria[]
+
+  @@unique([tenantId, banco, numeroConta])
+  @@index([tenantId, ativo])
+}
+
+/// Reconciliação bancária: confronto entre extracto bancário e razão contabilístico.
+model ReconciliacaoBancaria {
+  id                    String              @id @default(cuid())
+  tenantId              String
+  contaBancariaId       String
+  dataInicio            DateTime
+  dataFim               DateTime
+  saldoInicialBanco     Decimal             @db.Decimal(18, 2)
+  saldoFinalBanco       Decimal             @db.Decimal(18, 2)
+  saldoInicialContabil  Decimal             @db.Decimal(18, 2)
+  saldoFinalContabil    Decimal             @db.Decimal(18, 2)
+  diferencaNaoConciliada Decimal            @db.Decimal(18, 2) @default(0)
+  status                StatusReconciliacao @default(EM_ANDAMENTO)
+  observacoes           String?
+  responsavelId         String              // FK User (escalar)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  contaBancaria ContaBancaria              @relation(fields: [contaBancariaId], references: [id])
+  itens         ItemReconciliacaoBancaria[]
+
+  @@index([tenantId, contaBancariaId])
+  @@index([tenantId, status])
+  @@index([tenantId, dataInicio, dataFim])
+}
+
+/// Linha de reconciliação bancária (lançamento contabilístico ou linha de extracto).
+model ItemReconciliacaoBancaria {
+  id               String              @id @default(cuid())
+  tenantId         String              // A1: tenantId em todas as tabelas-filho
+  reconciliacaoId  String
+  tipo             String              // 'LANCAMENTO_CONTABIL' | 'EXTRATO_BANCARIO'
+  data             DateTime
+  descricao        String
+  valor            Decimal             @db.Decimal(18, 2)
+  tipoMovimento    TipoPartida         // DEBITO | CREDITO
+  conciliado       Boolean             @default(false)
+  lancamentoId     String?             // FK Lancamento (escalar)
+  extratoReferencia String?            // referência do extracto bancário
+  observacoes      String?
+  createdAt        DateTime            @default(now())
+
+  reconciliacao ReconciliacaoBancaria @relation(fields: [reconciliacaoId], references: [id])
+
+  @@index([tenantId, reconciliacaoId])
+  @@index([tenantId, reconciliacaoId, conciliado])
+}
+
+// ---------------------------------------------------------------------------
+// NUMERAÇÃO SEQUENCIAL
+// ---------------------------------------------------------------------------
+
+/// Série de documento: controla numeração sequencial sem lacunas.
+/// proximoNumero é incrementado com UPDATE...RETURNING dentro da transacção de emissão.
+model SerieDocumento {
+  id             String             @id @default(cuid())
+  tenantId       String
+  tipo           TipoSerieDocumento
+  prefixo        String             // ex.: "FAT", "NC", "ND", "PRO", "COT"
+  ano            Int                // ano corrente; reset anual do proximoNumero
+  proximoNumero  Int                @default(1)
+  formatoNumero  String             @default("{prefixo}/{ano}/{numero:06}") // template
+  ativo          Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  faturas          Fatura[]
+  notasCredito     NotaCredito[]
+  notasDebito      NotaDebito[]
+  proformas        Proforma[]
+  cotacoesComerciais CotacaoComercial[]
+
+  @@unique([tenantId, tipo, ano, prefixo])
+  @@index([tenantId, tipo, ativo])
+}
+
+// ---------------------------------------------------------------------------
+// FATURAÇÃO
+// ---------------------------------------------------------------------------
+
+/// Factura fiscal. Após EMITIDA é imutável; correcção via NotaCredito.
+model Fatura {
+  id               String       @id @default(cuid())
+  tenantId         String
+  serieDocumentoId String
+  numero           String       // número formatado (ex.: FAT/2024/000001)
+  clienteId        String       // FK cross-domínio (WS C) — escalar sem @relation
+  vendaId          String?      // FK cross-domínio (WS C) — escalar sem @relation
+  moeda            String       @default("MZN")
+  subtotal         Decimal      @db.Decimal(18, 2)
+  descontoTotal    Decimal      @db.Decimal(18, 2) @default(0)
+  baseIva          Decimal      @db.Decimal(18, 2)
+  ivaTotal         Decimal      @db.Decimal(18, 2)
+  total            Decimal      @db.Decimal(18, 2)
+  totalPago        Decimal      @db.Decimal(18, 2) @default(0)
+  status           StatusFatura @default(RASCUNHO)
+  dataEmissao      DateTime
+  dataVencimento   DateTime
+  dataPagamento    DateTime?
+  observacoes      String?
+  qrCode           String?      // código QR para validação fiscal
+  hashValidacao    String?      // hash fiscal
+  caminhoArquivoPdf String?
+  lancamentoId     String?      // FK Lancamento gerado na emissão (escalar)
+  emitidoPorId     String       // FK User (escalar)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  serieDocumento SerieDocumento @relation(fields: [serieDocumentoId], references: [id])
+  linhas         LinhaFatura[]
+  notasCredito   NotaCredito[]  @relation("FaturaNotasCredito")
+  notasDebito    NotaDebito[]   @relation("FaturaNotasDebito")
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, dataEmissao])
+  @@index([tenantId, dataVencimento, status])
+}
+
+/// Linha de factura. Imutável após emissão da factura pai.
+model LinhaFatura {
+  id             String  @id @default(cuid())
+  tenantId       String
+  faturaId       String
+  produtoId      String? // FK cross-domínio (WS A) — escalar sem @relation
+  descricao      String
+  quantidade     Decimal @db.Decimal(18, 6)
+  precoUnitario  Decimal @db.Decimal(18, 2)
+  desconto       Decimal @db.Decimal(18, 2) @default(0)
+  taxaIva        Decimal @db.Decimal(9, 6)  @default(0.16) // 16% padrão MZ
+  subtotal       Decimal @db.Decimal(18, 2)
+  ivaItem        Decimal @db.Decimal(18, 2)
+  total          Decimal @db.Decimal(18, 2)
+  ordemLinha     Int     @default(0)
+  createdAt      DateTime @default(now())
+
+  fatura Fatura @relation(fields: [faturaId], references: [id])
+
+  @@index([tenantId, faturaId])
+}
+
+/// Nota de crédito: correcção de factura emitida. Imutável após EMITIDA.
+model NotaCredito {
+  id               String            @id @default(cuid())
+  tenantId         String
+  serieDocumentoId String
+  numero           String            // NC/2024/000001
+  faturaOriginalId String            // obrigatório: referencia a fatura
+  motivo           String
+  moeda            String            @default("MZN")
+  subtotal         Decimal           @db.Decimal(18, 2)
+  descontoTotal    Decimal           @db.Decimal(18, 2) @default(0)
+  ivaTotal         Decimal           @db.Decimal(18, 2)
+  total            Decimal           @db.Decimal(18, 2)
+  status           StatusNotaCredito @default(RASCUNHO)
+  dataEmissao      DateTime
+  observacoes      String?
+  lancamentoId     String?           // FK Lancamento de estorno (escalar)
+  emitidoPorId     String            // FK User (escalar)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  serieDocumento SerieDocumento @relation(fields: [serieDocumentoId], references: [id])
+  faturaOriginal Fatura         @relation("FaturaNotasCredito", fields: [faturaOriginalId], references: [id])
+  linhas         LinhaNotaCredito[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, faturaOriginalId])
+  @@index([tenantId, dataEmissao])
+}
+
+/// Linha de nota de crédito. Imutável após emissão.
+model LinhaNotaCredito {
+  id            String  @id @default(cuid())
+  tenantId      String
+  notaCreditoId String
+  produtoId     String? // FK cross-domínio (WS A) — escalar
+  descricao     String
+  quantidade    Decimal @db.Decimal(18, 6)
+  precoUnitario Decimal @db.Decimal(18, 2)
+  desconto      Decimal @db.Decimal(18, 2) @default(0)
+  taxaIva       Decimal @db.Decimal(9, 6)
+  subtotal      Decimal @db.Decimal(18, 2)
+  ivaItem       Decimal @db.Decimal(18, 2)
+  total         Decimal @db.Decimal(18, 2)
+  ordemLinha    Int     @default(0)
+  createdAt     DateTime @default(now())
+
+  notaCredito NotaCredito @relation(fields: [notaCreditoId], references: [id])
+
+  @@index([tenantId, notaCreditoId])
+}
+
+/// Nota de débito: cobrança adicional sobre factura existente ou autónoma.
+model NotaDebito {
+  id                 String           @id @default(cuid())
+  tenantId           String
+  serieDocumentoId   String
+  numero             String           // ND/2024/000001
+  clienteId          String           // FK cross-domínio (WS C) — escalar
+  faturaReferenciaId String?          // FK Fatura referenciada (se existir) — escalar
+  motivo             String
+  moeda              String           @default("MZN")
+  subtotal           Decimal          @db.Decimal(18, 2)
+  descontoTotal      Decimal          @db.Decimal(18, 2) @default(0)
+  ivaTotal           Decimal          @db.Decimal(18, 2)
+  total              Decimal          @db.Decimal(18, 2)
+  status             StatusNotaDebito @default(RASCUNHO)
+  dataEmissao        DateTime
+  observacoes        String?
+  lancamentoId       String?          // FK Lancamento (escalar)
+  emitidoPorId       String           // FK User (escalar)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  serieDocumento   SerieDocumento @relation(fields: [serieDocumentoId], references: [id])
+  faturaReferencia Fatura?        @relation("FaturaNotasDebito", fields: [faturaReferenciaId], references: [id])
+  linhas           LinhaNotaDebito[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, dataEmissao])
+}
+
+/// Linha de nota de débito. Imutável após emissão.
+model LinhaNotaDebito {
+  id          String  @id @default(cuid())
+  tenantId    String
+  notaDebitoId String
+  produtoId   String? // FK cross-domínio (WS A) — escalar
+  descricao   String
+  quantidade  Decimal @db.Decimal(18, 6)
+  precoUnitario Decimal @db.Decimal(18, 2)
+  desconto    Decimal @db.Decimal(18, 2) @default(0)
+  taxaIva     Decimal @db.Decimal(9, 6)
+  subtotal    Decimal @db.Decimal(18, 2)
+  ivaItem     Decimal @db.Decimal(18, 2)
+  total       Decimal @db.Decimal(18, 2)
+  ordemLinha  Int     @default(0)
+  createdAt   DateTime @default(now())
+
+  notaDebito NotaDebito @relation(fields: [notaDebitoId], references: [id])
+
+  @@index([tenantId, notaDebitoId])
+}
+
+/// Proforma: proposta comercial antes de emitir factura fiscal.
+model Proforma {
+  id               String         @id @default(cuid())
+  tenantId         String
+  serieDocumentoId String
+  numero           String         // PRO/2024/000001
+  clienteId        String         // FK cross-domínio (WS C) — escalar
+  moeda            String         @default("MZN")
+  subtotal         Decimal        @db.Decimal(18, 2)
+  descontoTotal    Decimal        @db.Decimal(18, 2) @default(0)
+  ivaTotal         Decimal        @db.Decimal(18, 2)
+  total            Decimal        @db.Decimal(18, 2)
+  status           StatusProforma @default(RASCUNHO)
+  dataEmissao      DateTime
+  dataValidade     DateTime
+  faturaId         String?        // FK Fatura gerada após conversão (escalar)
+  observacoes      String?
+  criadoPorId      String         // FK User (escalar)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  serieDocumento SerieDocumento @relation(fields: [serieDocumentoId], references: [id])
+  linhas         LinhaProforma[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, dataValidade, status])
+}
+
+/// Linha de proforma.
+model LinhaProforma {
+  id             String  @id @default(cuid())
+  tenantId       String
+  proformaId     String
+  produtoId      String? // FK cross-domínio (WS A) — escalar
+  descricao      String
+  quantidade     Decimal @db.Decimal(18, 6)
+  precoUnitario  Decimal @db.Decimal(18, 2)
+  desconto       Decimal @db.Decimal(18, 2) @default(0)
+  taxaIva        Decimal @db.Decimal(9, 6)
+  subtotal       Decimal @db.Decimal(18, 2)
+  ivaItem        Decimal @db.Decimal(18, 2)
+  total          Decimal @db.Decimal(18, 2)
+  ordemLinha     Int     @default(0)
+  createdAt      DateTime @default(now())
+
+  proforma Proforma @relation(fields: [proformaId], references: [id])
+
+  @@index([tenantId, proformaId])
+}
+
+/// Cotação comercial: proposta de preço para cliente (distinta da RFQ de compras em WS B).
+/// Conflito #2: RFQ = Cotacao em B; cotação de venda = CotacaoComercial em D.
+model CotacaoComercial {
+  id               String                 @id @default(cuid())
+  tenantId         String
+  serieDocumentoId String
+  numero           String                 // COT/2024/000001
+  clienteId        String                 // FK cross-domínio (WS C) — escalar
+  moeda            String                 @default("MZN")
+  subtotal         Decimal                @db.Decimal(18, 2)
+  descontoTotal    Decimal                @db.Decimal(18, 2) @default(0)
+  ivaTotal         Decimal                @db.Decimal(18, 2)
+  total            Decimal                @db.Decimal(18, 2)
+  status           StatusCotacaoComercial @default(RASCUNHO)
+  dataEmissao      DateTime
+  dataValidade     DateTime
+  proformaId       String?                // FK Proforma ou Fatura gerada (escalar)
+  faturaId         String?                // FK Fatura (escalar)
+  observacoes      String?
+  condicoesComerciais String?
+  criadoPorId      String                 // FK User (escalar)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  serieDocumento SerieDocumento      @relation(fields: [serieDocumentoId], references: [id])
+  linhas         LinhaCotacaoComercial[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, dataValidade, status])
+}
+
+/// Linha de cotação comercial.
+model LinhaCotacaoComercial {
+  id                 String  @id @default(cuid())
+  tenantId           String
+  cotacaoComercialId String
+  produtoId          String? // FK cross-domínio (WS A) — escalar
+  descricao          String
+  quantidade         Decimal @db.Decimal(18, 6)
+  precoUnitario      Decimal @db.Decimal(18, 2)
+  desconto           Decimal @db.Decimal(18, 2) @default(0)
+  taxaIva            Decimal @db.Decimal(9, 6)
+  subtotal           Decimal @db.Decimal(18, 2)
+  ivaItem            Decimal @db.Decimal(18, 2)
+  total              Decimal @db.Decimal(18, 2)
+  ordemLinha         Int     @default(0)
+  createdAt          DateTime @default(now())
+
+  cotacaoComercial CotacaoComercial @relation(fields: [cotacaoComercialId], references: [id])
+
+  @@index([tenantId, cotacaoComercialId])
+}

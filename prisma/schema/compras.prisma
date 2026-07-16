@@ -1,0 +1,974 @@
+// =====================================================================
+// WS B — Compras & Fornecedores
+// Dono: domain-compras | Wave 1 (contratos)
+//
+// Conflitos aplicados:
+//   #3  Um só Fornecedor = união de fornecedor.ts + procurement.ts
+//   #4  Canónico = PedidoCompra; PedidoFornecedor descartado
+//   #5  ContactoFornecedor / DocumentoFornecedor versão rica
+//   #2  Cotacao aqui = RFQ de compras (CotacaoComercial pertence a WS D)
+//   #6  ContaPagar (documento) + Pagamento (liquidação); liquidação integra WS D
+//
+// FKs escalares cross-domínio (sem @relation):
+//   produtoId       → WS A  Produto
+//   centroCustoId   → WS D  CentroCusto
+//   contaContabilId → WS D  ContaPGC
+//   lancamentoId    → WS D  Lancamento
+//   solicitanteId   → auth  User
+//   aprovadorId     → auth  User
+//   responsavelId   → auth  User
+//   avaliadorId     → auth  User
+//   usuarioId       → auth  User
+//   clienteId       → WS C  Cliente
+//   colaboradorId   → WS E  Colaborador
+//
+// Dinheiro: Decimal(18,2) | Taxas/percentagens: Decimal(9,6)
+// Soft delete apenas em Fornecedor (entidade de referência)
+// Documentos transaccionais são append-only (cancelam por estado)
+// =====================================================================
+
+// ---- Enums: Fornecedor ----
+
+enum TipoFornecedor {
+  PESSOA_FISICA
+  PESSOA_JURIDICA
+}
+
+enum StatusFornecedor {
+  ATIVO
+  INATIVO
+  SUSPENSO
+}
+
+enum ClassificacaoFornecedor {
+  PREFERENCIAL
+  REGULAR
+  NOVO
+}
+
+enum TipoEnderecoFornecedor {
+  SEDE
+  ENTREGA
+  OUTRO
+}
+
+enum TipoContactoFornecedor {
+  PRINCIPAL
+  SECUNDARIO
+  TECNICO
+  FINANCEIRO
+}
+
+enum TipoDocumentoFornecedor {
+  CONTRATO
+  NUIT
+  CERTIFICACAO
+  OUTRO
+}
+
+// ---- Enums: Aprovação ----
+
+enum TipoAprovacaoWorkflow {
+  REQUISICAO_COMPRA
+  PEDIDO_COMPRA
+}
+
+enum TipoAprovacao {
+  QUALQUER_UM
+  TODOS
+  MAIORIA
+}
+
+enum StatusAprovacao {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
+// ---- Enums: Requisição de Compra ----
+
+enum PrioridadeRequisicao {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+enum StatusRequisicaoCompra {
+  RASCUNHO
+  PENDENTE
+  EM_APROVACAO
+  APROVADA
+  REJEITADA
+  CANCELADA
+  CONVERTIDA
+}
+
+// ---- Enums: Cotação (RFQ) ----
+
+enum StatusCotacao {
+  RASCUNHO
+  ENVIADA
+  RESPONDIDA
+  ADJUDICADA
+  VENCIDA
+  CANCELADA
+}
+
+enum StatusCotacaoFornecedor {
+  PENDENTE
+  RESPONDIDA
+  RECUSADA
+}
+
+// ---- Enums: Pedido de Compra ----
+
+enum StatusPedidoCompra {
+  RASCUNHO
+  ENVIADO
+  CONFIRMADO
+  EM_TRANSITO
+  RECEBIDO_PARCIAL
+  RECEBIDO_TOTAL
+  CANCELADO
+}
+
+// ---- Enums: Recebimento ----
+
+enum StatusRecebimento {
+  COMPLETO
+  PARCIAL
+  COM_DIVERGENCIA
+}
+
+// ---- Enums: Contas a Pagar ----
+
+enum StatusContaPagar {
+  ABERTA
+  PARCIALMENTE_PAGA
+  PAGA
+  CANCELADA
+  VENCIDA
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDO
+  CANCELADO
+}
+
+// ---- Enums: Serviços ----
+
+enum TipoServico {
+  INSTALACAO
+  MANUTENCAO
+  REPARACAO
+  CONSULTORIA
+  LIMPEZA
+  TRANSPORTE
+  OUTRO
+}
+
+enum NivelTecnicoServico {
+  BASICO
+  INTERMEDIARIO
+  AVANCADO
+}
+
+enum StatusAgendamento {
+  PENDENTE
+  CONFIRMADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+  NAO_COMPARECEU
+}
+
+enum StatusContratoServico {
+  ATIVO
+  PAUSADO
+  ENCERRADO
+  CANCELADO
+}
+
+enum PeriodicidadeContrato {
+  MENSAL
+  TRIMESTRAL
+  SEMESTRAL
+  ANUAL
+}
+
+// =====================================================================
+// FORNECEDORES
+// =====================================================================
+
+/// Fornecedor unificado (conflitos #3, #5).
+/// Entidade de referência → soft delete com deletedAt.
+model Fornecedor {
+  id          String                  @id @default(cuid())
+  tenantId    String
+  codigo      String
+
+  // Identificação
+  nome        String
+  tipo        TipoFornecedor
+  nuit        String
+  bi          String?
+  email       String
+  telefone    String?
+  telefoneSec String?
+
+  // Classificação e scoring
+  categoria       String?
+  status          StatusFornecedor        @default(ATIVO)
+  classificacao   ClassificacaoFornecedor @default(REGULAR)
+  rating          Decimal?                @db.Decimal(3, 2)
+
+  // Crédito (de procurement.ts — conflito #3)
+  limiteCredito   Decimal?  @db.Decimal(18, 2)
+  saldoDevedor    Decimal   @default(0) @db.Decimal(18, 2)
+  totalCompras    Decimal   @default(0) @db.Decimal(18, 2)
+  ultimaCompra    DateTime?
+
+  // Condições comerciais
+  diasPagamento               Int      @default(30)
+  prazoMedioPagamento         Int      @default(30)
+  condicoesPagamento          String?
+  formasPagamento             String[]
+  condicoesComerciaisDesconto Decimal? @db.Decimal(5, 2)
+
+  // Qualidade (campo de procurement.ts)
+  avaliacaoQualidade Decimal? @db.Decimal(3, 2)
+
+  // Outros
+  observacoes String?
+  tags        String[]
+  currency    String   @default("MZN")
+
+  // Soft delete (entidade de referência)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relações intra-WS B
+  enderecos     EnderecoFornecedor[]
+  contactos     ContactoFornecedor[]
+  documentos    DocumentoFornecedor[]
+  avaliacoes    AvaliacaoFornecedor[]
+  pedidosCompra PedidoCompra[]
+  cotacoesRfq   CotacaoFornecedor[]
+  contasPagar   ContaPagar[]
+  cotacoesVencidas Cotacao[] @relation("VencedorCotacao")
+
+  @@unique([tenantId, codigo])
+  @@unique([tenantId, nuit])
+  @@index([tenantId, status])
+  @@index([tenantId, classificacao])
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, createdAt])
+}
+
+/// Endereço estruturado do fornecedor.
+model EnderecoFornecedor {
+  id           String                 @id @default(cuid())
+  tenantId     String
+  fornecedorId String
+  tipo         TipoEnderecoFornecedor @default(SEDE)
+  rua          String
+  numero       String
+  bairro       String
+  cidade       String
+  provincia    String
+  codigoPostal String?
+  referencia   String?
+  principal    Boolean                @default(false)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, fornecedorId])
+}
+
+/// Contacto do fornecedor — versão rica (conflito #5).
+model ContactoFornecedor {
+  id           String                 @id @default(cuid())
+  tenantId     String
+  fornecedorId String
+  nome         String
+  cargo        String?
+  email        String?
+  telefone     String?
+  telefoneSec  String?
+  tipo         TipoContactoFornecedor @default(PRINCIPAL)
+  ativo        Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, fornecedorId, tipo])
+}
+
+/// Documento do fornecedor — versão rica com validade (conflito #5).
+model DocumentoFornecedor {
+  id           String                  @id @default(cuid())
+  tenantId     String
+  fornecedorId String
+  tipo         TipoDocumentoFornecedor @default(OUTRO)
+  nome         String
+  dataUpload   DateTime                @default(now())
+  dataValidade DateTime?
+  url          String
+  observacoes  String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, fornecedorId, tipo])
+  @@index([tenantId, fornecedorId, dataValidade])
+}
+
+/// Avaliação periódica de desempenho do fornecedor.
+model AvaliacaoFornecedor {
+  id           String   @id @default(cuid())
+  tenantId     String
+  fornecedorId String
+  // FK escalar cross-domínio (User → auth)
+  avaliadorId  String
+  qualidade    Int // 1–5
+  prazo        Int // 1–5
+  preco        Int // 1–5
+  comunicacao  Int // 1–5
+  observacoes  String?
+  createdAt    DateTime @default(now())
+
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id])
+
+  @@index([tenantId, fornecedorId])
+  @@index([avaliadorId])
+}
+
+// =====================================================================
+// WORKFLOW DE APROVAÇÃO (configuração multi-nível)
+// =====================================================================
+
+/// Configuração de workflow de aprovação (por tenant, tipo e faixas de valor).
+model ConfiguracaoWorkflow {
+  id       String                @id @default(cuid())
+  tenantId String
+  nome     String
+  tipo     TipoAprovacaoWorkflow
+  ativo    Boolean               @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  niveis NivelAprovacao[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId, tipo, ativo])
+}
+
+/// Nível de aprovação dentro de uma configuração (por faixa de valor e quórum).
+model NivelAprovacao {
+  id                    String        @id @default(cuid())
+  tenantId              String
+  configuracaoWorkflowId String
+  nivel                 Int
+  nome                  String
+  valorMinimo           Decimal       @db.Decimal(18, 2)
+  valorMaximo           Decimal       @db.Decimal(18, 2)
+  tipoAprovacao         TipoAprovacao @default(QUALQUER_UM)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  configuracaoWorkflow ConfiguracaoWorkflow @relation(fields: [configuracaoWorkflowId], references: [id], onDelete: Cascade)
+  aprovadores          AprovadorNivel[]
+
+  @@unique([configuracaoWorkflowId, nivel])
+  @@index([tenantId, configuracaoWorkflowId])
+}
+
+/// Utilizador autorizado a aprovar num determinado nível.
+model AprovadorNivel {
+  id               String @id @default(cuid())
+  tenantId         String
+  nivelAprovacaoId String
+  // FK escalar cross-domínio (User → auth)
+  usuarioId        String
+  email            String
+
+  nivelAprovacao NivelAprovacao @relation(fields: [nivelAprovacaoId], references: [id], onDelete: Cascade)
+
+  @@unique([nivelAprovacaoId, usuarioId])
+  @@index([tenantId, usuarioId])
+}
+
+// =====================================================================
+// REQUISIÇÃO DE COMPRA
+// =====================================================================
+
+/// Pedido interno de compra. Máquina de estados: RASCUNHO→PENDENTE→EM_APROVACAO→APROVADA→CONVERTIDA.
+model RequisicaoCompra {
+  id       String @id @default(cuid())
+  tenantId String
+  numero   String
+
+  data                DateTime
+  // FK escalar cross-domínio (User → auth)
+  solicitanteId       String
+  solicitanteNome     String
+  departamento        String
+  prioridade          PrioridadeRequisicao   @default(MEDIA)
+  status              StatusRequisicaoCompra @default(RASCUNHO)
+  justificativa       String
+  observacoes         String?
+  valorTotal          Decimal                @db.Decimal(18, 2)
+  dataEntregaDesejada DateTime?
+  // FK escalar cross-domínio (CentroCusto → WS D)
+  centroCustoId       String?
+  currency            String                 @default("MZN")
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  itens      ItemRequisicao[]
+  aprovacoes AprovacaoCompra[]
+  cotacoes   Cotacao[]
+  pedidos    PedidoCompra[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([solicitanteId])
+  @@index([centroCustoId])
+}
+
+/// Linha de item de uma requisição de compra.
+model ItemRequisicao {
+  id                String   @id @default(cuid())
+  tenantId          String
+  requisicaoCompraId String
+  // FK escalar cross-domínio (Produto → WS A)
+  produtoId          String?
+  descricao          String
+  quantidade         Decimal  @db.Decimal(18, 4)
+  unidadeMedida      String
+  precoEstimado      Decimal  @db.Decimal(18, 2)
+  subtotal           Decimal  @db.Decimal(18, 2)
+  observacoes        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  requisicaoCompra RequisicaoCompra @relation(fields: [requisicaoCompraId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, requisicaoCompraId])
+  @@index([produtoId])
+}
+
+/// Registo de aprovação de requisição ou pedido de compra (decisão por nível).
+model AprovacaoCompra {
+  id       String @id @default(cuid())
+  tenantId String
+
+  // Exatamente um destes é não-nulo
+  requisicaoCompraId String?
+  pedidoCompraId     String?
+
+  nivel         Int
+  // FK escalar cross-domínio (User → auth)
+  aprovadorId   String
+  aprovadorNome String
+  status        StatusAprovacao @default(PENDENTE)
+  data          DateTime?
+  observacoes   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  requisicaoCompra RequisicaoCompra? @relation(fields: [requisicaoCompraId], references: [id])
+  pedidoCompra     PedidoCompra?     @relation(fields: [pedidoCompraId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([requisicaoCompraId])
+  @@index([pedidoCompraId])
+  @@index([aprovadorId])
+}
+
+// =====================================================================
+// COTAÇÃO (RFQ — Request for Quotation) — conflito #2
+// Esta é a cotação de COMPRAS. Cotação comercial (venda) pertence a WS D.
+// =====================================================================
+
+/// Pedido de cotação enviado a vários fornecedores. Máquina de estados: RASCUNHO→ENVIADA→RESPONDIDA→ADJUDICADA|VENCIDA.
+model Cotacao {
+  id                 String        @id @default(cuid())
+  tenantId           String
+  numero             String
+  data               DateTime
+  requisicaoCompraId String?
+  status             StatusCotacao @default(RASCUNHO)
+  dataValidade       DateTime
+  // FK intra-WS B: fornecedor vencedor (adjudicatário)
+  vencedorFornecedorId String?
+  observacoes          String?
+  currency             String        @default("MZN")
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  requisicaoCompra RequisicaoCompra?   @relation(fields: [requisicaoCompraId], references: [id])
+  vencedorFornecedor Fornecedor?       @relation("VencedorCotacao", fields: [vencedorFornecedorId], references: [id])
+  fornecedores     CotacaoFornecedor[]
+  itens            ItemCotacao[]
+  pedidosCompra    PedidoCompra[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([requisicaoCompraId])
+  @@index([vencedorFornecedorId])
+}
+
+/// Fornecedor convidado para a cotação e a sua resposta global.
+model CotacaoFornecedor {
+  id                 String                  @id @default(cuid())
+  tenantId           String
+  cotacaoId          String
+  fornecedorId       String
+  dataEnvio          DateTime?
+  dataResposta       DateTime?
+  status             StatusCotacaoFornecedor @default(PENDENTE)
+  valorTotal         Decimal?                @db.Decimal(18, 2)
+  prazoEntregaDias   Int?
+  condicoesPagamento String?
+  observacoes        String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  cotacao    Cotacao               @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+  fornecedor Fornecedor            @relation(fields: [fornecedorId], references: [id])
+  respostas  RespostaItemCotacao[]
+
+  @@unique([cotacaoId, fornecedorId])
+  @@index([tenantId, cotacaoId])
+  @@index([fornecedorId])
+}
+
+/// Item a ser cotado (linha da RFQ).
+model ItemCotacao {
+  id            String   @id @default(cuid())
+  tenantId      String
+  cotacaoId     String
+  // FK escalar cross-domínio (Produto → WS A)
+  produtoId     String?
+  descricao     String
+  quantidade    Decimal  @db.Decimal(18, 4)
+  unidadeMedida String
+  especificacoes String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cotacao   Cotacao               @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+  respostas RespostaItemCotacao[]
+
+  @@index([tenantId, cotacaoId])
+  @@index([produtoId])
+}
+
+/// Resposta de um fornecedor a um item específico da cotação.
+model RespostaItemCotacao {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  itemCotacaoId       String
+  cotacaoFornecedorId String
+  precoUnitario       Decimal  @db.Decimal(18, 2)
+  subtotal            Decimal  @db.Decimal(18, 2)
+  prazoEntregaDias    Int
+  marca               String?
+  observacoes         String?
+  createdAt           DateTime @default(now())
+
+  itemCotacao       ItemCotacao       @relation(fields: [itemCotacaoId], references: [id], onDelete: Cascade)
+  cotacaoFornecedor CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
+
+  @@unique([itemCotacaoId, cotacaoFornecedorId])
+  @@index([tenantId, itemCotacaoId])
+  @@index([cotacaoFornecedorId])
+}
+
+// =====================================================================
+// PEDIDO DE COMPRA — canónico (conflito #4; PedidoFornecedor descartado)
+// =====================================================================
+
+/// Ordem de compra emitida ao fornecedor. Máquina de estados: RASCUNHO→ENVIADO→CONFIRMADO→EM_TRANSITO→RECEBIDO_*.
+model PedidoCompra {
+  id                  String             @id @default(cuid())
+  tenantId            String
+  numero              String
+  data                DateTime
+  requisicaoCompraId  String?
+  cotacaoId           String?
+  fornecedorId        String
+  status              StatusPedidoCompra @default(RASCUNHO)
+
+  valorSubtotal      Decimal @db.Decimal(18, 2)
+  valorDesconto      Decimal @default(0) @db.Decimal(18, 2)
+  valorIva           Decimal @default(0) @db.Decimal(18, 2)
+  valorTotal         Decimal @db.Decimal(18, 2)
+  taxaIva            Decimal @default(0.160000) @db.Decimal(9, 6)
+
+  condicoesPagamento  String
+  prazoEntregaDias    Int
+  dataEntregaPrevista DateTime
+  dataEntregaReal     DateTime?
+  enderecoEntrega     String
+  // FK escalar cross-domínio (CentroCusto → WS D)
+  centroCustoId       String?
+  observacoes         String?
+  currency            String             @default("MZN")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  requisicaoCompra RequisicaoCompra?  @relation(fields: [requisicaoCompraId], references: [id])
+  cotacao          Cotacao?           @relation(fields: [cotacaoId], references: [id])
+  fornecedor       Fornecedor         @relation(fields: [fornecedorId], references: [id])
+  itens            ItemPedidoCompra[]
+  aprovacoes       AprovacaoCompra[]
+  recebimentos     RecebimentoCompra[]
+  contasPagar      ContaPagar[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([fornecedorId])
+  @@index([requisicaoCompraId])
+  @@index([cotacaoId])
+  @@index([centroCustoId])
+}
+
+/// Linha de item do pedido de compra.
+model ItemPedidoCompra {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  pedidoCompraId     String
+  // FK escalar cross-domínio (Produto → WS A)
+  produtoId          String?
+  descricao          String
+  quantidade         Decimal  @db.Decimal(18, 4)
+  quantidadeRecebida Decimal  @default(0) @db.Decimal(18, 4)
+  unidadeMedida      String
+  precoUnitario      Decimal  @db.Decimal(18, 2)
+  desconto           Decimal  @default(0) @db.Decimal(18, 2)
+  taxaIva            Decimal  @default(0.160000) @db.Decimal(9, 6)
+  subtotal           Decimal  @db.Decimal(18, 2)
+  observacoes        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  pedidoCompra   PedidoCompra      @relation(fields: [pedidoCompraId], references: [id], onDelete: Cascade)
+  itensRecebidos ItemRecebimento[]
+
+  @@index([tenantId, pedidoCompraId])
+  @@index([produtoId])
+}
+
+/// Registo de recebimento de mercadoria (append-only; correc-ções geram novo recebimento).
+model RecebimentoCompra {
+  id              String            @id @default(cuid())
+  tenantId        String
+  pedidoCompraId  String
+  data            DateTime
+  numeroDocumento String?
+  // FK escalar cross-domínio (User → auth)
+  responsavelId   String
+  responsavelNome String
+  status          StatusRecebimento
+  observacoes     String?
+  createdAt       DateTime          @default(now())
+
+  pedidoCompra PedidoCompra     @relation(fields: [pedidoCompraId], references: [id])
+  itens        ItemRecebimento[]
+
+  @@index([tenantId, pedidoCompraId])
+  @@index([tenantId, createdAt])
+  @@index([responsavelId])
+}
+
+/// Detalhe de item recebido (quantidades aceites/rejeitadas).
+model ItemRecebimento {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  recebimentoCompraId String
+  itemPedidoCompraId  String
+  quantidadeRecebida  Decimal  @db.Decimal(18, 4)
+  quantidadeAceita    Decimal  @db.Decimal(18, 4)
+  quantidadeRejeitada Decimal  @db.Decimal(18, 4)
+  motivoRejeicao      String?
+  observacoes         String?
+  createdAt           DateTime @default(now())
+
+  recebimentoCompra RecebimentoCompra @relation(fields: [recebimentoCompraId], references: [id], onDelete: Cascade)
+  itemPedidoCompra  ItemPedidoCompra  @relation(fields: [itemPedidoCompraId], references: [id])
+
+  @@index([tenantId, recebimentoCompraId])
+  @@index([itemPedidoCompraId])
+}
+
+// =====================================================================
+// CONTAS A PAGAR — conflito #6
+// ContaPagar = documento; Pagamento = liquidação (integra WS D)
+// =====================================================================
+
+/// Conta a pagar gerada após recebimento de mercadoria ou serviço.
+model ContaPagar {
+  id             String           @id @default(cuid())
+  tenantId       String
+  numero         String
+  fornecedorId   String
+  pedidoCompraId String?
+  descricao      String
+  valorOriginal  Decimal          @db.Decimal(18, 2)
+  valorPago      Decimal          @default(0) @db.Decimal(18, 2)
+  valorRestante  Decimal          @db.Decimal(18, 2)
+  dataEmissao    DateTime
+  dataVencimento DateTime
+  status         StatusContaPagar @default(ABERTA)
+  // FK escalar cross-domínio (CentroCusto → WS D)
+  centroCustoId  String?
+  // FK escalar cross-domínio (ContaPGC → WS D) — conta de crédito para lançamento
+  contaContabilId String?
+  observacoes    String?
+  currency       String           @default("MZN")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  fornecedor   Fornecedor    @relation(fields: [fornecedorId], references: [id])
+  pedidoCompra PedidoCompra? @relation(fields: [pedidoCompraId], references: [id])
+  pagamentos   Pagamento[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, dataVencimento])
+  @@index([fornecedorId])
+  @@index([pedidoCompraId])
+  @@index([centroCustoId])
+  @@index([contaContabilId])
+}
+
+/// Liquidação de uma conta a pagar. Gera lançamento contabilístico em WS D (lancamentoId).
+model Pagamento {
+  id             String          @id @default(cuid())
+  tenantId       String
+  contaPagarId   String
+  numero         String
+  dataPagamento  DateTime
+  valor          Decimal         @db.Decimal(18, 2)
+  formaPagamento String
+  referencia     String?
+  status         StatusPagamento @default(PENDENTE)
+  // FK escalar cross-domínio (Lancamento → WS D) — preenchido após integração
+  lancamentoId   String?
+  observacoes    String?
+  currency       String          @default("MZN")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  contaPagar ContaPagar @relation(fields: [contaPagarId], references: [id])
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, dataPagamento])
+  @@index([contaPagarId])
+  @@index([lancamentoId])
+}
+
+// =====================================================================
+// SERVIÇOS (catálogo de serviços prestados/contratados)
+// =====================================================================
+
+/// Categoria de serviço (árvore plana, ordenada por `ordem`).
+model CategoriaServico {
+  id        String   @id @default(cuid())
+  tenantId  String
+  nome      String
+  descricao String?
+  cor       String   @default("#6B7280")
+  icone     String?
+  ativo     Boolean  @default(true)
+  ordem     Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  servicos Servico[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId, ativo])
+}
+
+/// Serviço disponível no catálogo. Inclui disponibilidade e estatísticas desnormalizadas.
+model Servico {
+  id                    String               @id @default(cuid())
+  tenantId              String
+  codigo                String
+  nome                  String
+  descricao             String?
+  categoriaServicoId    String?
+  subcategoria          String?
+  preco                 Decimal              @db.Decimal(18, 2)
+  precoMinimo           Decimal?             @db.Decimal(18, 2)
+  precoMaximo           Decimal?             @db.Decimal(18, 2)
+  duracaoEstimada       Int                  // minutos
+  unidadeMedida         String               @default("un")
+  taxaIva               Decimal              @default(0.160000) @db.Decimal(9, 6)
+  tipoServico           TipoServico          @default(OUTRO)
+  incluiMaterial        Boolean              @default(false)
+  materialIncluido      String?
+  requerAgendamento     Boolean              @default(true)
+  requerTecnico         Boolean              @default(false)
+  nivelTecnicoRequerido NivelTecnicoServico?
+  disponivel            Boolean              @default(true)
+  diasDisponibilidade   String[]
+  horaInicio            String?
+  horaFim               String?
+  imagem                String?
+  observacoes           String?
+  // Estatísticas desnormalizadas (actualizadas por triggers de serviço)
+  totalVendas           Int                  @default(0)
+  faturamentoTotal      Decimal              @default(0) @db.Decimal(18, 2)
+  ultimaVenda           DateTime?
+  avaliacaoMedia        Decimal?             @db.Decimal(3, 2)
+  numeroAvaliacoes      Int                  @default(0)
+  ativo                 Boolean              @default(true)
+  currency              String               @default("MZN")
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  categoriaServico CategoriaServico?    @relation(fields: [categoriaServicoId], references: [id])
+  agendamentos     AgendamentoServico[]
+  avaliacoes       AvaliacaoServico[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, ativo])
+  @@index([tenantId, tipoServico])
+  @@index([categoriaServicoId])
+}
+
+/// Técnico que executa serviços. Referencia Colaborador de WS E via FK escalar.
+model TecnicoServico {
+  id                 String              @id @default(cuid())
+  tenantId           String
+  // FK escalar cross-domínio (Colaborador → WS E)
+  colaboradorId      String
+  nome               String
+  email              String
+  telefone           String
+  especialidades     String[]
+  nivelTecnico       NivelTecnicoServico @default(BASICO)
+  disponivel         Boolean             @default(true)
+  agendamentosAtivos Int                 @default(0)
+  avaliacaoMedia     Decimal?            @db.Decimal(3, 2)
+  numeroAvaliacoes   Int                 @default(0)
+  custoHora          Decimal             @db.Decimal(18, 2)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  agendamentos AgendamentoServico[]
+
+  @@unique([tenantId, colaboradorId])
+  @@index([tenantId, disponivel])
+  @@index([colaboradorId])
+}
+
+/// Agendamento de prestação de serviço a um cliente.
+model AgendamentoServico {
+  id              String            @id @default(cuid())
+  tenantId        String
+  codigo          String
+  servicoId       String
+  // FK escalar cross-domínio (Cliente → WS C)
+  clienteId       String
+  clienteNome     String
+  clienteEmail    String
+  clienteTelefone String
+  tecnicoId       String? // intra-WS B → TecnicoServico.id
+  tecnicoNome     String?
+  dataAgendamento DateTime
+  horaInicio      String
+  horaFim         String
+  duracaoEstimada Int // minutos
+  local           String
+  endereco        String
+  cidade          String
+  provincia       String
+  status          StatusAgendamento @default(PENDENTE)
+  precoServico    Decimal           @db.Decimal(18, 2)
+  desconto        Decimal?          @db.Decimal(18, 2)
+  taxaIva         Decimal           @default(0.160000) @db.Decimal(9, 6)
+  total           Decimal           @db.Decimal(18, 2)
+  observacoes     String?
+  notasConclusao  String?
+  currency        String            @default("MZN")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  servico    Servico          @relation(fields: [servicoId], references: [id])
+  tecnico    TecnicoServico?  @relation(fields: [tecnicoId], references: [id])
+  avaliacoes AvaliacaoServico[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, status])
+  @@index([tenantId, dataAgendamento])
+  @@index([servicoId])
+  @@index([clienteId])
+  @@index([tecnicoId])
+}
+
+/// Avaliação de um serviço prestado.
+model AvaliacaoServico {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  agendamentoServicoId String
+  servicoId            String
+  // FK escalar cross-domínio (Cliente → WS C)
+  clienteId            String
+  clienteNome          String
+  nota                 Decimal  @db.Decimal(3, 2) // 1.00–5.00
+  comentario           String?
+  aspectosPositivos    String[]
+  aspectosNegativos    String[]
+  recomendaria         Boolean  @default(false)
+  createdAt            DateTime @default(now())
+
+  agendamentoServico AgendamentoServico @relation(fields: [agendamentoServicoId], references: [id])
+  servico            Servico            @relation(fields: [servicoId], references: [id])
+
+  @@index([tenantId, servicoId])
+  @@index([clienteId])
+  @@index([agendamentoServicoId])
+}
+
+/// Contrato de prestação de serviço com um cliente (renovação automática configurável).
+model ContratoServico {
+  id                  String                @id @default(cuid())
+  tenantId            String
+  codigo              String
+  // FK escalar cross-domínio (Cliente → WS C)
+  clienteId           String
+  clienteNome         String
+  servicosIds         String[] // IDs dos Servico incluídos
+  dataInicio          DateTime
+  dataFim             DateTime
+  renovacaoAutomatica Boolean               @default(false)
+  periodicidade       PeriodicidadeContrato @default(MENSAL)
+  valorMensal         Decimal               @db.Decimal(18, 2)
+  status              StatusContratoServico @default(ATIVO)
+  observacoes         String?
+  currency            String                @default("MZN")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, status])
+  @@index([clienteId])
+  @@index([tenantId, dataFim])
+}

@@ -1,0 +1,846 @@
+// WS F — Operações: Transporte & Logística + Tickets
+// tenantId é escalar em todos os modelos (sem @relation a Tenant — o orquestrador
+// adiciona os back-references em tenant.prisma após merge da Wave 1).
+// usuarioId, clienteId, vendaId, produtoId são FKs escalares cross-WS (sem @relation).
+// Relações intra-WS (dentro deste ficheiro) usam @relation normais.
+
+// ============================================================
+// ENUMS — Transporte
+// ============================================================
+
+enum TipoViatura {
+  LIGEIRO_PASSAGEIROS
+  LIGEIRO_MERCADORIAS
+  PESADO_MERCADORIAS
+  PESADO_PASSAGEIROS
+  MOTOCICLO
+  OUTRO
+}
+
+enum UnidadeCapacidade {
+  KG
+  TON
+  M3
+  PASSAGEIROS
+}
+
+enum EstadoViatura {
+  DISPONIVEL
+  EM_ACTIVIDADE
+  EM_MANUTENCAO
+  INACTIVA
+  ABATIDA
+}
+
+enum TipoDocumentoViatura {
+  LIVRETE
+  INSPECAO
+  SEGURO
+  LICENCA
+  MANIFESTO
+  TAXA_RADIO
+  OUTRO
+}
+
+/// Estado calculado com base em dataValidade + prazoAlertaDias.
+/// Recalculado pelo job /api/cron/transporte-alertas (F3).
+enum EstadoDocumento {
+  VALIDO
+  PROXIMO_EXPIRAR
+  EXPIRADO
+}
+
+enum TipoManutencaoViatura {
+  PREVENTIVA
+  CORRECTIVA
+}
+
+enum CategoriaItemChecklist {
+  COMPONENTE
+  SOBRESSALENTE
+  ACESSORIO
+}
+
+enum EstadoItemChecklist {
+  OK
+  AVARIA
+  FALTA
+}
+
+enum TipoDocumentoMotorista {
+  CARTA_CONDUCAO
+  BI
+  OUTRO
+}
+
+enum EstadoOperacionalMotorista {
+  ACTIVO
+  INACTIVO
+  SUSPENSO
+}
+
+enum MotivoIndisponibilidade {
+  FERIAS
+  AUSENCIA
+  SUSPENSAO
+  MANUAL
+  CONFLITO_AGENDA
+}
+
+enum FonteDisponibilidade {
+  SISTEMA
+  RH_API
+  MANUAL
+}
+
+enum TipoActividade {
+  DESLOCACAO
+  MISSAO_SERVICO
+  TRANSPORTE_MERCADORIAS
+  TRANSPORTE_PESSOAL
+  MANUTENCAO_CAMPO
+  OUTRO
+}
+
+enum PrioridadeAtividade {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+/// Máquina de estado de Atividade — ver TRANSICOES_ATIVIDADE em atividade.interface.ts
+enum EstadoAtividade {
+  PLANEADA
+  EM_CURSO
+  SUSPENSA
+  CONCLUIDA
+  CANCELADA
+}
+
+/// Conflito #16 resolvido: versão da página + docs/transporte.md (inclui PAUSADA)
+/// N1: PLANEADA (pt-PT) — substitui pt-BR PLANEJADA
+enum EstadoRota {
+  PLANEADA
+  ATIVA
+  PAUSADA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum TipoPontoRota {
+  COLETA
+  ENTREGA
+  PARADA
+}
+
+enum EstadoPontoRota {
+  PENDENTE
+  EM_TRANSITO
+  ENTREGUE
+  FALHADA
+}
+
+enum EstadoEntrega {
+  PENDENTE
+  AGENDADA
+  EM_TRANSITO
+  ENTREGUE
+  FALHADA
+  CANCELADA
+}
+
+enum PrioridadeEntrega {
+  BAIXA
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+enum TipoProvaEntrega {
+  ASSINATURA
+  FOTO
+  CODIGO
+}
+
+enum TipoCombustivel {
+  GASOLINA
+  DIESEL
+  ETANOL
+  GNV
+}
+
+// ============================================================
+// ENUMS — Tickets
+// ============================================================
+
+enum TipoTicket {
+  INCIDENTE
+  REQUISICAO
+  PROBLEMA
+  MUDANCA
+  CONSULTA
+}
+
+enum PrioridadeTicket {
+  BAIXA
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+/// Máquina de estado de Ticket — ver TRANSICOES_TICKET em ticket.interface.ts
+enum EstadoTicket {
+  ABERTO
+  EM_PROGRESSO
+  AGUARDANDO_CLIENTE
+  AGUARDANDO_TERCEIRO
+  RESOLVIDO
+  FECHADO
+  CANCELADO
+}
+
+enum TipoAtividadeTicket {
+  COMENTARIO
+  MUDANCA_STATUS
+  ATRIBUICAO
+  ANEXO
+  SISTEMA
+}
+
+enum VisibilidadeAtividadeTicket {
+  PUBLICA
+  INTERNA
+}
+
+enum EstadoBaseConhecimento {
+  RASCUNHO
+  PUBLICADO
+  ARQUIVADO
+}
+
+enum EstadoEquipeSuporte {
+  ATIVA
+  INATIVA
+}
+
+enum PapelMembroEquipeSuporte {
+  LIDER
+  AGENTE
+  SUPERVISOR
+}
+
+enum EstadoMembroEquipeSuporte {
+  DISPONIVEL
+  OCUPADO
+  AUSENTE
+  OFFLINE
+}
+
+// ============================================================
+// MODELOS — Frota / Viaturas
+// ============================================================
+
+model Viatura {
+  id                     String        @id @default(cuid())
+  tenantId               String
+  matricula              String
+  marca                  String
+  modelo                 String
+  tipoViatura            TipoViatura
+  capacidade             Decimal       @db.Decimal(10, 2)
+  unidadeCapacidade      UnidadeCapacidade
+  localActividade        String
+  dataInicioActividade   DateTime
+  /// FK escalar intra-WS — resolvido por @relation abaixo
+  motoristaResponsavelId String?
+  estado                 EstadoViatura @default(DISPONIVEL)
+  observacoes            String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  motoristaResponsavel Motorista?          @relation("ViaturaMotoristaResponsavel", fields: [motoristaResponsavelId], references: [id])
+  documentos           DocumentoViatura[]
+  manutencoes          ManutencaoViatura[]
+  checklists           Checklist[]
+  abastecimentos       Abastecimento[]
+  rotas                Rota[]
+  entregas             Entrega[]
+  atividades           Atividade[]
+
+  @@unique([tenantId, matricula])
+  @@index([tenantId, estado])
+  @@index([tenantId, createdAt])
+}
+
+model DocumentoViatura {
+  id                String              @id @default(cuid())
+  tenantId          String
+  viaturaId         String
+  tipo              TipoDocumentoViatura
+  numero            String
+  dataEmissao       DateTime
+  dataValidade      DateTime
+  entidadeEmissora  String
+  /// Calculado pelo job F3; nunca vem do cliente
+  estado            EstadoDocumento     @default(VALIDO)
+  prazoAlertaDias   Int                 @default(30)
+  anexo             String?
+  observacoes       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  viatura Viatura @relation(fields: [viaturaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, estado])
+  @@index([tenantId, viaturaId])
+  @@index([tenantId, dataValidade])
+}
+
+model ManutencaoViatura {
+  id                          String                @id @default(cuid())
+  tenantId                    String
+  viaturaId                   String
+  tipo                        TipoManutencaoViatura
+  data                        DateTime
+  quilometragem               Int?
+  criterio                    String?
+  descricao                   String
+  fornecedor                  String?
+  custo                       Decimal?              @db.Decimal(18, 2)
+  pecasSubstituidas           String?
+  /// Nome/referência do responsável (pode ser usuário do sistema ou externo)
+  responsavel                 String
+  proximaManutencaoData       DateTime?
+  proximaManutencaoKm         Int?
+  proximaManutencaoCriterio   String?
+  createdAt                   DateTime              @default(now())
+
+  viatura Viatura @relation(fields: [viaturaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, viaturaId])
+  @@index([tenantId, tipo])
+  @@index([tenantId, proximaManutencaoData])
+}
+
+model Checklist {
+  id              String    @id @default(cuid())
+  tenantId        String
+  viaturaId       String
+  tipoViatura     TipoViatura
+  responsavel     String
+  /// FK escalar cross-WS: utilizador que realizou a inspecção
+  responsavelId   String?
+  dataInspeccao   DateTime
+  observacoes     String?
+  createdAt       DateTime  @default(now())
+
+  viatura Viatura         @relation(fields: [viaturaId], references: [id], onDelete: Cascade)
+  itens   ItemChecklist[]
+
+  @@index([tenantId, viaturaId])
+  @@index([tenantId, dataInspeccao])
+}
+
+model ItemChecklist {
+  id           String                 @id @default(cuid())
+  tenantId     String
+  checklistId  String
+  nome         String
+  categoria    CategoriaItemChecklist
+  estado       EstadoItemChecklist
+  observacoes  String?
+
+  checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([checklistId, estado])
+}
+
+// ============================================================
+// MODELOS — Motoristas
+// ============================================================
+
+model Motorista {
+  id                 String                    @id @default(cuid())
+  tenantId           String
+  nomeCompleto       String
+  contacto           String
+  morada             String?
+  /// FK escalar cross-WS (conflito #18: BI é documento — ver DocumentoMotorista)
+  numeroBI           String?
+  numeroCarta        String
+  categoriaCarta     String[]
+  dataEmissaoCarta   DateTime
+  validadeCarta      DateTime
+  localActividade    String?
+  estadoOperacional  EstadoOperacionalMotorista @default(ACTIVO)
+  observacoes        String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  documentos             DocumentoMotorista[]
+  disponibilidade        DisponibilidadeMotorista?
+  atividades             Atividade[]
+  abastecimentos         Abastecimento[]
+  rotas                  Rota[]
+  entregas               Entrega[]
+  viaturasResponsavel    Viatura[]              @relation("ViaturaMotoristaResponsavel")
+
+  @@index([tenantId, estadoOperacional])
+  @@index([tenantId, createdAt])
+}
+
+model DocumentoMotorista {
+  id               String                 @id @default(cuid())
+  tenantId         String
+  motoristaId      String
+  tipo             TipoDocumentoMotorista
+  numero           String
+  dataEmissao      DateTime
+  dataValidade     DateTime
+  entidadeEmissora String
+  /// Calculado pelo job F3; nunca vem do cliente
+  estado           EstadoDocumento        @default(VALIDO)
+  anexo            String?
+  observacoes      String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  motorista Motorista @relation(fields: [motoristaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, estado])
+  @@index([tenantId, motoristaId])
+  @@index([tenantId, dataValidade])
+}
+
+/// Disponibilidade actual do motorista (1:1). Histórico de alterações fica
+/// nos EventoAtividade das Atividades. A fonte RH_API é populada por job externo.
+model DisponibilidadeMotorista {
+  id          String                   @id @default(cuid())
+  tenantId    String
+  motoristaId String                   @unique
+  disponivel  Boolean                  @default(true)
+  motivo      MotivoIndisponibilidade?
+  dataInicio  DateTime?
+  dataFim     DateTime?
+  fonte       FonteDisponibilidade     @default(MANUAL)
+  updatedAt   DateTime                 @updatedAt
+
+  motorista Motorista @relation(fields: [motoristaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, disponivel])
+}
+
+// ============================================================
+// MODELOS — Atividade (entidade central)
+// ============================================================
+
+/// Entidade central do módulo. Código gerado pelo serviço: AT-YYYY-NNNN.
+model Atividade {
+  id                      String             @id @default(cuid())
+  tenantId                String
+  codigo                  String
+  titulo                  String
+  descricao               String?
+  tipoActividade          TipoActividade
+  localActividade         String
+  dataInicioPrevista      DateTime
+  dataConclusaoPrevista   DateTime?
+  dataInicioReal          DateTime?
+  dataConclusaoReal       DateTime?
+  motoristaResponsavelId  String?
+  viaturaId               String?
+  prioridade              PrioridadeAtividade @default(MEDIA)
+  estado                  EstadoAtividade     @default(PLANEADA)
+  observacoes             String?
+  anexos                  String[]
+  /// FK escalar cross-WS: utilizador que criou a atividade
+  criadoPorId             String
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  motorista Motorista?       @relation(fields: [motoristaResponsavelId], references: [id])
+  viatura   Viatura?         @relation(fields: [viaturaId], references: [id])
+  historico EventoAtividade[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, estado])
+  @@index([tenantId, motoristaResponsavelId])
+  @@index([tenantId, viaturaId])
+  @@index([tenantId, dataInicioPrevista])
+  @@index([tenantId, createdAt])
+}
+
+/// Histórico imutável de transições de estado da Atividade (append-only).
+model EventoAtividade {
+  id             String           @id @default(cuid())
+  tenantId       String
+  atividadeId    String
+  data           DateTime         @default(now())
+  estadoAnterior EstadoAtividade?
+  estadoNovo     EstadoAtividade
+  /// FK escalar cross-WS: utilizador que realizou a transição
+  utilizadorId   String
+  descricao      String
+
+  atividade Atividade @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([atividadeId, data])
+}
+
+// ============================================================
+// MODELOS — Rotas, Pontos e Entregas
+// ============================================================
+
+/// Conflito #16 resolvido: origem/destino/pontos/estado com PAUSADA
+/// (versão página + docs/transporte.md). Substitui definição de types/transporte.ts
+/// que não tinha estado PAUSADA.
+model Rota {
+  id               String     @id @default(cuid())
+  tenantId         String
+  codigo           String
+  nome             String
+  descricao        String?
+  viaturaId        String?
+  motoristaId      String?
+  origem           String
+  destino          String
+  dataInicio       DateTime
+  dataFim          DateTime?
+  estado           EstadoRota @default(PLANEADA)
+  distanciaTotal   Decimal?   @db.Decimal(10, 2)
+  tempoEstimadoMin Int?
+  tempoRealMin     Int?
+  custoEstimado    Decimal?   @db.Decimal(18, 2)
+  custoReal        Decimal?   @db.Decimal(18, 2)
+  observacoes      String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  viatura   Viatura?       @relation(fields: [viaturaId], references: [id])
+  motorista Motorista?     @relation(fields: [motoristaId], references: [id])
+  pontos    PontoEntrega[]
+  entregas  Entrega[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, estado])
+  @@index([tenantId, viaturaId])
+  @@index([tenantId, motoristaId])
+  @@index([tenantId, dataInicio])
+}
+
+model PontoEntrega {
+  id            String          @id @default(cuid())
+  tenantId      String
+  rotaId        String
+  ordem         Int
+  tipo          TipoPontoRota   @default(ENTREGA)
+  /// FK escalar cross-WS → WS C Cliente
+  clienteId     String?
+  clienteNome   String?
+  endereco      String
+  cidade        String
+  latitude      Decimal?        @db.Decimal(10, 7)
+  longitude     Decimal?        @db.Decimal(10, 7)
+  horaEstimada  DateTime?
+  horaChegada   DateTime?
+  horaSaida     DateTime?
+  estado        EstadoPontoRota @default(PENDENTE)
+  entregaId     String?
+  observacoes   String?
+
+  rota    Rota     @relation(fields: [rotaId], references: [id], onDelete: Cascade)
+  entrega Entrega? @relation(fields: [entregaId], references: [id])
+
+  @@index([rotaId, ordem])
+  @@index([tenantId, estado])
+}
+
+model Entrega {
+  id                   String           @id @default(cuid())
+  tenantId             String
+  numero               String
+  /// FK escalar cross-WS → WS C Venda (opcional)
+  vendaId              String?
+  /// FK escalar cross-WS → WS C Cliente
+  clienteId            String
+  clienteNome          String
+  clienteTelefone      String
+  enderecoEntrega      String
+  cidade               String
+  rotaId               String?
+  viaturaId            String?
+  motoristaId          String?
+  dataAgendada         DateTime
+  dataEntrega          DateTime?
+  estado               EstadoEntrega    @default(PENDENTE)
+  prioridade           PrioridadeEntrega @default(NORMAL)
+  pesoTotal            Decimal          @db.Decimal(10, 3)
+  volumeTotal          Decimal          @db.Decimal(10, 3)
+  valorCarga           Decimal          @db.Decimal(18, 2)
+  taxaEntrega          Decimal          @db.Decimal(18, 2)
+  /// Prova de entrega (assinatura/foto/código)
+  comprovanteTipo      TipoProvaEntrega?
+  comprovanteDados     String?
+  comprovanteDataHora  DateTime?
+  comprovanteRecebedor String?
+  motivoFalha          String?
+  tentativasEntrega    Int              @default(0)
+  observacoes          String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  rota      Rota?          @relation(fields: [rotaId], references: [id])
+  viatura   Viatura?       @relation(fields: [viaturaId], references: [id])
+  motorista Motorista?     @relation(fields: [motoristaId], references: [id])
+  itens     ItemEntrega[]
+  pontos    PontoEntrega[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, estado])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, rotaId])
+  @@index([tenantId, dataAgendada])
+  @@index([tenantId, createdAt])
+}
+
+model ItemEntrega {
+  id          String  @id @default(cuid())
+  tenantId    String
+  entregaId   String
+  /// FK escalar cross-WS → WS A Produto
+  produtoId   String
+  produtoNome String
+  quantidade  Int
+  peso        Decimal @db.Decimal(10, 3)
+  volume      Decimal @db.Decimal(10, 3)
+  valor       Decimal @db.Decimal(18, 2)
+
+  entrega Entrega @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([entregaId])
+}
+
+// ============================================================
+// MODELOS — Combustível
+// ============================================================
+
+model Abastecimento {
+  id            String          @id @default(cuid())
+  tenantId      String
+  viaturaId     String
+  motoristaId   String
+  data          DateTime
+  kmVeiculo     Int
+  tipoCombustivel TipoCombustivel
+  litros        Decimal         @db.Decimal(10, 3)
+  valorLitro    Decimal         @db.Decimal(18, 2)
+  valorTotal    Decimal         @db.Decimal(18, 2)
+  posto         String?
+  notaFiscal    String?
+  kmPercorrido  Int?
+  consumoMedio  Decimal?        @db.Decimal(6, 2)
+  observacoes   String?
+  /// FK escalar intra-WS Rota (opcional — pode não estar associado a uma rota)
+  rotaId        String?
+  createdAt     DateTime        @default(now())
+
+  viatura   Viatura   @relation(fields: [viaturaId], references: [id])
+  motorista Motorista @relation(fields: [motoristaId], references: [id])
+
+  @@index([tenantId, viaturaId])
+  @@index([tenantId, motoristaId])
+  @@index([tenantId, data])
+}
+
+// ============================================================
+// MODELOS — Tickets & Suporte
+// ============================================================
+
+/// Conflito #18: ligação polimórfica OPCIONAL a entidade de origem
+/// (origemTipo + origemId escalares — sem @relation; permite ligar
+/// Entrega, Atividade, Rota ou qualquer futura entidade de origem).
+model Ticket {
+  id                      String          @id @default(cuid())
+  tenantId                String
+  numero                  String
+  titulo                  String
+  descricao               String
+  tipo                    TipoTicket
+  categoriaId             String?
+  subcategoria            String?
+  prioridade              PrioridadeTicket @default(NORMAL)
+  estado                  EstadoTicket     @default(ABERTO)
+  /// FK escalar cross-WS → User (solicitante)
+  solicitanteId           String
+  solicitanteNome         String
+  solicitanteEmail        String
+  solicitanteTelefone     String?
+  /// FK escalar cross-WS → User (agente atribuído)
+  atribuidoParaId         String?
+  atribuidoParaNome       String?
+  equipeId                String?
+  /// Polimorfismo opcional (conflito #18): tipo da entidade de origem
+  origemTipo              String?
+  /// Polimorfismo opcional (conflito #18): ID da entidade de origem
+  origemId                String?
+  /// SLA — tempos em minutos
+  slaTempoResposta        Int
+  slaTempoResolucao       Int
+  slaDataLimiteResposta   DateTime
+  slaDataLimiteResolucao  DateTime
+  slaEmAtraso             Boolean         @default(false)
+  /// Tempos de execução
+  dataAbertura            DateTime        @default(now())
+  dataPrimeiraResposta    DateTime?
+  dataResolucao           DateTime?
+  dataFechamento          DateTime?
+  tempoRespostaMin        Int?
+  tempoResolucaoMin       Int?
+  tempoTotalMin           Int?
+  tags                    String[]
+  /// Avaliação pós-fecho (1–5)
+  avaliacaoNota           Int?
+  avaliacaoComentario     String?
+  avaliacaoData           DateTime?
+  /// FK escalar cross-WS → User (avaliador)
+  avaliadoPorId           String?
+  observacoes             String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  categoria  CategoriaTicket?  @relation(fields: [categoriaId], references: [id])
+  equipe     EquipeSuporte?    @relation(fields: [equipeId], references: [id])
+  atividades AtividadeTicket[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, estado])
+  @@index([tenantId, prioridade])
+  @@index([tenantId, solicitanteId])
+  @@index([tenantId, atribuidoParaId])
+  @@index([tenantId, equipeId])
+  @@index([tenantId, origemTipo, origemId])
+  @@index([tenantId, slaEmAtraso])
+  @@index([tenantId, createdAt])
+}
+
+/// Histórico/comentários do ticket (append-only: comentários e mudanças de estado).
+model AtividadeTicket {
+  id           String                      @id @default(cuid())
+  tenantId     String
+  ticketId     String
+  tipo         TipoAtividadeTicket
+  descricao    String
+  detalhes     String?
+  /// FK escalar cross-WS → User (autor da actividade)
+  autorId      String
+  autorNome    String
+  visibilidade VisibilidadeAtividadeTicket  @default(PUBLICA)
+  createdAt    DateTime                    @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([tenantId, ticketId])
+}
+
+/// Categorias de ticket com SLA por defeito e lista de subcategorias.
+model CategoriaTicket {
+  id                String  @id @default(cuid())
+  tenantId          String
+  nome              String
+  descricao         String?
+  icone             String?
+  cor               String?
+  subcategorias     String[]
+  /// SLA padrão da categoria em minutos
+  slaTempoResposta  Int
+  slaTempoResolucao Int
+  ativa             Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId, ativa])
+}
+
+model EquipeSuporte {
+  id                  String              @id @default(cuid())
+  tenantId            String
+  nome                String
+  descricao           String?
+  /// IDs de categorias geridas por esta equipe (String[] — ref. CategoriaTicket)
+  categorias          String[]
+  /// Horário de atendimento
+  horarioInicio       String
+  horarioFim          String
+  diasSemana          Int[]
+  estado              EstadoEquipeSuporte @default(ATIVA)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  membros  MembroEquipeSuporte[]
+  tickets  Ticket[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId, estado])
+}
+
+model MembroEquipeSuporte {
+  id                String                   @id @default(cuid())
+  tenantId          String
+  equipeId          String
+  /// FK escalar cross-WS → User
+  usuarioId         String
+  nome              String
+  email             String
+  cargo             String
+  papel             PapelMembroEquipeSuporte
+  especialidades    String[]
+  ticketsAtivos     Int                      @default(0)
+  ticketsResolvidos Int                      @default(0)
+  avaliacaoMedia    Decimal?                 @db.Decimal(3, 2)
+  estado            EstadoMembroEquipeSuporte @default(DISPONIVEL)
+  dataEntrada       DateTime                 @default(now())
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  equipe EquipeSuporte @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+
+  @@unique([equipeId, usuarioId])
+  @@index([tenantId, equipeId])
+  @@index([tenantId, usuarioId])
+  @@index([tenantId, estado])
+}
+
+model BaseConhecimento {
+  id             String                  @id @default(cuid())
+  tenantId       String
+  titulo         String
+  conteudo       String
+  resumo         String?
+  categoria      String
+  tags           String[]
+  /// Metadados de anexos (JSON — AnexoTicket não é entidade separada no WS F)
+  anexos         Json?
+  visibilidade   VisibilidadeAtividadeTicket @default(PUBLICA)
+  util           Int                     @default(0)
+  naoUtil        Int                     @default(0)
+  visualizacoes  Int                     @default(0)
+  /// FK escalar cross-WS → User (autor)
+  autorId        String
+  autorNome      String
+  estado         EstadoBaseConhecimento  @default(RASCUNHO)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@index([tenantId, estado])
+  @@index([tenantId, categoria])
+  @@index([tenantId, visibilidade])
+  @@index([tenantId, createdAt])
+}

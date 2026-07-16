@@ -1,11 +1,13 @@
-
 /**
- * Províncias e Distritos de Moçambique
+ * Províncias e Distritos de Moçambique.
+ * Fonte: Decreto 33/2009 (divisão administrativa).
+ *
+ * Exporta:
+ *  - PROVINCIAS_MOCAMBIQUE: array completo com distritos
+ *  - NOMES_PROVINCIAS: tuple de strings (para Zod enum)
+ *  - ProvinciaEnum: z.enum() pronto a usar em schemas
  */
-
-export interface Distrito {
-  nome: string;
-}
+import { z } from 'zod';
 
 export interface Provincia {
   nome: string;
@@ -15,55 +17,68 @@ export interface Provincia {
 export const PROVINCIAS_MOCAMBIQUE: Provincia[] = [
   {
     nome: 'Maputo Cidade',
-    distritos: ['KaMpfumo', 'Nlhamankulu', 'KaMaxakeni', 'KaMubukwana', 'KaNyaka', 'KaMavota', 'KaTembe']
+    distritos: ['KaMpfumo', 'Nlhamankulu', 'KaMaxakeni', 'KaMubukwana', 'KaNyaka', 'KaMavota', 'KaTembe'],
   },
   {
     nome: 'Maputo',
-    distritos: ['Boane', 'Magude', 'Manhiça', 'Marracuene', 'Matola', 'Matutuíne', 'Moamba', 'Namaacha']
+    distritos: ['Boane', 'Magude', 'Manhica', 'Marracuene', 'Matola', 'Matutui­ne', 'Moamba', 'Namaacha'],
   },
   {
     nome: 'Gaza',
-    distritos: ['Bilene', 'Chibuto', 'Chicualacuala', 'Chigubo', 'Chókwè', 'Guijá', 'Limpopo', 'Mabalane', 'Manjacaze', 'Massangena', 'Massingir', 'Xai-Xai']
+    distritos: ['Bilene', 'Chibuto', 'Chicualacuala', 'Chigubo', 'Chokwe', 'Guija', 'Limpopo', 'Mabalane', 'Manjacaze', 'Massangena', 'Massingir', 'Xai-Xai'],
   },
   {
     nome: 'Inhambane',
-    distritos: ['Funhalouro', 'Govuro', 'Homoíne', 'Inhambane', 'Inharrime', 'Inhassoro', 'Jangamo', 'Mabote', 'Massinga', 'Morrumbene', 'Panda', 'Vilankulo', 'Zavala']
+    distritos: ['Funhalouro', 'Govuro', 'Homoine', 'Inhambane', 'Inharrime', 'Inhassoro', 'Jangamo', 'Mabote', 'Massinga', 'Morrumbene', 'Panda', 'Vilankulo', 'Zavala'],
   },
   {
     nome: 'Sofala',
-    distritos: ['Beira', 'Búzi', 'Caia', 'Chemba', 'Cheringoma', 'Chibabava', 'Dondo', 'Gorongosa', 'Machanga', 'Maríngue', 'Muanza', 'Nhamatanda']
+    distritos: ['Beira', 'Buzi', 'Caia', 'Chemba', 'Cheringoma', 'Chibabava', 'Dondo', 'Gorongosa', 'Machanga', 'Maringe', 'Muanza', 'Nhamatanda'],
   },
   {
     nome: 'Manica',
-    distritos: ['Báruè', 'Chimoio', 'Gondola', 'Guro', 'Macate', 'Machaze', 'Macossa', 'Manica', 'Mossurize', 'Sussundenga', 'Tambara', 'Vanduzi']
+    distritos: ['Barue', 'Chimoio', 'Gondola', 'Guro', 'Macate', 'Machaze', 'Macossa', 'Manica', 'Mossurize', 'Sussundenga', 'Tambara', 'Vanduzi'],
   },
   {
     nome: 'Tete',
-    distritos: ['Angónia', 'Cahora-Bassa', 'Changara', 'Chifunde', 'Chiuta', 'Dôa', 'Macanga', 'Magoé', 'Marara', 'Marávia', 'Moatize', 'Mutarara', 'Tete', 'Tsangano', 'Zumbo']
+    distritos: ['Angonia', 'Cahora-Bassa', 'Changara', 'Chifunde', 'Chiuta', 'Doa', 'Macanga', 'Magoe', 'Marara', 'Maravia', 'Moatize', 'Mutarara', 'Tete', 'Tsangano', 'Zumbo'],
   },
   {
-    nome: 'Zambézia',
-    distritos: ['Alto Molócuè', 'Chinde', 'Derre', 'Gilé', 'Gurué', 'Ile', 'Inhassunge', 'Lugela', 'Maganja da Costa', 'Milange', 'Mocuba', 'Mocubela', 'Molumbo', 'Mopeia', 'Morrumbala', 'Namacurra', 'Namarroi', 'Nicoadala', 'Pebane', 'Quelimane']
+    nome: 'Zambezia',
+    distritos: ['Alto Molocue', 'Chinde', 'Derre', 'Gile', 'Gurue', 'Ile', 'Inhassunge', 'Lugela', 'Maganja da Costa', 'Milange', 'Mocuba', 'Mocubela', 'Molumbo', 'Mopeia', 'Morrumbala', 'Namacurra', 'Namarroi', 'Nicoadala', 'Pebane', 'Quelimane'],
   },
   {
     nome: 'Nampula',
-    distritos: ['Angoche', 'Eráti', 'Ilha de Moçambique', 'Lalaua', 'Larde', 'Liúpo', 'Malema', 'Meconta', 'Mecubúri', 'Memba', 'Mogincual', 'Mogovolas', 'Moma', 'Monapo', 'Mossuril', 'Muecate', 'Murrupula', 'Nacala-a-Velha', 'Nacala Porto', 'Nacarôa', 'Nampula', 'Rapale', 'Ribaué']
+    distritos: ['Angoche', 'Erati', 'Ilha de Mocambique', 'Lalaua', 'Larde', 'Liupo', 'Malema', 'Meconta', 'Mecuburi', 'Memba', 'Mogincual', 'Mogovolas', 'Moma', 'Monapo', 'Mossuril', 'Muecate', 'Murrupula', 'Nacala-a-Velha', 'Nacala Porto', 'Nacaroa', 'Nampula', 'Rapale', 'Ribaue'],
   },
   {
     nome: 'Cabo Delgado',
-    distritos: ['Ancuabe', 'Balama', 'Chiúre', 'Ibo', 'Macomia', 'Mecúfi', 'Meluco', 'Metuge', 'Mocímboa da Praia', 'Montepuez', 'Mueda', 'Muidumbe', 'Namuno', 'Nangade', 'Palma', 'Pemba', 'Quissanga']
+    distritos: ['Ancuabe', 'Balama', 'Chiure', 'Ibo', 'Macomia', 'Mecufi', 'Meluco', 'Metuge', 'Mocimboa da Praia', 'Montepuez', 'Mueda', 'Muidumbe', 'Namuno', 'Nangade', 'Palma', 'Pemba', 'Quissanga'],
   },
   {
     nome: 'Niassa',
-    distritos: ['Chimbonila', 'Cuamba', 'Lago', 'Lichinga', 'Majune', 'Mandimba', 'Marrupa', 'Maúa', 'Mavago', 'Mecanhelas', 'Mecula', 'Metarica', 'Muembe', 'N\'gauma', 'Nipepe', 'Sanga']
-  }
+    distritos: ['Chimbonila', 'Cuamba', 'Lago', 'Lichinga', 'Majune', 'Mandimba', 'Marrupa', 'Maua', 'Mavago', 'Mecanhelas', 'Mecula', 'Metarica', 'Muembe', "N'gauma", 'Nipepe', 'Sanga'],
+  },
 ];
 
+/** Array de nomes para uso em Zod enum (deve ter pelo menos 1 elemento). */
+export const NOMES_PROVINCIAS = PROVINCIAS_MOCAMBIQUE.map((p) => p.nome) as [string, ...string[]];
+
+/**
+ * Enum Zod das províncias — reutilize em schemas de endereço.
+ * @example
+ *   const schema = z.object({ provincia: ProvinciaEnum })
+ */
+export const ProvinciaEnum = z.enum(NOMES_PROVINCIAS);
+export type Provincia_t = z.infer<typeof ProvinciaEnum>;
+
+/** Devolve a lista de nomes de províncias. */
 export function getProvincias(): string[] {
-  return PROVINCIAS_MOCAMBIQUE.map(p => p.nome);
+  return PROVINCIAS_MOCAMBIQUE.map((p) => p.nome);
 }
 
+/** Devolve os distritos de uma província pelo nome. */
 export function getDistritosByProvincia(provincia: string): string[] {
-  const prov = PROVINCIAS_MOCAMBIQUE.find(p => p.nome === provincia);
+  const prov = PROVINCIAS_MOCAMBIQUE.find((p) => p.nome === provincia);
   return prov ? prov.distritos : [];
 }

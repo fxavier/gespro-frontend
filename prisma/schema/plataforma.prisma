@@ -1,0 +1,68 @@
+// WS G — Plataforma
+//
+// Modelos NOVOS deste workstream.
+// NÃO redefine: Tenant, User, Role, Permission, AuditLog (já em auth.prisma / tenant.prisma).
+//
+// NOTA PARA O ORQUESTRADOR (reconciliação de migrations):
+//   1. Adicionar `configuracaoFiscal ConfiguracaoFiscal?` ao modelo `Tenant` em tenant.prisma.
+//   2. Adicionar `@relation(fields: [tenantId], references: [id])` ao campo `tenantId`
+//      de `ConfiguracaoFiscal` (após a back-reference acima estar em tenant.prisma).
+//   3. Adicionar 'ConfiguracaoFiscal' a TENANT_MODELS em tenant-extension.ts.
+//
+// Durante a Wave 1 (contratos), tenantId é FK escalar válida sem relação Prisma explícita,
+// o que evita tocar em ficheiros partilhados. A query de serviço filtra sempre por
+// { where: { tenantId: ctx.tenantId } } explicitamente.
+
+enum RegimeIva {
+  NORMAL
+  SIMPLIFICADO
+  ISENTO
+}
+
+enum PlanoAssinatura {
+  BASICO
+  PROFISSIONAL
+  EMPRESARIAL
+}
+
+/// Configuração fiscal, de contacto e de subscrição do tenant.
+/// Complementa o modelo minimalista Tenant (Wave 0) com os dados ricos do mock
+/// (conflito #17 do mapa de entidades). Relação 1:1 com Tenant via tenantId @unique.
+model ConfiguracaoFiscal {
+  id String @id @default(cuid())
+
+  /// FK escalar para Tenant.id (sem @relation enquanto tenant.prisma não for reconciliado).
+  tenantId String @unique
+
+  // --- Subscrição ---
+  planoAssinatura PlanoAssinatura @default(BASICO)
+  statusAtivo     Boolean         @default(true)
+
+  // --- Contacto e localização da empresa ---
+  email        String?
+  telefone     String?
+  endereco     String?
+  cidade       String?
+  provincia    String?
+  codigoPostal String?
+  timezone     String  @default("Africa/Maputo")
+
+  // --- Moeda ---
+  /// Código ISO 4217 (ex.: "MZN", "USD"). Usado em todos os documentos do tenant.
+  moedaBase String @default("MZN")
+
+  // --- Fiscal ---
+  regimeIva         RegimeIva @default(NORMAL)
+  /// Taxa de IVA por defeito como FRACÇÃO decimal. Ex.: 0.160000 = 16 %.
+  /// Consistente com todos os WS (A/B/C/D usam fracção, nunca percentagem). ADR-0003 §4.
+  taxaIvaDefault    Decimal   @default(0.160000) @db.Decimal(9, 6)
+  /// URL do logótipo da empresa (para emissão de documentos).
+  logoEmpresa       String?
+  /// Referência à assinatura digital qualificada para documentos fiscais.
+  assinaturaDigital String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}

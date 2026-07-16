@@ -1,331 +1,166 @@
+/**
+ * Dashboard de Vendas — Server Component.
+ * KPIs e vendas recentes a partir do serviço real.
+ */
 
-'use client';
-
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Suspense } from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { ShoppingCart, CheckCircle, Clock, TrendingUp, Plus, ArrowRight } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { vendaService } from '@/server/services/comercial/index';
 import {
-  TrendingUp,
-  DollarSign,
-  ShoppingCart,
-  Users,
-  Package,
-  RotateCcw,
-  ArrowUpRight,
-  ArrowDownRight
-} from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
+  Card, CardContent, CardHeader, CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PageHeader, KpiCard, StatusBadge } from '@/components/patterns';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default function VendasDashboardPage() {
-  const vendasPorDia = [
-    { dia: 'Seg', vendas: 45, valor: 125000 },
-    { dia: 'Ter', vendas: 52, valor: 148000 },
-    { dia: 'Qua', vendas: 48, valor: 135000 },
-    { dia: 'Qui', vendas: 61, valor: 172000 },
-    { dia: 'Sex', vendas: 55, valor: 156000 },
-    { dia: 'Sáb', vendas: 67, valor: 189000 },
-    { dia: 'Dom', vendas: 43, valor: 118000 }
-  ];
+async function VendasKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const resultado = await runWithTenantContext(ctx, () =>
+    vendaService.listar({ take: 100, orderBy: 'dataVenda', order: 'desc' }, ctx)
+  );
 
-  const produtosMaisVendidos = [
-    { nome: 'Arroz 25kg', quantidade: 245, valor: 300625 },
-    { nome: 'Óleo 1L', quantidade: 189, valor: 28350 },
-    { nome: 'Coca-Cola 500ml', quantidade: 567, valor: 28350 },
-    { nome: 'Detergente 1L', quantidade: 234, valor: 15210 },
-    { nome: 'Açúcar 1kg', quantidade: 198, valor: 17820 }
-  ];
-
-  const vendasPorMetodo = [
-    { metodo: 'Dinheiro', valor: 450000, percentual: 45 },
-    { metodo: 'M-Pesa', valor: 300000, percentual: 30 },
-    { metodo: 'Cartão', valor: 200000, percentual: 20 },
-    { metodo: 'Transferência', valor: 50000, percentual: 5 }
-  ];
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
-
-  const estatisticas = {
-    vendasHoje: 45,
-    faturamentoHoje: 125000,
-    ticketMedio: 2777.78,
-    clientesAtendidos: 38,
-    crescimentoVendas: 12.5,
-    crescimentoFaturamento: 8.3,
-    devolucoes: 3,
-    taxaDevolucao: 6.7
-  };
+  const total = resultado.items.length;
+  const concluidas = resultado.items.filter((v) => v.status === 'CONCLUIDA').length;
+  const pendentes = resultado.items.filter((v) =>
+    v.status === 'PENDENTE' || v.status === 'CONFIRMADA' || v.status === 'EM_PREPARACAO'
+  ).length;
+  const volume = resultado.items.reduce((acc, v) => acc + parseFloat(v.total), 0);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard de Vendas</h1>
-          <p className="text-muted-foreground">Visão geral do desempenho de vendas</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/vendas/historico">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Ver Histórico
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/pos">
-              <ShoppingCart className="h-4 w-4 mr-2" />
-              Nova Venda
-            </Link>
-          </Button>
-        </div>
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard
+        title="Volume Total"
+        value={`MT ${volume.toLocaleString('pt-MZ', { minimumFractionDigits: 0 })}`}
+        icon={<TrendingUp className="h-5 w-5" />}
+      />
+      <KpiCard title="Total Vendas" value={String(total)} icon={<ShoppingCart className="h-5 w-5" />} />
+      <KpiCard title="Concluídas" value={String(concluidas)} icon={<CheckCircle className="h-5 w-5" />} />
+      <KpiCard title="Em Curso" value={String(pendentes)} icon={<Clock className="h-5 w-5" />} />
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Vendas Hoje</p>
-                <p className="text-3xl font-bold">{estatisticas.vendasHoje}</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <ArrowUpRight className="h-4 w-4 text-green-600" />
-                  <span className="text-xs text-green-600">+{estatisticas.crescimentoVendas}%</span>
-                </div>
-              </div>
-              <ShoppingCart className="h-10 w-10 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
+async function VendasRecentes({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const resultado = await runWithTenantContext(ctx, () =>
+    vendaService.listar({ take: 10, orderBy: 'dataVenda', order: 'desc' }, ctx)
+  );
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Faturamento Hoje</p>
-                <p className="text-3xl font-bold">
-                  {(estatisticas.faturamentoHoje / 1000).toFixed(0)}k
-                </p>
-                <div className="flex items-center gap-1 mt-1">
-                  <ArrowUpRight className="h-4 w-4 text-green-600" />
-                  <span className="text-xs text-green-600">+{estatisticas.crescimentoFaturamento}%</span>
-                </div>
-              </div>
-              <DollarSign className="h-10 w-10 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Ticket Médio</p>
-                <p className="text-3xl font-bold">
-                  MT {estatisticas.ticketMedio.toFixed(0)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  por venda
-                </p>
-              </div>
-              <TrendingUp className="h-10 w-10 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Clientes Atendidos</p>
-                <p className="text-3xl font-bold">{estatisticas.clientesAtendidos}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  hoje
-                </p>
-              </div>
-              <Users className="h-10 w-10 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Vendas da Semana</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{
-                vendas: {
-                  label: 'Vendas',
-                  color: 'hsl(var(--chart-1))',
-                },
-                valor: {
-                  label: 'Valor (MT)',
-                  color: 'hsl(var(--chart-2))',
-                },
-              }}
-              className="h-[300px]"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={vendasPorDia}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="dia" />
-                  <YAxis yAxisId="left" />
-                  <YAxis yAxisId="right" orientation="right" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="vendas"
-                    stroke="#8884d8"
-                    strokeWidth={2}
-                    name="Vendas"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="valor"
-                    stroke="#82ca9d"
-                    strokeWidth={2}
-                    name="Valor (MT)"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Vendas por Método de Pagamento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{
-                valor: {
-                  label: 'Valor',
-                  color: 'hsl(var(--chart-1))',
-                },
-              }}
-              className="h-[300px]"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={vendasPorMetodo}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ metodo, percentual }) => `${metodo} ${percentual}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="valor"
-                  >
-                    {vendasPorMetodo.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-      </div>
-
+  if (resultado.items.length === 0) {
+    return (
       <Card>
-        <CardHeader>
-          <CardTitle>Produtos Mais Vendidos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer
-            config={{
-              quantidade: {
-                label: 'Quantidade',
-                color: 'hsl(var(--chart-1))',
-              },
-            }}
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={produtosMaisVendidos}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="nome" />
-                <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Legend />
-                <Bar dataKey="quantidade" fill="#8884d8" name="Quantidade Vendida" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+        <CardContent className="py-12 text-center text-muted-foreground text-sm">
+          Nenhuma venda registada ainda.
         </CardContent>
       </Card>
+    );
+  }
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Devoluções</p>
-                <p className="text-2xl font-bold">{estatisticas.devolucoes}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Taxa: {estatisticas.taxaDevolucao}%
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <CardTitle className="text-base">Vendas Recentes</CardTitle>
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/vendas">
+            Ver todas
+            <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </Button>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y">
+          {resultado.items.map((v) => (
+            <Link
+              key={v.id}
+              href={`/vendas/${v.id}`}
+              className="flex items-center justify-between px-6 py-3 hover:bg-muted/50 transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium tabular-nums">{v.numero}</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(v.dataVenda).toLocaleDateString('pt-MZ')} · {v.origem}
                 </p>
               </div>
-              <RotateCcw className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Produtos Vendidos</p>
-                <p className="text-2xl font-bold">1,433</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  unidades hoje
-                </p>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium tabular-nums">
+                  MT {parseFloat(v.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+                </span>
+                <StatusBadge status={v.status} />
               </div>
-              <Package className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Meta do Mês</p>
-                <p className="text-2xl font-bold">78%</p>
-                <p className="text-xs text-green-600 mt-1">
-                  MT 780k de MT 1M
-                </p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+function KpiSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="rounded-lg border p-5 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="rounded-lg border">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="flex h-14 px-6 gap-4 border-b last:border-0 items-center">
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-3 w-44" />
+          </div>
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default async function VendasDashboardPage() {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Dashboard de Vendas"
+        description="Visão geral do desempenho de vendas"
+        breadcrumbs={[
+          { label: 'Vendas', href: '/vendas' },
+          { label: 'Dashboard' },
+        ]}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/pos">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Venda (POS)
+            </Link>
+          </Button>
+        }
+      />
+
+      <Suspense fallback={<KpiSkeleton />}>
+        <VendasKpis tenantId={tenantId} userId={userId} />
+      </Suspense>
+
+      <Suspense fallback={<ListSkeleton />}>
+        <VendasRecentes tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }

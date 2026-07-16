@@ -1,0 +1,5042 @@
+[
+  {
+    "codigo": "1",
+    "codigoOriginal": "1",
+    "nome": "Classe 1 — Meios financeiros",
+    "classe": 1,
+    "nivel": 1,
+    "contaPaiCodigo": null,
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "11",
+    "codigoOriginal": "1.1",
+    "nome": "Caixa",
+    "classe": 1,
+    "nivel": 2,
+    "contaPaiCodigo": "1",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "12",
+    "codigoOriginal": "1.2",
+    "nome": "Bancos",
+    "classe": 1,
+    "nivel": 2,
+    "contaPaiCodigo": "1",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "121",
+    "codigoOriginal": "1.2.1",
+    "nome": "Depósitos à ordem",
+    "classe": 1,
+    "nivel": 3,
+    "contaPaiCodigo": "12",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "122",
+    "codigoOriginal": "1.2.2",
+    "nome": "Depósitos com pré-aviso",
+    "classe": 1,
+    "nivel": 3,
+    "contaPaiCodigo": "12",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "123",
+    "codigoOriginal": "1.2.3",
+    "nome": "Depósitos à prazo",
+    "classe": 1,
+    "nivel": 3,
+    "contaPaiCodigo": "12",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "13",
+    "codigoOriginal": "1.3",
+    "nome": "Outros instrumentos financeiros",
+    "classe": 1,
+    "nivel": 2,
+    "contaPaiCodigo": "1",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "131",
+    "codigoOriginal": "1.3.1",
+    "nome": "Derivados",
+    "classe": 1,
+    "nivel": 3,
+    "contaPaiCodigo": "13",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "132",
+    "codigoOriginal": "1.3.2",
+    "nome": "Detidos para negociação",
+    "classe": 1,
+    "nivel": 3,
+    "contaPaiCodigo": "13",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "133",
+    "codigoOriginal": "1.3.3",
+    "nome": "Outros instrumentos financeiros ao justo valor através dos resultados",
+    "classe": 1,
+    "nivel": 3,
+    "contaPaiCodigo": "13",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2",
+    "codigoOriginal": "2",
+    "nome": "Classe 2 — Inventários e activos biológicos",
+    "classe": 2,
+    "nivel": 1,
+    "contaPaiCodigo": null,
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "21",
+    "codigoOriginal": "2.1",
+    "nome": "Compras",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "211",
+    "codigoOriginal": "2.1.1",
+    "nome": "Mercadorias",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "21",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "212",
+    "codigoOriginal": "2.1.2",
+    "nome": "Matérias primas, auxiliares e materiais",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "21",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2121",
+    "codigoOriginal": "2.1.2.1",
+    "nome": "Matérias primas",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "212",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2122",
+    "codigoOriginal": "2.1.2.2",
+    "nome": "Matérias auxiliares",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "212",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2123",
+    "codigoOriginal": "2.1.2.3",
+    "nome": "Materiais",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "212",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "21231",
+    "codigoOriginal": "2.1.2.3.1",
+    "nome": "Combustíveis e lubrificantes",
+    "classe": 2,
+    "nivel": 5,
+    "contaPaiCodigo": "2123",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "21232",
+    "codigoOriginal": "2.1.2.3.2",
+    "nome": "Embalagens comerciais",
+    "classe": 2,
+    "nivel": 5,
+    "contaPaiCodigo": "2123",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "21233",
+    "codigoOriginal": "2.1.2.3.3",
+    "nome": "Peças e sobressalentes",
+    "classe": 2,
+    "nivel": 5,
+    "contaPaiCodigo": "2123",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "21239",
+    "codigoOriginal": "2.1.2.3.9",
+    "nome": "Materiais diversos",
+    "classe": 2,
+    "nivel": 5,
+    "contaPaiCodigo": "2123",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "217",
+    "codigoOriginal": "2.1.7",
+    "nome": "Devoluções de compras",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "21",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "218",
+    "codigoOriginal": "2.1.8",
+    "nome": "Descontos e abatimentos em compras",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "21",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "22",
+    "codigoOriginal": "2.2",
+    "nome": "Mercadorias",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "221",
+    "codigoOriginal": "2.2.1",
+    "nome": "Mercadorias em trânsito",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "22",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "222",
+    "codigoOriginal": "2.2.2",
+    "nome": "Mercadorias em poder de terceiros",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "22",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "23",
+    "codigoOriginal": "2.3",
+    "nome": "Produtos acabados e intermédios",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "231",
+    "codigoOriginal": "2.3.1",
+    "nome": "Produtos acabados em poder de terceiros",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "23",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "24",
+    "codigoOriginal": "2.4",
+    "nome": "Subprodutos, desperdícios, resíduos e refugos",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "241",
+    "codigoOriginal": "2.4.1",
+    "nome": "Subprodutos",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "24",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "242",
+    "codigoOriginal": "2.4.2",
+    "nome": "Desperdícios, resíduos e refugos",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "24",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "25",
+    "codigoOriginal": "2.5",
+    "nome": "Produtos ou serviços em curso",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "26",
+    "codigoOriginal": "2.6",
+    "nome": "Matérias primas, auxiliares e materiais",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "261",
+    "codigoOriginal": "2.6.1",
+    "nome": "Matérias primas",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "26",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "262",
+    "codigoOriginal": "2.6.2",
+    "nome": "Matérias auxiliares",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "26",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "263",
+    "codigoOriginal": "2.6.3",
+    "nome": "Materiais",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "26",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2631",
+    "codigoOriginal": "2.6.3.1",
+    "nome": "Combustíveis e lubrificantes",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "263",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2632",
+    "codigoOriginal": "2.6.3.2",
+    "nome": "Embalagens comerciais",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "263",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2633",
+    "codigoOriginal": "2.6.3.3",
+    "nome": "Peças e sobressalentes",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "263",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2639",
+    "codigoOriginal": "2.6.3.9",
+    "nome": "Materiais diversos",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "263",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "264",
+    "codigoOriginal": "2.6.4",
+    "nome": "Matérias primas, auxiliares e materiais em trânsito",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "26",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "27",
+    "codigoOriginal": "2.7",
+    "nome": "Activos biológicos",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "271",
+    "codigoOriginal": "2.7.1",
+    "nome": "De produção",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "27",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2711",
+    "codigoOriginal": "2.7.1.1",
+    "nome": "Animais",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "271",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2712",
+    "codigoOriginal": "2.7.1.2",
+    "nome": "Plantas",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "271",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "272",
+    "codigoOriginal": "2.7.2",
+    "nome": "Consumíveis",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "27",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2721",
+    "codigoOriginal": "2.7.2.1",
+    "nome": "Animais",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "272",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "2722",
+    "codigoOriginal": "2.7.2.2",
+    "nome": "Plantas",
+    "classe": 2,
+    "nivel": 4,
+    "contaPaiCodigo": "272",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "28",
+    "codigoOriginal": "2.8",
+    "nome": "Regularização de inventários",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "282",
+    "codigoOriginal": "2.8.2",
+    "nome": "Mercadorias",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "28",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "283",
+    "codigoOriginal": "2.8.3",
+    "nome": "Produtos acabados e intermédios",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "28",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "284",
+    "codigoOriginal": "2.8.4",
+    "nome": "Subprodutos, desperdícios, resíduos e refugos",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "28",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "285",
+    "codigoOriginal": "2.8.5",
+    "nome": "Produtos ou serviços em curso",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "28",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "286",
+    "codigoOriginal": "2.8.6",
+    "nome": "Matérias primas, auxiliares e materiais",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "28",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "287",
+    "codigoOriginal": "2.8.7",
+    "nome": "Activos biológicos",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "28",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "29",
+    "codigoOriginal": "2.9",
+    "nome": "Ajustamentos para o valor realizável líquido",
+    "classe": 2,
+    "nivel": 2,
+    "contaPaiCodigo": "2",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "292",
+    "codigoOriginal": "2.9.2",
+    "nome": "Mercadorias",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "29",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "293",
+    "codigoOriginal": "2.9.3",
+    "nome": "Produtos acabados e intermédios",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "29",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "294",
+    "codigoOriginal": "2.9.4",
+    "nome": "Subprodutos, desperdícios, resíduos ou refugos",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "29",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "295",
+    "codigoOriginal": "2.9.5",
+    "nome": "Produtos ou serviços em curso",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "29",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "296",
+    "codigoOriginal": "2.9.6",
+    "nome": "Matérias primas, auxiliares e materiais",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "29",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "297",
+    "codigoOriginal": "2.9.7",
+    "nome": "Activos biológicos",
+    "classe": 2,
+    "nivel": 3,
+    "contaPaiCodigo": "29",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "3",
+    "codigoOriginal": "3",
+    "nome": "Classe 3 — Investimentos de capital",
+    "classe": 3,
+    "nivel": 1,
+    "contaPaiCodigo": null,
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "31",
+    "codigoOriginal": "3.1",
+    "nome": "Investimentos financeiros",
+    "classe": 3,
+    "nivel": 2,
+    "contaPaiCodigo": "3",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "311",
+    "codigoOriginal": "3.1.1",
+    "nome": "Investimentos em subsidiárias",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "31",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "312",
+    "codigoOriginal": "3.1.2",
+    "nome": "Investimentos em associadas",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "31",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "313",
+    "codigoOriginal": "3.1.3",
+    "nome": "Investimentos em entidades conjuntamente controladas",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "31",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "314",
+    "codigoOriginal": "3.1.4",
+    "nome": "Outros investimentos financeiros",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "31",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "315",
+    "codigoOriginal": "3.1.5",
+    "nome": "Investimentos detidos até à maturidade",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "31",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "316",
+    "codigoOriginal": "3.1.6",
+    "nome": "Outros investimentos disponíveis para venda",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "31",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "32",
+    "codigoOriginal": "3.2",
+    "nome": "Activos tangíveis",
+    "classe": 3,
+    "nivel": 2,
+    "contaPaiCodigo": "3",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "321",
+    "codigoOriginal": "3.2.1",
+    "nome": "Construções",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "32",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "3211",
+    "codigoOriginal": "3.2.1.1",
+    "nome": "Edifícios industriais",
+    "classe": 3,
+    "nivel": 4,
+    "contaPaiCodigo": "321",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "3212",
+    "codigoOriginal": "3.2.1.2",
+    "nome": "Edifícios administrativos e comerciais",
+    "classe": 3,
+    "nivel": 4,
+    "contaPaiCodigo": "321",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "3213",
+    "codigoOriginal": "3.2.1.3",
+    "nome": "Edifícios para habitação e outros fins sociais",
+    "classe": 3,
+    "nivel": 4,
+    "contaPaiCodigo": "321",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "3216",
+    "codigoOriginal": "3.2.1.6",
+    "nome": "Vias de comunicação e construções afins",
+    "classe": 3,
+    "nivel": 4,
+    "contaPaiCodigo": "321",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "322",
+    "codigoOriginal": "3.2.2",
+    "nome": "Equipamento básico",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "32",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "323",
+    "codigoOriginal": "3.2.3",
+    "nome": "Mobiliário e equipamento administrativo social",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "32",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "324",
+    "codigoOriginal": "3.2.4",
+    "nome": "Equipamento de transporte",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "32",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "325",
+    "codigoOriginal": "3.2.5",
+    "nome": "Taras e vasilhame",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "32",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "326",
+    "codigoOriginal": "3.2.6",
+    "nome": "Ferramentas e utensílios",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "32",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "327",
+    "codigoOriginal": "3.2.7",
+    "nome": "Activos de exploração e avaliação de recursos minerais",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "32",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "329",
+    "codigoOriginal": "3.2.9",
+    "nome": "Outros activos tangíveis",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "32",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "33",
+    "codigoOriginal": "3.3",
+    "nome": "Activos intangíveis",
+    "classe": 3,
+    "nivel": 2,
+    "contaPaiCodigo": "3",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "331",
+    "codigoOriginal": "3.3.1",
+    "nome": "Despesas de desenvolvimento",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "33",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "332",
+    "codigoOriginal": "3.3.2",
+    "nome": "Propriedade industrial e outros direitos",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "33",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "333",
+    "codigoOriginal": "3.3.3",
+    "nome": "Goodwill",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "33",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "334",
+    "codigoOriginal": "3.3.4",
+    "nome": "Activos de exploração e avaliação de recursos minerais",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "33",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "34",
+    "codigoOriginal": "3.4",
+    "nome": "Investimentos em curso",
+    "classe": 3,
+    "nivel": 2,
+    "contaPaiCodigo": "3",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "342",
+    "codigoOriginal": "3.4.2",
+    "nome": "Activos tangíveis",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "34",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "343",
+    "codigoOriginal": "3.4.3",
+    "nome": "Activos intangíveis",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "34",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "35",
+    "codigoOriginal": "3.5",
+    "nome": "Activos não correntes detidos para venda",
+    "classe": 3,
+    "nivel": 2,
+    "contaPaiCodigo": "3",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "36",
+    "codigoOriginal": "3.6",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 3,
+    "nivel": 2,
+    "contaPaiCodigo": "3",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "38",
+    "codigoOriginal": "3.8",
+    "nome": "Amortizações acumuladas",
+    "classe": 3,
+    "nivel": 2,
+    "contaPaiCodigo": "3",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "382",
+    "codigoOriginal": "3.8.2",
+    "nome": "Activos tangíveis",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "38",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "383",
+    "codigoOriginal": "3.8.3",
+    "nome": "Activos intangíveis",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "38",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "386",
+    "codigoOriginal": "3.8.6",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "38",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "387",
+    "codigoOriginal": "3.8.7",
+    "nome": "Activos de exploração e avaliação de recursos minerais",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "38",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "39",
+    "codigoOriginal": "3.9",
+    "nome": "Imparidade acumulada de investimentos de capital",
+    "classe": 3,
+    "nivel": 2,
+    "contaPaiCodigo": "3",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "391",
+    "codigoOriginal": "3.9.1",
+    "nome": "Investimentos financeiros",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "39",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "392",
+    "codigoOriginal": "3.9.2",
+    "nome": "Activos tangíveis",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "39",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "393",
+    "codigoOriginal": "3.9.3",
+    "nome": "Activos intangíveis",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "39",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "395",
+    "codigoOriginal": "3.9.5",
+    "nome": "Activos não correntes detidos para venda",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "39",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "396",
+    "codigoOriginal": "3.9.6",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "39",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "397",
+    "codigoOriginal": "3.9.7",
+    "nome": "Activos de exploração e avaliação de recursos minerais",
+    "classe": 3,
+    "nivel": 3,
+    "contaPaiCodigo": "39",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4",
+    "codigoOriginal": "4",
+    "nome": "Classe 4 — Contas a receber, contas a pagar, acréscimos e diferimentos",
+    "classe": 4,
+    "nivel": 1,
+    "contaPaiCodigo": null,
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "41",
+    "codigoOriginal": "4.1",
+    "nome": "Clientes",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "411",
+    "codigoOriginal": "4.1.1",
+    "nome": "Clientes c/c",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "41",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "412",
+    "codigoOriginal": "4.1.2",
+    "nome": "Clientes - títulos a receber",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "41",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "418",
+    "codigoOriginal": "4.1.8",
+    "nome": "Clientes de cobrança duvidosa",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "41",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "419",
+    "codigoOriginal": "4.1.9",
+    "nome": "Adiantamentos de clientes",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "41",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "42",
+    "codigoOriginal": "4.2",
+    "nome": "Fornecedores",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "421",
+    "codigoOriginal": "4.2.1",
+    "nome": "Fornecedores c/c",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "42",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "422",
+    "codigoOriginal": "4.2.2",
+    "nome": "Fornecedores - Títulos a pagar",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "42",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "429",
+    "codigoOriginal": "4.2.9",
+    "nome": "Adiantamentos a fornecedores",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "42",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "43",
+    "codigoOriginal": "4.3",
+    "nome": "Empréstimos obtidos",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "431",
+    "codigoOriginal": "4.3.1",
+    "nome": "Empréstimos bancários",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "43",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4311",
+    "codigoOriginal": "4.3.1.1",
+    "nome": "de curto prazo",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "431",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4312",
+    "codigoOriginal": "4.3.1.2",
+    "nome": "de médio e longo prazo",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "431",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "432",
+    "codigoOriginal": "4.3.2",
+    "nome": "Empréstimos por obrigações",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "43",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4321",
+    "codigoOriginal": "4.3.2.1",
+    "nome": "Convertíveis",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "432",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4322",
+    "codigoOriginal": "4.3.2.2",
+    "nome": "Não convertíveis",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "432",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "433",
+    "codigoOriginal": "4.3.3",
+    "nome": "Empréstimos por títulos de participação",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "43",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "439",
+    "codigoOriginal": "4.3.9",
+    "nome": "Outros empréstimos obtidos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "43",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44",
+    "codigoOriginal": "4.4",
+    "nome": "Estado",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "441",
+    "codigoOriginal": "4.4.1",
+    "nome": "Imposto sobre o rendimento",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "44",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4411",
+    "codigoOriginal": "4.4.1.1",
+    "nome": "Estimativa de imposto",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "441",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4412",
+    "codigoOriginal": "4.4.1.2",
+    "nome": "Pagamentos por conta",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "441",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4413",
+    "codigoOriginal": "4.4.1.3",
+    "nome": "Pagamento especial por conta",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "441",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "442",
+    "codigoOriginal": "4.4.2",
+    "nome": "Impostos retidos na fonte",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "44",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4421",
+    "codigoOriginal": "4.4.2.1",
+    "nome": "Rendimentos de trabalho dependente",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "442",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4422",
+    "codigoOriginal": "4.4.2.2",
+    "nome": "Rendimentos profissionais",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "442",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4423",
+    "codigoOriginal": "4.4.2.3",
+    "nome": "Rendimentos de capitais",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "442",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4424",
+    "codigoOriginal": "4.4.2.4",
+    "nome": "Rendimentos prediais",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "442",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4425",
+    "codigoOriginal": "4.4.2.5",
+    "nome": "Outros rendimentos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "442",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "443",
+    "codigoOriginal": "4.4.3",
+    "nome": "Imposto sobre o valor acrescentado",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "44",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4431",
+    "codigoOriginal": "4.4.3.1",
+    "nome": "IVA suportado",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44311",
+    "codigoOriginal": "4.4.3.1.1",
+    "nome": "Inventários",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4431",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44312",
+    "codigoOriginal": "4.4.3.1.2",
+    "nome": "Activos tangíveis e intangíveis",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4431",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44313",
+    "codigoOriginal": "4.4.3.1.3",
+    "nome": "Outros bens e serviços",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4431",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4432",
+    "codigoOriginal": "4.4.3.2",
+    "nome": "IVA dedutível",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44321",
+    "codigoOriginal": "4.4.3.2.1",
+    "nome": "Inventários",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4432",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44322",
+    "codigoOriginal": "4.4.3.2.2",
+    "nome": "Activos tangíveis e intangíveis",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4432",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44323",
+    "codigoOriginal": "4.4.3.2.3",
+    "nome": "Outros bens e serviços",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4432",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4433",
+    "codigoOriginal": "4.4.3.3",
+    "nome": "IVA liquidado",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44331",
+    "codigoOriginal": "4.4.3.3.1",
+    "nome": "Operações gerais",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4433",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44332",
+    "codigoOriginal": "4.4.3.3.2",
+    "nome": "Autoconsumos e operações gratuitas",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4433",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44333",
+    "codigoOriginal": "4.4.3.3.3",
+    "nome": "Operações especiais",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4433",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4434",
+    "codigoOriginal": "4.4.3.4",
+    "nome": "IVA regularizações",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44341",
+    "codigoOriginal": "4.4.3.4.1",
+    "nome": "Mensais a favor do sujeito passivo",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4434",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44342",
+    "codigoOriginal": "4.4.3.4.2",
+    "nome": "Mensais a favor do Estado",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4434",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "44343",
+    "codigoOriginal": "4.4.3.4.3",
+    "nome": "Anuais por cálculo do pro rata definitivo",
+    "classe": 4,
+    "nivel": 5,
+    "contaPaiCodigo": "4434",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4435",
+    "codigoOriginal": "4.4.3.5",
+    "nome": "IVA apuramento",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4436",
+    "codigoOriginal": "4.4.3.6",
+    "nome": "IVA liquidações oficiosas",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4437",
+    "codigoOriginal": "4.4.3.7",
+    "nome": "IVA a pagar",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4438",
+    "codigoOriginal": "4.4.3.8",
+    "nome": "IVA a recuperar",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4439",
+    "codigoOriginal": "4.4.3.9",
+    "nome": "IVA reembolsos pedidos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "443",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "444",
+    "codigoOriginal": "4.4.4",
+    "nome": "Restantes impostos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "44",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4441",
+    "codigoOriginal": "4.4.4.1",
+    "nome": "Imposto de selo",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "444",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4442",
+    "codigoOriginal": "4.4.4.2",
+    "nome": "Impostos autárquicos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "444",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "445",
+    "codigoOriginal": "4.4.5",
+    "nome": "Rectificações de impostos, contribuições e outros tributos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "44",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "446",
+    "codigoOriginal": "4.4.6",
+    "nome": "Impostos diferidos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "44",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4461",
+    "codigoOriginal": "4.4.6.1",
+    "nome": "Activos por impostos diferidos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "446",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4462",
+    "codigoOriginal": "4.4.6.2",
+    "nome": "Passivos por impostos diferidos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "446",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "449",
+    "codigoOriginal": "4.4.9",
+    "nome": "Contribuições para o INSS",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "44",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "45",
+    "codigoOriginal": "4.5",
+    "nome": "Outros devedores",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "451",
+    "codigoOriginal": "4.5.1",
+    "nome": "Pessoal",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "45",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4511",
+    "codigoOriginal": "4.5.1.1",
+    "nome": "Adiantamentos aos órgãos sociais",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "451",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4512",
+    "codigoOriginal": "4.5.1.2",
+    "nome": "Adiantamentos aos trabalhadores",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "451",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4513",
+    "codigoOriginal": "4.5.1.3",
+    "nome": "Benefícios pós-emprego",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "451",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4518",
+    "codigoOriginal": "4.5.1.8",
+    "nome": "Outras operações com órgãos sociais",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "451",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4519",
+    "codigoOriginal": "4.5.1.9",
+    "nome": "Outras operações com trabalhadores",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "451",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "452",
+    "codigoOriginal": "4.5.2",
+    "nome": "Subscritores de capital",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "45",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4521",
+    "codigoOriginal": "4.5.2.1",
+    "nome": "Estado e outros organismos públicos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "452",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4522",
+    "codigoOriginal": "4.5.2.2",
+    "nome": "Entidades privadas",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "452",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4529",
+    "codigoOriginal": "4.5.2.9",
+    "nome": "Outras entidades",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "452",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "453",
+    "codigoOriginal": "4.5.3",
+    "nome": "Obrigacionistas",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "45",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "454",
+    "codigoOriginal": "4.5.4",
+    "nome": "Devedores - sócios, accionistas ou proprietários",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "45",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4541",
+    "codigoOriginal": "4.5.4.1",
+    "nome": "Empréstimos concedidos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "454",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4542",
+    "codigoOriginal": "4.5.4.2",
+    "nome": "Adiantamento por conta de lucros",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "454",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4543",
+    "codigoOriginal": "4.5.4.3",
+    "nome": "Resultados atribuídos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "454",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4544",
+    "codigoOriginal": "4.5.4.4",
+    "nome": "Lucros disponíveis",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "454",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4549",
+    "codigoOriginal": "4.5.4.9",
+    "nome": "Outras operações",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "454",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "455",
+    "codigoOriginal": "4.5.5",
+    "nome": "Subsídios a receber",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "45",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4551",
+    "codigoOriginal": "4.5.5.1",
+    "nome": "Estado e outros organismos públicos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "455",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4552",
+    "codigoOriginal": "4.5.5.2",
+    "nome": "Entidades privadas",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "455",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "459",
+    "codigoOriginal": "4.5.9",
+    "nome": "Devedores diversos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "45",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "46",
+    "codigoOriginal": "4.6",
+    "nome": "Outros credores",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "461",
+    "codigoOriginal": "4.6.1",
+    "nome": "Fornecedores de investimentos de capital",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "46",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4611",
+    "codigoOriginal": "4.6.1.1",
+    "nome": "Fornecedores de investimentos de capital c/c",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "461",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4612",
+    "codigoOriginal": "4.6.1.2",
+    "nome": "Fornecedores de investimentos de capital - Títulos a pagar",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "461",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4613",
+    "codigoOriginal": "4.6.1.3",
+    "nome": "Fornecedores de investimentos de capital - Adiantamentos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "461",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4614",
+    "codigoOriginal": "4.6.1.4",
+    "nome": "Fornecedores de investimentos de capital - Locação Financeira",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "461",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4619",
+    "codigoOriginal": "4.6.1.9",
+    "nome": "Outras operações",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "461",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "462",
+    "codigoOriginal": "4.6.2",
+    "nome": "Pessoal",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "46",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4621",
+    "codigoOriginal": "4.6.2.1",
+    "nome": "Remunerações a pagar aos órgãos sociais",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "462",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4622",
+    "codigoOriginal": "4.6.2.2",
+    "nome": "Remunerações a pagar aos trabalhadores",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "462",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4623",
+    "codigoOriginal": "4.6.2.3",
+    "nome": "Benefícios pós-emprego",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "462",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4628",
+    "codigoOriginal": "4.6.2.8",
+    "nome": "Outras operações com os órgãos sociais",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "462",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4629",
+    "codigoOriginal": "4.6.2.9",
+    "nome": "Outras operações com os trabalhadores",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "462",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "463",
+    "codigoOriginal": "4.6.3",
+    "nome": "Sindicatos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "46",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "464",
+    "codigoOriginal": "4.6.4",
+    "nome": "Credores por subscrições não liberadas",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "46",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "465",
+    "codigoOriginal": "4.6.5",
+    "nome": "Obrigacionistas",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "46",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "466",
+    "codigoOriginal": "4.6.6",
+    "nome": "Consultores, assessores e intermediários",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "46",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "467",
+    "codigoOriginal": "4.6.7",
+    "nome": "Credores - sócios, accionistas ou proprietários",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "46",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4671",
+    "codigoOriginal": "4.6.7.1",
+    "nome": "Empréstimos obtidos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "467",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4673",
+    "codigoOriginal": "4.6.7.3",
+    "nome": "Resultados atribuídos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "467",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4674",
+    "codigoOriginal": "4.6.7.4",
+    "nome": "Lucros disponíveis",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "467",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "469",
+    "codigoOriginal": "4.6.9",
+    "nome": "Credores diversos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "46",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "47",
+    "codigoOriginal": "4.7",
+    "nome": "Perdas por imparidade acumuladas de contas a receber",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "471",
+    "codigoOriginal": "4.7.1",
+    "nome": "Clientes",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "47",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "472",
+    "codigoOriginal": "4.7.2",
+    "nome": "Outros devedores",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "47",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "48",
+    "codigoOriginal": "4.8",
+    "nome": "Provisões",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "481",
+    "codigoOriginal": "4.8.1",
+    "nome": "Processos judiciais em curso",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "48",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "482",
+    "codigoOriginal": "4.8.2",
+    "nome": "Acidentes no trabalho e doenças profissionais",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "48",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "483",
+    "codigoOriginal": "4.8.3",
+    "nome": "Impostos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "48",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "484",
+    "codigoOriginal": "4.8.4",
+    "nome": "Reestruturação de negócios",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "48",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "485",
+    "codigoOriginal": "4.8.5",
+    "nome": "Contratos onerosos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "48",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "486",
+    "codigoOriginal": "4.8.6",
+    "nome": "Garantias a clientes",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "48",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "487",
+    "codigoOriginal": "4.8.7",
+    "nome": "Perdas em contratos de construção",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "48",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "489",
+    "codigoOriginal": "4.8.9",
+    "nome": "Outras provisões",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "48",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "49",
+    "codigoOriginal": "4.9",
+    "nome": "Acréscimos e diferimentos",
+    "classe": 4,
+    "nivel": 2,
+    "contaPaiCodigo": "4",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "491",
+    "codigoOriginal": "4.9.1",
+    "nome": "Acréscimos de gastos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "49",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4911",
+    "codigoOriginal": "4.9.1.1",
+    "nome": "Juros a pagar",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "491",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4912",
+    "codigoOriginal": "4.9.1.2",
+    "nome": "Remunerações a pagar",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "491",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4919",
+    "codigoOriginal": "4.9.1.9",
+    "nome": "Outros acréscimos de gastos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "491",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "492",
+    "codigoOriginal": "4.9.2",
+    "nome": "Rendimentos diferidos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "49",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4921",
+    "codigoOriginal": "4.9.2.1",
+    "nome": "Prémios de emissão de obrigações",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "492",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4922",
+    "codigoOriginal": "4.9.2.2",
+    "nome": "Prémios de emissão de títulos de participação",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "492",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4923",
+    "codigoOriginal": "4.9.2.3",
+    "nome": "Réditos de contratos de construção",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "492",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4924",
+    "codigoOriginal": "4.9.2.4",
+    "nome": "Subsídios para investimentos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "492",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4929",
+    "codigoOriginal": "4.9.2.9",
+    "nome": "Outros rendimentos diferidos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "492",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "493",
+    "codigoOriginal": "4.9.3",
+    "nome": "Acréscimos de rendimentos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "49",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4931",
+    "codigoOriginal": "4.9.3.1",
+    "nome": "Juros a receber",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "493",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4933",
+    "codigoOriginal": "4.9.3.3",
+    "nome": "Réditos de contratos de construção",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "493",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4939",
+    "codigoOriginal": "4.9.3.9",
+    "nome": "Outros acréscimos de rendimentos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "493",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "494",
+    "codigoOriginal": "4.9.4",
+    "nome": "Gastos diferidos",
+    "classe": 4,
+    "nivel": 3,
+    "contaPaiCodigo": "49",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4941",
+    "codigoOriginal": "4.9.4.1",
+    "nome": "Desconto de emissão de obrigações",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "494",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4942",
+    "codigoOriginal": "4.9.4.2",
+    "nome": "Desconto de emissão de títulos de participação",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "494",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "4949",
+    "codigoOriginal": "4.9.4.9",
+    "nome": "Outros gastos diferidos",
+    "classe": 4,
+    "nivel": 4,
+    "contaPaiCodigo": "494",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "5",
+    "codigoOriginal": "5",
+    "nome": "Classe 5 — Capital próprio",
+    "classe": 5,
+    "nivel": 1,
+    "contaPaiCodigo": null,
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "51",
+    "codigoOriginal": "5.1",
+    "nome": "Capital",
+    "classe": 5,
+    "nivel": 2,
+    "contaPaiCodigo": "5",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "52",
+    "codigoOriginal": "5.2",
+    "nome": "Acções ou quotas próprias",
+    "classe": 5,
+    "nivel": 2,
+    "contaPaiCodigo": "5",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "521",
+    "codigoOriginal": "5.2.1",
+    "nome": "Valor nominal",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "52",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "522",
+    "codigoOriginal": "5.2.2",
+    "nome": "Descontos e prémios",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "52",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "53",
+    "codigoOriginal": "5.3",
+    "nome": "Prestações suplementares",
+    "classe": 5,
+    "nivel": 2,
+    "contaPaiCodigo": "5",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "54",
+    "codigoOriginal": "5.4",
+    "nome": "Prémios de emissão de acções ou quotas",
+    "classe": 5,
+    "nivel": 2,
+    "contaPaiCodigo": "5",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "55",
+    "codigoOriginal": "5.5",
+    "nome": "Reservas",
+    "classe": 5,
+    "nivel": 2,
+    "contaPaiCodigo": "5",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "551",
+    "codigoOriginal": "5.5.1",
+    "nome": "Reservas legais",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "55",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "552",
+    "codigoOriginal": "5.5.2",
+    "nome": "Reservas estatutárias",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "55",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "553",
+    "codigoOriginal": "5.5.3",
+    "nome": "Reservas livres",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "55",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "56",
+    "codigoOriginal": "5.6",
+    "nome": "Excedentes de revalorização de activos tangíveis e intangíveis",
+    "classe": 5,
+    "nivel": 2,
+    "contaPaiCodigo": "5",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "561",
+    "codigoOriginal": "5.6.1",
+    "nome": "Revalorizações legais",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "56",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "5611",
+    "codigoOriginal": "5.6.1.1",
+    "nome": "Antes de impostos diferidos",
+    "classe": 5,
+    "nivel": 4,
+    "contaPaiCodigo": "561",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "5611",
+    "codigoOriginal": "5.6.1.1",
+    "nome": "Antes de impostos diferidos",
+    "classe": 5,
+    "nivel": 4,
+    "contaPaiCodigo": "561",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "5612",
+    "codigoOriginal": "5.6.1.2",
+    "nome": "Impostos diferidos",
+    "classe": 5,
+    "nivel": 4,
+    "contaPaiCodigo": "561",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "5612",
+    "codigoOriginal": "5.6.1.2",
+    "nome": "Impostos diferidos",
+    "classe": 5,
+    "nivel": 4,
+    "contaPaiCodigo": "561",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "562",
+    "codigoOriginal": "5.6.2",
+    "nome": "Outros excessos",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "56",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "58",
+    "codigoOriginal": "5.8",
+    "nome": "Outras variações no capital próprio",
+    "classe": 5,
+    "nivel": 2,
+    "contaPaiCodigo": "5",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "581",
+    "codigoOriginal": "5.8.1",
+    "nome": "Variações no justo valor de instrumentos financeiros disponíveis para venda",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "58",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "582",
+    "codigoOriginal": "5.8.2",
+    "nome": "Ajustamentos por impostos diferidos",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "58",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "589",
+    "codigoOriginal": "5.8.9",
+    "nome": "Outras variações",
+    "classe": 5,
+    "nivel": 3,
+    "contaPaiCodigo": "58",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "59",
+    "codigoOriginal": "5.9",
+    "nome": "Resultados transitados",
+    "classe": 5,
+    "nivel": 2,
+    "contaPaiCodigo": "5",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6",
+    "codigoOriginal": "6",
+    "nome": "Classe 6 — Gastos e perdas",
+    "classe": 6,
+    "nivel": 1,
+    "contaPaiCodigo": null,
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "61",
+    "codigoOriginal": "6.1",
+    "nome": "Custo dos inventários",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "611",
+    "codigoOriginal": "6.1.1",
+    "nome": "Custo dos inventários vendidos ou consumidos",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "61",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6112",
+    "codigoOriginal": "6.1.1.2",
+    "nome": "De mercadorias",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "611",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6116",
+    "codigoOriginal": "6.1.1.6",
+    "nome": "De matérias primas, auxiliares e materiais",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "611",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "61161",
+    "codigoOriginal": "6.1.1.6.1",
+    "nome": "Matérias primas",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6116",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "61162",
+    "codigoOriginal": "6.1.1.6.2",
+    "nome": "Matérias auxiliares",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6116",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "61163",
+    "codigoOriginal": "6.1.1.6.3",
+    "nome": "Materiais",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6116",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6117",
+    "codigoOriginal": "6.1.1.7",
+    "nome": "Activos biológicos",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "611",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "612",
+    "codigoOriginal": "6.1.2",
+    "nome": "Variação da produção",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "61",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6121",
+    "codigoOriginal": "6.1.2.1",
+    "nome": "Produtos acabados e intermédios",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "612",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6122",
+    "codigoOriginal": "6.1.2.2",
+    "nome": "Subprodutos, desperdícios, resíduos e refugos",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "612",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6123",
+    "codigoOriginal": "6.1.2.3",
+    "nome": "Produtos e serviços em curso",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "612",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "62",
+    "codigoOriginal": "6.2",
+    "nome": "Gastos com o pessoal",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "621",
+    "codigoOriginal": "6.2.1",
+    "nome": "Remunerações dos órgãos sociais",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "622",
+    "codigoOriginal": "6.2.2",
+    "nome": "Remunerações dos trabalhadores",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "623",
+    "codigoOriginal": "6.2.3",
+    "nome": "Encargos sobre remunerações",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "624",
+    "codigoOriginal": "6.2.4",
+    "nome": "Benefícios pós-emprego",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "625",
+    "codigoOriginal": "6.2.5",
+    "nome": "Ajudas de custo",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6251",
+    "codigoOriginal": "6.2.5.1",
+    "nome": "Ajudas de custo tributáveis",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "625",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6252",
+    "codigoOriginal": "6.2.5.2",
+    "nome": "Ajudas de custo não tributáveis",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "625",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "626",
+    "codigoOriginal": "6.2.6",
+    "nome": "Indemnizações",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6261",
+    "codigoOriginal": "6.2.6.1",
+    "nome": "Indemnizações – Risco segurável",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "626",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6262",
+    "codigoOriginal": "6.2.6.2",
+    "nome": "Indemnizações - Outras",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "626",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "627",
+    "codigoOriginal": "6.2.7",
+    "nome": "Seguros de acidentes no trabalho e doenças profissionais",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "628",
+    "codigoOriginal": "6.2.8",
+    "nome": "Gastos de acção social",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "629",
+    "codigoOriginal": "6.2.9",
+    "nome": "Outros gastos com pessoal",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "62",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63",
+    "codigoOriginal": "6.3",
+    "nome": "Fornecimentos e serviços de terceiros",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "631",
+    "codigoOriginal": "6.3.1",
+    "nome": "Subcontratos",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "63",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632",
+    "codigoOriginal": "6.3.2",
+    "nome": "Fornecimentos e serviços",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "63",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63211",
+    "codigoOriginal": "6.3.2.1.1",
+    "nome": "Água",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6321",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63212",
+    "codigoOriginal": "6.3.2.1.2",
+    "nome": "Electricidade",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6321",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63213",
+    "codigoOriginal": "6.3.2.1.3",
+    "nome": "Combustíveis",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6321",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632131",
+    "codigoOriginal": "6.3.2.1.3.1",
+    "nome": "Gasóleo",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63213",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6321311",
+    "codigoOriginal": "6.3.2.1.3.1.1",
+    "nome": "Gasóleo – Viaturas ligeiras de passageiros",
+    "classe": 6,
+    "nivel": 7,
+    "contaPaiCodigo": "632131",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6321312",
+    "codigoOriginal": "6.3.2.1.3.1.2",
+    "nome": "Gasóleo - Outros",
+    "classe": 6,
+    "nivel": 7,
+    "contaPaiCodigo": "632131",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632132",
+    "codigoOriginal": "6.3.2.1.3.2",
+    "nome": "Restantes combustíveis",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63213",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6321321",
+    "codigoOriginal": "6.3.2.1.3.2.1",
+    "nome": "Restantes combustíveis – Viaturas ligeiras de passageiros",
+    "classe": 6,
+    "nivel": 7,
+    "contaPaiCodigo": "632132",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6321322",
+    "codigoOriginal": "6.3.2.1.3.2.2",
+    "nome": "Restantes combustíveis - Outros",
+    "classe": 6,
+    "nivel": 7,
+    "contaPaiCodigo": "632132",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632133",
+    "codigoOriginal": "6.3.2.1.3.3",
+    "nome": "Lubrificantes",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63213",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6321331",
+    "codigoOriginal": "6.3.2.1.3.3.1",
+    "nome": "Lubrificantes - Viaturas ligeiras de passageiros",
+    "classe": 6,
+    "nivel": 7,
+    "contaPaiCodigo": "632133",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6321332",
+    "codigoOriginal": "6.3.2.1.3.3.2",
+    "nome": "Lubrificantes - Outros",
+    "classe": 6,
+    "nivel": 7,
+    "contaPaiCodigo": "632133",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63214",
+    "codigoOriginal": "6.3.2.1.4",
+    "nome": "Ferramentas e utensílios de desgaste rápido",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6321",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63215",
+    "codigoOriginal": "6.3.2.1.5",
+    "nome": "Material de manutenção e reparação",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6321",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632151",
+    "codigoOriginal": "6.3.2.1.5.1",
+    "nome": "Material de manutenção e reparação - Viaturas ligeiras de passageiros",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63215",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632152",
+    "codigoOriginal": "6.3.2.1.5.2",
+    "nome": "Material de manutenção e reparação - Outros",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63215",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63216",
+    "codigoOriginal": "6.3.2.1.6",
+    "nome": "Material de escritório",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6321",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63217",
+    "codigoOriginal": "6.3.2.1.7",
+    "nome": "Livros e documentação técnica",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6321",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63218",
+    "codigoOriginal": "6.3.2.1.8",
+    "nome": "Artigos para oferta",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6321",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63221",
+    "codigoOriginal": "6.3.2.2.1",
+    "nome": "Manutenção e reparação",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63222",
+    "codigoOriginal": "6.3.2.2.2",
+    "nome": "Transportes de carga",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63223",
+    "codigoOriginal": "6.3.2.2.3",
+    "nome": "Transportes de pessoal",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63224",
+    "codigoOriginal": "6.3.2.2.4",
+    "nome": "Comunicações",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63225",
+    "codigoOriginal": "6.3.2.2.5",
+    "nome": "Honorários",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63226",
+    "codigoOriginal": "6.3.2.2.6",
+    "nome": "Comissões a intermediários",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63227",
+    "codigoOriginal": "6.3.2.2.7",
+    "nome": "Publicidade e propaganda",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632271",
+    "codigoOriginal": "6.3.2.2.7.1",
+    "nome": "Publicidade e propaganda – Campanhas publicitárias",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63227",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632272",
+    "codigoOriginal": "6.3.2.2.7.2",
+    "nome": "Publicidade e propaganda - Outros",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63227",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63228",
+    "codigoOriginal": "6.3.2.2.8",
+    "nome": "Deslocações e estadias",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632281",
+    "codigoOriginal": "6.3.2.2.8.1",
+    "nome": "Deslocações e estadias – Em serviço",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63228",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632282",
+    "codigoOriginal": "6.3.2.2.8.2",
+    "nome": "Deslocações e estadias – Outras deslocações",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63228",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63229",
+    "codigoOriginal": "6.3.2.2.9",
+    "nome": "Despesas de representação",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6322",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63231",
+    "codigoOriginal": "6.3.2.3.1",
+    "nome": "Contencioso e notariado",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6323",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63232",
+    "codigoOriginal": "6.3.2.3.2",
+    "nome": "Rendas e alugueres",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6323",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632321",
+    "codigoOriginal": "6.3.2.3.2.1",
+    "nome": "Rendas e alugueres – Locação financeira",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63232",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63233",
+    "codigoOriginal": "6.3.2.3.3",
+    "nome": "Seguros",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6323",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "632331",
+    "codigoOriginal": "6.3.2.3.3.1",
+    "nome": "Seguro de vida, acidentes pessoais e doença",
+    "classe": 6,
+    "nivel": 6,
+    "contaPaiCodigo": "63233",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63234",
+    "codigoOriginal": "6.3.2.3.4",
+    "nome": "Royalties",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6323",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63235",
+    "codigoOriginal": "6.3.2.3.5",
+    "nome": "Limpeza, higiene e conforto",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6323",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63236",
+    "codigoOriginal": "6.3.2.3.6",
+    "nome": "Vigilância e segurança",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6323",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63237",
+    "codigoOriginal": "6.3.2.3.7",
+    "nome": "Trabalhos especializados",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6323",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "63299",
+    "codigoOriginal": "6.3.2.9.9",
+    "nome": "Outros fornecimentos e serviços",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6329",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "64",
+    "codigoOriginal": "6.4",
+    "nome": "Perdas por imparidade do período",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "641",
+    "codigoOriginal": "6.4.1",
+    "nome": "Ajustamentos de inventários para o valor realizável líquido",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "64",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "642",
+    "codigoOriginal": "6.4.2",
+    "nome": "Investimentos financeiros",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "64",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "643",
+    "codigoOriginal": "6.4.3",
+    "nome": "Activos tangíveis",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "64",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "644",
+    "codigoOriginal": "6.4.4",
+    "nome": "Activos intangíveis",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "64",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "645",
+    "codigoOriginal": "6.4.5",
+    "nome": "Activos não correntes detidos para venda",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "64",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "646",
+    "codigoOriginal": "6.4.6",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "64",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "647",
+    "codigoOriginal": "6.4.7",
+    "nome": "Activos de exploração e avaliação de recursos minerais",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "64",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "648",
+    "codigoOriginal": "6.4.8",
+    "nome": "Contas a receber",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "64",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6481",
+    "codigoOriginal": "6.4.8.1",
+    "nome": "Contas a receber – ajustamentos dentro dos limites fiscais",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "648",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6482",
+    "codigoOriginal": "6.4.8.2",
+    "nome": "Contas a receber – ajustamentos para além dos limites fiscais",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "648",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "65",
+    "codigoOriginal": "6.5",
+    "nome": "Amortizações do período",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "651",
+    "codigoOriginal": "6.5.1",
+    "nome": "Activos tangíveis",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "65",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "652",
+    "codigoOriginal": "6.5.2",
+    "nome": "Activos intangíveis",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "65",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "653",
+    "codigoOriginal": "6.5.3",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "65",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "654",
+    "codigoOriginal": "6.5.4",
+    "nome": "Activos de exploração e avaliação de recursos minerais",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "65",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "66",
+    "codigoOriginal": "6.6",
+    "nome": "Provisões do período",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "661",
+    "codigoOriginal": "6.6.1",
+    "nome": "Processos judiciais em curso",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "66",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "662",
+    "codigoOriginal": "6.6.2",
+    "nome": "Acidentes no trabalho e doenças profissionais",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "66",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "663",
+    "codigoOriginal": "6.6.3",
+    "nome": "Impostos",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "66",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "664",
+    "codigoOriginal": "6.6.4",
+    "nome": "Reestruturação de negócios",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "66",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "665",
+    "codigoOriginal": "6.6.5",
+    "nome": "Contratos onerosos",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "66",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "666",
+    "codigoOriginal": "6.6.6",
+    "nome": "Garantias a clientes",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "66",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "667",
+    "codigoOriginal": "6.6.7",
+    "nome": "Perdas em contratos de construção",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "66",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "669",
+    "codigoOriginal": "6.6.9",
+    "nome": "Outras provisões",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "66",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "67",
+    "codigoOriginal": "6.7",
+    "nome": "Perdas por redução do justo valor",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "671",
+    "codigoOriginal": "6.7.1",
+    "nome": "Instrumentos financeiros",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "67",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "672",
+    "codigoOriginal": "6.7.2",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "67",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "673",
+    "codigoOriginal": "6.7.3",
+    "nome": "Activos biológicos",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "67",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "68",
+    "codigoOriginal": "6.8",
+    "nome": "Outros gastos e perdas operacionais",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "681",
+    "codigoOriginal": "6.8.1",
+    "nome": "Despesas de investigação e pesquisa",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "68",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "682",
+    "codigoOriginal": "6.8.2",
+    "nome": "Impostos e taxas",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "68",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6821",
+    "codigoOriginal": "6.8.2.1",
+    "nome": "Direitos aduaneiros",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "682",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6822",
+    "codigoOriginal": "6.8.2.2",
+    "nome": "Imposto sobre o Valor Acrescentado",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "682",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6823",
+    "codigoOriginal": "6.8.2.3",
+    "nome": "Imposto de selo",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "682",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6824",
+    "codigoOriginal": "6.8.2.4",
+    "nome": "Impostos sobre veículos",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "682",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6825",
+    "codigoOriginal": "6.8.2.5",
+    "nome": "Impostos autárquicos",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "682",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "683",
+    "codigoOriginal": "6.8.3",
+    "nome": "Perdas em Investimentos de capital",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "68",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6831",
+    "codigoOriginal": "6.8.3.1",
+    "nome": "Alienação",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "683",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6832",
+    "codigoOriginal": "6.8.3.2",
+    "nome": "Abates",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "683",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6833",
+    "codigoOriginal": "6.8.3.3",
+    "nome": "Sinistros",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "683",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "684",
+    "codigoOriginal": "6.8.4",
+    "nome": "Perdas em inventários e activos biológicos",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "68",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6841",
+    "codigoOriginal": "6.8.4.1",
+    "nome": "Sinistros",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "684",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6842",
+    "codigoOriginal": "6.8.4.2",
+    "nome": "Quebras",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "684",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6849",
+    "codigoOriginal": "6.8.4.9",
+    "nome": "Outras",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "684",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "689",
+    "codigoOriginal": "6.8.9",
+    "nome": "Outros gastos operacionais",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "68",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6891",
+    "codigoOriginal": "6.8.9.1",
+    "nome": "Quotizações",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "689",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6892",
+    "codigoOriginal": "6.8.9.2",
+    "nome": "Despesas confidenciais",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "689",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6893",
+    "codigoOriginal": "6.8.9.3",
+    "nome": "Ofertas e amostras de inventários",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "689",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6894",
+    "codigoOriginal": "6.8.9.4",
+    "nome": "Programas de responsabilidade social",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "689",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6895",
+    "codigoOriginal": "6.8.9.5",
+    "nome": "Donativos",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "689",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "68951",
+    "codigoOriginal": "6.8.9.5.1",
+    "nome": "Donativos ao Estado",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6895",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "68952",
+    "codigoOriginal": "6.8.9.5.2",
+    "nome": "Outros donativos no âmbito do Mecenato",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6895",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6896",
+    "codigoOriginal": "6.8.9.6",
+    "nome": "Multas e penalidades",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "689",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6899",
+    "codigoOriginal": "6.8.9.9",
+    "nome": "Outros",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "689",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "69",
+    "codigoOriginal": "6.9",
+    "nome": "Gastos e perdas financeiros",
+    "classe": 6,
+    "nivel": 2,
+    "contaPaiCodigo": "6",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "691",
+    "codigoOriginal": "6.9.1",
+    "nome": "Juros suportados",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "69",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6911",
+    "codigoOriginal": "6.9.1.1",
+    "nome": "Empréstimos bancários",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "691",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6912",
+    "codigoOriginal": "6.9.1.2",
+    "nome": "Empréstimos obrigacionistas e títulos de participação",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "691",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6913",
+    "codigoOriginal": "6.9.1.3",
+    "nome": "Empréstimos de sócios, accionistas ou proprietários",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "691",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6914",
+    "codigoOriginal": "6.9.1.4",
+    "nome": "Outros empréstimos",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "691",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6915",
+    "codigoOriginal": "6.9.1.5",
+    "nome": "Desconto de títulos",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "691",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6916",
+    "codigoOriginal": "6.9.1.6",
+    "nome": "Juros de mora e compensatórios",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "691",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "69161",
+    "codigoOriginal": "6.9.1.6.1",
+    "nome": "Juros de mora",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6916",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "69162",
+    "codigoOriginal": "6.9.1.6.2",
+    "nome": "Juros compensatórios",
+    "classe": 6,
+    "nivel": 5,
+    "contaPaiCodigo": "6916",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6919",
+    "codigoOriginal": "6.9.1.9",
+    "nome": "Outros juros",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "691",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "694",
+    "codigoOriginal": "6.9.4",
+    "nome": "Diferenças de câmbio desfavoráveis",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "69",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6941",
+    "codigoOriginal": "6.9.4.1",
+    "nome": "Realizadas",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "694",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6942",
+    "codigoOriginal": "6.9.4.2",
+    "nome": "Não realizadas",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "694",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "695",
+    "codigoOriginal": "6.9.5",
+    "nome": "Descontos de pronto pagamento concedidos",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "69",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "698",
+    "codigoOriginal": "6.9.8",
+    "nome": "Outros gastos e perdas financeiros",
+    "classe": 6,
+    "nivel": 3,
+    "contaPaiCodigo": "69",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6981",
+    "codigoOriginal": "6.9.8.1",
+    "nome": "Serviços bancários",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "698",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "6989",
+    "codigoOriginal": "6.9.8.9",
+    "nome": "Diversos não especificados",
+    "classe": 6,
+    "nivel": 4,
+    "contaPaiCodigo": "698",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "7",
+    "codigoOriginal": "7",
+    "nome": "Classe 7 — Rendimentos e ganhos",
+    "classe": 7,
+    "nivel": 1,
+    "contaPaiCodigo": null,
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "71",
+    "codigoOriginal": "7.1",
+    "nome": "Vendas",
+    "classe": 7,
+    "nivel": 2,
+    "contaPaiCodigo": "7",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "711",
+    "codigoOriginal": "7.1.1",
+    "nome": "Mercadorias",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "71",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "712",
+    "codigoOriginal": "7.1.2",
+    "nome": "Produtos acabados e intermédios",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "71",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "713",
+    "codigoOriginal": "7.1.3",
+    "nome": "Subprodutos, desperdícios, resíduos e refugos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "71",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "714",
+    "codigoOriginal": "7.1.4",
+    "nome": "Activos biológicos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "71",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "715",
+    "codigoOriginal": "7.1.5",
+    "nome": "IVA das vendas com imposto incluído",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "71",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "716",
+    "codigoOriginal": "7.1.6",
+    "nome": "Devolução de vendas",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "71",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "717",
+    "codigoOriginal": "7.1.7",
+    "nome": "Descontos e abatimentos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "71",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "72",
+    "codigoOriginal": "7.2",
+    "nome": "Prestação de serviços",
+    "classe": 7,
+    "nivel": 2,
+    "contaPaiCodigo": "7",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "721",
+    "codigoOriginal": "7.2.1",
+    "nome": "IVA da prestação de serviços com imposto incluído",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "72",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "726",
+    "codigoOriginal": "7.2.6",
+    "nome": "Descontos e abatimentos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "72",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "73",
+    "codigoOriginal": "7.3",
+    "nome": "Investimentos realizados pela própria empresa",
+    "classe": 7,
+    "nivel": 2,
+    "contaPaiCodigo": "7",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "731",
+    "codigoOriginal": "7.3.1",
+    "nome": "Investimentos financeiros",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "73",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "732",
+    "codigoOriginal": "7.3.2",
+    "nome": "Activos tangíveis",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "73",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "733",
+    "codigoOriginal": "7.3.3",
+    "nome": "Activos intangíveis",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "73",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "734",
+    "codigoOriginal": "7.3.4",
+    "nome": "Investimentos em curso",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "73",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "74",
+    "codigoOriginal": "7.4",
+    "nome": "Reversões do período",
+    "classe": 7,
+    "nivel": 2,
+    "contaPaiCodigo": "7",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "741",
+    "codigoOriginal": "7.4.1",
+    "nome": "De perdas por imparidade",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "74",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7411",
+    "codigoOriginal": "7.4.1.1",
+    "nome": "Ajustamentos de inventários para o valor realizável líquido",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "741",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7412",
+    "codigoOriginal": "7.4.1.2",
+    "nome": "Investimentos financeiros",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "741",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7413",
+    "codigoOriginal": "7.4.1.3",
+    "nome": "Activos tangíveis",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "741",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7414",
+    "codigoOriginal": "7.4.1.4",
+    "nome": "Activos intangíveis",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "741",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7415",
+    "codigoOriginal": "7.4.1.5",
+    "nome": "Activos não correntes detidos para venda",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "741",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7416",
+    "codigoOriginal": "7.4.1.6",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "741",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7417",
+    "codigoOriginal": "7.4.1.7",
+    "nome": "Activos de exploração e avaliação de recursos minerais",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "741",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7418",
+    "codigoOriginal": "7.4.1.8",
+    "nome": "Contas a receber",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "741",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "742",
+    "codigoOriginal": "7.4.2",
+    "nome": "De amortizações",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "74",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7421",
+    "codigoOriginal": "7.4.2.1",
+    "nome": "Activos tangíveis",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "742",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7422",
+    "codigoOriginal": "7.4.2.2",
+    "nome": "Activos intangíveis",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "742",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7423",
+    "codigoOriginal": "7.4.2.3",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "742",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7424",
+    "codigoOriginal": "7.4.2.4",
+    "nome": "Activos de exploração e avaliação de recursos minerais",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "742",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "743",
+    "codigoOriginal": "7.4.3",
+    "nome": "De provisões",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "74",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7431",
+    "codigoOriginal": "7.4.3.1",
+    "nome": "Processos judiciais em curso",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "743",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7432",
+    "codigoOriginal": "7.4.3.2",
+    "nome": "Acidentes no trabalho e doenças profissionais",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "743",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7433",
+    "codigoOriginal": "7.4.3.3",
+    "nome": "Impostos",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "743",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7434",
+    "codigoOriginal": "7.4.3.4",
+    "nome": "Reestruturação de negócios",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "743",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7435",
+    "codigoOriginal": "7.4.3.5",
+    "nome": "Contratos onerosos",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "743",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7436",
+    "codigoOriginal": "7.4.3.6",
+    "nome": "Garantias a clientes",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "743",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7437",
+    "codigoOriginal": "7.4.3.7",
+    "nome": "Perdas em contratos de construção",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "743",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7439",
+    "codigoOriginal": "7.4.3.9",
+    "nome": "Outras provisões",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "743",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "75",
+    "codigoOriginal": "7.5",
+    "nome": "Rendimentos suplementares",
+    "classe": 7,
+    "nivel": 2,
+    "contaPaiCodigo": "7",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "751",
+    "codigoOriginal": "7.5.1",
+    "nome": "Serviços sociais",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "75",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "752",
+    "codigoOriginal": "7.5.2",
+    "nome": "Aluguer de equipamento",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "75",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "753",
+    "codigoOriginal": "7.5.3",
+    "nome": "Venda de energia",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "75",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "754",
+    "codigoOriginal": "7.5.4",
+    "nome": "Estudos, projectos pesquisas e investigações",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "75",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "755",
+    "codigoOriginal": "7.5.5",
+    "nome": "Assistência técnica",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "75",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "756",
+    "codigoOriginal": "7.5.6",
+    "nome": "Royalties",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "75",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "757",
+    "codigoOriginal": "7.5.7",
+    "nome": "Cargos sociais exercidos noutras empresas",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "75",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "759",
+    "codigoOriginal": "7.5.9",
+    "nome": "Outros rendimentos suplementares inerentes ao valor acrescentado",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "75",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "76",
+    "codigoOriginal": "7.6",
+    "nome": "Outros rendimentos e ganhos operacionais",
+    "classe": 7,
+    "nivel": 2,
+    "contaPaiCodigo": "7",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "761",
+    "codigoOriginal": "7.6.1",
+    "nome": "Subsídios para investimentos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "76",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7611",
+    "codigoOriginal": "7.6.1.1",
+    "nome": "Do Estado e outros organismos públicos",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "761",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7619",
+    "codigoOriginal": "7.6.1.9",
+    "nome": "De outras entidades",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "761",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "762",
+    "codigoOriginal": "7.6.2",
+    "nome": "Subsídios à exploração",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "76",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7621",
+    "codigoOriginal": "7.6.2.1",
+    "nome": "Do Estado e outros organismos públicos",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "762",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7629",
+    "codigoOriginal": "7.6.2.9",
+    "nome": "De outras entidades",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "762",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "763",
+    "codigoOriginal": "7.6.3",
+    "nome": "Ganhos em investimentos de capital",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "76",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7631",
+    "codigoOriginal": "7.6.3.1",
+    "nome": "Alienação",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "763",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7632",
+    "codigoOriginal": "7.6.3.2",
+    "nome": "Sinistros",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "763",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "764",
+    "codigoOriginal": "7.6.4",
+    "nome": "Ganhos em inventários e activos biológicos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "76",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7641",
+    "codigoOriginal": "7.6.4.1",
+    "nome": "Sinistros",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "764",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7642",
+    "codigoOriginal": "7.6.4.2",
+    "nome": "Sobras",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "764",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7649",
+    "codigoOriginal": "7.6.4.9",
+    "nome": "Outros",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "764",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "769",
+    "codigoOriginal": "7.6.9",
+    "nome": "Outros rendimentos alheios ao valor acrescentado",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "76",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7691",
+    "codigoOriginal": "7.6.9.1",
+    "nome": "Restituição de impostos",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "769",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7692",
+    "codigoOriginal": "7.6.9.2",
+    "nome": "Benefícios de penalidades contratuais",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "769",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7693",
+    "codigoOriginal": "7.6.9.3",
+    "nome": "Excesso de estimativa para impostos",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "769",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7699",
+    "codigoOriginal": "7.6.9.9",
+    "nome": "Outros",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "769",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "78",
+    "codigoOriginal": "7.8",
+    "nome": "Rendimentos e ganhos financeiros",
+    "classe": 7,
+    "nivel": 2,
+    "contaPaiCodigo": "7",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "781",
+    "codigoOriginal": "7.8.1",
+    "nome": "Juros obtidos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "78",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7811",
+    "codigoOriginal": "7.8.1.1",
+    "nome": "Depósitos bancários",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "781",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7812",
+    "codigoOriginal": "7.8.1.2",
+    "nome": "Empréstimos",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "781",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7813",
+    "codigoOriginal": "7.8.1.3",
+    "nome": "Obrigações e títulos de participação",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "781",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7814",
+    "codigoOriginal": "7.8.1.4",
+    "nome": "Outras aplicações de tesouraria",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "781",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7819",
+    "codigoOriginal": "7.8.1.9",
+    "nome": "Outros juros",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "781",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "782",
+    "codigoOriginal": "7.8.2",
+    "nome": "Rendimentos de activos tangíveis de investimento",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "78",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "783",
+    "codigoOriginal": "7.8.3",
+    "nome": "Rendimentos de instrumentos financeiros",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "78",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "784",
+    "codigoOriginal": "7.8.4",
+    "nome": "Diferenças de câmbio favoráveis",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "78",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7841",
+    "codigoOriginal": "7.8.4.1",
+    "nome": "Realizadas",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "784",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "7842",
+    "codigoOriginal": "7.8.4.2",
+    "nome": "Não realizadas",
+    "classe": 7,
+    "nivel": 4,
+    "contaPaiCodigo": "784",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "785",
+    "codigoOriginal": "7.8.5",
+    "nome": "Descontos de pronto pagamento obtidos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "78",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "789",
+    "codigoOriginal": "7.8.9",
+    "nome": "Outros rendimentos e ganhos financeiros",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "78",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "79",
+    "codigoOriginal": "7.9",
+    "nome": "Ganhos por aumento do justo valor",
+    "classe": 7,
+    "nivel": 2,
+    "contaPaiCodigo": "7",
+    "aceitaLancamento": false,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "791",
+    "codigoOriginal": "7.9.1",
+    "nome": "Instrumentos financeiros",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "79",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "792",
+    "codigoOriginal": "7.9.2",
+    "nome": "Activos tangíveis de investimento",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "79",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "793",
+    "codigoOriginal": "7.9.3",
+    "nome": "Activos biológicos",
+    "classe": 7,
+    "nivel": 3,
+    "contaPaiCodigo": "79",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
+    "codigo": "8",
+    "codigoOriginal": "8",
+    "nome": "Classe 8 — Resultados",
+    "classe": 8,
+    "nivel": 1,
+    "contaPaiCodigo": null,
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "81",
+    "codigoOriginal": "8.1",
+    "nome": "Resultados operacionais",
+    "classe": 8,
+    "nivel": 2,
+    "contaPaiCodigo": "8",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "82",
+    "codigoOriginal": "8.2",
+    "nome": "Resultados financeiros",
+    "classe": 8,
+    "nivel": 2,
+    "contaPaiCodigo": "8",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "83",
+    "codigoOriginal": "8.3",
+    "nome": "Resultados correntes",
+    "classe": 8,
+    "nivel": 2,
+    "contaPaiCodigo": "8",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "85",
+    "codigoOriginal": "8.5",
+    "nome": "Imposto sobre o rendimento",
+    "classe": 8,
+    "nivel": 2,
+    "contaPaiCodigo": "8",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "851",
+    "codigoOriginal": "8.5.1",
+    "nome": "Imposto corrente",
+    "classe": 8,
+    "nivel": 3,
+    "contaPaiCodigo": "85",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "852",
+    "codigoOriginal": "8.5.2",
+    "nome": "Imposto diferido",
+    "classe": 8,
+    "nivel": 3,
+    "contaPaiCodigo": "85",
+    "aceitaLancamento": true,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "88",
+    "codigoOriginal": "8.8",
+    "nome": "Resultado líquido do período",
+    "classe": 8,
+    "nivel": 2,
+    "contaPaiCodigo": "8",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  },
+  {
+    "codigo": "89",
+    "codigoOriginal": "8.9",
+    "nome": "Dividendos antecipados",
+    "classe": 8,
+    "nivel": 2,
+    "contaPaiCodigo": "8",
+    "aceitaLancamento": false,
+    "natureza": "CREDORA"
+  }
+]

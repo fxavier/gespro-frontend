@@ -1,565 +1,170 @@
-'use client';
+/**
+ * Perfil de Vendedor — Server Component.
+ * Mostra o resumo de comissões do vendedor a partir do serviço real.
+ */
 
-import { useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Separator } from '@/components/ui/separator';
-import { usePagination } from '@/hooks/usePagination';
-import { PaginationControls } from '@/components/ui/pagination-controls';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
-import {
-  ArrowLeft,
-  User,
-  DollarSign,
-  TrendingUp,
-  Target,
-  Calendar,
-  MapPin,
-  Phone,
-  Mail,
-  Trophy,
-  Settings,
-  Edit,
-  CheckCircle,
-  Clock
-} from 'lucide-react';
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { ComissaoVendedor } from '@/types/pedido';
+import { redirect } from 'next/navigation';
+import { DollarSign, Clock, CheckCircle, TrendingUp, ArrowLeft } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { comissaoService } from '@/server/services/comercial/index';
+import { Button } from '@/components/ui/button';
+import { PageHeader, KpiCard, StatusBadge } from '@/components/patterns';
+import {
+  Card, CardContent, CardHeader, CardTitle,
+} from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
-interface VendedorDetalhado {
-  id: string;
-  nome: string;
-  email: string;
-  telefone: string;
-  nif: string;
-  comissaoPercentualPadrao: number;
-  ativo: boolean;
-  lojaId: string;
-  lojaNome: string;
-  categoria: 'junior' | 'pleno' | 'senior' | 'gerente';
-  dataAdmissao: Date;
-  endereco?: string;
-  meta: {
-    mensal: number;
-    trimestral: number;
-    anual: number;
-  };
-  estatisticas: {
-    vendasMes: number;
-    vendasTrimestre: number;
-    vendasAno: number;
-    comissoesMes: number;
-    comissoesTrimestre: number;
-    comissoesAno: number;
-    metaAtingidaMes: number;
-    metaAtingidaTrimestre: number;
-    metaAtingidaAno: number;
-    ranking: number;
-    clientesAtendidos: number;
-    ticketMedio: number;
-  };
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
-export default function DetalhesVendedorPage() {
-  const params = useParams();
-  const id = params.id as string;
-  const router = useRouter();
+async function VendedorKpis({ vendedorId, tenantId, userId }: { vendedorId: string; tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const resultado = await runWithTenantContext(ctx, () =>
+    comissaoService.listar({ vendedorId, take: 100, orderBy: 'createdAt', order: 'desc' }, ctx)
+  );
 
-  // Dados detalhados do vendedor
-  const vendedor: VendedorDetalhado = {
-    id: id,
-    nome: 'Maria Santos',
-    email: 'maria.santos@empresa.com',
-    telefone: '849000001',
-    nif: '123456789',
-    comissaoPercentualPadrao: 5,
-    ativo: true,
-    lojaId: '1',
-    lojaNome: 'Loja Centro',
-    categoria: 'senior',
-    dataAdmissao: new Date('2022-03-15'),
-    endereco: 'Av. Julius Nyerere, 123, Maputo',
-    meta: {
-      mensal: 100000,
-      trimestral: 300000,
-      anual: 1200000
-    },
-    estatisticas: {
-      vendasMes: 125000,
-      vendasTrimestre: 340000,
-      vendasAno: 1350000,
-      comissoesMes: 6250,
-      comissoesTrimestre: 17000,
-      comissoesAno: 67500,
-      metaAtingidaMes: 125,
-      metaAtingidaTrimestre: 113,
-      metaAtingidaAno: 112,
-      ranking: 1,
-      clientesAtendidos: 45,
-      ticketMedio: 2777.78
-    }
-  };
-
-  // Dados de performance mensal
-  const performanceMensal = [
-    { mes: 'Jan', vendas: 98000, meta: 100000, comissao: 4900 },
-    { mes: 'Fev', vendas: 110000, meta: 100000, comissao: 5500 },
-    { mes: 'Mar', vendas: 132000, meta: 100000, comissao: 6600 },
-    { mes: 'Abr', vendas: 95000, meta: 100000, comissao: 4750 },
-    { mes: 'Mai', vendas: 145000, meta: 100000, comissao: 7250 },
-    { mes: 'Jun', vendas: 125000, meta: 100000, comissao: 6250 }
-  ];
-
-  // Histórico de comissões
-  const comissoes: ComissaoVendedor[] = [
-    {
-      vendedorId: '1',
-      vendedorNome: 'Maria Santos',
-      percentualBase: 5,
-      percentualAplicado: 7,
-      valorBase: 55000,
-      valorComissao: 3850,
-      pedidoId: '1',
-      pedidoNumero: 'PED-2024-001',
-      data: new Date('2024-01-20'),
-      pago: false
-    },
-    {
-      vendedorId: '1',
-      vendedorNome: 'Maria Santos',
-      percentualBase: 5,
-      percentualAplicado: 5,
-      valorBase: 12500,
-      valorComissao: 625,
-      pedidoId: '2',
-      pedidoNumero: 'PED-2024-002',
-      data: new Date('2024-01-19'),
-      pago: true
-    },
-    ...Array.from({ length: 20 }, (_, i) => ({
-      vendedorId: '1',
-      vendedorNome: 'Maria Santos',
-      percentualBase: 5,
-      percentualAplicado: Math.random() > 0.7 ? 7 : 5,
-      valorBase: Math.floor(Math.random() * 50000) + 10000,
-      valorComissao: 0,
-      pedidoId: `${i + 3}`,
-      pedidoNumero: `PED-2024-${String(i + 3).padStart(3, '0')}`,
-      data: new Date(2024, 0, Math.floor(Math.random() * 30) + 1),
-      pago: Math.random() > 0.4
-    })).map(comissao => ({
-      ...comissao,
-      valorComissao: Math.floor((comissao.valorBase * comissao.percentualAplicado) / 100)
-    }))
-  ];
-
-  const {
-    currentPage,
-    totalPages,
-    itemsPerPage,
-    paginatedData,
-    totalItems,
-    handlePageChange,
-    handleItemsPerPageChange,
-  } = usePagination({ data: comissoes, initialItemsPerPage: 10 });
-
-  const getCategoriaColor = (categoria: string) => {
-    const colors = {
-      junior: 'bg-blue-100 text-blue-800',
-      pleno: 'bg-green-100 text-green-800',
-      senior: 'bg-purple-100 text-purple-800',
-      gerente: 'bg-red-100 text-red-800'
-    };
-    return colors[categoria as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getMetaBadge = (percentual: number) => {
-    if (percentual >= 100) {
-      return <Badge variant="default" className="gap-1"><Trophy className="h-3 w-3" />Meta Atingida</Badge>;
-    } else if (percentual >= 80) {
-      return <Badge variant="secondary" className="gap-1"><Target className="h-3 w-3" />Próximo da Meta</Badge>;
-    } else {
-      return <Badge variant="outline" className="gap-1"><Target className="h-3 w-3" />Abaixo da Meta</Badge>;
-    }
-  };
+  const total = resultado.items.length;
+  const pendentes = resultado.items.filter((c) => c.status === 'PENDENTE').length;
+  const pagas = resultado.items.filter((c) => c.status === 'PAGA').length;
+  const valorTotal = resultado.items.reduce((acc, c) => acc + parseFloat(c.valorComissao), 0);
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      <div className="flex items-center gap-4 mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.push('/vendas/vendedores')}
-        >
-          <ArrowLeft className="h-4 w-4" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard title="Total Comissões" value={String(total)} icon={<DollarSign className="h-5 w-5" />} />
+      <KpiCard title="Pendentes" value={String(pendentes)} icon={<Clock className="h-5 w-5" />} />
+      <KpiCard title="Pagas" value={String(pagas)} icon={<CheckCircle className="h-5 w-5" />} />
+      <KpiCard
+        title="Valor Total"
+        value={`MT ${valorTotal.toLocaleString('pt-MZ', { minimumFractionDigits: 0 })}`}
+        icon={<TrendingUp className="h-5 w-5" />}
+      />
+    </div>
+  );
+}
+
+async function UltimasComissoes({ vendedorId, tenantId, userId }: { vendedorId: string; tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const resultado = await runWithTenantContext(ctx, () =>
+    comissaoService.listar({ vendedorId, take: 10, orderBy: 'createdAt', order: 'desc' }, ctx)
+  );
+
+  if (resultado.items.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground text-sm">
+          Nenhuma comissão registada para este vendedor.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <CardTitle className="text-base">Últimas Comissões</CardTitle>
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/vendas/vendedores/${vendedorId}/comissoes`}>
+            Ver todas
+          </Link>
         </Button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold">{vendedor.nome}</h1>
-          <p className="text-muted-foreground">{vendedor.lojaNome} • {vendedor.categoria}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href={`/vendas/vendedores/${vendedor.id}/comissoes`}>
-              <Settings className="h-4 w-4 mr-2" />
-              Configurar Comissões
-            </Link>
-          </Button>
-          <Button>
-            <Edit className="h-4 w-4 mr-2" />
-            Editar Vendedor
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informações Pessoais</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{vendedor.nome}</p>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoriaColor(vendedor.categoria)}`}>
-                    {vendedor.categoria.charAt(0).toUpperCase() + vendedor.categoria.slice(1)}
-                  </span>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{vendedor.email}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{vendedor.telefone}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{vendedor.endereco}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">
-                    Desde {vendedor.dataAdmissao.toLocaleDateString('pt-PT')}
-                  </span>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Status</p>
-                {vendedor.ativo ? (
-                  <Badge variant="default" className="gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    Ativo
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="gap-1">
-                    <Clock className="h-3 w-3" />
-                    Inativo
-                  </Badge>
-                )}
-              </div>
-
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Comissão Padrão</p>
-                <p className="text-2xl font-bold text-primary">
-                  {vendedor.comissaoPercentualPadrao}%
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y">
+          {resultado.items.map((c) => (
+            <div key={c.id} className="flex items-center justify-between px-6 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium font-mono">
+                  <Link href={`/vendas/${c.vendaId}`} className="text-primary hover:underline">
+                    {c.vendaId.slice(-8)}
+                  </Link>
+                </p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {new Date(c.createdAt).toLocaleDateString('pt-MZ')} · {parseFloat(c.percentualAplicado).toFixed(2)}%
                 </p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="lg:col-span-3 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Vendas Este Mês</p>
-                    <p className="text-2xl font-bold">
-                      MT {(vendedor.estatisticas.vendasMes / 1000).toFixed(0)}k
-                    </p>
-                    <div className="mt-1">
-                      {getMetaBadge(vendedor.estatisticas.metaAtingidaMes)}
-                    </div>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Comissões Este Mês</p>
-                    <p className="text-2xl font-bold">
-                      MT {vendedor.estatisticas.comissoesMes.toFixed(0)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {vendedor.estatisticas.comissoesMes > 0 ? 
-                        `${((vendedor.estatisticas.comissoesMes / vendedor.estatisticas.vendasMes) * 100).toFixed(1)}% das vendas` : 
-                        'Sem comissões'
-                      }
-                    </p>
-                  </div>
-                  <DollarSign className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Ranking</p>
-                    <p className="text-2xl font-bold">#{vendedor.estatisticas.ranking}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {vendedor.estatisticas.clientesAtendidos} clientes
-                    </p>
-                  </div>
-                  <Trophy className="h-8 w-8 text-yellow-600" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance dos Últimos 6 Meses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  vendas: {
-                    label: 'Vendas',
-                    color: 'hsl(var(--chart-1))',
-                  },
-                  meta: {
-                    label: 'Meta',
-                    color: 'hsl(var(--chart-2))',
-                  },
-                  comissao: {
-                    label: 'Comissão',
-                    color: 'hsl(var(--chart-3))',
-                  },
-                }}
-                className="h-[400px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={performanceMensal}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="mes" />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="vendas"
-                      fill="#8884d8"
-                      name="Vendas (MT)"
-                    />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="meta"
-                      fill="#82ca9d"
-                      name="Meta (MT)"
-                    />
-                    <Bar
-                      yAxisId="right"
-                      dataKey="comissao"
-                      fill="#ffc658"
-                      name="Comissão (MT)"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Metas e Objetivos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Meta Mensal</span>
-                    <span className="text-sm text-muted-foreground">
-                      {vendedor.estatisticas.metaAtingidaMes}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-primary h-2 rounded-full" 
-                      style={{ width: `${Math.min(vendedor.estatisticas.metaAtingidaMes, 100)}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>MT {vendedor.estatisticas.vendasMes.toLocaleString()}</span>
-                    <span>MT {vendedor.meta.mensal.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Meta Trimestral</span>
-                    <span className="text-sm text-muted-foreground">
-                      {vendedor.estatisticas.metaAtingidaTrimestre}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-600 h-2 rounded-full" 
-                      style={{ width: `${Math.min(vendedor.estatisticas.metaAtingidaTrimestre, 100)}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>MT {vendedor.estatisticas.vendasTrimestre.toLocaleString()}</span>
-                    <span>MT {vendedor.meta.trimestral.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Meta Anual</span>
-                    <span className="text-sm text-muted-foreground">
-                      {vendedor.estatisticas.metaAtingidaAno}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-orange-600 h-2 rounded-full" 
-                      style={{ width: `${Math.min(vendedor.estatisticas.metaAtingidaAno, 100)}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>MT {vendedor.estatisticas.vendasAno.toLocaleString()}</span>
-                    <span>MT {vendedor.meta.anual.toLocaleString()}</span>
-                  </div>
-                </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium tabular-nums">
+                  MT {parseFloat(c.valorComissao).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+                </span>
+                <StatusBadge status={c.status} />
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Histórico de Comissões</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Pedido</TableHead>
-                    <TableHead>Valor Base</TableHead>
-                    <TableHead>%</TableHead>
-                    <TableHead>Comissão</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedData.length > 0 ? (
-                    paginatedData.map((comissao, index) => (
-                      <TableRow key={`${comissao.pedidoId}-${index}`}>
-                        <TableCell>{comissao.data.toLocaleDateString('pt-PT')}</TableCell>
-                        <TableCell className="font-medium">{comissao.pedidoNumero}</TableCell>
-                        <TableCell>MT {comissao.valorBase.toFixed(2)}</TableCell>
-                        <TableCell>
-                          {comissao.percentualAplicado !== comissao.percentualBase ? (
-                            <div className="flex items-center gap-1">
-                              <span className="text-muted-foreground line-through text-sm">
-                                {comissao.percentualBase}%
-                              </span>
-                              <span className="font-medium text-green-600">
-                                {comissao.percentualAplicado}%
-                              </span>
-                            </div>
-                          ) : (
-                            <span>{comissao.percentualBase}%</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          MT {comissao.valorComissao.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          {comissao.pago ? (
-                            <Badge variant="default" className="gap-1">
-                              <CheckCircle className="h-3 w-3" />
-                              Pago
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="gap-1">
-                              <Clock className="h-3 w-3" />
-                              Pendente
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
-                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                          <DollarSign className="h-12 w-12 opacity-50" />
-                          <p>Nenhuma comissão encontrada</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                itemsPerPage={itemsPerPage}
-                totalItems={totalItems}
-                onPageChange={handlePageChange}
-                onItemsPerPageChange={handleItemsPerPageChange}
-              />
-            </CardContent>
-          </Card>
+            </div>
+          ))}
         </div>
-      </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function KpiSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="rounded-lg border p-5 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="rounded-lg border">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="flex h-14 px-6 gap-4 border-b last:border-0 items-center">
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-28" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default async function VendedorDetalhePage({ params }: PageProps) {
+  const { id: vendedorId } = await params;
+
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title={`Vendedor ${vendedorId.slice(-8)}`}
+        description="Perfil e desempenho do vendedor"
+        breadcrumbs={[
+          { label: 'Vendas', href: '/vendas' },
+          { label: 'Vendedores', href: '/vendas/vendedores' },
+          { label: vendedorId.slice(-8) },
+        ]}
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/vendas/vendedores">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Vendedores
+            </Link>
+          </Button>
+        }
+      />
+
+      <Suspense fallback={<KpiSkeleton />}>
+        <VendedorKpis vendedorId={vendedorId} tenantId={tenantId} userId={userId} />
+      </Suspense>
+
+      <Suspense fallback={<ListSkeleton />}>
+        <UltimasComissoes vendedorId={vendedorId} tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }

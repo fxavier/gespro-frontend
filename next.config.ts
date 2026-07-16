@@ -1,14 +1,10 @@
 import type { NextConfig } from "next";
 
-type ExtendedNextConfig = NextConfig & {
-  eslint?: {
-    ignoreDuringBuilds?: boolean;
-  };
-};
-
-const nextConfig: ExtendedNextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
+const nextConfig: NextConfig = {
+  // Fixa a raiz do workspace no projeto (existe um package-lock.json perdido em
+  // ~/ que faria o Turbopack inferir a raiz errada).
+  turbopack: {
+    root: process.cwd(),
   },
   async headers() {
     return [
@@ -31,14 +27,6 @@ const nextConfig: ExtendedNextConfig = {
             key: "Access-Control-Max-Age",
             value: "86400",
           },
-          {
-            key: "X-Frame-Options",
-            value: "ALLOWALL",
-          },
-          {
-            key: "Content-Security-Policy",
-            value: "frame-ancestors 'self' *",
-          },
         ],
       },
     ];
@@ -51,12 +39,6 @@ const nextConfig: ExtendedNextConfig = {
       {
         hostname: "images.unsplash.com",
       },
-      {
-        hostname: "chat2db-cdn.oss-us-west-1.aliyuncs.com",
-      },
-      {
-        hostname: "cdn.chat2db-ai.com",
-      }
     ],
   },
 };

@@ -1,0 +1,628 @@
+// WS A — Catálogo & Inventário
+// Dono: domain-inventario
+// Entidades: CategoriaProduto, Produto, VarianteProduto, Localizacao,
+//            MovimentoStock, SaldoStock, ReservaStock,
+//            CategoriaAtivo, Ativo, DocumentoAtivo, MovimentacaoAtivo,
+//            ManutencaoAtivo, PecaManutencao, AmortizacaoCalculo,
+//            InventarioFisico, MembroEquipeInventario, ContagemInventario
+//
+// Conflitos aplicados:
+//   #9  — tenantId adicionado a Ativo, Localizacao e CategoriaAtivo
+//   #10 — enum StatusManutencaoAtivo sem duplicado (EM_CURSO removido);
+//          campo confirmdadaPor corrigido para confirmadaPor
+//
+// Regra cross-domínio: FKs para outros WS são escalares (String?), sem @relation.
+//   Ex.: fornecedorId (→ WS B), responsavelId/tecnicoId (→ User/WS E),
+//        departamentoId/projetoId (→ WS E), contaDebitoId/lancamentoContabilId (→ WS D).
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum TipoLocalizacao {
+  ARMAZEM
+  ESCRITORIO
+  DEPARTAMENTO
+  FILIAL
+  PRATELEIRA
+  SALA
+  ANDAR
+  AREA_TECNICA
+}
+
+enum TipoMovimentoStock {
+  ENTRADA
+  SAIDA
+  AJUSTE
+  TRANSFERENCIA_ENTRADA
+  TRANSFERENCIA_SAIDA
+}
+
+enum StatusReservaStock {
+  ATIVA
+  CONSUMIDA
+  LIBERADA
+  EXPIRADA
+}
+
+enum EstadoAtivo {
+  NOVO
+  EM_USO
+  EM_MANUTENCAO
+  OBSOLETO
+  BAIXADO
+  EM_TRANSFERENCIA
+}
+
+enum TipoMovimentacaoAtivo {
+  ENTRADA
+  SAIDA
+  TRANSFERENCIA
+  EMPRESTIMO
+  DEVOLUCAO
+  BAIXA
+  AJUSTE
+}
+
+enum TipoManutencaoAtivo {
+  PREVENTIVA
+  CORRETIVA
+  INSPECAO
+  CALIBRACAO
+}
+
+// Conflito #10: enum limpo sem o duplicado em_andamento/em_curso
+enum StatusManutencaoAtivo {
+  AGENDADA
+  EM_ANDAMENTO
+  ORCAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum PrioridadeManutencao {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum MetodoAmortizacao {
+  LINEAR
+  DIGITOS_ANOS
+  UNIDADES_PRODUCAO
+  SALDOS_DECRESCENTES
+}
+
+enum StatusInventarioFisico {
+  PLANEJADO
+  AGENDADO
+  EM_ANDAMENTO
+  PAUSADO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum TipoDiscrepanciaInventario {
+  NAO_ENCONTRADO
+  LOCAL_DIFERENTE
+  RESPONSAVEL_DIFERENTE
+  ESTADO_DIFERENTE
+  DADOS_INCORRETOS
+}
+
+enum TipoDocumentoAtivo {
+  MANUAL
+  CERTIFICADO
+  GARANTIA
+  NOTA_FISCAL
+  OUTRO
+}
+
+// ─── Catálogo de Produtos ─────────────────────────────────────────────────────
+
+model CategoriaProduto {
+  id        String    @id @default(cuid())
+  tenantId  String
+  nome      String
+  descricao String?
+  cor       String    @default("#6366f1")
+  icone     String?
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  produtos Produto[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId, ativo])
+  @@index([tenantId, createdAt])
+}
+
+model Produto {
+  id            String    @id @default(cuid())
+  tenantId      String
+  sku           String
+  codigoBarras  String?
+  nome          String
+  descricao     String?
+  categoriaId   String
+  marca         String?
+  unidadeMedida String
+  precoVenda    Decimal   @db.Decimal(18, 2)
+  precoCompra   Decimal   @db.Decimal(18, 2)
+  margemLucro   Decimal   @db.Decimal(9, 6)
+  taxaIva       Decimal   @db.Decimal(9, 6)  @default(0.160000)
+  stockMinimo   Decimal   @db.Decimal(18, 2) @default(0)
+  stockMaximo   Decimal?  @db.Decimal(18, 2)
+  dataValidade  DateTime?
+  imagens       String[]
+  ativo         Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  categoria       CategoriaProduto @relation(fields: [categoriaId], references: [id])
+  variantes       VarianteProduto[]
+  movimentos      MovimentoStock[]
+  saldos          SaldoStock[]
+  reservas        ReservaStock[]
+  pecasManutencao PecaManutencao[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, ativo])
+  @@index([tenantId, categoriaId])
+  @@index([tenantId, createdAt])
+}
+
+model VarianteProduto {
+  id             String   @id @default(cuid())
+  tenantId       String
+  produtoId      String
+  nome           String
+  valor          String
+  precoAdicional Decimal  @db.Decimal(18, 2) @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  produto    Produto          @relation(fields: [produtoId], references: [id])
+  movimentos MovimentoStock[]
+  // saldos: omitido — SaldoStock.varianteProdutoId usa sentinela "" (veja nota no SaldoStock)
+  reservas   ReservaStock[]
+
+  @@index([tenantId, produtoId])
+}
+
+// ─── Localizações / Armazéns ──────────────────────────────────────────────────
+
+// Conflito #9: tenantId adicionado (era omitido nos mocks)
+model Localizacao {
+  id               String          @id @default(cuid())
+  tenantId         String
+  codigo           String
+  nome             String
+  tipo             TipoLocalizacao
+  endereco         String?
+  descricao        String?
+  capacidade       Decimal?        @db.Decimal(18, 2)
+  responsavelId    String?         // scalar FK → User (cross-domain)
+  ativa            Boolean         @default(true)
+  localizacaoPaiId String?
+  latitude         Decimal?        @db.Decimal(9, 6)
+  longitude        Decimal?        @db.Decimal(9, 6)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  deletedAt        DateTime?
+
+  localizacaoPai  Localizacao?  @relation("LocalizacaoHierarquia", fields: [localizacaoPaiId], references: [id])
+  subLocalizacoes Localizacao[] @relation("LocalizacaoHierarquia")
+
+  saldos            SaldoStock[]
+  reservas          ReservaStock[]
+  movimentosOrigem  MovimentoStock[] @relation("MovimentoStockOrigem")
+  movimentosDestino MovimentoStock[] @relation("MovimentoStockDestino")
+
+  ativos                    Ativo[]
+  movimentacoesAtivoOrigem  MovimentacaoAtivo[] @relation("MovimentacaoAtivoOrigem")
+  movimentacoesAtivoDestino MovimentacaoAtivo[] @relation("MovimentacaoAtivoDestino")
+
+  inventariosFisicos   InventarioFisico[]
+  contagensEsperadas   ContagemInventario[] @relation("ContagemLocalizacaoEsperada")
+  contagensEncontradas ContagemInventario[] @relation("ContagemLocalizacaoEncontrada")
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, ativa])
+  @@index([tenantId, tipo])
+}
+
+// ─── Stock ────────────────────────────────────────────────────────────────────
+
+// Documentos imutáveis — nunca UPDATE; correcções por novo registo compensatório.
+model MovimentoStock {
+  id                      String             @id @default(cuid())
+  tenantId                String
+  produtoId               String
+  varianteProdutoId       String?
+  tipo                    TipoMovimentoStock
+  quantidade              Decimal            @db.Decimal(18, 2)
+  localizacaoOrigemId     String?
+  localizacaoDestinoId    String?
+  // Vincula o par TRANSFERENCIA_ENTRADA + TRANSFERENCIA_SAIDA
+  transferenciaRefId      String?
+  documentoReferenciaId   String?
+  documentoReferenciaTipo String?
+  motivo                  String?
+  observacoes             String?
+  criadoPor               String             // scalar FK → User
+  createdAt               DateTime           @default(now())
+
+  produto            Produto          @relation(fields: [produtoId], references: [id])
+  variante           VarianteProduto? @relation(fields: [varianteProdutoId], references: [id])
+  localizacaoOrigem  Localizacao?     @relation("MovimentoStockOrigem", fields: [localizacaoOrigemId], references: [id])
+  localizacaoDestino Localizacao?     @relation("MovimentoStockDestino", fields: [localizacaoDestinoId], references: [id])
+
+  @@index([tenantId, produtoId, createdAt])
+  @@index([tenantId, tipo, createdAt])
+  @@index([tenantId, localizacaoOrigemId])
+  @@index([tenantId, localizacaoDestinoId])
+  @@index([tenantId, documentoReferenciaId, documentoReferenciaTipo])
+  @@index([transferenciaRefId])
+}
+
+// Snapshot de saldo calculado; actualizado em $transaction com o MovimentoStock.
+//
+// ADR-0003 A4 — unicidade real por (tenantId, produtoId, varianteProdutoId, localizacaoId):
+//   varianteProdutoId usa sentinela @default("") em vez de NULL para que @@unique funcione
+//   em PostgreSQL (NULL != NULL inviabilizaria a constraint com nullable).
+//   O serviço escreve "" quando não há variante, e o CUID da variante quando existe.
+//   A @relation com VarianteProduto é omitida porque "" não é um CUID válido;
+//   a FK é escalar — o serviço valida a existência via query directa.
+//   Nota para o orquestrador: na migration, considerar índice parcial SQL:
+//     CREATE UNIQUE INDEX IF NOT EXISTS "SaldoStock_variant_partial_key"
+//     ON "SaldoStock" ("tenantId", "produtoId", "localizacaoId")
+//     WHERE "varianteProdutoId" = '';
+model SaldoStock {
+  id                String   @id @default(cuid())
+  tenantId          String
+  produtoId         String
+  // Sentinela: "" = sem variante; CUID = variante específica. Nunca NULL.
+  varianteProdutoId String   @default("")
+  localizacaoId     String
+  saldo             Decimal  @db.Decimal(18, 2) @default(0)
+  saldoReservado    Decimal  @db.Decimal(18, 2) @default(0)
+  updatedAt         DateTime @updatedAt
+
+  produto     Produto     @relation(fields: [produtoId], references: [id])
+  localizacao Localizacao @relation(fields: [localizacaoId], references: [id])
+
+  @@unique([tenantId, produtoId, varianteProdutoId, localizacaoId])
+  @@index([tenantId, produtoId])
+  @@index([tenantId, localizacaoId])
+}
+
+// Reservas activas de stock — criadas por B/C/E, confirmadas ou libertas por A.
+model ReservaStock {
+  id                      String             @id @default(cuid())
+  tenantId                String
+  produtoId               String
+  varianteProdutoId       String?
+  localizacaoId           String
+  quantidade              Decimal            @db.Decimal(18, 2)
+  status                  StatusReservaStock @default(ATIVA)
+  documentoReferenciaId   String?
+  documentoReferenciaTipo String?
+  expiradoEm              DateTime?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  produto     Produto          @relation(fields: [produtoId], references: [id])
+  variante    VarianteProduto? @relation(fields: [varianteProdutoId], references: [id])
+  localizacao Localizacao      @relation(fields: [localizacaoId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, produtoId, status])
+  @@index([tenantId, documentoReferenciaId, documentoReferenciaTipo])
+}
+
+// ─── Ativos ───────────────────────────────────────────────────────────────────
+
+// Conflito #9: tenantId adicionado
+model CategoriaAtivo {
+  id                      String            @id @default(cuid())
+  tenantId                String
+  codigo                  String
+  nome                    String
+  descricao               String?
+  categoriaPaiId          String?
+  metodoAmortizacao       MetodoAmortizacao @default(LINEAR)
+  vidaUtilAnos            Int
+  valorResidualPct        Decimal           @db.Decimal(9, 6)  @default(0)
+  intervaloPreventivaDias Int?
+  alertaManutencaoDias    Int?
+  ativa                   Boolean           @default(true)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  deletedAt               DateTime?
+
+  categoriaPai  CategoriaAtivo?  @relation("CategoriaAtivoHierarquia", fields: [categoriaPaiId], references: [id])
+  subcategorias CategoriaAtivo[] @relation("CategoriaAtivoHierarquia")
+  ativos        Ativo[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, ativa])
+}
+
+// Conflito #9: tenantId adicionado; datas normalizadas para DateTime
+model Ativo {
+  id                 String      @id @default(cuid())
+  tenantId           String
+  codigoInterno      String
+  nome               String
+  descricao          String?
+  categoriaId        String
+  numeroSerie        String?
+  modelo             String?
+  marca              String?
+  fornecedorId       String?     // scalar FK → WS B Fornecedor
+  dataAquisicao      DateTime
+  valorCompra        Decimal     @db.Decimal(18, 2)
+  valorResidual      Decimal?    @db.Decimal(18, 2)
+  vidaUtilAnos       Int
+  dataSubstituicao   DateTime?
+  estado             EstadoAtivo @default(NOVO)
+  localizacaoId      String
+  responsavelId      String?     // scalar FK → User
+  departamentoId     String?     // scalar FK → WS E Departamento
+  projetoId          String?     // scalar FK → WS E Projeto
+  metodoAmortizacao  MetodoAmortizacao @default(LINEAR)
+  qrCode             String?
+  codigoBarras       String?
+  rfidTag            String?
+  observacoes        String?
+  garantiaDataInicio DateTime?
+  garantiaDataFim    DateTime?
+  garantiaFornecedor String?
+  garantiaTermos     String?
+  imagens            String[]
+  criadoPor          String      // scalar FK → User
+  atualizadoPor      String?     // scalar FK → User
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  deletedAt          DateTime?
+
+  categoria       CategoriaAtivo      @relation(fields: [categoriaId], references: [id])
+  localizacao     Localizacao         @relation(fields: [localizacaoId], references: [id])
+  documentos      DocumentoAtivo[]
+  movimentacoes   MovimentacaoAtivo[]
+  manutencoes     ManutencaoAtivo[]
+  amortizacoes    AmortizacaoCalculo[]
+  itensInventario ContagemInventario[]
+
+  @@unique([tenantId, codigoInterno])
+  @@index([tenantId, estado])
+  @@index([tenantId, categoriaId])
+  @@index([tenantId, localizacaoId])
+  @@index([tenantId, responsavelId])
+  @@index([tenantId, createdAt])
+}
+
+model DocumentoAtivo {
+  id         String             @id @default(cuid())
+  tenantId   String
+  ativoId    String
+  nome       String
+  tipo       TipoDocumentoAtivo
+  url        String
+  dataUpload DateTime           @default(now())
+  createdAt  DateTime           @default(now())
+
+  ativo Ativo @relation(fields: [ativoId], references: [id])
+
+  @@index([tenantId, ativoId])
+}
+
+// Append-only. Conflito #10: campo confirmadaPor (corrigido typo confirmdadaPor)
+model MovimentacaoAtivo {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  ativoId               String
+  tipo                  TipoMovimentacaoAtivo
+  localizacaoOrigemId   String?
+  localizacaoDestinoId  String?
+  responsavelOrigemId   String?               // scalar FK → User
+  responsavelDestinoId  String?               // scalar FK → User
+  dataMovimentacao      DateTime
+  dataPrevisaoDevolucao DateTime?
+  motivo                String
+  observacoes           String?
+  guiaMovimentacao      String?
+  assinaturaDigital     String?
+  termoResponsabilidade String?
+  confirmada            Boolean               @default(false)
+  dataConfirmacao       DateTime?
+  confirmadaPor         String?               // scalar FK → User (#10: typo fix)
+  criadoPor             String                // scalar FK → User
+  createdAt             DateTime              @default(now())
+
+  ativo              Ativo        @relation(fields: [ativoId], references: [id])
+  localizacaoOrigem  Localizacao? @relation("MovimentacaoAtivoOrigem", fields: [localizacaoOrigemId], references: [id])
+  localizacaoDestino Localizacao? @relation("MovimentacaoAtivoDestino", fields: [localizacaoDestinoId], references: [id])
+
+  @@index([tenantId, ativoId, createdAt])
+  @@index([tenantId, tipo])
+  @@index([tenantId, confirmada])
+}
+
+// Conflito #10: StatusManutencaoAtivo sem duplicado EM_CURSO
+model ManutencaoAtivo {
+  id                             String                @id @default(cuid())
+  tenantId                       String
+  ativoId                        String
+  tipo                           TipoManutencaoAtivo
+  status                         StatusManutencaoAtivo @default(AGENDADA)
+  prioridade                     PrioridadeManutencao?
+  dataAgendada                   DateTime
+  dataInicio                     DateTime?
+  dataConclusao                  DateTime?
+  titulo                         String
+  descricao                      String
+  procedimentos                  String?
+  tecnicoId                      String?               // scalar FK → User/Colaborador (WS E)
+  responsavelId                  String?               // scalar FK → User
+  fornecedorId                   String?               // scalar FK → WS B Fornecedor
+  custoEstimado                  Decimal?              @db.Decimal(18, 2)
+  custoReal                      Decimal?              @db.Decimal(18, 2)
+  custoMaoObra                   Decimal?              @db.Decimal(18, 2)
+  custoPecas                     Decimal?              @db.Decimal(18, 2)
+  proximaManutencao              DateTime?
+  intervaloProximaManutencaoDias Int?
+  relatorio                      String?
+  fotos                          String[]
+  anexos                         String[]
+  observacoes                    String?
+  motivoCancelamento             String?
+  criadoPor                      String                // scalar FK → User
+  atualizadoPor                  String?               // scalar FK → User
+  createdAt                      DateTime              @default(now())
+  updatedAt                      DateTime              @updatedAt
+
+  ativo Ativo             @relation(fields: [ativoId], references: [id])
+  pecas PecaManutencao[]
+
+  @@index([tenantId, ativoId])
+  @@index([tenantId, status])
+  @@index([tenantId, tipo, status])
+  @@index([tenantId, dataAgendada])
+}
+
+// Peças/materiais consumidos numa manutenção.
+model PecaManutencao {
+  id            String   @id @default(cuid())
+  tenantId      String
+  manutencaoId  String
+  produtoId     String?  // FK intra-módulo (opcional: pode ser peça não catalogada)
+  nome          String
+  quantidade    Decimal  @db.Decimal(18, 2)
+  custoUnitario Decimal  @db.Decimal(18, 2)
+  custoTotal    Decimal  @db.Decimal(18, 2)
+
+  manutencao ManutencaoAtivo @relation(fields: [manutencaoId], references: [id])
+  produto    Produto?        @relation(fields: [produtoId], references: [id])
+
+  @@index([tenantId, manutencaoId])
+}
+
+// Append-only — cada mês gera uma linha de amortização.
+model AmortizacaoCalculo {
+  id                         String            @id @default(cuid())
+  tenantId                   String
+  ativoId                    String
+  ano                        Int
+  mes                        Int
+  valorInicial               Decimal           @db.Decimal(18, 2)
+  valorResidual              Decimal           @db.Decimal(18, 2)
+  vidaUtilAnos               Int
+  valorAmortizacaoMensal     Decimal           @db.Decimal(18, 2)
+  valorAmortizadoAcumulado   Decimal           @db.Decimal(18, 2)
+  valorLiquidoContabilistico Decimal           @db.Decimal(18, 2)
+  metodoAmortizacao          MetodoAmortizacao
+  contaDebitoId              String?           // scalar FK → WS D ContaPGC
+  contaCreditoId             String?           // scalar FK → WS D ContaPGC
+  lancamentoContabilId       String?           // scalar FK → WS D Lancamento
+  processadoPor              String            // scalar FK → User
+  processadoEm               DateTime
+  createdAt                  DateTime          @default(now())
+
+  ativo Ativo @relation(fields: [ativoId], references: [id])
+
+  @@unique([tenantId, ativoId, ano, mes])
+  @@index([tenantId, ativoId])
+  @@index([tenantId, ano, mes])
+}
+
+// ─── Inventário Físico ────────────────────────────────────────────────────────
+
+model InventarioFisico {
+  id                    String                 @id @default(cuid())
+  tenantId              String
+  codigo                String
+  titulo                String
+  descricao             String?
+  status                StatusInventarioFisico @default(PLANEJADO)
+  dataInicio            DateTime
+  dataPrevistaConclusao DateTime?
+  dataConclusao         DateTime?
+  localizacaoId         String?
+  responsavelId         String                 // scalar FK → User
+  localizacoesIncluidas String[]
+  categoriasIncluidas   String[]
+  totalAtivosEsperados  Int?
+  totalAtivosContados   Int?
+  totalDiscrepancias    Int?
+  ajustesRealizados     Boolean                @default(false)
+  dataAjustes           DateTime?
+  observacoes           String?
+  relatorio             String?
+  motivoCancelamento    String?
+  criadoPor             String                 // scalar FK → User
+  atualizadoPor         String?                // scalar FK → User
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  localizacao Localizacao?             @relation(fields: [localizacaoId], references: [id])
+  membros     MembroEquipeInventario[]
+  contagens   ContagemInventario[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+model MembroEquipeInventario {
+  id                     String   @id @default(cuid())
+  tenantId               String
+  inventarioId           String
+  userId                 String   // scalar FK → User
+  localizacoesAtribuidas String[]
+  createdAt              DateTime @default(now())
+
+  inventario InventarioFisico @relation(fields: [inventarioId], references: [id])
+
+  @@unique([inventarioId, userId])
+  @@index([tenantId, inventarioId])
+}
+
+model ContagemInventario {
+  id                        String                      @id @default(cuid())
+  tenantId                  String
+  inventarioId              String
+  ativoId                   String
+  localizacaoEsperadaId     String
+  responsavelEsperadoId     String?                     // scalar FK → User
+  estadoEsperado            EstadoAtivo
+  encontrado                Boolean                     @default(false)
+  localizacaoEncontradaId   String?
+  responsavelEncontradoId   String?                     // scalar FK → User
+  estadoEncontrado          EstadoAtivo?
+  dataContagem              DateTime?
+  contadoPorId              String?                     // scalar FK → User
+  observacoesContagem       String?
+  fotoContagem              String?
+  temDiscrepancia           Boolean                     @default(false)
+  tipoDiscrepancia          TipoDiscrepanciaInventario?
+  justificativaDiscrepancia String?
+  ajusteRealizado           Boolean                     @default(false)
+  dataAjuste                DateTime?
+  ajustadoPorId             String?                     // scalar FK → User
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+
+  inventario            InventarioFisico @relation(fields: [inventarioId], references: [id])
+  ativo                 Ativo            @relation(fields: [ativoId], references: [id])
+  localizacaoEsperada   Localizacao      @relation("ContagemLocalizacaoEsperada", fields: [localizacaoEsperadaId], references: [id])
+  localizacaoEncontrada Localizacao?     @relation("ContagemLocalizacaoEncontrada", fields: [localizacaoEncontradaId], references: [id])
+
+  @@unique([inventarioId, ativoId])
+  @@index([tenantId, inventarioId])
+  @@index([tenantId, ativoId])
+  @@index([tenantId, temDiscrepancia])
+}

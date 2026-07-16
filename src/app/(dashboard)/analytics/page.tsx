@@ -1,183 +1,373 @@
-'use client';
+/**
+ * Analytics — Server Component.
+ *
+ * Padrão: KPIs reais via kpi* do dashboardService; Suspense por domínio;
+ * gráficos carregados com dynamic() para evitar SSR do recharts.
+ * Zero mocks; zero cores hardcoded; zero Dialog.
+ */
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { getSystemModuleById } from '@/data/system-modules';
+import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import {
-  LineChart as LineChartIcon,
-  PieChart,
-  BarChart3,
-  AlertTriangle,
-  Download
+  TrendingUp,
+  Package,
+  ShoppingCart,
+  DollarSign,
+  Users,
+  Ticket,
+  Download,
 } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { dashboardService } from '@/server/services/plataforma/analytics.service';
+import { PageHeader, KpiCard } from '@/components/patterns';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Bar,
-  BarChart
-} from 'recharts';
+  GraficoVendasWrapper as GraficoVendas,
+  GraficoOperacoesWrapper as GraficoOperacoes,
+  GraficoFinancasWrapper as GraficoFinancas,
+} from './_components/graficos';
 
-const performanceSeries = [
-  { mes: 'Jan', vendas: 420, procurement: 310, financeiro: 210 },
-  { mes: 'Fev', vendas: 460, procurement: 280, financeiro: 250 },
-  { mes: 'Mar', vendas: 510, procurement: 320, financeiro: 270 },
-  { mes: 'Abr', vendas: 530, procurement: 300, financeiro: 280 },
-  { mes: 'Mai', vendas: 550, procurement: 340, financeiro: 300 },
-  { mes: 'Jun', vendas: 590, procurement: 360, financeiro: 315 }
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Skeletons
+// ─────────────────────────────────────────────────────────────────────────────
 
-const dashboards = [
-  { nome: 'Executivo', utilizacao: 92, fontes: 'Vendas, Finanças, Procurement' },
-  { nome: 'Operações', utilizacao: 81, fontes: 'Inventário, Transporte' },
-  { nome: 'Clientes', utilizacao: 74, fontes: 'CRM, Serviços, Tickets' }
-];
+function KpiSkeleton4() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="rounded-lg border p-5 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-16" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-const eventos = [
-  { titulo: 'Atualização DRE', detalhes: 'Novos indicadores enviados pelo módulo Financeiro', prioridade: 'normal' },
-  { titulo: 'Alerta de Stock', detalhes: 'Inventário reportou ruptura na província de Tete', prioridade: 'alto' },
-  { titulo: 'Nova métrica POS', detalhes: 'Latência média do POS adicionada ao data lake', prioridade: 'normal' }
-];
+function KpiSkeleton3() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-lg border p-5 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-16" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-const funilVendas = [
-  { etapa: 'Leads', valor: 1200 },
-  { etapa: 'Qualificados', valor: 640 },
-  { etapa: 'Propostas', valor: 310 },
-  { etapa: 'Ganho', valor: 180 }
-];
+function KpiSkeleton2() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {[1, 2].map((i) => (
+        <div key={i} className="rounded-lg border p-5 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-16" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-export default function AnalyticsDashboardPage() {
-  const moduleInfo = getSystemModuleById('analytics');
+// ─────────────────────────────────────────────────────────────────────────────
+// Secções assíncronas por domínio
+// ─────────────────────────────────────────────────────────────────────────────
 
-  if (!moduleInfo) {
-    return null;
-  }
+async function KpisVendas({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const kpi = await dashboardService.kpiVendas({ tenantId, userId });
+  const variacao = parseFloat(kpi.variacaoPercent);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold">{moduleInfo.title}</h1>
-          <Badge variant="outline" className="text-xs">
-            {moduleInfo.springModule}
-          </Badge>
-        </div>
-        <p className="text-muted-foreground max-w-3xl">{moduleInfo.description}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button>
-            <Download className="mr-2 h-4 w-4" />Exportar Relatório
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Vendas do Mês"
+          value={`MT ${parseFloat(kpi.totalVendasMes).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+          delta={isNaN(variacao) ? undefined : variacao}
+          deltaLabel="vs. ano anterior"
+          icon={<TrendingUp className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Nº de Vendas"
+          value={String(kpi.quantidadeVendas)}
+          icon={<TrendingUp className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Ticket Médio"
+          value={`MT ${parseFloat(kpi.ticketMedio).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+          icon={<TrendingUp className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Clientes Activos (90d)"
+          value={String(kpi.clientesAtivos)}
+          description={`Comissões a pagar: MT ${parseFloat(kpi.comissoesDevidas).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+          icon={<Users className="h-5 w-5" />}
+        />
+      </div>
+      <GraficoVendas
+        totalVendasMes={kpi.totalVendasMes}
+        totalVendasAnoAnterior={kpi.totalVendasAnoAnterior}
+        quantidadeVendas={kpi.quantidadeVendas}
+      />
+    </div>
+  );
+}
+
+async function KpisStock({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const kpi = await dashboardService.kpiStock({ tenantId, userId });
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard
+        title="Valor Total em Stock"
+        value={`MT ${parseFloat(kpi.valorTotalStock).toLocaleString('pt-MZ', { minimumFractionDigits: 0 })}`}
+        icon={<Package className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Produtos Abaixo Mínimo"
+        value={String(kpi.produtosAbaixoMinimo)}
+        icon={<Package className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Rotatividade (30d)"
+        value={`${parseFloat(kpi.rotatividade30d).toFixed(1)}%`}
+        icon={<Package className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Sem Movimento (90d)"
+        value={String(kpi.produtosSemMovimento90d)}
+        icon={<Package className="h-5 w-5" />}
+      />
+    </div>
+  );
+}
+
+async function KpisCompras({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const kpi = await dashboardService.kpiCompras({ tenantId, userId });
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard
+        title="Compras do Mês"
+        value={`MT ${parseFloat(kpi.totalComprasMes).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+        icon={<ShoppingCart className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Pedidos Pendentes"
+        value={String(kpi.pedidosPendentes)}
+        icon={<ShoppingCart className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Contas a Pagar Vencidas"
+        value={`MT ${parseFloat(kpi.contasAPagarVencidas).toLocaleString('pt-MZ', { minimumFractionDigits: 0 })}`}
+        icon={<ShoppingCart className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Aging Médio"
+        value={`${kpi.agingMediaDias} dias`}
+        description="Média de dias em atraso"
+        icon={<ShoppingCart className="h-5 w-5" />}
+      />
+    </div>
+  );
+}
+
+async function KpisFinancas({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const kpi = await dashboardService.kpiFinancas({ tenantId, userId });
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Saldo de Caixa"
+          value={`MT ${parseFloat(kpi.saldoCaixaAtual).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+          icon={<DollarSign className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Receita do Mês"
+          value={`MT ${parseFloat(kpi.receitaMes).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+          icon={<DollarSign className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Despesa do Mês"
+          value={`MT ${parseFloat(kpi.despesaMes).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+          icon={<DollarSign className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Resultado Líquido"
+          value={`MT ${parseFloat(kpi.resultadoLiquido).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+          description={`Reconciliação: ${kpi.reconciliacaoRatio}`}
+          icon={<DollarSign className="h-5 w-5" />}
+        />
+      </div>
+      <GraficoFinancas
+        receitaMes={kpi.receitaMes}
+        despesaMes={kpi.despesaMes}
+        resultadoLiquido={kpi.resultadoLiquido}
+      />
+    </div>
+  );
+}
+
+async function KpisRH({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const kpi = await dashboardService.kpiRH({ tenantId, userId });
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <KpiCard
+        title="Colaboradores Activos"
+        value={String(kpi.colaboradoresAtivos)}
+        description={`${kpi.ausenciasHoje} ausências hoje`}
+        icon={<Users className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Férias Pendentes"
+        value={String(kpi.feriasPendentesAprovacao)}
+        description="Aguardam aprovação"
+        icon={<Users className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Projectos em Curso"
+        value={String(kpi.projetosEmCurso)}
+        description={`${parseFloat(kpi.timesheetHorasMes).toFixed(0)}h registadas no mês`}
+        icon={<Users className="h-5 w-5" />}
+      />
+    </div>
+  );
+}
+
+async function KpisOperacoes({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const kpi = await dashboardService.kpiOperacoes({ tenantId, userId });
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Tickets Abertos"
+          value={String(kpi.ticketsAbertos)}
+          icon={<Ticket className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Dentro de SLA"
+          value={String(kpi.ticketsDentroSLA)}
+          icon={<Ticket className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Fora de SLA"
+          value={String(kpi.ticketsForaSLA)}
+          icon={<Ticket className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Actividades Hoje"
+          value={String(kpi.atividadesHoje)}
+          description={`${kpi.viaturaDisponiveis} viaturas disponíveis`}
+          icon={<Ticket className="h-5 w-5" />}
+        />
+      </div>
+      <GraficoOperacoes
+        ticketsAbertos={kpi.ticketsAbertos}
+        ticketsDentroSLA={kpi.ticketsDentroSLA}
+        ticketsForaSLA={kpi.ticketsForaSLA}
+        viaturaDisponiveis={kpi.viaturaDisponiveis}
+        viaturaEmMissao={kpi.viaturaEmMissao}
+        viaturaEmManutencao={kpi.viaturaEmManutencao}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Página principal — Server Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function AnalyticsPage(_props: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  return (
+    <div className="p-6 space-y-8">
+      <PageHeader
+        title="Analytics"
+        description="Indicadores de desempenho de todos os domínios do sistema"
+        breadcrumbs={[{ label: 'Analytics' }]}
+        actions={
+          <Button variant="outline" size="sm">
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Relatório
           </Button>
-          <Button variant="outline">
-            <LineChartIcon className="mr-2 h-4 w-4" />Criar Dashboard
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {moduleInfo.responsibilities.map((responsibility) => (
-          <Card key={responsibility}>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Responsabilidade</p>
-              <p className="font-semibold mt-1">{responsibility}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Vendas */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
+          Vendas &amp; Comercial
+        </h2>
+        <Suspense fallback={<KpiSkeleton4 />}>
+          <KpisVendas tenantId={tenantId} userId={userId} />
+        </Suspense>
+      </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle>Tendência de Métricas por Contexto</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={performanceSeries}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="mes" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="vendas" stroke="#ec4899" strokeWidth={2} />
-                <Line type="monotone" dataKey="procurement" stroke="#a855f7" strokeWidth={2} />
-                <Line type="monotone" dataKey="financeiro" stroke="#0ea5e9" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* Stock */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
+          Inventário &amp; Stock
+        </h2>
+        <Suspense fallback={<KpiSkeleton4 />}>
+          <KpisStock tenantId={tenantId} userId={userId} />
+        </Suspense>
+      </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Utilização de Dashboards</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {dashboards.map((dashboard) => (
-              <div key={dashboard.nome} className="rounded-lg border p-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold">{dashboard.nome}</p>
-                  <Badge variant="secondary">{dashboard.utilizacao}%</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{dashboard.fontes}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Compras */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
+          Compras &amp; Fornecedores
+        </h2>
+        <Suspense fallback={<KpiSkeleton4 />}>
+          <KpisCompras tenantId={tenantId} userId={userId} />
+        </Suspense>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Eventos de Dados</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {eventos.map((evento) => (
-              <div key={evento.titulo} className="flex items-start gap-3">
-                <div className={`rounded-full p-2 ${evento.prioridade === 'alto' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="font-semibold">{evento.titulo}</p>
-                  <p className="text-sm text-muted-foreground">{evento.detalhes}</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      {/* Finanças */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
+          Finanças &amp; Caixa
+        </h2>
+        <Suspense fallback={<KpiSkeleton4 />}>
+          <KpisFinancas tenantId={tenantId} userId={userId} />
+        </Suspense>
+      </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Funil de Conversão (Vendas &amp; POS)</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={funilVendas} layout="vertical" barSize={24}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="etapa" width={90} />
-                <Tooltip />
-                <Bar dataKey="valor" fill="#0ea5e9" radius={[4, 4, 4, 4]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+      {/* RH */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
+          Recursos Humanos
+        </h2>
+        <Suspense fallback={<KpiSkeleton3 />}>
+          <KpisRH tenantId={tenantId} userId={userId} />
+        </Suspense>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Modelos Disponíveis</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-muted-foreground">
-          {moduleInfo.typescriptModels.map((model) => (
-            <div key={model} className="rounded-lg border p-3">
-              <p className="font-semibold text-gray-900 dark:text-gray-100">{model}</p>
-              <p>Consumido por relatórios e dashboards cross-módulo.</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      {/* Operações */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">
+          Operações &amp; Transporte
+        </h2>
+        <Suspense fallback={<KpiSkeleton4 />}>
+          <KpisOperacoes tenantId={tenantId} userId={userId} />
+        </Suspense>
+      </section>
     </div>
   );
 }

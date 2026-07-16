@@ -1,11 +1,6 @@
+import { redirect } from 'next/navigation';
 
-import { Suspense } from 'react';
-import { EquipaContent } from './equipa-content';
-
+// Rota antiga — redireciona para a rota canónica /projetos/equipas
 export default function EquipaPage() {
-  return (
-    <Suspense fallback={<div className="container mx-auto p-6">Carregando...</div>}>
-      <EquipaContent />
-    </Suspense>
-  );
+  redirect('/projetos/equipas');
 }

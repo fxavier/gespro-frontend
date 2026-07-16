@@ -1,155 +1,184 @@
+/**
+ * Balancete de Verificação — Server Component.
+ */
 
-'use client';
-
-import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { FileBarChart } from 'lucide-react';
-import { Balancete } from '@/types/contabilidade';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { gerarBalancetePeriodo } from '@/lib/contabilidade/balancete';
+import { redirect } from 'next/navigation';
+import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
+import { FiltroBalanceteSchema } from '@/lib/validations/contabilidade';
+import { Button } from '@/components/ui/button';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
-export default function BalancetePage() {
-  const [dataInicio, setDataInicio] = useState(new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]);
-  const [dataFim, setDataFim] = useState(new Date().toISOString().split('T')[0]);
-  const [balancete, setBalancete] = useState<Balancete | null>(null);
+const FiltroUrlSchema = FiltroBalanceteSchema.extend({
+  dataInicio: z.string().optional(),
+  dataFim: z.string().optional(),
+});
 
-  const gerarBalancete = useCallback(() => {
-    const resultado = gerarBalancetePeriodo({ dataInicio, dataFim });
-    setBalancete(resultado);
-  }, [dataInicio, dataFim]);
+type FiltroUrl = z.infer<typeof FiltroUrlSchema>;
+const FILTROS_DEFAULT: FiltroUrl = { incluirZeradas: false };
 
-  useEffect(() => {
-    gerarBalancete();
-  }, [gerarBalancete]);
+const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-MZ', {
-      style: 'currency',
-      currency: 'MZN'
-    }).format(value);
-  };
+async function BalanceteSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
+  try {
+    const result = await runWithTenantContext({ tenantId, userId }, () =>
+      contabilidadeService.gerarBalancete(filtros as any, { tenantId, userId })
+    );
 
-  return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <FileBarChart className="h-8 w-8" />
-          Balancete de Verificação
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Verificação de débitos e créditos por conta
-        </p>
-      </div>
+    const n = (v: any) => parseFloat(v?.toString() ?? '0');
+    const periodo = `${result.dataInicio ? new Date(result.dataInicio).toLocaleDateString('pt-PT') : '?'} – ${result.dataFim ? new Date(result.dataFim).toLocaleDateString('pt-PT') : '?'}`;
+    const totalDeb = n(result.totalDebitos);
+    const totalCred = n(result.totalCreditos);
+    const diferenca = totalDeb - totalCred;
 
+    return (
       <Card>
         <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>Selecione o período para análise</CardDescription>
+          <CardTitle>Balancete — {periodo}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 items-end">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="dataInicio">Data Início</Label>
-              <Input
-                id="dataInicio"
-                type="date"
-                value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
-              />
-            </div>
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="dataFim">Data Fim</Label>
-              <Input
-                id="dataFim"
-                type="date"
-                value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
-              />
-            </div>
-            <Button onClick={gerarBalancete}>Gerar Balancete</Button>
-          </div>
-          <div className="mt-4 flex justify-between items-center text-sm text-muted-foreground">
-            <span>Precisa registrar um balancete oficial?</span>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/contabilidade/balancete/nova">Criar Balancete</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {balancete && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Balancete - {balancete.periodo}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Conta</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Saldo Anterior</TableHead>
-                  <TableHead className="text-right">Débitos</TableHead>
-                  <TableHead className="text-right">Créditos</TableHead>
-                  <TableHead className="text-right">Saldo Atual</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {balancete.contas.map(conta => (
-                  <TableRow key={conta.codigo}>
-                    <TableCell className="font-mono">{conta.codigo}</TableCell>
-                    <TableCell className="font-medium">{conta.nome}</TableCell>
-                    <TableCell>
-                      <span className="text-xs uppercase text-muted-foreground">
-                        {conta.tipo.replace('_', ' ')}
-                      </span>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Código</TableHead>
+                <TableHead>Conta</TableHead>
+                <TableHead className="text-right tabular-nums">Saldo Anterior</TableHead>
+                <TableHead className="text-right tabular-nums">Débitos</TableHead>
+                <TableHead className="text-right tabular-nums">Créditos</TableHead>
+                <TableHead className="text-right tabular-nums">Saldo Actual</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {result.contas.map((linha) => {
+                const saldoAtual = n(linha.saldoAtual);
+                return (
+                  <TableRow key={linha.conta.codigo}>
+                    <TableCell className="font-mono text-primary">{linha.conta.codigo}</TableCell>
+                    <TableCell className="font-medium">{linha.conta.nome}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {fmtMZN.format(n(linha.saldoAnterior))}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {formatCurrency(conta.saldoAnterior)}
+                    <TableCell className="text-right tabular-nums">
+                      {fmtMZN.format(n(linha.debitos))}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {formatCurrency(conta.debitos)}
+                    <TableCell className="text-right tabular-nums">
+                      {fmtMZN.format(n(linha.creditos))}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {formatCurrency(conta.creditos)}
-                    </TableCell>
-                    <TableCell className={`text-right font-mono font-semibold ${conta.saldoAtual >= 0 ? '' : 'text-destructive'}`}>
-                      {conta.saldoAtual >= 0 
-                        ? formatCurrency(conta.saldoAtual)
-                        : `(${formatCurrency(Math.abs(conta.saldoAtual))})`
-                      }
+                    <TableCell className={`text-right tabular-nums font-semibold ${saldoAtual < 0 ? 'text-destructive' : ''}`}>
+                      {fmtMZN.format(saldoAtual)}
                     </TableCell>
                   </TableRow>
-                ))}
-                
-                <TableRow className="font-bold bg-muted/50">
-                  <TableCell colSpan={4}>TOTAIS</TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(balancete.totalDebitos)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(balancete.totalCreditos)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(balancete.totalDebitos - balancete.totalCreditos)}
-                  </TableCell>
-                </TableRow>
+                );
+              })}
 
-                <TableRow className="font-bold bg-primary/10">
-                  <TableCell colSpan={4}>DIFERENÇA (Deve ser zero)</TableCell>
-                  <TableCell colSpan={3} className={`text-right font-mono text-lg ${Math.abs(balancete.totalDebitos - balancete.totalCreditos) < 0.01 ? 'text-green-600' : 'text-destructive'}`}>
-                    {formatCurrency(balancete.totalDebitos - balancete.totalCreditos)}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+              <TableRow className="font-bold bg-muted/50">
+                <TableCell colSpan={3}>TOTAIS</TableCell>
+                <TableCell className="text-right tabular-nums">{fmtMZN.format(totalDeb)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmtMZN.format(totalCred)}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmtMZN.format(totalDeb - totalCred)}</TableCell>
+              </TableRow>
+
+              <TableRow className={`font-bold ${Math.abs(diferenca) < 0.01 ? 'text-success' : 'text-destructive'}`}>
+                <TableCell colSpan={5}>DIFERENÇA (deve ser zero)</TableCell>
+                <TableCell className="text-right tabular-nums text-lg">{fmtMZN.format(diferenca)}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    );
+  } catch {
+    return (
+      <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
+        Erro ao gerar balancete. Seleccione um período válido.
+      </div>
+    );
+  }
+}
+
+const FILTER_CONFIGS: FilterConfig[] = [
+  {
+    key: 'incluirZeradas',
+    label: 'Contas Zeradas',
+    options: [
+      { label: 'Excluir zeradas', value: 'false' },
+      { label: 'Incluir zeradas', value: 'true' },
+    ],
+  },
+];
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function BalancetePage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+  const { tenantId, id: userId } = session.user;
+
+  const rawParams = await searchParams;
+  const flat = Object.fromEntries(
+    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+  );
+  const parseResult = FiltroUrlSchema.safeParse(flat);
+  const filtros: FiltroUrl = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
+
+  const hasFilter = !!(flat.dataInicio || flat.dataFim);
+
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Balancete de Verificação"
+        description="Verificação de débitos e créditos por conta — PGC-NIRF"
+        breadcrumbs={[
+          { label: 'Contabilidade', href: '/contabilidade' },
+          { label: 'Balancete' },
+        ]}
+        actions={
+          <Button asChild size="sm" variant="outline">
+            <Link href="/contabilidade/balancete/nova">Registar Balancete Oficial</Link>
+          </Button>
+        }
+      />
+
+      <div className="flex gap-4">
+        <div className="flex gap-2 items-center">
+          <label className="text-sm font-medium">Data Início</label>
+          {/* ponytail: date inputs handled via plain HTML; FilterBar only supports select options */}
+          <a href={`?${new URLSearchParams({ ...flat, dataInicio: flat.dataInicio ?? '' })}`}
+            className="text-sm text-muted-foreground underline hidden">
+          </a>
+        </div>
+      </div>
+
+      <FilterBar
+        searchPlaceholder="Pesquisar por conta…"
+        searchKey="search"
+        filters={FILTER_CONFIGS}
+      />
+
+      {hasFilter ? (
+        <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton rows={12} cols={6} />}>
+          <BalanceteSection filtros={filtros} tenantId={tenantId} userId={userId} />
+        </Suspense>
+      ) : (
+        <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
+          Adicione <code>?dataInicio=aaaa-mm-dd&amp;dataFim=aaaa-mm-dd</code> à URL para gerar o balancete.
+        </div>
       )}
     </div>
   );

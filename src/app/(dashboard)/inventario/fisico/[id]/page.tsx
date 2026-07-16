@@ -1,266 +1,310 @@
-'use client';
+/**
+ * Detalhe de Inventário Físico — Server Component (NUNCA 'use client').
+ * Dados reais via inventarioFisicoService.obterInventario().
+ */
 
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { inventarioFisicoService } from '@/server/services/inventario/inventario-fisico.service';
+import { stockService } from '@/server/services/inventario/stock.service';
+import { DetailShell, PageHeader, StatusBadge } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { inventariosFisicosMock } from '@/data/inventarios-fisicos';
-import type { InventarioFisico } from '@/types/inventario';
-import {
-  ArrowLeft,
-  ClipboardList,
-  Calendar,
-  MapPin,
-  Users,
-  AlertTriangle,
-  CheckCircle,
-  PauseCircle,
-  StopCircle,
-  RefreshCw,
-  FileText,
-  BarChart3,
-  Activity
-} from 'lucide-react';
+import { Edit, ClipboardList, Users, AlertTriangle } from 'lucide-react';
+import type { InventarioFisicoDto } from '@/server/services/inventario/inventario-fisico.interface';
 
-const statusConfig: Record<InventarioFisico['status'], { label: string; variant: 'default' | 'secondary' | 'destructive'; icon: React.ComponentType<{ className?: string }> }> = {
-  planejado: { label: 'Planeado', variant: 'secondary', icon: Calendar },
-  agendado: { label: 'Agendado', variant: 'secondary', icon: Calendar },
-  em_andamento: { label: 'Em andamento', variant: 'default', icon: RefreshCw },
-  pausado: { label: 'Pausado', variant: 'secondary', icon: PauseCircle },
-  concluido: { label: 'Concluído', variant: 'default', icon: CheckCircle },
-  cancelado: { label: 'Cancelado', variant: 'destructive', icon: StopCircle }
+const STATUS_VARIANTES: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  PLANEJADO: 'outline',
+  AGENDADO: 'secondary',
+  EM_ANDAMENTO: 'default',
+  PAUSADO: 'secondary',
+  CONCLUIDO: 'default',
+  CANCELADO: 'destructive',
 };
 
-const formatDate = (value?: Date | string) => {
-  if (!value) return '-';
-  const date = value instanceof Date ? value : new Date(value);
-  return date.toLocaleDateString('pt-MZ');
+const STATUS_LABELS: Record<string, string> = {
+  PLANEJADO: 'Planeado',
+  AGENDADO: 'Agendado',
+  EM_ANDAMENTO: 'Em andamento',
+  PAUSADO: 'Pausado',
+  CONCLUIDO: 'Concluído',
+  CANCELADO: 'Cancelado',
 };
+
+function formatDate(value: Date | null | undefined): string {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('pt-MZ');
+}
+
+function DetalhesTab({ inv, localizacaoNome }: { inv: InventarioFisicoDto; localizacaoNome: string | null }) {
+  const progresso =
+    inv.totalAtivosEsperados && inv.totalAtivosEsperados > 0
+      ? Math.round(((inv.totalAtivosContados ?? 0) / inv.totalAtivosEsperados) * 100)
+      : null;
+
+  return (
+    <div className="space-y-4">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Ativos esperados</p>
+            <p className="text-2xl font-bold tabular-nums">{inv.totalAtivosEsperados ?? '—'}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Contados</p>
+            <p className="text-2xl font-bold tabular-nums">{inv.totalAtivosContados ?? '—'}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Discrepâncias</p>
+            <p className="text-2xl font-bold tabular-nums">{inv.totalDiscrepancias ?? '—'}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Progresso</p>
+            <p className="text-2xl font-bold tabular-nums">{progresso !== null ? `${progresso}%` : '—'}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Info geral */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Informações Gerais
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {inv.descricao && (
+            <>
+              <div>
+                <p className="text-xs text-muted-foreground">Descrição</p>
+                <p className="text-sm">{inv.descricao}</p>
+              </div>
+              <Separator />
+            </>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Data de início</p>
+              <p className="text-sm font-medium">{formatDate(inv.dataInicio)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Data prevista de conclusão</p>
+              <p className="text-sm font-medium">{formatDate(inv.dataPrevistaConclusao)}</p>
+            </div>
+            {inv.dataConclusao && (
+              <div>
+                <p className="text-xs text-muted-foreground">Concluído em</p>
+                <p className="text-sm font-medium">{formatDate(inv.dataConclusao)}</p>
+              </div>
+            )}
+            {localizacaoNome && (
+              <div>
+                <p className="text-xs text-muted-foreground">Localização principal</p>
+                <p className="text-sm font-medium">{localizacaoNome}</p>
+              </div>
+            )}
+            {inv.ajustesRealizados && (
+              <div>
+                <p className="text-xs text-muted-foreground">Ajustes realizados em</p>
+                <p className="text-sm font-medium">{formatDate(inv.dataAjustes)}</p>
+              </div>
+            )}
+          </div>
+          {inv.observacoes && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-xs text-muted-foreground">Observações</p>
+                <p className="text-sm">{inv.observacoes}</p>
+              </div>
+            </>
+          )}
+          {inv.motivoCancelamento && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-xs text-muted-foreground">Motivo de cancelamento</p>
+                <p className="text-sm text-destructive">{inv.motivoCancelamento}</p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MembrosTab({ inv }: { inv: InventarioFisicoDto }) {
+  if (inv.membros.length === 0) {
+    return (
+      <div className="rounded-lg border p-8 text-center text-muted-foreground">
+        <Users className="h-8 w-8 mx-auto mb-2 opacity-40" />
+        <p className="text-sm">Nenhum membro atribuído.</p>
+      </div>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Equipa ({inv.membros.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-2">
+          {inv.membros.map((m) => (
+            <li key={m.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
+              <span className="text-sm font-mono text-muted-foreground">{m.userId}</span>
+              {m.localizacoesAtribuidas.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {m.localizacoesAtribuidas.length} localização(ões)
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DiscrepanciasTab({ inv }: { inv: InventarioFisicoDto }) {
+  const total = inv.totalDiscrepancias ?? 0;
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Resumo de Discrepâncias
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {total === 0 ? (
+            <p className="text-sm text-muted-foreground">Sem discrepâncias registadas.</p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm">
+                <span className="font-medium tabular-nums">{total}</span> discrepância(s) encontrada(s).
+              </p>
+              {inv.ajustesRealizados && (
+                <p className="text-sm text-muted-foreground">
+                  Ajustes realizados a {formatDate(inv.dataAjustes)}.
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function InventarioFisicoDetalhePage({ params }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
   const { id } = await params;
-  const inventario = inventariosFisicosMock.find((item) => item.id === id);
 
-  if (!inventario) {
-    notFound();
-  }
-
-  const statusInfo = statusConfig[inventario.status];
-  const progresso = inventario.totalItens
-    ? Math.round(((inventario.itensContados ?? 0) / inventario.totalItens) * 100)
-    : 0;
-
-  const divergencias = inventario.divergenciasEncontradas
-    ? Array.from({ length: inventario.divergenciasEncontradas }).map((_, index) => ({
-        id: `DIV-${inventario.codigo}-${index + 1}`,
-        descricao: 'Item divergente identificado durante a contagem',
-        responsavel: inventario.responsavelNome,
-        status: index % 2 === 0 ? 'Resolvida' : 'Em análise'
-      }))
-    : [];
-
-  const tarefas = [
-    { etapa: 'Planeamento', responsavel: inventario.responsavelNome, status: 'Concluído', data: inventario.dataInicio },
-    {
-      etapa: 'Contagem física',
-      responsavel: 'Equipa de Inventário',
-      status: inventario.status === 'concluido' ? 'Concluído' : inventario.status === 'agendado' ? 'Pendente' : 'Em andamento',
-      data: inventario.dataInicio
-    },
-    {
-      etapa: 'Análise de divergências',
-      responsavel: 'Controladoria',
-      status: inventario.status === 'concluido' ? 'Concluído' : 'Pendente',
-      data: inventario.dataPrevistaConclusao
+  const inv = await runWithTenantContext({ tenantId, userId }, async () => {
+    try {
+      return await inventarioFisicoService.obterInventario(id, { tenantId, userId });
+    } catch {
+      return null;
     }
-  ];
+  });
+
+  if (!inv) notFound();
+
+  // Enriquecer com nome de localização se existir
+  const localizacaoNome = inv.localizacaoId
+    ? await runWithTenantContext({ tenantId, userId }, async () => {
+        try {
+          const loc = await stockService.obterLocalizacao(inv.localizacaoId!, { tenantId, userId });
+          return loc.nome;
+        } catch {
+          return null;
+        }
+      })
+    : null;
+
+  const statusVariant = STATUS_VARIANTES[inv.status] ?? 'secondary';
+  const statusLabel = STATUS_LABELS[inv.status] ?? inv.status;
+
+  const isEditable = inv.status !== 'CONCLUIDO' && inv.status !== 'CANCELADO';
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/inventario/fisico">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <h1 className="text-3xl font-bold">{inventario.titulo}</h1>
-            <Badge variant={statusInfo.variant} className="flex items-center gap-1">
-              <statusInfo.icon className="h-4 w-4" />
-              {statusInfo.label}
-            </Badge>
-          </div>
-          <p className="text-muted-foreground mt-1 ml-12">Código {inventario.codigo}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <FileText className="h-4 w-4 mr-2" />
-            Gerar Relatório
-          </Button>
-          <Button variant="outline">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Exportar
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Progresso</p>
-            <p className="text-2xl font-bold">{progresso}%</p>
-            <Progress value={progresso} className="mt-2" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Itens contados</p>
-            <p className="text-2xl font-bold">{inventario.itensContados}/{inventario.totalItens}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Itens pendentes</p>
-            <p className="text-2xl font-bold">{inventario.itensPendentes}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Divergências</p>
-            <p className="text-2xl font-bold">{inventario.divergenciasEncontradas}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              Informações Gerais
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Descrição</p>
-                <p>{inventario.descricao}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Localização</p>
-                <p className="font-semibold">{inventario.localizacaoNome}</p>
-              </div>
-            </div>
-            <Separator />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-blue-600" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Responsável</p>
-                  <p className="font-semibold">{inventario.responsavelNome}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-green-600" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Data prevista</p>
-                  <p className="font-semibold">{formatDate(inventario.dataPrevistaConclusao)}</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Cronograma
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Etapa</TableHead>
-                  <TableHead>Responsável</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Data</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tarefas.map((tarefa) => (
-                  <TableRow key={tarefa.etapa}>
-                    <TableCell className="font-medium">{tarefa.etapa}</TableCell>
-                    <TableCell>{tarefa.responsavel}</TableCell>
-                    <TableCell>
-                      <Badge variant={tarefa.status === 'Concluído' ? 'default' : tarefa.status === 'Em andamento' ? 'secondary' : 'outline'}>
-                        {tarefa.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(tarefa.data)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
-            Divergências
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {divergencias.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma divergência registada.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {divergencias.map((div) => (
-                  <TableRow key={div.id}>
-                    <TableCell className="font-medium">{div.id}</TableCell>
-                    <TableCell>{div.descricao}</TableCell>
-                    <TableCell>
-                      <Badge variant={div.status === 'Resolvida' ? 'default' : 'secondary'}>{div.status}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {inventario.observacoes && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Observações</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{inventario.observacoes}</p>
-          </CardContent>
-        </Card>
-      )}
+    <div className="p-6">
+      <DetailShell
+        header={
+          <PageHeader
+            title={inv.titulo}
+            description={`Código: ${inv.codigo}`}
+            breadcrumbs={[
+              { label: 'Inventário', href: '/inventario' },
+              { label: 'Inventário Físico', href: '/inventario/fisico' },
+              { label: inv.codigo },
+            ]}
+            badge={<StatusBadge status={inv.status} variant={statusVariant} label={statusLabel} />}
+            actions={
+              isEditable ? (
+                <Button asChild size="sm">
+                  <Link href={`/inventario/fisico/${id}/editar`}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Editar
+                  </Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        }
+        tabs={[
+          {
+            key: 'detalhes',
+            label: 'Detalhes',
+            content: <DetalhesTab inv={inv} localizacaoNome={localizacaoNome} />,
+          },
+          {
+            key: 'membros',
+            label: 'Equipa',
+            count: inv.membros.length,
+            content: <MembrosTab inv={inv} />,
+          },
+          {
+            key: 'discrepancias',
+            label: 'Discrepâncias',
+            count: inv.totalDiscrepancias ?? 0,
+            content: <DiscrepanciasTab inv={inv} />,
+          },
+        ]}
+        metadata={[
+          { label: 'Estado', value: <StatusBadge status={inv.status} variant={statusVariant} label={statusLabel} /> },
+          { label: 'Data de início', value: formatDate(inv.dataInicio) },
+          {
+            label: 'Data prevista',
+            value: formatDate(inv.dataPrevistaConclusao),
+          },
+          { label: 'Criado em', value: formatDate(inv.createdAt) },
+          { label: 'Atualizado em', value: formatDate(inv.updatedAt) },
+        ]}
+      />
     </div>
   );
 }

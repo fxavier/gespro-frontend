@@ -1,229 +1,116 @@
+/**
+ * Relatórios de Tickets — Server Component.
+ * Dashboard de métricas resumidas.
+ */
 
-'use client';
-
-import { useState, useEffect } from 'react';
+import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
+import { BarChart3, Ticket, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { ticketService } from '@/server/services/operacoes/ticket.service';
+import { KpiCard, PageHeader } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TicketStorage, CategoriaTicketStorage } from '@/lib/storage/ticket-storage';
-import { Ticket } from '@/types/ticket';
-import { FileSpreadsheet, Download, TrendingUp, Clock, Star, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+function KpiSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Card key={i}><CardContent className="p-5"><Skeleton className="h-8 w-24" /></CardContent></Card>
+      ))}
+    </div>
+  );
+}
 
-export default function RelatoriosTickets() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
+async function RelatorioKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [todos, emAtraso, resolvidos, urgentes] = await Promise.all([
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets({ take: 200, orderBy: 'createdAt', order: 'desc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets({ slaEmAtraso: true, take: 200, orderBy: 'createdAt', order: 'desc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets({ estado: 'RESOLVIDO', take: 200, orderBy: 'createdAt', order: 'desc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets({ prioridade: 'URGENTE', take: 200, orderBy: 'createdAt', order: 'desc' }, ctx)
+    ),
+  ]);
 
-  const loadData = () => {
-    setLoading(true);
-    const ticketsData = TicketStorage.getTickets();
-    setTickets(ticketsData);
-    setLoading(false);
-  };
+  const total = todos.items.length;
+  const slaAtraso = emAtraso.items.length;
+  const totalResolvidos = resolvidos.items.length;
+  const totalUrgentes = urgentes.items.length;
 
-  const stats = {
-    total: tickets.length,
-    resolvidos: tickets.filter(t => ['resolvido', 'fechado'].includes(t.status)).length,
-    emAtraso: tickets.filter(t => t.sla.emAtraso).length,
-    avaliacaoMedia: tickets.filter(t => t.avaliacao).reduce((acc, t) => acc + (t.avaliacao?.nota || 0), 0) / 
-                    tickets.filter(t => t.avaliacao).length || 0
-  };
-
-  const porCategoria = CategoriaTicketStorage.getCategorias().map(cat => ({
-    name: cat.nome,
-    value: tickets.filter(t => t.categoria === cat.nome).length
-  }));
-
-  const porMes = [
-    { mes: 'Jan', tickets: 45 },
-    { mes: 'Fev', tickets: 52 },
-    { mes: 'Mar', tickets: 48 },
-    { mes: 'Abr', tickets: 61 },
-    { mes: 'Mai', tickets: 55 },
-    { mes: 'Jun', tickets: 67 }
-  ];
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Carregando relatórios...</p>
-        </div>
-      </div>
-    );
-  }
+  const taxaResolucao = total > 0 ? Math.round((totalResolvidos / total) * 100) : 0;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <FileSpreadsheet className="h-8 w-8" />
-            Relatórios de Tickets
-          </h1>
-          <p className="text-muted-foreground">Análises e métricas de desempenho</p>
-        </div>
-        <Button>
-          <Download className="mr-2 h-4 w-4" />
-          Exportar Relatório
-        </Button>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Tickets</CardTitle>
-            <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              Todos os períodos
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxa de Resolução</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.total > 0 ? ((stats.resolvidos / stats.total) * 100).toFixed(1) : 0}%
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.resolvidos} resolvidos
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cumprimento SLA</CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.total > 0 ? (((stats.total - stats.emAtraso) / stats.total) * 100).toFixed(1) : 0}%
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.emAtraso} em atraso
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Satisfação Média</CardTitle>
-            <Star className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.avaliacaoMedia.toFixed(1)}/5</div>
-            <p className="text-xs text-muted-foreground">
-              Baseado em avaliações
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tickets por Mês</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={porMes}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="mes" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="tickets" stroke="#3b82f6" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Distribuição por Categoria</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={porCategoria}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {porCategoria.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard title="Total de Tickets" value={String(total)} icon={<Ticket className="h-5 w-5" />} />
+        <KpiCard title="Taxa de Resolução" value={`${taxaResolucao}%`} icon={<CheckCircle className="h-5 w-5" />} />
+        <KpiCard title="SLA em Atraso" value={String(slaAtraso)} icon={<AlertTriangle className="h-5 w-5" />} />
+        <KpiCard title="Urgentes" value={String(totalUrgentes)} icon={<Clock className="h-5 w-5" />} />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Resumo Executivo</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Distribuição por Estado
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <h3 className="font-semibold">Desempenho Geral</h3>
-              <p className="text-sm text-muted-foreground">
-                O sistema processou {stats.total} tickets com uma taxa de resolução de{' '}
-                {stats.total > 0 ? ((stats.resolvidos / stats.total) * 100).toFixed(1) : 0}%.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-semibold">Qualidade do Atendimento</h3>
-              <p className="text-sm text-muted-foreground">
-                A satisfação média dos clientes é de {stats.avaliacaoMedia.toFixed(1)}/5,
-                indicando um bom nível de qualidade no atendimento.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-semibold">Cumprimento de SLA</h3>
-              <p className="text-sm text-muted-foreground">
-                {stats.total > 0 ? (((stats.total - stats.emAtraso) / stats.total) * 100).toFixed(1) : 0}%
-                dos tickets foram resolvidos dentro do prazo estabelecido.
-              </p>
-            </div>
+        <CardContent>
+          <div className="space-y-3">
+            {(['ABERTO', 'EM_PROGRESSO', 'AGUARDANDO_CLIENTE', 'AGUARDANDO_TERCEIRO', 'RESOLVIDO', 'FECHADO', 'CANCELADO'] as const).map((estado) => {
+              const count = todos.items.filter((t) => t.estado === estado).length;
+              const pct = total > 0 ? (count / total) * 100 : 0;
+              return (
+                <div key={estado} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{estado.replace('_', ' ')}</span>
+                    <span className="font-medium tabular-nums">{count}</span>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+export default async function RelatoriosTicketsPage() {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Relatórios de Tickets"
+        description="Métricas e análises do serviço de suporte"
+        breadcrumbs={[
+          { label: 'Tickets', href: '/tickets' },
+          { label: 'Relatórios' },
+        ]}
+      />
+
+      <Suspense fallback={<KpiSkeleton />}>
+        <RelatorioKpis tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }
