@@ -4,7 +4,6 @@
  */
 
 import { Suspense } from 'react';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
@@ -13,12 +12,12 @@ import { prisma } from '@/server/db/client';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
   KpiCard,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { CustosTable } from './_components/custos-table';
+import type { CustoOrdemRow } from './_components/custos-table';
 
 const FiltroUrlSchema = z.object({
   status: z.string().optional(),
@@ -28,70 +27,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface CustoOrdemRow {
-  id: string;
-  numero: string;
-  nomeProduto: string;
-  quantidade: number;
-  unidadeMedida: string;
-  custoEstimado: string;
-  status: string;
-  dataPrevisaoFim: Date;
-}
-
-const columns: TableColumn<CustoOrdemRow>[] = [
-  {
-    key: 'numero',
-    label: 'Nº Ordem',
-    render: (row) => <span className="tabular-nums font-mono text-xs">{row.numero}</span>,
-  },
-  {
-    key: 'nomeProduto',
-    label: 'Produto',
-    render: (row) => <span className="font-medium">{row.nomeProduto}</span>,
-  },
-  {
-    key: 'quantidade',
-    label: 'Qtd.',
-    render: (row) => (
-      <span className="tabular-nums">{row.quantidade} {row.unidadeMedida}</span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'custoEstimado',
-    label: 'Custo Estimado',
-    render: (row) => <span className="tabular-nums font-medium">MT {row.custoEstimado}</span>,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-  {
-    key: 'dataPrevisaoFim',
-    label: 'Prazo',
-    render: (row) => (
-      <span className="tabular-nums text-sm">
-        {new Date(row.dataPrevisaoFim).toLocaleDateString('pt-PT')}
-      </span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'accoes',
-    label: '',
-    render: (row) => (
-      <Link
-        href={`/producao/ordens/${row.id}`}
-        className="text-xs text-primary hover:underline"
-      >
-        Ver detalhes
-      </Link>
-    ),
-  },
-];
 
 async function CustosKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -168,7 +103,7 @@ async function CustosTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <CustosTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { AvaliacoesTable } from './_components/avaliacoes-table';
+import type { AvaliacaoRow } from './_components/avaliacoes-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -25,65 +27,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface AvaliacaoRow {
-  id: string;
-  colaboradorNome: string;
-  avaliadorNome: string;
-  tipo: string;
-  periodo: string;
-  notaFinal: number | null;
-  status: string;
-  dataInicio: Date;
-}
-
-const TIPO_LABEL: Record<string, string> = {
-  DESEMPENHO: 'Desempenho',
-  COMPETENCIAS: 'Competências',
-  GRAU_360: 'Avaliação 360°',
-  PROBATORIO: 'Período Probatório',
-};
-
-const columns: TableColumn<AvaliacaoRow>[] = [
-  {
-    key: 'colaboradorNome',
-    label: 'Colaborador',
-    render: (row) => <span className="font-medium">{row.colaboradorNome}</span>,
-  },
-  {
-    key: 'avaliadorNome',
-    label: 'Avaliador',
-    render: (row) => row.avaliadorNome,
-    mobileHidden: true,
-  },
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    render: (row) => TIPO_LABEL[row.tipo] ?? row.tipo,
-    mobileHidden: true,
-  },
-  {
-    key: 'periodo',
-    label: 'Período',
-    render: (row) => row.periodo,
-  },
-  {
-    key: 'notaFinal',
-    label: 'Nota Final',
-    render: (row) =>
-      row.notaFinal !== null ? (
-        <span className="tabular-nums font-medium">{Number(row.notaFinal).toFixed(1)}</span>
-      ) : (
-        <span className="text-muted-foreground">—</span>
-      ),
-    mobileHidden: true,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function AvaliacoesTableSection({
   filtros,
@@ -126,14 +69,7 @@ async function AvaliacoesTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      rowHref={(row) => `/rh/avaliacoes/${row.id}`}
-      nextCursor={nextCursor}
-    />
-  );
+  return <AvaliacoesTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

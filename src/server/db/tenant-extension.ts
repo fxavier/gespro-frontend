@@ -10,9 +10,20 @@ export interface TenantContext {
 
 const storage = new AsyncLocalStorage<TenantContext>();
 
-/** Corre `fn` com o contexto de tenant activo. O `tenantId` NUNCA vem do cliente. */
-export function runWithTenantContext<T>(ctx: TenantContext, fn: () => T): T {
-  return storage.run(ctx, fn);
+/**
+ * Corre `fn` com o contexto de tenant activo. O `tenantId` NUNCA vem do cliente.
+ *
+ * O `await fn()` acontece DENTRO do `storage.run`: liga a execução da query
+ * (o `.then` do PrismaPromise lazy) ao contexto ALS activo. Sem isto, um
+ * `() => prisma.x()` cru devolvido do callback só executa no `await` exterior
+ * — que, sob streaming RSC (Next 16/Turbopack), pode retomar sem a store e
+ * lançar SEM_CONTEXTO_TENANT.
+ */
+export function runWithTenantContext<T>(
+  ctx: TenantContext,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  return storage.run(ctx, async () => fn());
 }
 
 export function getTenantContext(): TenantContext | undefined {

@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { OrdemProducaoService } from '@/server/services/pessoas-projetos/producao.service';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { OrdensTable } from './_components/ordens-table';
+import type { OrdemRow } from './_components/ordens-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -25,57 +27,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface OrdemRow {
-  id: string;
-  numero: string;
-  nomeProduto: string;
-  status: string;
-  prioridade: string;
-  progresso: number;
-  dataPrevisaoFim: Date | null;
-}
-
-const columns: TableColumn<OrdemRow>[] = [
-  {
-    key: 'numero',
-    label: 'Nº Ordem',
-    render: (row) => (
-      <span className="font-medium tabular-nums text-primary">{row.numero}</span>
-    ),
-  },
-  {
-    key: 'nomeProduto',
-    label: 'Produto',
-    render: (row) => <span className="font-medium">{row.nomeProduto}</span>,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-  {
-    key: 'prioridade',
-    label: 'Prioridade',
-    render: (row) => <StatusBadge status={row.prioridade} />,
-    mobileHidden: true,
-  },
-  {
-    key: 'progresso',
-    label: 'Progresso',
-    render: (row) => <span className="tabular-nums">{row.progresso}%</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'dataPrevisaoFim',
-    label: 'Prazo',
-    render: (row) =>
-      row.dataPrevisaoFim
-        ? new Date(row.dataPrevisaoFim).toLocaleDateString('pt-PT')
-        : '—',
-    mobileHidden: true,
-  },
-];
 
 async function OrdensTableSection({
   filtros,
@@ -110,14 +61,7 @@ async function OrdensTableSection({
     dataPrevisaoFim: o.dataPrevisaoFim,
   }));
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      rowHref={(row) => `/producao/ordens/${row.id}`}
-      nextCursor={result.nextCursor ?? undefined}
-    />
-  );
+  return <OrdensTable data={data} nextCursor={result.nextCursor ?? undefined} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

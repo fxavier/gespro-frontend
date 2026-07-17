@@ -4,7 +4,6 @@
  */
 
 import { Suspense } from 'react';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
@@ -13,12 +12,12 @@ import { prisma } from '@/server/db/client';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
   KpiCard,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { QualidadeTable } from './_components/qualidade-table';
+import type { QualidadeRow } from './_components/qualidade-table';
 
 const FiltroUrlSchema = z.object({
   status: z.string().optional(),
@@ -28,60 +27,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface QualidadeRow {
-  id: string;
-  numero: string;
-  nomeProduto: string;
-  quantidade: number;
-  progresso: number;
-  qualidadeAprovada: boolean;
-  status: string;
-  dataFimReal: Date | null;
-}
-
-const columns: TableColumn<QualidadeRow>[] = [
-  {
-    key: 'numero',
-    label: 'Nº Ordem',
-    render: (row) => <span className="tabular-nums font-mono text-xs">{row.numero}</span>,
-  },
-  {
-    key: 'nomeProduto',
-    label: 'Produto',
-    render: (row) => <span className="font-medium">{row.nomeProduto}</span>,
-  },
-  {
-    key: 'quantidade',
-    label: 'Qtd. Prevista',
-    render: (row) => <span className="tabular-nums">{row.quantidade}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'progresso',
-    label: 'Progresso',
-    render: (row) => <span className="tabular-nums font-medium">{row.progresso}%</span>,
-  },
-  {
-    key: 'qualidadeAprovada',
-    label: 'Qualidade',
-    render: (row) => <StatusBadge status={row.qualidadeAprovada ? 'APROVADA' : 'PENDENTE'} />,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-  {
-    key: 'dataFimReal',
-    label: 'Conclusão',
-    render: (row) =>
-      row.dataFimReal
-        ? <span className="tabular-nums text-sm">{new Date(row.dataFimReal).toLocaleDateString('pt-PT')}</span>
-        : <span className="text-muted-foreground">—</span>,
-    mobileHidden: true,
-  },
-];
 
 async function QualidadeKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -151,7 +96,7 @@ async function QualidadeTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <QualidadeTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { FormacaoService } from '@/server/services/pessoas-projetos/rh.service';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { FormacoesTable } from './_components/formacoes-table';
+import type { FormacaoRow } from './_components/formacoes-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -24,50 +26,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface FormacaoRow {
-  id: string;
-  titulo: string;
-  status: string;
-  dataInicio: Date;
-  dataFim: Date;
-  vagasDisponiveis: number;
-  participantes: number;
-}
-
-const columns: TableColumn<FormacaoRow>[] = [
-  {
-    key: 'titulo',
-    label: 'Título',
-    render: (row) => <span className="font-medium">{row.titulo}</span>,
-  },
-  {
-    key: 'dataInicio',
-    label: 'Início',
-    render: (row) => new Date(row.dataInicio).toLocaleDateString('pt-PT'),
-  },
-  {
-    key: 'dataFim',
-    label: 'Fim',
-    render: (row) => new Date(row.dataFim).toLocaleDateString('pt-PT'),
-    mobileHidden: true,
-  },
-  {
-    key: 'participantes',
-    label: 'Participantes',
-    render: (row) => (
-      <span className="tabular-nums">
-        {row.participantes}/{row.vagasDisponiveis}
-      </span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function FormacoesTableSection({
   filtros,
@@ -97,14 +55,7 @@ async function FormacoesTableSection({
     participantes: f._count.participantes,
   }));
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      rowHref={(row) => `/rh/formacoes/${row.id}`}
-      nextCursor={result.nextCursor ?? undefined}
-    />
-  );
+  return <FormacoesTable data={data} nextCursor={result.nextCursor ?? undefined} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

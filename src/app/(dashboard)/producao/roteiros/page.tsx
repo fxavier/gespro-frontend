@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { RoteiroService } from '@/server/services/pessoas-projetos/producao.service';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { RoteirosTable } from './_components/roteiros-table';
+import type { RoteiroRow } from './_components/roteiros-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -24,47 +26,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface RoteiroRow {
-  id: string;
-  codigo: string;
-  nome: string;
-  versao: string;
-  status: string;
-  categoria: string | null;
-}
-
-const columns: TableColumn<RoteiroRow>[] = [
-  {
-    key: 'codigo',
-    label: 'Código',
-    render: (row) => (
-      <span className="font-medium tabular-nums text-primary">{row.codigo}</span>
-    ),
-  },
-  {
-    key: 'nome',
-    label: 'Nome',
-    render: (row) => <span className="font-medium">{row.nome}</span>,
-  },
-  {
-    key: 'versao',
-    label: 'Versão',
-    render: (row) => row.versao,
-    mobileHidden: true,
-  },
-  {
-    key: 'categoria',
-    label: 'Categoria',
-    render: (row) => <span className="text-muted-foreground">{row.categoria ?? '—'}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function RoteirosTableSection({
   filtros,
@@ -98,14 +59,7 @@ async function RoteirosTableSection({
     categoria: r.categoria,
   }));
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      rowHref={(row) => `/producao/roteiros/${row.id}`}
-      nextCursor={result.nextCursor ?? undefined}
-    />
-  );
+  return <RoteirosTable data={data} nextCursor={result.nextCursor ?? undefined} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

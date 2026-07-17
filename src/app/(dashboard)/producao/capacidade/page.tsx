@@ -15,12 +15,12 @@ import { Button } from '@/components/ui/button';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
   KpiCard,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { CapacidadeTable } from './_components/capacidade-table';
+import type { CentroRow } from './_components/capacidade-table';
 
 const FiltroUrlSchema = z.object({
   tipo: z.string().optional(),
@@ -31,63 +31,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface CentroRow {
-  id: string;
-  codigo: string;
-  nome: string;
-  tipo: string;
-  capacidadeHorasDia: string | null;
-  custoHora: string;
-  ativo: boolean;
-  operacoesActivas: number;
-}
-
-const columns: TableColumn<CentroRow>[] = [
-  {
-    key: 'codigo',
-    label: 'Código',
-    render: (row) => <span className="tabular-nums font-mono text-xs">{row.codigo}</span>,
-  },
-  {
-    key: 'nome',
-    label: 'Centro de Trabalho',
-    render: (row) => <span className="font-medium">{row.nome}</span>,
-  },
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    render: (row) => <StatusBadge status={row.tipo} />,
-    mobileHidden: true,
-  },
-  {
-    key: 'capacidadeHorasDia',
-    label: 'Cap. (h/dia)',
-    render: (row) => (
-      <span className="tabular-nums">
-        {row.capacidadeHorasDia ? `${row.capacidadeHorasDia}h` : '—'}
-      </span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'custoHora',
-    label: 'Custo/Hora',
-    render: (row) => <span className="tabular-nums">MT {row.custoHora}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'operacoesActivas',
-    label: 'Operações Activas',
-    render: (row) => <span className="tabular-nums">{row.operacoesActivas}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'ativo',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.ativo ? 'ATIVO' : 'INATIVO'} />,
-  },
-];
 
 async function CapacidadeKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -160,7 +103,7 @@ async function CapacidadeTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <CapacidadeTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

@@ -12,15 +12,14 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { TimesheetTable } from './_components/timesheet-table';
+import type { TimesheetRow } from './_components/timesheet-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -31,70 +30,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface TimesheetRow {
-  id: string;
-  projetoNome: string;
-  colaboradorNome: string;
-  data: Date;
-  duracaoHoras: string;
-  tipo: string;
-  faturavel: boolean;
-  aprovado: boolean;
-}
-
-const columns: TableColumn<TimesheetRow>[] = [
-  {
-    key: 'data',
-    label: 'Data',
-    render: (row) => (
-      <span className="tabular-nums">
-        {new Date(row.data).toLocaleDateString('pt-PT')}
-      </span>
-    ),
-  },
-  {
-    key: 'colaboradorNome',
-    label: 'Colaborador',
-    render: (row) => <span className="font-medium">{row.colaboradorNome}</span>,
-  },
-  {
-    key: 'projetoNome',
-    label: 'Projecto',
-    render: (row) => row.projetoNome,
-    mobileHidden: true,
-  },
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    render: (row) => (
-      <span className="capitalize text-sm">
-        {row.tipo.toLowerCase().replace(/_/g, ' ')}
-      </span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'duracaoHoras',
-    label: 'Duração',
-    render: (row) => <span className="tabular-nums">{row.duracaoHoras}h</span>,
-  },
-  {
-    key: 'faturavel',
-    label: 'Facturável',
-    render: (row) => (
-      <Badge variant={row.faturavel ? 'default' : 'secondary'}>
-        {row.faturavel ? 'Sim' : 'Não'}
-      </Badge>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'aprovado',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.aprovado ? 'APROVADO' : 'PENDENTE'} />,
-  },
-];
 
 async function TimesheetTableSection({
   filtros,
@@ -142,7 +77,7 @@ async function TimesheetTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <TimesheetTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

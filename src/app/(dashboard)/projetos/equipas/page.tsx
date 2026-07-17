@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { EquipasTable } from './_components/equipas-table';
+import type { EquipaRow } from './_components/equipas-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -24,39 +26,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface EquipaRow {
-  id: string;
-  nome: string;
-  descricao: string | null;
-  status: string;
-  membros: number;
-}
-
-const columns: TableColumn<EquipaRow>[] = [
-  {
-    key: 'nome',
-    label: 'Nome',
-    render: (row) => <span className="font-medium">{row.nome}</span>,
-  },
-  {
-    key: 'descricao',
-    label: 'Descrição',
-    render: (row) => <span className="text-muted-foreground">{row.descricao ?? '—'}</span>,
-    mobileHidden: true,
-  },
-
-  {
-    key: 'membros',
-    label: 'Membros',
-    render: (row) => <span className="tabular-nums">{row.membros}</span>,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function EquipasTableSection({
   filtros,
@@ -97,13 +66,7 @@ async function EquipasTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      nextCursor={nextCursor}
-    />
-  );
+  return <EquipasTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

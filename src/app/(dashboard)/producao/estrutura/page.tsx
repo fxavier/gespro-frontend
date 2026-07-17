@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { EstruturaProdutoService } from '@/server/services/pessoas-projetos/producao.service';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { EstruturaTable } from './_components/estrutura-table';
+import type { EstruturaRow } from './_components/estrutura-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -24,47 +26,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface EstruturaRow {
-  id: string;
-  codigo: string;
-  nome: string;
-  versao: string;
-  status: string;
-  nivelComplexidade: string | null;
-}
-
-const columns: TableColumn<EstruturaRow>[] = [
-  {
-    key: 'codigo',
-    label: 'Código',
-    render: (row) => (
-      <span className="font-medium tabular-nums text-primary">{row.codigo}</span>
-    ),
-  },
-  {
-    key: 'nome',
-    label: 'Produto',
-    render: (row) => <span className="font-medium">{row.nome}</span>,
-  },
-  {
-    key: 'versao',
-    label: 'Versão',
-    render: (row) => row.versao,
-    mobileHidden: true,
-  },
-  {
-    key: 'nivelComplexidade',
-    label: 'Complexidade',
-    render: (row) => row.nivelComplexidade ? <StatusBadge status={row.nivelComplexidade} /> : <span className="text-muted-foreground">—</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function EstruturaTableSection({
   filtros,
@@ -98,14 +59,7 @@ async function EstruturaTableSection({
     nivelComplexidade: e.nivelComplexidade,
   }));
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      rowHref={(row) => `/producao/estrutura/${row.id}`}
-      nextCursor={result.nextCursor ?? undefined}
-    />
-  );
+  return <EstruturaTable data={data} nextCursor={result.nextCursor ?? undefined} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

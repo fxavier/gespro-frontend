@@ -14,12 +14,12 @@ import { prisma } from '@/server/db/client';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
   KpiCard,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { MaoObraTable } from './_components/mao-obra-table';
+import type { AssiduidadeRow } from './_components/mao-obra-table';
 
 const FiltroUrlSchema = z.object({
   tipo: z.string().optional(),
@@ -29,54 +29,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface AssiduidadeRow {
-  id: string;
-  colaboradorNome: string;
-  data: Date;
-  tipo: string;
-  horasTrabalhadas: string;
-  horasExtras: string;
-  atrasos: number;
-}
-
-const columns: TableColumn<AssiduidadeRow>[] = [
-  {
-    key: 'data',
-    label: 'Data',
-    render: (row) => (
-      <span className="tabular-nums">{new Date(row.data).toLocaleDateString('pt-PT')}</span>
-    ),
-  },
-  {
-    key: 'colaboradorNome',
-    label: 'Colaborador',
-    render: (row) => <span className="font-medium">{row.colaboradorNome}</span>,
-  },
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    render: (row) => <StatusBadge status={row.tipo} />,
-    mobileHidden: true,
-  },
-  {
-    key: 'horasTrabalhadas',
-    label: 'H. Trabalhadas',
-    render: (row) => <span className="tabular-nums">{row.horasTrabalhadas}h</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'horasExtras',
-    label: 'H. Extras',
-    render: (row) => <span className="tabular-nums">{row.horasExtras}h</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'atrasos',
-    label: 'Atrasos',
-    render: (row) => <span className="tabular-nums">{row.atrasos} min</span>,
-  },
-];
 
 async function MaoObraKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -148,7 +100,7 @@ async function MaoObraTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <MaoObraTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

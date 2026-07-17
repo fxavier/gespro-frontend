@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ProjetoService } from '@/server/services/pessoas-projetos/projetos.service';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { ProjetosTable } from './_components/projetos-table';
+import type { ProjetoRow } from './_components/projetos-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -26,59 +28,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface ProjetoRow {
-  id: string;
-  codigo: string;
-  nome: string;
-  status: string;
-  prioridade: string;
-  dataFimPrevista: Date | null;
-  progresso: number;
-}
-
-const columns: TableColumn<ProjetoRow>[] = [
-  {
-    key: 'codigo',
-    label: 'Código',
-    render: (row) => (
-      <span className="font-medium tabular-nums text-primary">{row.codigo}</span>
-    ),
-  },
-  {
-    key: 'nome',
-    label: 'Nome',
-    render: (row) => <span className="font-medium">{row.nome}</span>,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-  {
-    key: 'prioridade',
-    label: 'Prioridade',
-    render: (row) => <StatusBadge status={row.prioridade} />,
-    mobileHidden: true,
-  },
-  {
-    key: 'progresso',
-    label: 'Progresso',
-    render: (row) => (
-      <span className="tabular-nums">{row.progresso}%</span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'dataFimPrevista',
-    label: 'Prazo',
-    render: (row) =>
-      row.dataFimPrevista
-        ? new Date(row.dataFimPrevista).toLocaleDateString('pt-PT')
-        : '—',
-    mobileHidden: true,
-  },
-];
 
 async function ProjetosTableSection({
   filtros,
@@ -116,12 +65,7 @@ async function ProjetosTableSection({
   }));
 
   return (
-    <DataTable
-      data={data}
-      columns={columns}
-      rowHref={(row) => `/projetos/lista/${row.id}`}
-      nextCursor={result.nextCursor ?? undefined}
-    />
+    <ProjetosTable data={data} nextCursor={result.nextCursor ?? undefined} />
   );
 }
 

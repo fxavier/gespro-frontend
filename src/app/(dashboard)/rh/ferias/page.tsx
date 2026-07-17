@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { FeriasTable } from './_components/ferias-table';
+import type { SolicitacaoRow } from './_components/ferias-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -24,51 +26,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface SolicitacaoRow {
-  id: string;
-  colaboradorNome: string;
-  dataInicio: Date;
-  dataFim: Date;
-  diasSolicitados: number;
-  tipo: string;
-  status: string;
-}
-
-const columns: TableColumn<SolicitacaoRow>[] = [
-  {
-    key: 'colaboradorNome',
-    label: 'Colaborador',
-    render: (row) => <span className="font-medium">{row.colaboradorNome}</span>,
-  },
-  {
-    key: 'dataInicio',
-    label: 'Início',
-    render: (row) => new Date(row.dataInicio).toLocaleDateString('pt-PT'),
-  },
-  {
-    key: 'dataFim',
-    label: 'Fim',
-    render: (row) => new Date(row.dataFim).toLocaleDateString('pt-PT'),
-    mobileHidden: true,
-  },
-  {
-    key: 'diasSolicitados',
-    label: 'Dias',
-    render: (row) => <span className="tabular-nums">{row.diasSolicitados}</span>,
-  },
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    render: (row) => <span className="capitalize">{row.tipo.toLowerCase().replace(/_/g, ' ')}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function FeriasTableSection({
   filtros,
@@ -118,13 +75,7 @@ async function FeriasTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      nextCursor={nextCursor}
-    />
-  );
+  return <FeriasTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { OrcamentosTable } from './_components/orcamentos-table';
+import type { OrcamentoRow } from './_components/orcamentos-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -24,53 +26,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface OrcamentoRow {
-  id: string;
-  projetoNome: string;
-  versao: number;
-  status: string;
-  totalPlanejado: number;
-  totalUtilizado: number;
-}
-
-const columns: TableColumn<OrcamentoRow>[] = [
-  {
-    key: 'projetoNome',
-    label: 'Projecto',
-    render: (row) => <span className="font-medium">{row.projetoNome}</span>,
-  },
-  {
-    key: 'versao',
-    label: 'Versão',
-    render: (row) => <span className="tabular-nums">v{row.versao}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'totalPlanejado',
-    label: 'Planejado (MT)',
-    render: (row) => (
-      <span className="tabular-nums font-medium">
-        {Number(row.totalPlanejado).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-      </span>
-    ),
-  },
-  {
-    key: 'totalUtilizado',
-    label: 'Utilizado (MT)',
-    render: (row) => (
-      <span className="tabular-nums">
-        {Number(row.totalUtilizado).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-      </span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function OrcamentosTableSection({
   filtros,
@@ -109,13 +64,7 @@ async function OrcamentosTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      nextCursor={nextCursor}
-    />
-  );
+  return <OrcamentosTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

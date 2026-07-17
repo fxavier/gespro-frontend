@@ -15,12 +15,12 @@ import { Button } from '@/components/ui/button';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
   KpiCard,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { AssiduidadeTable } from './_components/assiduidade-table';
+import type { AssiduidadeRow } from './_components/assiduidade-table';
 
 const FiltroUrlSchema = z.object({
   colaboradorId: z.string().optional(),
@@ -31,63 +31,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface AssiduidadeRow {
-  id: string;
-  colaboradorNome: string;
-  data: string;
-  entrada: string;
-  saida: string;
-  horasTrabalhadas: string;
-  horasExtras: string;
-  tipo: string;
-}
-
-const columns: TableColumn<AssiduidadeRow>[] = [
-  {
-    key: 'data',
-    label: 'Data',
-    render: (row) => <span className="tabular-nums">{row.data}</span>,
-  },
-  {
-    key: 'colaboradorNome',
-    label: 'Colaborador',
-    render: (row) => <span className="font-medium">{row.colaboradorNome}</span>,
-  },
-  {
-    key: 'entrada',
-    label: 'Entrada',
-    render: (row) => <span className="tabular-nums">{row.entrada}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'saida',
-    label: 'Saída',
-    render: (row) => <span className="tabular-nums">{row.saida}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'horasTrabalhadas',
-    label: 'Horas Trabalhadas',
-    render: (row) => <span className="tabular-nums">{row.horasTrabalhadas}h</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'horasExtras',
-    label: 'Horas Extra',
-    render: (row) => (
-      <span className={`tabular-nums ${Number(row.horasExtras) > 0 ? 'text-amber-600' : 'text-muted-foreground'}`}>
-        {Number(row.horasExtras) > 0 ? `+${row.horasExtras}h` : '—'}
-      </span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    render: (row) => <StatusBadge status={row.tipo} />,
-  },
-];
 
 async function AssiduidadeKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -167,7 +110,7 @@ async function AssiduidadeTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <AssiduidadeTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

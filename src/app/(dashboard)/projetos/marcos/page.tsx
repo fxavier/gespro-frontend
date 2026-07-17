@@ -13,12 +13,12 @@ import { prisma } from '@/server/db/client';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
   KpiCard,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { MarcosTable } from './_components/marcos-table';
+import type { MarcoRow } from './_components/marcos-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -29,66 +29,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface MarcoRow {
-  id: string;
-  nome: string;
-  projetoNome: string;
-  dataPrevista: string;
-  dataReal: string | null;
-  status: string;
-  progresso: number;
-}
-
-const columns: TableColumn<MarcoRow>[] = [
-  {
-    key: 'nome',
-    label: 'Marco',
-    render: (row) => <span className="font-medium">{row.nome}</span>,
-  },
-  {
-    key: 'projetoNome',
-    label: 'Projecto',
-    render: (row) => <span className="text-muted-foreground">{row.projetoNome}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'dataPrevista',
-    label: 'Data Prevista',
-    render: (row) => <span className="tabular-nums">{row.dataPrevista}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'dataReal',
-    label: 'Data Real',
-    render: (row) => (
-      <span className="tabular-nums">
-        {row.dataReal ?? <span className="text-muted-foreground">—</span>}
-      </span>
-    ),
-    mobileHidden: true,
-  },
-  {
-    key: 'progresso',
-    label: 'Progresso',
-    render: (row) => (
-      <div className="flex items-center gap-2 min-w-[80px]">
-        <div className="h-1.5 bg-muted rounded-full flex-1">
-          <div
-            className="h-1.5 bg-primary rounded-full"
-            style={{ width: `${row.progresso}%` }}
-          />
-        </div>
-        <span className="tabular-nums text-xs text-muted-foreground">{row.progresso}%</span>
-      </div>
-    ),
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function MarcosKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -160,7 +100,7 @@ async function MarcosTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <MarcosTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

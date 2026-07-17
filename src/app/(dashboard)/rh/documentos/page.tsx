@@ -13,11 +13,11 @@ import { prisma } from '@/server/db/client';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { DocumentosTable } from './_components/documentos-table';
+import type { DocRow } from './_components/documentos-table';
 
 const FiltroUrlSchema = z.object({
   tipo: z.string().optional(),
@@ -27,39 +27,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface DocRow {
-  id: string;
-  colaboradorNome: string;
-  tipo: string;
-  nome: string;
-  dataUpload: string;
-}
-
-const columns: TableColumn<DocRow>[] = [
-  {
-    key: 'colaboradorNome',
-    label: 'Colaborador',
-    render: (row) => <span className="font-medium">{row.colaboradorNome}</span>,
-  },
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    render: (row) => <StatusBadge status={row.tipo} />,
-  },
-  {
-    key: 'nome',
-    label: 'Ficheiro',
-    render: (row) => <span className="text-sm text-muted-foreground">{row.nome}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'dataUpload',
-    label: 'Data Upload',
-    render: (row) => <span className="tabular-nums">{row.dataUpload}</span>,
-    mobileHidden: true,
-  },
-];
 
 async function DocumentosTableSection({
   filtros,
@@ -101,7 +68,7 @@ async function DocumentosTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <DocumentosTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

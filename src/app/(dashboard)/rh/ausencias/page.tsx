@@ -12,8 +12,10 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, StatusBadge, DataTable, TableSkeleton } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { AusenciasTable } from './_components/ausencias-table';
+import type { AusenciaRow } from './_components/ausencias-table';
 
 const FiltroUrlSchema = z.object({
   search: z.string().optional(),
@@ -24,63 +26,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface AusenciaRow {
-  id: string;
-  colaboradorNome: string;
-  tipo: string;
-  dataInicio: Date;
-  dataFim: Date;
-  diasAusencia: number;
-  justificada: boolean;
-  status: string;
-}
-
-const TIPO_LABEL: Record<string, string> = {
-  FALTA: 'Falta',
-  ATESTADO_MEDICO: 'Atestado Médico',
-  LICENCA_MATERNIDADE: 'Licença Maternidade',
-  LICENCA_PATERNIDADE: 'Licença Paternidade',
-  LICENCA_SEM_VENCIMENTO: 'Licença s/ Vencimento',
-  LICENCA_NOJO: 'Licença Nojo',
-  LICENCA_CASAMENTO: 'Licença Casamento',
-  OUTRO: 'Outro',
-};
-
-const columns: TableColumn<AusenciaRow>[] = [
-  {
-    key: 'colaboradorNome',
-    label: 'Colaborador',
-    render: (row) => <span className="font-medium">{row.colaboradorNome}</span>,
-  },
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    render: (row) => TIPO_LABEL[row.tipo] ?? row.tipo,
-  },
-  {
-    key: 'dataInicio',
-    label: 'Início',
-    render: (row) => new Date(row.dataInicio).toLocaleDateString('pt-PT'),
-  },
-  {
-    key: 'diasAusencia',
-    label: 'Dias',
-    render: (row) => <span className="tabular-nums">{row.diasAusencia}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'justificada',
-    label: 'Justificada',
-    render: (row) => (row.justificada ? 'Sim' : 'Não'),
-    mobileHidden: true,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function AusenciasTableSection({
   filtros,
@@ -121,13 +66,7 @@ async function AusenciasTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return (
-    <DataTable
-      data={data}
-      columns={columns}
-      nextCursor={nextCursor}
-    />
-  );
+  return <AusenciasTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

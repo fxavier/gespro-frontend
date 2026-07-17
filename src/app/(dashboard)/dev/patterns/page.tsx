@@ -9,7 +9,6 @@ import { Plus, ClipboardList, TrendingUp, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   PageHeader,
-  DataTable,
   StatusBadge,
   KpiCard,
   DetailShell,
@@ -19,57 +18,12 @@ import {
   ErrorState,
   Stepper,
 } from '@/components/patterns';
-import type { TableColumn } from '@/components/patterns';
+import { PatternsDataTableDemo } from './_components/patterns-datatable-demo';
 
 export default function PatternsPage() {
   if (process.env.NODE_ENV === 'production') {
     notFound();
   }
-
-  // Dados de exemplo para o DataTable
-  const sampleData = [
-    { id: '1', numero: 'REQ-001', solicitante: 'Ana Silva', status: 'APROVADA', valor: 15000, prioridade: 'ALTA' },
-    { id: '2', numero: 'REQ-002', solicitante: 'João Costa', status: 'PENDENTE', valor: 8500, prioridade: 'MEDIA' },
-    { id: '3', numero: 'REQ-003', solicitante: 'Maria Santos', status: 'RASCUNHO', valor: 3200, prioridade: 'BAIXA' },
-    { id: '4', numero: 'REQ-004', solicitante: 'Pedro Neto', status: 'REJEITADA', valor: 25000, prioridade: 'URGENTE' },
-    { id: '5', numero: 'REQ-005', solicitante: 'Fátima Chaves', status: 'EM_APROVACAO', valor: 12000, prioridade: 'ALTA' },
-  ];
-
-  const columns: TableColumn<(typeof sampleData)[0]>[] = [
-    {
-      key: 'numero',
-      label: 'Número',
-      sortKey: 'numero',
-      render: (row) => <span className="font-medium tabular-nums">{row.numero}</span>,
-    },
-    {
-      key: 'solicitante',
-      label: 'Solicitante',
-      render: (row) => row.solicitante,
-    },
-    {
-      key: 'status',
-      label: 'Estado',
-      render: (row) => <StatusBadge status={row.status} />,
-    },
-    {
-      key: 'prioridade',
-      label: 'Prioridade',
-      mobileHidden: true,
-      render: (row) => <StatusBadge status={row.prioridade} label={row.prioridade} />,
-    },
-    {
-      key: 'valor',
-      label: 'Valor (MZN)',
-      className: 'text-right tabular-nums',
-      headerClassName: 'text-right',
-      render: (row) => (
-        <span className="font-medium tabular-nums">
-          {row.valor.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-        </span>
-      ),
-    },
-  ];
 
   const timelineItems = [
     { id: '1', title: 'Requisição criada', date: new Date('2026-01-10'), variant: 'default' as const },
@@ -166,14 +120,7 @@ export default function PatternsPage() {
         <h2 className="text-lg font-semibold mb-4 text-muted-foreground uppercase tracking-wide text-xs">
           DataTable — Server Paginada com Cursor
         </h2>
-        <DataTable
-          data={sampleData}
-          columns={columns}
-          rowHref={(row) => `/compras/requisicoes/${row.id}`}
-          nextCursor="cursor_abc123"
-          currentOrderBy="numero"
-          currentOrderDir="asc"
-        />
+        <PatternsDataTableDemo />
       </section>
 
       {/* EmptyState */}

@@ -15,12 +15,12 @@ import { Button } from '@/components/ui/button';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
   KpiCard,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { PayrollTable } from './_components/payroll-table';
+import type { PayrollRow } from './_components/payroll-table';
 
 const FiltroUrlSchema = z.object({
   status: z.string().optional(),
@@ -32,53 +32,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface PayrollRow {
-  id: string;
-  colaboradorNome: string;
-  mesReferencia: number;
-  anoReferencia: number;
-  salarioBruto: string;
-  salarioLiquido: string;
-  status: string;
-}
-
-const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
-
-const columns: TableColumn<PayrollRow>[] = [
-  {
-    key: 'colaboradorNome',
-    label: 'Colaborador',
-    render: (row) => <span className="font-medium">{row.colaboradorNome}</span>,
-  },
-  {
-    key: 'periodo',
-    label: 'Período',
-    render: (row) => (
-      <span className="tabular-nums">
-        {MESES[(row.mesReferencia - 1)]} {row.anoReferencia}
-      </span>
-    ),
-  },
-  {
-    key: 'salarioBruto',
-    label: 'Salário Bruto',
-    render: (row) => <span className="tabular-nums">MT {row.salarioBruto}</span>,
-  },
-  {
-    key: 'salarioLiquido',
-    label: 'Salário Líquido',
-    render: (row) => <span className="tabular-nums font-medium">MT {row.salarioLiquido}</span>,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
 
 async function PayrollKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -161,7 +114,7 @@ async function PayrollTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <PayrollTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

@@ -15,11 +15,11 @@ import { Button } from '@/components/ui/button';
 import {
   PageHeader,
   FilterBar,
-  StatusBadge,
-  DataTable,
   TableSkeleton,
 } from '@/components/patterns';
-import type { FilterConfig, TableColumn } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { TarefasTable } from './_components/tarefas-table';
+import type { TarefaRow } from './_components/tarefas-table';
 
 const FiltroUrlSchema = z.object({
   status: z.string().optional(),
@@ -30,61 +30,6 @@ const FiltroUrlSchema = z.object({
 
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
-
-interface TarefaRow {
-  id: string;
-  codigo: string;
-  titulo: string;
-  projetoNome: string;
-  status: string;
-  prioridade: string;
-  dataFimPrevista: Date | null;
-}
-
-const columns: TableColumn<TarefaRow>[] = [
-  {
-    key: 'codigo',
-    label: 'Cód.',
-    render: (row) => (
-      <span className="tabular-nums font-mono text-xs text-muted-foreground">{row.codigo}</span>
-    ),
-  },
-  {
-    key: 'titulo',
-    label: 'Tarefa',
-    render: (row) => (
-      <Link href={`/projetos/tarefas/${row.id}`} className="font-medium hover:underline line-clamp-1">
-        {row.titulo}
-      </Link>
-    ),
-  },
-  {
-    key: 'projetoNome',
-    label: 'Projecto',
-    render: (row) => <span className="text-sm">{row.projetoNome}</span>,
-    mobileHidden: true,
-  },
-  {
-    key: 'prioridade',
-    label: 'Prioridade',
-    render: (row) => <StatusBadge status={row.prioridade} />,
-    mobileHidden: true,
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-  {
-    key: 'dataFimPrevista',
-    label: 'Prazo',
-    render: (row) =>
-      row.dataFimPrevista
-        ? <span className="tabular-nums text-sm">{new Date(row.dataFimPrevista).toLocaleDateString('pt-PT')}</span>
-        : <span className="text-muted-foreground">—</span>,
-    mobileHidden: true,
-  },
-];
 
 async function TarefasTableSection({
   filtros,
@@ -131,7 +76,7 @@ async function TarefasTableSection({
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <DataTable data={data} columns={columns} nextCursor={nextCursor} />;
+  return <TarefasTable data={data} nextCursor={nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [
