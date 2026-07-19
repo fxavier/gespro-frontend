@@ -13,9 +13,9 @@ describe('tenant context', () => {
     }
   });
 
-  it('runWithTenantContext isola o contexto', () => {
+  it('runWithTenantContext isola o contexto', async () => {
     expect(getTenantContext()).toBeUndefined();
-    const out = runWithTenantContext({ tenantId: 't1', userId: 'u1' }, () => {
+    const out = await runWithTenantContext({ tenantId: 't1', userId: 'u1' }, () => {
       const ctx = requireTenantContext();
       return ctx.tenantId;
     });
