@@ -539,6 +539,76 @@ model AmortizacaoCalculo {
   @@index([tenantId, ano, mes])
 }
 
+// ─── Contagem de Stock ────────────────────────────────────────────────────────
+// Spec 05: Contagem cíclica de existências (produtos), distinta do inventário
+// físico de ativos. Reconcilia saldo do sistema com contagem física.
+
+enum StatusContagemStock {
+  RASCUNHO
+  EM_CONTAGEM
+  RECONCILIADA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum StatusItemContagem {
+  PENDENTE
+  CONTADO
+  AJUSTADO
+  JUSTIFICADO
+}
+
+/// Sessão de contagem cíclica de existências (stock de produtos).
+/// Distinta do InventarioFisico (ativos). Append-only após CONCLUIDA.
+model ContagemStock {
+  id            String              @id @default(cuid())
+  tenantId      String
+  numero        String              // série via proximoNumeroSerie(tx, 'CONTAGEM_STOCK', ctx)
+  localizacaoId String?             // null = todas as localizações
+  categoriaId   String?             // âmbito por categoria (opcional)
+  cega          Boolean             @default(false) // esconder saldoSistema ao operador
+  status        StatusContagemStock @default(RASCUNHO)
+  responsavelId String              // scalar FK → User
+  aprovadoPorId String?             // scalar FK → User (aprovação de discrepâncias)
+  dataAbertura  DateTime            @default(now())
+  dataConclusao DateTime?
+  observacoes   String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  itens ItemContagemStock[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, localizacaoId, status])
+  @@index([tenantId, createdAt])
+}
+
+/// Item de contagem: por produto/localização dentro de uma ContagemStock.
+/// saldoSistema = snapshot no momento da abertura (evita drift durante contagem).
+model ItemContagemStock {
+  id                String             @id @default(cuid())
+  tenantId          String
+  contagemId        String
+  produtoId         String             // scalar FK → Produto (intra-módulo WS A)
+  localizacaoId     String             // scalar FK → Localizacao (intra-módulo WS A)
+  saldoSistema      Decimal            @db.Decimal(18, 6) // snapshot no momento da abertura
+  quantidadeContada Decimal?           @db.Decimal(18, 6)
+  diferenca         Decimal?           @db.Decimal(18, 6) // quantidadeContada - saldoSistema
+  status            StatusItemContagem @default(PENDENTE)
+  justificativa     String?
+  movimentoStockId  String?            // scalar FK → MovimentoStock gerado no ajuste
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  contagem ContagemStock @relation(fields: [contagemId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, contagemId, produtoId, localizacaoId])
+  @@index([tenantId, contagemId, status])
+  @@index([tenantId, produtoId])
+  @@index([tenantId, contagemId])
+}
+
 // ─── Inventário Físico ────────────────────────────────────────────────────────
 
 model InventarioFisico {

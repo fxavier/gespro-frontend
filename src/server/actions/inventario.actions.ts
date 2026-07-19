@@ -351,3 +351,64 @@ export const reconciliarInventarioAction = createSafeAction({
   revalidate: { tags: ['inventarios-fisicos', 'ativos'] },
   handler: ({ inventarioId }, ctx) => inventarioFisicoService.reconciliar(inventarioId, ctx),
 });
+
+// ─── Contagem de Stock (Spec 05) ──────────────────────────────────────────────
+
+import { contagemStockService } from '@/server/services/inventario/contagem-stock.service';
+import {
+  AbrirContagemSchema,
+  CancelarContagemSchema,
+  ConcluirContagemSchema,
+  JustificarItemSchema,
+  ReconciliarSchema,
+  RegistarItemSchema,
+} from '@/lib/validations/inventario-contagem';
+
+export const abrirContagemAction = createSafeAction({
+  schema: AbrirContagemSchema,
+  permission: 'inventario:contagens:abrir',
+  revalidate: { tags: ['contagens-stock'], paths: ['/inventario/contagens'] },
+  handler: (data, ctx) => contagemStockService.abrirContagem(data, ctx),
+});
+
+export const registarContagemItemAction = createSafeAction({
+  schema: RegistarItemSchema,
+  permission: 'inventario:contagens:registar',
+  revalidate: { tags: ['contagens-stock'] },
+  handler: (data, ctx) => contagemStockService.registarContagemItem(data, ctx),
+});
+
+export const justificarItemContagemAction = createSafeAction({
+  schema: JustificarItemSchema,
+  permission: 'inventario:contagens:justificar',
+  revalidate: { tags: ['contagens-stock'] },
+  handler: (data, ctx) => contagemStockService.justificar(data, ctx),
+});
+
+export const reconciliarContagemAction = createSafeAction({
+  schema: ReconciliarSchema,
+  permission: 'inventario:contagens:reconciliar',
+  revalidate: { tags: ['contagens-stock', 'movimentos-stock'], paths: ['/inventario/contagens'] },
+  handler: ({ contagemId, aprovadoPorId, limiarDiscrepanciaPct }, ctx) =>
+    contagemStockService.reconciliar(
+      contagemId,
+      { aprovadoPorId, limiarDiscrepanciaPct },
+      ctx,
+    ),
+});
+
+export const concluirContagemAction = createSafeAction({
+  schema: ConcluirContagemSchema,
+  permission: 'inventario:contagens:concluir',
+  revalidate: { tags: ['contagens-stock'], paths: ['/inventario/contagens'] },
+  handler: ({ contagemId, observacoes }, ctx) =>
+    contagemStockService.concluir(contagemId, observacoes, ctx),
+});
+
+export const cancelarContagemAction = createSafeAction({
+  schema: CancelarContagemSchema,
+  permission: 'inventario:contagens:cancelar',
+  revalidate: { tags: ['contagens-stock'], paths: ['/inventario/contagens'] },
+  handler: ({ contagemId, motivo }, ctx) =>
+    contagemStockService.cancelar(contagemId, motivo, ctx),
+});

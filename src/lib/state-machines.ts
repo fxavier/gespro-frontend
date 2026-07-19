@@ -33,3 +33,12 @@ export const TRANSICOES_TICKET: Record<string, string[]> = {
   FECHADO: ['EM_PROGRESSO'],
   CANCELADO: [],
 };
+
+// Spec 05: Contagem de Stock
+export const TRANSICOES_CONTAGEM_STOCK: Record<string, string[]> = {
+  RASCUNHO:     ['EM_CONTAGEM', 'CANCELADA'],
+  EM_CONTAGEM:  ['RECONCILIADA', 'CANCELADA'],
+  RECONCILIADA: ['CONCLUIDA', 'CANCELADA'],
+  CONCLUIDA:    [],
+  CANCELADA:    [],
+};
