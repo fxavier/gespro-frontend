@@ -78,9 +78,7 @@ export const ReconciliarSchema = z.object({
     .min(0)
     .max(100)
     .default(5),
-  gerarLancamentoContabilistico: z.boolean().default(false),
-  contaExistenciasCodigo: z.string().optional(),   // código PGC da conta de existências (classe 3)
-  contaVariacaoCodigo: z.string().optional(),       // código PGC da conta de regularização
+  // TODO(debt): gerarLancamentoContabilistico — requer valorização ao custo por produto.
 });
 
 export type ReconciliarInput = z.infer<typeof ReconciliarSchema>;

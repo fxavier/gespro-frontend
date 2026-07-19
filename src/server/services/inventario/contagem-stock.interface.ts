@@ -118,11 +118,7 @@ export interface IContagemStockService {
     opcoes: {
       aprovadoPorId?: string;
       limiarDiscrepanciaPct?: number;
-      gerarLancamentoContabilistico?: boolean;
-      /** Código PGC da conta de existências (classe 3) */
-      contaExistenciasCodigo?: string;
-      /** Código PGC da contra-conta de regularização */
-      contaVariacaoCodigo?: string;
+      // TODO(debt): gerarLancamentoContabilistico — requer valorização ao custo por produto.
     },
     ctx: Ctx,
   ): Promise<ReconciliacaoResultado>;

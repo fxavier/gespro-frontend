@@ -41,7 +41,6 @@ export function ContagemAcoes({ contagemId, status }: ContagemAcoesProps) {
       const result = await reconciliarContagemAction({
         contagemId,
         limiarDiscrepanciaPct: 5,
-        gerarLancamentoContabilistico: false,
       });
       if (result.ok) {
         toast.success(`Reconciliação concluída: ${result.data.ajustesGerados} ajuste(s) gerado(s)`);

@@ -1,7 +1,8 @@
 // Serviço de Contagem e Reconciliação de Stock (WS A — Spec 05)
 // Distinto do inventário físico de ativos (inventario-fisico.service.ts).
-// Consome os contratos: entradaStock/baixarStock (WS A) e
-// registarLancamentoContabilistico/proximoNumeroSerie (WS D — opcional).
+// Consome os contratos: entradaStock/baixarStock (WS A), proximoNumeroSerie (WS D).
+// TODO(debt): lançamento contabilístico de regularização (classe 3) requer valorização
+// ao custo por produto — não implementado nesta iteração.
 import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
@@ -16,7 +17,6 @@ import type {
 import type { Ctx, PaginatedResult, TxClient } from '@/server/services/types';
 import { entradaStock, baixarStock } from './stock.service';
 import { proximoNumeroSerie } from '@/server/services/financas';
-import { registarLancamentoContabilistico } from '@/server/services/financas/contabilidade.service';
 import {
   TRANSICOES_CONTAGEM,
   type ContagemDetalhe,
@@ -278,76 +278,93 @@ export async function reconciliar(
   opcoes: {
     aprovadoPorId?: string;
     limiarDiscrepanciaPct?: number;
-    gerarLancamentoContabilistico?: boolean;
-    contaExistenciasCodigo?: string;
-    contaVariacaoCodigo?: string;
   },
   ctx: Ctx,
 ): Promise<ReconciliacaoResultado> {
   const limiar = opcoes.limiarDiscrepanciaPct ?? 5;
 
-  const contagem = await _obterContagem(contagemId, ctx.tenantId);
-  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'RECONCILIADA' as never, 'ContagemStock');
-
-  // Carrega todos os itens contados com diferença ≠ 0
-  const itens = await prisma.itemContagemStock.findMany({
-    where: { contagemId, tenantId: ctx.tenantId },
-    select: ITEM_SEL,
-  });
-
-  // Valida: não pode haver PENDENTE sem justificativa
-  const itensPendentesSemJustif = itens.filter(
-    (i) => i.status === 'PENDENTE' && !i.justificativa,
-  );
-  if (itensPendentesSemJustif.length > 0) {
-    throw new BusinessRuleError(
-      'ITENS_PENDENTES',
-      `Existem ${itensPendentesSemJustif.length} item(s) PENDENTE(s) sem justificativa. Registe contagem ou justifique antes de reconciliar.`,
-      { count: itensPendentesSemJustif.length },
-    );
-  }
-
-  // Itens que precisam ajuste: têm diferença ≠ 0 e não estão já AJUSTADOS
-  const itensParaAjuste = itens.filter(
-    (i) =>
-      i.diferenca !== null &&
-      !new Prisma.Decimal(i.diferenca.toString()).isZero() &&
-      i.status !== 'AJUSTADO',
-  );
-
-  // Valida limiar de discrepância (exige aprovação se acima do limiar)
-  if (limiar < 100 && itensParaAjuste.length > 0) {
-    for (const item of itensParaAjuste) {
-      const saldo = new Prisma.Decimal(item.saldoSistema.toString());
-      const dif = new Prisma.Decimal(item.diferenca!.toString());
-      if (!saldo.isZero()) {
-        const pct = dif.abs().div(saldo).times(100);
-        if (pct.greaterThan(limiar) && !opcoes.aprovadoPorId) {
-          throw new BusinessRuleError(
-            'DISCREPANCIA_SEM_APROVACAO',
-            `Item ${item.produtoId}: discrepância de ${pct.toFixed(2)}% excede o limiar de ${limiar}%. Aprovação obrigatória.`,
-            { produtoId: item.produtoId, pct: pct.toFixed(2), limiar },
-          );
-        }
-      }
-    }
-  }
-
-  const itensJaAjustados = itens.filter((i) => i.status === 'AJUSTADO').length;
-
+  // Contadores actualizados dentro da tx e devolvidos fora.
+  // Se a tx falhar estes valores ficam incorrectos mas a throw propaga-se antes do return.
   let ajustesGerados = 0;
+  let itensIgnorados = 0;
   let totalEntradas = new Prisma.Decimal(0);
   let totalSaidas = new Prisma.Decimal(0);
 
-  // Execução transaccional atómica
+  // B1: toda a lógica de reconciliação é atómica.
+  // A primeira operação dentro da tx é um updateMany condicional que age como lock
+  // optimista: apenas uma transacção concorrente pode alterar o status de EM_CONTAGEM
+  // para RECONCILIADA; qualquer outra obterá count=0 e lança imediatamente.
   await prismaBase.$transaction(async (tx: TxClient) => {
+    // ── 1. Claim atómico de estado ────────────────────────────────────────────
+    const claimed = await tx.contagemStock.updateMany({
+      where: { id: contagemId, tenantId: ctx.tenantId, status: 'EM_CONTAGEM' },
+      data: { status: 'RECONCILIADA', aprovadoPorId: opcoes.aprovadoPorId ?? null },
+    });
+    if (claimed.count === 0) {
+      throw new BusinessRuleError(
+        'TRANSICAO_INVALIDA',
+        'Contagem não está em estado EM_CONTAGEM ou já foi reconciliada por outra operação concorrente.',
+      );
+    }
+
+    // Obtém o numero (imutável após criação) para usar no motivo dos movimentos.
+    const contagemRow = await tx.contagemStock.findFirst({
+      where: { id: contagemId, tenantId: ctx.tenantId },
+      select: { numero: true },
+    });
+    const numero = contagemRow!.numero;
+
+    // ── 2. Leitura de itens dentro da tx (snapshot consistente) ──────────────
+    const itens = await tx.itemContagemStock.findMany({
+      where: { contagemId, tenantId: ctx.tenantId },
+      select: ITEM_SEL,
+    });
+
+    // ── 3. Validações ─────────────────────────────────────────────────────────
+    const itensPendentesSemJustif = itens.filter(
+      (i) => i.status === 'PENDENTE' && !i.justificativa,
+    );
+    if (itensPendentesSemJustif.length > 0) {
+      throw new BusinessRuleError(
+        'ITENS_PENDENTES',
+        `Existem ${itensPendentesSemJustif.length} item(s) PENDENTE(s) sem justificativa. Registe contagem ou justifique antes de reconciliar.`,
+        { count: itensPendentesSemJustif.length },
+      );
+    }
+
+    const itensParaAjuste = itens.filter(
+      (i) =>
+        i.diferenca !== null &&
+        !new Prisma.Decimal(i.diferenca.toString()).isZero() &&
+        i.status !== 'AJUSTADO',
+    );
+
+    itensIgnorados = itens.filter((i) => i.status === 'AJUSTADO').length;
+
+    if (limiar < 100 && itensParaAjuste.length > 0) {
+      for (const item of itensParaAjuste) {
+        const saldo = new Prisma.Decimal(item.saldoSistema.toString());
+        const dif = new Prisma.Decimal(item.diferenca!.toString());
+        if (!saldo.isZero()) {
+          const pct = dif.abs().div(saldo).times(100);
+          if (pct.greaterThan(limiar) && !opcoes.aprovadoPorId) {
+            throw new BusinessRuleError(
+              'DISCREPANCIA_SEM_APROVACAO',
+              `Item ${item.produtoId}: discrepância de ${pct.toFixed(2)}% excede o limiar de ${limiar}%. Aprovação obrigatória.`,
+              { produtoId: item.produtoId, pct: pct.toFixed(2), limiar },
+            );
+          }
+        }
+      }
+    }
+
+    // ── 4. Ajustes de stock por item ──────────────────────────────────────────
     for (const item of itensParaAjuste) {
       const dif = new Prisma.Decimal(item.diferenca!.toString());
       const qtdAbs = dif.abs().toNumber();
 
       let movId: string;
       if (dif.greaterThan(0)) {
-        // Diferença positiva: entrada de stock
         const mov = await entradaStock(
           tx,
           {
@@ -356,14 +373,13 @@ export async function reconciliar(
             quantidade: qtdAbs,
             documentoReferenciaTipo: 'AjusteInventario',
             documentoReferenciaId: contagemId,
-            motivo: `Ajuste de contagem ${contagem.numero}`,
+            motivo: `Ajuste de contagem ${numero}`,
           },
           ctx,
         );
         movId = mov.id;
         totalEntradas = totalEntradas.plus(dif);
       } else {
-        // Diferença negativa: baixa de stock
         const mov = await baixarStock(
           tx,
           {
@@ -372,7 +388,7 @@ export async function reconciliar(
             quantidade: qtdAbs,
             documentoReferenciaTipo: 'AjusteInventario',
             documentoReferenciaId: contagemId,
-            motivo: `Ajuste de contagem ${contagem.numero}`,
+            motivo: `Ajuste de contagem ${numero}`,
           },
           ctx,
         );
@@ -380,67 +396,25 @@ export async function reconciliar(
         totalSaidas = totalSaidas.plus(dif.abs());
       }
 
-      // Grava movimentoStockId e passa item para AJUSTADO
-      await tx.itemContagemStock.update({
-        where: { id: item.id },
-        data: {
-          movimentoStockId: movId,
-          status: 'AJUSTADO',
-        },
+      // B1/B3: updateMany com tenantId garante scope correcto e idempotência por item.
+      const itemUpdated = await tx.itemContagemStock.updateMany({
+        where: { id: item.id, tenantId: ctx.tenantId, status: { not: 'AJUSTADO' } },
+        data: { movimentoStockId: movId, status: 'AJUSTADO' },
       });
-
-      ajustesGerados++;
-    }
-
-    // Lançamento contabilístico opcional de regularização de existências (classe 3)
-    if (opcoes.gerarLancamentoContabilistico && opcoes.contaExistenciasCodigo && opcoes.contaVariacaoCodigo) {
-      const valorTotal = totalEntradas.minus(totalSaidas);
-      if (!valorTotal.isZero()) {
-        // Débito: conta de existências (classe 3) se entrada líquida, senão contrapartida
-        const isEntrada = valorTotal.greaterThan(0);
-        await registarLancamentoContabilistico(
-          tx,
-          {
-            data: new Date(),
-            diarioTipo: 'OPERACOES',
-            origem: 'AJUSTE',
-            documentoOrigemId: contagemId,
-            documentoOrigemTipo: 'ContagemStock',
-            historico: `Regularização de existências — contagem ${contagem.numero}`,
-            partidas: [
-              {
-                contaCodigo: isEntrada ? opcoes.contaExistenciasCodigo : opcoes.contaVariacaoCodigo,
-                tipo: 'DEBITO',
-                valor: valorTotal.abs().toString(),
-                historico: `Ajuste contagem ${contagem.numero}`,
-              },
-              {
-                contaCodigo: isEntrada ? opcoes.contaVariacaoCodigo : opcoes.contaExistenciasCodigo,
-                tipo: 'CREDITO',
-                valor: valorTotal.abs().toString(),
-                historico: `Ajuste contagem ${contagem.numero}`,
-              },
-            ],
-          },
-          ctx,
-        );
+      if (itemUpdated.count === 0) {
+        // Item já foi ajustado por transacção concorrente (não deveria acontecer,
+        // pois o claim da contagem é exclusivo, mas defensivamente contamos como ignorado).
+        itensIgnorados++;
+      } else {
+        ajustesGerados++;
       }
     }
-
-    // Actualiza status da contagem e aprovadoPorId
-    await tx.contagemStock.update({
-      where: { id: contagemId },
-      data: {
-        status: 'RECONCILIADA',
-        aprovadoPorId: opcoes.aprovadoPorId ?? null,
-      },
-    });
   });
 
   return {
     contagemId,
     ajustesGerados,
-    itensIgnorados: itensJaAjustados,
+    itensIgnorados,
     totalEntradas: totalEntradas.toString(),
     totalSaidas: totalSaidas.toString(),
   };
