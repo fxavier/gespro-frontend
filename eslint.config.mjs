@@ -9,7 +9,7 @@ const useServerNeedsSafeAction = require("./eslint-rules/use-server-needs-safe-a
 // Next 16 removeu `next lint`; usamos o flat config nativo do eslint-config-next
 // (o antigo FlatCompat + @eslint/eslintrc rebentava com eslint 9).
 const eslintConfig = [
-  { ignores: [".next/**", "node_modules/**", "prisma/migrations/**", "scripts/**"] },
+  { ignores: [".next/**", "node_modules/**", "prisma/migrations/**", "scripts/**", "wt/**"] },
   ...next,
   {
     rules: {
