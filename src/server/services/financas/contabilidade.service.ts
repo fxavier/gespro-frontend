@@ -19,10 +19,19 @@ import type {
   AtualizarContaBancariaInput,
   IniciarReconciliacaoInput,
   MarcarItemReconciliadoInput,
+  ImportarExtratoInput,
+  AutoMatchInput,
+  ConcluirReconciliacaoInput,
   FiltroBalanceteInput,
   FiltroRazaoInput,
   FiltroDREInput,
 } from '@/lib/validations/contabilidade';
+import {
+  calcularDiferencaNaoConciliada,
+  sugerirMatchesPuro,
+  transitarReconciliacao,
+  type MatchSugerido,
+} from './reconciliacao.helpers';
 import {
   TRANSICOES_LANCAMENTO,
   type StatusLancamento,
@@ -33,6 +42,9 @@ import {
   type LancamentoComPartidas,
   type ContaBancaria,
   type ReconciliacaoBancaria,
+  type ReconciliacaoDetalhe,
+  type ReconciliacaoComConta,
+  type StatusReconciliacao,
   type Balancete,
   type LinhaRazao,
   type DRE,
@@ -575,7 +587,34 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
 // Banca
 // ---------------------------------------------------------------------------
 
+/** Valida que a conta PGC existe no tenant, é folha (aceitaLancamento) e da classe 1. */
+async function validarContaContabilBancaria(contaContabilId: string, tenantId: string): Promise<void> {
+  const contaPGC = await prisma.contaPGC.findFirst({
+    where: { id: contaContabilId, tenantId, ativo: true },
+    select: { aceitaLancamento: true, classe: true },
+  });
+  if (!contaPGC) throw new NotFoundError('Conta contabilística não encontrada');
+  if (!contaPGC.aceitaLancamento || contaPGC.classe !== 'CLASSE_1') {
+    throw new BusinessRuleError(
+      'CONTA_CONTABIL_INVALIDA',
+      'A conta contabilística deve ser uma conta folha (aceita lançamentos) da classe 1',
+    );
+  }
+}
+
 export async function criarContaBancaria(input: CriarContaBancariaInput, ctx: Ctx): Promise<ContaBancaria> {
+  await validarContaContabilBancaria(input.contaContabilId, ctx.tenantId);
+  const existente = await prisma.contaBancaria.findFirst({
+    where: { tenantId: ctx.tenantId, banco: input.banco, numeroConta: input.numeroConta },
+    select: { id: true },
+  });
+  if (existente) {
+    throw new BusinessRuleError(
+      'CONTA_BANCARIA_DUPLICADA',
+      `Já existe a conta ${input.numeroConta} no banco ${input.banco}`,
+    );
+  }
+  // saldoAtual nunca é editável manualmente — derivado dos movimentos (append-only)
   return prisma.contaBancaria.create({
     data: { tenantId: ctx.tenantId, ...input, saldoAtual: new Prisma.Decimal(0) },
   }) as unknown as ContaBancaria;
@@ -585,7 +624,17 @@ export async function atualizarContaBancaria(input: AtualizarContaBancariaInput,
   const { id, ...data } = input;
   const cb = await prisma.contaBancaria.findFirst({ where: { id, tenantId: ctx.tenantId } });
   if (!cb) throw new NotFoundError('Conta bancária não encontrada');
+  if (data.contaContabilId && data.contaContabilId !== cb.contaContabilId) {
+    await validarContaContabilBancaria(data.contaContabilId, ctx.tenantId);
+  }
+  // O schema Zod não expõe saldoAtual — permanece derivado (Requisito 1.3)
   return prisma.contaBancaria.update({ where: { id }, data }) as unknown as ContaBancaria;
+}
+
+export async function obterContaBancaria(id: string, ctx: Ctx): Promise<ContaBancaria | null> {
+  return prisma.contaBancaria.findFirst({
+    where: { id, tenantId: ctx.tenantId },
+  }) as unknown as ContaBancaria | null;
 }
 
 export async function listarContasBancarias(ctx: Ctx): Promise<ContaBancaria[]> {
@@ -595,57 +644,381 @@ export async function listarContasBancarias(ctx: Ctx): Promise<ContaBancaria[]> 
   }) as unknown as ContaBancaria[];
 }
 
+/**
+ * Saldo do razão da conta PGC até `ate` (agregação de partidas de lançamentos
+ * LANCADO). Natureza DEVEDORA (classe 1): saldo = Σ débitos − Σ créditos.
+ * `exclusivo: true` usa `< ate` (saldo de abertura); por omissão `<= ate`.
+ */
+export async function saldoContabilAte(
+  contaId: string,
+  ate: Date,
+  ctx: Ctx,
+  opts?: { exclusivo?: boolean; tx?: Prisma.TransactionClient },
+): Promise<Prisma.Decimal> {
+  const db = opts?.tx ?? prismaBase;
+  const agg = await db.partidaLancamento.groupBy({
+    by: ['tipo'],
+    where: {
+      tenantId: ctx.tenantId,
+      contaId,
+      lancamento: {
+        status: 'LANCADO',
+        data: opts?.exclusivo ? { lt: ate } : { lte: ate },
+      },
+    },
+    _sum: { valor: true },
+  });
+  const debitos = agg.find((a) => a.tipo === 'DEBITO')?._sum.valor ?? new Prisma.Decimal(0);
+  const creditos = agg.find((a) => a.tipo === 'CREDITO')?._sum.valor ?? new Prisma.Decimal(0);
+  return debitos.minus(creditos);
+}
+
+/**
+ * Geração idempotente de itens LANCAMENTO_CONTABIL: um item por partida da
+ * conta contabilística no intervalo; lançamentos já representados na
+ * reconciliação (mesmo lancamentoId) não são duplicados.
+ */
+async function gerarItensRazaoNoTx(
+  tx: Prisma.TransactionClient,
+  rec: { id: string; dataInicio: Date; dataFim: Date },
+  contaContabilId: string,
+  ctx: Ctx,
+): Promise<number> {
+  const partidas = await tx.partidaLancamento.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      contaId: contaContabilId,
+      lancamento: { status: 'LANCADO', data: { gte: rec.dataInicio, lte: rec.dataFim } },
+    },
+    select: {
+      lancamentoId: true,
+      tipo: true,
+      valor: true,
+      historico: true,
+      lancamento: { select: { data: true, historico: true } },
+    },
+    orderBy: { lancamento: { data: 'asc' } },
+  });
+
+  const existentes = await tx.itemReconciliacaoBancaria.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      reconciliacaoId: rec.id,
+      tipo: 'LANCAMENTO_CONTABIL',
+      lancamentoId: { not: null },
+    },
+    select: { lancamentoId: true },
+  });
+  const jaGerados = new Set(existentes.map((e) => e.lancamentoId));
+
+  let criados = 0;
+  for (const p of partidas) {
+    if (jaGerados.has(p.lancamentoId)) continue;
+    await tx.itemReconciliacaoBancaria.create({
+      data: {
+        tenantId: ctx.tenantId,
+        reconciliacaoId: rec.id,
+        tipo: 'LANCAMENTO_CONTABIL',
+        data: p.lancamento.data,
+        descricao: p.historico ?? p.lancamento.historico,
+        valor: p.valor,
+        tipoMovimento: p.tipo,
+        lancamentoId: p.lancamentoId,
+        conciliado: false,
+      },
+    });
+    criados++;
+  }
+  return criados;
+}
+
+/** Recalcula a diferença não conciliada da reconciliação dentro da transacção. */
+async function recalcularDiferencaNoTx(
+  tx: Prisma.TransactionClient,
+  rec: { id: string; saldoFinalBanco: Prisma.Decimal },
+  saldoFinalContabil: Prisma.Decimal,
+  ctx: Ctx,
+): Promise<Prisma.Decimal> {
+  const itens = await tx.itemReconciliacaoBancaria.findMany({
+    where: { tenantId: ctx.tenantId, reconciliacaoId: rec.id },
+    select: { tipo: true, tipoMovimento: true, valor: true, conciliado: true },
+  });
+  return calcularDiferencaNaoConciliada(rec.saldoFinalBanco, saldoFinalContabil, itens);
+}
+
 export async function iniciarReconciliacao(input: IniciarReconciliacaoInput, ctx: Ctx): Promise<ReconciliacaoBancaria> {
-  // W9: validar que a conta bancária pertence ao tenant
-  const cb = await prisma.contaBancaria.findFirst({
-    where: { id: input.contaBancariaId, tenantId: ctx.tenantId },
+  return prismaBase.$transaction(async (tx) => {
+    // W9/B1: validar que a conta bancária pertence ao tenant
+    const cb = await tx.contaBancaria.findFirst({
+      where: { id: input.contaBancariaId, tenantId: ctx.tenantId },
+      select: { id: true, contaContabilId: true },
+    });
+    if (!cb) throw new NotFoundError('Conta bancária não encontrada');
+
+    // Requisito 2.2: só uma reconciliação EM_ANDAMENTO por conta bancária
+    const aberta = await tx.reconciliacaoBancaria.findFirst({
+      where: { tenantId: ctx.tenantId, contaBancariaId: cb.id, status: 'EM_ANDAMENTO' },
+      select: { id: true },
+    });
+    if (aberta) {
+      throw new BusinessRuleError(
+        'RECONCILIACAO_EM_ABERTO',
+        'Já existe uma reconciliação em andamento para esta conta bancária',
+      );
+    }
+
+    // Requisito 2.1: saldos contabilísticos reais a partir do razão
+    const saldoInicialContabil = await saldoContabilAte(cb.contaContabilId, input.dataInicio, ctx, {
+      exclusivo: true,
+      tx,
+    });
+    const saldoFinalContabil = await saldoContabilAte(cb.contaContabilId, input.dataFim, ctx, { tx });
+    const saldoFinalBanco = new Prisma.Decimal(input.saldoFinalBanco.toFixed(2));
+
+    const rec = await tx.reconciliacaoBancaria.create({
+      data: {
+        tenantId: ctx.tenantId,
+        contaBancariaId: cb.id,
+        dataInicio: input.dataInicio,
+        dataFim: input.dataFim,
+        saldoInicialBanco: new Prisma.Decimal(input.saldoInicialBanco.toFixed(2)),
+        saldoFinalBanco,
+        saldoInicialContabil,
+        saldoFinalContabil,
+        diferencaNaoConciliada: saldoFinalBanco.minus(saldoFinalContabil),
+        status: 'EM_ANDAMENTO',
+        responsavelId: ctx.userId,
+      },
+    });
+
+    // Requisito 3.1: gerar itens do razão na abertura
+    await gerarItensRazaoNoTx(tx, rec, cb.contaContabilId, ctx);
+
+    return rec as unknown as ReconciliacaoBancaria;
+  });
+}
+
+export async function gerarItensRazao(reconciliacaoId: string, ctx: Ctx): Promise<{ criados: number }> {
+  return prismaBase.$transaction(async (tx) => {
+    const rec = await tx.reconciliacaoBancaria.findFirst({
+      where: { id: reconciliacaoId, tenantId: ctx.tenantId },
+      select: { id: true, dataInicio: true, dataFim: true, contaBancariaId: true, status: true },
+    });
+    if (!rec) throw new NotFoundError('Reconciliação não encontrada');
+    if (rec.status !== 'EM_ANDAMENTO') {
+      throw new BusinessRuleError('RECONCILIACAO_IMUTAVEL', 'Reconciliação concluída/cancelada é imutável');
+    }
+    const cb = await tx.contaBancaria.findFirst({
+      where: { id: rec.contaBancariaId, tenantId: ctx.tenantId },
+      select: { contaContabilId: true },
+    });
+    if (!cb) throw new NotFoundError('Conta bancária não encontrada');
+    const criados = await gerarItensRazaoNoTx(tx, rec, cb.contaContabilId, ctx);
+    return { criados };
+  });
+}
+
+export async function importarExtrato(
+  input: ImportarExtratoInput,
+  ctx: Ctx,
+): Promise<{ criados: number; ignorados: number }> {
+  return prismaBase.$transaction(async (tx) => {
+    const rec = await tx.reconciliacaoBancaria.findFirst({
+      where: { id: input.reconciliacaoId, tenantId: ctx.tenantId },
+      select: { id: true, status: true },
+    });
+    if (!rec) throw new NotFoundError('Reconciliação não encontrada');
+    if (rec.status !== 'EM_ANDAMENTO') {
+      throw new BusinessRuleError('RECONCILIACAO_IMUTAVEL', 'Reconciliação concluída/cancelada é imutável');
+    }
+
+    // Requisito 4.3: idempotência por [tenantId, reconciliacaoId, extratoReferencia]
+    const existentes = await tx.itemReconciliacaoBancaria.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        reconciliacaoId: rec.id,
+        tipo: 'EXTRATO_BANCARIO',
+        extratoReferencia: { in: input.linhas.map((l) => l.extratoReferencia) },
+      },
+      select: { extratoReferencia: true },
+    });
+    const jaImportadas = new Set(existentes.map((e) => e.extratoReferencia));
+    const novas = input.linhas.filter((l) => !jaImportadas.has(l.extratoReferencia));
+
+    // skipDuplicates cobre corridas concorrentes via @@unique de importação
+    const res = await tx.itemReconciliacaoBancaria.createMany({
+      data: novas.map((l) => ({
+        tenantId: ctx.tenantId,
+        reconciliacaoId: rec.id,
+        tipo: 'EXTRATO_BANCARIO',
+        data: l.data,
+        descricao: l.descricao,
+        valor: new Prisma.Decimal(l.valor.toFixed(2)),
+        tipoMovimento: l.tipoMovimento,
+        extratoReferencia: l.extratoReferencia,
+        conciliado: false,
+      })),
+      skipDuplicates: true,
+    });
+
+    return { criados: res.count, ignorados: input.linhas.length - res.count };
+  });
+}
+
+export async function sugerirMatches(input: AutoMatchInput, ctx: Ctx): Promise<MatchSugerido[]> {
+  const rec = await prisma.reconciliacaoBancaria.findFirst({
+    where: { id: input.reconciliacaoId, tenantId: ctx.tenantId },
     select: { id: true },
   });
-  if (!cb) throw new NotFoundError('Conta bancária não encontrada');
+  if (!rec) throw new NotFoundError('Reconciliação não encontrada');
 
-  return prisma.reconciliacaoBancaria.create({
-    data: {
-      tenantId: ctx.tenantId,
-      contaBancariaId: input.contaBancariaId,
-      dataInicio: input.dataInicio,
-      dataFim: input.dataFim,
-      saldoInicialBanco: new Prisma.Decimal(input.saldoInicialBanco.toFixed(2)),
-      saldoFinalBanco: new Prisma.Decimal(input.saldoFinalBanco.toFixed(2)),
-      saldoInicialContabil: new Prisma.Decimal(0),
-      saldoFinalContabil: new Prisma.Decimal(0),
-      diferencaNaoConciliada: new Prisma.Decimal(input.saldoFinalBanco.toFixed(2)),
-      status: 'EM_ANDAMENTO',
-      responsavelId: ctx.userId,
-    },
-  }) as unknown as ReconciliacaoBancaria;
+  const itens = await prisma.itemReconciliacaoBancaria.findMany({
+    where: { tenantId: ctx.tenantId, reconciliacaoId: rec.id, conciliado: false },
+    select: { id: true, tipo: true, tipoMovimento: true, valor: true, data: true, conciliado: true },
+  });
+  return sugerirMatchesPuro(itens, input.janelaDias);
 }
 
 export async function marcarItemReconciliado(input: MarcarItemReconciliadoInput, ctx: Ctx): Promise<ReconciliacaoBancaria> {
-  // B1: verificar que o item pertence ao tenant + reconciliação correcta antes de actualizar
-  const item = await prisma.itemReconciliacaoBancaria.findFirst({
-    where: { id: input.itemId, tenantId: ctx.tenantId, reconciliacaoId: input.reconciliacaoId },
-  });
-  if (!item) throw new NotFoundError('Item de reconciliação não encontrado');
+  return prismaBase.$transaction(async (tx) => {
+    // B1 (fecho do BLOCKER Wave 2): tudo filtrado por tenantId; cross-tenant → 404
+    const rec = await tx.reconciliacaoBancaria.findFirst({
+      where: { id: input.reconciliacaoId, tenantId: ctx.tenantId },
+    });
+    if (!rec) throw new NotFoundError('Reconciliação não encontrada');
+    if (rec.status !== 'EM_ANDAMENTO') {
+      throw new BusinessRuleError('RECONCILIACAO_IMUTAVEL', 'Reconciliação concluída/cancelada é imutável');
+    }
 
-  await prisma.itemReconciliacaoBancaria.update({
-    where: { id: item.id },
-    data: { conciliado: true, observacoes: input.observacoes ?? null },
-  });
+    const item = await tx.itemReconciliacaoBancaria.findFirst({
+      where: { id: input.itemId, tenantId: ctx.tenantId, reconciliacaoId: rec.id },
+    });
+    if (!item) throw new NotFoundError('Item de reconciliação não encontrado');
 
-  const rec = await prisma.reconciliacaoBancaria.findFirst({
-    where: { id: input.reconciliacaoId, tenantId: ctx.tenantId },
+    let itemParId: string | null = null;
+    if (input.conciliado && input.itemParId) {
+      const par = await tx.itemReconciliacaoBancaria.findFirst({
+        where: { id: input.itemParId, tenantId: ctx.tenantId, reconciliacaoId: rec.id },
+      });
+      if (!par) throw new NotFoundError('Item par não encontrado');
+      if (par.tipo === item.tipo) {
+        throw new BusinessRuleError('PAR_INVALIDO', 'O item par deve ser do lado oposto (razão ↔ extracto)');
+      }
+      await tx.itemReconciliacaoBancaria.updateMany({
+        where: { id: par.id, tenantId: ctx.tenantId },
+        data: { conciliado: true, itemParId: item.id },
+      });
+      itemParId = par.id;
+    }
+
+    await tx.itemReconciliacaoBancaria.updateMany({
+      where: { id: item.id, tenantId: ctx.tenantId },
+      data: {
+        conciliado: input.conciliado,
+        itemParId: input.conciliado ? itemParId : null,
+        observacoes: input.observacoes ?? item.observacoes,
+      },
+    });
+
+    // Desconciliar também o par previamente associado
+    if (!input.conciliado && item.itemParId) {
+      await tx.itemReconciliacaoBancaria.updateMany({
+        where: { id: item.itemParId, tenantId: ctx.tenantId, reconciliacaoId: rec.id },
+        data: { conciliado: false, itemParId: null },
+      });
+    }
+
+    // Requisito 5.3: recálculo da diferença na mesma transacção
+    const diferenca = await recalcularDiferencaNoTx(tx, rec, rec.saldoFinalContabil, ctx);
+    return tx.reconciliacaoBancaria.update({
+      where: { id: rec.id },
+      data: { diferencaNaoConciliada: diferenca },
+    }) as unknown as ReconciliacaoBancaria;
   });
-  if (!rec) throw new NotFoundError('Reconciliação não encontrada');
-  return rec as unknown as ReconciliacaoBancaria;
 }
 
-export async function concluirReconciliacao(id: string, ctx: Ctx): Promise<ReconciliacaoBancaria> {
+export async function concluirReconciliacao(
+  input: ConcluirReconciliacaoInput,
+  ctx: Ctx,
+): Promise<ReconciliacaoBancaria> {
+  return prismaBase.$transaction(async (tx) => {
+    const rec = await tx.reconciliacaoBancaria.findFirst({
+      where: { id: input.id, tenantId: ctx.tenantId },
+    });
+    if (!rec) throw new NotFoundError('Reconciliação não encontrada');
+    transitarReconciliacao(rec.status as StatusReconciliacao, 'CONCLUIDA');
+
+    const cb = await tx.contaBancaria.findFirst({
+      where: { id: rec.contaBancariaId, tenantId: ctx.tenantId },
+      select: { contaContabilId: true },
+    });
+    if (!cb) throw new NotFoundError('Conta bancária não encontrada');
+
+    // Requisito 6.1: recálculo de saldos e diferença no fecho
+    const saldoInicialContabil = await saldoContabilAte(cb.contaContabilId, rec.dataInicio, ctx, {
+      exclusivo: true,
+      tx,
+    });
+    const saldoFinalContabil = await saldoContabilAte(cb.contaContabilId, rec.dataFim, ctx, { tx });
+    const diferenca = await recalcularDiferencaNoTx(tx, rec, saldoFinalContabil, ctx);
+
+    const observacoes = input.observacoes ?? rec.observacoes;
+    if (!diferenca.isZero() && !observacoes) {
+      throw new BusinessRuleError(
+        'RECONCILIACAO_NAO_BALANCEADA',
+        `Diferença não conciliada de ${diferenca.toFixed(2)} exige justificação (observações)`,
+      );
+    }
+
+    return tx.reconciliacaoBancaria.update({
+      where: { id: rec.id },
+      data: {
+        status: 'CONCLUIDA',
+        saldoInicialContabil,
+        saldoFinalContabil,
+        diferencaNaoConciliada: diferenca,
+        observacoes,
+      },
+    }) as unknown as ReconciliacaoBancaria;
+  });
+}
+
+export async function cancelarReconciliacao(id: string, ctx: Ctx): Promise<ReconciliacaoBancaria> {
   const rec = await prisma.reconciliacaoBancaria.findFirst({ where: { id, tenantId: ctx.tenantId } });
   if (!rec) throw new NotFoundError('Reconciliação não encontrada');
-  if (rec.status !== 'EM_ANDAMENTO') {
-    throw new BusinessRuleError('TRANSICAO_INVALIDA', 'Reconciliação não está em andamento');
-  }
-  return prisma.reconciliacaoBancaria.update({ where: { id }, data: { status: 'CONCLUIDA' } }) as unknown as ReconciliacaoBancaria;
+  transitarReconciliacao(rec.status as StatusReconciliacao, 'CANCELADA');
+  return prisma.reconciliacaoBancaria.update({
+    where: { id: rec.id },
+    data: { status: 'CANCELADA' },
+  }) as unknown as ReconciliacaoBancaria;
+}
+
+export async function obterReconciliacao(id: string, ctx: Ctx): Promise<ReconciliacaoDetalhe | null> {
+  const rec = await prisma.reconciliacaoBancaria.findFirst({
+    where: { id, tenantId: ctx.tenantId },
+    include: {
+      contaBancaria: {
+        select: { id: true, banco: true, agencia: true, numeroConta: true, contaContabilId: true },
+      },
+      itens: { orderBy: [{ data: 'asc' }, { createdAt: 'asc' }] },
+    },
+  });
+  if (!rec) return null;
+  const { itens, ...resto } = rec;
+  return {
+    ...resto,
+    itensRazao: itens.filter((i) => i.tipo === 'LANCAMENTO_CONTABIL'),
+    itensExtrato: itens.filter((i) => i.tipo === 'EXTRATO_BANCARIO'),
+  } as unknown as ReconciliacaoDetalhe;
+}
+
+export async function listarReconciliacoes(ctx: Ctx): Promise<ReconciliacaoComConta[]> {
+  return prisma.reconciliacaoBancaria.findMany({
+    where: { tenantId: ctx.tenantId },
+    include: { contaBancaria: { select: { id: true, banco: true, numeroConta: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  }) as unknown as ReconciliacaoComConta[];
 }
 
 // ---------------------------------------------------------------------------
@@ -753,7 +1126,13 @@ export const contabilidadeService = {
   atualizarContaBancaria,
   listarContasBancarias,
   iniciarReconciliacao,
+  gerarItensRazao,
+  importarExtrato,
+  sugerirMatches,
   marcarItemReconciliado,
   concluirReconciliacao,
+  cancelarReconciliacao,
+  obterReconciliacao,
+  listarReconciliacoes,
   registarLancamentoContabilistico,
 } satisfies IContabilidadeService;

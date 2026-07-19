@@ -16,10 +16,14 @@ import type {
   AtualizarContaBancariaInput,
   IniciarReconciliacaoInput,
   MarcarItemReconciliadoInput,
+  ImportarExtratoInput,
+  AutoMatchInput,
+  ConcluirReconciliacaoInput,
   FiltroBalanceteInput,
   FiltroRazaoInput,
   FiltroDREInput,
 } from '@/lib/validations/contabilidade';
+import type { MatchSugerido } from './reconciliacao.helpers';
 
 // ---------------------------------------------------------------------------
 // Contexto
@@ -182,6 +186,38 @@ export interface ReconciliacaoBancaria {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type TipoItemReconciliacao = 'LANCAMENTO_CONTABIL' | 'EXTRATO_BANCARIO';
+
+export interface ItemReconciliacaoBancaria {
+  id: string;
+  tenantId: string;
+  reconciliacaoId: string;
+  tipo: string; // TipoItemReconciliacao
+  data: Date;
+  descricao: string;
+  valor: Prisma.Decimal;
+  tipoMovimento: TipoPartida;
+  conciliado: boolean;
+  lancamentoId: string | null;
+  extratoReferencia: string | null;
+  itemParId: string | null;
+  observacoes: string | null;
+  createdAt: Date;
+}
+
+/** Detalhe do workspace de matching: razão vs extracto + saldos. */
+export interface ReconciliacaoDetalhe extends ReconciliacaoBancaria {
+  contaBancaria: Pick<ContaBancaria, 'id' | 'banco' | 'agencia' | 'numeroConta' | 'contaContabilId'>;
+  itensRazao: ItemReconciliacaoBancaria[];
+  itensExtrato: ItemReconciliacaoBancaria[];
+}
+
+export interface ReconciliacaoComConta extends ReconciliacaoBancaria {
+  contaBancaria: Pick<ContaBancaria, 'id' | 'banco' | 'numeroConta'>;
+}
+
+export type { MatchSugerido };
 
 // ---------------------------------------------------------------------------
 // Máquina de estado: Lancamento
@@ -358,12 +394,29 @@ export interface IContabilidadeService {
   criarContaBancaria(input: CriarContaBancariaInput, ctx: Ctx): Promise<ContaBancaria>;
   atualizarContaBancaria(input: AtualizarContaBancariaInput, ctx: Ctx): Promise<ContaBancaria>;
   listarContasBancarias(ctx: Ctx): Promise<ContaBancaria[]>;
+
+  // --- Reconciliação bancária ---
+  /** Abre reconciliação com saldos contabilísticos reais + gera itens do razão. */
   iniciarReconciliacao(input: IniciarReconciliacaoInput, ctx: Ctx): Promise<ReconciliacaoBancaria>;
+  /** Geração idempotente de itens LANCAMENTO_CONTABIL do intervalo (não duplica lancamentoId). */
+  gerarItensRazao(reconciliacaoId: string, ctx: Ctx): Promise<{ criados: number }>;
+  /** Importa linhas de extracto (idempotente por [tenantId, reconciliacaoId, extratoReferencia]). */
+  importarExtrato(
+    input: ImportarExtratoInput,
+    ctx: Ctx,
+  ): Promise<{ criados: number; ignorados: number }>;
+  /** Sugestões de matching valor+tipoMovimento+janela de datas (não persiste). */
+  sugerirMatches(input: AutoMatchInput, ctx: Ctx): Promise<MatchSugerido[]>;
+  /** Concilia/desconcilia item (e par opcional) + recalcula diferença em transacção. */
   marcarItemReconciliado(
     input: MarcarItemReconciliadoInput,
     ctx: Ctx,
   ): Promise<ReconciliacaoBancaria>;
-  concluirReconciliacao(id: string, ctx: Ctx): Promise<ReconciliacaoBancaria>;
+  /** Fecho com recálculo de saldos e validação de balanceamento. */
+  concluirReconciliacao(input: ConcluirReconciliacaoInput, ctx: Ctx): Promise<ReconciliacaoBancaria>;
+  cancelarReconciliacao(id: string, ctx: Ctx): Promise<ReconciliacaoBancaria>;
+  obterReconciliacao(id: string, ctx: Ctx): Promise<ReconciliacaoDetalhe | null>;
+  listarReconciliacoes(ctx: Ctx): Promise<ReconciliacaoComConta[]>;
 
   // ------------------------------------------------------------------
   // Contrato exposto a WS A, B, C — chamado dentro de $transaction

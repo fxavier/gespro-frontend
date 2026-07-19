@@ -89,8 +89,9 @@ export function NovaReconciliacaoForm({
         toast.error(state.error.message ?? 'Ocorreu um erro ao iniciar a reconciliação.');
       }
     } else {
-      toast.success('Reconciliação iniciada com sucesso!');
-      router.push('/contabilidade/reconciliacao');
+      toast.success('Reconciliação iniciada — itens do razão gerados.');
+      const recId = (state.data as { id?: string } | null)?.id;
+      router.push(recId ? `/contabilidade/reconciliacao/${recId}` : '/contabilidade/reconciliacao');
     }
   }, [state, form, router]);
 
