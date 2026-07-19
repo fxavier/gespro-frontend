@@ -132,6 +132,22 @@ Cobertura do motor de cálculo: **100% stmts/lines/funcs, 95.5% branches** (≥9
   `src/lib/state-machines.ts` — só acrescentos.
 - `package.json`: `@vitest/coverage-v8` (devDependency, para medir a cobertura exigida).
 
+## Correcções pós-review (MAJORs fechados)
+1. **`cancelar` recuperável/idempotente**: antes de estornar verifica o estado do
+   lançamento via `obterLancamento` (contrato WS D) e salta o estorno se já
+   estiver ESTORNADO — um retry após falha parcial completa só os estados
+   (teste: "retry após falha parcial é idempotente").
+2. **`processarFolhaMes` sem N+1**: pré-agregação fora do loop (comissões,
+   `groupBy` de assiduidade e ausências, payrolls existentes e linhas manuais em
+   lote — n.º de queries constante) + `{ timeout: 60_000 }` na `$transaction`.
+   `montarEntrada` passou a função pura (sem I/O).
+3. **`LIQUIDO_NEGATIVO`**: `recalcularPayroll`/`ajustarLinhaManual` rejeitam
+   líquido negativo (na MESMA tx — a linha manual não persiste em caso de erro)
+   e `marcarProcessada` valida antes de montar o lançamento (testes novos).
+- NITs: Zod (`ProcessarFolhaSchema`) nos query params dos mapas CSV; P2002 na
+  criação da folha → `FOLHA_JA_EM_PROCESSAMENTO`; `UnsavedChangesGuard` no form;
+  taxas removidas dos textos de UI (só as tabelas paramétricas falam de taxas).
+
 ## Gaps / dívidas
 - **Migration não gerada** (regra): orquestrador corre `prisma migrate dev` — as
   tabelas novas não existem na DB partilhada; testes de payroll usam Prisma

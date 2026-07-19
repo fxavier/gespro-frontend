@@ -4,16 +4,20 @@
  */
 import { withApi } from '@/lib/api/with-api';
 import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
+import { ProcessarFolhaSchema } from '@/lib/validations/payroll';
 import { ValidationError } from '@/lib/errors';
 
 export const GET = withApi(
   async (req, ctx) => {
     const url = new URL(req.url);
-    const mes = Number(url.searchParams.get('mes'));
-    const ano = Number(url.searchParams.get('ano'));
-    if (!Number.isInteger(mes) || mes < 1 || mes > 12 || !Number.isInteger(ano)) {
-      throw new ValidationError('Parâmetros mes/ano inválidos');
+    const parsed = ProcessarFolhaSchema.safeParse({
+      mes: url.searchParams.get('mes'),
+      ano: url.searchParams.get('ano'),
+    });
+    if (!parsed.success) {
+      throw new ValidationError('Parâmetros mes/ano inválidos', parsed.error.flatten());
     }
+    const { mes, ano } = parsed.data;
 
     const { linhas } = await PayrollService.mapaMensal('IRPS', mes, ano, ctx);
     const cabecalho = 'Codigo;Nome;NUIT;SalarioBruto;IRPS_Retido';

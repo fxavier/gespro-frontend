@@ -20,6 +20,7 @@ import type { Ctx } from '@/server/services/types';
 import {
   registarLancamentoContabilistico,
   estornarLancamento,
+  obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
 import type { RegistarLancamentoContabilisticoInput } from '@/server/services/financas';
@@ -279,33 +280,38 @@ interface LinhaManual {
 // expõe um contrato `obterBeneficiosDoMes(colaboradorId, periodo)` que
 // `montarEntrada` consome ao lado de assiduidade/comissões — sem dependência hoje.
 
-async function montarEntrada(
+/** Agregados mensais por colaborador (horas extras + dias de falta). */
+interface AgregadosMes {
+  horasExtras: Map<string, Prisma.Decimal>;
+  diasFalta: Map<string, number>;
+}
+
+/**
+ * Pré-agrega assiduidade e ausências do mês para TODOS os colaboradores em
+ * 2 queries `groupBy` (evita N+1 dentro da transacção do lote).
+ * Faltas não remuneradas: ausências APROVADAS não justificadas (FALTA) ou
+ * licença sem vencimento, com início dentro do mês (simplificação documentada).
+ */
+async function agregadosDoMes(
   tx: Tx,
-  col: ColaboradorSnapshot,
+  colaboradorIds: string[],
   periodo: { inicio: Date; fim: Date },
-  tabelas: { inss: TabelaINSSVigente; irps: EscalaoIRPSVigente[] },
-  comissoesDoMes: Prisma.Decimal,
   tenantId: string,
-  linhasManuais: LinhaManual[] = [],
-): Promise<EntradaCalculoPayroll> {
-  // Horas extras do mês (RegistoAssiduidade), valorizadas com majoração 50%
-  const assiduidade = await tx.registoAssiduidade.aggregate({
+): Promise<AgregadosMes> {
+  const assiduidade = await tx.registoAssiduidade.groupBy({
+    by: ['colaboradorId'],
     where: {
       tenantId,
-      colaboradorId: col.id,
+      colaboradorId: { in: colaboradorIds },
       data: { gte: periodo.inicio, lt: periodo.fim },
     },
     _sum: { horasExtras: true },
   });
-  const horasExtras = assiduidade._sum.horasExtras ?? ZERO;
-  const valorHorasExtras = valorizarHorasExtras(col.salarioBase, horasExtras);
-
-  // Faltas não remuneradas: ausências APROVADAS não justificadas (FALTA) ou
-  // licença sem vencimento, com início dentro do mês (simplificação documentada)
-  const ausencias = await tx.ausencia.findMany({
+  const ausencias = await tx.ausencia.groupBy({
+    by: ['colaboradorId'],
     where: {
       tenantId,
-      colaboradorId: col.id,
+      colaboradorId: { in: colaboradorIds },
       status: 'APROVADA',
       dataInicio: { gte: periodo.inicio, lt: periodo.fim },
       OR: [
@@ -313,9 +319,29 @@ async function montarEntrada(
         { tipo: 'LICENCA_SEM_VENCIMENTO' },
       ],
     },
-    select: { diasAusencia: true, tipo: true },
+    _sum: { diasAusencia: true },
   });
-  const diasFalta = ausencias.reduce((s, a) => s + a.diasAusencia, 0);
+
+  return {
+    horasExtras: new Map(
+      assiduidade.map((a) => [a.colaboradorId, a._sum.horasExtras ?? ZERO]),
+    ),
+    diasFalta: new Map(
+      ausencias.map((a) => [a.colaboradorId, a._sum.diasAusencia ?? 0]),
+    ),
+  };
+}
+
+/** Monta a entrada do motor a partir de snapshots pré-agregados — SEM I/O. */
+function montarEntrada(
+  col: ColaboradorSnapshot,
+  tabelas: { inss: TabelaINSSVigente; irps: EscalaoIRPSVigente[] },
+  snapshot: { horasExtras: Prisma.Decimal; diasFalta: number; comissoes: Prisma.Decimal },
+  linhasManuais: LinhaManual[] = [],
+): EntradaCalculoPayroll {
+  // Horas extras do mês (RegistoAssiduidade), valorizadas com majoração 50%
+  const valorHorasExtras = valorizarHorasExtras(col.salarioBase, snapshot.horasExtras);
+  const { diasFalta } = snapshot;
 
   const descontosDiversos: EntradaCalculoPayroll['descontosDiversos'] = [];
   if (diasFalta > 0) {
@@ -355,7 +381,7 @@ async function montarEntrada(
     },
     variaveis: {
       horasExtras: valorHorasExtras,
-      comissoes: comissoesDoMes,
+      comissoes: snapshot.comissoes,
       bonus: bonusManual,
       outros: proventosOutrosManual,
     },
@@ -527,6 +553,77 @@ async function actualizarTotaisFolha(tx: Tx, folhaId: string, tenantId: string):
   });
 }
 
+/**
+ * Recalcula UM payroll dentro de uma transacção existente (partilhado por
+ * `recalcularPayroll` e `ajustarLinhaManual`). Rejeita `LIQUIDO_NEGATIVO`
+ * — um líquido negativo geraria crédito negativo na conta 4622.
+ */
+async function recalcularPayrollNoTx(tx: Tx, payrollId: string, ctx: Ctx): Promise<void> {
+  const payroll = await tx.payroll.findFirst({
+    where: { id: payrollId, tenantId: ctx.tenantId },
+    include: {
+      colaborador: {
+        select: {
+          id: true,
+          salarioBase: true,
+          subsidioAlimentacao: true,
+          subsidioTransporte: true,
+          subsidioHabitacao: true,
+          subsidiosOutros: true,
+          email: true,
+        },
+      },
+    },
+  });
+  if (!payroll) throw new NotFoundError('Payroll não encontrado');
+  if (payroll.status !== 'PENDENTE') {
+    throw new BusinessRuleError(
+      'PAYROLL_IMUTAVEL',
+      'Só é possível recalcular um payroll pendente (após processamento os valores são imutáveis)',
+    );
+  }
+  if (!payroll.folhaId) {
+    throw new BusinessRuleError('PAYROLL_SEM_FOLHA', 'Payroll não pertence a nenhuma folha mensal');
+  }
+
+  const ref = dataReferencia(payroll.anoReferencia, payroll.mesReferencia);
+  const periodo = { inicio: ref, fim: new Date(Date.UTC(payroll.anoReferencia, payroll.mesReferencia, 1)) };
+  const tabelas = await obterTabelasVigentes(tx, ref, ctx.tenantId);
+  const comissoes = await comissoesPorColaborador(tx, [payroll.colaborador], periodo, ctx.tenantId);
+  const agregados = await agregadosDoMes(tx, [payroll.colaboradorId], periodo, ctx.tenantId);
+  const linhasManuais = await tx.linhaPayroll.findMany({
+    where: { tenantId: ctx.tenantId, payrollId, manual: true },
+    select: { tipo: true, natureza: true, descricao: true, valor: true },
+  });
+
+  const entrada = montarEntrada(payroll.colaborador, tabelas, {
+    horasExtras: agregados.horasExtras.get(payroll.colaboradorId) ?? ZERO,
+    diasFalta: agregados.diasFalta.get(payroll.colaboradorId) ?? 0,
+    comissoes: comissoes.get(payroll.colaboradorId) ?? ZERO,
+  }, linhasManuais);
+  const resultado = calcularPayroll(entrada);
+
+  if (resultado.liquido.lt(ZERO)) {
+    throw new BusinessRuleError(
+      'LIQUIDO_NEGATIVO',
+      `Os descontos excedem os proventos (líquido ${resultado.liquido.toFixed(2)}) — ajuste os descontos`,
+    );
+  }
+
+  await gravarPayroll(tx, {
+    tenantId: ctx.tenantId,
+    folhaId: payroll.folhaId,
+    colaboradorId: payroll.colaboradorId,
+    mes: payroll.mesReferencia,
+    ano: payroll.anoReferencia,
+    entrada,
+    resultado,
+    payrollExistenteId: payroll.id,
+    linhasManuais,
+  });
+  await actualizarTotaisFolha(tx, payroll.folhaId, ctx.tenantId);
+}
+
 // ---------------------------------------------------------------------------
 // Serviço
 // ---------------------------------------------------------------------------
@@ -554,12 +651,15 @@ export const PayrollService = {
         );
       }
 
-      const folha = existente
-        ? await tx.folhaPagamento.update({
-            where: { id: existente.id },
-            data: { status: 'PENDENTE', processadoPorId: ctx.userId },
-          })
-        : await tx.folhaPagamento.create({
+      let folha;
+      if (existente) {
+        folha = await tx.folhaPagamento.update({
+          where: { id: existente.id },
+          data: { status: 'PENDENTE', processadoPorId: ctx.userId },
+        });
+      } else {
+        try {
+          folha = await tx.folhaPagamento.create({
             data: {
               tenantId: ctx.tenantId,
               anoReferencia: ano,
@@ -568,6 +668,18 @@ export const PayrollService = {
               processadoPorId: ctx.userId,
             },
           });
+        } catch (e) {
+          // Corrida entre dois processamentos simultâneos do mesmo mês (P2002
+          // no @@unique([tenantId, anoReferencia, mesReferencia]))
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            throw new BusinessRuleError(
+              'FOLHA_JA_EM_PROCESSAMENTO',
+              `A folha ${String(mes).padStart(2, '0')}/${ano} está a ser processada noutra sessão`,
+            );
+          }
+          throw e;
+        }
+      }
 
       const ref = dataReferencia(ano, mes);
       const periodo = { inicio: ref, fim: new Date(Date.UTC(ano, mes, 1)) };
@@ -589,38 +701,55 @@ export const PayrollService = {
         throw new BusinessRuleError('SEM_COLABORADORES_ACTIVOS', 'Não existem colaboradores activos para processar');
       }
 
+      // Pré-agregação fora do loop (evita N+1 dentro da transacção):
+      // comissões, assiduidade/ausências (2 groupBy), payrolls existentes e
+      // linhas manuais — número de queries constante face ao n.º de colaboradores.
+      const colaboradorIds = colaboradores.map((c) => c.id);
       const comissoes = await comissoesPorColaborador(tx, colaboradores, periodo, ctx.tenantId);
+      const agregados = await agregadosDoMes(tx, colaboradorIds, periodo, ctx.tenantId);
+
+      const payrollsExistentes = await tx.payroll.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          anoReferencia: ano,
+          mesReferencia: mes,
+          colaboradorId: { in: colaboradorIds },
+        },
+        select: { id: true, status: true, colaboradorId: true },
+      });
+      const payrollPorColaborador = new Map(payrollsExistentes.map((p) => [p.colaboradorId, p]));
+
+      const recalculaveisIds = payrollsExistentes
+        .filter((p) => !['PROCESSADO', 'PAGO'].includes(p.status))
+        .map((p) => p.id);
+      const todasLinhasManuais = recalculaveisIds.length
+        ? await tx.linhaPayroll.findMany({
+            where: { tenantId: ctx.tenantId, payrollId: { in: recalculaveisIds }, manual: true },
+            select: { payrollId: true, tipo: true, natureza: true, descricao: true, valor: true },
+          })
+        : [];
+      const linhasManuaisPorPayroll = new Map<string, LinhaManual[]>();
+      for (const l of todasLinhasManuais) {
+        const lista = linhasManuaisPorPayroll.get(l.payrollId) ?? [];
+        lista.push(l);
+        linhasManuaisPorPayroll.set(l.payrollId, lista);
+      }
 
       let total = 0;
       for (const col of colaboradores) {
-        const payrollExistente = await tx.payroll.findFirst({
-          where: {
-            tenantId: ctx.tenantId,
-            colaboradorId: col.id,
-            anoReferencia: ano,
-            mesReferencia: mes,
-          },
-          select: { id: true, status: true },
-        });
+        const payrollExistente = payrollPorColaborador.get(col.id);
         // Imutável após PROCESSADO — não tocar
         if (payrollExistente && ['PROCESSADO', 'PAGO'].includes(payrollExistente.status)) continue;
 
         const linhasManuais = payrollExistente
-          ? await tx.linhaPayroll.findMany({
-              where: { tenantId: ctx.tenantId, payrollId: payrollExistente.id, manual: true },
-              select: { tipo: true, natureza: true, descricao: true, valor: true },
-            })
+          ? (linhasManuaisPorPayroll.get(payrollExistente.id) ?? [])
           : [];
 
-        const entrada = await montarEntrada(
-          tx,
-          col,
-          periodo,
-          tabelas,
-          comissoes.get(col.id) ?? ZERO,
-          ctx.tenantId,
-          linhasManuais,
-        );
+        const entrada = montarEntrada(col, tabelas, {
+          horasExtras: agregados.horasExtras.get(col.id) ?? ZERO,
+          diasFalta: agregados.diasFalta.get(col.id) ?? 0,
+          comissoes: comissoes.get(col.id) ?? ZERO,
+        }, linhasManuais);
         const resultado = calcularPayroll(entrada);
         await gravarPayroll(tx, {
           tenantId: ctx.tenantId,
@@ -638,7 +767,7 @@ export const PayrollService = {
 
       await actualizarTotaisFolha(tx, folha.id, ctx.tenantId);
       return { folhaId: folha.id, totalColaboradores: total };
-    });
+    }, { timeout: 60_000 }); // lote mensal: escrita por colaborador dentro da tx
   },
 
   /**
@@ -659,6 +788,17 @@ export const PayrollService = {
       });
       if (pendentes === 0) {
         throw new BusinessRuleError('FOLHA_VAZIA', 'A folha não tem payrolls pendentes para processar');
+      }
+
+      // Nunca contabilizar líquidos negativos (crédito negativo na 4622)
+      const negativos = await tx.payroll.count({
+        where: { tenantId: ctx.tenantId, folhaId, status: 'PENDENTE', salarioLiquido: { lt: 0 } },
+      });
+      if (negativos > 0) {
+        throw new BusinessRuleError(
+          'LIQUIDO_NEGATIVO',
+          `${negativos} payroll(s) com salário líquido negativo — corrija os descontos antes de processar`,
+        );
       }
 
       const agora = new Date();
@@ -734,6 +874,11 @@ export const PayrollService = {
   /**
    * Cancela a folha (PENDENTE ou PROCESSADO). Se já processada, estorna o
    * lançamento da massa salarial (append-only — nunca apagar).
+   *
+   * Recuperável/idempotente: o estorno corre fora da transacção de estados
+   * (o contrato gere as suas próprias escritas). Se a mudança de estados
+   * falhar depois do estorno, o retry verifica o estado do lançamento e
+   * salta o estorno já efectuado, completando apenas os estados.
    */
   async cancelar(folhaId: string, motivo: string, ctx: Ctx): Promise<void> {
     const folha = await prisma.folhaPagamento.findFirst({
@@ -743,10 +888,13 @@ export const PayrollService = {
     transitar(TRANSICOES_PAYROLL, folha.status, 'CANCELADO');
 
     if (folha.status === 'PROCESSADO' && folha.lancamentoId) {
-      await estornarLancamento(
-        { lancamentoId: folha.lancamentoId, motivo: `Cancelamento da folha: ${motivo}` },
-        ctx,
-      );
+      const lancamento = await obterLancamento(folha.lancamentoId, ctx);
+      if (lancamento && lancamento.status !== 'ESTORNADO') {
+        await estornarLancamento(
+          { lancamentoId: folha.lancamentoId, motivo: `Cancelamento da folha: ${motivo}` },
+          ctx,
+        );
+      }
     }
 
     await prisma.$transaction(async (rawTx) => {
@@ -766,95 +914,43 @@ export const PayrollService = {
   async recalcularPayroll(payrollId: string, ctx: Ctx): Promise<void> {
     await prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
-      const payroll = await tx.payroll.findFirst({
-        where: { id: payrollId, tenantId: ctx.tenantId },
-        include: {
-          colaborador: {
-            select: {
-              id: true,
-              salarioBase: true,
-              subsidioAlimentacao: true,
-              subsidioTransporte: true,
-              subsidioHabitacao: true,
-              subsidiosOutros: true,
-              email: true,
-            },
-          },
-        },
-      });
-      if (!payroll) throw new NotFoundError('Payroll não encontrado');
-      if (payroll.status !== 'PENDENTE') {
-        throw new BusinessRuleError(
-          'PAYROLL_IMUTAVEL',
-          'Só é possível recalcular um payroll pendente (após processamento os valores são imutáveis)',
-        );
-      }
-      if (!payroll.folhaId) {
-        throw new BusinessRuleError('PAYROLL_SEM_FOLHA', 'Payroll não pertence a nenhuma folha mensal');
-      }
-
-      const ref = dataReferencia(payroll.anoReferencia, payroll.mesReferencia);
-      const periodo = { inicio: ref, fim: new Date(Date.UTC(payroll.anoReferencia, payroll.mesReferencia, 1)) };
-      const tabelas = await obterTabelasVigentes(tx, ref, ctx.tenantId);
-      const comissoes = await comissoesPorColaborador(tx, [payroll.colaborador], periodo, ctx.tenantId);
-      const linhasManuais = await tx.linhaPayroll.findMany({
-        where: { tenantId: ctx.tenantId, payrollId, manual: true },
-        select: { tipo: true, natureza: true, descricao: true, valor: true },
-      });
-
-      const entrada = await montarEntrada(
-        tx,
-        payroll.colaborador,
-        periodo,
-        tabelas,
-        comissoes.get(payroll.colaboradorId) ?? ZERO,
-        ctx.tenantId,
-        linhasManuais,
-      );
-      const resultado = calcularPayroll(entrada);
-      await gravarPayroll(tx, {
-        tenantId: ctx.tenantId,
-        folhaId: payroll.folhaId,
-        colaboradorId: payroll.colaboradorId,
-        mes: payroll.mesReferencia,
-        ano: payroll.anoReferencia,
-        entrada,
-        resultado,
-        payrollExistenteId: payroll.id,
-        linhasManuais,
-      });
-      await actualizarTotaisFolha(tx, payroll.folhaId, ctx.tenantId);
+      await recalcularPayrollNoTx(tx, payrollId, ctx);
     });
   },
 
   /**
    * Adiciona linha manual (adiantamento, penhora, bónus, outro) a um payroll
-   * PENDENTE e recalcula os valores estatutários. Ponto de extensão do spec 08.
+   * PENDENTE e recalcula os valores estatutários NA MESMA transacção — se o
+   * recálculo falhar (ex.: LIQUIDO_NEGATIVO), a linha não fica gravada.
+   * Ponto de extensão do spec 08.
    */
   async ajustarLinhaManual(input: AjusteLinhaInput, ctx: Ctx): Promise<void> {
-    const payroll = await prisma.payroll.findFirst({
-      where: { id: input.payrollId, tenantId: ctx.tenantId },
-      select: { id: true, status: true },
+    await prisma.$transaction(async (rawTx) => {
+      const tx = rawTx as unknown as Prisma.TransactionClient;
+      const payroll = await tx.payroll.findFirst({
+        where: { id: input.payrollId, tenantId: ctx.tenantId },
+        select: { id: true, status: true },
+      });
+      if (!payroll) throw new NotFoundError('Payroll não encontrado');
+      if (payroll.status !== 'PENDENTE') {
+        throw new BusinessRuleError(
+          'PAYROLL_IMUTAVEL',
+          'Só é possível ajustar um payroll pendente (após processamento os valores são imutáveis)',
+        );
+      }
+      await tx.linhaPayroll.create({
+        data: {
+          tenantId: ctx.tenantId,
+          payrollId: input.payrollId,
+          tipo: input.tipo,
+          natureza: input.natureza,
+          descricao: input.descricao,
+          valor: D(input.valor.toFixed(2)),
+          manual: true,
+        },
+      });
+      await recalcularPayrollNoTx(tx, input.payrollId, ctx);
     });
-    if (!payroll) throw new NotFoundError('Payroll não encontrado');
-    if (payroll.status !== 'PENDENTE') {
-      throw new BusinessRuleError(
-        'PAYROLL_IMUTAVEL',
-        'Só é possível ajustar um payroll pendente (após processamento os valores são imutáveis)',
-      );
-    }
-    await prisma.linhaPayroll.create({
-      data: {
-        tenantId: ctx.tenantId,
-        payrollId: input.payrollId,
-        tipo: input.tipo,
-        natureza: input.natureza,
-        descricao: input.descricao,
-        valor: D(input.valor.toFixed(2)),
-        manual: true,
-      },
-    });
-    await this.recalcularPayroll(input.payrollId, ctx);
   },
 
   // -------------------------------------------------------------------------

@@ -170,7 +170,7 @@ export default async function PayrollDetalhePage({
               <span className="tabular-nums">MT {fmt(payroll.salarioLiquido)}</span>
             </div>
             <div className="flex justify-between gap-4 text-muted-foreground">
-              <span>INSS entidade (4% — encargo)</span>
+              <span>INSS entidade (encargo patronal)</span>
               <span className="tabular-nums">MT {fmt(payroll.encargoInssEntidade)}</span>
             </div>
             <div className="flex justify-between gap-4 text-muted-foreground">

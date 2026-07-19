@@ -13,6 +13,7 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 vi.mock('@/server/services/financas/contabilidade.service', () => ({
   registarLancamentoContabilistico: vi.fn().mockResolvedValue({ id: 'lan-001' }),
   estornarLancamento: vi.fn().mockResolvedValue({ id: 'lan-estorno-001' }),
+  obterLancamento: vi.fn().mockResolvedValue({ id: 'lan-001', status: 'LANCADO' }),
 }));
 vi.mock('@/server/services/financas/caixa.service', () => ({
   registarMovimentoCaixa: vi.fn().mockResolvedValue({ id: 'mov-001' }),
@@ -34,8 +35,8 @@ const txMock = vi.hoisted(() => ({
   tabelaINSS: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
   escalaoIRPS: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
   colaborador: { findMany: vi.fn() },
-  registoAssiduidade: { aggregate: vi.fn() },
-  ausencia: { findMany: vi.fn() },
+  registoAssiduidade: { groupBy: vi.fn() },
+  ausencia: { groupBy: vi.fn() },
   user: { findMany: vi.fn() },
   comissao: { findMany: vi.fn() },
   tenant: { findUnique: vi.fn() },
@@ -62,6 +63,7 @@ import { transitar } from '../rh.service';
 import {
   registarLancamentoContabilistico,
   estornarLancamento,
+  obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
 
@@ -305,9 +307,9 @@ describe('PayrollService.processarFolhaMes', () => {
       },
     ]);
     txMock.user.findMany.mockResolvedValue([]);
-    txMock.payroll.findFirst.mockResolvedValue(null);
-    txMock.registoAssiduidade.aggregate.mockResolvedValue({ _sum: { horasExtras: null } });
-    txMock.ausencia.findMany.mockResolvedValue([]);
+    txMock.payroll.findMany.mockResolvedValue([]); // sem payrolls existentes
+    txMock.registoAssiduidade.groupBy.mockResolvedValue([]);
+    txMock.ausencia.groupBy.mockResolvedValue([]);
     txMock.payroll.create.mockResolvedValue({ id: 'pay-1' });
     txMock.linhaPayroll.createMany.mockResolvedValue({ count: 3 });
     txMock.payroll.aggregate.mockResolvedValue({
@@ -354,7 +356,11 @@ describe('PayrollService.processarFolhaMes', () => {
       },
     ]);
     txMock.user.findMany.mockResolvedValue([]);
-    txMock.payroll.findFirst.mockResolvedValue({ id: 'pay-1', status: 'PROCESSADO' });
+    txMock.registoAssiduidade.groupBy.mockResolvedValue([]);
+    txMock.ausencia.groupBy.mockResolvedValue([]);
+    txMock.payroll.findMany.mockResolvedValue([
+      { id: 'pay-1', status: 'PROCESSADO', colaboradorId: 'col-1' },
+    ]);
     txMock.payroll.aggregate.mockResolvedValue({ _sum: {} });
 
     const r = await PayrollService.processarFolhaMes({ mes: 6, ano: 2026 }, ctx);
@@ -397,7 +403,8 @@ describe('PayrollService.marcarProcessada', () => {
 
   it('gera lançamento SALARIOS equilibrado e congela os payrolls', async () => {
     txMock.folhaPagamento.findFirst.mockResolvedValue(FOLHA_PENDENTE);
-    txMock.payroll.count.mockResolvedValue(3);
+    // 1.ª chamada: payrolls pendentes; 2.ª: payrolls com líquido negativo
+    txMock.payroll.count.mockResolvedValueOnce(3).mockResolvedValueOnce(0);
     txMock.payroll.updateMany.mockResolvedValue({ count: 3 });
     txMock.folhaPagamento.update.mockResolvedValue({});
 
@@ -419,6 +426,16 @@ describe('PayrollService.marcarProcessada', () => {
     txMock.folhaPagamento.findFirst.mockResolvedValue(FOLHA_PENDENTE);
     txMock.payroll.count.mockResolvedValue(0);
     await expect(PayrollService.marcarProcessada('f1', ctx)).rejects.toMatchObject({ code: 'FOLHA_VAZIA' });
+  });
+
+  it('rejeita folha com payroll de líquido negativo (LIQUIDO_NEGATIVO)', async () => {
+    txMock.folhaPagamento.findFirst.mockResolvedValue(FOLHA_PENDENTE);
+    // 3 pendentes, 1 com salarioLiquido < 0
+    txMock.payroll.count.mockResolvedValueOnce(3).mockResolvedValueOnce(1);
+    await expect(PayrollService.marcarProcessada('f1', ctx)).rejects.toMatchObject({
+      code: 'LIQUIDO_NEGATIVO',
+    });
+    expect(registarLancamentoContabilistico).not.toHaveBeenCalled();
   });
 });
 
@@ -494,6 +511,26 @@ describe('PayrollService.cancelar', () => {
     );
   });
 
+  it('retry após falha parcial é idempotente: lançamento já ESTORNADO não é estornado de novo', async () => {
+    // 1.ª tentativa estornou o lançamento mas a mudança de estados falhou;
+    // no retry a folha ainda está PROCESSADO e o lançamento já está ESTORNADO.
+    txMock.folhaPagamento.findFirst.mockResolvedValue({
+      ...FOLHA_PENDENTE,
+      status: 'PROCESSADO',
+      lancamentoId: 'lan-001',
+    });
+    vi.mocked(obterLancamento).mockResolvedValueOnce({ id: 'lan-001', status: 'ESTORNADO' } as never);
+    txMock.payroll.updateMany.mockResolvedValue({ count: 3 });
+    txMock.folhaPagamento.update.mockResolvedValue({});
+
+    await PayrollService.cancelar('f1', 'retry', ctx);
+    expect(estornarLancamento).not.toHaveBeenCalled();
+    // O retry completa a mudança de estados
+    expect(txMock.folhaPagamento.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELADO' }) }),
+    );
+  });
+
   it('folha PAGO não pode ser cancelada', async () => {
     txMock.folhaPagamento.findFirst.mockResolvedValue({ ...FOLHA_PENDENTE, status: 'PAGO' });
     await expect(PayrollService.cancelar('f1', 'x', ctx)).rejects.toBeInstanceOf(BusinessRuleError);
@@ -532,6 +569,60 @@ describe('imutabilidade após PROCESSADO', () => {
     await expect(PayrollService.recalcularPayroll('pay-1', ctx)).rejects.toMatchObject({
       code: 'PAYROLL_IMUTAVEL',
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIQUIDO_NEGATIVO — descontos manuais nunca podem tornar o líquido negativo
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ajustarLinhaManual — LIQUIDO_NEGATIVO', () => {
+  it('rejeita desconto manual que excede os proventos (na mesma tx → linha não persiste)', async () => {
+    // 1.ª findFirst: verificação de estado; 2.ª (no recálculo): payroll completo
+    txMock.payroll.findFirst
+      .mockResolvedValueOnce({ id: 'pay-1', status: 'PENDENTE' })
+      .mockResolvedValueOnce({
+        id: 'pay-1',
+        status: 'PENDENTE',
+        folhaId: 'f1',
+        colaboradorId: 'col-1',
+        mesReferencia: 6,
+        anoReferencia: 2026,
+        colaborador: {
+          id: 'col-1',
+          salarioBase: D(1000),
+          subsidioAlimentacao: null,
+          subsidioTransporte: null,
+          subsidioHabitacao: null,
+          subsidiosOutros: null,
+          email: 'a@demo.mz',
+        },
+      });
+    txMock.linhaPayroll.create.mockResolvedValue({ id: 'lin-1' });
+    txMock.tabelaINSS.findFirst.mockResolvedValue(TABELA_INSS_ROW);
+    txMock.escalaoIRPS.findMany.mockResolvedValue(ESCALOES_ROWS);
+    txMock.user.findMany.mockResolvedValue([]);
+    txMock.registoAssiduidade.groupBy.mockResolvedValue([]);
+    txMock.ausencia.groupBy.mockResolvedValue([]);
+    // Linhas manuais persistidas (inclui a acabada de criar): desconto 5.000 > bruto 1.000
+    txMock.linhaPayroll.findMany.mockResolvedValue([
+      { tipo: 'DESCONTO', natureza: 'ADIANTAMENTO', descricao: 'Adiantamento', valor: D(5000) },
+    ]);
+
+    await expect(
+      PayrollService.ajustarLinhaManual(
+        {
+          payrollId: 'ckqpayroll00000000000000w',
+          tipo: 'DESCONTO',
+          natureza: 'ADIANTAMENTO',
+          descricao: 'Adiantamento',
+          valor: 5000,
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'LIQUIDO_NEGATIVO' });
+    // O recálculo abortou antes de gravar valores negativos
+    expect(txMock.payroll.update).not.toHaveBeenCalled();
   });
 });
 

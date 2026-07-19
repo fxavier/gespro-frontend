@@ -3,9 +3,8 @@
 /**
  * Processamento da folha mensal em LOTE (Spec 06).
  *
- * O INSS (3%) e o IRPS (tabela progressiva) são calculados pelo motor
- * estatutário no servidor a partir das tabelas paramétricas vigentes —
- * NUNCA introduzidos manualmente.
+ * O INSS e o IRPS são calculados pelo motor estatutário no servidor a partir
+ * das tabelas paramétricas vigentes — NUNCA introduzidos manualmente.
  */
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
@@ -22,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage } from '@/components/patterns';
+import { FormPage, UnsavedChangesGuard } from '@/components/patterns';
 import { ProcessarFolhaSchema, type ProcessarFolhaInput } from '@/lib/validations/payroll';
 import { processarFolhaMesAction } from '@/server/actions/payroll.actions';
 
@@ -74,6 +73,7 @@ export default function NovoPayrollForm({ totalColaboradoresActivos }: Props) {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
+      <UnsavedChangesGuard isDirty={form.formState.isDirty && !isPending} />
       <FormPage
         actions={
           <>
@@ -136,10 +136,10 @@ export default function NovoPayrollForm({ totalColaboradoresActivos }: Props) {
             </p>
             <p className="text-muted-foreground">
               O cálculo é estatutário e automático: salário base + subsídios + horas extras
-              (assiduidade) + comissões do mês; desconto de INSS (3% do trabalhador) e IRPS pela
-              tabela progressiva vigente; encargo patronal de INSS (4%) apurado como custo da
-              entidade. A folha fica <strong>Pendente</strong> para revisão antes de ser
-              processada na contabilidade.
+              (assiduidade) + comissões do mês; desconto de INSS do trabalhador e IRPS pela
+              tabela progressiva em vigor no período; encargo patronal de INSS apurado como
+              custo da entidade (taxas das tabelas paramétricas vigentes). A folha fica{' '}
+              <strong>Pendente</strong> para revisão antes de ser processada na contabilidade.
             </p>
           </div>
         </div>
