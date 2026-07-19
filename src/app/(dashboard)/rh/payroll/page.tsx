@@ -1,16 +1,17 @@
 /**
  * Payroll — Server Component (NUNCA 'use client').
- * Lista processamentos de salário com DataTable + FilterBar.
+ * Folhas mensais (lotes com ciclo de vida) + payrolls individuais, lidos
+ * através do PayrollService (Spec 06) — sem prisma cru na página.
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus, DollarSign, Users, CheckCircle, Clock } from 'lucide-react';
-import { z } from 'zod';
+import { Plus, Users, CheckCircle, Clock } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { prisma } from '@/server/db/client';
+import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
+import { FilterPayrollSchema, type FilterPayrollInput } from '@/lib/validations/payroll';
 import { Button } from '@/components/ui/button';
 import {
   PageHeader,
@@ -21,17 +22,13 @@ import {
 import type { FilterConfig } from '@/components/patterns';
 import { PayrollTable } from './_components/payroll-table';
 import type { PayrollRow } from './_components/payroll-table';
+import { FolhasSection, type FolhaRow } from './_components/folhas-section';
 
-const FiltroUrlSchema = z.object({
-  status: z.string().optional(),
-  ano: z.coerce.number().int().positive().optional(),
-  mes: z.coerce.number().int().min(1).max(12).optional(),
-  cursor: z.string().optional(),
-  take: z.coerce.number().int().positive().max(100).default(25),
-});
+const FILTROS_DEFAULT: FilterPayrollInput = { take: 25 };
 
-type Filtro = z.infer<typeof FiltroUrlSchema>;
-const FILTROS_DEFAULT: Filtro = { take: 25 };
+function fmt(v: { toString(): string }): string {
+  return Number(v.toString()).toLocaleString('pt-PT', { minimumFractionDigits: 2 });
+}
 
 async function PayrollKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -39,11 +36,11 @@ async function PayrollKpis({ tenantId, userId }: { tenantId: string; userId: str
   const mesAtual = agora.getMonth() + 1;
   const anoAtual = agora.getFullYear();
 
-  const [totalMesAtual, totalPago, pendentes] = await runWithTenantContext(ctx, () =>
+  const [doMes, pagos, pendentes] = await runWithTenantContext(ctx, () =>
     Promise.all([
-      prisma.payroll.count({ where: { tenantId, mesReferencia: mesAtual, anoReferencia: anoAtual } }),
-      prisma.payroll.count({ where: { tenantId, status: 'PAGO' } }),
-      prisma.payroll.count({ where: { tenantId, status: 'PENDENTE' } }),
+      PayrollService.listarPayrolls({ mes: mesAtual, ano: anoAtual, take: 100 }, ctx),
+      PayrollService.listarPayrolls({ status: 'PAGO', take: 100 }, ctx),
+      PayrollService.listarPayrolls({ status: 'PENDENTE', take: 100 }, ctx),
     ])
   );
 
@@ -51,21 +48,41 @@ async function PayrollKpis({ tenantId, userId }: { tenantId: string; userId: str
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <KpiCard
         title="Processados Este Mês"
-        value={String(totalMesAtual)}
+        value={String(doMes.items.length)}
         icon={<Users className="h-4 w-4" />}
       />
       <KpiCard
         title="Pagos"
-        value={String(totalPago)}
+        value={String(pagos.items.length)}
         icon={<CheckCircle className="h-4 w-4" />}
       />
       <KpiCard
         title="Pendentes"
-        value={String(pendentes)}
+        value={String(pendentes.items.length)}
         icon={<Clock className="h-4 w-4" />}
       />
     </div>
   );
+}
+
+async function FolhasSectionServer({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const page = await runWithTenantContext(ctx, () =>
+    PayrollService.listarFolhas({ take: 12 }, ctx)
+  );
+
+  const folhas: FolhaRow[] = page.items.map((f) => ({
+    id: f.id,
+    mesReferencia: f.mesReferencia,
+    anoReferencia: f.anoReferencia,
+    status: f.status,
+    totalBruto: fmt(f.totalBruto),
+    totalLiquido: fmt(f.totalLiquido),
+    totalCustoEntidade: fmt(f.totalCustoEntidade),
+    totalColaboradores: f._count.payrolls,
+  }));
+
+  return <FolhasSection folhas={folhas} />;
 }
 
 async function PayrollTableSection({
@@ -73,48 +90,26 @@ async function PayrollTableSection({
   tenantId,
   userId,
 }: {
-  filtros: Filtro;
+  filtros: FilterPayrollInput;
   tenantId: string;
   userId: string;
 }) {
   const ctx = { tenantId, userId };
-
-  const rows = await runWithTenantContext(ctx, () =>
-    prisma.payroll.findMany({
-      where: {
-        tenantId,
-        ...(filtros.status ? { status: filtros.status as never } : {}),
-        ...(filtros.ano ? { anoReferencia: filtros.ano } : {}),
-        ...(filtros.mes ? { mesReferencia: filtros.mes } : {}),
-      },
-      select: {
-        id: true,
-        mesReferencia: true,
-        anoReferencia: true,
-        salarioBruto: true,
-        salarioLiquido: true,
-        status: true,
-        colaborador: { select: { nome: true } },
-      },
-      orderBy: [{ anoReferencia: 'desc' }, { mesReferencia: 'desc' }],
-      take: filtros.take,
-      ...(filtros.cursor ? { cursor: { id: filtros.cursor }, skip: 1 } : {}),
-    })
+  const page = await runWithTenantContext(ctx, () =>
+    PayrollService.listarPayrolls(filtros, ctx)
   );
 
-  const data: PayrollRow[] = rows.map((p) => ({
+  const data: PayrollRow[] = page.items.map((p) => ({
     id: p.id,
     colaboradorNome: p.colaborador.nome,
     mesReferencia: p.mesReferencia,
     anoReferencia: p.anoReferencia,
-    salarioBruto: Number(p.salarioBruto).toLocaleString('pt-PT', { minimumFractionDigits: 2 }),
-    salarioLiquido: Number(p.salarioLiquido).toLocaleString('pt-PT', { minimumFractionDigits: 2 }),
+    salarioBruto: fmt(p.salarioBruto),
+    salarioLiquido: fmt(p.salarioLiquido),
     status: p.status,
   }));
 
-  const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
-
-  return <PayrollTable data={data} nextCursor={nextCursor} />;
+  return <PayrollTable data={data} nextCursor={page.nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [
@@ -147,14 +142,14 @@ export default async function PayrollPage({
     else if (Array.isArray(v)) flatParams[k] = v[0] ?? '';
   }
 
-  const parseResult = FiltroUrlSchema.safeParse(flatParams);
+  const parseResult = FilterPayrollSchema.safeParse(flatParams);
   const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
 
   return (
     <div className="p-6 space-y-6">
       <PageHeader
         title="Processamento de Salários"
-        description="Gerir processamento de salários dos colaboradores"
+        description="Folha salarial mensal — cálculo estatutário INSS/IRPS, contabilização e pagamento"
         breadcrumbs={[
           { label: 'RH', href: '/rh/colaboradores' },
           { label: 'Salários' },
@@ -163,7 +158,7 @@ export default async function PayrollPage({
           <Button size="sm" asChild>
             <Link href="/rh/payroll/novo">
               <Plus className="h-4 w-4 mr-1.5" />
-              Processar Salário
+              Processar Folha do Mês
             </Link>
           </Button>
         }
@@ -173,14 +168,23 @@ export default async function PayrollPage({
         <PayrollKpis tenantId={tenantId} userId={userId} />
       </Suspense>
 
-      <FilterBar filters={FILTER_CONFIG} />
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Folhas mensais</h2>
+        <Suspense fallback={<div className="h-32 bg-muted rounded-lg animate-pulse" />}>
+          <FolhasSectionServer tenantId={tenantId} userId={userId} />
+        </Suspense>
+      </section>
 
-      <Suspense
-        key={JSON.stringify(filtros)}
-        fallback={<TableSkeleton rows={8} cols={5} />}
-      >
-        <PayrollTableSection filtros={filtros} tenantId={tenantId} userId={userId} />
-      </Suspense>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Payrolls individuais</h2>
+        <FilterBar filters={FILTER_CONFIG} />
+        <Suspense
+          key={JSON.stringify(filtros)}
+          fallback={<TableSkeleton rows={8} cols={5} />}
+        >
+          <PayrollTableSection filtros={filtros} tenantId={tenantId} userId={userId} />
+        </Suspense>
+      </section>
     </div>
   );
 }

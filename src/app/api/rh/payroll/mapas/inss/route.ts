@@ -1,0 +1,42 @@
+/**
+ * GET /api/rh/payroll/mapas/inss?mes=&ano= — Mapa mensal de contribuições
+ * INSS (CSV) para submissão às autoridades (Spec 06).
+ */
+import { withApi } from '@/lib/api/with-api';
+import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
+import { ValidationError } from '@/lib/errors';
+
+export const GET = withApi(
+  async (req, ctx) => {
+    const url = new URL(req.url);
+    const mes = Number(url.searchParams.get('mes'));
+    const ano = Number(url.searchParams.get('ano'));
+    if (!Number.isInteger(mes) || mes < 1 || mes > 12 || !Number.isInteger(ano)) {
+      throw new ValidationError('Parâmetros mes/ano inválidos');
+    }
+
+    const { linhas } = await PayrollService.mapaMensal('INSS', mes, ano, ctx);
+    const cabecalho = 'Codigo;Nome;NUIT;NISS;SalarioBruto;INSS_Trabalhador_3;INSS_Entidade_4;INSS_Total';
+    const corpo = linhas.map((l) =>
+      [
+        l.colaboradorCodigo,
+        `"${l.colaboradorNome.replace(/"/g, '""')}"`,
+        l.nuit,
+        l.niss ?? '',
+        l.salarioBruto.toFixed(2),
+        l.inssTrabalhador.toFixed(2),
+        l.inssEntidade.toFixed(2),
+        l.inssTrabalhador.plus(l.inssEntidade).toFixed(2),
+      ].join(';'),
+    );
+    const csv = `﻿${[cabecalho, ...corpo].join('\r\n')}`;
+
+    return new Response(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="mapa-inss-${ano}-${String(mes).padStart(2, '0')}.csv"`,
+      },
+    });
+  },
+  { permission: 'rh:payroll:read' },
+);

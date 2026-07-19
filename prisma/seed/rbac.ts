@@ -162,6 +162,12 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'rh:avaliacoes:update',     descricao: 'Actualizar avaliação de desempenho' },
   { code: 'rh:formacoes:create',      descricao: 'Criar acção de formação' },
   { code: 'rh:formacoes:update',      descricao: 'Actualizar acção de formação' },
+  // Payroll — Spec 06 (aditivo)
+  { code: 'rh:payroll:read',          descricao: 'Consultar folhas salariais e recibos' },
+  { code: 'rh:payroll:processar',     descricao: 'Processar/recalcular folha salarial mensal' },
+  { code: 'rh:payroll:pagar',         descricao: 'Marcar folha salarial como paga' },
+  { code: 'rh:payroll:cancelar',      descricao: 'Cancelar folha salarial (com estorno)' },
+  { code: 'rh:payroll:tabelas',       descricao: 'Gerir tabelas INSS/IRPS (vigências)' },
 
   // ── Produção ──────────────────────────────────────────────────────────────
   { code: 'producao:ver',             descricao: 'Consultar ordens de produção' },
@@ -335,6 +341,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     if (code.startsWith('caixa:')) return true;
     if (code.startsWith('analytics:')) return true;
     if (isReadOnly(code)) return true;
+    // Payroll — o financeiro processa/paga a folha salarial (Spec 06)
+    if (code.startsWith('rh:payroll:')) return true;
     // Leituras de suporte (para criar facturas precisa de ver clientes/produtos)
     return ['ativos:read', 'admin:ver_auditoria'].includes(code);
   }),
