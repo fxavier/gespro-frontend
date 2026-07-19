@@ -419,24 +419,26 @@ export const CandidaturaService = {
     });
     const posicao = calcularMidpoint(ultima?.posicao ?? null, null);
 
-    await prisma.candidatura.update({
-      where: { id: input.candidaturaId },
-      data: {
-        etapa: input.novaEtapa,
-        posicao,
-        motivoRejeicao: input.motivoRejeicao ?? undefined,
-      },
-    });
+    await prisma.$transaction(async (tx) => {
+      await tx.candidatura.update({
+        where: { id: input.candidaturaId },
+        data: {
+          etapa: input.novaEtapa,
+          posicao,
+          motivoRejeicao: input.motivoRejeicao ?? undefined,
+        },
+      });
 
-    await prisma.historicoCandidatura.create({
-      data: {
-        tenantId: ctx.tenantId,
-        candidaturaId: input.candidaturaId,
-        etapaAnterior: candidatura.etapa,
-        etapaNova: input.novaEtapa,
-        responsavelId: ctx.userId,
-        notas: input.notas ?? null,
-      },
+      await tx.historicoCandidatura.create({
+        data: {
+          tenantId: ctx.tenantId,
+          candidaturaId: input.candidaturaId,
+          etapaAnterior: candidatura.etapa,
+          etapaNova: input.novaEtapa,
+          responsavelId: ctx.userId,
+          notas: input.notas ?? null,
+        },
+      });
     });
   },
 
@@ -458,27 +460,29 @@ export const CandidaturaService = {
       transitar(TRANSICOES_CANDIDATURA, candidatura.etapa, input.novaEtapa, 'TRANSICAO_CANDIDATURA_INVALIDA');
     }
 
-    await prisma.candidatura.update({
-      where: { id: input.candidaturaId },
-      data: {
-        posicao: input.posicao,
-        ...(input.novaEtapa ? { etapa: input.novaEtapa } : {}),
-      },
-    });
-
-    // Se mudou de etapa, registar histórico
-    if (input.novaEtapa && input.novaEtapa !== candidatura.etapa) {
-      await prisma.historicoCandidatura.create({
+    await prisma.$transaction(async (tx) => {
+      await tx.candidatura.update({
+        where: { id: input.candidaturaId },
         data: {
-          tenantId: ctx.tenantId,
-          candidaturaId: input.candidaturaId,
-          etapaAnterior: candidatura.etapa,
-          etapaNova: input.novaEtapa,
-          responsavelId: ctx.userId,
-          notas: 'Movido via kanban',
+          posicao: input.posicao,
+          ...(input.novaEtapa ? { etapa: input.novaEtapa } : {}),
         },
       });
-    }
+
+      // Se mudou de etapa, registar histórico
+      if (input.novaEtapa && input.novaEtapa !== candidatura.etapa) {
+        await tx.historicoCandidatura.create({
+          data: {
+            tenantId: ctx.tenantId,
+            candidaturaId: input.candidaturaId,
+            etapaAnterior: candidatura.etapa,
+            etapaNova: input.novaEtapa,
+            responsavelId: ctx.userId,
+            notas: 'Movido via kanban',
+          },
+        });
+      }
+    });
   },
 
   /**
@@ -532,9 +536,8 @@ export const CandidaturaService = {
     if (candidatura.etapa === 'CONTRATADO') {
       throw new BusinessRuleError('CANDIDATURA_JA_ADMITIDA', 'Esta candidatura já foi convertida em colaborador');
     }
-    if (candidatura.etapa !== 'PROPOSTA' && candidatura.etapa !== 'ENTREVISTA') {
-      throw new BusinessRuleError('ETAPA_INVALIDA_ADMISSAO', `Só é possível admitir candidatos nas etapas PROPOSTA ou ENTREVISTA (etapa actual: ${candidatura.etapa})`);
-    }
+    // Valida transição via máquina de estado (só PROPOSTA→CONTRATADO é permitido)
+    transitar(TRANSICOES_CANDIDATURA, candidatura.etapa, 'CONTRATADO', 'ETAPA_INVALIDA_ADMISSAO');
 
     // Validar unicidade de Colaborador antes da transacção (melhor UX)
     const [colabNuit, colabBi, colabEmail] = await Promise.all([

@@ -4,20 +4,12 @@ import Link from 'next/link';
 import { StatusBadge } from '@/components/patterns';
 import { TRANSICOES_CANDIDATURA } from '@/lib/state-machines';
 
-type EntrevistaItem = {
-  id: string;
-  tipo: string;
-  dataHora: Date;
-  avaliacao: unknown | null;
-  recomendaAvancar: boolean | null;
-};
-
 type CandidaturaItem = {
   id: string;
   etapa: string;
   posicao: string;
   candidato: { id: string; nome: string; email: string };
-  entrevistas: EntrevistaItem[];
+  entrevistaCount: number;
   pretensaoSalarial: string | null;
 };
 
@@ -106,9 +98,9 @@ export function CandidaturaKanban({ candidaturas, vagaId, vagaStatus }: Candidat
                         MT {parseFloat(c.pretensaoSalarial).toLocaleString('pt-MZ')}
                       </p>
                     )}
-                    {c.entrevistas.length > 0 && (
+                    {c.entrevistaCount > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        {c.entrevistas.length} entrevista{c.entrevistas.length !== 1 ? 's' : ''}
+                        {c.entrevistaCount} entrevista{c.entrevistaCount !== 1 ? 's' : ''}
                       </p>
                     )}
                   </Link>

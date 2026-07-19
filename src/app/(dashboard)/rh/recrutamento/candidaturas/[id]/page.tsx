@@ -49,7 +49,7 @@ export default async function CandidaturaDetalhePage({ params }: Props) {
     variant: h.etapaNova === 'CONTRATADO' ? 'success' : h.etapaNova === 'REJEITADO' || h.etapaNova === 'DESISTIU' ? 'destructive' : 'default',
   }));
 
-  const podeAdmitir = candidatura.etapa === 'PROPOSTA' || candidatura.etapa === 'ENTREVISTA';
+  const podeAdmitir = candidatura.etapa === 'PROPOSTA';
   const eTerminal = ['CONTRATADO', 'REJEITADO', 'DESISTIU'].includes(candidatura.etapa);
 
   const tabs: DetailTab[] = [

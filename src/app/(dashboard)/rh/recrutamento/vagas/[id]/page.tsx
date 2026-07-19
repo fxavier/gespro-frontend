@@ -70,7 +70,7 @@ export default async function VagaDetalhePage({ params }: Props) {
             etapa: c.etapa,
             posicao: c.posicao,
             candidato: c.candidato,
-            entrevistas: c.entrevistas,
+            entrevistaCount: c.entrevistas.length,
             pretensaoSalarial: c.pretensaoSalarial?.toString() ?? null,
           }))}
           vagaId={vaga.id}
