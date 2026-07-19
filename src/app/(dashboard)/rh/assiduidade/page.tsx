@@ -1,6 +1,7 @@
 /**
  * Assiduidade — Server Component (NUNCA 'use client').
  * Lista registos de assiduidade com DataTable + FilterBar.
+ * Leitura via AssiduidadeService (sem prisma cru).
  */
 
 import { Suspense } from 'react';
@@ -11,6 +12,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
+import { AssiduidadeService } from '@/server/services/pessoas-projetos/rh.service';
 import { Button } from '@/components/ui/button';
 import {
   PageHeader,
@@ -71,33 +73,22 @@ async function AssiduidadeTableSection({
 }) {
   const ctx = { tenantId, userId };
 
-  const rows = await runWithTenantContext(ctx, () =>
-    prisma.registoAssiduidade.findMany({
-      where: {
-        tenantId,
-        ...(filtros.colaboradorId ? { colaboradorId: filtros.colaboradorId } : {}),
-        ...(filtros.tipo ? { tipo: filtros.tipo as never } : {}),
+  const result = await runWithTenantContext(ctx, () =>
+    AssiduidadeService.listar(
+      {
+        colaboradorId: filtros.colaboradorId,
+        tipo: filtros.tipo as never,
+        cursor: filtros.cursor,
+        take: filtros.take,
       },
-      select: {
-        id: true,
-        data: true,
-        entrada: true,
-        saida: true,
-        horasTrabalhadas: true,
-        horasExtras: true,
-        tipo: true,
-        colaborador: { select: { nome: true } },
-      },
-      orderBy: { data: 'desc' },
-      take: filtros.take,
-      ...(filtros.cursor ? { cursor: { id: filtros.cursor }, skip: 1 } : {}),
-    })
+      ctx,
+    )
   );
 
   const fmt = (d: Date) => d.toLocaleDateString('pt-PT');
   const fmtTime = (d: Date) => d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 
-  const data: AssiduidadeRow[] = rows.map((r) => ({
+  const data: AssiduidadeRow[] = result.items.map((r) => ({
     id: r.id,
     colaboradorNome: r.colaborador.nome,
     data: fmt(r.data),
@@ -108,9 +99,7 @@ async function AssiduidadeTableSection({
     tipo: r.tipo,
   }));
 
-  const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
-
-  return <AssiduidadeTable data={data} nextCursor={nextCursor} />;
+  return <AssiduidadeTable data={data} nextCursor={result.nextCursor ?? undefined} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [

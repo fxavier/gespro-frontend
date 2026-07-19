@@ -88,6 +88,8 @@ const STATUS_MAP: Record<string, StatusVariant> = {
 
   // RH / Payroll
   ACTIVO: 'success',
+  INACTIVO: 'secondary',
+  PERIODO_EXPERIMENTAL: 'warning',
   FERIAS: 'info',
   AFASTADO: 'warning',
   DESLIGADO: 'secondary',
@@ -137,8 +139,9 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   APROVADO: 'success',
   REJEITADO: 'destructive',
 
-  // Prioridades (requisições, tarefas, tickets) — mapa único, proibido local
+  // Prioridades (requisições, tarefas, tickets, projectos) — mapa único, proibido local
   URGENTE: 'destructive',
+  CRITICA: 'destructive',
   ALTA: 'warning',
   MEDIA: 'secondary',
   BAIXA: 'outline',
@@ -269,8 +272,13 @@ const STATUS_LABELS: Record<string, string> = {
   ARQUIVADO: 'Arquivado',
   ARQUIVADA: 'Arquivada',
 
+  // RH adicional
+  INACTIVO: 'Inactivo',
+  PERIODO_EXPERIMENTAL: 'Período Experimental',
+
   // Prioridades
   URGENTE: 'Urgente',
+  CRITICA: 'Crítica',
   ALTA: 'Alta',
   MEDIA: 'Média',
   BAIXA: 'Baixa',

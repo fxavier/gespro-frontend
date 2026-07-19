@@ -34,7 +34,7 @@ export const TipoAssiduidadeEnum = z.enum([
   'NORMAL', 'FERIADO', 'FIM_SEMANA', 'FERIAS', 'AUSENCIA',
 ]);
 export const TipoAvaliacaoEnum = z.enum([
-  'DESEMPENHO', 'COMPETENCIAS', 'TREZENTOS_SESSENTA', 'PROBATORIO',
+  'DESEMPENHO', 'COMPETENCIAS', 'GRAU_360', 'PROBATORIO',
 ]);
 export const StatusAvaliacaoEnum = z.enum(['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA']);
 export const ModalidadeFormacaoEnum = z.enum(['PRESENCIAL', 'ONLINE', 'HIBRIDO']);

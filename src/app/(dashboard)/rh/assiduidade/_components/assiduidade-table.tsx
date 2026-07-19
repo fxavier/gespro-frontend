@@ -79,6 +79,7 @@ export function AssiduidadeTable({ data, nextCursor }: AssiduidadeTableProps) {
     <DataTable
       data={data}
       columns={columns}
+      rowHref={(row) => `/rh/assiduidade/${row.id}`}
       nextCursor={nextCursor}
       emptyState={
         <EmptyState

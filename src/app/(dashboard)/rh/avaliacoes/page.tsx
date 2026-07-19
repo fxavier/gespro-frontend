@@ -1,6 +1,7 @@
 /**
  * Avaliações — Server Component (NUNCA 'use client').
  * Lista avaliações de desempenho com DataTable + FilterBar.
+ * Leitura via AvaliacaoService (sem prisma cru).
  */
 
 import { Suspense } from 'react';
@@ -10,7 +11,7 @@ import { Plus } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { prisma } from '@/server/db/client';
+import { AvaliacaoService } from '@/server/services/pessoas-projetos/rh.service';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
@@ -39,24 +40,19 @@ async function AvaliacoesTableSection({
 }) {
   const ctx = { tenantId, userId };
 
-  const rows = await runWithTenantContext(ctx, () =>
-    prisma.avaliacao.findMany({
-      where: {
-        tenantId,
-        ...(filtros.status ? { status: filtros.status as never } : {}),
-        ...(filtros.tipo ? { tipo: filtros.tipo as never } : {}),
+  const result = await runWithTenantContext(ctx, () =>
+    AvaliacaoService.listar(
+      {
+        status: filtros.status,
+        tipo: filtros.tipo,
+        cursor: filtros.cursor,
+        take: filtros.take,
       },
-      include: {
-        colaborador: { select: { nome: true } },
-        avaliador: { select: { nome: true } },
-      },
-      orderBy: { dataInicio: 'desc' },
-      take: filtros.take,
-      ...(filtros.cursor ? { cursor: { id: filtros.cursor }, skip: 1 } : {}),
-    })
+      ctx,
+    )
   );
 
-  const data: AvaliacaoRow[] = rows.map((a) => ({
+  const data: AvaliacaoRow[] = result.items.map((a) => ({
     id: a.id,
     colaboradorNome: a.colaborador?.nome ?? '—',
     avaliadorNome: a.avaliador?.nome ?? '—',
@@ -67,9 +63,7 @@ async function AvaliacoesTableSection({
     dataInicio: a.dataInicio,
   }));
 
-  const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
-
-  return <AvaliacoesTable data={data} nextCursor={nextCursor} />;
+  return <AvaliacoesTable data={data} nextCursor={result.nextCursor ?? undefined} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [
