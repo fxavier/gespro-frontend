@@ -236,6 +236,7 @@ export const FilterOrcamentoSchema = z.object({
 export type CreateEquipaInput = z.infer<typeof CreateEquipaSchema>;
 export type UpdateEquipaInput = z.infer<typeof UpdateEquipaSchema>;
 export type AddMembroEquipaInput = z.infer<typeof AddMembroEquipaSchema>;
+export type FilterEquipaInput = z.infer<typeof FilterEquipaSchema>;
 export type CreateProjetoInput = z.infer<typeof CreateProjetoSchema>;
 export type UpdateProjetoInput = z.infer<typeof UpdateProjetoSchema>;
 export type FilterProjetoInput = z.infer<typeof FilterProjetoSchema>;

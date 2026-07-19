@@ -25,6 +25,7 @@ import type {
   CreateEquipaInput,
   UpdateEquipaInput,
   AddMembroEquipaInput,
+  FilterEquipaInput,
 } from '@/lib/validations/projetos';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,6 +64,25 @@ export function calcularPosicaoKanban(antes?: string, depois?: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const EquipaService = {
+  async listar(filter: FilterEquipaInput, ctx: Ctx) {
+    return paginate(
+      (args) =>
+        prisma.equipa.findMany({
+          ...args,
+          where: {
+            tenantId: ctx.tenantId,
+            ...(filter.status ? { status: filter.status } : {}),
+            ...(filter.search
+              ? { nome: { contains: filter.search, mode: 'insensitive' as const } }
+              : {}),
+          },
+          include: { _count: { select: { membros: true } } },
+          orderBy: { nome: 'asc' },
+        }),
+      { cursor: filter.cursor, take: filter.take }
+    );
+  },
+
   async criar(input: CreateEquipaInput, ctx: Ctx): Promise<{ id: string }> {
     const equipa = await prisma.equipa.create({
       data: {

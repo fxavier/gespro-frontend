@@ -11,7 +11,7 @@ import { Plus } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { prisma } from '@/server/db/client';
+import { EquipaService } from '@/server/services/pessoas-projetos/projetos.service';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
@@ -39,25 +39,19 @@ async function EquipaTableSection({
 }) {
   const ctx = { tenantId, userId };
 
-  const rows = await runWithTenantContext(ctx, () =>
-    prisma.equipa.findMany({
-      where: {
-        tenantId,
-        ...(filtros.status ? { status: filtros.status as never } : {}),
-        ...(filtros.search
-          ? { nome: { contains: filtros.search, mode: 'insensitive' } }
-          : {}),
+  const result = await runWithTenantContext(ctx, () =>
+    EquipaService.listar(
+      {
+        search: filtros.search,
+        status: filtros.status as never,
+        cursor: filtros.cursor,
+        take: filtros.take,
       },
-      include: {
-        _count: { select: { membros: true } },
-      },
-      orderBy: { nome: 'asc' },
-      take: filtros.take,
-      ...(filtros.cursor ? { cursor: { id: filtros.cursor }, skip: 1 } : {}),
-    })
+      ctx
+    )
   );
 
-  const data: EquipaRow[] = rows.map((e) => ({
+  const data: EquipaRow[] = result.items.map((e) => ({
     id: e.id,
     nome: e.nome,
     descricao: e.descricao,
@@ -65,9 +59,7 @@ async function EquipaTableSection({
     membros: e._count.membros,
   }));
 
-  const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
-
-  return <EquipaTable data={data} nextCursor={nextCursor} />;
+  return <EquipaTable data={data} nextCursor={result.nextCursor} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [
@@ -75,8 +67,8 @@ const FILTER_CONFIG: FilterConfig[] = [
     key: 'status',
     label: 'Estado',
     options: [
-      { label: 'Ativa', value: 'ATIVA' },
-      { label: 'Inativa', value: 'INATIVA' },
+      { label: 'Activa', value: 'ATIVA' },
+      { label: 'Inactiva', value: 'INATIVA' },
     ],
   },
 ];
@@ -107,7 +99,7 @@ export default async function EquipaPage({
         title="Equipas"
         description="Gerir equipas de projecto"
         breadcrumbs={[
-          { label: 'Projetos', href: '/projetos/lista' },
+          { label: 'Projectos', href: '/projetos/lista' },
           { label: 'Equipas' },
         ]}
         actions={
