@@ -51,7 +51,9 @@ export type TipoSerieDocumento =
   | 'ORDEM_PRODUCAO'
   | 'ATIVIDADE'
   | 'TICKET'
-  | 'ENTREGA';
+  | 'ENTREGA'
+  // WS A — spec 05
+  | 'CONTAGEM_STOCK';
 
 export type StatusFatura =
   | 'RASCUNHO'

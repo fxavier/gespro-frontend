@@ -68,6 +68,15 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'inventario:write',      descricao: 'Escrita geral no módulo de inventário' },
   { code: 'inventario:admin',      descricao: 'Administração total do inventário' },
 
+  // ── Contagem de Stock (Spec 05) ───────────────────────────────────────────
+  { code: 'inventario:contagens:ver',         descricao: 'Consultar contagens de stock' },
+  { code: 'inventario:contagens:abrir',       descricao: 'Abrir nova contagem de stock' },
+  { code: 'inventario:contagens:registar',    descricao: 'Registar contagem de itens' },
+  { code: 'inventario:contagens:justificar',  descricao: 'Justificar discrepâncias de contagem' },
+  { code: 'inventario:contagens:reconciliar', descricao: 'Reconciliar contagem (gera ajustes de stock)' },
+  { code: 'inventario:contagens:concluir',    descricao: 'Concluir contagem de stock' },
+  { code: 'inventario:contagens:cancelar',    descricao: 'Cancelar contagem de stock' },
+
   // ── Financeiro / Contabilidade ────────────────────────────────────────────
   { code: 'financas:ver',                   descricao: 'Consultar lançamentos e relatórios' },
   { code: 'financas:lancar',                descricao: 'Efectuar lançamentos contabilísticos' },

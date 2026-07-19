@@ -222,5 +222,67 @@ export async function seedInventario(prisma: PrismaClient, tenantId: string): Pr
   }
   console.log(`[seed:inventario] inventário físico`);
 
+  // 8. Contagem de stock de demonstração (Spec 05)
+  // Só cria se já houver produtos e saldos no tenant (idempotente)
+  const produtosSeed = await prisma.produto.findMany({
+    where: { tenantId, deletedAt: null },
+    select: { id: true },
+    take: 1,
+  });
+  if (produtosSeed.length > 0) {
+    const contagemExistente = await prisma.contagemStock.findFirst({
+      where: { tenantId, numero: 'CNT-SEED-001' },
+    });
+    if (!contagemExistente) {
+      // Obtém saldos existentes para snapshot
+      const saldos = await prisma.saldoStock.findMany({
+        where: { tenantId },
+        select: { produtoId: true, localizacaoId: true, saldo: true },
+        take: 5,
+      });
+
+      const contagem = await prisma.contagemStock.create({
+        data: {
+          tenantId,
+          numero: 'CNT-SEED-001',
+          status: 'EM_CONTAGEM',
+          responsavelId: 'seed-admin',
+          cega: false,
+          observacoes: 'Contagem de demonstração — Spec 05',
+        },
+      });
+
+      // Cria itens com saldoSistema snapshot e discrepâncias simuladas
+      for (const s of saldos) {
+        const saldoAtual = new Prisma.Decimal(s.saldo.toString());
+        // Simula discrepância: conta como 90% do saldo real
+        const qtdContada = saldoAtual.times('0.9').toDecimalPlaces(6);
+        const diferenca = qtdContada.minus(saldoAtual);
+        await prisma.itemContagemStock.upsert({
+          where: {
+            tenantId_contagemId_produtoId_localizacaoId: {
+              tenantId,
+              contagemId: contagem.id,
+              produtoId: s.produtoId,
+              localizacaoId: s.localizacaoId,
+            },
+          },
+          create: {
+            tenantId,
+            contagemId: contagem.id,
+            produtoId: s.produtoId,
+            localizacaoId: s.localizacaoId,
+            saldoSistema: saldoAtual,
+            quantidadeContada: qtdContada,
+            diferenca,
+            status: 'CONTADO',
+          },
+          update: {},
+        });
+      }
+      console.log(`[seed:inventario] contagem de stock demo (${saldos.length} itens)`);
+    }
+  }
+
   console.log('[seed:inventario] concluído');
 }

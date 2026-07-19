@@ -80,6 +80,19 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   INDISPONIVEL: 'destructive',
   BAIXO_STOCK: 'warning',
 
+  // Contagem de Stock (Spec 05)
+  EM_CONTAGEM: 'info',
+  RECONCILIADA: 'warning',
+  // CONCLUIDA já definida acima como 'success'
+  // RASCUNHO já definido acima como 'secondary'
+  // CANCELADA já definida acima como 'secondary'
+
+  // Item de Contagem (Spec 05)
+  CONTADO: 'info',
+  AJUSTADO: 'success',
+  // PENDENTE já definido acima como 'warning'
+  // JUSTIFICADO fica sem entrada → 'outline' (fallback)
+
   // Produção
   PLANEJADO: 'secondary',
   EM_PRODUCAO: 'info',
@@ -253,6 +266,12 @@ const STATUS_LABELS: Record<string, string> = {
   DISPONIVEL: 'Disponível',
   INDISPONIVEL: 'Indisponível',
   BAIXO_STOCK: 'Stock Baixo',
+  // Contagem de Stock (Spec 05)
+  EM_CONTAGEM: 'Em Contagem',
+  RECONCILIADA: 'Reconciliada',
+  CONTADO: 'Contado',
+  AJUSTADO: 'Ajustado',
+  JUSTIFICADO: 'Justificado',
   NAO_INICIADO: 'Não Iniciado',
   EM_PROGRESSO: 'Em Progresso',
   ATRASADO: 'Atrasado',

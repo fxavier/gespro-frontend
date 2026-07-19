@@ -134,6 +134,8 @@ enum TipoSerieDocumento {
   ATIVIDADE
   TICKET
   ENTREGA
+  // Inventário / Stock (WS A — spec 05)
+  CONTAGEM_STOCK
 }
 
 enum StatusFatura {
