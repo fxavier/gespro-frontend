@@ -566,5 +566,139 @@ export async function seedPessoasProjetos(
     });
   }
 
-  console.log('  pessoas-projetos: colaboradores, equipas, projectos, tarefas, produção — OK');
+  // ─── Benefícios (spec 08) ───────────────────────────────────────────────────
+
+  const benSeguroSaude = await prisma.beneficio.upsert({
+    where: { id: `seed-ben-ss-${tenantId}`.slice(0, 25) },
+    update: {},
+    create: {
+      id: `seed-ben-ss-${tenantId}`.slice(0, 25),
+      tenantId,
+      nome: 'Seguro de Saúde',
+      tipo: 'SEGURO_SAUDE',
+      descricao: 'Seguro de saúde com cobertura familiar — plano básico',
+      fornecedor: 'Seguradora Nacional de Moçambique',
+      custoTotal: 3500,
+      comparticipacaoEmpresa: 2500,
+      descontoColaborador: 1000,
+      periodicidade: 'MENSAL',
+      tributavel: false,
+      ativo: true,
+      departamentosElegiveis: [],
+      cargosElegiveis: [],
+    },
+  });
+
+  const benSubAlimentacao = await prisma.beneficio.upsert({
+    where: { id: `seed-ben-sa-${tenantId}`.slice(0, 25) },
+    update: {},
+    create: {
+      id: `seed-ben-sa-${tenantId}`.slice(0, 25),
+      tenantId,
+      nome: 'Subsídio de Alimentação',
+      tipo: 'SUBSIDIO_ALIMENTACAO',
+      descricao: 'Subsídio de alimentação mensal',
+      fornecedor: null,
+      custoTotal: 5000,
+      comparticipacaoEmpresa: 5000,
+      descontoColaborador: 0,
+      periodicidade: 'MENSAL',
+      tributavel: true,
+      ativo: true,
+      departamentosElegiveis: [],
+      cargosElegiveis: [],
+    },
+  });
+
+  const benSubTransporte = await prisma.beneficio.upsert({
+    where: { id: `seed-ben-st-${tenantId}`.slice(0, 25) },
+    update: {},
+    create: {
+      id: `seed-ben-st-${tenantId}`.slice(0, 25),
+      tenantId,
+      nome: 'Subsídio de Transporte',
+      tipo: 'SUBSIDIO_TRANSPORTE',
+      descricao: 'Subsídio de transporte mensal',
+      fornecedor: null,
+      custoTotal: 3000,
+      comparticipacaoEmpresa: 3000,
+      descontoColaborador: 0,
+      periodicidade: 'MENSAL',
+      tributavel: false,
+      ativo: true,
+      departamentosElegiveis: [],
+      cargosElegiveis: [],
+    },
+  });
+
+  // Atribuições demo — col1 (João) tem seguro de saúde + subsídio alimentação
+  await prisma.beneficioColaborador.upsert({
+    where: { id: `seed-atr-ss-${col1.id}`.slice(0, 25) },
+    update: {},
+    create: {
+      id: `seed-atr-ss-${col1.id}`.slice(0, 25),
+      tenantId,
+      beneficioId: benSeguroSaude.id,
+      colaboradorId: col1.id,
+      dataInicio: new Date('2024-01-01'),
+      dataFim: null,
+      comparticipacaoEmpresa: 2500,
+      descontoColaborador: 1000,
+      status: 'ACTIVO',
+      observacoes: 'Atribuição inicial — colaborador efectivo',
+    },
+  });
+
+  await prisma.beneficioColaborador.upsert({
+    where: { id: `seed-atr-sa-${col1.id}`.slice(0, 25) },
+    update: {},
+    create: {
+      id: `seed-atr-sa-${col1.id}`.slice(0, 25),
+      tenantId,
+      beneficioId: benSubAlimentacao.id,
+      colaboradorId: col1.id,
+      dataInicio: new Date('2024-01-01'),
+      dataFim: null,
+      comparticipacaoEmpresa: 5000,
+      descontoColaborador: 0,
+      status: 'ACTIVO',
+    },
+  });
+
+  // col2 (Maria) tem subsídio de alimentação + transporte
+  await prisma.beneficioColaborador.upsert({
+    where: { id: `seed-atr-sa-${col2.id}`.slice(0, 25) },
+    update: {},
+    create: {
+      id: `seed-atr-sa-${col2.id}`.slice(0, 25),
+      tenantId,
+      beneficioId: benSubAlimentacao.id,
+      colaboradorId: col2.id,
+      dataInicio: new Date('2024-03-01'),
+      dataFim: null,
+      comparticipacaoEmpresa: 5000,
+      descontoColaborador: 0,
+      status: 'ACTIVO',
+    },
+  });
+
+  await prisma.beneficioColaborador.upsert({
+    where: { id: `seed-atr-st-${col2.id}`.slice(0, 25) },
+    update: {},
+    create: {
+      id: `seed-atr-st-${col2.id}`.slice(0, 25),
+      tenantId,
+      beneficioId: benSubTransporte.id,
+      colaboradorId: col2.id,
+      dataInicio: new Date('2024-03-01'),
+      dataFim: null,
+      comparticipacaoEmpresa: 3000,
+      descontoColaborador: 0,
+      status: 'ACTIVO',
+    },
+  });
+
+  void benSubTransporte;
+
+  console.log('  pessoas-projetos: colaboradores, equipas, projectos, tarefas, produção, benefícios — OK');
 }

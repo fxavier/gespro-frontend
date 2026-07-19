@@ -92,6 +92,9 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   AFASTADO: 'warning',
   DESLIGADO: 'secondary',
 
+  // Benefícios — spec 08
+  TERMINADO: 'secondary',
+
   // Projecto
   NAO_INICIADO: 'secondary',
   EM_PROGRESSO: 'info',
@@ -205,6 +208,7 @@ const STATUS_LABELS: Record<string, string> = {
   ATIVO: 'Activo',
   INATIVO: 'Inactivo',
   SUSPENSO: 'Suspenso',
+  TERMINADO: 'Terminado',
   ABERTA: 'Aberta',
   PARCIALMENTE_PAGA: 'Parcialmente Paga',
   PAGA: 'Paga',

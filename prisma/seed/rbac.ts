@@ -162,6 +162,11 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'rh:avaliacoes:update',     descricao: 'Actualizar avaliação de desempenho' },
   { code: 'rh:formacoes:create',      descricao: 'Criar acção de formação' },
   { code: 'rh:formacoes:update',      descricao: 'Actualizar acção de formação' },
+  { code: 'rh:beneficios:read',       descricao: 'Consultar catálogo de benefícios' },
+  { code: 'rh:beneficios:create',     descricao: 'Criar benefício no catálogo' },
+  { code: 'rh:beneficios:update',     descricao: 'Actualizar benefício no catálogo' },
+  { code: 'rh:beneficios:delete',     descricao: 'Arquivar benefício do catálogo' },
+  { code: 'rh:beneficios:atribuir',   descricao: 'Atribuir/remover benefícios a colaboradores' },
 
   // ── Produção ──────────────────────────────────────────────────────────────
   { code: 'producao:ver',             descricao: 'Consultar ordens de produção' },
@@ -307,7 +312,7 @@ function isReadOnly(code: string): boolean {
     'admin:ver_utilizadores', 'admin:ver_auditoria', 'admin:ver_integracoes',
     'financas:relatorios:leitura',
     'ativos:read',
-    'rh:colaboradores:read', 'rh:assiduidade:read',
+    'rh:colaboradores:read', 'rh:assiduidade:read', 'rh:beneficios:read',
     'projetos:read', 'projetos:tarefas:read', 'projetos:timesheets:read',
     'producao:ordens:read', 'producao:bom:read', 'producao:roteiros:read',
     'tickets:base-conhecimento:listar', 'tickets:listar',
