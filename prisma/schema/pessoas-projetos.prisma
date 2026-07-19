@@ -697,9 +697,11 @@ model ParticipanteFormacao {
   @@index([tenantId, colaboradorId])
 }
 
-// ─── Payroll — Extensão Futura ────────────────────────────────────────────────
-// Modelado para reservar o schema; processamento salarial está FORA do âmbito
-// dos serviços da Wave 2. Não implementar IPayrollService nesta wave.
+// ─── Payroll — Spec 06 (Processamento Salarial) ──────────────────────────────
+// Implementado no spec 06: motor de folha salarial (INSS 3%/4%, IRPS
+// progressivo por escalões — tabelas paramétricas versionadas por vigência).
+// Após PROCESSADO os valores são imutáveis (append-only); correcção por
+// cancelamento (com estorno do lançamento) + reprocessamento.
 model Payroll {
   id                     String        @id @default(cuid())
   tenantId               String
@@ -724,11 +726,20 @@ model Payroll {
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
 
-  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+  // Spec 06 — encargo patronal (INSS 4%: encargo da entidade, não desconto)
+  encargoInssEntidade    Decimal       @db.Decimal(18, 2) @default(0)
+  custoTotalEntidade     Decimal       @db.Decimal(18, 2) @default(0)
+  // Spec 06 — folha mensal (lote) a que pertence
+  folhaId                String?
+
+  colaborador Colaborador     @relation(fields: [colaboradorId], references: [id])
+  folha       FolhaPagamento? @relation(fields: [folhaId], references: [id])
+  linhas      LinhaPayroll[]
 
   @@unique([tenantId, colaboradorId, anoReferencia, mesReferencia])
   @@index([tenantId, status])
   @@index([tenantId, colaboradorId])
+  @@index([tenantId, folhaId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1250,4 +1261,123 @@ model ConsumoProducao {
 
   @@index([tenantId, ordemProducaoId])
   @@index([tenantId, produtoId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payroll — Spec 06 (Processamento Salarial) — bloco aditivo
+// Novos modelos: FolhaPagamento (lote mensal), LinhaPayroll (detalhe),
+// TabelaINSS e EscalaoIRPS (tabelas paramétricas versionadas por vigência).
+// FKs cross-WS escalares: lancamentoId/lancamentoPagamentoId → Lancamento (WS D),
+// processadoPorId → User (Foundation). Sem @relation inter-WS.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TipoLinhaPayroll {
+  PROVENTO
+  DESCONTO
+}
+
+enum NaturezaLinhaPayroll {
+  BASE
+  SUBSIDIO
+  HORAS_EXTRAS
+  COMISSAO
+  BONUS
+  INSS
+  IRPS
+  FALTA
+  ADIANTAMENTO
+  PENHORA
+  OUTRO
+}
+
+// Cabeçalho da folha mensal (lote) — agrupa os Payroll individuais do mês.
+// Idempotência do lote: @@unique([tenantId, anoReferencia, mesReferencia]).
+model FolhaPagamento {
+  id                    String        @id @default(cuid())
+  tenantId              String
+  mesReferencia         Int           // 1-12
+  anoReferencia         Int
+  status                StatusPayroll @default(PENDENTE)
+  totalBruto            Decimal       @db.Decimal(18, 2) @default(0)
+  totalInssTrabalhador  Decimal       @db.Decimal(18, 2) @default(0)
+  totalInssEntidade     Decimal       @db.Decimal(18, 2) @default(0)
+  totalIrps             Decimal       @db.Decimal(18, 2) @default(0)
+  totalOutrosDescontos  Decimal       @db.Decimal(18, 2) @default(0)
+  totalLiquido          Decimal       @db.Decimal(18, 2) @default(0)
+  totalCustoEntidade    Decimal       @db.Decimal(18, 2) @default(0)
+  // FK escalar → Lancamento (WS D): massa salarial (diário SALARIOS)
+  lancamentoId          String?
+  // FK escalar → Lancamento (WS D): pagamento (débito Remunerações a pagar)
+  lancamentoPagamentoId String?
+  // FK escalar → User (cross-WS)
+  processadoPorId       String?
+  dataProcessamento     DateTime?
+  dataPagamento         DateTime?
+  observacoes           String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  payrolls Payroll[]
+
+  @@unique([tenantId, anoReferencia, mesReferencia])
+  @@index([tenantId, status])
+}
+
+// Linhas detalhadas de cada Payroll (proventos e descontos).
+// `manual = true` marca ajustes introduzidos pelo utilizador (adiantamentos,
+// penhoras, bónus extraordinários) que sobrevivem ao recálculo — ponto de
+// extensão para o spec 08 (benefícios) injectar proventos/descontos adicionais.
+model LinhaPayroll {
+  id        String               @id @default(cuid())
+  tenantId  String
+  payrollId String
+  tipo      TipoLinhaPayroll
+  natureza  NaturezaLinhaPayroll
+  descricao String
+  valor     Decimal              @db.Decimal(18, 2)
+  manual    Boolean              @default(false)
+  createdAt DateTime             @default(now())
+
+  payroll Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, payrollId])
+}
+
+// Taxa contributiva do INSS versionada por vigência.
+// Fonte: INSS — https://www.inss.gov.mz/taxa-contributiva-tco/
+// (Lei 4/2007 + Decreto 51/2017: trabalhador 3%, entidade 4%, total 7%).
+// Alteração legal = novo registo com nova vigência, nunca alterar código.
+model TabelaINSS {
+  id              String    @id @default(cuid())
+  tenantId        String
+  vigenciaInicio  DateTime
+  vigenciaFim     DateTime? // null = vigente
+  taxaTrabalhador Decimal   @db.Decimal(9, 6) // ex.: 0.030000
+  taxaEntidade    Decimal   @db.Decimal(9, 6) // ex.: 0.040000
+  tetoIncidencia  Decimal?  @db.Decimal(18, 2) // teto da base de incidência (null = sem teto)
+  descricao       String?   // decreto/diploma de origem
+  createdAt       DateTime  @default(now())
+
+  @@index([tenantId, vigenciaInicio])
+}
+
+// Escalão do IRPS (rendimento de trabalho dependente), versionado por vigência.
+// imposto = base × taxa − parcelaAbater, no escalão da base tributável.
+// Fonte: AT — https://www.at.gov.mz/por/Processos-Fiscais/Imposto-sobre-o-Rendimento-de-Pessoas-Singulares-IRPS
+// A reforma de 2026 altera mínimos/isenções: nova vigência = novos registos.
+model EscalaoIRPS {
+  id                String    @id @default(cuid())
+  tenantId          String
+  vigenciaInicio    DateTime
+  vigenciaFim       DateTime? // null = vigente
+  ordem             Int       // 1..n
+  limiteInferior    Decimal   @db.Decimal(18, 2)
+  limiteSuperior    Decimal?  @db.Decimal(18, 2) // null = último escalão
+  taxa              Decimal   @db.Decimal(9, 6)
+  parcelaAbater     Decimal   @db.Decimal(18, 2)
+  numeroDependentes Int       @default(0) // 0 = tabela geral; >0 se a lei variar por dependentes
+  descricao         String?   // decreto/diploma de origem
+  createdAt         DateTime  @default(now())
+
+  @@index([tenantId, vigenciaInicio, ordem])
 }

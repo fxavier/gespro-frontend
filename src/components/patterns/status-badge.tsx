@@ -104,6 +104,9 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   FERIAS: 'info',
   AFASTADO: 'warning',
   DESLIGADO: 'secondary',
+  // Payroll — Spec 06 (PENDENTE/CANCELADO já definidos acima)
+  PROCESSADO: 'info',
+  PAGO: 'success',
 
   // Projecto
   NAO_INICIADO: 'secondary',
@@ -223,6 +226,9 @@ const STATUS_LABELS: Record<string, string> = {
   PAGA: 'Paga',
   PROCESSANDO: 'A Processar',
   CONCLUIDO: 'Concluído',
+  // Payroll — Spec 06
+  PROCESSADO: 'Processado',
+  PAGO: 'Pago',
   // Transporte
   EM_ACTIVIDADE: 'Em Actividade',
   EM_MANUTENCAO: 'Em Manutenção',

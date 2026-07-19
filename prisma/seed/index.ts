@@ -9,6 +9,7 @@ import { seedCompras } from './compras';
 import { seedComercial } from './comercial';
 import { seedFinancas } from './financas';
 import { seedPessoasProjetos } from './pessoas-projetos';
+import { seedPayroll } from './payroll';
 import { seedOperacoes } from './operacoes';
 import { PROVINCIAS_MOCAMBIQUE } from '../../src/lib/provincias-mocambique';
 
@@ -84,6 +85,7 @@ async function main() {
   await seedCompras(prisma, tenant.id);
   await seedComercial(prisma, tenant.id);
   await seedPessoasProjetos(prisma, tenant.id);
+  await seedPayroll(prisma, tenant.id); // Spec 06 — tabelas INSS/IRPS + folha demo
   await seedOperacoes(prisma, tenant.id);
 
   // 6. Províncias (referência, sem tabela DB na Wave 0)

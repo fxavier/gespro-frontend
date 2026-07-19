@@ -1,5 +1,6 @@
 /**
- * Novo Processamento Salarial — Server Component wrapper.
+ * Processar Folha Mensal — Server Component wrapper (Spec 06).
+ * O formulário processa a folha de TODOS os colaboradores activos em lote.
  */
 
 import Link from 'next/link';
@@ -17,30 +18,22 @@ export default async function NovoPayrollPage() {
   if (!session?.user) redirect('/auth/login');
 
   const { tenantId, id: userId } = session.user;
-  const ctx = { tenantId, userId };
 
-  const rawColaboradores = await runWithTenantContext(ctx, () =>
-    prisma.colaborador.findMany({
-      where: { tenantId, status: 'ACTIVO' },
-      select: { id: true, nome: true, salarioBase: true },
-      orderBy: { nome: 'asc' },
+  const totalColaboradoresActivos = await runWithTenantContext({ tenantId, userId }, () =>
+    prisma.colaborador.count({
+      where: { tenantId, status: 'ACTIVO', deletedAt: null },
     })
   );
-  const colaboradores = rawColaboradores.map((c) => ({
-    id: c.id,
-    nome: c.nome,
-    salarioBase: c.salarioBase !== null ? Number(c.salarioBase) : null,
-  }));
 
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title="Processar Salário"
-        description="Criar novo processamento salarial"
+        title="Processar Folha Mensal"
+        description="Processamento em lote da folha salarial de todos os colaboradores activos"
         breadcrumbs={[
           { label: 'RH', href: '/rh/colaboradores' },
           { label: 'Salários', href: '/rh/payroll' },
-          { label: 'Novo' },
+          { label: 'Processar' },
         ]}
         actions={
           <Button variant="outline" size="sm" asChild>
@@ -51,7 +44,7 @@ export default async function NovoPayrollPage() {
           </Button>
         }
       />
-      <NovoPayrollForm colaboradores={colaboradores} />
+      <NovoPayrollForm totalColaboradoresActivos={totalColaboradoresActivos} />
     </div>
   );
 }

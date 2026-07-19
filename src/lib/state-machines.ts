@@ -42,3 +42,11 @@ export const TRANSICOES_CONTAGEM_STOCK: Record<string, string[]> = {
   CONCLUIDA:    [],
   CANCELADA:    [],
 };
+
+// Payroll — Spec 06 (folha mensal e payroll individual partilham o ciclo)
+export const TRANSICOES_PAYROLL: Record<string, string[]> = {
+  PENDENTE: ['PROCESSADO', 'CANCELADO'],
+  PROCESSADO: ['PAGO', 'CANCELADO'],
+  PAGO: [],
+  CANCELADO: [],
+};

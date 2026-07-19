@@ -69,6 +69,7 @@ export function PayrollTable({ data, nextCursor }: PayrollTableProps) {
     <DataTable
       data={data}
       columns={columns}
+      rowHref={(row) => `/rh/payroll/${row.id}`}
       nextCursor={nextCursor}
       emptyState={
         <EmptyState
