@@ -83,6 +83,8 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'financas:diarios:escrita',       descricao: 'Criar e editar diários contabilísticos' },
   { code: 'financas:banca:escrita',         descricao: 'Registar movimentos bancários' },
   { code: 'financas:banca:reconciliacao',   descricao: 'Reconciliar extractos bancários' },
+  { code: 'financas:banca:contas:escrita',  descricao: 'Criar e editar contas bancárias' },
+  { code: 'financas:banca:contas:leitura',  descricao: 'Consultar contas bancárias' },
   { code: 'financas:centros-custo:escrita', descricao: 'Criar e editar centros de custo' },
   { code: 'financas:plano-contas:escrita',  descricao: 'Criar e editar contas no plano de contas' },
   { code: 'financas:relatorios:leitura',    descricao: 'Consultar relatórios financeiros' },

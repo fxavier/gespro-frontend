@@ -423,11 +423,13 @@ model ItemReconciliacaoBancaria {
   conciliado       Boolean             @default(false)
   lancamentoId     String?             // FK Lancamento (escalar)
   extratoReferencia String?            // referência do extracto bancário
+  itemParId        String?             // id do item do lado oposto conciliado com este (auto-relação escalar)
   observacoes      String?
   createdAt        DateTime            @default(now())
 
   reconciliacao ReconciliacaoBancaria @relation(fields: [reconciliacaoId], references: [id])
 
+  @@unique([tenantId, reconciliacaoId, extratoReferencia]) // idempotência de importação de extracto
   @@index([tenantId, reconciliacaoId])
   @@index([tenantId, reconciliacaoId, conciliado])
 }

@@ -264,17 +264,31 @@ export const AtualizarContaBancariaSchema = CriarContaBancariaSchema.partial().e
 
 export type AtualizarContaBancariaInput = z.infer<typeof AtualizarContaBancariaSchema>;
 
+export const FiltroContaBancariaSchema = z.object({
+  ativo: z.boolean().optional(),
+  search: z.string().max(100).optional(),
+  cursor: z.string().cuid().optional(),
+  take: z.number().int().min(1).max(100).default(25),
+});
+
+export type FiltroContaBancariaInput = z.infer<typeof FiltroContaBancariaSchema>;
+
 // ---------------------------------------------------------------------------
 // ReconciliacaoBancaria
 // ---------------------------------------------------------------------------
 
-export const IniciarReconciliacaoSchema = z.object({
-  contaBancariaId: z.string().cuid('ID de conta bancária inválido'),
-  dataInicio: z.coerce.date(),
-  dataFim: z.coerce.date(),
-  saldoInicialBanco: z.number().multipleOf(0.01),
-  saldoFinalBanco: z.number().multipleOf(0.01),
-});
+export const IniciarReconciliacaoSchema = z
+  .object({
+    contaBancariaId: z.string().cuid('ID de conta bancária inválido'),
+    dataInicio: z.coerce.date(),
+    dataFim: z.coerce.date(),
+    saldoInicialBanco: z.number().multipleOf(0.01),
+    saldoFinalBanco: z.number().multipleOf(0.01),
+  })
+  .refine((d) => d.dataInicio.getTime() <= d.dataFim.getTime(), {
+    path: ['dataFim'],
+    message: 'Data de fim deve ser igual ou posterior à data de início',
+  });
 
 export type IniciarReconciliacaoInput = z.infer<typeof IniciarReconciliacaoSchema>;
 
@@ -282,10 +296,66 @@ export const MarcarItemReconciliadoSchema = z.object({
   reconciliacaoId: z.string().cuid(),
   itemId: z.string().cuid(),
   conciliado: z.boolean(),
+  /** Item do lado oposto conciliado em par com este (opcional). */
+  itemParId: z.string().cuid().optional(),
   observacoes: z.string().max(255).optional(),
 });
 
 export type MarcarItemReconciliadoInput = z.infer<typeof MarcarItemReconciliadoSchema>;
+
+/** Linha de extracto bancário já parseada (CSV → objecto). */
+export const LinhaExtratoSchema = z.object({
+  extratoReferencia: z.string().min(1, 'Referência obrigatória').max(100),
+  data: z.coerce.date(),
+  descricao: z.string().min(1, 'Descrição obrigatória').max(255),
+  valor: z
+    .number({ invalid_type_error: 'Valor deve ser numérico' })
+    .positive('Valor deve ser positivo')
+    .multipleOf(0.01, 'Máximo 2 casas decimais'),
+  tipoMovimento: TipoPartidaEnum,
+});
+
+export type LinhaExtratoInput = z.infer<typeof LinhaExtratoSchema>;
+
+export const ImportarExtratoSchema = z.object({
+  reconciliacaoId: z.string().cuid(),
+  linhas: z
+    .array(LinhaExtratoSchema)
+    .min(1, 'O extracto não tem linhas válidas')
+    .max(2000, 'Máximo 2000 linhas por importação')
+    .superRefine((linhas, ctx) => {
+      // Referências duplicadas dentro do próprio ficheiro → rejeitar
+      const vistos = new Set<string>();
+      linhas.forEach((l, i) => {
+        if (vistos.has(l.extratoReferencia)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [i, 'extratoReferencia'],
+            message: `Referência duplicada no ficheiro: ${l.extratoReferencia}`,
+          });
+        }
+        vistos.add(l.extratoReferencia);
+      });
+    }),
+});
+
+export type ImportarExtratoInput = z.infer<typeof ImportarExtratoSchema>;
+
+export const AutoMatchSchema = z.object({
+  reconciliacaoId: z.string().cuid(),
+  /** Janela de proximidade de datas, em dias. */
+  janelaDias: z.number().int().min(0).max(30).default(3),
+});
+
+export type AutoMatchInput = z.infer<typeof AutoMatchSchema>;
+
+export const ConcluirReconciliacaoSchema = z.object({
+  id: z.string().cuid(),
+  /** Justificação obrigatória quando a diferença não conciliada ≠ 0. */
+  observacoes: z.string().min(1).max(1000).optional(),
+});
+
+export type ConcluirReconciliacaoInput = z.infer<typeof ConcluirReconciliacaoSchema>;
 
 export const FiltroRazaoSchema = z.object({
   contaId: z.string().cuid('ID de conta inválido'),
