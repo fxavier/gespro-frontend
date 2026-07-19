@@ -163,6 +163,17 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'rh:formacoes:create',      descricao: 'Criar acção de formação' },
   { code: 'rh:formacoes:update',      descricao: 'Actualizar acção de formação' },
 
+  // ── Recrutamento (Spec 07) ────────────────────────────────────────────────
+  { code: 'rh:recrutamento:read',                  descricao: 'Consultar vagas e candidaturas' },
+  { code: 'rh:recrutamento:vagas:create',          descricao: 'Criar vaga de recrutamento' },
+  { code: 'rh:recrutamento:vagas:update',          descricao: 'Actualizar/transitar estado de vaga' },
+  { code: 'rh:recrutamento:candidatos:create',     descricao: 'Registar novo candidato' },
+  { code: 'rh:recrutamento:candidatos:update',     descricao: 'Actualizar dados de candidato' },
+  { code: 'rh:recrutamento:candidaturas:create',   descricao: 'Submeter candidatura a vaga' },
+  { code: 'rh:recrutamento:candidaturas:update',   descricao: 'Mover candidatura no pipeline (etapa/kanban)' },
+  { code: 'rh:recrutamento:entrevistas:create',    descricao: 'Registar entrevista de candidatura' },
+  { code: 'rh:recrutamento:admitir',               descricao: 'Admitir candidato como Colaborador' },
+
   // ── Produção ──────────────────────────────────────────────────────────────
   { code: 'producao:ver',             descricao: 'Consultar ordens de produção' },
   { code: 'producao:criar',           descricao: 'Criar ordens de produção' },
@@ -307,7 +318,7 @@ function isReadOnly(code: string): boolean {
     'admin:ver_utilizadores', 'admin:ver_auditoria', 'admin:ver_integracoes',
     'financas:relatorios:leitura',
     'ativos:read',
-    'rh:colaboradores:read', 'rh:assiduidade:read',
+    'rh:colaboradores:read', 'rh:assiduidade:read', 'rh:recrutamento:read',
     'projetos:read', 'projetos:tarefas:read', 'projetos:timesheets:read',
     'producao:ordens:read', 'producao:bom:read', 'producao:roteiros:read',
     'tickets:base-conhecimento:listar', 'tickets:listar',
@@ -368,7 +379,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
          'projetos:tarefas:update', 'projetos:timesheets:create', 'projetos:timesheets:read'].includes(code)) return true;
     // RH self-service
     if (['rh:colaboradores:read', 'rh:assiduidade:create', 'rh:assiduidade:read',
-         'rh:ausencias:create', 'rh:ferias:solicitar'].includes(code)) return true;
+         'rh:ausencias:create', 'rh:ferias:solicitar', 'rh:recrutamento:read'].includes(code)) return true;
     // Produtos/clientes/fornecedores (leitura já coberta acima)
     if (['produtos:write'].includes(code)) return true;
     return false;

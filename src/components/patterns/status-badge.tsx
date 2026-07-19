@@ -158,6 +158,27 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   // Genérico
   ATIVO_GEN: 'success',
   INATIVO_GEN: 'secondary',
+
+  // Recrutamento — Spec 07
+  // StatusVaga
+  EM_TRIAGEM: 'info',
+  // RASCUNHO, ABERTA, FECHADA, CANCELADA já estão acima com variantes compatíveis
+
+  // EtapaCandidatura
+  RECEBIDA: 'secondary',
+  TRIAGEM: 'info',
+  ENTREVISTA: 'warning',
+  PROPOSTA: 'info',
+  CONTRATADO: 'success',
+  DESISTIU: 'outline',
+  // REJEITADO já definido acima como 'destructive'
+
+  // TipoEntrevista
+  TELEFONICA: 'secondary',
+  PRESENCIAL: 'default',
+  VIDEO: 'info',
+  TECNICA: 'warning',
+  PAINEL: 'default',
 };
 
 const badgeVariants = cva(
@@ -274,6 +295,20 @@ const STATUS_LABELS: Record<string, string> = {
   ALTA: 'Alta',
   MEDIA: 'Média',
   BAIXA: 'Baixa',
+
+  // Recrutamento — Spec 07
+  EM_TRIAGEM: 'Em Triagem',
+  RECEBIDA: 'Recebida',
+  TRIAGEM: 'Triagem',
+  ENTREVISTA: 'Entrevista',
+  PROPOSTA: 'Proposta',
+  CONTRATADO: 'Contratado',
+  DESISTIU: 'Desistiu',
+  TELEFONICA: 'Telefónica',
+  PRESENCIAL: 'Presencial',
+  VIDEO: 'Vídeo',
+  TECNICA: 'Técnica',
+  PAINEL: 'Painel',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {

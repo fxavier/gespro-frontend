@@ -1251,3 +1251,149 @@ model ConsumoProducao {
   @@index([tenantId, ordemProducaoId])
   @@index([tenantId, produtoId])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recrutamento — Spec 07 (WS E)
+// Adicionado em bloco próprio; não reordena nada acima.
+// Conflito de merge com specs 06/08: coordenado via orquestrador.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum StatusVaga {
+  RASCUNHO
+  ABERTA
+  EM_TRIAGEM
+  FECHADA
+  CANCELADA
+}
+
+enum EtapaCandidatura {
+  RECEBIDA
+  TRIAGEM
+  ENTREVISTA
+  PROPOSTA
+  CONTRATADO
+  REJEITADO
+  DESISTIU
+}
+
+enum TipoEntrevista {
+  TELEFONICA
+  PRESENCIAL
+  VIDEO
+  TECNICA
+  PAINEL
+}
+
+model Vaga {
+  id                  String      @id @default(cuid())
+  tenantId            String
+  codigo              String
+  titulo              String
+  descricao           String
+  departamentoId      String?
+  cargoId             String?
+  numeroPosicoes      Int         @default(1)
+  posicoesPreenchidas Int         @default(0)
+  salarioMin          Decimal?    @db.Decimal(18, 2)
+  salarioMax          Decimal?    @db.Decimal(18, 2)
+  regimeTrabalho      RegimeTrabalho
+  tipoContrato        TipoContratoTrabalho
+  localizacao         String?
+  requisitos          String[]
+  status              StatusVaga  @default(RASCUNHO)
+  dataAbertura        DateTime?
+  dataFecho           DateTime?
+  // FK escalar → User (responsável — cross-WS)
+  responsavelId       String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  candidaturas Candidatura[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+model Candidato {
+  id           String   @id @default(cuid())
+  tenantId     String
+  nome         String
+  email        String
+  telefone     String
+  bi           String?
+  nuit         String?
+  cvUrl        String?
+  linkedinUrl  String?
+  observacoes  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  candidaturas Candidatura[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, email])
+  @@index([tenantId, createdAt])
+}
+
+model Candidatura {
+  id                String           @id @default(cuid())
+  tenantId          String
+  vagaId            String
+  candidatoId       String
+  etapa             EtapaCandidatura @default(RECEBIDA)
+  // Chave fraccional para ordem no kanban (padrão TarefaProjeto.posicao)
+  posicao           String           @default("0.5")
+  fonte             String?
+  pretensaoSalarial Decimal?         @db.Decimal(18, 2)
+  notaTriagem       Decimal?         @db.Decimal(9, 6)
+  // Preenchido na admissão (FK escalar — mesmo WS, sem @relation para manter independência)
+  colaboradorId     String?
+  motivoRejeicao    String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  vaga       Vaga      @relation(fields: [vagaId], references: [id])
+  candidato  Candidato @relation(fields: [candidatoId], references: [id])
+  entrevistas Entrevista[]
+  historico   HistoricoCandidatura[]
+
+  @@unique([tenantId, vagaId, candidatoId])
+  @@index([tenantId, vagaId, etapa])
+  @@index([tenantId, vagaId, posicao])
+}
+
+model Entrevista {
+  id                 String         @id @default(cuid())
+  tenantId           String
+  candidaturaId      String
+  tipo               TipoEntrevista
+  dataHora           DateTime
+  // userIds/nomes dos entrevistadores
+  entrevistadores    String[]
+  avaliacao          Decimal?       @db.Decimal(9, 6)
+  parecer            String?
+  recomendaAvancar   Boolean?
+  createdAt          DateTime       @default(now())
+
+  candidatura Candidatura @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, candidaturaId])
+  @@index([tenantId, dataHora])
+}
+
+model HistoricoCandidatura {
+  id             String            @id @default(cuid())
+  tenantId       String
+  candidaturaId  String
+  etapaAnterior  EtapaCandidatura?
+  etapaNova      EtapaCandidatura
+  // FK escalar → User (cross-WS)
+  responsavelId  String
+  notas          String?
+  createdAt      DateTime          @default(now())
+
+  candidatura Candidatura @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, candidaturaId, createdAt])
+}
