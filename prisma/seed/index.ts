@@ -11,6 +11,7 @@ import { seedFinancas } from './financas';
 import { seedPessoasProjetos } from './pessoas-projetos';
 import { seedPayroll } from './payroll';
 import { seedOperacoes } from './operacoes';
+import { seedRecrutamento } from './recrutamento';
 import { PROVINCIAS_MOCAMBIQUE } from '../../src/lib/provincias-mocambique';
 
 // Cliente próprio (fora de RSC) — não importa o client `server-only` da app.
@@ -87,6 +88,12 @@ async function main() {
   await seedPessoasProjetos(prisma, tenant.id);
   await seedPayroll(prisma, tenant.id); // Spec 06 — tabelas INSS/IRPS + folha demo
   await seedOperacoes(prisma, tenant.id);
+  // Recrutamento (spec 07) — tabelas novas, seed após migrations
+  try {
+    await seedRecrutamento(prisma, tenant.id);
+  } catch (e) {
+    console.warn('  recrutamento seed ignorado (tabelas ainda não existem):', (e as Error).message?.slice(0, 80));
+  }
 
   // 6. Províncias (referência, sem tabela DB na Wave 0)
   await seedProvincias();
