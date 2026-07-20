@@ -201,6 +201,13 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   VIDEO: 'info',
   TECNICA: 'warning',
   PAINEL: 'default',
+
+  // Notificações — Spec 13 (EstadoEnvio + leitura)
+  // ENVIADO já definido acima como 'info' (compatível); ENVIADO_EMAIL sobrepõe
+  FALHA: 'destructive',
+  NAO_LIDA: 'warning',
+  LIDA: 'secondary',
+  IN_APP: 'secondary',
 };
 
 const badgeVariants = cva(
@@ -346,6 +353,13 @@ const STATUS_LABELS: Record<string, string> = {
   VIDEO: 'Vídeo',
   TECNICA: 'Técnica',
   PAINEL: 'Painel',
+
+  // Notificações — Spec 13
+  // ENVIADO já definido acima (Pedido de Compra)
+  FALHA: 'Falha de Envio',
+  NAO_LIDA: 'Não Lida',
+  LIDA: 'Lida',
+  IN_APP: 'In-App',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {

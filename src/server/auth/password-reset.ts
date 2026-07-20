@@ -3,6 +3,9 @@ import { randomBytes } from 'node:crypto';
 import { hash } from '@node-rs/argon2';
 import { prismaBase } from '@/server/db/client';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
+import { emailProvider } from '@/server/email';
+import { resetPasswordTemplate } from '@/server/email/templates/reset';
+import { conviteTemplate } from '@/server/email/templates/convite';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000; // 48 horas
@@ -45,6 +48,20 @@ export async function createPasswordResetToken(
       data: { tenantId: user.tenantId, userId: user.id, token, expiresAt },
     });
   });
+
+  // Enviar email com o link de reset FORA da $transaction (efeito colateral).
+  // Falha silenciosa: não impede o fluxo de negócio.
+  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
+  const linkReset = `${baseUrl}/auth/reset-password?token=${token}`;
+  void emailProvider
+    .enviar({
+      para: email,
+      assunto: 'Recuperação de Palavra-passe — GestPro',
+      ...resetPasswordTemplate({ linkReset }),
+    })
+    .catch((err: unknown) =>
+      console.error('[password-reset] Falha ao enviar email de reset:', err),
+    );
 
   return { token, userId: user.id };
 }
@@ -113,6 +130,34 @@ export async function createUserInvite(
   await prismaBase.userInvite.create({
     data: { tenantId, email, token, roleId, invitedById, expiresAt },
   });
+
+  // Enviar email de convite FORA da $transaction (efeito colateral).
+  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
+  const linkConvite = `${baseUrl}/auth/aceitar-convite?token=${token}`;
+
+  // Obter nome do convidador e nome da empresa (best-effort)
+  prismaBase.user.findUnique({
+    where: { id: invitedById },
+    select: { nome: true },
+  }).then(async (convidadoPor) => {
+    const tenant = await prismaBase.tenant.findUnique({
+      where: { id: tenantId },
+      select: { nome: true },
+    });
+    return emailProvider.enviar({
+      para: email,
+      assunto: 'Convite para o GestPro',
+      ...conviteTemplate({
+        linkConvite,
+        emailConvidado: email,
+        nomeEmpresa: tenant?.nome,
+        nomeConvidadoPor: convidadoPor?.nome ?? undefined,
+        expiracaoHoras: 48,
+      }),
+    });
+  }).catch((err: unknown) =>
+    console.error('[user-invite] Falha ao enviar email de convite:', err),
+  );
 
   return token;
 }
