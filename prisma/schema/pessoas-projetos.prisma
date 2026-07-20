@@ -471,6 +471,9 @@ model Colaborador {
   // Payroll — extensão futura
   payrolls Payroll[]
 
+  // Benefícios — spec 08
+  beneficios BeneficioColaborador[]
+
   @@unique([tenantId, codigo])
   @@unique([tenantId, nuit])
   @@unique([tenantId, bi])
@@ -1526,4 +1529,82 @@ model HistoricoCandidatura {
   candidatura Candidatura @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, candidaturaId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Benefícios — Spec 08 (WS E)
+// Ponto de integração: linhasPayrollDeBeneficios (contrato consumido pelo payroll)
+// FKs cross-WS: nenhuma — BeneficioColaborador.colaboradorId referencia
+//   Colaborador do mesmo WS (intra-WS, @relation legítima).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TipoBeneficio {
+  SEGURO_SAUDE
+  SEGURO_VIDA
+  SUBSIDIO_ALIMENTACAO
+  SUBSIDIO_TRANSPORTE
+  SUBSIDIO_HABITACAO
+  SUBSIDIO_COMUNICACOES
+  PLANO_PENSOES
+  OUTRO
+}
+
+enum PeriodicidadeBeneficio {
+  MENSAL
+  TRIMESTRAL
+  ANUAL
+  PONTUAL
+}
+
+enum StatusBeneficioColaborador {
+  ACTIVO
+  SUSPENSO
+  TERMINADO
+}
+
+model Beneficio {
+  id                      String               @id @default(cuid())
+  tenantId                String
+  nome                    String
+  tipo                    TipoBeneficio
+  descricao               String?
+  fornecedor              String?
+  custoTotal              Decimal              @db.Decimal(18, 2)
+  comparticipacaoEmpresa  Decimal              @db.Decimal(18, 2) @default(0)
+  descontoColaborador     Decimal              @db.Decimal(18, 2) @default(0)
+  periodicidade           PeriodicidadeBeneficio
+  tributavel              Boolean              @default(false)
+  ativo                   Boolean              @default(true)
+  // Elegibilidade opcional (IDs ou nomes de departamentos/cargos elegíveis)
+  departamentosElegiveis  String[]
+  cargosElegiveis         String[]
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  atribuicoes BeneficioColaborador[]
+
+  @@index([tenantId, tipo])
+  @@index([tenantId, ativo])
+}
+
+model BeneficioColaborador {
+  id                     String                     @id @default(cuid())
+  tenantId               String
+  beneficioId            String
+  colaboradorId          String
+  dataInicio             DateTime
+  dataFim                DateTime?
+  comparticipacaoEmpresa Decimal                    @db.Decimal(18, 2)
+  descontoColaborador    Decimal                    @db.Decimal(18, 2)
+  status                 StatusBeneficioColaborador @default(ACTIVO)
+  observacoes            String?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  beneficio   Beneficio   @relation(fields: [beneficioId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  @@index([tenantId, colaboradorId, status])
+  @@index([tenantId, beneficioId])
+  @@index([tenantId, colaboradorId, beneficioId])
 }

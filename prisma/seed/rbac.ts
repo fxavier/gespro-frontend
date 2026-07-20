@@ -191,6 +191,13 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'rh:recrutamento:entrevistas:create',    descricao: 'Registar entrevista de candidatura' },
   { code: 'rh:recrutamento:admitir',               descricao: 'Admitir candidato como Colaborador' },
 
+  // Benefícios — Spec 08 (aditivo)
+  { code: 'rh:beneficios:read',       descricao: 'Consultar catálogo de benefícios' },
+  { code: 'rh:beneficios:create',     descricao: 'Criar benefício no catálogo' },
+  { code: 'rh:beneficios:update',     descricao: 'Actualizar benefício no catálogo' },
+  { code: 'rh:beneficios:delete',     descricao: 'Arquivar benefício do catálogo' },
+  { code: 'rh:beneficios:atribuir',   descricao: 'Atribuir/remover benefícios a colaboradores' },
+
   // ── Produção ──────────────────────────────────────────────────────────────
   { code: 'producao:ver',             descricao: 'Consultar ordens de produção' },
   { code: 'producao:criar',           descricao: 'Criar ordens de produção' },
@@ -335,7 +342,7 @@ function isReadOnly(code: string): boolean {
     'admin:ver_utilizadores', 'admin:ver_auditoria', 'admin:ver_integracoes',
     'financas:relatorios:leitura',
     'ativos:read',
-    'rh:colaboradores:read', 'rh:assiduidade:read', 'rh:recrutamento:read',
+    'rh:colaboradores:read', 'rh:assiduidade:read', 'rh:recrutamento:read', 'rh:beneficios:read',
     'projetos:read', 'projetos:tarefas:read', 'projetos:timesheets:read',
     'producao:ordens:read', 'producao:bom:read', 'producao:roteiros:read',
     'tickets:base-conhecimento:listar', 'tickets:listar',
