@@ -121,6 +121,31 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'vendas:fechar',         descricao: 'Fechar negócio / converter para factura' },
   { code: 'vendas:cancelar',       descricao: 'Cancelar venda ou proposta' },
 
+  // ── Encomendas (WS-10) ────────────────────────────────────────────────────
+  { code: 'vendas:encomendas:ver',       descricao: 'Consultar encomendas de venda' },
+  { code: 'vendas:encomendas:criar',     descricao: 'Criar encomenda de venda' },
+  { code: 'vendas:encomendas:editar',    descricao: 'Editar encomenda em rascunho' },
+  { code: 'vendas:encomendas:confirmar', descricao: 'Confirmar encomenda (reserva stock)' },
+  { code: 'vendas:encomendas:converter', descricao: 'Converter encomenda em venda/fatura' },
+  { code: 'vendas:encomendas:cancelar',  descricao: 'Cancelar encomenda (liberta stock)' },
+
+  // ── Devoluções (WS-10) ────────────────────────────────────────────────────
+  { code: 'vendas:devolucoes:ver',       descricao: 'Consultar devoluções' },
+  { code: 'vendas:devolucoes:criar',     descricao: 'Criar devolução' },
+  { code: 'vendas:devolucoes:aprovar',   descricao: 'Aprovar devolução' },
+  { code: 'vendas:devolucoes:processar', descricao: 'Processar devolução (entrada stock + nota crédito)' },
+  { code: 'vendas:devolucoes:rejeitar',  descricao: 'Rejeitar devolução' },
+
+  // ── Trocas (WS-10) ────────────────────────────────────────────────────────
+  { code: 'vendas:trocas:ver',    descricao: 'Consultar trocas' },
+  { code: 'vendas:trocas:criar',  descricao: 'Criar troca (devolução + nova venda atómica)' },
+
+  // ── Vendedores (WS-10) ────────────────────────────────────────────────────
+  { code: 'vendas:vendedores:ver',     descricao: 'Consultar vendedores' },
+  { code: 'vendas:vendedores:criar',   descricao: 'Criar vendedor' },
+  { code: 'vendas:vendedores:editar',  descricao: 'Editar vendedor' },
+  { code: 'vendas:vendedores:excluir', descricao: 'Excluir (soft delete) vendedor' },
+
   // ── Clientes ──────────────────────────────────────────────────────────────
   { code: 'clientes:ver',          descricao: 'Consultar ficha de clientes' },
   { code: 'clientes:criar',        descricao: 'Criar clientes' },

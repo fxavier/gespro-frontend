@@ -53,7 +53,10 @@ export type TipoSerieDocumento =
   | 'TICKET'
   | 'ENTREGA'
   // WS A — spec 05
-  | 'CONTAGEM_STOCK';
+  | 'CONTAGEM_STOCK'
+  // WS-10: Vendas — Encomendas e Devoluções
+  | 'ENCOMENDA'
+  | 'NOTA_DEVOLUCAO';
 
 export type StatusFatura =
   | 'RASCUNHO'

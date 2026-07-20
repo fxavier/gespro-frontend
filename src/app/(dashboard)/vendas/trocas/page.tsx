@@ -1,14 +1,52 @@
 /**
- * Trocas — Server Component.
- * Funcionalidade em desenvolvimento.
+ * Listagem de Trocas — Server Component (NUNCA 'use client').
  */
 
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { ArrowRightLeft } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import { Plus } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { trocaService } from '@/server/services/comercial/index';
 import { Button } from '@/components/ui/button';
-import { PageHeader, EmptyState } from '@/components/patterns';
+import { PageHeader } from '@/components/patterns';
+import { TrocasTable } from './_components/trocas-table';
 
-export default function TrocasPage() {
+async function TrocasTableSection({
+  tenantId,
+  userId,
+}: {
+  tenantId: string;
+  userId: string;
+}) {
+  const result = await runWithTenantContext({ tenantId, userId }, () =>
+    trocaService.listar({ tenantId, userId })
+  );
+  return <TrocasTable data={result.items} nextCursor={result.nextCursor} />;
+}
+
+function TableSkeleton() {
+  return (
+    <div className="rounded-md border animate-pulse">
+      <div className="h-12 bg-muted" />
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="h-16 border-t bg-muted/30" />
+      ))}
+    </div>
+  );
+}
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function TrocasPage({ searchParams: _searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
   return (
     <div className="p-6 space-y-6">
       <PageHeader
@@ -18,23 +56,19 @@ export default function TrocasPage() {
           { label: 'Vendas', href: '/vendas' },
           { label: 'Trocas' },
         ]}
-      />
-
-      <EmptyState
-        icon={<ArrowRightLeft className="h-8 w-8" />}
-        title="Módulo de trocas em breve"
-        description="O módulo de gestão de trocas está em desenvolvimento. Por ora, utilize notas de crédito para devoluções e emita uma nova venda para a troca."
-        action={
-          <div className="flex gap-3 justify-center">
-            <Button asChild variant="outline">
-              <Link href="/vendas/notas-credito">Notas de Crédito</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/pos">POS — Nova Venda</Link>
-            </Button>
-          </div>
+        actions={
+          <Button asChild size="sm">
+            <Link href="/vendas/devolucoes">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Troca (via Devolução)
+            </Link>
+          </Button>
         }
       />
+
+      <Suspense fallback={<TableSkeleton />}>
+        <TrocasTableSection tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }
