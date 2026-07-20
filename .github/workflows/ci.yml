@@ -1,0 +1,421 @@
+# CI — GestPro ERP
+#
+# Corre em todo PR → main e em pushes a main/ws-*/feat-*.
+# Todos os jobs têm de ser verdes para que o merge seja permitido (branch protection).
+#
+# Branch protection requerida (configurar em Settings → Branches → main):
+#   Required status checks: lint-type, gates, test, integration, e2e, a11y, build
+#   Require branches to be up to date before merging: ✓
+#   Restrict who can push to matching branches: maintainers
+#
+# Segredos necessários no repositório (Settings → Secrets → Actions):
+#   AUTH_SECRET          — string aleatória ≥ 32 chars para NextAuth
+#   DATABASE_URL         — não usado directamente; sobreposto por serviço Postgres
+#
+# Notas de manutenção:
+#   - NODE_VERSION deve coincidir com o ambiente de produção (spec 16).
+#   - PNPM_VERSION deve coincidir com "packageManager" em package.json.
+#   - prisma migrate deploy é a variante CI-safe de db:migrate:dev.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'ws-*'
+      - 'feat-*'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10.22.0'
+
+# ─── Postgres compartilhado pelos jobs que precisam de DB ──────────────────────
+# Reutilizado via defaults; cada job declara o serviço explicitamente.
+
+jobs:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. LINT + TYPE CHECK
+  #    Não precisa de DB. Corre em paralelo com os outros jobs.
+  # ────────────────────────────────────────────────────────────────────────────
+  lint-type:
+    name: Lint + Type check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Prisma validate
+        run: npx prisma validate
+
+      - name: TypeScript (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: pnpm lint
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. GATES DE ARQUITECTURA
+  #    Dialog proibido, 'use client' em page.tsx, imports @/data.
+  #    Se um Dialog raw for introduzido, este job falha e bloqueia o merge.
+  # ────────────────────────────────────────────────────────────────────────────
+  gates:
+    name: Architecture gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run all architecture gates
+        run: pnpm gates
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. TESTES UNITÁRIOS + COBERTURA
+  #    vitest —project unit com service Postgres 17.
+  #    Inclui os testes de integração legados (src/**/__tests__/*integration*)
+  #    que já usam o tenant de seed. Falha se a cobertura ficar abaixo do limiar.
+  # ────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Unit tests + coverage
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: gespro
+          POSTGRES_PASSWORD: gespro
+          POSTGRES_DB: gespro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gespro -d gespro"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+      DIRECT_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'ci-test-secret-at-least-32-chars-long-here' }}
+      NEXTAUTH_URL: http://localhost:3000
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply DB migrations
+        # prisma migrate deploy é a variante CI-safe (não-interactiva) de db:migrate:dev
+        run: npx prisma migrate deploy
+
+      - name: Seed DB
+        run: pnpm db:seed
+
+      - name: Run unit tests with coverage
+        # vitest.config.ts cobre src/**/*.test.ts (unit + integração legada com skipIf)
+        run: pnpm vitest run --coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. TESTES DE INTEGRAÇÃO (Testcontainers)
+  #    Postgres efémero por execução — sem estado partilhado.
+  #    Dois runs consecutivos verdes provam isolamento.
+  # ────────────────────────────────────────────────────────────────────────────
+  integration:
+    name: Integration tests (Testcontainers)
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      AUTH_SECRET: ci-integration-secret-at-least-32-chars-long
+      NEXTAUTH_URL: http://localhost:3000
+      # Desactiva o serviço Ryuk (reaper) do Testcontainers para evitar falhas em CI
+      TESTCONTAINERS_RYUK_DISABLED: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run integration tests (Testcontainers)
+        # vitest.integration.config.ts: globalSetup inicia Postgres efémero via Testcontainers
+        run: pnpm vitest run --config vitest.integration.config.ts
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. E2E (Playwright — 5 fluxos críticos)
+  #    Inicia a app via webServer (pnpm dev) + Postgres de serviço.
+  # ────────────────────────────────────────────────────────────────────────────
+  e2e:
+    name: E2E tests (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: gespro
+          POSTGRES_PASSWORD: gespro
+          POSTGRES_DB: gespro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gespro -d gespro"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+      DIRECT_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'ci-e2e-secret-at-least-32-chars-long-here' }}
+      NEXTAUTH_URL: http://localhost:3000
+      NODE_ENV: development
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Apply DB migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed DB
+        run: pnpm db:seed
+
+      - name: Cache .next/cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-e2e-
+
+      - name: Run E2E tests
+        # O playwright.config.ts tem webServer que inicia pnpm dev automaticamente
+        run: pnpm e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. ACESSIBILIDADE (axe — WCAG AA)
+  # ────────────────────────────────────────────────────────────────────────────
+  a11y:
+    name: Accessibility (axe WCAG AA)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: gespro
+          POSTGRES_PASSWORD: gespro
+          POSTGRES_DB: gespro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gespro -d gespro"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+      DIRECT_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'ci-a11y-secret-at-least-32-chars-long-here' }}
+      NEXTAUTH_URL: http://localhost:3000
+      NODE_ENV: development
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Apply DB migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed DB
+        run: pnpm db:seed
+
+      - name: Cache .next/cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-a11y-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-a11y-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-a11y-
+
+      - name: Run accessibility tests
+        run: pnpm e2e:a11y
+
+      - name: Upload axe report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: axe-report
+          path: playwright-report/
+          retention-days: 14
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 7. BUILD DE PRODUÇÃO
+  #    Verifica que next build não tem erros de compilação.
+  #    Não precisa de DB activo (sem SSG; toda a app é dinâmica).
+  # ────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      # Valores fictícios — o build não conecta à DB (app dinâmica, sem SSG)
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+      AUTH_SECRET: ci-build-secret-at-least-32-chars-long-placeholder
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Cache .next/cache (Turbopack/webpack)
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-build-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-build-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-build-
+
+      - name: Build production app
+        run: pnpm build
