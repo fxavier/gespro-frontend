@@ -35,7 +35,7 @@ concurrency:
 
 env:
   NODE_VERSION: '22'
-  PNPM_VERSION: '10.22.0'
+  # pnpm version lida do campo "packageManager" em package.json por pnpm/action-setup
 
 # ─── Postgres compartilhado pelos jobs que precisam de DB ──────────────────────
 # Reutilizado via defaults; cada job declara o serviço explicitamente.
@@ -55,8 +55,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -93,8 +92,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -143,8 +141,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -167,7 +164,7 @@ jobs:
 
       - name: Run unit tests with coverage
         # vitest.config.ts cobre src/**/*.test.ts (unit + integração legada com skipIf)
-        run: pnpm vitest run --coverage
+        run: pnpm test:unit:coverage
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -197,8 +194,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -250,8 +246,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -328,8 +323,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -381,20 +375,20 @@ jobs:
     name: Production build
     runs-on: ubuntu-latest
     env:
-      NODE_ENV: production
       # Valores fictícios — o build não conecta à DB (app dinâmica, sem SSG)
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
       AUTH_SECRET: ci-build-secret-at-least-32-chars-long-placeholder
       NEXTAUTH_URL: http://localhost:3000
+      # NODE_ENV NÃO está aqui: aplicado a job-level causaria pnpm install --frozen-lockfile
+      # a omitir devDependencies (typescript/tailwind), quebrando next build.
+      # O next build já assume produção internamente.
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -418,4 +412,6 @@ jobs:
             ${{ runner.os }}-nextjs-build-
 
       - name: Build production app
+        env:
+          NODE_ENV: production
         run: pnpm build
