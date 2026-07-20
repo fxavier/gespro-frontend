@@ -9,6 +9,12 @@ import { buildSecurityHeaders } from '@/lib/security/headers';
 const PUBLIC_PATHS = [
   '/auth/',
   '/api/auth/',
+  // Probes de saúde/observabilidade (spec 14): acessíveis sem sessão para o
+  // HEALTHCHECK do Docker e o health check do App Runner. /api/metrics tem
+  // protecção própria por METRICS_SECRET no handler.
+  '/api/health',
+  '/api/ready',
+  '/api/metrics',
   '/_next/',
   '/favicon.ico',
 ];
