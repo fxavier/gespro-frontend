@@ -8,6 +8,7 @@
 //   2. Adicionar `@relation(fields: [tenantId], references: [id])` ao campo `tenantId`
 //      de `ConfiguracaoFiscal` (após a back-reference acima estar em tenant.prisma).
 //   3. Adicionar 'ConfiguracaoFiscal' a TENANT_MODELS em tenant-extension.ts.
+//   4. Adicionar 'Notificacao' e 'PreferenciaNotificacao' a TENANT_MODELS em tenant-extension.ts.
 //
 // Durante a Wave 1 (contratos), tenantId é FK escalar válida sem relação Prisma explícita,
 // o que evita tocar em ficheiros partilhados. A query de serviço filtra sempre por
@@ -65,4 +66,92 @@ model ConfiguracaoFiscal {
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Notificações & Email — WS 13
+// ---------------------------------------------------------------------------
+
+/// Tipo/tema da notificação. Cobre alertas de transporte, eventos de autenticação
+/// e eventos de negócio futuros.
+enum TipoNotificacao {
+  DOCUMENTO_EXPIRADO
+  DOCUMENTO_PROXIMO_EXPIRAR
+  MANUTENCAO_PENDENTE
+  RESET_PASSWORD
+  CONVITE_UTILIZADOR
+  ALERTA_SISTEMA
+}
+
+/// Canal de entrega da notificação.
+enum CanalNotificacao {
+  IN_APP
+  EMAIL
+}
+
+/// Estado do envio por canal assíncrono (email).
+/// Padrão "persistir depois enviar": a Notificacao é criada com PENDENTE,
+/// o envio ocorre fora da $transaction de negócio, e o estado é actualizado.
+enum EstadoEnvio {
+  PENDENTE
+  ENVIADO
+  FALHA
+}
+
+/// Centro de notificações: cada registo é uma notificação entregue (ou a entregar)
+/// a um utilizador de um tenant. Inclui canal in-app e canal email.
+/// tenantId + userId: isolamento multi-tenant obrigatório.
+model Notificacao {
+  id     String @id @default(cuid())
+
+  /// FK escalar para Tenant.id (sem @relation enquanto tenant.prisma não for reconciliado).
+  tenantId String
+  /// FK escalar para User.id.
+  userId   String
+
+  tipo      TipoNotificacao
+  titulo    String
+  mensagem  String
+  canal     CanalNotificacao @default(IN_APP)
+
+  /// Referência opcional à entidade que originou a notificação (ex.: documentoId).
+  entidadeTipo String?
+  entidadeId   String?
+
+  /// Indica se o utilizador já leu a notificação (in-app).
+  lida     Boolean  @default(false)
+  lidaEm   DateTime?
+
+  /// Estado do envio por email (só relevante quando canal = EMAIL).
+  estadoEnvio EstadoEnvio  @default(PENDENTE)
+  enviadoEm   DateTime?
+  erroEnvio   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, userId, lida])
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, tipo, entidadeId])
+}
+
+/// Preferências de notificação por utilizador e por tipo.
+/// Controla quais os canais activos para cada TipoNotificacao.
+model PreferenciaNotificacao {
+  id       String @id @default(cuid())
+
+  /// FK escalar para Tenant.id.
+  tenantId String
+  /// FK escalar para User.id.
+  userId   String
+
+  tipo   TipoNotificacao
+  /// Canais activos para este tipo de notificação.
+  canais CanalNotificacao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tipo])
+  @@index([tenantId, userId])
 }

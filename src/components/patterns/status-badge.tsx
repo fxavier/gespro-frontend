@@ -239,6 +239,12 @@ const STATUS_MAP: Record<string, StatusVariant> = {
 
   // StatusVendedor
   // ATIVO, INATIVO, SUSPENSO já mapeados acima (via ATIVO/INATIVO/SUSPENSO)
+  // Notificações — Spec 13 (EstadoEnvio + leitura)
+  // ENVIADO já definido acima como 'info' (compatível); ENVIADO_EMAIL sobrepõe
+  FALHA: 'destructive',
+  NAO_LIDA: 'warning',
+  LIDA: 'secondary',
+  IN_APP: 'secondary',
 };
 
 const badgeVariants = cva(
@@ -420,6 +426,12 @@ export const STATUS_LABELS: Record<string, string> = {
   EXCESSO_PEDIDO: 'Excesso de Pedido',
   AVARIA_TRANSPORTE: 'Avaria no Transporte',
   OUTRO: 'Outro',
+  // Notificações — Spec 13
+  // ENVIADO já definido acima (Pedido de Compra)
+  FALHA: 'Falha de Envio',
+  NAO_LIDA: 'Não Lida',
+  LIDA: 'Lida',
+  IN_APP: 'In-App',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {

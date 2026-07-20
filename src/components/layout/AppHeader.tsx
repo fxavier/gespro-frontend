@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { Bell, Search, Moon, Sun, Monitor } from 'lucide-react';
+import { Search, Moon, Sun, Monitor } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,9 +15,12 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Breadcrumbs } from './Breadcrumbs';
 import { cn } from '@/lib/utils';
+import type { ReactNode } from 'react';
 
 interface AppHeaderProps {
   onCommandPaletteOpen?: () => void;
+  /** Slot para o sino de notificações — Server Component pai injeta o contador real. */
+  notificationSlot?: ReactNode;
 }
 
 function getInitials(name?: string | null): string {
@@ -57,9 +60,11 @@ function ThemeToggleMenu() {
 
 /**
  * Cabeçalho global do dashboard.
- * Inclui breadcrumbs, botão Cmd+K, notificações e menu de utilizador com sessão real.
+ * Inclui breadcrumbs, botão Cmd+K, sino de notificações e menu de utilizador.
+ * O sino de notificações é injectado como slot pelo Server Component pai (layout.tsx)
+ * para que o contador de não-lidas seja renderizado no servidor.
  */
-export function AppHeader({ onCommandPaletteOpen }: AppHeaderProps) {
+export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderProps) {
   const { data: session } = useSession();
   const user = session?.user;
 
@@ -90,17 +95,8 @@ export function AppHeader({ onCommandPaletteOpen }: AppHeaderProps) {
           </kbd>
         </Button>
 
-        {/* Notificações */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 relative"
-          aria-label="Notificações"
-        >
-          <Bell className="h-4 w-4" aria-hidden="true" />
-          {/* Ponto de notificação */}
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" aria-hidden="true" />
-        </Button>
+        {/* Sino de notificações — slot injectado pelo Server Component pai */}
+        {notificationSlot}
 
         {/* Alternar tema */}
         <ThemeToggleMenu />
