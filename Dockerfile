@@ -48,6 +48,9 @@ COPY . .
 # Gerar cliente Prisma (necessário para o build Next.js)
 RUN pnpm prisma generate
 
+# Garantir que a directoria public existe (necessária para next build standalone)
+RUN mkdir -p public
+
 # Build Next.js com output: 'standalone'
 # NEXT_TELEMETRY_DISABLED evita chamadas de rede durante o build
 ENV NEXT_TELEMETRY_DISABLED=1
