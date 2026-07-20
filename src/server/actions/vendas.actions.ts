@@ -181,12 +181,12 @@ export const converterEncomendaEmVenda = createSafeAction({
     paths: ['/vendas/pedidos', '/vendas'],
     tags: ['encomendas', 'vendas'],
   },
-  handler: async ({ encomendaId, pagamentos, sessaoCaixaId }, ctx) => {
+  handler: async ({ encomendaId, pagamentos, sessaoCaixaId, localizacaoId }, ctx) => {
     return encomendaService.converterEmVenda(
       encomendaId,
       pagamentos,
       ctx,
-      sessaoCaixaId,
+      { sessaoCaixaId, localizacaoId },
     );
   },
 });

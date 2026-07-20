@@ -43,7 +43,7 @@ const columns: TableColumn<TrocaRow>[] = [
     label: 'Diferença (MT)',
     render: (row) => {
       const val = parseFloat(row.diferenca);
-      const color = val > 0 ? 'text-destructive' : val < 0 ? 'text-green-600' : '';
+      const color = val > 0 ? 'text-destructive' : val < 0 ? 'text-primary' : '';
       return (
         <span className={`tabular-nums font-medium ${color}`}>
           {val > 0 ? '+' : ''}MT{' '}

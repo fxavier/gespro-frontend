@@ -291,15 +291,21 @@ export class DevolucaoService {
    * Processar devolução aprovada:
    *
    * Ordem de operações:
-   * 1. Emitir nota de crédito (contrato D — tx própria, append-only, idempotente com numeração)
-   * 2. prismaBase.$transaction:
+   * 1. Validar pré-condições (BLOCKER 3 + MAJOR 4 idempotência):
+   *    - Se faturaId presente, exige serieNotaCreditoId ANTES de avançar
+   *    - Se notaCreditoId já está gravado, reutiliza (retry idempotente)
+   * 2. Emitir nota de crédito (contrato D — tx própria, append-only)
+   *    e gravar notaCreditoId imediatamente (persistência rápida pós-NC)
+   * 3. prismaBase.$transaction:
    *    a. entradaStock por item (contrato A — aceita tx)
    *    b. registarMovimentoCaixa se reembolso=true (contrato D — aceita tx)
-   *    c. devolucao.status = PROCESSADA + notaCreditoId
+   *    c. devolucao.status = PROCESSADA + notaCreditoId (idempotente)
    *
-   * Se a NC falhar, devolucao permanece APROVADA e pode ser re-tentada.
-   * Se o tx falhar, a NC foi emitida mas a devolucao fica APROVADA — ao re-tentar,
-   * a NC já existe mas a nova tentativa usa uma série nova (design append-only aceite).
+   * Idempotência (MAJOR 4):
+   *  - NC emitida → notaCreditoId gravado atomicamente antes do $tx
+   *  - Retry: se notaCreditoId já preenchido, salta emissão de NC
+   *  - Se $tx falhar após NC: devolucao fica APROVADA (notaCreditoId já persistido)
+   *    → retry usa o notaCreditoId existente, não emite segunda NC
    */
   async processar(
     id: string,
@@ -324,9 +330,19 @@ export class DevolucaoService {
       );
     }
 
-    // 1. Emitir nota de crédito (tx própria do faturacaoService)
-    let notaCreditoId: string | null = null;
-    if (devolucao.faturaId && options?.serieNotaCreditoId) {
+    // BLOCKER 3: Se tem fatura, exige série de NC ANTES de avançar
+    if (devolucao.faturaId && !options?.serieNotaCreditoId) {
+      throw new BusinessRuleError(
+        'SERIE_NC_OBRIGATORIA',
+        'Esta devolução está associada a uma fatura. É obrigatório fornecer uma série de nota de crédito.',
+      );
+    }
+
+    // MAJOR 4: Idempotência — usar NC já emitida se existir (retry seguro)
+    let notaCreditoId: string | null = (devolucao.notaCreditoId as string | null) ?? null;
+
+    if (devolucao.faturaId && options?.serieNotaCreditoId && !notaCreditoId) {
+      // 2a. Emitir NC (tx própria do faturacaoService — não pode ser aninhada)
       const nc = await this.faturacaoService.emitirNotaCredito(
         {
           serieDocumentoId: options.serieNotaCreditoId,
@@ -342,7 +358,6 @@ export class DevolucaoService {
             desconto: 0,
             taxaIva: Number(item.taxaIva),
             ordemLinha: idx + 1,
-            // subtotal, ivaItem, total calculados pelo transform do schema
             subtotal: Number(item.subtotal),
             ivaItem: Number(item.ivaItem),
             total: Number(item.total),
@@ -351,9 +366,16 @@ export class DevolucaoService {
         ctx,
       );
       notaCreditoId = nc.id;
+
+      // 2b. Persistir notaCreditoId imediatamente após emissão
+      //     (isolado do $tx abaixo → protege contra dupla emissão em retry)
+      await prismaBase.devolucao.update({
+        where: { id },
+        data: { notaCreditoId },
+      });
     }
 
-    // 2. Tx principal: stock + caixa + status
+    // 3. Tx principal: stock + caixa + status
     return prismaBase.$transaction(async (tx) => {
       // a. Entrada de stock por item devolvido (contrato A)
       if (options?.localizacaoId) {
@@ -389,7 +411,7 @@ export class DevolucaoService {
         );
       }
 
-      // c. Marcar como PROCESSADA
+      // c. Marcar como PROCESSADA (notaCreditoId já pode estar persistido do passo 2b)
       const updated = await tx.devolucao.update({
         where: { id },
         data: {

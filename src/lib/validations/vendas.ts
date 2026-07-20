@@ -362,6 +362,8 @@ export const TransitarEncomendaSchema = z.object({
 export const ConverterEncomendaEmVendaSchema = z.object({
   encomendaId: z.string().cuid('ID de encomenda inválido'),
   sessaoCaixaId: z.string().cuid().optional(),
+  /** Localização de stock para baixa directa (fallback se não houver reservas) */
+  localizacaoId: z.string().cuid().optional(),
   pagamentos: z
     .array(CreatePagamentoVendaSchema)
     .min(1, 'A venda deve ter pelo menos um pagamento'),
@@ -415,6 +417,8 @@ export const CreateTrocaSchema = z.object({
     .default([]),
   observacoes: z.string().max(2000).optional(),
   localizacaoId: z.string().cuid().optional(),
+  /** Série de NC para estornar os bens devolvidos (obrigatório se devolucao tem fatura) */
+  serieNotaCreditoId: z.string().cuid().optional(),
 });
 
 // ---------------------------------------------------------------------------

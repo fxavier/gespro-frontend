@@ -4,13 +4,15 @@
  *
  * Substitui os stubs da Wave 2 pelas implementações reais de:
  *  - WS A: stockService (baixarStock, reservarStock, libertarStock, entradaStock, confirmarConsumoStock)
- *  - WS D: caixaService (registarMovimentoCaixa), faturacaoService (proximoNumeroSerie)
+ *  - WS D: caixaService (registarMovimentoCaixa), faturacaoService (proximoNumeroSerie, emitirNotaCredito)
+ *          contabilidadeService (registarLancamentoContabilistico)
  */
 import 'server-only';
 
 import { stockService } from '@/server/services/inventario/stock.service';
 import { caixaService } from '@/server/services/financas/caixa.service';
 import { faturacaoService } from '@/server/services/financas/faturacao.service';
+import { contabilidadeService } from '@/server/services/financas/contabilidade.service';
 import { VendaService, SessaoPOSService } from './venda.service';
 import { ComissaoService } from './comissao.service';
 import { EncomendaService } from './encomenda.service';
@@ -33,7 +35,12 @@ export const vendaService = new VendaService(
 export const sessaoPOSService = new SessaoPOSService();
 
 // WS-10: Encomendas, Devoluções, Trocas
-export const encomendaService = new EncomendaService(stockService);
+// EncomendaService agora recebe caixaService + contabilidadeService (BLOCKER 1)
+export const encomendaService = new EncomendaService(
+  stockService,
+  caixaService,
+  contabilidadeService,
+);
 
 export const devolucaoService = new DevolucaoService(
   stockService,
@@ -41,7 +48,8 @@ export const devolucaoService = new DevolucaoService(
   caixaService,
 );
 
-export const trocaService = new TrocaService(stockService, caixaService);
+// TrocaService agora recebe faturacaoService para emitir NC (MAJOR 5)
+export const trocaService = new TrocaService(stockService, caixaService, faturacaoService);
 
 // Re-exportar os singletons que já existem nos ficheiros individuais
 export { clienteService } from './cliente.service';

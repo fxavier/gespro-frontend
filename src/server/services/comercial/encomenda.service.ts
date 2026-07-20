@@ -4,20 +4,26 @@
  * Fluxo:
  *  criar                  → RASCUNHO (sem efeito de stock)
  *  confirmar              → CONFIRMADA + reservarStock por item (contrato A)
- *  converterEmVenda       → CONCLUIDA + confirmarConsumoStock + nova Venda (contrato C/D)
+ *                           localizacaoId OBRIGATÓRIO — falha com BusinessRuleError se ausente
+ *  converterEmVenda       → CONCLUIDA + confirmarConsumoStock (ou baixarStock fallback)
+ *                           + registarMovimentoCaixa + registarLancamentoContabilistico
  *  cancelar               → CANCELADA + libertarStock das reservas activas (contrato A)
- *  entregarParcial        → PARCIALMENTE_ENTREGUE
  *
- * Toda mutação com stock corre dentro de prismaBase.$transaction.
+ * Toda a mutação com stock/caixa/contabilidade corre dentro de prismaBase.$transaction.
  */
 import 'server-only';
 
 import { Prisma } from '@prisma/client';
-import { prisma, prismaBase } from '@/server/db/client';
+import { prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx } from '@/server/services/types';
 import type { IStockService } from '@/server/services/inventario/stock.interface';
+import type { ICaixaService, RegistarMovimentoCaixaInput } from '@/server/services/financas';
+import type {
+  IContabilidadeService,
+  RegistarLancamentoContabilisticoInput,
+} from '@/server/services/financas';
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
 import { TRANSICOES_ENCOMENDA } from '@/lib/state-machines';
 import type {
@@ -189,11 +195,69 @@ function calcularTotaisItens(itens: CreateEncomendaInput['itens']): {
 }
 
 // ---------------------------------------------------------------------------
+// Lançamento contabilístico PGC (Decreto 70/2009)
+// Separado aqui para evitar import de internals de financas.
+// ---------------------------------------------------------------------------
+
+/** Códigos PGC padrão (espelho local de faturacao.service.PGC_FATURACAO) */
+const PGC_VENDA = {
+  CLIENTES_CC: '411',       // 4.1.1 — Clientes c/c (devedora)
+  RECEITA_VENDAS: '711',    // 7.1.1 — Vendas - Mercadorias
+  IVA_LIQUIDADO: '44331',   // 4.4.3.3.1 — IVA liquidado
+} as const;
+
+function construirLancamentoVenda(venda: {
+  id: string;
+  numero: string;
+  total: Prisma.Decimal;
+  subtotal: Prisma.Decimal;
+  iva: Prisma.Decimal;
+}): RegistarLancamentoContabilisticoInput {
+  const partidas: RegistarLancamentoContabilisticoInput['partidas'] = [
+    {
+      contaCodigo: PGC_VENDA.CLIENTES_CC,
+      tipo: 'DEBITO',
+      valor: venda.total.toFixed(2),
+      historico: `Encomenda → Venda ${venda.numero}`,
+    },
+    {
+      contaCodigo: PGC_VENDA.RECEITA_VENDAS,
+      tipo: 'CREDITO',
+      valor: venda.subtotal.toFixed(2),
+      historico: `Venda ${venda.numero} — receita`,
+    },
+  ];
+
+  if (venda.iva.greaterThan(0)) {
+    partidas.push({
+      contaCodigo: PGC_VENDA.IVA_LIQUIDADO,
+      tipo: 'CREDITO',
+      valor: venda.iva.toFixed(2),
+      historico: `Venda ${venda.numero} — IVA liquidado`,
+    });
+  }
+
+  return {
+    data: new Date(),
+    diarioTipo: 'VENDAS',
+    origem: 'VENDA',
+    documentoOrigemId: venda.id,
+    documentoOrigemTipo: 'Venda',
+    historico: `Conversão de encomenda — Venda ${venda.numero}`,
+    partidas,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Serviço
 // ---------------------------------------------------------------------------
 
 export class EncomendaService {
-  constructor(private readonly stockService: IStockService) {}
+  constructor(
+    private readonly stockService: IStockService,
+    private readonly caixaService: Pick<ICaixaService, 'registarMovimentoCaixa'>,
+    private readonly contabilidadeService: Pick<IContabilidadeService, 'registarLancamentoContabilistico'>,
+  ) {}
 
   async criar(input: CreateEncomendaInput, ctx: Ctx): Promise<EncomendaRow> {
     const { subtotal, iva, total } = calcularTotaisItens(input.itens);
@@ -331,8 +395,10 @@ export class EncomendaService {
 
   /**
    * Transitar estado de encomenda.
-   * confirmar → reservarStock (contrato A) dentro de $transaction
-   * cancelar  → libertarStock se houver reservas activas (contrato A) dentro de $transaction
+   *
+   * CONFIRMADA → reservarStock (contrato A) — localizacaoId OBRIGATÓRIO
+   * CANCELADA  → libertarStock das reservas activas (contrato A)
+   * Outras     → só estado
    */
   async transitar(input: TransitarEncomendaInput, ctx: Ctx): Promise<EncomendaRow> {
     const encomenda = await prismaBase.encomenda.findFirst({
@@ -350,30 +416,29 @@ export class EncomendaService {
       );
     }
 
-    // CONFIRMAR → reservar stock
+    // ── CONFIRMAR → reservar stock (BLOCKER 2: localizacaoId obrigatório)
     if (input.paraStatus === 'CONFIRMADA') {
-      return prismaBase.$transaction(async (tx) => {
-        const reservas: string[] = [];
+      if (!input.localizacaoId) {
+        throw new BusinessRuleError(
+          'LOCALIZACAO_OBRIGATORIA',
+          'É necessária uma localização de stock para confirmar a encomenda.',
+        );
+      }
 
+      return prismaBase.$transaction(async (tx) => {
         for (const item of encomenda.itens) {
-          if (!input.localizacaoId) {
-            // Se não fornecida localização, skip da reserva (best-effort)
-            // Em produção deveria ser obrigatório; aqui toleramos falta de stock
-            break;
-          }
-          const r = await this.stockService.reservarStock(
+          await this.stockService.reservarStock(
             tx,
             {
               produtoId: item.produtoId,
               varianteProdutoId: item.varianteId ?? undefined,
-              localizacaoId: input.localizacaoId,
+              localizacaoId: input.localizacaoId!,
               quantidade: Number(item.quantidade),
               documentoReferenciaId: encomenda.id,
               documentoReferenciaTipo: 'Encomenda',
             },
             ctx,
           );
-          reservas.push(r.reservaId);
         }
 
         const updated = await tx.encomenda.update({
@@ -385,10 +450,9 @@ export class EncomendaService {
       });
     }
 
-    // CANCELAR → libertar reservas activas
+    // ── CANCELAR → libertar reservas activas
     if (input.paraStatus === 'CANCELADA') {
       return prismaBase.$transaction(async (tx) => {
-        // Libertar reservas activas referenciadas a esta encomenda
         const reservasActivas = await tx.reservaStock.findMany({
           where: {
             tenantId: ctx.tenantId,
@@ -422,15 +486,20 @@ export class EncomendaService {
 
   /**
    * Converter encomenda CONFIRMADA em Venda + confirmar consumo de stock.
-   * Cria Venda com origem=ENCOMENDA e preenche encomenda.vendaId.
-   * O caller (action) chama vendaService.criar internamente, mas para manter
-   * a transacção atómica usamos prismaBase.$transaction directo aqui.
+   *
+   * Dentro de prismaBase.$transaction:
+   *  1. confirmarConsumoStock para cada reserva activa (contrato A)
+   *     Fallback: baixarStock se não existirem reservas (edge case; requer localizacaoId)
+   *  2. Criar Venda com origem=ENCOMENDA e status=FATURADA
+   *  3. registarMovimentoCaixa (contrato D) — se sessaoCaixaId fornecido
+   *  4. registarLancamentoContabilistico (contrato D) — partida dobrada VENDAS
+   *  5. Marcar encomenda CONCLUIDA e rastrear vendaId
    */
   async converterEmVenda(
     encomendaId: string,
     pagamentos: Array<{ tipo: string; valor: number; referencia?: string; troco?: number }>,
     ctx: Ctx,
-    sessaoCaixaId?: string,
+    opts?: { sessaoCaixaId?: string; localizacaoId?: string },
   ): Promise<{ vendaId: string; encomendaNumero: string }> {
     const encomenda = await prismaBase.encomenda.findFirst({
       where: { id: encomendaId, tenantId: ctx.tenantId, deletedAt: null },
@@ -446,7 +515,9 @@ export class EncomendaService {
     }
 
     return prismaBase.$transaction(async (tx) => {
-      // Confirmar consumo de todas as reservas activas desta encomenda
+      // 1. Gerir stock:
+      //    a) Consumir reservas activas desta encomenda (caminho normal)
+      //    b) Fallback: baixarStock directo se não houver reservas (edge case)
       const reservasActivas = await tx.reservaStock.findMany({
         where: {
           tenantId: ctx.tenantId,
@@ -456,19 +527,35 @@ export class EncomendaService {
         select: { id: true },
       });
 
-      for (const reserva of reservasActivas) {
-        await this.stockService.confirmarConsumoStock(tx, reserva.id, ctx);
+      if (reservasActivas.length > 0) {
+        for (const reserva of reservasActivas) {
+          await this.stockService.confirmarConsumoStock(tx, reserva.id, ctx);
+        }
+      } else if (opts?.localizacaoId) {
+        // Fallback: baixa directa (encomenda confirmada sem reserva activa)
+        for (const item of encomenda.itens) {
+          await this.stockService.baixarStock(
+            tx,
+            {
+              produtoId: item.produtoId,
+              varianteProdutoId: item.varianteId ?? undefined,
+              localizacaoOrigemId: opts.localizacaoId,
+              quantidade: Number(item.quantidade),
+              documentoReferenciaId: encomenda.id,
+              documentoReferenciaTipo: 'Encomenda',
+            },
+            ctx,
+          );
+        }
       }
 
-      // Numeração para a venda
+      // 2. Numeração e totais
       const numeroVenda = await proximoNumeroSerie(tx, 'VENDA', ctx);
+      const subtotal = encomenda.subtotal as Prisma.Decimal;
+      const ivaTotal = encomenda.iva as Prisma.Decimal;
+      const total = encomenda.total as Prisma.Decimal;
 
-      // Calcular totais da venda a partir da encomenda
-      const subtotal = encomenda.subtotal;
-      const ivaTotal = encomenda.iva;
-      const total = encomenda.total;
-
-      // Criar Venda com origem=ENCOMENDA
+      // 3. Criar Venda com status FATURADA (já confirmada e entregue)
       const venda = await tx.venda.create({
         data: {
           tenantId: ctx.tenantId,
@@ -477,11 +564,11 @@ export class EncomendaService {
           status: 'FATURADA',
           clienteId: encomenda.clienteId,
           vendedorId: encomenda.vendedorId ?? ctx.userId,
-          sessaoCaixaId: sessaoCaixaId ?? null,
+          sessaoCaixaId: opts?.sessaoCaixaId ?? null,
           dataEntregaPrevista: encomenda.dataPrevista,
           enderecoEntregaId: encomenda.enderecoEntregaId,
           subtotal,
-          descontoTotal: encomenda.desconto,
+          descontoTotal: encomenda.desconto as Prisma.Decimal,
           ivaTotal,
           total,
           observacoes: encomenda.notas,
@@ -513,7 +600,30 @@ export class EncomendaService {
         },
       });
 
-      // Marcar encomenda como concluída e rastrear vendaId
+      // 4. Registar movimento de caixa (contrato D) — BLOCKER 1
+      if (opts?.sessaoCaixaId) {
+        const movInput: RegistarMovimentoCaixaInput = {
+          sessaoCaixaId: opts.sessaoCaixaId,
+          tipo: 'VENDA',
+          valor: total,
+          descricao: `Venda ${numeroVenda} (encomenda ${encomenda.numero})`,
+          documentoOrigemId: venda.id,
+          documentoOrigemTipo: 'Venda',
+        };
+        await this.caixaService.registarMovimentoCaixa(tx, movInput, ctx);
+      }
+
+      // 5. Lançamento contabilístico — partida dobrada (contrato D) — BLOCKER 1
+      const lancamentoInput = construirLancamentoVenda({
+        id: venda.id,
+        numero: numeroVenda,
+        total,
+        subtotal,
+        iva: ivaTotal,
+      });
+      await this.contabilidadeService.registarLancamentoContabilistico(tx, lancamentoInput, ctx);
+
+      // 6. Marcar encomenda como concluída
       await tx.encomenda.update({
         where: { id: encomenda.id },
         data: { status: 'CONCLUIDA', vendaId: venda.id },

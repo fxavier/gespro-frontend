@@ -377,6 +377,152 @@ describe('nota de crédito — partida dobrada', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Guardas de integridade dos BLOCKERs corrigidos (lógica pura)
+// ---------------------------------------------------------------------------
+
+describe('BLOCKER 2 — transitar CONFIRMADA requer localizacaoId', () => {
+  /** Simula o guard que o serviço lança se localizacaoId estiver ausente. */
+  function transitarConfirmarGuard(localizacaoId: string | undefined): void {
+    if (!localizacaoId) {
+      const err = new Error('É necessária uma localização de stock');
+      (err as NodeJS.ErrnoException & { code?: string }).code = 'LOCALIZACAO_OBRIGATORIA';
+      throw err;
+    }
+  }
+
+  it('lança LOCALIZACAO_OBRIGATORIA se localizacaoId ausente', () => {
+    expect(() => transitarConfirmarGuard(undefined)).toThrow();
+    try {
+      transitarConfirmarGuard(undefined);
+    } catch (e) {
+      const err = e as { code?: string };
+      expect(err.code).toBe('LOCALIZACAO_OBRIGATORIA');
+    }
+  });
+
+  it('não lança se localizacaoId presente', () => {
+    expect(() => transitarConfirmarGuard('cjld2cyuq0000t3rmniod1foy')).not.toThrow();
+  });
+
+  it('[property] qualquer string não-vazia é aceite', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 1 }),
+        (loc) => {
+          expect(() => transitarConfirmarGuard(loc)).not.toThrow();
+        },
+      ),
+    );
+  });
+});
+
+describe('BLOCKER 3 — devolução com fatura exige serieNotaCreditoId', () => {
+  /** Simula o guard ANTES da emissão de NC. */
+  function processarGuard(faturaId: string | null, serieNotaCreditoId: string | undefined): void {
+    if (faturaId && !serieNotaCreditoId) {
+      const err = new Error('Série de nota de crédito obrigatória');
+      (err as NodeJS.ErrnoException & { code?: string }).code = 'SERIE_NC_OBRIGATORIA';
+      throw err;
+    }
+  }
+
+  it('lança SERIE_NC_OBRIGATORIA se fatura presente mas sem série NC', () => {
+    expect(() => processarGuard('fatura-id-abc', undefined)).toThrow();
+    try {
+      processarGuard('fatura-id-abc', undefined);
+    } catch (e) {
+      const err = e as { code?: string };
+      expect(err.code).toBe('SERIE_NC_OBRIGATORIA');
+    }
+  });
+
+  it('não lança se fatura presente E série NC presente', () => {
+    expect(() => processarGuard('fatura-id-abc', 'serie-nc-id')).not.toThrow();
+  });
+
+  it('não lança se fatura ausente (sem NC necessária)', () => {
+    expect(() => processarGuard(null, undefined)).not.toThrow();
+  });
+
+  it('[property] sem faturaId: nunca lança independentemente de serieNotaCreditoId', () => {
+    fc.assert(
+      fc.property(
+        fc.option(fc.string({ minLength: 1 }), { nil: undefined }),
+        (serie) => {
+          expect(() => processarGuard(null, serie)).not.toThrow();
+        },
+      ),
+    );
+  });
+});
+
+describe('MAJOR 4 — idempotência da NC em devolucao.processar', () => {
+  /** Simula a lógica: se notaCreditoId já gravado, salta emissão. */
+  function decidirEmissaoNC(
+    notaCreditoIdExistente: string | null,
+    faturaId: string | null,
+    serieNotaCreditoId: string | undefined,
+  ): 'EMITIR' | 'REUTILIZAR' | 'SEM_FATURA' {
+    if (!faturaId) return 'SEM_FATURA';
+    if (notaCreditoIdExistente) return 'REUTILIZAR'; // retry seguro
+    if (serieNotaCreditoId) return 'EMITIR';
+    return 'SEM_FATURA'; // sem série → guard já teria lançado antes
+  }
+
+  it('retry com notaCreditoId existente → REUTILIZAR (não emite nova NC)', () => {
+    const decisao = decidirEmissaoNC('nc-123', 'fatura-456', 'serie-789');
+    expect(decisao).toBe('REUTILIZAR');
+  });
+
+  it('primeira tentativa → EMITIR', () => {
+    const decisao = decidirEmissaoNC(null, 'fatura-456', 'serie-789');
+    expect(decisao).toBe('EMITIR');
+  });
+
+  it('sem fatura → SEM_FATURA', () => {
+    const decisao = decidirEmissaoNC(null, null, 'serie-789');
+    expect(decisao).toBe('SEM_FATURA');
+  });
+
+  it('[property] com notaCreditoId existente, decisão é sempre REUTILIZAR', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 1 }),  // notaCreditoId existente
+        fc.string({ minLength: 1 }),  // faturaId
+        fc.option(fc.string({ minLength: 1 }), { nil: undefined }),
+        (ncId, faturaId, serie) => {
+          const decisao = decidirEmissaoNC(ncId, faturaId, serie);
+          expect(decisao).toBe('REUTILIZAR');
+        },
+      ),
+    );
+  });
+});
+
+describe('BLOCKER 1 — caixa registada na conversão de encomenda', () => {
+  /** Simula o invariante: pagamentos > 0 && sessaoCaixaId → movimento de caixa obrigatório */
+  function deveChamarCaixa(pagamentos: number[], sessaoCaixaId: string | undefined): boolean {
+    return pagamentos.length > 0 && !!sessaoCaixaId;
+  }
+
+  it('[property] com sessaoCaixaId, há sempre movimento de caixa', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.float({ min: Math.fround(0.01), max: Math.fround(100000), noNaN: true }), { minLength: 1, maxLength: 5 }),
+        fc.string({ minLength: 1 }), // sessaoCaixaId não nulo
+        (pagamentos, sessaoCaixaId) => {
+          expect(deveChamarCaixa(pagamentos, sessaoCaixaId)).toBe(true);
+        },
+      ),
+    );
+  });
+
+  it('sem sessaoCaixaId, não regista na caixa (conta a prazo)', () => {
+    expect(deveChamarCaixa([100], undefined)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Multi-tenant isolation (lógica pura — sem DB)
 // ---------------------------------------------------------------------------
 

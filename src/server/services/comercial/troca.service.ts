@@ -2,12 +2,15 @@
  * TrocaService — WS-10 (Spec 10)
  *
  * Compõe:
+ *  0. Emitir NC dos bens devolvidos (contrato D — tx própria, antes do $tx principal)
+ *     MAJOR 5: NC obrigatória se devolucao.faturaId + serieNotaCreditoId
  *  1. Processar devolução (entrada de stock do artigo devolvido)
  *  2. Criar nova venda do artigo substituto (baixarStock)
  *  3. Liquidar diferença de valor (a favor do cliente ou da empresa)
+ *  4. Marcar devolução PROCESSADA + criar Troca
  *
- * Tudo em prismaBase.$transaction único (atomicidade).
- * NC da devolução é emitida pela DevolucaoService (tx própria, antes ou separado).
+ * NC é emitida ANTES do $transaction principal (tx própria do faturacaoService).
+ * Tudo o resto em prismaBase.$transaction único.
  */
 import 'server-only';
 
@@ -17,6 +20,7 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx } from '@/server/services/types';
 import type { IStockService } from '@/server/services/inventario/stock.interface';
 import type { ICaixaService } from '@/server/services/financas/caixa.interface';
+import type { IFaturacaoService } from '@/server/services/financas/faturacao.interface';
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
 import type { CreateTrocaInput } from '@/lib/validations/vendas';
 
@@ -53,17 +57,19 @@ export class TrocaService {
   constructor(
     private readonly stockService: Pick<IStockService, 'entradaStock' | 'baixarStock'>,
     private readonly caixaService: Pick<ICaixaService, 'registarMovimentoCaixa'>,
+    private readonly faturacaoService: Pick<IFaturacaoService, 'emitirNotaCredito'>,
   ) {}
 
   /**
-   * Criar troca atómica:
-   * 1. Verificar devolução APROVADA
-   * 2. prismaBase.$transaction:
+   * Criar troca:
+   *
+   * 0. [Se faturaId + serieNotaCreditoId]: emitir NC da devolução (tx própria)
+   * 1. prismaBase.$transaction:
    *    a. entradaStock do artigo devolvido (contrato A)
    *    b. Criar Venda do artigo substituto (nova numeração)
    *    c. baixarStock do artigo substituto (contrato A)
    *    d. Acerto de caixa se diferença != 0 (contrato D caixa)
-   *    e. Marcar devolucao como PROCESSADA
+   *    e. Marcar devolucao como PROCESSADA + notaCreditoId se emitida
    *    f. Criar Troca
    */
   async criar(input: CreateTrocaInput, ctx: Ctx): Promise<TrocaRow> {
@@ -78,6 +84,34 @@ export class TrocaService {
         'DEVOLUCAO_INVALIDA',
         'Troca só pode ser criada a partir de uma devolução aprovada.',
       );
+    }
+
+    // 0. Emitir NC dos bens devolvidos — MAJOR 5 (tx própria, antes do $tx principal)
+    let notaCreditoId: string | null = null;
+    if (devolucao.faturaId && input.serieNotaCreditoId) {
+      const nc = await this.faturacaoService.emitirNotaCredito(
+        {
+          serieDocumentoId: input.serieNotaCreditoId,
+          faturaOriginalId: devolucao.faturaId,
+          motivo: `Troca — devolução ${devolucao.numero}`,
+          moeda: 'MZN',
+          dataEmissao: new Date(),
+          linhas: devolucao.itens.map((item, idx) => ({
+            produtoId: item.produtoId,
+            descricao: item.nomeProduto,
+            quantidade: Number(item.quantidade),
+            precoUnitario: Number(item.valorUnitario),
+            desconto: 0,
+            taxaIva: Number(item.taxaIva),
+            ordemLinha: idx + 1,
+            subtotal: Number(item.subtotal),
+            ivaItem: Number(item.ivaItem),
+            total: Number(item.total),
+          })),
+        },
+        ctx,
+      );
+      notaCreditoId = nc.id;
     }
 
     return prismaBase.$transaction(async (tx) => {
@@ -172,7 +206,7 @@ export class TrocaService {
       }
 
       // d. Calcular diferença de valor (positivo = cliente deve; negativo = empresa deve)
-      const valorDevolvido = devolucao.valorTotal;
+      const valorDevolvido = devolucao.valorTotal as Prisma.Decimal;
       const diferenca = totalItem.minus(valorDevolvido);
 
       // d2. Acerto de caixa se diferença != 0 e sessão de caixa fornecida
@@ -194,18 +228,18 @@ export class TrocaService {
         );
       }
 
-      // e. Marcar devolucao como PROCESSADA
+      // e. Marcar devolucao como PROCESSADA + notaCreditoId se emitida (MAJOR 5)
       await tx.devolucao.update({
         where: { id: devolucao.id },
         data: {
           status: 'PROCESSADA',
           processadoPorId: ctx.userId,
           processadoEm: new Date(),
+          ...(notaCreditoId && { notaCreditoId }),
         },
       });
 
       // f. Criar Troca
-      // Número sequencial simples para rastreio interno
       const numeroTroca = `TRC-${Date.now()}`;
       const troca = await tx.troca.create({
         data: {
