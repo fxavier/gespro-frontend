@@ -16,6 +16,17 @@ import {
   FilterTimesheetSchema,
   CreateMarcoSchema,
   CreateOrcamentoProjetoSchema,
+  CreateRiscoSchema,
+  UpdateRiscoSchema,
+  FilterRiscoSchema,
+  TransitarRiscoSchema,
+  CreateQualidadeSchema,
+  UpdateQualidadeSchema,
+  FilterQualidadeSchema,
+  TransitarQualidadeSchema,
+  CreateComunicacaoSchema,
+  FilterComunicacaoSchema,
+  UpdateConfiguracaoProjetoSchema,
 } from '@/lib/validations/projetos';
 import {
   EquipaService,
@@ -25,6 +36,10 @@ import {
   MarcoService,
   OrcamentoProjetoService,
 } from '@/server/services/pessoas-projetos/projetos.service';
+import { RiscoService } from '@/server/services/pessoas-projetos/risco.service';
+import { QualidadeService } from '@/server/services/pessoas-projetos/qualidade.service';
+import { ComunicacaoService } from '@/server/services/pessoas-projetos/comunicacao.service';
+import { ConfiguracaoProjetoService } from '@/server/services/pessoas-projetos/configuracao-projeto.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Equipa
@@ -179,4 +194,94 @@ export const transitarStatusOrcamentoAction = createSafeAction({
   permission: 'projetos:orcamentos:update',
   revalidate: { tags: ['projetos:orcamentos'] },
   handler: ({ id, novoStatus }, ctx) => OrcamentoProjetoService.transitarStatus(id, novoStatus, ctx),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 11 — Riscos de Projecto
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const criarRiscoAction = createSafeAction({
+  schema: CreateRiscoSchema,
+  permission: 'projetos:riscos:create',
+  revalidate: { tags: ['projetos:riscos'] },
+  handler: (input, ctx) => RiscoService.criar(input, ctx),
+});
+
+export const actualizarRiscoAction = createSafeAction({
+  schema: z.object({ id: z.string().cuid(), data: UpdateRiscoSchema }),
+  permission: 'projetos:riscos:update',
+  revalidate: { tags: ['projetos:riscos'] },
+  handler: ({ id, data }, ctx) => RiscoService.actualizar(id, data, ctx),
+});
+
+export const transitarStatusRiscoAction = createSafeAction({
+  schema: TransitarRiscoSchema,
+  permission: 'projetos:riscos:update',
+  revalidate: { tags: ['projetos:riscos'] },
+  handler: ({ id, novoStatus }, ctx) => RiscoService.transitarStatus(id, novoStatus, ctx),
+});
+
+export const listarRiscosAction = createSafeAction({
+  schema: FilterRiscoSchema,
+  permission: 'projetos:riscos:read',
+  handler: (filter, ctx) => RiscoService.listar(filter, ctx),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 11 — Qualidade de Projecto
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const criarRegistoQualidadeAction = createSafeAction({
+  schema: CreateQualidadeSchema,
+  permission: 'projetos:qualidade:create',
+  revalidate: { tags: ['projetos:qualidade'] },
+  handler: (input, ctx) => QualidadeService.criar(input, ctx),
+});
+
+export const actualizarRegistoQualidadeAction = createSafeAction({
+  schema: z.object({ id: z.string().cuid(), data: UpdateQualidadeSchema }),
+  permission: 'projetos:qualidade:update',
+  revalidate: { tags: ['projetos:qualidade'] },
+  handler: ({ id, data }, ctx) => QualidadeService.actualizar(id, data, ctx),
+});
+
+export const transitarStatusQualidadeAction = createSafeAction({
+  schema: TransitarQualidadeSchema,
+  permission: 'projetos:qualidade:update',
+  revalidate: { tags: ['projetos:qualidade'] },
+  handler: ({ id, novoStatus }, ctx) => QualidadeService.transitarStatus(id, novoStatus, ctx),
+});
+
+export const listarQualidadeAction = createSafeAction({
+  schema: FilterQualidadeSchema,
+  permission: 'projetos:qualidade:read',
+  handler: (filter, ctx) => QualidadeService.listar(filter, ctx),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 11 — Comunicações de Projecto
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const registarComunicacaoAction = createSafeAction({
+  schema: CreateComunicacaoSchema,
+  permission: 'projetos:comunicacoes:create',
+  revalidate: { tags: ['projetos:comunicacoes'] },
+  handler: (input, ctx) => ComunicacaoService.registar(input, ctx),
+});
+
+export const listarComunicacoesAction = createSafeAction({
+  schema: FilterComunicacaoSchema,
+  permission: 'projetos:comunicacoes:read',
+  handler: (filter, ctx) => ComunicacaoService.listar(filter, ctx),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 11 — Configuração de Projecto
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const actualizarConfiguracaoProjetoAction = createSafeAction({
+  schema: UpdateConfiguracaoProjetoSchema,
+  permission: 'projetos:config:update',
+  revalidate: { tags: ['projetos:config'] },
+  handler: (input, ctx) => ConfiguracaoProjetoService.actualizar(input, ctx),
 });

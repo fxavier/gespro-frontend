@@ -230,6 +230,101 @@ export const FilterOrcamentoSchema = z.object({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Spec 11 — Riscos, Qualidade, Comunicações, Configuração de Projecto
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ProbabilidadeRiscoEnum = z.enum(['BAIXA', 'MEDIA', 'ALTA', 'MUITO_ALTA']);
+export const ImpactoRiscoEnum = z.enum(['BAIXO', 'MEDIO', 'ALTO', 'MUITO_ALTO']);
+export const EstrategiaRiscoEnum = z.enum(['EVITAR', 'MITIGAR', 'TRANSFERIR', 'ACEITAR']);
+export const StatusRiscoEnum = z.enum(['IDENTIFICADO', 'EM_MITIGACAO', 'FECHADO', 'MATERIALIZADO']);
+export const TipoQualidadeEnum = z.enum(['NAO_CONFORMIDADE', 'INSPECAO', 'AUDITORIA', 'REVISAO']);
+export const StatusQualidadeEnum = z.enum(['ABERTA', 'EM_ANALISE', 'RESOLVIDA', 'FECHADA']);
+export const TipoComunicacaoEnum = z.enum(['REUNIAO', 'ATA', 'DECISAO', 'ANUNCIO', 'RELATORIO']);
+
+// Risco
+export const CreateRiscoSchema = z.object({
+  projetoId: z.string().cuid(),
+  titulo: z.string().min(1).max(200),
+  descricao: z.string().max(2000).optional(),
+  probabilidade: ProbabilidadeRiscoEnum,
+  impacto: ImpactoRiscoEnum,
+  // severidade: derivada no serviço — nunca aceite do cliente
+  estrategiaResposta: EstrategiaRiscoEnum,
+  responsavelId: z.string().cuid().optional(),
+  planoMitigacao: z.string().max(5000).optional(),
+});
+
+export const UpdateRiscoSchema = CreateRiscoSchema.partial().omit({ projetoId: true });
+
+export const FilterRiscoSchema = z.object({
+  projetoId: z.string().cuid().optional(),
+  status: StatusRiscoEnum.optional(),
+  probabilidade: ProbabilidadeRiscoEnum.optional(),
+  impacto: ImpactoRiscoEnum.optional(),
+  search: z.string().optional(),
+  cursor: z.string().cuid().optional(),
+  take: z.number().int().min(1).max(100).default(25),
+});
+
+export const TransitarRiscoSchema = z.object({
+  id: z.string().cuid(),
+  novoStatus: StatusRiscoEnum,
+});
+
+// Qualidade
+export const CreateQualidadeSchema = z.object({
+  projetoId: z.string().cuid(),
+  tarefaId: z.string().cuid().optional(),
+  marcoId: z.string().cuid().optional(),
+  tipo: TipoQualidadeEnum,
+  descricao: z.string().min(1).max(5000),
+  acaoCorretiva: z.string().max(5000).optional(),
+  responsavelId: z.string().cuid().optional(),
+});
+
+export const UpdateQualidadeSchema = CreateQualidadeSchema.partial().omit({ projetoId: true });
+
+export const FilterQualidadeSchema = z.object({
+  projetoId: z.string().cuid().optional(),
+  status: StatusQualidadeEnum.optional(),
+  tipo: TipoQualidadeEnum.optional(),
+  cursor: z.string().cuid().optional(),
+  take: z.number().int().min(1).max(100).default(25),
+});
+
+export const TransitarQualidadeSchema = z.object({
+  id: z.string().cuid(),
+  novoStatus: StatusQualidadeEnum,
+});
+
+// Comunicação
+export const CreateComunicacaoSchema = z.object({
+  projetoId: z.string().cuid(),
+  tipo: TipoComunicacaoEnum,
+  data: z.coerce.date(),
+  participantes: z.array(z.string().max(200)).min(1),
+  resumo: z.string().min(1).max(10000),
+});
+
+export const FilterComunicacaoSchema = z.object({
+  projetoId: z.string().cuid().optional(),
+  tipo: TipoComunicacaoEnum.optional(),
+  dataInicio: z.coerce.date().optional(),
+  dataFim: z.coerce.date().optional(),
+  cursor: z.string().cuid().optional(),
+  take: z.number().int().min(1).max(100).default(25),
+});
+
+// Configuração de Projecto
+export const UpdateConfiguracaoProjetoSchema = z.object({
+  projetoId: z.string().cuid(),
+  politicaAprovacaoTimesheet: z.enum(['MANUAL', 'AUTOMATICA']).default('MANUAL'),
+  tiposTarefaAtivos: z.array(TipoTarefaEnum).default(['TAREFA', 'BUG', 'MELHORIA', 'DOCUMENTACAO', 'TESTE']),
+  papeisEquipaAtivos: z.array(PapelMembroEquipaEnum).default(['GERENTE', 'LIDER', 'DESENVOLVEDOR', 'DESIGNER', 'ANALISTA', 'TESTER', 'OUTRO']),
+  observacoes: z.string().max(2000).optional(),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tipos exportados
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -248,3 +343,12 @@ export type CreateTimesheetInput = z.infer<typeof CreateTimesheetSchema>;
 export type FilterTimesheetInput = z.infer<typeof FilterTimesheetSchema>;
 export type CreateMarcoInput = z.infer<typeof CreateMarcoSchema>;
 export type CreateOrcamentoProjetoInput = z.infer<typeof CreateOrcamentoProjetoSchema>;
+export type CreateRiscoInput = z.infer<typeof CreateRiscoSchema>;
+export type UpdateRiscoInput = z.infer<typeof UpdateRiscoSchema>;
+export type FilterRiscoInput = z.infer<typeof FilterRiscoSchema>;
+export type CreateQualidadeInput = z.infer<typeof CreateQualidadeSchema>;
+export type UpdateQualidadeInput = z.infer<typeof UpdateQualidadeSchema>;
+export type FilterQualidadeInput = z.infer<typeof FilterQualidadeSchema>;
+export type CreateComunicacaoInput = z.infer<typeof CreateComunicacaoSchema>;
+export type FilterComunicacaoInput = z.infer<typeof FilterComunicacaoSchema>;
+export type UpdateConfiguracaoProjetoInput = z.infer<typeof UpdateConfiguracaoProjetoSchema>;

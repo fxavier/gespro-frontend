@@ -181,6 +181,30 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   ATIVO_GEN: 'success',
   INATIVO_GEN: 'secondary',
 
+  // Spec 11 — Riscos de Projecto
+  IDENTIFICADO: 'warning',
+  EM_MITIGACAO: 'info',
+  MATERIALIZADO: 'destructive',
+  // FECHADO já definido acima como 'secondary'
+
+  // Spec 11 — Qualidade de Projecto
+  // ABERTA já definida acima como 'warning'
+  EM_ANALISE: 'info',
+  RESOLVIDA: 'success',
+  // FECHADA já definida acima (FECHADO)
+
+  // Spec 11 — Comunicação de Projecto
+  REUNIAO: 'secondary',
+  ATA: 'info',
+  DECISAO: 'warning',
+  ANUNCIO: 'default',
+  RELATORIO_TIPO: 'secondary',
+
+  // Spec 11 — Risco (probabilidade / impacto)
+  MUITO_ALTA: 'destructive',
+  MUITO_ALTO: 'destructive',
+  MEDIO: 'warning',
+
   // Recrutamento — Spec 07
   // StatusVaga
   EM_TRIAGEM: 'info',
@@ -332,6 +356,30 @@ const STATUS_LABELS: Record<string, string> = {
   ALTA: 'Alta',
   MEDIA: 'Média',
   BAIXA: 'Baixa',
+
+  // Spec 11 — Riscos e Qualidade
+  IDENTIFICADO: 'Identificado',
+  EM_MITIGACAO: 'Em Mitigação',
+  MATERIALIZADO: 'Materializado',
+  EM_ANALISE: 'Em Análise',
+  RESOLVIDA: 'Resolvida',
+  REUNIAO: 'Reunião',
+  ATA: 'Ata',
+  DECISAO: 'Decisão',
+  ANUNCIO: 'Anúncio',
+  MUITO_ALTA: 'Muito Alta',
+  MUITO_ALTO: 'Muito Alto',
+  MEDIO: 'Médio',
+  // Estratégias de risco
+  EVITAR: 'Evitar',
+  MITIGAR: 'Mitigar',
+  TRANSFERIR: 'Transferir',
+  ACEITAR: 'Aceitar',
+  // Tipos de qualidade
+  NAO_CONFORMIDADE: 'Não Conformidade',
+  INSPECAO: 'Inspeção',
+  AUDITORIA: 'Auditoria',
+  REVISAO: 'Revisão',
 
   // Recrutamento — Spec 07
   EM_TRIAGEM: 'Em Triagem',
