@@ -105,6 +105,26 @@ export const TRANSICOES_DEVOLUCAO: Record<string, string[]> = {
   REJEITADA: [],
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 11 — Riscos e Qualidade de Projecto
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ciclo de vida de RiscoProjeto */
+export const TRANSICOES_RISCO: Record<string, string[]> = {
+  IDENTIFICADO: ['EM_MITIGACAO', 'FECHADO', 'MATERIALIZADO'],
+  EM_MITIGACAO: ['FECHADO', 'MATERIALIZADO', 'IDENTIFICADO'],
+  FECHADO: [],
+  MATERIALIZADO: ['EM_MITIGACAO', 'FECHADO'],
+};
+
+/** Ciclo de vida de RegistoQualidade */
+export const TRANSICOES_QUALIDADE: Record<string, string[]> = {
+  ABERTA: ['EM_ANALISE', 'FECHADA'],
+  EM_ANALISE: ['RESOLVIDA', 'FECHADA'],
+  RESOLVIDA: ['FECHADA'],
+  FECHADA: [],
+};
+
 /**
  * Calcula a posição fraccional entre duas posições (formato string decimal).
  * Inserir entre anterior e posterior: posicao = midpoint(ant, pos).

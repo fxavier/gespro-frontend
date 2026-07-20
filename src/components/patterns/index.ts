@@ -12,7 +12,7 @@ export type { TableColumn } from './data-table';
 export { FilterBar } from './filter-bar';
 export type { FilterConfig, FilterOption } from './filter-bar';
 
-export { StatusBadge, badgeVariants } from './status-badge';
+export { StatusBadge, badgeVariants, STATUS_LABELS } from './status-badge';
 export type { StatusVariant } from './status-badge';
 
 export { KpiCard } from './kpi-card';

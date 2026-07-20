@@ -262,6 +262,18 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'projetos:timesheets:read',   descricao: 'Consultar timesheets' },
   { code: 'projetos:timesheets:create', descricao: 'Registar horas (timesheet)' },
   { code: 'projetos:timesheets:aprovar', descricao: 'Aprovar timesheets de equipa' },
+  // Spec 11 — Riscos, Qualidade, Comunicações, Configuração (aditivo)
+  { code: 'projetos:riscos:read',         descricao: 'Consultar riscos de projecto' },
+  { code: 'projetos:riscos:create',       descricao: 'Criar risco de projecto' },
+  { code: 'projetos:riscos:update',       descricao: 'Actualizar risco de projecto' },
+  { code: 'projetos:qualidade:read',      descricao: 'Consultar registos de qualidade' },
+  { code: 'projetos:qualidade:create',    descricao: 'Criar registo de qualidade' },
+  { code: 'projetos:qualidade:update',    descricao: 'Actualizar registo de qualidade' },
+  { code: 'projetos:comunicacoes:read',   descricao: 'Consultar comunicações de projecto' },
+  { code: 'projetos:comunicacoes:create', descricao: 'Registar comunicação de projecto' },
+  { code: 'projetos:config:read',         descricao: 'Consultar configurações de projecto' },
+  { code: 'projetos:config:update',       descricao: 'Actualizar configurações de projecto' },
+  { code: 'projetos:relatorios:read',     descricao: 'Consultar relatórios de projecto' },
 
   // ── Transporte / Logística ────────────────────────────────────────────────
   { code: 'transporte:ver',                  descricao: 'Consultar guias e rotas de transporte' },

@@ -810,11 +810,15 @@ model Projeto {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
-  tarefas    TarefaProjeto[]
-  marcos     Marco[]
-  timesheets Timesheet[]
-  orcamentos OrcamentoProjeto[]
-  equipas    ProjetoEquipa[]
+  tarefas           TarefaProjeto[]
+  marcos            Marco[]
+  timesheets        Timesheet[]
+  orcamentos        OrcamentoProjeto[]
+  equipas           ProjetoEquipa[]
+  riscos            RiscoProjeto[]
+  registosQualidade RegistoQualidade[]
+  comunicacoes      ComunicacaoProjeto[]
+  configuracao      ConfiguracaoProjeto?
 
   @@unique([tenantId, codigo])
   @@index([tenantId, status])
@@ -1607,4 +1611,156 @@ model BeneficioColaborador {
   @@index([tenantId, colaboradorId, status])
   @@index([tenantId, beneficioId])
   @@index([tenantId, colaboradorId, beneficioId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 11 — Riscos, Qualidade, Comunicações, Configuração de Projecto (WS E)
+// Bloco aditivo no fim — não reordena nada acima.
+// FKs intra-WS: projetoId → Projeto (mesmo schema).
+// FKs cross-WS escalares: responsavelId → User (Foundation, sem @relation).
+// Severidade de risco é SEMPRE derivada no serviço (probabilidade × impacto);
+// nunca aceite do cliente.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ProbabilidadeRisco {
+  BAIXA
+  MEDIA
+  ALTA
+  MUITO_ALTA
+}
+
+enum ImpactoRisco {
+  BAIXO
+  MEDIO
+  ALTO
+  MUITO_ALTO
+}
+
+enum EstrategiaRisco {
+  EVITAR
+  MITIGAR
+  TRANSFERIR
+  ACEITAR
+}
+
+enum StatusRisco {
+  IDENTIFICADO
+  EM_MITIGACAO
+  FECHADO
+  MATERIALIZADO
+}
+
+enum TipoQualidade {
+  NAO_CONFORMIDADE
+  INSPECAO
+  AUDITORIA
+  REVISAO
+}
+
+enum StatusQualidade {
+  ABERTA
+  EM_ANALISE
+  RESOLVIDA
+  FECHADA
+}
+
+enum TipoComunicacao {
+  REUNIAO
+  ATA
+  DECISAO
+  ANUNCIO
+  RELATORIO
+}
+
+// Risco de projecto: matriz probabilidade × impacto.
+// severidade = f(probabilidade, impacto) derivada no serviço — imutável ao editar
+// probabilidade/impacto (recalculada). responsavelId é FK escalar → User (cross-WS).
+model RiscoProjeto {
+  id                 String             @id @default(cuid())
+  tenantId           String
+  projetoId          String
+  titulo             String
+  descricao          String?
+  probabilidade      ProbabilidadeRisco
+  impacto            ImpactoRisco
+  severidade         Int               // derivada no serviço: nunca aceite do cliente
+  estrategiaResposta EstrategiaRisco
+  // FK escalar → User (cross-WS)
+  responsavelId      String?
+  status             StatusRisco
+  planoMitigacao     String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId, status])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+// Registo de qualidade (não-conformidades, inspecções, auditorias).
+// tarefaId/marcoId são FKs escalares intra-WS (sem @relation para manter legibilidade).
+// responsavelId é FK escalar → User (cross-WS).
+model RegistoQualidade {
+  id            String          @id @default(cuid())
+  tenantId      String
+  projetoId     String
+  tarefaId      String?        // FK escalar → TarefaProjeto (intra-WS)
+  marcoId       String?        // FK escalar → Marco (intra-WS)
+  tipo          TipoQualidade
+  descricao     String
+  acaoCorretiva String?
+  status        StatusQualidade
+  // FK escalar → User (cross-WS)
+  responsavelId String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId, status])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+// Comunicação de projecto (atas append-only, decisões, anúncios, reuniões).
+// participantes: array de IDs ou nomes (texto livre — cross-WS simples).
+// deletedAt: soft-delete (atas nunca se apagam).
+model ComunicacaoProjeto {
+  id            String          @id @default(cuid())
+  tenantId      String
+  projetoId     String
+  tipo          TipoComunicacao
+  data          DateTime
+  participantes String[]
+  resumo        String
+  deletedAt     DateTime?       // atas append-only; soft delete para futuro
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId, tipo])
+  @@index([tenantId, projetoId, data])
+  @@index([tenantId, deletedAt])
+}
+
+// Configuração por projecto: política de aprovação de timesheet,
+// tipos de tarefa activos, papéis de equipa activos.
+// Relação @unique (1-1): um projecto tem no máximo uma configuração.
+model ConfiguracaoProjeto {
+  id                         String   @id @default(cuid())
+  tenantId                   String
+  projetoId                  String   @unique
+  politicaAprovacaoTimesheet String   @default("MANUAL")
+  tiposTarefaAtivos          String[] // subset de TipoTarefa
+  papeisEquipaAtivos         String[] // subset de PapelMembroEquipa
+  observacoes                String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId])
 }

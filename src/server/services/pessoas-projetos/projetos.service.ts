@@ -613,3 +613,202 @@ export const OrcamentoProjetoService = {
     return orc;
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CronogramaService — vista de Gantt sobre tarefas + marcos
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const CronogramaService = {
+  /**
+   * Retorna tarefas e marcos de um projecto ordenados por data de início/prevista.
+   * Inclui dependências para renderizar ligações no Gantt.
+   */
+  async cronograma(projetoId: string, ctx: Ctx) {
+    const projeto = await prisma.projeto.findFirst({
+      where: { id: projetoId, tenantId: ctx.tenantId },
+      select: { id: true, nome: true, dataInicio: true, dataFimPrevista: true, status: true },
+    });
+    if (!projeto) throw new NotFoundError('Projecto não encontrado');
+
+    const [tarefas, marcos] = await Promise.all([
+      prisma.tarefaProjeto.findMany({
+        where: { projetoId, tenantId: ctx.tenantId },
+        orderBy: [{ dataInicio: 'asc' }, { dataFimPrevista: 'asc' }],
+        select: {
+          id: true,
+          codigo: true,
+          titulo: true,
+          status: true,
+          prioridade: true,
+          dataInicio: true,
+          dataFimPrevista: true,
+          dataFimReal: true,
+          progresso: true,
+          dependencias: true,
+          responsavelId: true,
+          tarefaPaiId: true,
+        },
+      }),
+      prisma.marco.findMany({
+        where: { projetoId, tenantId: ctx.tenantId },
+        orderBy: { dataPrevista: 'asc' },
+        select: {
+          id: true,
+          nome: true,
+          status: true,
+          dataPrevista: true,
+          dataReal: true,
+          progresso: true,
+        },
+      }),
+    ]);
+
+    return { projeto, tarefas, marcos };
+  },
+
+  /**
+   * Lista projectos activos com as suas tarefas para o cronograma global.
+   */
+  async listarCronograma(ctx: Ctx) {
+    const projetos = await prisma.projeto.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        status: { in: ['PLANEAMENTO', 'EM_ANDAMENTO', 'PAUSADO'] },
+      },
+      orderBy: { dataInicio: 'asc' },
+      select: {
+        id: true,
+        codigo: true,
+        nome: true,
+        status: true,
+        prioridade: true,
+        dataInicio: true,
+        dataFimPrevista: true,
+        progresso: true,
+        _count: { select: { tarefas: true } },
+      },
+    });
+    return projetos;
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RelatorioService — agregações para dashboards e relatórios
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const RelatorioService = {
+  /**
+   * Relatório de um projecto: progresso, desvio orçamental, horas, marcos.
+   */
+  async relatorio(projetoId: string, ctx: Ctx) {
+    const projeto = await prisma.projeto.findFirst({
+      where: { id: projetoId, tenantId: ctx.tenantId },
+      select: {
+        id: true,
+        nome: true,
+        codigo: true,
+        status: true,
+        progresso: true,
+        orcamentoPlanejado: true,
+        horasEstimadas: true,
+        dataInicio: true,
+        dataFimPrevista: true,
+        dataFimReal: true,
+      },
+    });
+    if (!projeto) throw new NotFoundError('Projecto não encontrado');
+
+    const [tarefasStats, horasStats, orcamentosStats, marcosStats] = await Promise.all([
+      prisma.tarefaProjeto.groupBy({
+        by: ['status'],
+        where: { projetoId, tenantId: ctx.tenantId },
+        _count: { id: true },
+      }),
+      prisma.timesheet.aggregate({
+        where: { projetoId, tenantId: ctx.tenantId },
+        _sum: { duracaoHoras: true },
+      }),
+      prisma.orcamentoProjeto.findFirst({
+        where: { projetoId, tenantId: ctx.tenantId, status: 'APROVADO' },
+        orderBy: { versao: 'desc' },
+        select: { totalPlanejado: true, totalUtilizado: true },
+      }),
+      prisma.marco.findMany({
+        where: { projetoId, tenantId: ctx.tenantId },
+        select: { id: true, nome: true, status: true, dataPrevista: true, dataReal: true },
+        orderBy: { dataPrevista: 'asc' },
+      }),
+    ]);
+
+    const totalTarefas = tarefasStats.reduce((s, g) => s + g._count.id, 0);
+    const concluidas = tarefasStats.find((g) => g.status === 'CONCLUIDA')?._count.id ?? 0;
+    const horasTrabalhadas = Number(horasStats._sum.duracaoHoras ?? 0);
+    const hoje = new Date();
+    const marcosAtrasados = marcosStats.filter(
+      (m) => m.status !== 'CONCLUIDO' && new Date(m.dataPrevista) < hoje,
+    );
+
+    return {
+      projeto,
+      tarefas: { total: totalTarefas, concluidas, emProgresso: tarefasStats.find((g) => g.status === 'EM_PROGRESSO')?._count.id ?? 0 },
+      horas: { estimadas: projeto.horasEstimadas ?? 0, trabalhadas: horasTrabalhadas },
+      orcamento: {
+        planejado: Number(projeto.orcamentoPlanejado ?? orcamentosStats?.totalPlanejado ?? 0),
+        utilizado: Number(orcamentosStats?.totalUtilizado ?? 0),
+      },
+      marcos: { total: marcosStats.length, atrasados: marcosAtrasados.length, lista: marcosStats },
+    };
+  },
+
+  /**
+   * KPIs globais de todos os projectos do tenant.
+   */
+  async kpisGlobais(ctx: Ctx) {
+    const [
+      totalProjetos,
+      emAndamento,
+      concluidos,
+      horasTotal,
+    ] = await Promise.all([
+      prisma.projeto.count({ where: { tenantId: ctx.tenantId } }),
+      prisma.projeto.count({ where: { tenantId: ctx.tenantId, status: 'EM_ANDAMENTO' } }),
+      prisma.projeto.count({ where: { tenantId: ctx.tenantId, status: 'CONCLUIDO' } }),
+      prisma.timesheet.aggregate({
+        where: { tenantId: ctx.tenantId },
+        _sum: { duracaoHoras: true },
+      }),
+    ]);
+
+    return {
+      totalProjetos,
+      emAndamento,
+      concluidos,
+      horasTotal: Number(horasTotal._sum.duracaoHoras ?? 0),
+    };
+  },
+
+  /**
+   * Dados de progresso por projecto para gráficos.
+   */
+  async progressoPorProjeto(ctx: Ctx) {
+    const projetos = await prisma.projeto.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        status: { in: ['PLANEAMENTO', 'EM_ANDAMENTO', 'PAUSADO', 'CONCLUIDO'] },
+      },
+      orderBy: { dataFimPrevista: 'asc' },
+      select: {
+        id: true,
+        nome: true,
+        codigo: true,
+        status: true,
+        progresso: true,
+        dataFimPrevista: true,
+        orcamentoPlanejado: true,
+        _count: { select: { tarefas: true } },
+      },
+      take: 20,
+    });
+    return projetos;
+  },
+};
