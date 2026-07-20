@@ -110,5 +110,6 @@ sketch
 # Playwright E2E
 /playwright-report/
 /playwright/.auth/
-/test-results/wt/
+/test-results/
 docker-compose.override.yml
+wt/
