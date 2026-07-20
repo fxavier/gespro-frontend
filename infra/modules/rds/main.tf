@@ -106,8 +106,9 @@ resource "aws_db_instance" "main" {
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${local.name_prefix}-final-snapshot"
 
-  # Performance Insights (útil em prod para diagnosticar queries lentas)
-  performance_insights_enabled = true
+  # Performance Insights — apenas disponível em db.m* e db.r* (NÃO db.t*).
+  # Activar via variável enable_performance_insights ao subir de classe.
+  performance_insights_enabled = var.enable_performance_insights
 
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-postgres"

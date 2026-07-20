@@ -22,3 +22,13 @@ output "rds_sg_id" {
   description = "ID do Security Group do RDS"
   value       = aws_security_group.rds.id
 }
+
+output "nat_gateway_id" {
+  description = "ID do NAT Gateway (para diagnóstico)"
+  value       = aws_nat_gateway.main.id
+}
+
+output "nat_public_ip" {
+  description = "IP público do NAT Gateway (para whitelist em SMTP/OTLP externos)"
+  value       = aws_eip.nat.public_ip
+}

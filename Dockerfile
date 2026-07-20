@@ -53,7 +53,9 @@ RUN mkdir -p public
 
 # Build Next.js com output: 'standalone'
 # NEXT_TELEMETRY_DISABLED evita chamadas de rede durante o build
+# NODE_OPTIONS aumenta heap para a verificação TypeScript de projectos grandes
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN pnpm build
 
 # ==============================================================================

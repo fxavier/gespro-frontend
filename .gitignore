@@ -117,8 +117,8 @@ docker-compose.override.yml
 infra/**/*.tfvars
 !infra/**/*.tfvars.example
 infra/**/.terraform/
-infra/**/.terraform.lock.hcl
 infra/**/*.tfstate
 infra/**/*.tfstate.backup
 infra/**/*.tfplan
 infra/**/crash.log
+# Nota: .terraform.lock.hcl é COMMITADO em cada stack (fixa versões dos providers)

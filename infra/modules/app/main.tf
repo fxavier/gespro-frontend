@@ -212,14 +212,28 @@ resource "aws_apprunner_service" "main" {
           APP_VERSION    = var.image_tag
         }
 
-        # Segredos injectados do Secrets Manager (valor = ARN do segredo)
-        # O App Runner resolve o ARN e injeta o valor como env var em runtime.
-        # NUNCA colocar valores reais aqui.
+        # Segredos injectados do Secrets Manager em runtime.
+        # Formato: ARN simples → valor string directo.
+        # Formato: "${arn}:json-key::" → extrai a chave json-key do segredo JSON.
+        # Permite que o código leia variáveis individuais (SMTP_HOST, etc.)
+        # sem deserializar JSON — compatível com specs 13 (nodemailer) e 14 (OTel).
         runtime_environment_secrets = {
-          DATABASE_URL     = var.database_url_secret_arn
-          AUTH_SECRET      = var.auth_secret_arn
-          SMTP_CREDENTIALS = var.smtp_credentials_secret_arn
-          OTEL_CREDENTIALS = var.otel_credentials_secret_arn
+          # String secrets — injectados directamente
+          DATABASE_URL = var.database_url_secret_arn
+          AUTH_SECRET  = var.auth_secret_arn
+
+          # SMTP — extrair chaves individuais do segredo JSON
+          # Formato Secrets Manager JSON: { host, port, user, password, from }
+          SMTP_HOST     = "${var.smtp_credentials_secret_arn}:host::"
+          SMTP_PORT     = "${var.smtp_credentials_secret_arn}:port::"
+          SMTP_USER     = "${var.smtp_credentials_secret_arn}:user::"
+          SMTP_PASSWORD = "${var.smtp_credentials_secret_arn}:password::"
+          SMTP_FROM     = "${var.smtp_credentials_secret_arn}:from::"
+
+          # OpenTelemetry — extrair chaves individuais do segredo JSON
+          # Formato Secrets Manager JSON: { endpoint, headers }
+          OTEL_EXPORTER_OTLP_ENDPOINT = "${var.otel_credentials_secret_arn}:endpoint::"
+          OTEL_EXPORTER_OTLP_HEADERS  = "${var.otel_credentials_secret_arn}:headers::"
         }
       }
 

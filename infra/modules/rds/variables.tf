@@ -72,6 +72,12 @@ variable "skip_final_snapshot" {
   default     = true
 }
 
+variable "enable_performance_insights" {
+  description = "Activar Performance Insights. Apenas suportado em db.m* e db.r* (NÃO em db.t*). Activar ao subir de classe de instância."
+  type        = bool
+  default     = false
+}
+
 variable "db_credentials_secret_arn" {
   description = "ARN do segredo Secrets Manager com username/password do RDS"
   type        = string

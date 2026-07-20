@@ -1,14 +1,19 @@
 # ==============================================================================
 # módulo: network
 #
-# Cria a VPC mínima para GestPro:
-#   - Subnets públicas (App Runner VPC Connector egress / NAT GW futuro)
-#   - Subnets privadas (RDS PostgreSQL, recursos internos)
-#   - Security Groups: app (App Runner) → rds (PostgreSQL 5432)
-#   - Internet Gateway para subnets públicas
+# VPC para GestPro com egress seguro das subnets privadas:
+#   - Subnets públicas + Internet Gateway
+#   - Subnets privadas com NAT Gateway (egress para S3, SMTP, OTLP, AWS APIs)
+#   - Security Groups: App Runner VPC Connector → RDS (porta 5432)
 #
-# App Runner liga-se ao RDS via VPC Connector (egress → subnet privada).
-# RDS não tem IP público — acessível apenas dentro da VPC.
+# Decisão (ADR-0005): NAT Gateway em vez de VPC endpoints.
+#   Racional: um único NAT (~$32/mês + transfer) cobre todos os destinos
+#   (S3, Secrets Manager, ECR, SMTP externo, OTLP externo) sem necessidade
+#   de múltiplos VPC endpoints por serviço. VPC endpoints são mais baratos
+#   para tráfego AWS-only mas exigem um endpoint por serviço e não cobrem
+#   tráfego externo (SMTP, OTLP). NAT é a solução geral.
+#   Para optimização de custo futura: substituir S3 por gateway endpoint
+#   (gratuito) + manter NAT para o restante.
 # ==============================================================================
 
 locals {
@@ -30,7 +35,7 @@ resource "aws_vpc" "main" {
 }
 
 # ------------------------------------------------------------------------------
-# Internet Gateway (para subnets públicas)
+# Internet Gateway (para subnets públicas e para o NAT Gateway)
 # ------------------------------------------------------------------------------
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
@@ -42,7 +47,7 @@ resource "aws_internet_gateway" "main" {
 
 # ------------------------------------------------------------------------------
 # Subnets públicas (uma por AZ)
-# Usadas pelo App Runner VPC Connector para acesso à internet
+# Alojam o NAT Gateway; App Runner usa VPC Connector nas subnets privadas.
 # ------------------------------------------------------------------------------
 resource "aws_subnet" "public" {
   count = local.az_count
@@ -60,7 +65,8 @@ resource "aws_subnet" "public" {
 
 # ------------------------------------------------------------------------------
 # Subnets privadas (uma por AZ)
-# Usadas pelo RDS e pelo VPC Connector do App Runner
+# Alojam o RDS e o VPC Connector do App Runner.
+# Egress via NAT Gateway na subnet pública correspondente.
 # ------------------------------------------------------------------------------
 resource "aws_subnet" "private" {
   count = local.az_count
@@ -99,12 +105,64 @@ resource "aws_route_table_association" "public" {
 }
 
 # ------------------------------------------------------------------------------
+# NAT Gateway — permite que recursos nas subnets privadas (App Runner VPC
+# Connector) alcancem a internet: S3, Secrets Manager, ECR, SMTP, OTLP.
+#
+# Um único NAT na primeira AZ (custo: ~$32/mês + transfer).
+# Para HA multi-AZ em prod: criar um NAT por AZ (count = local.az_count).
+# ------------------------------------------------------------------------------
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-nat-eip"
+  })
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[0].id # NAT na primeira subnet pública
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-nat"
+  })
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+# ------------------------------------------------------------------------------
+# Route table privada → NAT Gateway (egress para internet e AWS APIs)
+# ------------------------------------------------------------------------------
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-rt-private"
+  })
+}
+
+resource "aws_route_table_association" "private" {
+  count = local.az_count
+
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id
+}
+
+# ------------------------------------------------------------------------------
 # Security Group: App Runner VPC Connector
-# Egress apenas — App Runner controla o ingress externamente (HTTPS gerido)
+# Egress: RDS (5432) + internet (443) via NAT Gateway.
+# O App Runner controla o ingress externamente (HTTPS gerido).
 # ------------------------------------------------------------------------------
 resource "aws_security_group" "apprunner" {
   name        = "${local.name_prefix}-apprunner-sg"
-  description = "App Runner VPC Connector — egress para RDS e internet"
+  description = "App Runner VPC Connector — egress para RDS e internet via NAT"
   vpc_id      = aws_vpc.main.id
 
   egress {
@@ -116,9 +174,17 @@ resource "aws_security_group" "apprunner" {
   }
 
   egress {
-    description = "HTTPS para AWS APIs (Secrets Manager, ECR, etc.)"
+    description = "HTTPS para AWS APIs e serviços externos (via NAT GW)"
     from_port   = 443
     to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "SMTP para email transaccional (via NAT GW)"
+    from_port   = 587
+    to_port     = 587
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -130,7 +196,7 @@ resource "aws_security_group" "apprunner" {
 
 # ------------------------------------------------------------------------------
 # Security Group: RDS PostgreSQL
-# Aceita apenas tráfego do SG do App Runner
+# Aceita apenas tráfego do SG do App Runner (sem acesso público)
 # ------------------------------------------------------------------------------
 resource "aws_security_group" "rds" {
   name        = "${local.name_prefix}-rds-sg"
@@ -146,7 +212,7 @@ resource "aws_security_group" "rds" {
   }
 
   egress {
-    description = "Sem egress do RDS"
+    description = "Egress do RDS (respostas)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"

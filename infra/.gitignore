@@ -10,9 +10,8 @@
 *.tfstate
 *.tfstate.backup
 
-# Directórios Terraform gerados localmente
+# Directórios Terraform gerados localmente (.terraform.lock.hcl é COMMITADO — fixa versões dos providers)
 .terraform/
-.terraform.lock.hcl
 
 # Ficheiros de crash
 crash.log
