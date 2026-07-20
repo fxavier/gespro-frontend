@@ -48,8 +48,8 @@ Resumo: HTTPS gerido + autoscaling simples + menor overhead operacional para equ
 | `terraform fmt -recursive` | PASS (1 ficheiro formatado: `modules/app/main.tf`) |
 | Scan de segredos (`.tfvars` no git) | CLEAN — nenhum `.tfvars` commitado |
 | `docker build` (stage `deps`) | PASS (imagem `gespro-deps-test:latest`, 1.18GB) |
-| `docker build` (full multi-stage) | A correr em background ao escrever este handoff |
-| `pnpm check` (compilação TS) | Não executado; `next.config.ts` alterado de forma aditiva (`output: 'standalone'` apenas) |
+| `docker build` (full multi-stage) | Em progresso (Next.js compile ~10-20 min); Dockerfile corrigido com `RUN mkdir -p public` e `public/.gitkeep` |
+| `pnpm check` (compilação TS) | Não executado nesta sessão; `next.config.ts` alterado de forma aditiva (`output: 'standalone'` apenas — não quebra TS) |
 
 ---
 
