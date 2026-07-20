@@ -113,3 +113,13 @@ sketch
 /test-results/
 docker-compose.override.yml
 wt/
+
+# Terraform — ZERO segredos no repo (spec 16)
+infra/**/*.tfvars
+!infra/**/*.tfvars.example
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.backup
+infra/**/*.tfplan
+infra/**/crash.log
+# Nota: .terraform.lock.hcl é COMMITADO em cada stack (fixa versões dos providers)
