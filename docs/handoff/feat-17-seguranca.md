@@ -153,7 +153,8 @@ mesmo dentro de transacções para uniformidade.
 | `src/app/api/rh/payroll/[id]/recibo/route.ts` | Modificado | +exportLimiter |
 | `src/server/security/__tests__/rate-limiter.test.ts` | Novo | 15 testes do RateLimiter |
 | `src/server/security/__tests__/rate-limit-429.test.ts` | Novo | 4 testes de integração 429 |
-| `src/server/security/__tests__/security-headers.test.ts` | Novo | 22 testes de headers CSP/HSTS/etc. |
+| `src/server/security/__tests__/security-headers.test.ts` | Actualizado | Importa `src/lib/security/headers.ts` (sem cópia de lógica) |
+| `src/lib/security/headers.ts` | Novo | Lógica de headers extraída; importada pelo middleware E pelos testes |
 | `src/lib/api/__tests__/cors.test.ts` | Novo | 7 testes do utilitário CORS |
 
 ---
@@ -182,3 +183,32 @@ mesmo dentro de transacções para uniformidade.
 |---|---|---|
 | `CSP_ENFORCE` | `true` para Content-Security-Policy em enforce; `false`/ausente para report-only | `false` (report-only) |
 | `ALLOWED_ORIGINS` | Lista de origens CORS permitidas separadas por vírgula | vazio (sem CORS) |
+
+---
+
+### 11. Follow-ups documentados (não corrigidos neste PR)
+
+**Aviso 2 — Não activar CSP_ENFORCE sem smoke autenticado**
+Antes de mudar `CSP_ENFORCE=true` em produção, executar smoke test completo com sessão autenticada
+e verificar o relatório CSP (via `report-uri` ou DevTools). Possíveis fontes de violação que ainda
+não foram testadas em produção: fontes Google externas (se adicionadas no futuro), scripts de
+analytics externos, qualquer `<Script>` com `strategy="beforeInteractive"`.
+
+**NIT 1 — `webhookLimiter` sem consumidor**
+`src/server/security/rate-limiter.ts` exporta `webhookLimiter` (100 req/min por IP) mas não está
+ainda aplicado a nenhum handler (não há endpoints de webhook externos implementados na Wave 5).
+Aplicar quando os webhooks de entrada forem criados.
+
+**NIT 2 — Colocação de `/api/auth/invite`**
+O endpoint `POST /api/auth/invite` usa `withApi` (que exige sessão autenticada), o que é correcto.
+No entanto, o path `/api/auth/` está na allowlist `PUBLIC_PATHS` do middleware, o que significa
+que o middleware não vai redirecionar para login — a sessão é verificada pelo `withApi` em vez disso.
+Alternativa futura: mover para `/api/platform/invite` para clareza semântica.
+
+**NIT 3 — `compras.service.ts:492` findUnique→findFirst**
+Dentro da transacção `decidirAprovacao`, `findUnique` é chamado sem `tenantId` explícito no `where`
+(o ID vem de um registo pré-validado com tenantId scope, portanto sem risco prático). Para
+uniformidade com o resto do codebase, converter para:
+```typescript
+await tx.requisicaoCompra.findFirst({ where: { id: docId!, tenantId: ctx.tenantId } })
+```
