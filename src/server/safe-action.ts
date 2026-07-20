@@ -6,6 +6,7 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { AppError, ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import { runWithRequestContext, newRequestId } from '@/server/observability/context';
+import { recordRequest } from '@/server/observability/metrics';
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -77,6 +78,7 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
 
       const duration = Date.now() - startTime;
       log.info({ duration }, 'action end');
+      recordRequest(duration, false);
 
       return { ok: true, data };
     } catch (e) {
@@ -90,10 +92,12 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
         } else {
           log.warn({ code: e.code, status: e.status, duration }, e.message);
         }
+        recordRequest(duration, e.status >= 500);
         return { ok: false, error: { code: e.code, message: e.message, details: e.details } };
       }
 
       // Erro inesperado: logar no servidor com stack trace; ao cliente só traceId
+      recordRequest(duration, true);
       log.error(
         {
           err: { message: (e as Error)?.message, stack: (e as Error)?.stack },

@@ -5,6 +5,7 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { AppError, ForbiddenError, UnauthorizedError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import { runWithRequestContext, newRequestId } from '@/server/observability/context';
+import { recordRequest } from '@/server/observability/metrics';
 
 interface ApiCtx {
   tenantId: string;
@@ -90,6 +91,7 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
 
       const duration = Date.now() - startTime;
       log.info({ status: response.status, duration }, 'request end');
+      recordRequest(duration, response.status >= 500);
 
       return addId(response);
     } catch (e) {
@@ -106,6 +108,7 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
       } else {
         log.warn({ code: err.code, status: err.status, duration }, err.message);
       }
+      recordRequest(duration, true);
 
       return addId(
         NextResponse.json(
