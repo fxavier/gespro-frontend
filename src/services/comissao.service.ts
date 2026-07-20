@@ -27,6 +27,7 @@ export interface RegraComissao {
     valorMaximo?: number;
     quantidadeMinima?: number;
     metaAtingida?: number;
+    categoriaId?: string;
     categoriaNome?: string;
     dataInicio?: string;
     dataFim?: string;
@@ -330,6 +331,8 @@ export class ComissaoService {
         condicoes: {
           valorMinimo: 50000
         },
+        prioridade: 1,
+        descricao: 'Aplicada a vendas de alto valor',
         ativa: true
       },
       {
@@ -342,6 +345,8 @@ export class ComissaoService {
         condicoes: {
           metaAtingida: 100
         },
+        prioridade: 2,
+        descricao: 'Bônus vinculado ao alcance da meta mensal',
         ativa: true
       }
     ];

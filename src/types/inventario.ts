@@ -3,7 +3,7 @@
 export type EstadoAtivo = 'novo' | 'em_uso' | 'em_manutencao' | 'obsoleto' | 'baixado' | 'em_transferencia';
 export type TipoMovimentacao = 'entrada' | 'saida' | 'transferencia' | 'emprestimo' | 'devolucao' | 'baixa' | 'ajuste';
 export type TipoManutencao = 'preventiva' | 'corretiva' | 'inspecao' | 'calibracao';
-export type StatusManutencao = 'agendada' | 'em_curso' | 'concluida' | 'cancelada';
+export type StatusManutencao = 'agendada' | 'em_andamento' | 'em_curso' | 'orcamento' | 'concluida' | 'cancelada';
 export type MetodoAmortizacao = 'linear' | 'digitos_anos' | 'unidades_producao' | 'saldos_decrescentes';
 
 // Localização e Armazéns
@@ -173,6 +173,7 @@ export interface ManutencaoAtivo {
   ativoNome: string;
   tipo: TipoManutencao;
   status: StatusManutencao;
+  prioridade?: 'baixa' | 'media' | 'alta' | 'critica';
   
   // Agendamento
   dataAgendada: Date;
@@ -187,6 +188,8 @@ export interface ManutencaoAtivo {
   // Responsáveis
   tecnicoId?: string;
   tecnicoNome?: string;
+  responsavelId?: string;
+  responsavelNome?: string;
   fornecedorId?: string;
   fornecedorNome?: string;
   
@@ -194,6 +197,8 @@ export interface ManutencaoAtivo {
   custoMaoObra?: number;
   custoPecas?: number;
   custoTotal?: number;
+  custoEstimado?: number;
+  custoReal?: number;
   
   // Peças e Materiais
   pecasUtilizadas?: {
@@ -210,8 +215,11 @@ export interface ManutencaoAtivo {
   
   // Documentação
   relatorioManutencao?: string;
+  relatorio?: string;
   fotos?: string[];
   anexos?: string[];
+  observacoes?: string;
+  motivoCancelamento?: string;
   
   criadoEm: Date;
   criadoPor: string;
@@ -224,16 +232,21 @@ export interface InventarioFisico {
   id: string;
   codigo: string;
   nome: string;
+  titulo?: string;
   descricao?: string;
   
   // Período e Escopo
   dataInicio: Date;
   dataFim?: Date;
-  status: 'planejado' | 'em_andamento' | 'concluido' | 'cancelado';
+  dataPrevistaConclusao?: Date;
+  dataConclusao?: Date;
+  status: 'planejado' | 'agendado' | 'em_andamento' | 'pausado' | 'concluido' | 'cancelado';
   
   // Escopo
-  localizacoesIncluidas: string[];
-  categoriasIncluidas: string[];
+  localizacoesIncluidas?: string[];
+  categoriasIncluidas?: string[];
+  localizacaoId?: string;
+  localizacaoNome?: string;
   responsavelId: string;
   responsavelNome: string;
   
@@ -248,17 +261,25 @@ export interface InventarioFisico {
   totalAtivosEsperados?: number;
   totalAtivosContados?: number;
   totalDiscrepancias?: number;
-  
+  totalItens?: number;
+  itensContados?: number;
+  itensPendentes?: number;
+  divergenciasEncontradas?: number;
+
   // Ajustes
   ajustesRealizados: boolean;
   dataAjustes?: Date;
   observacoes?: string;
+  relatorio?: string;
+  motivoCancelamento?: string;
   
   criadoEm: Date;
   criadoPor: string;
   atualizadoEm?: Date;
   atualizadoPor?: string;
 }
+
+export type StatusInventarioFisico = InventarioFisico['status'];
 
 // Item de Contagem do Inventário
 export interface ItemInventario {

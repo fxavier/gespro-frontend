@@ -1,0 +1,11 @@
+# ==============================================================================
+# terraform.tfvars.example — Stack: live/dev
+#
+# Copiar para terraform.tfvars e preencher os valores reais.
+# NUNCA commitar terraform.tfvars (está no .gitignore).
+# ==============================================================================
+
+aws_region     = "af-south-1"
+aws_account_id = "123456789012"  # Substituir pelo ID da conta AWS
+image_tag      = "latest"
+app_url        = "https://dev.gespro.example.com"

@@ -1,118 +1,128 @@
+/**
+ * Tickets Resolvidos — Server Component.
+ */
 
-'use client';
+import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
+import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { ticketService } from '@/server/services/operacoes/ticket.service';
+import { PageHeader, FilterBar } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { TicketsTable } from '../_components/tickets-table';
+import { Skeleton } from '@/components/ui/skeleton';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { TicketStorage } from '@/lib/storage/ticket-storage';
-import { Ticket } from '@/types/ticket';
-import { CheckCircle, Eye, Star } from 'lucide-react';
-import Link from 'next/link';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+const UrlSchema = z.object({
+  take: z.coerce.number().int().positive().max(100).default(25),
+  cursor: z.string().optional(),
+  orderBy: z.enum(['createdAt', 'prioridade', 'slaDataLimiteResolucao']).default('createdAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
 
-export default function TicketsResolvidos() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
+type FiltrosNormalizados = z.infer<typeof UrlSchema>;
 
-  useEffect(() => {
-    loadTickets();
-  }, []);
+const FILTROS_DEFAULT: FiltrosNormalizados = { take: 25, orderBy: 'createdAt', order: 'desc' };
 
-  const loadTickets = () => {
-    setLoading(true);
-    const allTickets = TicketStorage.getTickets();
-    const resolvidos = allTickets.filter(
-      t => ['resolvido', 'fechado'].includes(t.status)
-    );
-    setTickets(resolvidos);
-    setLoading(false);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Carregando tickets...</p>
-        </div>
+function TableSkeleton() {
+  return (
+    <div className="rounded-md border">
+      <div className="p-4 space-y-3">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+async function ResolvidosTable({
+  filtros,
+  tenantId,
+  userId,
+}: {
+  filtros: FiltrosNormalizados;
+  tenantId: string;
+  userId: string;
+}) {
+  const ctx = { tenantId, userId };
+  const [resolvidos, fechados] = await Promise.all([
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets(
+        { estado: 'RESOLVIDO', take: filtros.take, orderBy: filtros.orderBy, order: filtros.order },
+        ctx
+      )
+    ),
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets(
+        { estado: 'FECHADO', take: filtros.take, orderBy: filtros.orderBy, order: filtros.order },
+        ctx
+      )
+    ),
+  ]);
+
+  const items = [...resolvidos.items, ...fechados.items];
+  items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <CheckCircle className="h-8 w-8 text-green-500" />
-            Tickets Resolvidos
-          </h1>
-          <p className="text-muted-foreground">Tickets resolvidos e fechados</p>
-        </div>
-        <Badge variant="secondary" className="text-lg px-4 py-2">
-          {tickets.length} tickets
-        </Badge>
-      </div>
+    <TicketsTable
+      data={items.slice(0, filtros.take)}
+      currentOrderBy={filtros.orderBy}
+      currentOrderDir={filtros.order}
+    />
+  );
+}
 
-      <Card>
-        <CardContent className="p-0">
-          {tickets.length === 0 ? (
-            <div className="text-center py-12">
-              <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Nenhum ticket resolvido</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="p-4 hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-medium">{ticket.numero}</span>
-                        <Badge variant="secondary">
-                          {ticket.status.replace('_', ' ')}
-                        </Badge>
-                        {ticket.avaliacao && (
-                          <Badge variant="outline" className="gap-1">
-                            <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
-                            {ticket.avaliacao.nota}/5
-                          </Badge>
-                        )}
-                      </div>
-                      <h3 className="font-semibold mb-1">{ticket.titulo}</h3>
-                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                        {ticket.descricao}
-                      </p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>{ticket.solicitanteNome}</span>
-                        <span>•</span>
-                        <span>{ticket.categoria}</span>
-                        <span>•</span>
-                        {ticket.tempos.dataResolucao && (
-                          <>
-                            <span>Resolvido em {format(new Date(ticket.tempos.dataResolucao), 'dd/MM/yyyy', { locale: ptBR })}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <Link href={`/tickets/${ticket.id}`}>
-                      <Button variant="outline" size="sm">
-                        <Eye className="mr-2 h-4 w-4" />
-                        Ver Detalhes
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+const FILTER_CONFIGS: FilterConfig[] = [
+  {
+    key: 'orderBy',
+    label: 'Ordenar por',
+    placeholder: 'Data de criação',
+    options: [
+      { label: 'Data de criação', value: 'createdAt' },
+      { label: 'Prioridade', value: 'prioridade' },
+    ],
+  },
+];
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function TicketsResolvidosPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  const rawParams = await searchParams;
+  const flatParams = Object.fromEntries(
+    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+  );
+
+  const parseResult = UrlSchema.safeParse(flatParams);
+  const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
+
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Tickets Resolvidos"
+        description="Tickets com estado Resolvido ou Fechado"
+        breadcrumbs={[
+          { label: 'Tickets', href: '/tickets' },
+          { label: 'Resolvidos' },
+        ]}
+      />
+
+      <FilterBar
+        searchPlaceholder="Pesquisar…"
+        searchKey="pesquisa"
+        filters={FILTER_CONFIGS}
+      />
+
+      <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton />}>
+        <ResolvidosTable filtros={filtros} tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }

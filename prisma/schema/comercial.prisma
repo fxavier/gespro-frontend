@@ -1,0 +1,659 @@
+// Módulo Comercial — WS C (domain-comercial)
+// Entidades: Cliente, EnderecoCliente, ContactoCliente, SegmentacaoCliente,
+//            HistoricoTransacao, Venda, ItemVenda, PagamentoVenda,
+//            SessaoPOS, HistoricoEstadoVenda, RegraComissao, Comissao
+//
+// DECISÃO PROVISÓRIA #7: Venda unificada com campo `origem` (POS|ENCOMENDA|ECOMMERCE|MANUAL).
+// "Pedido" é tratado como Venda com origem=ENCOMENDA.
+// Ver docs/handoff/ws-c-comercial.md para detalhes e pedido de confirmação ao owner.
+//
+// Cross-WS — FKs escalares sem @relation para:
+//   produtoId/varianteId  → WS A (Produto/VarianteProduto)
+//   vendedorId/userId     → Foundation (User)
+//   sessaoCaixaId         → WS D (SessaoCaixa)
+//   faturaId              → WS D (Fatura)
+//   categoriaId           → WS A (CategoriaProduto)
+//
+// TENANT_MODELS a registar pelo orquestrador no merge:
+//   Cliente, EnderecoCliente, ContactoCliente, SegmentacaoCliente,
+//   HistoricoTransacao, SessaoPOS, Venda, ItemVenda, PagamentoVenda,
+//   HistoricoEstadoVenda, RegraComissao, Comissao
+
+// ── Enums ──────────────────────────────────────────────────────────────────
+
+enum TipoCliente {
+  FISICA
+  JURIDICA
+  REVENDEDOR
+}
+
+enum StatusCliente {
+  ATIVO
+  INATIVO
+  SUSPENSO
+}
+
+enum CategoriaCliente {
+  VIP
+  REGULAR
+  NOVO
+  INATIVO
+}
+
+enum TipoEnderecoCliente {
+  FACTURACAO
+  ENTREGA
+  OUTRO
+}
+
+enum TipoContactoCliente {
+  PRINCIPAL
+  SECUNDARIO
+  TECNICO
+  FINANCEIRO
+}
+
+enum SegmentoCliente {
+  VAREJO
+  GROSSISTA
+  DISTRIBUIDOR
+  CORPORATIVO
+  GOVERNO
+}
+
+enum TamanhoEmpresa {
+  MICRO
+  PEQUENA
+  MEDIA
+  GRANDE
+}
+
+enum PotencialVendas {
+  ALTO
+  MEDIO
+  BAIXO
+}
+
+enum FrequenciaCompra {
+  DIARIA
+  SEMANAL
+  MENSAL
+  TRIMESTRAL
+  ANUAL
+}
+
+enum TipoHistoricoTransacao {
+  VENDA
+  DEVOLUCAO
+  PAGAMENTO
+  AJUSTE
+  NOTA_CREDITO
+}
+
+enum StatusHistoricoTransacao {
+  CONCLUIDO
+  PENDENTE
+  CANCELADO
+}
+
+/// DECISÃO PROVISÓRIA #7: Venda unificada — POS, Encomenda e Ecommerce num único modelo.
+enum OrigemVenda {
+  POS
+  ENCOMENDA
+  ECOMMERCE
+  MANUAL
+}
+
+/// Pipeline de estados unificado para todos os canais de venda.
+/// POS:       PENDENTE → FATURADA → CONCLUIDA
+/// Encomenda: RASCUNHO → PENDENTE → CONFIRMADA → EM_PREPARACAO → FATURADA → CONCLUIDA
+enum StatusVenda {
+  RASCUNHO
+  PENDENTE
+  CONFIRMADA
+  EM_PREPARACAO
+  FATURADA
+  CONCLUIDA
+  CANCELADA
+  DEVOLVIDA
+}
+
+enum MetodoPagamentoTipo {
+  DINHEIRO
+  CARTAO
+  TRANSFERENCIA
+  MPESA
+  EMOLA
+  CREDITO
+}
+
+enum StatusSessaoPOS {
+  ABERTA
+  FECHADA
+  SUSPENSA
+}
+
+enum TipoRegraComissao {
+  FIXA
+  ESCALONADA
+  POR_CATEGORIA
+  POR_META
+  POR_PERIODO
+}
+
+enum StatusComissao {
+  PENDENTE
+  APROVADA
+  PAGA
+  CANCELADA
+}
+
+// ── Novos enums (WS-10) ────────────────────────────────────────────────────
+
+/// Ciclo de vida de uma Encomenda de venda.
+enum StatusEncomenda {
+  RASCUNHO
+  CONFIRMADA
+  PARCIALMENTE_ENTREGUE
+  CONCLUIDA
+  CANCELADA
+}
+
+/// Ciclo de vida de uma Devolução.
+enum StatusDevolucao {
+  PENDENTE
+  APROVADA
+  PROCESSADA
+  REJEITADA
+}
+
+/// Motivo de devolução (normalizado).
+enum MotivoDevolucao {
+  DEFEITO
+  PRODUTO_ERRADO
+  INSATISFACAO
+  EXCESSO_PEDIDO
+  AVARIA_TRANSPORTE
+  OUTRO
+}
+
+/// Estado do Vendedor no sistema.
+enum StatusVendedor {
+  ATIVO
+  INATIVO
+  SUSPENSO
+}
+
+// ── Modelos ────────────────────────────────────────────────────────────────
+
+/// Entidade canónica de cliente (conflito #1 resolvido: versão rica de cliente.ts).
+/// tipo ∈ {FISICA, JURIDICA, REVENDEDOR}; endereços como relação EnderecoCliente.
+/// A versão leve de venda.ts.Cliente é eliminada — Venda usa FK clienteId → Cliente.
+model Cliente {
+  id                    String           @id @default(cuid())
+  tenantId              String
+  codigo                String           // ex: CLI-0001 (gerado sequencialmente)
+  nome                  String
+  tipo                  TipoCliente
+  nuit                  String
+  bi                    String?
+  email                 String
+  telefone              String
+  telefoneSec           String?
+  diasPagamento         Int              @default(30)
+  limiteCreditoMT       Decimal          @db.Decimal(18, 2) @default(0)
+  creditoUtilizadoMT    Decimal          @db.Decimal(18, 2) @default(0)
+  status                StatusCliente    @default(ATIVO)
+  categoria             CategoriaCliente @default(NOVO)
+  observacoes           String?
+  // Representante (para pessoa jurídica/revendedor)
+  representanteNome     String?
+  representanteEmail    String?
+  representanteTelefone String?
+  tags                  String[]         @default([])
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  deletedAt             DateTime?        // soft delete — entidade de referência
+
+  enderecos             EnderecoCliente[]
+  contactos             ContactoCliente[]
+  segmentacao           SegmentacaoCliente?
+  historico             HistoricoTransacao[]
+  vendas                Venda[]
+
+  @@unique([tenantId, codigo])
+  @@unique([tenantId, nuit])
+  @@index([tenantId, status])
+  @@index([tenantId, categoria])
+  @@index([tenantId, tipo])
+  @@index([tenantId, nome])
+  @@index([tenantId, deletedAt])
+}
+
+model EnderecoCliente {
+  id           String              @id @default(cuid())
+  tenantId     String
+  clienteId    String
+  tipo         TipoEnderecoCliente @default(FACTURACAO)
+  rua          String
+  numero       String
+  bairro       String
+  cidade       String
+  provincia    String              // validado em Zod contra PROVINCIAS_MOCAMBIQUE
+  codigoPostal String?
+  referencia   String?
+  principal    Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  cliente         Cliente             @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  vendasEntrega   Venda[]             @relation("VendaEnderecoEntrega")
+
+  @@index([tenantId, clienteId])
+  @@index([clienteId, principal])
+}
+
+model ContactoCliente {
+  id          String              @id @default(cuid())
+  tenantId    String
+  clienteId   String
+  nome        String
+  cargo       String?
+  email       String
+  telefone    String
+  telefoneSec String?
+  tipo        TipoContactoCliente @default(PRINCIPAL)
+  ativo       Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  cliente     Cliente             @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, clienteId])
+  @@index([tenantId, clienteId, ativo])
+}
+
+/// Um único registo de segmentação por cliente.
+model SegmentacaoCliente {
+  id               String           @id @default(cuid())
+  tenantId         String
+  clienteId        String           @unique
+  segmento         SegmentoCliente
+  industria        String?
+  tamanhoEmpresa   TamanhoEmpresa?
+  potencialVendas  PotencialVendas  @default(MEDIO)
+  frequenciaCompra FrequenciaCompra @default(MENSAL)
+  ticketMedio      Decimal          @db.Decimal(18, 2) @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  cliente          Cliente          @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, segmento])
+}
+
+/// Histórico de transacções do cliente — append-only; nunca se apaga nem se altera.
+/// userId é FK escalar → User (Foundation).
+model HistoricoTransacao {
+  id            String                   @id @default(cuid())
+  tenantId      String
+  clienteId     String
+  tipo          TipoHistoricoTransacao
+  referencia    String                   // ex: FAT-2024-001
+  descricao     String
+  valor         Decimal                  @db.Decimal(18, 2)
+  currency      String                   @default("MZN")
+  dataTransacao DateTime
+  status        StatusHistoricoTransacao @default(CONCLUIDO)
+  userId        String                   // FK escalar → User (Foundation)
+  createdAt     DateTime                 @default(now())
+
+  cliente       Cliente                  @relation(fields: [clienteId], references: [id])
+
+  @@index([tenantId, clienteId, dataTransacao])
+  @@index([tenantId, tipo, dataTransacao])
+}
+
+/// Sessão de ponto de venda vinculada a uma SessaoCaixa (WS D).
+/// sessaoCaixaId é FK escalar cross-WS — WS D detém SessaoCaixa.
+model SessaoPOS {
+  id            String          @id @default(cuid())
+  tenantId      String
+  vendedorId    String          // FK escalar → User (Foundation)
+  sessaoCaixaId String          // FK escalar → SessaoCaixa (WS D)
+  status        StatusSessaoPOS @default(ABERTA)
+  abertoEm      DateTime        @default(now())
+  fechadoEm     DateTime?
+  totalVendas   Decimal         @db.Decimal(18, 2) @default(0)
+  numeroPedidos Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  vendas        Venda[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, vendedorId])
+  @@index([tenantId, sessaoCaixaId])
+}
+
+/// Venda unificada (POS + Encomenda + Ecommerce). DECISÃO PROVISÓRIA #7.
+/// clienteId nullable = consumidor final anónimo (POS sem identificação).
+/// faturaId preenchido pelo WS D após emissão da factura (FK escalar).
+/// numero obtido via SerieDocumento (WS D) dentro de $transaction.
+model Venda {
+  id            String      @id @default(cuid())
+  tenantId      String
+  numero        String      // série de documento (gerado por WS D)
+  origem        OrigemVenda @default(POS)
+  status        StatusVenda @default(PENDENTE)
+  clienteId     String?     // nullable = consumidor final anónimo
+  vendedorId    String      // FK escalar → User (Foundation)
+  sessaoPOSId          String?     // FK → SessaoPOS (quando origem=POS)
+  sessaoCaixaId        String?     // FK escalar → SessaoCaixa (WS D)
+  faturaId             String?     // FK escalar → Fatura (WS D)
+  // Campos de encomenda/entrega (ADR-0003 A10 / decisão #7 confirmada pelo owner)
+  dataEntregaPrevista  DateTime?   // estimativa de entrega (origem=ENCOMENDA)
+  enderecoEntregaId    String?     // FK → EnderecoCliente (destino de entrega)
+  subtotal      Decimal     @db.Decimal(18, 2)
+  descontoTotal Decimal     @db.Decimal(18, 2) @default(0)
+  ivaTotal      Decimal     @db.Decimal(18, 2) @default(0)
+  total         Decimal     @db.Decimal(18, 2)
+  currency      String      @default("MZN")
+  observacoes   String?
+  dataVenda     DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  cliente         Cliente?               @relation(fields: [clienteId], references: [id])
+  sessaoPOS       SessaoPOS?             @relation(fields: [sessaoPOSId], references: [id])
+  enderecoEntrega EnderecoCliente?       @relation("VendaEnderecoEntrega", fields: [enderecoEntregaId], references: [id])
+  itens           ItemVenda[]
+  pagamentos      PagamentoVenda[]
+  comissoes       Comissao[]
+  historicoEstado HistoricoEstadoVenda[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, origem, status])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, vendedorId])
+  @@index([tenantId, dataVenda])
+  @@index([faturaId])
+  @@index([sessaoCaixaId])
+  @@index([sessaoPOSId])
+  @@index([enderecoEntregaId])
+}
+
+/// Linha de item de uma venda.
+/// nomeProduto e sku são desnormalizados — snapshot imutável no momento da venda.
+/// produtoId/varianteId são FKs escalares cross-WS → WS A.
+model ItemVenda {
+  id            String   @id @default(cuid())
+  tenantId      String
+  vendaId       String
+  produtoId     String   // FK escalar → Produto (WS A)
+  varianteId    String?  // FK escalar → VarianteProduto (WS A)
+  nomeProduto   String   // desnormalizado (imutável após criação)
+  sku           String?  // desnormalizado
+  quantidade    Decimal  @db.Decimal(18, 2)
+  precoUnitario Decimal  @db.Decimal(18, 2)
+  desconto      Decimal  @db.Decimal(18, 2) @default(0)
+  taxaIva       Decimal  @db.Decimal(9, 6)  @default(0.160000)
+  subtotal      Decimal  @db.Decimal(18, 2)
+  ivaItem       Decimal  @db.Decimal(18, 2)
+  total         Decimal  @db.Decimal(18, 2)
+  createdAt     DateTime @default(now())
+
+  venda         Venda    @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, vendaId])
+  @@index([produtoId])
+}
+
+/// Pagamento associado a uma venda — criado na mesma transacção que a Venda.
+model PagamentoVenda {
+  id         String              @id @default(cuid())
+  tenantId   String
+  vendaId    String
+  tipo       MetodoPagamentoTipo
+  valor      Decimal             @db.Decimal(18, 2)
+  referencia String?
+  troco      Decimal?            @db.Decimal(18, 2)
+  createdAt  DateTime            @default(now())
+
+  venda      Venda               @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, vendaId])
+}
+
+/// Trilho de auditoria das transições de estado de Venda — append-only.
+model HistoricoEstadoVenda {
+  id           String      @id @default(cuid())
+  tenantId     String
+  vendaId      String
+  estadoAntes  StatusVenda
+  estadoDepois StatusVenda
+  motivo       String?
+  userId       String      // FK escalar → User (Foundation)
+  createdAt    DateTime    @default(now())
+
+  venda        Venda       @relation(fields: [vendaId], references: [id])
+
+  @@index([tenantId, vendaId, createdAt])
+}
+
+/// Regras de cálculo de comissão por vendedor, categoria ou período.
+/// vendedorId=null → regra global (aplica-se a todos os vendedores).
+/// categoriaId é FK escalar → CategoriaProduto (WS A).
+model RegraComissao {
+  id               String            @id @default(cuid())
+  tenantId         String
+  nome             String
+  tipo             TipoRegraComissao
+  vendedorId       String?           // FK escalar → User (Foundation); null = todos
+  categoriaId      String?           // FK escalar → CategoriaProduto (WS A)
+  percentualBase   Decimal           @db.Decimal(9, 6)
+  percentualBonus  Decimal?          @db.Decimal(9, 6)
+  valorMinimo      Decimal?          @db.Decimal(18, 2)
+  valorMaximo      Decimal?          @db.Decimal(18, 2)
+  quantidadeMinima Decimal?          @db.Decimal(18, 2)
+  metaPercentual   Decimal?          @db.Decimal(9, 6)
+  dataInicio       DateTime?
+  dataFim          DateTime?
+  prioridade       Int               @default(1)
+  descricao        String
+  ativa            Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  comissoes        Comissao[]
+
+  @@index([tenantId, ativa])
+  @@index([tenantId, vendedorId, ativa])
+}
+
+/// Comissão calculada e atribuída a um vendedor por uma venda específica.
+model Comissao {
+  id                 String         @id @default(cuid())
+  tenantId           String
+  vendaId            String
+  vendedorId         String         // FK escalar → User (Foundation)
+  regraComissaoId    String?
+  percentualAplicado Decimal        @db.Decimal(9, 6)
+  valorBase          Decimal        @db.Decimal(18, 2)
+  valorComissao      Decimal        @db.Decimal(18, 2)
+  regrasAplicadas    String[]       @default([])
+  detalhes           String?
+  status             StatusComissao @default(PENDENTE)
+  pagoEm             DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  venda             Venda          @relation(fields: [vendaId], references: [id])
+  regraComissao     RegraComissao? @relation(fields: [regraComissaoId], references: [id])
+
+  @@index([tenantId, vendedorId, status])
+  @@index([tenantId, vendaId])
+  @@index([tenantId, status])
+  @@index([tenantId, pagoEm])
+}
+
+// ── WS-10: Encomendas, Devoluções, Trocas, Vendedores ──────────────────────
+
+/// Vendedor: ligado a Colaborador/User por FK escalar.
+/// Agrega metas mensais e serve de âncora para cálculo de comissões.
+model Vendedor {
+  id             String         @id @default(cuid())
+  tenantId       String
+  colaboradorId  String?        // FK escalar → Colaborador (WS F/RH)
+  userId         String?        // FK escalar → User (Foundation)
+  nome           String
+  email          String?
+  telefone       String?
+  metaMensal     Decimal?       @db.Decimal(18, 2)
+  status         StatusVendedor @default(ATIVO)
+  observacoes    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?      // soft delete
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, status])
+  @@index([tenantId, nome])
+  @@index([tenantId, deletedAt])
+}
+
+/// Encomenda de venda (cabeçalho) — documento de compromisso de entrega futura.
+/// vendedorId aponta para Vendedor (WS-10), não para User directamente.
+/// Numeração via proximoNumeroSerie(tx, 'ENCOMENDA', ctx).
+model Encomenda {
+  id               String          @id @default(cuid())
+  tenantId         String
+  numero           String          // ENC/2026/000001 via proximoNumeroSerie
+  clienteId        String          // FK escalar → Cliente (WS C)
+  vendedorId       String?         // FK escalar → Vendedor (WS-10)
+  status           StatusEncomenda @default(RASCUNHO)
+  dataPrevista     DateTime?       // data prevista de entrega
+  enderecoEntregaId String?        // FK escalar → EnderecoCliente
+  subtotal         Decimal         @db.Decimal(18, 2)
+  desconto         Decimal         @db.Decimal(18, 2) @default(0)
+  iva              Decimal         @db.Decimal(18, 2) @default(0)
+  total            Decimal         @db.Decimal(18, 2)
+  currency         String          @default("MZN")
+  notas            String?
+  // Rastreio: quando convertida em venda, vendaId fica preenchido
+  vendaId          String?         // FK escalar → Venda (WS C)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  deletedAt        DateTime?       // soft delete (cancelada via estado; delete lógico)
+
+  itens            ItemEncomenda[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, vendedorId])
+  @@index([tenantId, dataPrevista])
+  @@index([tenantId, deletedAt])
+}
+
+/// Linha de encomenda. quantidadeEntregue actualizada à medida que a encomenda é parcialmente entregue.
+model ItemEncomenda {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  encomendaId         String
+  produtoId           String    // FK escalar → Produto (WS A)
+  varianteId          String?   // FK escalar → VarianteProduto (WS A)
+  nomeProduto         String    // desnormalizado (snapshot)
+  sku                 String?   // desnormalizado
+  quantidade          Decimal   @db.Decimal(18, 2)
+  precoUnitario       Decimal   @db.Decimal(18, 2)
+  desconto            Decimal   @db.Decimal(18, 2) @default(0)
+  taxaIva             Decimal   @db.Decimal(9, 6)  @default(0.160000)
+  subtotal            Decimal   @db.Decimal(18, 2)
+  ivaItem             Decimal   @db.Decimal(18, 2)
+  total               Decimal   @db.Decimal(18, 2)
+  quantidadeEntregue  Decimal   @db.Decimal(18, 2) @default(0)
+  createdAt           DateTime  @default(now())
+
+  encomenda           Encomenda @relation(fields: [encomendaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, encomendaId])
+  @@index([produtoId])
+}
+
+/// Devolução de venda — append-only; correcção da fatura original via nota de crédito.
+/// vendaId/faturaId são FKs escalares cross-WS.
+model Devolucao {
+  id             String          @id @default(cuid())
+  tenantId       String
+  numero         String          // NDV/2026/000001 via proximoNumeroSerie
+  clienteId      String          // FK escalar → Cliente
+  vendaId        String?         // FK escalar → Venda (WS C)
+  faturaId       String?         // FK escalar → Fatura (WS D)
+  motivo         MotivoDevolucao
+  status         StatusDevolucao @default(PENDENTE)
+  valorTotal     Decimal         @db.Decimal(18, 2)
+  currency       String          @default("MZN")
+  // Pós-processamento
+  notaCreditoId  String?         // FK escalar → NotaCredito (WS D) — preenchido após aprovação
+  reembolso      Boolean         @default(false)
+  observacoes    String?
+  aprovadoPorId  String?         // FK escalar → User
+  aprovadoEm     DateTime?
+  processadoPorId String?        // FK escalar → User
+  processadoEm   DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  itens          ItemDevolucao[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, vendaId])
+  @@index([tenantId, createdAt])
+}
+
+/// Linha de devolução — um item por produto devolvido.
+model ItemDevolucao {
+  id            String    @id @default(cuid())
+  tenantId      String
+  devolucaoId   String
+  produtoId     String    // FK escalar → Produto (WS A)
+  varianteId    String?   // FK escalar → VarianteProduto (WS A)
+  nomeProduto   String    // desnormalizado
+  sku           String?   // desnormalizado
+  quantidade    Decimal   @db.Decimal(18, 2)
+  valorUnitario Decimal   @db.Decimal(18, 2)
+  taxaIva       Decimal   @db.Decimal(9, 6) @default(0.160000)
+  subtotal      Decimal   @db.Decimal(18, 2)
+  ivaItem       Decimal   @db.Decimal(18, 2)
+  total         Decimal   @db.Decimal(18, 2)
+  createdAt     DateTime  @default(now())
+
+  devolucao     Devolucao @relation(fields: [devolucaoId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, devolucaoId])
+  @@index([produtoId])
+}
+
+/// Troca: devolução + nova venda atómica.
+/// Liquida a diferença de valor entre o artigo devolvido e o substituto.
+model Troca {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  numero              String    // TRC/2026/000001 (numeração informal, sem série D)
+  devolucaoId         String    // FK escalar → Devolucao (WS-10)
+  vendaSubstituicaoId String    // FK escalar → Venda resultante (WS C)
+  diferenca           Decimal   @db.Decimal(18, 2) // positiva = cliente deve; negativa = crédito
+  currency            String    @default("MZN")
+  observacoes         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([tenantId, numero])
+  @@unique([tenantId, devolucaoId])   // uma troca por devolução
+  @@index([tenantId, createdAt])
+}

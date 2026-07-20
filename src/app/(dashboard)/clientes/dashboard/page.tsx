@@ -1,329 +1,152 @@
+/**
+ * Dashboard de Clientes — Server Component.
+ * KPIs e clientes recentes a partir do serviço real.
+ */
 
-'use client';
-
-import { useState, useEffect } from 'react';
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { redirect } from 'next/navigation';
+import { Users, UserCheck, UserX, Crown, Plus, ArrowRight } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { clienteService } from '@/server/services/comercial/cliente.service';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  Users,
-  TrendingUp,
-  DollarSign,
-  CreditCard,
-  UserPlus,
-  Eye,
-  ArrowRight,
-  Activity,
-  AlertCircle
-} from 'lucide-react';
-import { ClienteStorage, HistoricoTransacaoStorage, SegmentacaoClienteStorage } from '@/lib/storage/cliente-storage';
-import { formatCurrency } from '@/lib/format-currency';
+  Card, CardContent, CardHeader, CardTitle,
+} from '@/components/ui/card';
+import { PageHeader, KpiCard, StatusBadge } from '@/components/patterns';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default function ClientesDashboardPage() {
-  const [clientes, setClientes] = useState<any[]>([]);
-  const [historico, setHistorico] = useState<any[]>([]);
-  const [segmentacoes, setSegmentacoes] = useState<any[]>([]);
+async function ClientesKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const resultado = await runWithTenantContext(ctx, () =>
+    clienteService.listar({ take: 100, orderBy: 'createdAt', order: 'desc' }, ctx)
+  );
 
-  useEffect(() => {
-    const clientesData = ClienteStorage.getClientes();
-    const historicoData = HistoricoTransacaoStorage.getHistorico();
-    const segmentacoesData = SegmentacaoClienteStorage.getSegmentacoes();
+  const total = resultado.items.length;
+  const ativos = resultado.items.filter((c) => c.status === 'ATIVO').length;
+  const suspensos = resultado.items.filter((c) => c.status === 'SUSPENSO').length;
+  const vip = resultado.items.filter((c) => c.categoria === 'VIP').length;
 
-    setClientes(clientesData);
-    setHistorico(historicoData);
-    setSegmentacoes(segmentacoesData);
-  }, []);
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard title="Total Clientes" value={String(total)} icon={<Users className="h-5 w-5" />} />
+      <KpiCard title="Activos" value={String(ativos)} icon={<UserCheck className="h-5 w-5" />} />
+      <KpiCard title="Suspensos" value={String(suspensos)} icon={<UserX className="h-5 w-5" />} />
+      <KpiCard title="VIP" value={String(vip)} icon={<Crown className="h-5 w-5" />} />
+    </div>
+  );
+}
 
-  const clientesAtivos = clientes.filter(c => c.status === 'ativo').length;
-  const clientesInativos = clientes.filter(c => c.status === 'inativo').length;
-  const clientesNovos = clientes.filter(c => c.categoria === 'novo').length;
-  const clientesVIP = clientes.filter(c => c.categoria === 'vip').length;
+async function ClientesRecentes({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const resultado = await runWithTenantContext(ctx, () =>
+    clienteService.listar({ take: 10, orderBy: 'createdAt', order: 'desc' }, ctx)
+  );
 
-  const faturamentoTotal = historico
-    .filter(h => h.tipo === 'venda' && h.status === 'concluido')
-    .reduce((acc, h) => acc + h.valorMT, 0);
+  if (resultado.items.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground text-sm">
+          Nenhum cliente registado ainda.
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const creditoTotalDisponivel = clientes.reduce((acc, c) => acc + c.limiteCreditoMT, 0);
-  const creditoTotalUtilizado = clientes.reduce((acc, c) => acc + c.creditoUtilizadoMT, 0);
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <CardTitle className="text-base">Clientes Recentes</CardTitle>
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/clientes">
+            Ver todos
+            <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </Button>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y">
+          {resultado.items.map((c) => (
+            <Link
+              key={c.id}
+              href={`/clientes/${c.id}`}
+              className="flex items-center justify-between px-6 py-3 hover:bg-muted/50 transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{c.nome}</p>
+                <p className="text-xs text-muted-foreground">{c.nuit} · {c.email}</p>
+              </div>
+              <StatusBadge status={c.status} />
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-  const clientesMaisVendas = clientes
-    .map(c => ({
-      ...c,
-      totalVendas: historico
-        .filter(h => h.clienteId === c.id && h.tipo === 'venda')
-        .reduce((acc, h) => acc + h.valorMT, 0)
-    }))
-    .sort((a, b) => b.totalVendas - a.totalVendas)
-    .slice(0, 5);
+function KpiSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="rounded-lg border p-5 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  const ultimasTransacoes = historico
-    .sort((a, b) => new Date(b.dataTransacao).getTime() - new Date(a.dataTransacao).getTime())
-    .slice(0, 5);
+function ListSkeleton() {
+  return (
+    <div className="rounded-lg border">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="flex h-14 px-6 gap-4 border-b last:border-0 items-center">
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-40" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  const distribuicaoPorCategoria = [
-    { categoria: 'VIP', total: clientesVIP },
-    { categoria: 'Regular', total: clientes.filter(c => c.categoria === 'regular').length },
-    { categoria: 'Novo', total: clientesNovos },
-    { categoria: 'Inativo', total: clientes.filter(c => c.categoria === 'inativo').length }
-  ];
+export default async function ClientesDashboardPage() {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
 
-  const distribuicaoPorRegiao = clientes.reduce((acc: any[], c) => {
-    const existing = acc.find(r => r.regiao === c.endereco.provincia);
-    if (existing) {
-      existing.total++;
-    } else {
-      acc.push({ regiao: c.endereco.provincia, total: 1 });
-    }
-    return acc;
-  }, []);
+  const { tenantId, id: userId } = session.user;
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Dashboard de Clientes
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Visão geral e análise da base de clientes
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/clientes/novo">
-            <UserPlus className="h-4 w-4 mr-2" />
-            Novo Cliente
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Dashboard de Clientes"
+        description="Visão geral da carteira de clientes"
+        breadcrumbs={[
+          { label: 'Clientes', href: '/clientes' },
+          { label: 'Dashboard' },
+        ]}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/clientes/novo">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Cliente
+            </Link>
+          </Button>
+        }
+      />
 
-      {/* Estatísticas Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total de Clientes</p>
-                <p className="text-3xl font-bold mt-2">{clientes.length}</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
+      <Suspense fallback={<KpiSkeleton />}>
+        <ClientesKpis tenantId={tenantId} userId={userId} />
+      </Suspense>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Clientes Ativos</p>
-                <p className="text-3xl font-bold mt-2">{clientesAtivos}</p>
-              </div>
-              <Activity className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Faturamento Total</p>
-                <p className="text-2xl font-bold mt-2">{formatCurrency(faturamentoTotal)}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Crédito Utilizado</p>
-                <p className="text-2xl font-bold mt-2">
-                  {((creditoTotalUtilizado / creditoTotalDisponivel) * 100).toFixed(1)}%
-                </p>
-              </div>
-              <CreditCard className="h-8 w-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Distribuição por Categoria */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Distribuição por Categoria</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {distribuicaoPorCategoria.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between">
-                <span className="text-sm">{item.categoria}</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{ width: `${(item.total / clientes.length) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-medium">{item.total}</span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Distribuição por Região */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Distribuição por Região</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {distribuicaoPorRegiao.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between">
-                <span className="text-sm">{item.regiao}</span>
-                <Badge variant="outline">{item.total}</Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Resumo de Crédito */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Resumo de Crédito</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Limite Total</p>
-              <p className="text-2xl font-bold">{formatCurrency(creditoTotalDisponivel)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Utilizado</p>
-              <p className="text-2xl font-bold text-orange-600">{formatCurrency(creditoTotalUtilizado)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Disponível</p>
-              <p className="text-2xl font-bold text-green-600">
-                {formatCurrency(creditoTotalDisponivel - creditoTotalUtilizado)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Clientes com Mais Vendas */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Top 5 Clientes por Vendas</span>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/clientes/lista">
-                Ver Todos <ArrowRight className="h-4 w-4 ml-2" />
-              </Link>
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Total Vendas</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {clientesMaisVendas.map((cliente) => (
-                  <TableRow key={cliente.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{cliente.nome}</p>
-                        <p className="text-sm text-muted-foreground">{cliente.codigo}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {cliente.tipo === 'fisica' ? 'Pessoa Física' : cliente.tipo === 'juridica' ? 'Pessoa Jurídica' : 'Revendedor'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{formatCurrency(cliente.totalVendas)}</TableCell>
-                    <TableCell>
-                      <Badge variant={cliente.categoria === 'vip' ? 'default' : 'secondary'}>
-                        {cliente.categoria.charAt(0).toUpperCase() + cliente.categoria.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={cliente.status === 'ativo' ? 'default' : 'secondary'}>
-                        {cliente.status.charAt(0).toUpperCase() + cliente.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/clientes/${cliente.id}`}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Últimas Transações */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Últimas Transações</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Referência</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ultimasTransacoes.map((transacao) => {
-                  const cliente = clientes.find(c => c.id === transacao.clienteId);
-                  return (
-                    <TableRow key={transacao.id}>
-                      <TableCell className="font-medium">{transacao.referencia}</TableCell>
-                      <TableCell>{cliente?.nome || 'N/A'}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {transacao.tipo.charAt(0).toUpperCase() + transacao.tipo.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatCurrency(transacao.valorMT)}</TableCell>
-                      <TableCell>{new Date(transacao.dataTransacao).toLocaleDateString('pt-PT')}</TableCell>
-                      <TableCell>
-                        <Badge variant={transacao.status === 'concluido' ? 'default' : 'secondary'}>
-                          {transacao.status.charAt(0).toUpperCase() + transacao.status.slice(1)}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<ListSkeleton />}>
+        <ClientesRecentes tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }

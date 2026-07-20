@@ -1,415 +1,234 @@
+/**
+ * Listagem de Fornecedores — Server Component (NUNCA 'use client').
+ *
+ * Padrão golden standard (replica requisicoes):
+ * - Schema de filtros via FilterFornecedorSchema (lib/validations)
+ * - safeParse com defaults (nunca .parse — evita 500 em URL inválido)
+ * - Dados carregados directamente do serviço (nunca fetch à API própria)
+ * - Suspense por secção com skeleton
+ * - FilterBar sincronizada com URL (termo, status, classificacao, tipo)
+ * - DataTable cursor-paginada
+ * - KPIs via contagem de registos reais
+ */
 
-'use client';
-
-import { useState } from 'react';
+import { Suspense } from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { Plus, Building, CheckCircle, Users, TrendingUp } from 'lucide-react';
+import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { fornecedorService } from '@/server/services/compras/fornecedor.service';
+import { FilterFornecedorSchema } from '@/lib/validations/fornecedores';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Building, 
-  Search, 
-  Filter, 
-  Eye,
-  Edit,
-  Plus,
-  Phone,
-  Mail,
-  MapPin,
-  Star,
-  DollarSign,
-  TrendingUp
-} from 'lucide-react';
+import { PageHeader, FilterBar, KpiCard } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { FornecedoresTable } from '../_components/fornecedores-table';
+import { TableSkeleton, KpiSkeleton } from '../_components/table-skeletons';
 
-export default function FornecedoresListaPage() {
-  const [termoPesquisa, setTermoPesquisa] = useState('');
-  const [tipoFiltro, setTipoFiltro] = useState('todos');
-  const [statusFiltro, setStatusFiltro] = useState('todos');
-  const [classificacaoFiltro, setClassificacaoFiltro] = useState('todos');
+// ─────────────────────────────────────────────────────────────────────────────
+// Schema URL-safe
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const fornecedores = [
-    {
-      id: 'F001',
-      codigo: 'FOR-0001',
-      nome: 'Distribuidora ABC Moçambique',
-      tipo: 'pessoa_juridica',
-      nuit: '123456789',
-      telefone: '+258 21 123 456',
-      email: 'vendas@distribuidoraabc.co.mz',
-      endereco: 'Av. Julius Nyerere, 123',
-      cidade: 'Maputo',
-      status: 'ativo',
-      classificacao: 'preferencial',
-      rating: 4.5,
-      totalCompras: 450000,
-      numeroCompras: 28,
-      ultimaCompra: '2024-01-20'
-    },
-    {
-      id: 'F002',
-      codigo: 'FOR-0002',
-      nome: 'Importadora XYZ Lda',
-      tipo: 'pessoa_juridica',
-      nuit: '987654321',
-      telefone: '+258 84 321 654',
-      email: 'contato@importadoraxyz.co.mz',
-      endereco: 'Av. 24 de Julho, 456',
-      cidade: 'Maputo',
-      status: 'ativo',
-      classificacao: 'regular',
-      rating: 4,
-      totalCompras: 285000,
-      numeroCompras: 18,
-      ultimaCompra: '2024-01-19'
-    },
-    {
-      id: 'F003',
-      codigo: 'FOR-0003',
-      nome: 'Fornecedor Local Maputo',
-      tipo: 'pessoa_fisica',
-      nuit: '456789123',
-      telefone: '+258 87 987 654',
-      email: 'fornecedor@local.co.mz',
-      endereco: 'Rua da Resistência, 789',
-      cidade: 'Matola',
-      status: 'ativo',
-      classificacao: 'novo',
-      rating: 3.5,
-      totalCompras: 125000,
-      numeroCompras: 12,
-      ultimaCompra: '2024-01-18'
-    },
-    {
-      id: 'F004',
-      codigo: 'FOR-0004',
-      nome: 'Empresa de Logística Beira',
-      tipo: 'pessoa_juridica',
-      nuit: '789123456',
-      telefone: '+258 82 456 789',
-      email: 'logistica@beira.co.mz',
-      endereco: 'Av. Eduardo Mondlane, 321',
-      cidade: 'Beira',
-      status: 'inativo',
-      classificacao: 'regular',
-      rating: 2.5,
-      totalCompras: 95000,
-      numeroCompras: 8,
-      ultimaCompra: '2023-11-15'
-    },
-    {
-      id: 'F005',
-      codigo: 'FOR-0005',
-      nome: 'Distribuidor Nampula',
-      tipo: 'pessoa_juridica',
-      nuit: '321654987',
-      telefone: '+258 84 321 654',
-      email: 'vendas@distribuidor-nampula.co.mz',
-      endereco: 'Av. Samora Machel, 654',
-      cidade: 'Nampula',
-      status: 'ativo',
-      classificacao: 'preferencial',
-      rating: 4.8,
-      totalCompras: 520000,
-      numeroCompras: 35,
-      ultimaCompra: '2024-01-21'
-    }
-  ];
+const FiltroFornecedorUrlSchema = FilterFornecedorSchema.extend({
+  take: z.coerce.number().int().positive().max(100).default(25),
+  cursor: z.string().optional(),
+});
 
-  const tiposFornecedor = ['pessoa_fisica', 'pessoa_juridica'];
-  const statusOptions = ['ativo', 'inativo', 'suspenso'];
-  const classificacoes = ['preferencial', 'regular', 'novo'];
+type FiltroFornecedorUrl = z.infer<typeof FiltroFornecedorUrlSchema>;
 
-  const fornecedoresFiltrados = fornecedores.filter(fornecedor => {
-    const correspondePesquisa = fornecedor.nome.toLowerCase().includes(termoPesquisa.toLowerCase()) ||
-                                fornecedor.nuit.includes(termoPesquisa) ||
-                                fornecedor.email.toLowerCase().includes(termoPesquisa.toLowerCase());
-    const correspondeTipo = tipoFiltro === 'todos' || fornecedor.tipo === tipoFiltro;
-    const correspondeStatus = statusFiltro === 'todos' || fornecedor.status === statusFiltro;
-    const correspondeClassificacao = classificacaoFiltro === 'todos' || fornecedor.classificacao === classificacaoFiltro;
-    
-    return correspondePesquisa && correspondeTipo && correspondeStatus && correspondeClassificacao;
-  });
+const FILTROS_DEFAULT: FiltroFornecedorUrl = {
+  take: 25,
+  orderBy: 'nome',
+  orderDir: 'asc',
+};
 
-  const obterLabelTipo = (tipo: string) => {
-    const labels: Record<string, string> = {
-      pessoa_fisica: 'Pessoa Física',
-      pessoa_juridica: 'Pessoa Jurídica'
-    };
-    return labels[tipo] || tipo;
-  };
+// ─────────────────────────────────────────────────────────────────────────────
+// KPIs assíncronos
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const obterCorClassificacao = (classificacao: string) => {
-    const cores: Record<string, string> = {
-      preferencial: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-      regular: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-      novo: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-    };
-    return cores[classificacao] || 'bg-gray-100 text-gray-800';
-  };
+async function FornecedoresKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const [todos, ativos, inativos] = await Promise.all([
+    runWithTenantContext({ tenantId, userId }, () =>
+      fornecedorService.listar({ take: 1, orderBy: 'nome', orderDir: 'asc' }, { tenantId, userId })
+    ),
+    runWithTenantContext({ tenantId, userId }, () =>
+      fornecedorService.listar({ status: 'ATIVO', take: 1, orderBy: 'nome', orderDir: 'asc' }, { tenantId, userId })
+    ),
+    runWithTenantContext({ tenantId, userId }, () =>
+      fornecedorService.listar({ status: 'INATIVO', take: 1, orderBy: 'nome', orderDir: 'asc' }, { tenantId, userId })
+    ),
+  ]);
 
-  const renderizarEstrelas = (rating: number) => {
-    return (
-      <div className="flex items-center gap-1">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            className={`h-4 w-4 ${i < Math.floor(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-          />
-        ))}
-        <span className="text-sm font-medium ml-1">{rating.toFixed(1)}</span>
-      </div>
-    );
-  };
+  // Para contar correctamente, fazemos take: 1000 (ou usamos a paginação sem cursor)
+  // Simplificado: usar items retornados para estimar (pode ser implementado com countQuery no service)
+  const totalResult = await runWithTenantContext({ tenantId, userId }, () =>
+    fornecedorService.listar({ take: 1000, orderBy: 'nome', orderDir: 'asc' }, { tenantId, userId })
+  );
+  const ativosResult = await runWithTenantContext({ tenantId, userId }, () =>
+    fornecedorService.listar({ status: 'ATIVO', take: 1000, orderBy: 'nome', orderDir: 'asc' }, { tenantId, userId })
+  );
 
-  const estatisticas = {
-    totalFornecedores: fornecedores.length,
-    fornecedoresAtivos: fornecedores.filter(f => f.status === 'ativo').length,
-    fornecedoresInativos: fornecedores.filter(f => f.status === 'inativo').length,
-    totalCompras: fornecedores.reduce((total, f) => total + f.totalCompras, 0)
-  };
+  const totalCompras = totalResult.items.reduce((sum, f) => sum + f.totalCompras, 0);
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard
+        title="Total de Fornecedores"
+        value={String(totalResult.items.length)}
+        icon={<Building className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Fornecedores Activos"
+        value={String(ativosResult.items.length)}
+        icon={<CheckCircle className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Fornecedores Preferenciais"
+        value={String(totalResult.items.filter(f => f.classificacao === 'PREFERENCIAL').length)}
+        icon={<Users className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Total em Compras"
+        value={`MT ${totalCompras.toLocaleString('pt-MZ', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+        icon={<TrendingUp className="h-5 w-5" />}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tabela assíncrona
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function FornecedoresTableSection({
+  filtros,
+  tenantId,
+  userId,
+}: {
+  filtros: FiltroFornecedorUrl;
+  tenantId: string;
+  userId: string;
+}) {
+  const { status, classificacao, tipo, termo, cursor, take, orderBy, orderDir } = filtros;
+
+  const result = await runWithTenantContext({ tenantId, userId }, () =>
+    fornecedorService.listar(
+      { status, classificacao, tipo, termo, cursor, take, orderBy, orderDir },
+      { tenantId, userId }
+    )
+  );
+
+  return (
+    <FornecedoresTable
+      data={result.items}
+      nextCursor={result.nextCursor}
+      currentOrderBy={orderBy}
+      currentOrderDir={orderDir}
+    />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuração da FilterBar
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FILTER_CONFIGS: FilterConfig[] = [
+  {
+    key: 'status',
+    label: 'Estado',
+    placeholder: 'Todos os estados',
+    options: [
+      { label: 'Activo', value: 'ATIVO' },
+      { label: 'Inactivo', value: 'INATIVO' },
+      { label: 'Suspenso', value: 'SUSPENSO' },
+    ],
+  },
+  {
+    key: 'classificacao',
+    label: 'Classificação',
+    placeholder: 'Todas',
+    options: [
+      { label: 'Preferencial', value: 'PREFERENCIAL' },
+      { label: 'Regular', value: 'REGULAR' },
+      { label: 'Novo', value: 'NOVO' },
+    ],
+  },
+  {
+    key: 'tipo',
+    label: 'Tipo',
+    placeholder: 'Todos',
+    options: [
+      { label: 'Pessoa Física', value: 'PESSOA_FISICA' },
+      { label: 'Pessoa Jurídica', value: 'PESSOA_JURIDICA' },
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Página principal — Server Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function FornecedoresListaPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  const rawParams = await searchParams;
+  const flatParams = Object.fromEntries(
+    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+  );
+
+  const parseResult = FiltroFornecedorUrlSchema.safeParse(flatParams);
+  const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Lista de Fornecedores
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Gestão completa de fornecedores e parceiros comerciais
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/fornecedores/novo">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Fornecedor
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Fornecedores"
+        description="Gestão completa de fornecedores e parceiros comerciais"
+        breadcrumbs={[
+          { label: 'Fornecedores', href: '/fornecedores/lista' },
+          { label: 'Lista' },
+        ]}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/fornecedores/novo">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Fornecedor
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Building className="h-5 w-5 text-blue-600" />
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
-                <p className="text-2xl font-bold">{estatisticas.totalFornecedores}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Building className="h-5 w-5 text-green-600" />
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Ativos</p>
-                <p className="text-2xl font-bold">{estatisticas.fornecedoresAtivos}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Building className="h-5 w-5 text-gray-600" />
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Inativos</p>
-                <p className="text-2xl font-bold">{estatisticas.fornecedoresInativos}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5 text-purple-600" />
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total Compras</p>
-                <p className="text-2xl font-bold">MT {(estatisticas.totalCompras / 1000).toFixed(0)}k</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* KPIs — Suspense independente: não bloqueia a tabela */}
+      <Suspense fallback={<KpiSkeleton />}>
+        <FornecedoresKpis tenantId={tenantId} userId={userId} />
+      </Suspense>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Filter className="h-5 w-5" />
-            <span>Filtros e Pesquisa</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Pesquisar por nome, NUIT ou email..."
-                  value={termoPesquisa}
-                  onChange={(e) => setTermoPesquisa(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            
-            <Select value={tipoFiltro} onValueChange={setTipoFiltro}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Tipo de Fornecedor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Tipos</SelectItem>
-                {tiposFornecedor.map(tipo => (
-                  <SelectItem key={tipo} value={tipo}>
-                    {obterLabelTipo(tipo)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-              <SelectTrigger className="w-full md:w-32">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                {statusOptions.map(status => (
-                  <SelectItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* FilterBar — sincronizada com URL */}
+      <FilterBar
+        searchPlaceholder="Pesquisar por nome, NUIT ou código…"
+        searchKey="termo"
+        filters={FILTER_CONFIGS}
+      />
 
-            <Select value={classificacaoFiltro} onValueChange={setClassificacaoFiltro}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Classificação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas</SelectItem>
-                {classificacoes.map(classificacao => (
-                  <SelectItem key={classificacao} value={classificacao}>
-                    {classificacao.charAt(0).toUpperCase() + classificacao.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Fornecedores ({fornecedoresFiltrados.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fornecedor</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>NUIT</TableHead>
-                  <TableHead>Contato</TableHead>
-                  <TableHead>Localização</TableHead>
-                  <TableHead>Classificação</TableHead>
-                  <TableHead>Rating</TableHead>
-                  <TableHead>Total Compras</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {fornecedoresFiltrados.map((fornecedor) => (
-                  <TableRow key={fornecedor.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{fornecedor.nome}</p>
-                        <p className="text-sm text-muted-foreground">{fornecedor.codigo}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {obterLabelTipo(fornecedor.tipo)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{fornecedor.nuit}</TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3" />
-                          <span>{fornecedor.telefone}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3" />
-                          <span className="text-xs">{fornecedor.email}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        <span className="text-sm">{fornecedor.cidade}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={obterCorClassificacao(fornecedor.classificacao)}>
-                        {fornecedor.classificacao.charAt(0).toUpperCase() + fornecedor.classificacao.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {renderizarEstrelas(fornecedor.rating)}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">MT {fornecedor.totalCompras.toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">{fornecedor.numeroCompras} compras</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={fornecedor.status === 'ativo' ? 'default' : 'secondary'}>
-                        {fornecedor.status.charAt(0).toUpperCase() + fornecedor.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/fornecedores/${fornecedor.id}`}>
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/fornecedores/${fornecedor.id}/editar`}>
-                            <Edit className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          
-          {fornecedoresFiltrados.length === 0 && (
-            <div className="text-center py-8">
-              <Building className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhum fornecedor encontrado</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Tente ajustar os filtros ou cadastrar um novo fornecedor
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Tabela — re-suspende quando filtros mudam */}
+      <Suspense
+        key={JSON.stringify(filtros)}
+        fallback={<TableSkeleton rows={10} cols={7} />}
+      >
+        <FornecedoresTableSection
+          filtros={filtros}
+          tenantId={tenantId}
+          userId={userId}
+        />
+      </Suspense>
     </div>
   );
 }

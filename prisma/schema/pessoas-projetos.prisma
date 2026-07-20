@@ -1,0 +1,1766 @@
+// WS E — Pessoas & Projectos (RH + Projectos + Produção)
+// Agente: domain-pessoas-projetos
+//
+// Conflito #13 resolvido: TarefaProjeto.posicao é String (chave fraccional
+//   lexicográfica) para drag-and-drop kanban persistente sem renumeração.
+// Conflito #14 resolvido: ComponenteBOM é recursivo; DAG validado no serviço.
+// Conflito #15 resolvido: sem tabela Operador — produção usa colaboradorId
+//   com @relation a Colaborador.
+//
+// FKs cross-WS (sem @relation): produtoId, clienteId, pedidoVendaId,
+//   fornecedorPrincipalId, movimentoStockId, User references (*PorId).
+// Back-references a Tenant declaradas em tenant.prisma pelo orquestrador.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RH — Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum GeneroColaborador {
+  MASCULINO
+  FEMININO
+  OUTRO
+}
+
+enum EstadoCivil {
+  SOLTEIRO
+  CASADO
+  DIVORCIADO
+  VIUVO
+  UNIAO_FACTO
+}
+
+enum StatusColaborador {
+  ACTIVO
+  INACTIVO
+  FERIAS
+  AFASTADO
+  PERIODO_EXPERIMENTAL
+}
+
+enum TipoContratoTrabalho {
+  EFECTIVO
+  TERMO_CERTO
+  ESTAGIO
+  TEMPORARIO
+  PRESTACAO_SERVICOS
+}
+
+enum RegimeTrabalho {
+  TEMPO_INTEGRAL
+  TEMPO_PARCIAL
+}
+
+enum NivelAcessoColaborador {
+  USUARIO
+  SUPERVISOR
+  GERENTE
+  ADMIN
+}
+
+enum NivelFormacaoAcademica {
+  BASICO
+  MEDIO
+  TECNICO
+  LICENCIATURA
+  MESTRADO
+  DOUTORAMENTO
+}
+
+enum TipoDocColaborador {
+  FOTO
+  BI_FRENTE
+  BI_VERSO
+  CERTIFICADO_HABILITACOES
+  CURRICULUM
+  CERTIFICADO_CRIMINAL
+  ATESTADO_MEDICO_DOC
+  COMPROVATIVO_RESIDENCIA
+  CERTIFICADO_INSS
+  DECLARACAO_NUIT
+  CONTRATO_TRABALHO
+  CARTA_CONDUCAO
+  CERTIFICADO_PROFISSIONAL
+  OUTRO
+}
+
+enum TipoAusencia {
+  FALTA
+  ATESTADO_MEDICO
+  LICENCA_MATERNIDADE
+  LICENCA_PATERNIDADE
+  LICENCA_SEM_VENCIMENTO
+  LICENCA_NOJO
+  LICENCA_CASAMENTO
+  OUTRO
+}
+
+enum StatusAusencia {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
+enum TipoSolicitacaoFerias {
+  INTEGRAL
+  FRACIONADA
+  ABONO_PECUNIARIO
+}
+
+enum StatusSolicitacaoFerias {
+  PENDENTE
+  APROVADA
+  REJEITADA
+  CANCELADA
+}
+
+enum TipoAssiduidade {
+  NORMAL
+  FERIADO
+  FIM_SEMANA
+  FERIAS
+  AUSENCIA
+}
+
+enum TipoAvaliacao {
+  DESEMPENHO
+  COMPETENCIAS
+  GRAU_360
+  PROBATORIO
+}
+
+enum StatusAvaliacao {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum ModalidadeFormacao {
+  PRESENCIAL
+  ONLINE
+  HIBRIDO
+}
+
+enum StatusFormacao {
+  PLANEADA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum StatusParticipante {
+  INSCRITO
+  CONFIRMADO
+  PRESENTE
+  AUSENTE
+  APROVADO
+  REPROVADO
+}
+
+// Payroll — extensão futura (fora de âmbito dos serviços Wave 2)
+enum StatusPayroll {
+  PENDENTE
+  PROCESSADO
+  PAGO
+  CANCELADO
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Projectos — Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TipoProjeto {
+  INTERNO
+  EXTERNO
+  PESQUISA
+  DESENVOLVIMENTO
+}
+
+enum StatusProjeto {
+  PLANEAMENTO
+  EM_ANDAMENTO
+  PAUSADO
+  CONCLUIDO
+  CANCELADO
+  ARQUIVADO
+}
+
+enum PrioridadeProjeto {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum TipoTarefa {
+  TAREFA
+  BUG
+  MELHORIA
+  DOCUMENTACAO
+  TESTE
+}
+
+enum StatusTarefa {
+  A_FAZER
+  EM_PROGRESSO
+  EM_REVISAO
+  BLOQUEADA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum PrioridadeTarefa {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum StatusEquipa {
+  ATIVA
+  INATIVA
+}
+
+enum PapelMembroEquipa {
+  GERENTE
+  LIDER
+  DESENVOLVEDOR
+  DESIGNER
+  ANALISTA
+  TESTER
+  OUTRO
+}
+
+enum StatusMembroEquipa {
+  ATIVO
+  INATIVO
+  FERIAS
+  LICENCA
+}
+
+enum TipoTimesheet {
+  DESENVOLVIMENTO
+  REUNIAO
+  DOCUMENTACAO
+  TESTE
+  SUPORTE
+  OUTRO
+}
+
+enum StatusMilestone {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDO
+  ATRASADO
+}
+
+enum StatusOrcamento {
+  RASCUNHO
+  APROVADO
+  REJEITADO
+  REVISAO
+}
+
+enum TipoCategoriaOrcamento {
+  MAO_OBRA
+  MATERIAL
+  EQUIPAMENTO
+  SERVICO
+  OUTRO
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Produção — Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TipoCentroTrabalho {
+  MAQUINA
+  PESSOA
+  CELULA
+  LINHA
+}
+
+enum StatusBOM {
+  RASCUNHO
+  ATIVO
+  INATIVO
+  SUBSTITUIDO
+}
+
+enum CategoriaBOM {
+  MATERIA_PRIMA
+  COMPONENTE
+  SUBCONJUNTO
+  PRODUTO_ACABADO
+}
+
+enum ComplexidadeBOM {
+  BAIXO
+  MEDIO
+  ALTO
+}
+
+enum StatusRoteiro {
+  RASCUNHO
+  ATIVO
+  INATIVO
+  SUBSTITUIDO
+  EM_REVISAO
+}
+
+enum StatusOperacaoRoteiro {
+  ATIVO
+  INATIVO
+  EM_REVISAO
+}
+
+enum StatusOrdemProducao {
+  PLANEADA
+  LIBERADA
+  EM_PRODUCAO
+  CONCLUIDA
+  CANCELADA
+  PAUSADA
+}
+
+enum PrioridadeOrdemProducao {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+enum StatusOperacaoOrdem {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  PAUSADA
+  CANCELADA
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RH — Modelos
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Departamento {
+  id                String   @id @default(cuid())
+  tenantId          String
+  codigo            String
+  nome              String
+  descricao         String?
+  departamentoPaiId String?
+  ativo             Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  departamentoPai  Departamento?  @relation("DepartamentoHierarquia", fields: [departamentoPaiId], references: [id])
+  subdepartamentos Departamento[] @relation("DepartamentoHierarquia")
+  colaboradores    Colaborador[]
+  cargos           Cargo[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, ativo])
+}
+
+model Cargo {
+  id             String   @id @default(cuid())
+  tenantId       String
+  codigo         String
+  nome           String
+  descricao      String?
+  departamentoId String?
+  nivelSalarial  Int?
+  salarioMinimo  Decimal? @db.Decimal(18, 2)
+  salarioMaximo  Decimal? @db.Decimal(18, 2)
+  ativo          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  departamento  Departamento? @relation(fields: [departamentoId], references: [id])
+  colaboradores Colaborador[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, ativo])
+}
+
+model Colaborador {
+  id          String               @id @default(cuid())
+  tenantId    String
+  codigo      String
+
+  // Dados Pessoais
+  nome                  String
+  dataNascimento        DateTime
+  genero                GeneroColaborador
+  estadoCivil           EstadoCivil
+  nacionalidade         String
+  naturalidadeProvincia String
+  naturalidadeDistrito  String
+
+  // Documentos de Identificação (Moçambique)
+  bi    String  // Bilhete de Identidade ou DIRE
+  nuit  String  // Número Único de Identificação Tributária
+  niss  String? // Número de Identificação da Segurança Social (INSS)
+
+  // Contactos
+  email                String
+  telefone             String
+  telefoneAlternativo  String?
+  enderecoRua          String
+  enderecoNumero       String
+  enderecoBairro       String
+  enderecoCidade       String
+  enderecoProvincia    String
+  enderecoCodigoPostal String?
+
+  // Contacto de Emergência
+  emergenciaNome        String
+  emergenciaParentesco  String
+  emergenciaTelefone    String
+
+  // Fotografia
+  fotoUrl String?
+
+  // Dados Profissionais
+  departamentoId  String?
+  cargoId         String?
+  supervisorId    String?            // auto-relação (Colaborador)
+  dataAdmissao    DateTime
+  dataDemissao    DateTime?
+  status          StatusColaborador
+  tipoContrato    TipoContratoTrabalho
+  regimeTrabalho  RegimeTrabalho
+  horarioTrabalho String?
+  salarioBase     Decimal            @db.Decimal(18, 2)
+  subsidioAlimentacao  Decimal?      @db.Decimal(18, 2)
+  subsidioTransporte   Decimal?      @db.Decimal(18, 2)
+  subsidioHabitacao    Decimal?      @db.Decimal(18, 2)
+  subsidiosOutros      Decimal?      @db.Decimal(18, 2)
+  localizacao     String?
+
+  // Dados Bancários
+  bancoBanco   String?
+  bancoNib     String?
+  bancoTitular String?
+
+  nivelAcesso NivelAcessoColaborador
+  observacoes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  departamento Departamento? @relation(fields: [departamentoId], references: [id])
+  cargo        Cargo?        @relation(fields: [cargoId], references: [id])
+  supervisor   Colaborador?  @relation("ColaboradorSupervisao", fields: [supervisorId], references: [id])
+  subordinados Colaborador[] @relation("ColaboradorSupervisao")
+
+  formacaoAcademica     FormacaoAcademica[]
+  experiencias          ExperienciaProfissional[]
+  documentosColaborador DocumentoColaborador[]
+  ausencias             Ausencia[]
+  registosAssiduidade   RegistoAssiduidade[]
+  avaliacoes            Avaliacao[]              @relation("ColaboradorAvaliado")
+  avaliacoesFeitas      Avaliacao[]              @relation("ColaboradorAvaliador")
+  ferias                Ferias[]
+  participacoesFormacao ParticipanteFormacao[]
+  timesheets            Timesheet[]
+  membrosEquipa         MembroEquipa[]
+  operacoesOrdem        OperacaoOrdem[]
+
+  // Payroll — extensão futura
+  payrolls Payroll[]
+
+  // Benefícios — spec 08
+  beneficios BeneficioColaborador[]
+
+  @@unique([tenantId, codigo])
+  @@unique([tenantId, nuit])
+  @@unique([tenantId, bi])
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+  @@index([tenantId, departamentoId])
+  @@index([tenantId, deletedAt])
+}
+
+model FormacaoAcademica {
+  id             String                 @id @default(cuid())
+  tenantId       String
+  colaboradorId  String
+  nivel          NivelFormacaoAcademica
+  instituicao    String
+  curso          String
+  anoConclusao   String
+  certificadoUrl String?
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, colaboradorId])
+}
+
+model ExperienciaProfissional {
+  id                String    @id @default(cuid())
+  tenantId          String
+  colaboradorId     String
+  empresa           String
+  cargo             String
+  dataInicio        DateTime
+  dataFim           DateTime?
+  responsabilidades String?
+  actual            Boolean   @default(false)
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, colaboradorId])
+}
+
+model DocumentoColaborador {
+  id            String             @id @default(cuid())
+  tenantId      String
+  colaboradorId String
+  tipo          TipoDocColaborador
+  nome          String
+  url           String
+  tamanho       Int?
+  dataUpload    DateTime           @default(now())
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, colaboradorId])
+}
+
+model Ferias {
+  id                      String   @id @default(cuid())
+  tenantId                String
+  colaboradorId           String
+  periodoAquisitivoInicio DateTime
+  periodoAquisitivoFim    DateTime
+  diasDisponiveis         Int
+  diasUsados              Int      @default(0)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  colaborador  Colaborador       @relation(fields: [colaboradorId], references: [id])
+  solicitacoes SolicitacaoFerias[]
+
+  @@index([tenantId, colaboradorId])
+}
+
+model SolicitacaoFerias {
+  id              String                  @id @default(cuid())
+  tenantId        String
+  feriasId        String
+  dataInicio      DateTime
+  dataFim         DateTime
+  diasSolicitados Int
+  tipo            TipoSolicitacaoFerias
+  status          StatusSolicitacaoFerias
+  // FK escalar → User (aprovador — cross-WS)
+  aprovadoPorId   String?
+  dataAprovacao   DateTime?
+  motivoRejeicao  String?
+  observacoes     String?
+  dataSolicitacao DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  ferias Ferias @relation(fields: [feriasId], references: [id])
+
+  @@index([tenantId, feriasId, status])
+  @@index([tenantId, status])
+}
+
+model Ausencia {
+  id            String         @id @default(cuid())
+  tenantId      String
+  colaboradorId String
+  tipo          TipoAusencia
+  dataInicio    DateTime
+  dataFim       DateTime
+  diasAusencia  Int
+  justificada   Boolean        @default(false)
+  justificativa String?
+  status        StatusAusencia
+  // FK escalar → User (cross-WS)
+  aprovadoPorId String?
+  dataAprovacao DateTime?
+  observacoes   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  @@index([tenantId, colaboradorId, status])
+  @@index([tenantId, dataInicio])
+}
+
+model RegistoAssiduidade {
+  id               String          @id @default(cuid())
+  tenantId         String
+  colaboradorId    String
+  data             DateTime        @db.Date
+  entrada          DateTime
+  saidaAlmoco      DateTime?
+  retornoAlmoco    DateTime?
+  saida            DateTime
+  horasTrabalhadas Decimal         @db.Decimal(9, 6)
+  horasExtras      Decimal         @db.Decimal(9, 6) @default(0)
+  atrasos          Int             @default(0) // minutos
+  tipo             TipoAssiduidade
+  observacoes      String?
+  createdAt        DateTime        @default(now())
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  @@unique([tenantId, colaboradorId, data])
+  @@index([tenantId, data])
+  @@index([tenantId, colaboradorId])
+}
+
+model Avaliacao {
+  id            String          @id @default(cuid())
+  tenantId      String
+  colaboradorId String
+  avaliadorId   String
+  periodo       String
+  tipo          TipoAvaliacao
+  status        StatusAvaliacao
+  notaFinal     Decimal?        @db.Decimal(9, 6)
+  pontosFortes              String[]
+  pontosDesenvolvimento     String[]
+  planoAcao                 String[]
+  comentarios   String?
+  dataInicio    DateTime
+  dataConclusao DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  colaborador Colaborador         @relation("ColaboradorAvaliado", fields: [colaboradorId], references: [id])
+  avaliador   Colaborador         @relation("ColaboradorAvaliador", fields: [avaliadorId], references: [id])
+  criterios   CriterioAvaliacao[]
+
+  @@index([tenantId, colaboradorId, status])
+  @@index([tenantId, status])
+}
+
+model CriterioAvaliacao {
+  id          String  @id @default(cuid())
+  tenantId    String
+  avaliacaoId String
+  nome        String
+  descricao   String
+  peso        Decimal @db.Decimal(9, 6)
+  nota        Decimal @db.Decimal(9, 6)
+  comentario  String?
+
+  avaliacao Avaliacao @relation(fields: [avaliacaoId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, avaliacaoId])
+}
+
+model Formacao {
+  id               String            @id @default(cuid())
+  tenantId         String
+  titulo           String
+  descricao        String
+  categoria        String
+  instrutor        String
+  cargaHoraria     Int               // horas
+  dataInicio       DateTime
+  dataFim          DateTime
+  local            String
+  modalidade       ModalidadeFormacao
+  vagasDisponiveis Int
+  status           StatusFormacao
+  custoTotal       Decimal           @db.Decimal(18, 2)
+  observacoes      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  participantes ParticipanteFormacao[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, dataInicio])
+}
+
+model ParticipanteFormacao {
+  id             String            @id @default(cuid())
+  tenantId       String
+  formacaoId     String
+  colaboradorId  String
+  status         StatusParticipante
+  notaFinal      Decimal?          @db.Decimal(9, 6)
+  certificadoUrl String?
+  dataInscricao  DateTime          @default(now())
+
+  formacao    Formacao    @relation(fields: [formacaoId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  @@unique([formacaoId, colaboradorId])
+  @@index([tenantId, formacaoId])
+  @@index([tenantId, colaboradorId])
+}
+
+// ─── Payroll — Spec 06 (Processamento Salarial) ──────────────────────────────
+// Implementado no spec 06: motor de folha salarial (INSS 3%/4%, IRPS
+// progressivo por escalões — tabelas paramétricas versionadas por vigência).
+// Após PROCESSADO os valores são imutáveis (append-only); correcção por
+// cancelamento (com estorno do lançamento) + reprocessamento.
+model Payroll {
+  id                     String        @id @default(cuid())
+  tenantId               String
+  colaboradorId          String
+  mesReferencia          Int           // 1-12
+  anoReferencia          Int
+  salarioBruto           Decimal       @db.Decimal(18, 2)
+  descontoInss           Decimal       @db.Decimal(18, 2)
+  descontoIrps           Decimal       @db.Decimal(18, 2) // IRPS — Imposto sobre Rendimento de Pessoas Singulares
+  descontoOutros         Decimal       @db.Decimal(18, 2) @default(0)
+  proventoHorasExtras    Decimal       @db.Decimal(18, 2) @default(0)
+  proventoSubAlimentacao Decimal       @db.Decimal(18, 2) @default(0)
+  proventoSubTransporte  Decimal       @db.Decimal(18, 2) @default(0)
+  proventoSubHabitacao   Decimal       @db.Decimal(18, 2) @default(0)
+  proventoComissoes      Decimal       @db.Decimal(18, 2) @default(0)
+  proventoBonus          Decimal       @db.Decimal(18, 2) @default(0)
+  proventoOutros         Decimal       @db.Decimal(18, 2) @default(0)
+  salarioLiquido         Decimal       @db.Decimal(18, 2)
+  status                 StatusPayroll
+  dataPagamento          DateTime?
+  observacoes            String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  // Spec 06 — encargo patronal (INSS 4%: encargo da entidade, não desconto)
+  encargoInssEntidade    Decimal       @db.Decimal(18, 2) @default(0)
+  custoTotalEntidade     Decimal       @db.Decimal(18, 2) @default(0)
+  // Spec 06 — folha mensal (lote) a que pertence
+  folhaId                String?
+
+  colaborador Colaborador     @relation(fields: [colaboradorId], references: [id])
+  folha       FolhaPagamento? @relation(fields: [folhaId], references: [id])
+  linhas      LinhaPayroll[]
+
+  @@unique([tenantId, colaboradorId, anoReferencia, mesReferencia])
+  @@index([tenantId, status])
+  @@index([tenantId, colaboradorId])
+  @@index([tenantId, folhaId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Projectos — Modelos
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Equipa {
+  id        String      @id @default(cuid())
+  tenantId  String
+  nome      String
+  descricao String?
+  status    StatusEquipa
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  membros  MembroEquipa[]
+  projetos ProjetoEquipa[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId, status])
+}
+
+model MembroEquipa {
+  id            String             @id @default(cuid())
+  tenantId      String
+  equipaId      String
+  colaboradorId String
+  papel         PapelMembroEquipa
+  custoHora     Decimal            @db.Decimal(18, 2)
+  horasSemanais Int
+  dataEntrada   DateTime
+  dataSaida     DateTime?
+  status        StatusMembroEquipa
+
+  equipa      Equipa      @relation(fields: [equipaId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  @@unique([equipaId, colaboradorId])
+  @@index([tenantId, equipaId])
+  @@index([tenantId, colaboradorId])
+}
+
+model Projeto {
+  id                 String            @id @default(cuid())
+  tenantId           String
+  codigo             String
+  nome               String
+  descricao          String?
+  // FK escalar → Cliente no WS C (sem @relation)
+  clienteId          String?
+  tipo               TipoProjeto
+  status             StatusProjeto
+  prioridade         PrioridadeProjeto
+  dataInicio         DateTime
+  dataFimPrevista    DateTime
+  dataFimReal        DateTime?
+  progresso          Int               @default(0) // 0-100
+  orcamentoPlanejado Decimal?          @db.Decimal(18, 2)
+  horasEstimadas     Int?
+  // FK escalar → User (cross-WS)
+  gerenteId          String?
+  tags               String[]
+  cor                String?
+  observacoes        String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  tarefas           TarefaProjeto[]
+  marcos            Marco[]
+  timesheets        Timesheet[]
+  orcamentos        OrcamentoProjeto[]
+  equipas           ProjetoEquipa[]
+  riscos            RiscoProjeto[]
+  registosQualidade RegistoQualidade[]
+  comunicacoes      ComunicacaoProjeto[]
+  configuracao      ConfiguracaoProjeto?
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, status])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, createdAt])
+}
+
+model ProjetoEquipa {
+  tenantId  String
+  projetoId String
+  equipaId  String
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+  equipa  Equipa  @relation(fields: [equipaId], references: [id])
+
+  @@id([projetoId, equipaId])
+  @@index([tenantId, projetoId])
+}
+
+// Conflito #13: campo `posicao` é chave fraccional simples (N4 — formato escolhido: decimal simples).
+// Exemplos: "0.1", "0.5", "0.9". Inserir entre A e B: posicao = midpoint(A, B) como string.
+// Reordenação O(1) sem renumeração. O serviço calcula o midpoint em modo string decimal.
+model TarefaProjeto {
+  id              String           @id @default(cuid())
+  tenantId        String
+  projetoId       String
+  codigo          String
+  titulo          String
+  descricao       String?
+  tipo            TipoTarefa
+  status          StatusTarefa
+  prioridade      PrioridadeTarefa
+  // Chave fraccional para ordem no kanban (drag-and-drop persistente)
+  posicao         String           @default("0.5")
+  dataInicio      DateTime?
+  dataFimPrevista DateTime
+  dataFimReal     DateTime?
+  horasEstimadas  Int?
+  horasTrabalhadas Int             @default(0)
+  progresso       Int              @default(0) // 0-100
+  // FK escalar → User (pode ser qualquer utilizador, cross-WS)
+  responsavelId   String?
+  // FK escalar → User (criador, cross-WS)
+  criadoPorId     String
+  tarefaPaiId     String?
+  // IDs das tarefas das quais esta depende (para DAG de dependências)
+  dependencias    String[]
+  tags            String[]
+  observacoes     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  projeto    Projeto          @relation(fields: [projetoId], references: [id])
+  tarefaPai  TarefaProjeto?   @relation("TarefaSubtarefa", fields: [tarefaPaiId], references: [id])
+  subtarefas TarefaProjeto[]  @relation("TarefaSubtarefa")
+  comentarios ComentarioTarefa[]
+  anexos     AnexoTarefa[]
+  timesheets Timesheet[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, projetoId, status])
+  @@index([tenantId, projetoId, posicao])
+  @@index([tenantId, responsavelId])
+}
+
+model ComentarioTarefa {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tarefaId   String
+  texto      String
+  // FK escalar → User (cross-WS)
+  autorId    String
+  editado    Boolean   @default(false)
+  dataEdicao DateTime?
+  createdAt  DateTime  @default(now())
+
+  tarefa TarefaProjeto @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, tarefaId, createdAt])
+}
+
+model AnexoTarefa {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tarefaId    String
+  nome        String
+  tipo        String
+  tamanho     Int
+  url         String
+  // FK escalar → User (cross-WS)
+  uploadPorId String
+  createdAt   DateTime @default(now())
+
+  tarefa TarefaProjeto @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, tarefaId])
+}
+
+model Timesheet {
+  id            String        @id @default(cuid())
+  tenantId      String
+  projetoId     String
+  tarefaId      String?
+  colaboradorId String
+  data          DateTime      @db.Date
+  horaInicio    DateTime
+  horaFim       DateTime
+  duracaoHoras  Decimal       @db.Decimal(9, 6)
+  descricao     String?
+  tipo          TipoTimesheet
+  faturavel     Boolean       @default(false)
+  aprovado      Boolean       @default(false)
+  // FK escalar → User (cross-WS)
+  aprovadoPorId String?
+  dataAprovacao DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  projeto     Projeto        @relation(fields: [projetoId], references: [id])
+  tarefa      TarefaProjeto? @relation(fields: [tarefaId], references: [id])
+  colaborador Colaborador    @relation(fields: [colaboradorId], references: [id])
+
+  @@index([tenantId, projetoId, data])
+  @@index([tenantId, colaboradorId, data])
+}
+
+model Marco {
+  id           String          @id @default(cuid())
+  tenantId     String
+  projetoId    String
+  nome         String
+  descricao    String?
+  dataPrevista DateTime
+  dataReal     DateTime?
+  status       StatusMilestone
+  progresso    Int             @default(0) // 0-100
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId, status])
+}
+
+model OrcamentoProjeto {
+  id             String          @id @default(cuid())
+  tenantId       String
+  projetoId      String
+  versao         Int             @default(1)
+  status         StatusOrcamento
+  totalPlanejado Decimal         @db.Decimal(18, 2)
+  totalUtilizado Decimal         @db.Decimal(18, 2) @default(0)
+  // FK escalar → User (cross-WS)
+  aprovadoPorId  String?
+  dataAprovacao  DateTime?
+  observacoes    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  projeto    Projeto              @relation(fields: [projetoId], references: [id])
+  categorias CategoriaOrcamento[]
+
+  @@index([tenantId, projetoId, status])
+}
+
+model CategoriaOrcamento {
+  id                 String                 @id @default(cuid())
+  tenantId           String
+  orcamentoProjetoId String
+  nome               String
+  tipo               TipoCategoriaOrcamento
+  valorPlanejado     Decimal                @db.Decimal(18, 2)
+  valorUtilizado     Decimal                @db.Decimal(18, 2) @default(0)
+
+  orcamentoProjeto OrcamentoProjeto @relation(fields: [orcamentoProjetoId], references: [id], onDelete: Cascade)
+  itens            ItemOrcamento[]
+
+  @@index([tenantId, orcamentoProjetoId])
+}
+
+model ItemOrcamento {
+  id                   String    @id @default(cuid())
+  tenantId             String
+  categoriaOrcamentoId String
+  descricao            String
+  quantidade           Decimal   @db.Decimal(18, 2)
+  valorUnitario        Decimal   @db.Decimal(18, 2)
+  valorTotal           Decimal   @db.Decimal(18, 2)
+  fornecedor           String?
+  dataCompra           DateTime?
+  observacoes          String?
+
+  categoriaOrcamento CategoriaOrcamento @relation(fields: [categoriaOrcamentoId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, categoriaOrcamentoId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Produção — Modelos
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CentroTrabalho {
+  id                 String             @id @default(cuid())
+  tenantId           String
+  codigo             String
+  nome               String
+  tipo               TipoCentroTrabalho
+  descricao          String?
+  capacidadeHorasDia Decimal?           @db.Decimal(9, 6)
+  custoHora          Decimal            @db.Decimal(18, 2)
+  ativo              Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  operacoesRoteiro OperacaoRoteiro[]
+  operacoesOrdem   OperacaoOrdem[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, ativo])
+}
+
+// Conflito #14: EstruturaProduto/BOM pode ser recursiva (ComponenteBOM).
+// O serviço DEVE validar ausência de ciclos (DAG) antes de inserir/actualizar
+// ComponenteBOM. produtoId é FK escalar → Produto no WS A (sem @relation).
+model EstruturaProduto {
+  id                String          @id @default(cuid())
+  tenantId          String
+  // FK escalar → Produto no WS A (sem @relation inter-WS)
+  produtoId         String
+  codigo            String
+  nome              String
+  versao            String
+  status            StatusBOM
+  categoria         String?
+  unidadeProducao   String
+  tempoProducao     Int?            // minutos
+  nivelComplexidade ComplexidadeBOM?
+  // FK escalar → User (cross-WS)
+  responsavelId     String?
+  observacoes       String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  componentes ComponenteBOM[]
+  roteiros    Roteiro[]
+
+  @@unique([tenantId, produtoId, versao])
+  @@unique([tenantId, codigo])
+  @@index([tenantId, status])
+  @@index([tenantId, produtoId])
+}
+
+// ComponenteBOM é recursivo. Cada componente pode ter sub-componentes formando
+// uma árvore. Invariante: nenhum ciclo (DAG) — validado no serviço.
+// componenteProdutoId é FK escalar → Produto no WS A.
+// fornecedorPrincipalId é FK escalar → Fornecedor no WS B.
+model ComponenteBOM {
+  id                    String       @id @default(cuid())
+  tenantId              String
+  estruturaProdutoId    String
+  // FK escalar → Produto no WS A (sem @relation)
+  componenteProdutoId   String
+  codigoComponente      String
+  nomeComponente        String
+  categoria             CategoriaBOM
+  quantidade            Decimal      @db.Decimal(18, 2)
+  unidadeMedida         String
+  custoUnitario         Decimal      @db.Decimal(18, 2)
+  nivel                 Int          @default(1)
+  perdaPrevista         Decimal      @db.Decimal(9, 6) @default(0)
+  tempoLead             Int?         // dias
+  // FK escalar → Fornecedor no WS B (sem @relation)
+  fornecedorPrincipalId String?
+  // Recursividade: sub-componentes
+  componentePaiId       String?
+  ativo                 Boolean      @default(true)
+  observacoes           String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  estruturaProduto EstruturaProduto @relation(fields: [estruturaProdutoId], references: [id], onDelete: Cascade)
+  componentePai    ComponenteBOM?   @relation("ComponenteHierarquia", fields: [componentePaiId], references: [id])
+  subcomponentes   ComponenteBOM[]  @relation("ComponenteHierarquia")
+
+  @@index([tenantId, estruturaProdutoId])
+  @@index([tenantId, componenteProdutoId])
+  @@index([componentePaiId])
+}
+
+model Roteiro {
+  id                 String        @id @default(cuid())
+  tenantId           String
+  codigo             String
+  nome               String
+  // BOM associada: FK → EstruturaProduto (intra-WS)
+  estruturaProdutoId String?
+  versao             String
+  status             StatusRoteiro
+  categoria          String?
+  eficienciaGlobal   Decimal?      @db.Decimal(9, 6)
+  // FK escalar → User (cross-WS)
+  responsavelId      String?
+  aprovadoPorId      String?
+  dataAprovacao      DateTime?
+  observacoes        String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  estruturaProduto EstruturaProduto? @relation(fields: [estruturaProdutoId], references: [id])
+  operacoes        OperacaoRoteiro[]
+  ordensProducao   OrdemProducao[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, status])
+}
+
+model OperacaoRoteiro {
+  id                      String               @id @default(cuid())
+  tenantId                String
+  roteiroId               String
+  sequencia               Int
+  nome                    String
+  descricao               String?
+  centroTrabalhoId        String?
+  maquina                 String?
+  tempoPreparacao         Int                  // minutos
+  tempoOperacao           Int                  // minutos por unidade
+  tempoLimpeza            Int                  // minutos
+  custoHora               Decimal              @db.Decimal(18, 2)
+  eficienciaEsperada      Decimal              @db.Decimal(9, 6)
+  // IDs de operações anteriores (dependências topológicas)
+  dependencias            String[]
+  paralela                Boolean              @default(false)
+  obrigatoria             Boolean              @default(true)
+  instrucoes              String?
+  ferramentasNecessarias  String[]
+  qualificacoesRequeridas String[]
+  status                  StatusOperacaoRoteiro
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  roteiro        Roteiro         @relation(fields: [roteiroId], references: [id], onDelete: Cascade)
+  centroTrabalho CentroTrabalho? @relation(fields: [centroTrabalhoId], references: [id])
+
+  @@unique([roteiroId, sequencia])
+  @@index([tenantId, roteiroId])
+}
+
+model OrdemProducao {
+  id                 String                  @id @default(cuid())
+  tenantId           String
+  numero             String
+  // FK escalar → Produto no WS A (sem @relation)
+  produtoId          String
+  codigoProduto      String
+  nomeProduto        String
+  quantidade         Decimal                 @db.Decimal(18, 2)
+  unidadeMedida      String
+  status             StatusOrdemProducao
+  prioridade         PrioridadeOrdemProducao
+  roteiroId          String?
+  lote               String?
+  numeroSerie        String?
+  // Conflito #15: referencia Colaborador directamente (sem tabela Operador)
+  // responsavelId é escalar pois pode referenciar User ou Colaborador
+  responsavelId      String?
+  dataPrevisaoInicio DateTime
+  dataPrevisaoFim    DateTime
+  dataInicioReal     DateTime?
+  dataFimReal        DateTime?
+  custoEstimado      Decimal                 @db.Decimal(18, 2) @default(0)
+  custoRealizado     Decimal                 @db.Decimal(18, 2) @default(0)
+  progresso          Int                     @default(0) // 0-100
+  qualidadeAprovada  Boolean                 @default(false)
+  // FKs escalares cross-WS
+  pedidoVendaId      String?                 // FK → Venda no WS C
+  clienteId          String?                 // FK → Cliente no WS C
+  // FK escalar → User (cross-WS)
+  criadoPorId        String
+  observacoes        String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  roteiro   Roteiro?        @relation(fields: [roteiroId], references: [id])
+  operacoes OperacaoOrdem[]
+  consumos  ConsumoProducao[]
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, status])
+  @@index([tenantId, prioridade])
+  @@index([tenantId, produtoId])
+  @@index([tenantId, createdAt])
+}
+
+// Conflito #15: colaboradorId refere Colaborador directamente (sem tabela Operador).
+model OperacaoOrdem {
+  id               String              @id @default(cuid())
+  tenantId         String
+  ordemProducaoId  String
+  sequencia        Int
+  nome             String
+  centroTrabalhoId String?
+  maquina          String?
+  // Conflito #15: operador é Colaborador (sem tabela Operador paralela)
+  colaboradorId    String?
+  status           StatusOperacaoOrdem
+  tempoEstimado    Int                 // minutos
+  tempoRealizado   Int                 @default(0) // minutos
+  dataInicio       DateTime?
+  dataFim          DateTime?
+  qualidadeAprovada Boolean            @default(false)
+  observacoes      String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  ordemProducao  OrdemProducao   @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
+  centroTrabalho CentroTrabalho? @relation(fields: [centroTrabalhoId], references: [id])
+  colaborador    Colaborador?    @relation(fields: [colaboradorId], references: [id])
+
+  @@unique([ordemProducaoId, sequencia])
+  @@index([tenantId, ordemProducaoId])
+}
+
+// Append-only: consumos de materiais na produção. Nunca se apagam.
+// Correcções geram registos compensatórios (ajuste de quantidade).
+// produtoId e movimentoStockId são FKs escalares cross-WS (sem @relation).
+model ConsumoProducao {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  ordemProducaoId    String
+  // FK escalar → Produto/item de stock no WS A
+  produtoId          String
+  codigoProduto      String
+  nomeProduto        String
+  quantidadePrevista Decimal  @db.Decimal(18, 2)
+  quantidadeReal     Decimal  @db.Decimal(18, 2)
+  unidadeMedida      String
+  custoUnitario      Decimal  @db.Decimal(18, 2)
+  custoTotal         Decimal  @db.Decimal(18, 2)
+  // FK escalar → ReservaStock no WS A (ADR-0003 B5: reservaId guardado para confirmar/libertar)
+  reservaId          String?
+  // FK escalar → MovimentoStock no WS A (referência ao movimento gerado ao confirmar)
+  movimentoStockId   String?
+  createdAt          DateTime @default(now())
+
+  ordemProducao OrdemProducao @relation(fields: [ordemProducaoId], references: [id])
+
+  @@index([tenantId, ordemProducaoId])
+  @@index([tenantId, produtoId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payroll — Spec 06 (Processamento Salarial) — bloco aditivo
+// Novos modelos: FolhaPagamento (lote mensal), LinhaPayroll (detalhe),
+// TabelaINSS e EscalaoIRPS (tabelas paramétricas versionadas por vigência).
+// FKs cross-WS escalares: lancamentoId/lancamentoPagamentoId → Lancamento (WS D),
+// processadoPorId → User (Foundation). Sem @relation inter-WS.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TipoLinhaPayroll {
+  PROVENTO
+  DESCONTO
+}
+
+enum NaturezaLinhaPayroll {
+  BASE
+  SUBSIDIO
+  HORAS_EXTRAS
+  COMISSAO
+  BONUS
+  INSS
+  IRPS
+  FALTA
+  ADIANTAMENTO
+  PENHORA
+  OUTRO
+}
+
+// Cabeçalho da folha mensal (lote) — agrupa os Payroll individuais do mês.
+// Idempotência do lote: @@unique([tenantId, anoReferencia, mesReferencia]).
+model FolhaPagamento {
+  id                    String        @id @default(cuid())
+  tenantId              String
+  mesReferencia         Int           // 1-12
+  anoReferencia         Int
+  status                StatusPayroll @default(PENDENTE)
+  totalBruto            Decimal       @db.Decimal(18, 2) @default(0)
+  totalInssTrabalhador  Decimal       @db.Decimal(18, 2) @default(0)
+  totalInssEntidade     Decimal       @db.Decimal(18, 2) @default(0)
+  totalIrps             Decimal       @db.Decimal(18, 2) @default(0)
+  totalOutrosDescontos  Decimal       @db.Decimal(18, 2) @default(0)
+  totalLiquido          Decimal       @db.Decimal(18, 2) @default(0)
+  totalCustoEntidade    Decimal       @db.Decimal(18, 2) @default(0)
+  // FK escalar → Lancamento (WS D): massa salarial (diário SALARIOS)
+  lancamentoId          String?
+  // FK escalar → Lancamento (WS D): pagamento (débito Remunerações a pagar)
+  lancamentoPagamentoId String?
+  // FK escalar → User (cross-WS)
+  processadoPorId       String?
+  dataProcessamento     DateTime?
+  dataPagamento         DateTime?
+  observacoes           String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  payrolls Payroll[]
+
+  @@unique([tenantId, anoReferencia, mesReferencia])
+  @@index([tenantId, status])
+}
+
+// Linhas detalhadas de cada Payroll (proventos e descontos).
+// `manual = true` marca ajustes introduzidos pelo utilizador (adiantamentos,
+// penhoras, bónus extraordinários) que sobrevivem ao recálculo — ponto de
+// extensão para o spec 08 (benefícios) injectar proventos/descontos adicionais.
+model LinhaPayroll {
+  id        String               @id @default(cuid())
+  tenantId  String
+  payrollId String
+  tipo      TipoLinhaPayroll
+  natureza  NaturezaLinhaPayroll
+  descricao String
+  valor     Decimal              @db.Decimal(18, 2)
+  manual    Boolean              @default(false)
+  createdAt DateTime             @default(now())
+
+  payroll Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, payrollId])
+}
+
+// Taxa contributiva do INSS versionada por vigência.
+// Fonte: INSS — https://www.inss.gov.mz/taxa-contributiva-tco/
+// (Lei 4/2007 + Decreto 51/2017: trabalhador 3%, entidade 4%, total 7%).
+// Alteração legal = novo registo com nova vigência, nunca alterar código.
+model TabelaINSS {
+  id              String    @id @default(cuid())
+  tenantId        String
+  vigenciaInicio  DateTime
+  vigenciaFim     DateTime? // null = vigente
+  taxaTrabalhador Decimal   @db.Decimal(9, 6) // ex.: 0.030000
+  taxaEntidade    Decimal   @db.Decimal(9, 6) // ex.: 0.040000
+  tetoIncidencia  Decimal?  @db.Decimal(18, 2) // teto da base de incidência (null = sem teto)
+  descricao       String?   // decreto/diploma de origem
+  createdAt       DateTime  @default(now())
+
+  @@index([tenantId, vigenciaInicio])
+}
+
+// Escalão do IRPS (rendimento de trabalho dependente), versionado por vigência.
+// imposto = base × taxa − parcelaAbater, no escalão da base tributável.
+// Fonte: AT — https://www.at.gov.mz/por/Processos-Fiscais/Imposto-sobre-o-Rendimento-de-Pessoas-Singulares-IRPS
+// A reforma de 2026 altera mínimos/isenções: nova vigência = novos registos.
+model EscalaoIRPS {
+  id                String    @id @default(cuid())
+  tenantId          String
+  vigenciaInicio    DateTime
+  vigenciaFim       DateTime? // null = vigente
+  ordem             Int       // 1..n
+  limiteInferior    Decimal   @db.Decimal(18, 2)
+  limiteSuperior    Decimal?  @db.Decimal(18, 2) // null = último escalão
+  taxa              Decimal   @db.Decimal(9, 6)
+  parcelaAbater     Decimal   @db.Decimal(18, 2)
+  numeroDependentes Int       @default(0) // 0 = tabela geral; >0 se a lei variar por dependentes
+  descricao         String?   // decreto/diploma de origem
+  createdAt         DateTime  @default(now())
+
+  @@index([tenantId, vigenciaInicio, ordem])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recrutamento — Spec 07 (WS E)
+// Adicionado em bloco próprio; não reordena nada acima.
+// Conflito de merge com specs 06/08: coordenado via orquestrador.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum StatusVaga {
+  RASCUNHO
+  ABERTA
+  EM_TRIAGEM
+  FECHADA
+  CANCELADA
+}
+
+enum EtapaCandidatura {
+  RECEBIDA
+  TRIAGEM
+  ENTREVISTA
+  PROPOSTA
+  CONTRATADO
+  REJEITADO
+  DESISTIU
+}
+
+enum TipoEntrevista {
+  TELEFONICA
+  PRESENCIAL
+  VIDEO
+  TECNICA
+  PAINEL
+}
+
+model Vaga {
+  id                  String      @id @default(cuid())
+  tenantId            String
+  codigo              String
+  titulo              String
+  descricao           String
+  departamentoId      String?
+  cargoId             String?
+  numeroPosicoes      Int         @default(1)
+  posicoesPreenchidas Int         @default(0)
+  salarioMin          Decimal?    @db.Decimal(18, 2)
+  salarioMax          Decimal?    @db.Decimal(18, 2)
+  regimeTrabalho      RegimeTrabalho
+  tipoContrato        TipoContratoTrabalho
+  localizacao         String?
+  requisitos          String[]
+  status              StatusVaga  @default(RASCUNHO)
+  dataAbertura        DateTime?
+  dataFecho           DateTime?
+  // FK escalar → User (responsável — cross-WS)
+  responsavelId       String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  candidaturas Candidatura[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+model Candidato {
+  id           String   @id @default(cuid())
+  tenantId     String
+  nome         String
+  email        String
+  telefone     String
+  bi           String?
+  nuit         String?
+  cvUrl        String?
+  linkedinUrl  String?
+  observacoes  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  candidaturas Candidatura[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, email])
+  @@index([tenantId, createdAt])
+}
+
+model Candidatura {
+  id                String           @id @default(cuid())
+  tenantId          String
+  vagaId            String
+  candidatoId       String
+  etapa             EtapaCandidatura @default(RECEBIDA)
+  // Chave fraccional para ordem no kanban (padrão TarefaProjeto.posicao)
+  posicao           String           @default("0.5")
+  fonte             String?
+  pretensaoSalarial Decimal?         @db.Decimal(18, 2)
+  notaTriagem       Decimal?         @db.Decimal(9, 6)
+  // Preenchido na admissão (FK escalar — mesmo WS, sem @relation para manter independência)
+  colaboradorId     String?
+  motivoRejeicao    String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  vaga       Vaga      @relation(fields: [vagaId], references: [id])
+  candidato  Candidato @relation(fields: [candidatoId], references: [id])
+  entrevistas Entrevista[]
+  historico   HistoricoCandidatura[]
+
+  @@unique([tenantId, vagaId, candidatoId])
+  @@index([tenantId, vagaId, etapa])
+  @@index([tenantId, vagaId, posicao])
+}
+
+model Entrevista {
+  id                 String         @id @default(cuid())
+  tenantId           String
+  candidaturaId      String
+  tipo               TipoEntrevista
+  dataHora           DateTime
+  // userIds/nomes dos entrevistadores
+  entrevistadores    String[]
+  avaliacao          Decimal?       @db.Decimal(9, 6)
+  parecer            String?
+  recomendaAvancar   Boolean?
+  createdAt          DateTime       @default(now())
+
+  candidatura Candidatura @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, candidaturaId])
+  @@index([tenantId, dataHora])
+}
+
+model HistoricoCandidatura {
+  id             String            @id @default(cuid())
+  tenantId       String
+  candidaturaId  String
+  etapaAnterior  EtapaCandidatura?
+  etapaNova      EtapaCandidatura
+  // FK escalar → User (cross-WS)
+  responsavelId  String
+  notas          String?
+  createdAt      DateTime          @default(now())
+
+  candidatura Candidatura @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, candidaturaId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Benefícios — Spec 08 (WS E)
+// Ponto de integração: linhasPayrollDeBeneficios (contrato consumido pelo payroll)
+// FKs cross-WS: nenhuma — BeneficioColaborador.colaboradorId referencia
+//   Colaborador do mesmo WS (intra-WS, @relation legítima).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TipoBeneficio {
+  SEGURO_SAUDE
+  SEGURO_VIDA
+  SUBSIDIO_ALIMENTACAO
+  SUBSIDIO_TRANSPORTE
+  SUBSIDIO_HABITACAO
+  SUBSIDIO_COMUNICACOES
+  PLANO_PENSOES
+  OUTRO
+}
+
+enum PeriodicidadeBeneficio {
+  MENSAL
+  TRIMESTRAL
+  ANUAL
+  PONTUAL
+}
+
+enum StatusBeneficioColaborador {
+  ACTIVO
+  SUSPENSO
+  TERMINADO
+}
+
+model Beneficio {
+  id                      String               @id @default(cuid())
+  tenantId                String
+  nome                    String
+  tipo                    TipoBeneficio
+  descricao               String?
+  fornecedor              String?
+  custoTotal              Decimal              @db.Decimal(18, 2)
+  comparticipacaoEmpresa  Decimal              @db.Decimal(18, 2) @default(0)
+  descontoColaborador     Decimal              @db.Decimal(18, 2) @default(0)
+  periodicidade           PeriodicidadeBeneficio
+  tributavel              Boolean              @default(false)
+  ativo                   Boolean              @default(true)
+  // Elegibilidade opcional (IDs ou nomes de departamentos/cargos elegíveis)
+  departamentosElegiveis  String[]
+  cargosElegiveis         String[]
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  atribuicoes BeneficioColaborador[]
+
+  @@index([tenantId, tipo])
+  @@index([tenantId, ativo])
+}
+
+model BeneficioColaborador {
+  id                     String                     @id @default(cuid())
+  tenantId               String
+  beneficioId            String
+  colaboradorId          String
+  dataInicio             DateTime
+  dataFim                DateTime?
+  comparticipacaoEmpresa Decimal                    @db.Decimal(18, 2)
+  descontoColaborador    Decimal                    @db.Decimal(18, 2)
+  status                 StatusBeneficioColaborador @default(ACTIVO)
+  observacoes            String?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  beneficio   Beneficio   @relation(fields: [beneficioId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  @@index([tenantId, colaboradorId, status])
+  @@index([tenantId, beneficioId])
+  @@index([tenantId, colaboradorId, beneficioId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 11 — Riscos, Qualidade, Comunicações, Configuração de Projecto (WS E)
+// Bloco aditivo no fim — não reordena nada acima.
+// FKs intra-WS: projetoId → Projeto (mesmo schema).
+// FKs cross-WS escalares: responsavelId → User (Foundation, sem @relation).
+// Severidade de risco é SEMPRE derivada no serviço (probabilidade × impacto);
+// nunca aceite do cliente.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ProbabilidadeRisco {
+  BAIXA
+  MEDIA
+  ALTA
+  MUITO_ALTA
+}
+
+enum ImpactoRisco {
+  BAIXO
+  MEDIO
+  ALTO
+  MUITO_ALTO
+}
+
+enum EstrategiaRisco {
+  EVITAR
+  MITIGAR
+  TRANSFERIR
+  ACEITAR
+}
+
+enum StatusRisco {
+  IDENTIFICADO
+  EM_MITIGACAO
+  FECHADO
+  MATERIALIZADO
+}
+
+enum TipoQualidade {
+  NAO_CONFORMIDADE
+  INSPECAO
+  AUDITORIA
+  REVISAO
+}
+
+enum StatusQualidade {
+  ABERTA
+  EM_ANALISE
+  RESOLVIDA
+  FECHADA
+}
+
+enum TipoComunicacao {
+  REUNIAO
+  ATA
+  DECISAO
+  ANUNCIO
+  RELATORIO
+}
+
+// Risco de projecto: matriz probabilidade × impacto.
+// severidade = f(probabilidade, impacto) derivada no serviço — imutável ao editar
+// probabilidade/impacto (recalculada). responsavelId é FK escalar → User (cross-WS).
+model RiscoProjeto {
+  id                 String             @id @default(cuid())
+  tenantId           String
+  projetoId          String
+  titulo             String
+  descricao          String?
+  probabilidade      ProbabilidadeRisco
+  impacto            ImpactoRisco
+  severidade         Int               // derivada no serviço: nunca aceite do cliente
+  estrategiaResposta EstrategiaRisco
+  // FK escalar → User (cross-WS)
+  responsavelId      String?
+  status             StatusRisco
+  planoMitigacao     String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId, status])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+// Registo de qualidade (não-conformidades, inspecções, auditorias).
+// tarefaId/marcoId são FKs escalares intra-WS (sem @relation para manter legibilidade).
+// responsavelId é FK escalar → User (cross-WS).
+model RegistoQualidade {
+  id            String          @id @default(cuid())
+  tenantId      String
+  projetoId     String
+  tarefaId      String?        // FK escalar → TarefaProjeto (intra-WS)
+  marcoId       String?        // FK escalar → Marco (intra-WS)
+  tipo          TipoQualidade
+  descricao     String
+  acaoCorretiva String?
+  status        StatusQualidade
+  // FK escalar → User (cross-WS)
+  responsavelId String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId, status])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+// Comunicação de projecto (atas append-only, decisões, anúncios, reuniões).
+// participantes: array de IDs ou nomes (texto livre — cross-WS simples).
+// deletedAt: soft-delete (atas nunca se apagam).
+model ComunicacaoProjeto {
+  id            String          @id @default(cuid())
+  tenantId      String
+  projetoId     String
+  tipo          TipoComunicacao
+  data          DateTime
+  participantes String[]
+  resumo        String
+  deletedAt     DateTime?       // atas append-only; soft delete para futuro
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId, tipo])
+  @@index([tenantId, projetoId, data])
+  @@index([tenantId, deletedAt])
+}
+
+// Configuração por projecto: política de aprovação de timesheet,
+// tipos de tarefa activos, papéis de equipa activos.
+// Relação @unique (1-1): um projecto tem no máximo uma configuração.
+model ConfiguracaoProjeto {
+  id                         String   @id @default(cuid())
+  tenantId                   String
+  projetoId                  String   @unique
+  politicaAprovacaoTimesheet String   @default("MANUAL")
+  tiposTarefaAtivos          String[] // subset de TipoTarefa
+  papeisEquipaAtivos         String[] // subset de PapelMembroEquipa
+  observacoes                String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  projeto Projeto @relation(fields: [projetoId], references: [id])
+
+  @@index([tenantId, projetoId])
+}

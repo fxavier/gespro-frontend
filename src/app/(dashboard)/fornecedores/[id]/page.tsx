@@ -1,475 +1,346 @@
+/**
+ * Detalhe de Fornecedor — Server Component (NUNCA 'use client').
+ */
 
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Edit, ArrowLeft, Mail, Phone, MapPin } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { fornecedorService } from '@/server/services/compras/fornecedor.service';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  ArrowLeft,
-  Edit,
-  Mail,
-  Phone,
-  MapPin,
-  Star,
-  Calendar,
-  Building,
-  FileText,
-  Package,
-  ShoppingCart,
-  DollarSign,
-  AlertCircle,
-  Users
-} from 'lucide-react';
-import { formatCurrency } from '@/lib/format-currency';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  PageHeader,
+  StatusBadge,
+  DetailShell,
+  EmptyState,
+} from '@/components/patterns';
+import { FornecedorAcoes } from '../_components/fornecedor-acoes';
 
-export default function FornecedorPerfilPage() {
-  const params = useParams();
-  const router = useRouter();
-  const fornecedorId = params.id as string;
+interface Props {
+  params: Promise<{ id: string }>;
+}
 
-  const [fornecedor, setFornecedor] = useState<any>(null);
+export default async function FornecedorDetalhePage({ params }: Props) {
+  const { id } = await params;
 
-  useEffect(() => {
-    // Dados mockados para demonstração
-    const fornecedores: Record<string, any> = {
-      'F001': {
-        id: 'F001',
-        codigo: 'FOR-0001',
-        nome: 'Distribuidora ABC Moçambique',
-        tipo: 'pessoa_juridica',
-        nuit: '123456789',
-        email: 'vendas@distribuidoraabc.co.mz',
-        telefone: '+258 21 123 456',
-        endereco: 'Av. Julius Nyerere, 123, Sommerschield, Maputo',
-        dataCadastro: '2023-06-15',
-        status: 'ativo',
-        classificacao: 'preferencial',
-        rating: 4.5,
-        diasPagamento: 30,
-        formasPagamento: ['Transferência Bancária', 'Cheque'],
-        desconto: 5,
-        totalCompras: 450000,
-        numeroCompras: 28,
-        ultimaCompra: '2024-01-20',
-        observacoes: 'Fornecedor preferencial com excelente histórico'
-      },
-      'F002': {
-        id: 'F002',
-        codigo: 'FOR-0002',
-        nome: 'Importadora XYZ Lda',
-        tipo: 'pessoa_juridica',
-        nuit: '987654321',
-        email: 'contato@importadoraxyz.co.mz',
-        telefone: '+258 84 321 654',
-        endereco: 'Av. 24 de Julho, 456, Polana, Maputo',
-        dataCadastro: '2023-03-10',
-        status: 'ativo',
-        classificacao: 'regular',
-        rating: 4,
-        diasPagamento: 45,
-        formasPagamento: ['Transferência Bancária'],
-        desconto: 3,
-        totalCompras: 285000,
-        numeroCompras: 18,
-        ultimaCompra: '2024-01-19',
-        observacoes: 'Fornecedor regular com bom atendimento'
-      }
-    };
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
 
-    setFornecedor(fornecedores[fornecedorId] || null);
-  }, [fornecedorId]);
+  const { tenantId, id: userId } = session.user;
 
-  if (!fornecedor) {
-    return (
-      <div className="p-6">
-        <Button variant="ghost" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
-        </Button>
-        <div className="mt-8 text-center">
-          <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">Fornecedor não encontrado</p>
-        </div>
-      </div>
+  let fornecedor;
+  try {
+    fornecedor = await runWithTenantContext({ tenantId, userId }, () =>
+      fornecedorService.obter(id, { tenantId, userId })
     );
+  } catch {
+    notFound();
   }
 
-  const renderizarEstrelas = (rating: number) => {
-    return (
-      <div className="flex items-center gap-1">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            className={`h-4 w-4 ${i < Math.floor(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-          />
-        ))}
-        <span className="text-sm font-medium ml-1">{rating.toFixed(1)}</span>
+  if (!fornecedor) notFound();
+
+  // Aba: Informações
+  const tabInfo = (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">NUIT</p>
+          <p className="font-medium tabular-nums">{fornecedor.nuit}</p>
+        </div>
+        {fornecedor.bi && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">BI/Passaporte</p>
+            <p className="font-medium">{fornecedor.bi}</p>
+          </div>
+        )}
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tipo</p>
+          <p className="font-medium">
+            {fornecedor.tipo === 'PESSOA_FISICA' ? 'Pessoa Física' : 'Pessoa Jurídica'}
+          </p>
+        </div>
+        {fornecedor.categoria && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Categoria</p>
+            <p className="font-medium">{fornecedor.categoria}</p>
+          </div>
+        )}
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dias de Pagamento</p>
+          <p className="font-medium tabular-nums">{fornecedor.diasPagamento} dias</p>
+        </div>
+        {fornecedor.limiteCredito != null && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Limite de Crédito</p>
+            <p className="font-medium tabular-nums">
+              MT {fornecedor.limiteCredito.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+        )}
+        {fornecedor.condicoesPagamento && (
+          <div className="space-y-1 sm:col-span-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Condições de Pagamento</p>
+            <p className="text-sm">{fornecedor.condicoesPagamento}</p>
+          </div>
+        )}
+        {fornecedor.formasPagamento.length > 0 && (
+          <div className="space-y-1 sm:col-span-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Formas de Pagamento</p>
+            <p className="text-sm">{fornecedor.formasPagamento.join(', ')}</p>
+          </div>
+        )}
+        {fornecedor.observacoes && (
+          <div className="space-y-1 sm:col-span-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Observações</p>
+            <p className="text-sm text-muted-foreground">{fornecedor.observacoes}</p>
+          </div>
+        )}
       </div>
-    );
-  };
 
-  const obterCorClassificacao = (classificacao: string) => {
-    const cores: Record<string, string> = {
-      preferencial: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-      regular: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-      novo: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-    };
-    return cores[classificacao] || 'bg-gray-100 text-gray-800';
-  };
-
-  const pedidosRecentes = [
-    {
-      id: '1',
-      numero: 'PED-2024-001',
-      dataPedido: '2024-01-15',
-      dataEntrega: '2024-01-20',
-      valor: 22500,
-      status: 'entregue'
-    },
-    {
-      id: '2',
-      numero: 'PED-2024-002',
-      dataPedido: '2024-01-18',
-      dataEntrega: '2024-01-25',
-      valor: 24000,
-      status: 'confirmado'
-    }
-  ];
-
-  const produtos = [
-    {
-      id: '1',
-      codigo: 'PROD-001',
-      nome: 'Papel A4 (Resma)',
-      categoria: 'Papelaria',
-      preco: 450,
-      quantidade: 50
-    },
-    {
-      id: '2',
-      codigo: 'PROD-002',
-      nome: 'Toner Preto',
-      categoria: 'Consumíveis',
-      preco: 1200,
-      quantidade: 20
-    }
-  ];
-
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold">{fornecedor.nome}</h1>
-            <p className="text-gray-600 dark:text-gray-400">{fornecedor.codigo}</p>
+      {/* Endereços */}
+      {fornecedor.enderecos.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <MapPin className="h-4 w-4" />
+            Endereços
+          </h3>
+          <div className="space-y-2">
+            {fornecedor.enderecos.map((end) => (
+              <div key={end.id} className="rounded-lg border p-3 text-sm">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium">{end.tipo}</span>
+                  {end.principal && (
+                    <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                      Principal
+                    </span>
+                  )}
+                </div>
+                <p className="text-muted-foreground">
+                  {end.rua}, {end.numero}, {end.bairro}, {end.cidade}, {end.provincia}
+                  {end.codigoPostal ? ` — ${end.codigoPostal}` : ''}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
-        <Button asChild>
-          <Link href={`/fornecedores/${fornecedorId}/editar`}>
-            <Edit className="h-4 w-4 mr-2" />
-            Editar
-          </Link>
-        </Button>
-      </div>
+      )}
+    </div>
+  );
 
-      {/* Informações Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Tipo</p>
-            <p className="text-lg font-bold mt-2">
-              {fornecedor.tipo === 'pessoa_fisica' ? 'Pessoa Física' : 'Pessoa Jurídica'}
-            </p>
-          </CardContent>
-        </Card>
+  // Aba: Contactos
+  const tabContactos = (
+    <div className="space-y-3">
+      {fornecedor.contactos.length === 0 ? (
+        <EmptyState
+          title="Sem contactos registados"
+          description="Adicione contactos a este fornecedor através da edição."
+        />
+      ) : (
+        <div className="rounded-lg border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Nome</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Cargo</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Email</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Telefone</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {fornecedor.contactos.map((c) => (
+                <TableRow key={c.id} className="h-10">
+                  <TableCell className="font-medium">{c.nome}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{c.cargo ?? '—'}</TableCell>
+                  <TableCell>
+                    {c.email ? (
+                      <a
+                        href={`mailto:${c.email}`}
+                        className="flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        <Mail className="h-3.5 w-3.5" />
+                        {c.email}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {c.telefone ? (
+                      <a
+                        href={`tel:${c.telefone}`}
+                        className="flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                        {c.telefone}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={c.tipo} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
 
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Status</p>
-            <Badge className="mt-2" variant={fornecedor.status === 'ativo' ? 'default' : 'secondary'}>
-              {fornecedor.status.charAt(0).toUpperCase() + fornecedor.status.slice(1)}
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Classificação</p>
-            <Badge className={`mt-2 ${obterCorClassificacao(fornecedor.classificacao)}`}>
-              {fornecedor.classificacao.charAt(0).toUpperCase() + fornecedor.classificacao.slice(1)}
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Rating</p>
-            <div className="mt-2">
-              {renderizarEstrelas(fornecedor.rating)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="informacoes" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="informacoes">Informações</TabsTrigger>
-          <TabsTrigger value="produtos">Produtos</TabsTrigger>
-          <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
-          <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
-          <TabsTrigger value="contactos">Contactos</TabsTrigger>
-        </TabsList>
-
-        {/* Aba Informações */}
-        <TabsContent value="informacoes" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Dados Pessoais</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">NUIT</p>
-                  <p className="font-medium">{fornecedor.nuit}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Mail className="h-4 w-4" />
-                    <a href={`mailto:${fornecedor.email}`} className="text-blue-600 hover:underline">
-                      {fornecedor.email}
+  // Aba: Documentos
+  const tabDocumentos = (
+    <div className="space-y-3">
+      {fornecedor.documentos.length === 0 ? (
+        <EmptyState
+          title="Sem documentos"
+          description="Associe documentos a este fornecedor através da edição."
+        />
+      ) : (
+        <div className="rounded-lg border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Nome</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Data Upload</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Validade</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {fornecedor.documentos.map((doc) => (
+                <TableRow key={doc.id} className="h-10">
+                  <TableCell>
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {doc.nome}
                     </a>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Telefone</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Phone className="h-4 w-4" />
-                    <a href={`tel:${fornecedor.telefone}`} className="text-blue-600 hover:underline">
-                      {fornecedor.telefone}
-                    </a>
-                  </div>
-                </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={doc.tipo} />
+                  </TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground text-sm">
+                    {new Date(doc.dataUpload).toLocaleDateString('pt-MZ')}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-sm">
+                    {doc.dataValidade
+                      ? new Date(doc.dataValidade).toLocaleDateString('pt-MZ')
+                      : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+
+  // Metadados laterais
+  const metadata = [
+    { label: 'Código', value: <span className="font-medium tabular-nums">{fornecedor.codigo}</span> },
+    { label: 'NUIT', value: <span className="tabular-nums">{fornecedor.nuit}</span> },
+    { label: 'Email', value: <span className="text-sm break-all">{fornecedor.email}</span> },
+    fornecedor.telefone
+      ? { label: 'Telefone', value: <span className="tabular-nums">{fornecedor.telefone}</span> }
+      : null,
+    {
+      label: 'Classificação',
+      value: <StatusBadge status={fornecedor.classificacao} />,
+    },
+    {
+      label: 'Total Compras',
+      value: (
+        <span className="font-semibold tabular-nums">
+          MT {fornecedor.totalCompras.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+        </span>
+      ),
+    },
+    fornecedor.rating != null
+      ? {
+          label: 'Avaliação',
+          value: <span className="tabular-nums font-medium">{fornecedor.rating.toFixed(1)} / 5</span>,
+        }
+      : null,
+    fornecedor.ultimaCompra
+      ? {
+          label: 'Última Compra',
+          value: (
+            <span className="tabular-nums text-sm">
+              {new Date(fornecedor.ultimaCompra).toLocaleDateString('pt-MZ')}
+            </span>
+          ),
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; value: React.ReactNode }>;
+
+  return (
+    <div className="p-6">
+      <DetailShell
+        header={
+          <PageHeader
+            title={fornecedor.nome}
+            description={fornecedor.email}
+            breadcrumbs={[
+              { label: 'Fornecedores', href: '/fornecedores/lista' },
+              { label: fornecedor.nome },
+            ]}
+            badge={<StatusBadge status={fornecedor.status} />}
+            actions={
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/fornecedores/lista">
+                    <ArrowLeft className="h-4 w-4 mr-1.5" />
+                    Voltar
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/fornecedores/${fornecedor.id}/editar`}>
+                    <Edit className="h-4 w-4 mr-1.5" />
+                    Editar
+                  </Link>
+                </Button>
+                <FornecedorAcoes id={fornecedor.id} status={fornecedor.status} />
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Endereço</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-gray-400 mt-1" />
-                <p>{fornecedor.endereco}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Condições Comerciais</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Dias para Pagamento</p>
-                  <p className="font-medium mt-1">{fornecedor.diasPagamento} dias</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Desconto Comercial</p>
-                  <p className="font-medium mt-1">{fornecedor.desconto}%</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Data de Cadastro</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Calendar className="h-4 w-4" />
-                    <span>{new Date(fornecedor.dataCadastro).toLocaleDateString('pt-PT')}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Formas de Pagamento</p>
-                <div className="flex flex-wrap gap-2">
-                  {fornecedor.formasPagamento.map((forma: string) => (
-                    <Badge key={forma} variant="outline">{forma}</Badge>
-                  ))}
-                </div>
-              </div>
-
-              {fornecedor.observacoes && (
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Observações</p>
-                  <p className="mt-1">{fornecedor.observacoes}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Estatísticas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total de Compras</p>
-                  <p className="text-2xl font-bold mt-2">{formatCurrency(fornecedor.totalCompras)}</p>
-                </div>
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Número de Compras</p>
-                  <p className="text-2xl font-bold mt-2">{fornecedor.numeroCompras}</p>
-                </div>
-                <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Última Compra</p>
-                  <p className="text-lg font-bold mt-2">
-                    {new Date(fornecedor.ultimaCompra).toLocaleDateString('pt-PT')}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Aba Produtos */}
-        <TabsContent value="produtos">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Produtos e Serviços
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {produtos.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Nome</TableHead>
-                        <TableHead>Categoria</TableHead>
-                        <TableHead>Preço Unitário</TableHead>
-                        <TableHead>Quantidade Mínima</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {produtos.map((produto) => (
-                        <TableRow key={produto.id}>
-                          <TableCell className="font-medium">{produto.codigo}</TableCell>
-                          <TableCell>{produto.nome}</TableCell>
-                          <TableCell>{produto.categoria}</TableCell>
-                          <TableCell>{formatCurrency(produto.preco)}</TableCell>
-                          <TableCell>{produto.quantidade}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">Nenhum produto registado</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Aba Pedidos */}
-        <TabsContent value="pedidos">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                Pedidos Recentes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {pedidosRecentes.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Número</TableHead>
-                        <TableHead>Data do Pedido</TableHead>
-                        <TableHead>Data de Entrega</TableHead>
-                        <TableHead>Valor</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pedidosRecentes.map((pedido) => (
-                        <TableRow key={pedido.id}>
-                          <TableCell className="font-medium">{pedido.numero}</TableCell>
-                          <TableCell>{new Date(pedido.dataPedido).toLocaleDateString('pt-PT')}</TableCell>
-                          <TableCell>{new Date(pedido.dataEntrega).toLocaleDateString('pt-PT')}</TableCell>
-                          <TableCell>{formatCurrency(pedido.valor)}</TableCell>
-                          <TableCell>
-                            <Badge variant={pedido.status === 'entregue' ? 'default' : 'secondary'}>
-                              {pedido.status.charAt(0).toUpperCase() + pedido.status.slice(1)}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">Nenhum pedido registado</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Aba Pagamentos */}
-        <TabsContent value="pagamentos">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                Histórico de Pagamentos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Nenhum pagamento registado</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Aba Contactos */}
-        <TabsContent value="contactos">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Contactos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Nenhum contacto registado</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            }
+          />
+        }
+        tabs={[
+          {
+            key: 'informacoes',
+            label: 'Informações',
+            content: tabInfo,
+          },
+          {
+            key: 'contactos',
+            label: 'Contactos',
+            count: fornecedor.contactos.length,
+            content: tabContactos,
+          },
+          {
+            key: 'documentos',
+            label: 'Documentos',
+            count: fornecedor.documentos.length,
+            content: tabDocumentos,
+          },
+        ]}
+        metadata={metadata}
+      />
     </div>
   );
 }

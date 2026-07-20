@@ -1,0 +1,142 @@
+// Autenticação (Credentials + JWT) e RBAC. Sessões são JWT — sem tabela.
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  nome         String
+  email        String
+  passwordHash String
+  ativo        Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  tenant               Tenant               @relation(fields: [tenantId], references: [id])
+  roles                UserRole[]
+  auditLogs            AuditLog[]
+  passwordResetTokens  PasswordResetToken[]
+  sentInvites          UserInvite[]         @relation("InvitedBy")
+
+  @@unique([tenantId, email])
+  @@index([tenantId, ativo])
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  tenantId  String
+  nome      String
+  descricao String?
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  users       UserRole[]
+  permissions RolePermission[]
+  invites     UserInvite[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId])
+}
+
+// Catálogo global de permissões no formato `modulo:accao`.
+model Permission {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  descricao String?
+
+  roles RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+// Trilho de auditoria — append-only.
+model AuditLog {
+  id       String   @id @default(cuid())
+  tenantId String
+  userId   String?
+  action   String
+  entity   String
+  entityId String?
+  data     Json?
+  ip       String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entity, entityId])
+}
+
+// Token de recuperação de palavra-passe — uso único, expira em 1h.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([token])
+}
+
+// Convite de utilizador por email — expira em 48h.
+model UserInvite {
+  id          String    @id @default(cuid())
+  tenantId    String
+  email       String
+  token       String    @unique
+  roleId      String?
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  tenant      Tenant  @relation(fields: [tenantId], references: [id])
+  invitedBy   User    @relation("InvitedBy", fields: [invitedById], references: [id])
+  role        Role?   @relation(fields: [roleId], references: [id])
+
+  @@index([tenantId, email])
+  @@index([token])
+}
+
+// Tentativas de login — para rate limiting (15 min / 5 tentativas por email ou IP).
+// Não é tenant-scoped: as tentativas são globais para detectar ataques cross-tenant.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ip        String
+  success   Boolean
+  tenantId  String?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}

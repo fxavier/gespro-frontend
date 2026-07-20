@@ -1,284 +1,229 @@
+/**
+ * Relatórios de Projectos — Server Component.
+ * KPIs globais + gráfico de progresso por projecto.
+ */
 
-'use client';
-
-import { useState, useEffect } from 'react';
+import { Suspense } from 'react';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { z } from 'zod';
+import { BarChart3, Clock, FolderKanban, TrendingUp } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { RelatorioService } from '@/server/services/pessoas-projetos/projetos.service';
+import { PageHeader, KpiCard } from '@/components/patterns';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ProjetoStorage, TarefaStorage, TimesheetStorage } from '@/lib/storage/projeto-storage';
-import { Projeto, Tarefa, RegistroTempo } from '@/types/projeto';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Users, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ProgressoChartWrapper } from './_components/progresso-chart-wrapper';
 
-export default function RelatoriosPage() {
-  const [projetos, setProjetos] = useState<Projeto[]>([]);
-  const [tarefas, setTarefas] = useState<Tarefa[]>([]);
-  const [registros, setRegistros] = useState<RegistroTempo[]>([]);
-  const [loading, setLoading] = useState(true);
+// ─────────────────────────────────────────────────────────────────────────────
+// KPIs globais
+// ─────────────────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    setProjetos(ProjetoStorage.getProjetos());
-    setTarefas(TarefaStorage.getTarefas());
-    setRegistros(TimesheetStorage.getRegistros());
-    setLoading(false);
-  }, []);
+async function RelatoriosKpisSection({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const kpis = await runWithTenantContext({ tenantId, userId }, () =>
+    RelatorioService.kpisGlobais({ tenantId, userId })
+  );
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <KpiCard
+        title="Total de Projectos"
+        value={kpis.totalProjetos}
+        icon={<FolderKanban className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Em Andamento"
+        value={kpis.emAndamento}
+        icon={<TrendingUp className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Concluídos"
+        value={kpis.concluidos}
+        icon={<BarChart3 className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Horas Registadas"
+        value={kpis.horasTotal.toFixed(1)}
+        icon={<Clock className="h-5 w-5" />}
+        description="Horas totais de timesheet"
+      />
+    </div>
+  );
+}
 
-  if (loading) {
-    return <div className="container mx-auto p-6">Carregando...</div>;
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Gráfico de progresso
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const totalProjetos = projetos.length;
-  const projetosAtivos = projetos.filter(p => p.status === 'em_andamento').length;
-  const projetosConcluidos = projetos.filter(p => p.status === 'concluido').length;
-  const projetosAtrasados = projetos.filter(p => {
-    const dias = Math.ceil((new Date(p.dataFimPrevista).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-    return dias < 0 && p.status !== 'concluido';
-  }).length;
+async function ProgressoSection({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const projetos = await runWithTenantContext({ tenantId, userId }, () =>
+    RelatorioService.progressoPorProjeto({ tenantId, userId })
+  );
 
-  const totalTarefas = tarefas.length;
-  const tarefasConcluidas = tarefas.filter(t => t.status === 'concluida').length;
-  const tarefasEmProgresso = tarefas.filter(t => t.status === 'em_progresso').length;
-  const tarefasBloqueadas = tarefas.filter(t => t.status === 'bloqueada').length;
-
-  const totalHoras = registros.reduce((acc, r) => acc + r.duracaoHoras, 0);
-  const horasFaturadas = registros.filter(r => r.faturavel).reduce((acc, r) => acc + r.duracaoHoras, 0);
-
-  const orcamentoTotal = projetos.reduce((acc, p) => acc + p.orcamento.planejado, 0);
-  const orcamentoUtilizado = projetos.reduce((acc, p) => acc + p.orcamento.utilizado, 0);
-
-  const statusData = [
-    { name: 'Planejamento', value: projetos.filter(p => p.status === 'planejamento').length },
-    { name: 'Em Andamento', value: projetosAtivos },
-    { name: 'Concluído', value: projetosConcluidos },
-    { name: 'Pausado', value: projetos.filter(p => p.status === 'pausado').length },
-    { name: 'Cancelado', value: projetos.filter(p => p.status === 'cancelado').length },
-  ];
-
-  const tarefasData = [
-    { name: 'A Fazer', value: tarefas.filter(t => t.status === 'a_fazer').length },
-    { name: 'Em Progresso', value: tarefasEmProgresso },
-    { name: 'Em Revisão', value: tarefas.filter(t => t.status === 'em_revisao').length },
-    { name: 'Concluída', value: tarefasConcluidas },
-    { name: 'Bloqueada', value: tarefasBloqueadas },
-  ];
-
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-
-  const projetosPorProgresso = projetos.map(p => ({
-    nome: p.nome.substring(0, 10),
+  const projetosSer = projetos.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    codigo: p.codigo,
+    status: p.status as string,
     progresso: p.progresso,
+    dataFimPrevista: new Date(p.dataFimPrevista),
   }));
 
-  const orcamentoData = [
-    { name: 'Planejado', value: orcamentoTotal },
-    { name: 'Utilizado', value: orcamentoUtilizado },
-    { name: 'Restante', value: orcamentoTotal - orcamentoUtilizado },
-  ];
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Progresso por Projecto</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ProgressoChartWrapper projetos={projetosSer} />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Relatório de projecto específico
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function RelatorioProjetoSection({
+  projetoId,
+  tenantId,
+  userId,
+}: {
+  projetoId: string;
+  tenantId: string;
+  userId: string;
+}) {
+  const rel = await runWithTenantContext({ tenantId, userId }, () =>
+    RelatorioService.relatorio(projetoId, { tenantId, userId })
+  );
+
+  const desvioOrcamento = rel.orcamento.planejado > 0
+    ? ((rel.orcamento.utilizado - rel.orcamento.planejado) / rel.orcamento.planejado * 100).toFixed(1)
+    : '—';
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Relatórios e Análises</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Total de Projetos
-              </p>
-              <p className="text-3xl font-bold">{totalProjetos}</p>
-              <p className="text-xs text-muted-foreground">{projetosAtivos} ativos</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
-                Tarefas Concluídas
-              </p>
-              <p className="text-3xl font-bold">{tarefasConcluidas}</p>
-              <p className="text-xs text-muted-foreground">de {totalTarefas} tarefas</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                Projetos Atrasados
-              </p>
-              <p className="text-3xl font-bold">{projetosAtrasados}</p>
-              <p className="text-xs text-muted-foreground">requerem atenção</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Horas Trabalhadas
-              </p>
-              <p className="text-3xl font-bold">{totalHoras.toFixed(0)}h</p>
-              <p className="text-xs text-muted-foreground">{horasFaturadas.toFixed(0)}h faturadas</p>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Link href="/projetos/relatorios" className="text-xs text-muted-foreground hover:text-foreground">
+          ← Relatório global
+        </Link>
+        <span className="text-sm font-semibold">{rel.projeto.nome}</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Status dos Projetos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Status das Tarefas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={tarefasData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {tarefasData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <KpiCard
+          title="Progresso"
+          value={`${rel.projeto.progresso}%`}
+          icon={<TrendingUp className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Tarefas Concluídas"
+          value={`${rel.tarefas.concluidas}/${rel.tarefas.total}`}
+          icon={<FolderKanban className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Horas (est./real)"
+          value={`${rel.horas.estimadas}h / ${rel.horas.trabalhadas.toFixed(1)}h`}
+          icon={<Clock className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Desvio Orçamental"
+          value={desvioOrcamento === '—' ? '—' : `${desvioOrcamento}%`}
+          icon={<BarChart3 className="h-5 w-5" />}
+        />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Progresso dos Projetos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={projetosPorProgresso}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="nome" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="progresso" fill="#3b82f6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Análise de Orçamento</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={orcamentoData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip formatter={(value) => `MT ${(Number(value) / 1000).toFixed(0)}k`} />
-              <Bar dataKey="value" fill="#10b981" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {rel.marcos.lista.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Orçamento Total</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Marcos ({rel.marcos.atrasados} em atraso)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Planejado</p>
-                <p className="text-2xl font-bold">MT {(orcamentoTotal / 1000).toFixed(0)}k</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Utilizado</p>
-                <p className="text-2xl font-bold">MT {(orcamentoUtilizado / 1000).toFixed(0)}k</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Restante</p>
-                <p className="text-2xl font-bold">MT {((orcamentoTotal - orcamentoUtilizado) / 1000).toFixed(0)}k</p>
-              </div>
+            <div className="space-y-2">
+              {rel.marcos.lista.map((m) => {
+                const atrasado = m.status !== 'CONCLUIDO' && new Date(m.dataPrevista) < new Date();
+                return (
+                  <div key={m.id} className="flex items-center gap-3 text-sm">
+                    <span className={`font-medium ${atrasado ? 'text-destructive' : ''}`}>
+                      {atrasado ? '⚠ ' : ''}{m.nome}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums ml-auto">
+                      {new Date(m.dataPrevista).toLocaleDateString('pt-MZ')}
+                    </span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      m.status === 'CONCLUIDO' ? 'bg-success/20 text-success' :
+                      atrasado ? 'bg-destructive/20 text-destructive' : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {m.status}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
+      )}
+    </div>
+  );
+}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Taxa de Conclusão</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Projetos</p>
-                <p className="text-2xl font-bold">{((projetosConcluidos / totalProjetos) * 100).toFixed(1)}%</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Tarefas</p>
-                <p className="text-2xl font-bold">{((tarefasConcluidas / totalTarefas) * 100).toFixed(1)}%</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+// ─────────────────────────────────────────────────────────────────────────────
+// Página principal
+// ─────────────────────────────────────────────────────────────────────────────
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Produtividade</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Horas Totais</p>
-                <p className="text-2xl font-bold">{totalHoras.toFixed(0)}h</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Taxa Faturação</p>
-                <p className="text-2xl font-bold">{((horasFaturadas / totalHoras) * 100).toFixed(1)}%</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function RelatoriosProjetosPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+  const params = await searchParams;
+  const projetoId = typeof params.projeto === 'string' ? params.projeto : null;
+
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Relatórios"
+        description="Análise de desempenho e indicadores dos projectos"
+        breadcrumbs={[
+          { label: 'Projectos', href: '/projetos/lista' },
+          { label: 'Relatórios' },
+        ]}
+      />
+
+      <Suspense
+        fallback={
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24" />)}
+          </div>
+        }
+      >
+        <RelatoriosKpisSection tenantId={tenantId} userId={userId} />
+      </Suspense>
+
+      {projetoId ? (
+        <Suspense
+          key={projetoId}
+          fallback={<Skeleton className="h-64 w-full" />}
+        >
+          <RelatorioProjetoSection projetoId={projetoId} tenantId={tenantId} userId={userId} />
+        </Suspense>
+      ) : (
+        <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+          <ProgressoSection tenantId={tenantId} userId={userId} />
+        </Suspense>
+      )}
+
+      <div className="text-xs text-muted-foreground">
+        Para relatório detalhado de um projecto, aceda ao projecto e clique em{' '}
+        <Link href="/projetos/lista" className="text-primary hover:underline underline-offset-4">
+          Lista de Projectos
+        </Link>
+        .
       </div>
     </div>
   );

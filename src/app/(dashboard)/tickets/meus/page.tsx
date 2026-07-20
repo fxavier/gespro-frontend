@@ -1,121 +1,137 @@
+/**
+ * Os Meus Tickets — Server Component.
+ * Filtra por atribuidoParaId = userId da sessão.
+ */
 
-'use client';
-
-import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { TicketStorage } from '@/lib/storage/ticket-storage';
-import { Ticket } from '@/types/ticket';
-import { UserCircle, Eye, AlertCircle } from 'lucide-react';
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { redirect } from 'next/navigation';
+import { Plus } from 'lucide-react';
+import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { ticketService } from '@/server/services/operacoes/ticket.service';
+import { Button } from '@/components/ui/button';
+import { PageHeader, FilterBar } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { TicketsTable } from '../_components/tickets-table';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default function MeusTickets() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
+const UrlSchema = z.object({
+  estado: z.string().optional(),
+  take: z.coerce.number().int().positive().max(100).default(25),
+  cursor: z.string().optional(),
+  orderBy: z.enum(['createdAt', 'prioridade', 'slaDataLimiteResolucao']).default('createdAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
 
-  useEffect(() => {
-    loadTickets();
-  }, []);
+type FiltrosNormalizados = z.infer<typeof UrlSchema>;
 
-  const loadTickets = () => {
-    setLoading(true);
-    const allTickets = TicketStorage.getTickets();
-    const meusTickets = allTickets.filter(
-      t => t.atribuidoParaId === 'user-1' && !['fechado', 'cancelado'].includes(t.status)
-    );
-    setTickets(meusTickets);
-    setLoading(false);
-  };
+const FILTROS_DEFAULT: FiltrosNormalizados = { take: 25, orderBy: 'createdAt', order: 'desc' };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Carregando tickets...</p>
-        </div>
+function TableSkeleton() {
+  return (
+    <div className="rounded-md border">
+      <div className="p-4 space-y-3">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+async function MeusTicketsTable({
+  filtros,
+  tenantId,
+  userId,
+}: {
+  filtros: FiltrosNormalizados;
+  tenantId: string;
+  userId: string;
+}) {
+  const ctx = { tenantId, userId };
+  const result = await runWithTenantContext(ctx, () =>
+    ticketService.listarTickets(
+      {
+        atribuidoParaId: userId,
+        take: filtros.take,
+        orderBy: filtros.orderBy,
+        order: filtros.order,
+      },
+      ctx
+    )
+  );
+  return (
+    <TicketsTable
+      data={result.items}
+      nextCursor={result.nextCursor}
+      currentOrderBy={filtros.orderBy}
+      currentOrderDir={filtros.order}
+    />
+  );
+}
+
+const FILTER_CONFIGS: FilterConfig[] = [
+  {
+    key: 'estado',
+    label: 'Estado',
+    placeholder: 'Todos os estados',
+    options: [
+      { label: 'Aberto', value: 'ABERTO' },
+      { label: 'Em Progresso', value: 'EM_PROGRESSO' },
+      { label: 'A Aguardar Cliente', value: 'AGUARDANDO_CLIENTE' },
+      { label: 'Resolvido', value: 'RESOLVIDO' },
+    ],
+  },
+];
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function MeusTicketsPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  const rawParams = await searchParams;
+  const flatParams = Object.fromEntries(
+    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+  );
+
+  const parseResult = UrlSchema.safeParse(flatParams);
+  const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <UserCircle className="h-8 w-8" />
-            Meus Tickets
-          </h1>
-          <p className="text-muted-foreground">Tickets atribuídos a você</p>
-        </div>
-        <Badge variant="secondary" className="text-lg px-4 py-2">
-          {tickets.length} tickets
-        </Badge>
-      </div>
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Os Meus Tickets"
+        description="Tickets atribuídos a mim"
+        breadcrumbs={[
+          { label: 'Tickets', href: '/tickets' },
+          { label: 'Os Meus' },
+        ]}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/tickets/novo">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Ticket
+            </Link>
+          </Button>
+        }
+      />
 
-      <Card>
-        <CardContent className="p-0">
-          {tickets.length === 0 ? (
-            <div className="text-center py-12">
-              <UserCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Você não tem tickets atribuídos</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="p-4 hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-medium">{ticket.numero}</span>
-                        <Badge variant={
-                          ticket.prioridade === 'urgente' ? 'destructive' :
-                          ticket.prioridade === 'alta' ? 'default' :
-                          'secondary'
-                        }>
-                          {ticket.prioridade}
-                        </Badge>
-                        <Badge variant="outline">
-                          {ticket.status.replace('_', ' ')}
-                        </Badge>
-                        {ticket.sla.emAtraso && (
-                          <Badge variant="destructive" className="gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            Em Atraso
-                          </Badge>
-                        )}
-                      </div>
-                      <h3 className="font-semibold mb-1">{ticket.titulo}</h3>
-                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                        {ticket.descricao}
-                      </p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>{ticket.solicitanteNome}</span>
-                        <span>•</span>
-                        <span>{ticket.categoria}</span>
-                        <span>•</span>
-                        <span>{format(new Date(ticket.tempos.dataAbertura), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
-                      </div>
-                    </div>
-                    <Link href={`/tickets/${ticket.id}`}>
-                      <Button variant="outline" size="sm">
-                        <Eye className="mr-2 h-4 w-4" />
-                        Ver Detalhes
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <FilterBar
+        searchPlaceholder="Pesquisar…"
+        searchKey="pesquisa"
+        filters={FILTER_CONFIGS}
+      />
+
+      <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton />}>
+        <MeusTicketsTable filtros={filtros} tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }

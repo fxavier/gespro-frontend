@@ -1,15 +1,9 @@
+/**
+ * Stock — redireciona para o dashboard de stock.
+ */
 
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
 export default function StockPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace('/stock/dashboard');
-  }, [router]);
-
-  return null;
+  redirect('/stock/dashboard');
 }

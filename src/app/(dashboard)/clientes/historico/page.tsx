@@ -1,307 +1,157 @@
-
-'use client';
-
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+/**
+ * Histórico de Transacções por Cliente — Server Component.
+ *
+ * Materializa `HistoricoTransacao` via `clienteService.obterHistorico` (sem
+ * mock). Selecção de cliente por URL (`?clienteId=`); exportação por Route
+ * Handler (`/api/export/cliente-historico`). Leitura dentro de
+ * `runWithTenantContext` (o serviço usa o cliente Prisma scoped).
+ */
+import { notFound, redirect } from 'next/navigation';
+import Link from 'next/link';
+import { History, Download } from 'lucide-react';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { clienteService } from '@/server/services/comercial/cliente.service';
+import { PageHeader, StatusBadge, EmptyState } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  Search,
-  Filter,
-  History,
-  TrendingUp,
-  Download
-} from 'lucide-react';
-import { ClienteStorage, HistoricoTransacaoStorage } from '@/lib/storage/cliente-storage';
-import { formatCurrency } from '@/lib/format-currency';
-import { usePagination } from '@/hooks/usePagination';
+import { cn } from '@/lib/utils';
 
-export default function HistoricoClientesPage() {
-  const [clientes, setClientes] = useState<any[]>([]);
-  const [historico, setHistorico] = useState<any[]>([]);
-  const [termoPesquisa, setTermoPesquisa] = useState('');
-  const [clienteFiltro, setClienteFiltro] = useState('todos');
-  const [tipoFiltro, setTipoFiltro] = useState('todos');
-  const [statusFiltro, setStatusFiltro] = useState('todos');
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
 
-  useEffect(() => {
-    const clientesData = ClienteStorage.getClientes();
-    const historicoData = HistoricoTransacaoStorage.getHistorico();
-    setClientes(clientesData);
-    setHistorico(historicoData);
-  }, []);
+const mt = (v: string) => `MT ${parseFloat(v).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}`;
 
-  const historicoFiltrado = historico.filter(h => {
-    const correspondePesquisa = h.referencia.toLowerCase().includes(termoPesquisa.toLowerCase()) ||
-                                h.descricao.toLowerCase().includes(termoPesquisa.toLowerCase());
-    const correspondeCliente = clienteFiltro === 'todos' || h.clienteId === clienteFiltro;
-    const correspondeTipo = tipoFiltro === 'todos' || h.tipo === tipoFiltro;
-    const correspondeStatus = statusFiltro === 'todos' || h.status === statusFiltro;
-    return correspondePesquisa && correspondeCliente && correspondeTipo && correspondeStatus;
-  }).sort((a, b) => new Date(b.dataTransacao).getTime() - new Date(a.dataTransacao).getTime());
+export default async function HistoricoClientesPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+  const { tenantId, id: userId } = session.user;
+  const ctx = { tenantId, userId };
 
-  const { paginatedData, currentPage, totalPages, handlePageChange, itemsPerPage, handleItemsPerPageChange } =
-    usePagination({ data: historicoFiltrado, initialItemsPerPage: 15 });
+  const sp = await searchParams;
+  const clienteId = typeof sp.clienteId === 'string' ? sp.clienteId : undefined;
 
-  const getClienteNome = (clienteId: string) => {
-    return clientes.find(c => c.id === clienteId)?.nome || 'N/A';
-  };
-
-  const totalVendas = historicoFiltrado
-    .filter(h => h.tipo === 'venda' && h.status === 'concluido')
-    .reduce((acc, h) => acc + h.valorMT, 0);
-
-  const totalPagamentos = historicoFiltrado
-    .filter(h => h.tipo === 'pagamento' && h.status === 'concluido')
-    .reduce((acc, h) => acc + h.valorMT, 0);
-
-  const exportarCSV = () => {
-    const headers = ['Referência', 'Cliente', 'Tipo', 'Descrição', 'Valor (MT)', 'Data', 'Status', 'Usuário'];
-    const rows = historicoFiltrado.map(h => [
-      h.referencia,
-      getClienteNome(h.clienteId),
-      h.tipo,
-      h.descricao,
-      h.valorMT,
-      new Date(h.dataTransacao).toLocaleDateString('pt-PT'),
-      h.status,
-      h.usuario
-    ]);
-
-    const csv = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `historico-transacoes-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
+  // clienteId inválido/cross-tenant → NotFoundError do serviço → 404 (não error boundary).
+  // Padrão de clientes/[id]/page.tsx.
+  let resultado;
+  try {
+    resultado = await runWithTenantContext(ctx, async () => {
+      const lista = await clienteService.listar({ take: 100, orderBy: 'nome', order: 'asc' }, ctx);
+      if (!clienteId) return { clientes: lista.items, historico: null, clienteSelecionado: null };
+      const [hist, cli] = await Promise.all([
+        clienteService.obterHistorico(clienteId, { take: 100 }, ctx),
+        clienteService.buscarPorId(clienteId, ctx),
+      ]);
+      return { clientes: lista.items, historico: hist.items, clienteSelecionado: cli };
+    });
+  } catch {
+    notFound();
+  }
+  const { clientes, historico, clienteSelecionado } = resultado;
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Histórico de Transações
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Registro completo de todas as transações com clientes
+      <PageHeader
+        title="Histórico de Transacções"
+        description="Compras, pagamentos e notas por cliente"
+        breadcrumbs={[{ label: 'Clientes', href: '/clientes' }, { label: 'Histórico' }]}
+        actions={
+          clienteSelecionado ? (
+            <div className="flex gap-2">
+              <Button asChild variant="outline" size="sm">
+                <a href={`/api/export/cliente-historico?clienteId=${clienteId}&formato=csv`} download>
+                  <Download className="h-4 w-4 mr-2" />
+                  CSV
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <a href={`/api/export/cliente-historico?clienteId=${clienteId}&formato=xlsx`} download>
+                  <Download className="h-4 w-4 mr-2" />
+                  XLSX
+                </a>
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+        {/* Selector de cliente */}
+        <aside className="space-y-1 rounded-lg border p-2 max-h-[70vh] overflow-auto">
+          <p className="px-2 py-1 text-xs font-semibold uppercase text-muted-foreground">
+            Clientes
           </p>
-        </div>
-        <Button onClick={exportarCSV} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Exportar CSV
-        </Button>
-      </div>
-
-      {/* Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total de Transações</p>
-                <p className="text-3xl font-bold mt-2">{historicoFiltrado.length}</p>
-              </div>
-              <History className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total Vendas</p>
-                <p className="text-2xl font-bold mt-2">{formatCurrency(totalVendas)}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total Pagamentos</p>
-                <p className="text-2xl font-bold mt-2">{formatCurrency(totalPagamentos)}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Filter className="h-5 w-5" />
-            <span>Filtros e Pesquisa</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Pesquisar por referência..."
-                  value={termoPesquisa}
-                  onChange={(e) => setTermoPesquisa(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            <Select value={clienteFiltro} onValueChange={setClienteFiltro}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filtrar por cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Clientes</SelectItem>
-                {clientes.map(cliente => (
-                  <SelectItem key={cliente.id} value={cliente.id}>
-                    {cliente.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={tipoFiltro} onValueChange={setTipoFiltro}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filtrar por tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Tipos</SelectItem>
-                <SelectItem value="venda">Venda</SelectItem>
-                <SelectItem value="devolucao">Devolução</SelectItem>
-                <SelectItem value="pagamento">Pagamento</SelectItem>
-                <SelectItem value="ajuste">Ajuste</SelectItem>
-                <SelectItem value="nota_credito">Nota de Crédito</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filtrar por status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Status</SelectItem>
-                <SelectItem value="concluido">Concluído</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Transações ({historicoFiltrado.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Referência</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Usuário</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedData.map((transacao) => (
-                  <TableRow key={transacao.id}>
-                    <TableCell className="font-medium">{transacao.referencia}</TableCell>
-                    <TableCell>{getClienteNome(transacao.clienteId)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {transacao.tipo === 'venda' ? 'Venda' :
-                         transacao.tipo === 'devolucao' ? 'Devolução' :
-                         transacao.tipo === 'pagamento' ? 'Pagamento' :
-                         transacao.tipo === 'ajuste' ? 'Ajuste' :
-                         transacao.tipo === 'nota_credito' ? 'Nota de Crédito' : transacao.tipo}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{transacao.descricao}</TableCell>
-                    <TableCell className="font-medium">{formatCurrency(transacao.valorMT)}</TableCell>
-                    <TableCell>{new Date(transacao.dataTransacao).toLocaleDateString('pt-PT')}</TableCell>
-                    <TableCell>
-                      <Badge variant={transacao.status === 'concluido' ? 'default' : transacao.status === 'pendente' ? 'secondary' : 'destructive'}>
-                        {transacao.status === 'concluido' ? 'Concluído' :
-                         transacao.status === 'pendente' ? 'Pendente' : 'Cancelado'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{transacao.usuario}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {paginatedData.length === 0 && (
-            <div className="text-center py-8">
-              <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhuma transação encontrada</p>
-            </div>
+          {clientes.length === 0 ? (
+            <p className="px-2 py-4 text-sm text-muted-foreground">Sem clientes.</p>
+          ) : (
+            clientes.map((c) => (
+              <Link
+                key={c.id}
+                href={`/clientes/historico?clienteId=${c.id}`}
+                className={cn(
+                  'block rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',
+                  c.id === clienteId && 'bg-accent text-accent-foreground font-medium',
+                )}
+              >
+                <span className="block truncate">{c.nome}</span>
+                <span className="block truncate text-xs text-muted-foreground">{c.codigo}</span>
+              </Link>
+            ))
           )}
+        </aside>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Itens por página:</span>
-                <Select value={itemsPerPage.toString()} onValueChange={(value) => handleItemsPerPageChange(parseInt(value))}>
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="15">15</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  Anterior
-                </Button>
-                <span className="text-sm">
-                  Página {currentPage} de {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  Próxima
-                </Button>
-              </div>
+        {/* Histórico */}
+        <section>
+          {!clienteSelecionado ? (
+            <EmptyState
+              icon={<History className="h-8 w-8" />}
+              title="Seleccione um cliente"
+              description="Escolha um cliente na lista à esquerda para consultar e exportar o histórico de transacções."
+            />
+          ) : historico && historico.length > 0 ? (
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr className="text-left">
+                    <th className="px-3 py-2 font-medium">Data</th>
+                    <th className="px-3 py-2 font-medium">Tipo</th>
+                    <th className="px-3 py-2 font-medium">Referência</th>
+                    <th className="px-3 py-2 font-medium">Descrição</th>
+                    <th className="px-3 py-2 font-medium text-right">Valor</th>
+                    <th className="px-3 py-2 font-medium">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historico.map((h) => (
+                    <tr key={h.id} className="border-t">
+                      <td className="px-3 py-2 tabular-nums whitespace-nowrap">
+                        {h.dataTransacao.toLocaleDateString('pt-PT')}
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusBadge status={h.tipo} />
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">{h.referencia}</td>
+                      <td className="px-3 py-2">{h.descricao}</td>
+                      <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                        {mt(h.valor)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusBadge status={h.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          ) : (
+            <EmptyState
+              icon={<History className="h-8 w-8" />}
+              title="Sem transacções"
+              description={`Não há transacções registadas para ${clienteSelecionado.nome}.`}
+            />
           )}
-        </CardContent>
-      </Card>
+        </section>
+      </div>
     </div>
   );
 }

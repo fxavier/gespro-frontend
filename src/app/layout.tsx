@@ -1,11 +1,8 @@
-
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { ThemeProvider } from "@/components/ThemeProvider";
+import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
-import { AuthProvider } from "@/lib/auth-context";
-import GlobalClientEffects from "@/components/GlobalClientEffects";
 
 import "./globals.css";
 
@@ -20,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sistema de Gestão Empresarial - Moçambique",
-  description: "Sistema completo de gestão de stocks, faturação e POS para empresas moçambicanas",
+  title: "GestPro — Sistema de Gestão Empresarial",
+  description: "Sistema completo de gestão para empresas moçambicanas",
 };
 
 export default function RootLayout({
@@ -34,19 +31,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
-            {children}
-            <Toaster />
-            <SonnerToaster />
-            <GlobalClientEffects />
-          </AuthProvider>
-        </ThemeProvider>
+        <Providers>
+          {children}
+          <Toaster />
+          <SonnerToaster />
+        </Providers>
       </body>
     </html>
   );

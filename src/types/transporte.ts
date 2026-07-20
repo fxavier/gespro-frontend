@@ -1,67 +1,190 @@
+// ============================================================
+// Tipos actualizados — Módulo de Transportes e Logística
+// Refatoração: entidade Atividade como unidade central
+// ============================================================
 
-export interface Veiculo {
+// ------------------------------------------------------------
+// Documento de Viatura
+// ------------------------------------------------------------
+
+export interface DocumentoViatura {
   id: string;
-  tenantId: string;
+  viaturaId: string;
+  tipo: 'livrete' | 'inspecao' | 'seguro' | 'licenca' | 'manifesto' | 'taxa_radio' | 'outro';
+  numero: string;
+  dataEmissao: Date;
+  dataValidade: Date;
+  entidadeEmissora: string;
+  estado: 'valido' | 'proximo_expirar' | 'expirado';
+  anexo?: string;
+  observacoes?: string;
+  prazoAlertaDias: number; // default: 30
+}
+
+// ------------------------------------------------------------
+// Viatura (substitui Veiculo)
+// ------------------------------------------------------------
+
+export interface Viatura {
+  id: string;
   matricula: string;
   marca: string;
   modelo: string;
-  ano: number;
-  cor?: string;
-  tipo: 'carro' | 'caminhao' | 'moto' | 'van';
-  capacidadeCarga: number;
-  unidadeCapacidade: 'kg' | 'ton' | 'm3';
-  consumoMedio: number;
-  status: 'disponivel' | 'em_rota' | 'manutencao' | 'inativo';
-  kmAtual: number;
-  ultimaManutencao?: string;
-  proximaManutencao?: string;
-  seguro: {
-    seguradora: string;
-    numeroApolice: string;
-    dataValidade: string;
-    valorCobertura: number;
-  };
-  inspecao: {
-    dataUltimaInspecao?: string;
-    dataProximaInspecao: string;
-    status: 'valida' | 'vencida' | 'proxima_vencer';
-  };
-  licenca: {
-    numeroLicenca: string;
-    dataValidade: string;
-    status: 'valida' | 'vencida' | 'proxima_vencer';
-  };
+  tipoViatura: 'ligeiro_passageiros' | 'ligeiro_mercadorias' | 'pesado_mercadorias' | 'pesado_passageiros' | 'motociclo' | 'outro';
+  capacidade: number;
+  unidadeCapacidade: 'kg' | 'ton' | 'm3' | 'passageiros';
+  localActividade: string;
+  dataInicioActividade: Date;
+  motoristaResponsavelId?: string;
+  motoristaResponsavelNome?: string;
+  estado: 'disponivel' | 'em_actividade' | 'em_manutencao' | 'inactiva' | 'abatida';
   observacoes?: string;
-  dataCriacao: string;
-  dataAtualizacao: string;
+  documentos: DocumentoViatura[];
+  criadoEm: Date;
+  actualizadoEm: Date;
 }
+
+// ------------------------------------------------------------
+// Manutenção de Viatura (expandida)
+// ------------------------------------------------------------
+
+export interface ManutencaoViatura {
+  id: string;
+  viaturaId: string;
+  tipo: 'preventiva' | 'correctiva';
+  data: Date;
+  quilometragem?: number;
+  criterio?: string;
+  descricao: string;
+  fornecedor?: string;
+  custo?: number;
+  pecasSubstituidas?: string;
+  responsavel: string;
+  proximaManutencaoPrevista?: {
+    data?: Date;
+    quilometragem?: number;
+    criterio?: string;
+  };
+  criadoEm: Date;
+}
+
+// ------------------------------------------------------------
+// Checklist de Viatura
+// ------------------------------------------------------------
+
+export interface ItemChecklist {
+  id: string;
+  nome: string;
+  categoria: 'componente' | 'sobressalente' | 'acessorio';
+  estado: 'ok' | 'avaria' | 'falta';
+  observacoes?: string;
+}
+
+export interface ChecklistViatura {
+  id: string;
+  viaturaId: string;
+  tipoViatura: string;
+  itens: ItemChecklist[];
+  responsavel: string;
+  dataInspeccao: Date;
+  observacoes?: string;
+}
+
+// ------------------------------------------------------------
+// Documento de Motorista
+// ------------------------------------------------------------
+
+export interface DocumentoMotorista {
+  id: string;
+  motoristaId: string;
+  tipo: 'carta_conducao' | 'bi' | 'outro';
+  numero: string;
+  dataEmissao: Date;
+  dataValidade: Date;
+  entidadeEmissora: string;
+  estado: 'valido' | 'proximo_expirar' | 'expirado';
+  anexo?: string;
+  observacoes?: string;
+}
+
+// ------------------------------------------------------------
+// Disponibilidade de Motorista
+// ------------------------------------------------------------
+
+export interface DisponibilidadeMotorista {
+  disponivel: boolean;
+  motivo?: 'ferias' | 'ausencia' | 'suspensao' | 'manual' | 'conflito_agenda';
+  dataInicio?: Date;
+  dataFim?: Date;
+  fonte: 'sistema' | 'rh_api' | 'manual';
+}
+
+// ------------------------------------------------------------
+// Motorista (actualizado — sem métricas de entregas)
+// ------------------------------------------------------------
 
 export interface Motorista {
   id: string;
-  tenantId: string;
-  nome: string;
-  email?: string;
-  telefone: string;
-  nuit?: string;
-  endereco?: string;
-  dataNascimento: string;
-  cartaConducao: {
-    numero: string;
-    categoria: string[];
-    dataEmissao: string;
-    dataValidade: string;
-    status: 'valida' | 'vencida' | 'proxima_vencer';
-  };
-  status: 'ativo' | 'inativo' | 'ferias' | 'licenca';
-  avaliacaoMedia: number;
-  totalEntregas: number;
-  entregasNoTempo: number;
-  entregasAtrasadas: number;
-  entregasFalhadas: number;
+  nomeCompleto: string;
+  contacto: string;
+  morada?: string;
+  numeroBI?: string;
+  numeroCarta: string;
+  categoriaCarta: string[];
+  dataEmissaoCarta: Date;
+  validadeCarta: Date;
+  localActividade?: string;
+  estadoOperacional: 'activo' | 'inactivo' | 'suspenso';
   observacoes?: string;
-  dataCriacao: string;
-  dataAtualizacao: string;
+  documentos: DocumentoMotorista[];
+  disponibilidade: DisponibilidadeMotorista;
+  criadoEm: Date;
+  actualizadoEm: Date;
 }
+
+// ------------------------------------------------------------
+// Evento de Atividade (histórico imutável)
+// ------------------------------------------------------------
+
+export interface EventoAtividade {
+  id: string;
+  data: Date;
+  estadoAnterior?: string;
+  estadoNovo: string;
+  utilizador: string;
+  descricao: string;
+}
+
+// ------------------------------------------------------------
+// Atividade (entidade central)
+// ------------------------------------------------------------
+
+export interface Atividade {
+  id: string;
+  codigo: string; // gerado automaticamente: AT-YYYY-NNNN
+  titulo: string;
+  descricao?: string;
+  tipoActividade: 'deslocacao' | 'missao_servico' | 'transporte_mercadorias' | 'transporte_pessoal' | 'manutencao_campo' | 'outro';
+  localActividade: string;
+  dataInicioPrevista: Date;
+  dataConclusaoPrevista?: Date;
+  motoristaResponsavelId?: string;
+  motoristaResponsavelNome?: string;
+  viaturaId?: string;
+  viaturaMatricula?: string;
+  prioridade: 'baixa' | 'media' | 'alta' | 'urgente';
+  estado: 'planeada' | 'em_curso' | 'suspensa' | 'concluida' | 'cancelada';
+  observacoes?: string;
+  anexos?: string[];
+  historico: EventoAtividade[];
+  criadoEm: Date;
+  criadoPor: string;
+}
+
+// ============================================================
+// Tipos existentes mantidos sem alterações
+// (compatibilidade com páginas de rotas e combustível)
+// ============================================================
 
 export interface Rota {
   id: string;
@@ -147,45 +270,6 @@ export interface ItemEntrega {
   peso: number;
   volume: number;
   valor: number;
-}
-
-export interface Manutencao {
-  id: string;
-  tenantId: string;
-  veiculoId: string;
-  tipo: 'preventiva' | 'corretiva' | 'inspecao' | 'revisao';
-  descricao: string;
-  dataAgendada: string;
-  dataRealizacao?: string;
-  status: 'agendada' | 'em_andamento' | 'concluida' | 'cancelada';
-  kmVeiculo: number;
-  oficina?: string;
-  responsavel?: string;
-  servicos: ServicoManutencao[];
-  custoTotal: number;
-  proximaManutencao?: {
-    tipo: string;
-    kmEstimado: number;
-    dataEstimada: string;
-  };
-  observacoes?: string;
-  dataCriacao: string;
-  dataAtualizacao: string;
-}
-
-export interface ServicoManutencao {
-  id: string;
-  descricao: string;
-  tipo: 'troca_oleo' | 'troca_pneu' | 'alinhamento' | 'balanceamento' | 'freios' | 'suspensao' | 'eletrica' | 'outro';
-  custo: number;
-  pecasUtilizadas?: PecaManutencao[];
-}
-
-export interface PecaManutencao {
-  nome: string;
-  quantidade: number;
-  valorUnitario: number;
-  valorTotal: number;
 }
 
 export interface Abastecimento {

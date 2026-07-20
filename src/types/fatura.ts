@@ -45,5 +45,22 @@ export interface NotaCredito {
   ivaTotal: number;
   total: number;
   dataEmissao: string;
+  status: 'rascunho' | 'emitida' | 'liquidada' | 'cancelada';
+  observacoes?: string;
+}
+
+export interface NotaDebito {
+  id: string;
+  tenantId: string;
+  numeroNota: string;
+  clienteId: string;
+  faturaReferenciaId?: string;
+  motivo: string;
+  itens: ItemFatura[];
+  subtotal: number;
+  ivaTotal: number;
+  total: number;
+  dataEmissao: string;
+  status: 'rascunho' | 'emitida' | 'liquidada' | 'cancelada';
   observacoes?: string;
 }

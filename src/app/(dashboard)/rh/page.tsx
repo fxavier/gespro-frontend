@@ -1,298 +1,175 @@
+/**
+ * Dashboard de RH — Server Component (NUNCA 'use client').
+ * KPIs reais via prisma + Suspense.
+ */
 
-'use client';
-
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DashboardRHStorage } from '@/lib/storage/rh-storage';
-import { DashboardRH } from '@/types/rh';
-import { 
-  Users, 
-  UserCheck, 
-  UserX, 
-  Clock, 
-  Calendar, 
-  DollarSign, 
-  TrendingUp,
+import { Suspense } from 'react';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import {
+  Users,
+  UserCheck,
+  UserX,
+  Calendar,
   Award,
-  GraduationCap,
-  FileText,
-  Briefcase,
-  Target,
-  Cake
+  Clock,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
-import { formatCurrency } from '@/lib/format-currency';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { prisma } from '@/server/db/client';
+import { PageHeader, KpiCard } from '@/components/patterns';
+import { Button } from '@/components/ui/button';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+async function RhKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const hoje = new Date();
+  const inicioPeriodo = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
 
-export default function DashboardRHPage() {
-  const [dashboard, setDashboard] = useState<DashboardRH | null>(null);
+  const [
+    totalColaboradores,
+    activos,
+    inactivos,
+    feriasPendentes,
+    avaliacoesPendentes,
+    ausenciasHoje,
+  ] = await runWithTenantContext(ctx, () =>
+    Promise.all([
+      prisma.colaborador.count({ where: { tenantId } }),
+      prisma.colaborador.count({ where: { tenantId, status: 'ACTIVO' } }),
+      prisma.colaborador.count({ where: { tenantId, status: { not: 'ACTIVO' } } }),
+      prisma.solicitacaoFerias.count({
+        where: { tenantId, status: 'PENDENTE' },
+      }),
+      prisma.avaliacao.count({
+        where: { tenantId, status: 'PENDENTE' },
+      }),
+      prisma.ausencia.count({
+        where: {
+          tenantId,
+          dataInicio: { lte: hoje },
+          dataFim: { gte: hoje },
+        },
+      }),
+    ])
+  );
 
-  useEffect(() => {
-    const data = DashboardRHStorage.getDashboardData();
-    setDashboard(data);
-  }, []);
-
-  if (!dashboard) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">A carregar dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const statsCards = [
-    {
-      title: 'Total de Colaboradores',
-      value: dashboard.totalColaboradores,
-      icon: Users,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-500/10'
-    },
-    {
-      title: 'Colaboradores Activos',
-      value: dashboard.colaboradoresActivos,
-      icon: UserCheck,
-      color: 'text-green-500',
-      bgColor: 'bg-green-500/10'
-    },
-    {
-      title: 'Inactivos',
-      value: dashboard.colaboradoresInactivos,
-      icon: UserX,
-      color: 'text-red-500',
-      bgColor: 'bg-red-500/10'
-    },
-    {
-      title: 'Período Experimental',
-      value: dashboard.colaboradoresPeriodoExperimental,
-      icon: Clock,
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-500/10'
-    },
-    {
-      title: 'Férias Pendentes',
-      value: dashboard.feriasPendentes,
-      icon: Calendar,
-      color: 'text-purple-500',
-      bgColor: 'bg-purple-500/10'
-    },
-    {
-      title: 'Ausências Hoje',
-      value: dashboard.ausenciasHoje,
-      icon: UserX,
-      color: 'text-yellow-500',
-      bgColor: 'bg-yellow-500/10'
-    },
-    {
-      title: 'Custo Folha Mensal',
-      value: formatCurrency(dashboard.custoFolhaMensal),
-      icon: DollarSign,
-      color: 'text-green-600',
-      bgColor: 'bg-green-600/10'
-    },
-    {
-      title: 'Taxa de Rotatividade',
-      value: `${dashboard.taxaRotatividade}%`,
-      icon: TrendingUp,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-600/10'
-    },
-    {
-      title: 'Avaliações Pendentes',
-      value: dashboard.avaliacoesPendentes,
-      icon: Award,
-      color: 'text-indigo-500',
-      bgColor: 'bg-indigo-500/10'
-    },
-    {
-      title: 'Formações do Mês',
-      value: dashboard.formacoesMes,
-      icon: GraduationCap,
-      color: 'text-pink-500',
-      bgColor: 'bg-pink-500/10'
-    },
-    {
-      title: 'Contratos a Expirar',
-      value: dashboard.contratosExpirando,
-      icon: FileText,
-      color: 'text-red-600',
-      bgColor: 'bg-red-600/10'
-    },
-    {
-      title: 'Vagas Abertas',
-      value: dashboard.vagasAbertas,
-      icon: Briefcase,
-      color: 'text-teal-500',
-      bgColor: 'bg-teal-500/10'
-    }
+  const kpis = [
+    { title: 'Total Colaboradores', value: String(totalColaboradores), icon: <Users className="h-4 w-4" /> },
+    { title: 'Activos', value: String(activos), icon: <UserCheck className="h-4 w-4" /> },
+    { title: 'Inactivos', value: String(inactivos), icon: <UserX className="h-4 w-4" /> },
+    { title: 'Férias Pendentes', value: String(feriasPendentes), icon: <Calendar className="h-4 w-4" /> },
+    { title: 'Avaliações Pendentes', value: String(avaliacoesPendentes), icon: <Award className="h-4 w-4" /> },
+    { title: 'Ausências Hoje', value: String(ausenciasHoje), icon: <Clock className="h-4 w-4" /> },
   ];
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard de Recursos Humanos</h1>
-          <p className="text-muted-foreground mt-1">
-            Visão geral da gestão de pessoas
-          </p>
-        </div>
-      </div>
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      {kpis.map((k) => (
+        <KpiCard key={k.title} title={k.title} value={k.value} icon={k.icon} />
+      ))}
+    </div>
+  );
+}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statsCards.map((stat, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {stat.title}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
+async function ColaboradoresRecentes({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const colaboradores = await runWithTenantContext(ctx, () =>
+    prisma.colaborador.findMany({
+      where: { tenantId, status: 'ACTIVO' },
+      select: {
+        id: true,
+        nome: true,
+        codigo: true,
+        cargo: { select: { nome: true } },
+        departamento: { select: { nome: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    })
+  );
+
+  if (colaboradores.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+        Colaboradores Recentes
+      </h3>
+      <div className="divide-y border rounded-lg">
+        {colaboradores.map((c) => (
+          <div key={c.id} className="flex items-center justify-between p-3">
+            <div>
+              <p className="text-sm font-medium">{c.nome}</p>
+              <p className="text-xs text-muted-foreground">
+                {c.cargo?.nome ?? '—'} · {c.departamento?.nome ?? '—'}
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground font-mono">{c.codigo}</span>
+          </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Distribuição por Departamento
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dashboard.distribuicaoDepartamento}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="departamento" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="total" fill="#3b82f6" name="Colaboradores" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+export default async function DashboardRHPage() {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5" />
-              Distribuição por Cargo
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={dashboard.distribuicaoCargo}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={(entry) => entry.cargo}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="total"
-                >
-                  {dashboard.distribuicaoCargo.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+  const { tenantId, id: userId } = session.user;
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Cake className="h-5 w-5" />
-              Aniversariantes do Mês
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dashboard.aniversariantesMes.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                Nenhum aniversariante este mês
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {dashboard.aniversariantesMes.map((colaborador) => (
-                  <div key={colaborador.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{colaborador.nome}</p>
-                      <p className="text-sm text-muted-foreground">{colaborador.cargo}</p>
-                    </div>
-                    <Badge variant="secondary">
-                      {new Date(colaborador.dataNascimento).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Recursos Humanos"
+        description="Visão geral da gestão de pessoas"
+        actions={
+          <Button size="sm" asChild>
+            <Link href="/rh/colaboradores/novo">Novo Colaborador</Link>
+          </Button>
+        }
+      />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5" />
-              Média de Assiduidade
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className="text-4xl font-bold text-green-600">
-                  {dashboard.mediaAssiduidade}%
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Taxa de presença dos colaboradores
-                </p>
-              </div>
-              <Progress value={dashboard.mediaAssiduidade} className="h-3" />
-              <div className="grid grid-cols-3 gap-4 text-center text-sm">
-                <div>
-                  <p className="text-muted-foreground">Excelente</p>
-                  <p className="font-semibold text-green-600">&gt; 95%</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Bom</p>
-                  <p className="font-semibold text-yellow-600">90-95%</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Atenção</p>
-                  <p className="font-semibold text-red-600">&lt; 90%</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <Suspense
+        fallback={
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 animate-pulse">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-20 bg-muted rounded-lg" />
+            ))}
+          </div>
+        }
+      >
+        <RhKpis tenantId={tenantId} userId={userId} />
+      </Suspense>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Suspense fallback={<div className="h-60 bg-muted rounded-lg animate-pulse" />}>
+          <ColaboradoresRecentes tenantId={tenantId} userId={userId} />
+        </Suspense>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Acesso Rápido
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: 'Colaboradores', href: '/rh/colaboradores' },
+              { label: 'Assiduidade', href: '/rh/assiduidade' },
+              { label: 'Férias', href: '/rh/ferias' },
+              { label: 'Avaliações', href: '/rh/avaliacoes' },
+              { label: 'Salários', href: '/rh/payroll' },
+              { label: 'Formações', href: '/rh/formacoes' },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center gap-2 p-3 border rounded-lg text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

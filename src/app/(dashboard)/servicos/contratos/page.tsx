@@ -1,155 +1,196 @@
+/**
+ * Listagem de Contratos de Serviço — Server Component (NUNCA 'use client').
+ */
 
-'use client';
-
-import { useState, useEffect } from 'react';
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { redirect } from 'next/navigation';
+import { Plus, FileText, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { servicoService } from '@/server/services/compras/servico.service';
+import { FilterContratoServicoSchema } from '@/lib/validations/servicos';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { 
-  Plus, 
-  FileText,
-  Edit,
-  Trash2,
-  Calendar,
-  DollarSign
-} from 'lucide-react';
-import { ContratoServicoStorage } from '@/lib/storage/servico-storage';
-import { formatCurrency } from '@/lib/format-currency';
+import { PageHeader, FilterBar, KpiCard } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { ContratosTable } from './_components/contratos-table';
+import { TableSkeleton } from '../_components/table-skeletons';
+import { KpiSkeleton } from '../_components/table-skeletons';
 
-export default function ContratosPage() {
-  const [contratos, setContratos] = useState<any[]>([]);
+// ─────────────────────────────────────────────────────────────────────────────
+// Schema URL-safe
+// ─────────────────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    const dados = ContratoServicoStorage.getContratos();
-    setContratos(dados);
-  }, []);
+const FiltroContratoUrlSchema = FilterContratoServicoSchema.extend({
+  take: z.coerce.number().int().positive().max(100).default(25),
+  cursor: z.string().optional(),
+});
 
-  const obterCorStatus = (status: string) => {
-    const cores: Record<string, string> = {
-      'ativo': 'default',
-      'pausado': 'secondary',
-      'encerrado': 'outline',
-      'cancelado': 'destructive'
-    };
-    return cores[status] || 'default';
-  };
+type FiltroContratoUrl = z.infer<typeof FiltroContratoUrlSchema>;
 
-  const calcularDiasRestantes = (dataFim: string) => {
-    const hoje = new Date();
-    const fim = new Date(dataFim);
-    const diferenca = fim.getTime() - hoje.getTime();
-    const dias = Math.ceil(diferenca / (1000 * 3600 * 24));
-    return dias;
-  };
+const FILTROS_DEFAULT: FiltroContratoUrl = {
+  take: 25,
+  orderBy: 'dataFim',
+  orderDir: 'asc',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KPIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function ContratosKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+  const [todos, ativos, pausados, expirandoBreve] = await Promise.all([
+    runWithTenantContext(ctx, () =>
+      servicoService.listarContratos({ take: 1000, orderBy: 'dataFim', orderDir: 'asc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      servicoService.listarContratos({ status: 'ATIVO', take: 1000, orderBy: 'dataFim', orderDir: 'asc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      servicoService.listarContratos({ status: 'PAUSADO', take: 1000, orderBy: 'dataFim', orderDir: 'asc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      servicoService.listarContratos({ expirandoEm: 30, take: 1000, orderBy: 'dataFim', orderDir: 'asc' }, ctx)
+    ),
+  ]);
 
   return (
-    <div className="space-y-6">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Contratos de Serviços
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Gestão de contratos recorrentes com clientes
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/servicos/contratos/novo">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Contrato
-          </Link>
-        </Button>
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard
+        title="Total de contratos"
+        value={String(todos.items.length)}
+        icon={<FileText className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Activos"
+        value={String(ativos.items.length)}
+        icon={<CheckCircle className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Pausados"
+        value={String(pausados.items.length)}
+        icon={<Clock className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="A expirar (30 dias)"
+        value={String(expirandoBreve.items.length)}
+        icon={<AlertCircle className="h-5 w-5" />}
+      />
+    </div>
+  );
+}
 
-      {/* Tabela de Contratos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Contratos ({contratos.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Serviços</TableHead>
-                  <TableHead>Período</TableHead>
-                  <TableHead>Valor Mensal</TableHead>
-                  <TableHead>Dias Restantes</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {contratos.map((contrato) => {
-                  const diasRestantes = calcularDiasRestantes(contrato.dataFim);
-                  return (
-                    <TableRow key={contrato.id}>
-                      <TableCell className="font-medium">{contrato.codigo}</TableCell>
-                      <TableCell>{contrato.clienteNome}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{contrato.servicos.length} serviços</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm">
-                            {new Date(contrato.dataInicio).toLocaleDateString('pt-MZ')} a{' '}
-                            {new Date(contrato.dataFim).toLocaleDateString('pt-MZ')}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <DollarSign className="h-4 w-4 text-gray-400" />
-                          <span className="font-medium">
-                            {formatCurrency(contrato.valorMensal)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={diasRestantes > 30 ? 'default' : diasRestantes > 0 ? 'secondary' : 'destructive'}
-                        >
-                          {diasRestantes > 0 ? `${diasRestantes} dias` : 'Expirado'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={obterCorStatus(contrato.status) as any}>
-                          {contrato.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/servicos/contratos/${contrato.id}`}>
-                              <Edit className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+// ─────────────────────────────────────────────────────────────────────────────
+// Tabela assíncrona
+// ─────────────────────────────────────────────────────────────────────────────
 
-          {contratos.length === 0 && (
-            <div className="text-center py-8">
-              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhum contrato cadastrado</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+async function ContratosTableSection({
+  filtros,
+  tenantId,
+  userId,
+}: {
+  filtros: FiltroContratoUrl;
+  tenantId: string;
+  userId: string;
+}) {
+  const ctx = { tenantId, userId };
+  const { status, cursor, take, orderBy, orderDir } = filtros;
+
+  const result = await runWithTenantContext(ctx, () =>
+    servicoService.listarContratos({ status, cursor, take, orderBy, orderDir }, ctx)
+  );
+
+  return (
+    <ContratosTable
+      data={result.items}
+      nextCursor={result.nextCursor}
+      currentOrderBy={orderBy}
+      currentOrderDir={orderDir}
+    />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FilterBar
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FILTER_CONFIGS: FilterConfig[] = [
+  {
+    key: 'status',
+    label: 'Estado',
+    placeholder: 'Todos os estados',
+    options: [
+      { label: 'Activo', value: 'ATIVO' },
+      { label: 'Pausado', value: 'PAUSADO' },
+      { label: 'Encerrado', value: 'ENCERRADO' },
+      { label: 'Cancelado', value: 'CANCELADO' },
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Página principal — Server Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function ContratosPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  const rawParams = await searchParams;
+  const flatParams = Object.fromEntries(
+    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+  );
+
+  const parseResult = FiltroContratoUrlSchema.safeParse(flatParams);
+  const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
+
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Contratos de Serviço"
+        description="Contratos de manutenção, suporte e serviços recorrentes"
+        breadcrumbs={[
+          { label: 'Serviços', href: '/servicos/lista' },
+          { label: 'Contratos' },
+        ]}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/servicos/contratos/novo">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Contrato
+            </Link>
+          </Button>
+        }
+      />
+
+      <Suspense fallback={<KpiSkeleton />}>
+        <ContratosKpis tenantId={tenantId} userId={userId} />
+      </Suspense>
+
+      <FilterBar
+        searchPlaceholder="Pesquisar por código ou cliente…"
+        searchKey="termo"
+        filters={FILTER_CONFIGS}
+      />
+
+      <Suspense
+        key={JSON.stringify(filtros)}
+        fallback={<TableSkeleton rows={10} cols={7} />}
+      >
+        <ContratosTableSection
+          filtros={filtros}
+          tenantId={tenantId}
+          userId={userId}
+        />
+      </Suspense>
     </div>
   );
 }

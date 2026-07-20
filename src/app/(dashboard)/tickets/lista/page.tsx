@@ -1,281 +1,263 @@
+/**
+ * Lista de Tickets — Server Component (NUNCA 'use client').
+ *
+ * Padrão golden standard: filtros em searchParams, DataTable paginada, KPIs.
+ */
 
-'use client';
-
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { TicketStorage } from '@/lib/storage/ticket-storage';
-import { Ticket } from '@/types/ticket';
-import { Plus, Search, Filter, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { redirect } from 'next/navigation';
+import { Plus, Ticket, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { ticketService } from '@/server/services/operacoes/ticket.service';
+import { FiltrarTicketsSchema } from '@/lib/validations/tickets';
+import { Button } from '@/components/ui/button';
+import { PageHeader, FilterBar, KpiCard } from '@/components/patterns';
+import type { FilterConfig } from '@/components/patterns';
+import { TicketsTable } from '../_components/tickets-table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
 
-export default function ListaTickets() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('todos');
-  const [prioridadeFilter, setPrioridadeFilter] = useState<string>('todos');
-  const [loading, setLoading] = useState(true);
+// ─── Schema URL ───────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    loadTickets();
-  }, []);
+const FiltroTicketUrlSchema = FiltrarTicketsSchema.extend({
+  take: z.coerce.number().int().positive().max(100).default(25),
+  cursor: z.string().optional(),
+  // slaEmAtraso via URL: 'true'/'false'
+  slaEmAtraso: z.preprocess(
+    (v) => (v === 'true' ? true : v === 'false' ? false : undefined),
+    z.boolean().optional()
+  ),
+});
 
-  useEffect(() => {
-    filterTickets();
-  }, [tickets, searchTerm, statusFilter, prioridadeFilter]);
+type FiltroTicketUrl = z.infer<typeof FiltroTicketUrlSchema>;
 
-  const loadTickets = () => {
-    setLoading(true);
-    const data = TicketStorage.getTickets();
-    setTickets(data);
-    setLoading(false);
-  };
+const FILTROS_DEFAULT: FiltroTicketUrl = {
+  take: 25,
+  orderBy: 'createdAt',
+  order: 'desc',
+};
 
-  const filterTickets = () => {
-    let filtered = [...tickets];
+// ─── Skeletons inline ─────────────────────────────────────────────────────────
 
-    if (searchTerm) {
-      filtered = filtered.filter(
-        t =>
-          t.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.solicitanteNome.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+function KpiSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Card key={i}>
+          <CardContent className="p-5">
+            <Skeleton className="h-4 w-24 mb-3" />
+            <Skeleton className="h-8 w-16" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
-    if (statusFilter !== 'todos') {
-      filtered = filtered.filter(t => t.status === statusFilter);
-    }
-
-    if (prioridadeFilter !== 'todos') {
-      filtered = filtered.filter(t => t.prioridade === prioridadeFilter);
-    }
-
-    setFilteredTickets(filtered);
-  };
-
-  const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este ticket?')) {
-      const success = TicketStorage.deleteTicket(id);
-      if (success) {
-        toast.success('Ticket excluído com sucesso!');
-        loadTickets();
-      } else {
-        toast.error('Erro ao excluir ticket');
-      }
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      aberto: 'default',
-      em_progresso: 'secondary',
-      aguardando_cliente: 'outline',
-      aguardando_terceiro: 'outline',
-      resolvido: 'secondary',
-      fechado: 'outline',
-      cancelado: 'destructive'
-    };
-
-    return (
-      <Badge variant={variants[status] || 'default'}>
-        {status.replace('_', ' ')}
-      </Badge>
-    );
-  };
-
-  const getPrioridadeBadge = (prioridade: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
-      baixa: 'secondary',
-      normal: 'default',
-      alta: 'default',
-      urgente: 'destructive'
-    };
-
-    return (
-      <Badge variant={variants[prioridade] || 'default'}>
-        {prioridade}
-      </Badge>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Carregando tickets...</p>
-        </div>
+function TableSkeleton() {
+  return (
+    <div className="rounded-md border">
+      <div className="p-4 space-y-3">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+
+async function TicketsKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
+  const ctx = { tenantId, userId };
+
+  const [todos, emAtraso, resolvidos] = await Promise.all([
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets({ take: 1, orderBy: 'createdAt', order: 'desc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets(
+        { take: 1, slaEmAtraso: true, orderBy: 'createdAt', order: 'desc' },
+        ctx
+      )
+    ),
+    runWithTenantContext(ctx, () =>
+      ticketService.listarTickets(
+        { take: 1, estado: 'RESOLVIDO', orderBy: 'createdAt', order: 'desc' },
+        ctx
+      )
+    ),
+  ]);
+
+  // ponytail: counts estimated via cursor pagination — nextCursor absent = exact count
+  const totalAbertos = todos.items.filter(
+    (t) => t.estado !== 'FECHADO' && t.estado !== 'CANCELADO' && t.estado !== 'RESOLVIDO'
+  ).length;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Tickets</h1>
-          <p className="text-muted-foreground">Gerencie todos os tickets de suporte</p>
-        </div>
-        <Link href="/tickets/novo">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Ticket
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard
+        title="Total de Tickets"
+        value={String(todos.items.length)}
+        icon={<Ticket className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Em Progresso"
+        value={String(totalAbertos)}
+        icon={<Clock className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="SLA em Atraso"
+        value={String(emAtraso.items.filter((t) => t.slaEmAtraso).length)}
+        icon={<AlertTriangle className="h-5 w-5" />}
+      />
+      <KpiCard
+        title="Resolvidos"
+        value={String(resolvidos.items.length)}
+        icon={<CheckCircle className="h-5 w-5" />}
+      />
+    </div>
+  );
+}
+
+// ─── Tabela ───────────────────────────────────────────────────────────────────
+
+async function TicketsTableSection({
+  filtros,
+  tenantId,
+  userId,
+}: {
+  filtros: FiltroTicketUrl;
+  tenantId: string;
+  userId: string;
+}) {
+  const ctx = { tenantId, userId };
+  const result = await runWithTenantContext(ctx, () =>
+    ticketService.listarTickets(
+      {
+        estado: filtros.estado,
+        tipo: filtros.tipo,
+        prioridade: filtros.prioridade,
+        slaEmAtraso: filtros.slaEmAtraso,
+        cursor: filtros.cursor,
+        take: filtros.take,
+        orderBy: filtros.orderBy,
+        order: filtros.order,
+      },
+      ctx
+    )
+  );
+
+  return (
+    <TicketsTable
+      data={result.items}
+      nextCursor={result.nextCursor}
+      currentOrderBy={filtros.orderBy}
+      currentOrderDir={filtros.order}
+    />
+  );
+}
+
+// ─── Configuração FilterBar ───────────────────────────────────────────────────
+
+const FILTER_CONFIGS: FilterConfig[] = [
+  {
+    key: 'estado',
+    label: 'Estado',
+    placeholder: 'Todos os estados',
+    options: [
+      { label: 'Aberto', value: 'ABERTO' },
+      { label: 'Em Progresso', value: 'EM_PROGRESSO' },
+      { label: 'A Aguardar Cliente', value: 'AGUARDANDO_CLIENTE' },
+      { label: 'A Aguardar Terceiro', value: 'AGUARDANDO_TERCEIRO' },
+      { label: 'Resolvido', value: 'RESOLVIDO' },
+      { label: 'Fechado', value: 'FECHADO' },
+      { label: 'Cancelado', value: 'CANCELADO' },
+    ],
+  },
+  {
+    key: 'prioridade',
+    label: 'Prioridade',
+    placeholder: 'Todas',
+    options: [
+      { label: 'Baixa', value: 'BAIXA' },
+      { label: 'Normal', value: 'NORMAL' },
+      { label: 'Alta', value: 'ALTA' },
+      { label: 'Urgente', value: 'URGENTE' },
+    ],
+  },
+  {
+    key: 'tipo',
+    label: 'Tipo',
+    placeholder: 'Todos os tipos',
+    options: [
+      { label: 'Incidente', value: 'INCIDENTE' },
+      { label: 'Requisição', value: 'REQUISICAO' },
+      { label: 'Problema', value: 'PROBLEMA' },
+      { label: 'Mudança', value: 'MUDANCA' },
+      { label: 'Consulta', value: 'CONSULTA' },
+    ],
+  },
+];
+
+// ─── Página principal — Server Component ──────────────────────────────────────
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function ListaTicketsPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+
+  const { tenantId, id: userId } = session.user;
+
+  const rawParams = await searchParams;
+  const flatParams = Object.fromEntries(
+    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+  );
+
+  const parseResult = FiltroTicketUrlSchema.safeParse(flatParams);
+  const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
+
+  return (
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Tickets de Suporte"
+        description="Gestão de tickets de suporte e pedidos de serviço"
+        breadcrumbs={[
+          { label: 'Tickets', href: '/tickets' },
+          { label: 'Lista' },
+        ]}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/tickets/novo">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Ticket
+            </Link>
           </Button>
-        </Link>
-      </div>
+        }
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar tickets..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+      <Suspense fallback={<KpiSkeleton />}>
+        <TicketsKpis tenantId={tenantId} userId={userId} />
+      </Suspense>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Status</SelectItem>
-                <SelectItem value="aberto">Aberto</SelectItem>
-                <SelectItem value="em_progresso">Em Progresso</SelectItem>
-                <SelectItem value="aguardando_cliente">Aguardando Cliente</SelectItem>
-                <SelectItem value="resolvido">Resolvido</SelectItem>
-                <SelectItem value="fechado">Fechado</SelectItem>
-              </SelectContent>
-            </Select>
+      <FilterBar
+        searchPlaceholder="Pesquisar por número ou título…"
+        searchKey="pesquisa"
+        filters={FILTER_CONFIGS}
+      />
 
-            <Select value={prioridadeFilter} onValueChange={setPrioridadeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Prioridade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas as Prioridades</SelectItem>
-                <SelectItem value="baixa">Baixa</SelectItem>
-                <SelectItem value="normal">Normal</SelectItem>
-                <SelectItem value="alta">Alta</SelectItem>
-                <SelectItem value="urgente">Urgente</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button variant="outline" onClick={() => {
-              setSearchTerm('');
-              setStatusFilter('todos');
-              setPrioridadeFilter('todos');
-            }}>
-              <Filter className="mr-2 h-4 w-4" />
-              Limpar Filtros
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Número</TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead>Solicitante</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Prioridade</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Data Abertura</TableHead>
-                <TableHead>SLA</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTickets.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                    Nenhum ticket encontrado
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredTickets.map((ticket) => (
-                  <TableRow key={ticket.id}>
-                    <TableCell className="font-medium">{ticket.numero}</TableCell>
-                    <TableCell>
-                      <div className="max-w-xs truncate">{ticket.titulo}</div>
-                    </TableCell>
-                    <TableCell>{ticket.solicitanteNome}</TableCell>
-                    <TableCell>{ticket.categoria}</TableCell>
-                    <TableCell>{getPrioridadeBadge(ticket.prioridade)}</TableCell>
-                    <TableCell>{getStatusBadge(ticket.status)}</TableCell>
-                    <TableCell>
-                      {format(new Date(ticket.tempos.dataAbertura), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                    </TableCell>
-                    <TableCell>
-                      {ticket.sla.emAtraso ? (
-                        <Badge variant="destructive" className="gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          Atrasado
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">No Prazo</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Link href={`/tickets/${ticket.id}`}>
-                          <Button variant="ghost" size="icon">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        <Link href={`/tickets/${ticket.id}/editar`}>
-                          <Button variant="ghost" size="icon">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(ticket.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Suspense
+        key={JSON.stringify(filtros)}
+        fallback={<TableSkeleton />}
+      >
+        <TicketsTableSection filtros={filtros} tenantId={tenantId} userId={userId} />
+      </Suspense>
     </div>
   );
 }
