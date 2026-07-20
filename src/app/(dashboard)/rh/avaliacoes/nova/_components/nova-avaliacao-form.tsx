@@ -32,7 +32,7 @@ const CriterioSchema = z.object({
 const Schema = z.object({
   colaboradorId: z.string().min(1, 'Seleccione o colaborador avaliado'),
   periodo: z.string().min(1, 'Período obrigatório').max(20),
-  tipo: z.enum(['DESEMPENHO', 'COMPETENCIAS', 'TREZENTOS_SESSENTA', 'PROBATORIO']),
+  tipo: z.enum(['DESEMPENHO', 'COMPETENCIAS', 'GRAU_360', 'PROBATORIO']),
   dataInicio: z.string().min(1, 'Data obrigatória'),
   pontosFortes: z.string().max(1000).optional(),
   pontosDesenvolvimento: z.string().max(1000).optional(),
@@ -165,7 +165,7 @@ export default function NovaAvaliacaoForm({ colaboradores, avaliadorId }: Props)
                 <SelectContent>
                   <SelectItem value="DESEMPENHO">Desempenho</SelectItem>
                   <SelectItem value="COMPETENCIAS">Competências</SelectItem>
-                  <SelectItem value="TREZENTOS_SESSENTA">360°</SelectItem>
+                  <SelectItem value="GRAU_360">360°</SelectItem>
                   <SelectItem value="PROBATORIO">Probatório</SelectItem>
                 </SelectContent>
               </Select>

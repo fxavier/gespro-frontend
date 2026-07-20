@@ -479,10 +479,20 @@ export const AssiduidadeService = {
             ...(filter.dataInicio ? { data: { gte: filter.dataInicio } } : {}),
             ...(filter.dataFim ? { data: { lte: filter.dataFim } } : {}),
           },
+          include: { colaborador: { select: { nome: true } } },
           orderBy: { data: 'desc' },
         }),
       { cursor: filter.cursor, take: filter.take },
     );
+  },
+
+  async obter(id: string, ctx: Ctx) {
+    const r = await prisma.registoAssiduidade.findFirst({
+      where: { id, tenantId: ctx.tenantId },
+      include: { colaborador: { select: { id: true, nome: true, codigo: true } } },
+    });
+    if (!r) throw new NotFoundError('Registo de assiduidade não encontrado');
+    return r;
   },
 };
 
@@ -562,6 +572,51 @@ export const AvaliacaoService = {
         dataConclusao: input.dataConclusao,
       },
     });
+  },
+
+  async listar(
+    filter: {
+      status?: string;
+      tipo?: string;
+      colaboradorId?: string;
+      periodo?: string;
+      cursor?: string;
+      take?: number;
+    },
+    ctx: Ctx,
+  ) {
+    return paginate(
+      (a) =>
+        prisma.avaliacao.findMany({
+          ...a,
+          where: {
+            tenantId: ctx.tenantId,
+            ...(filter.status ? { status: filter.status as never } : {}),
+            ...(filter.tipo ? { tipo: filter.tipo as never } : {}),
+            ...(filter.colaboradorId ? { colaboradorId: filter.colaboradorId } : {}),
+            ...(filter.periodo ? { periodo: filter.periodo } : {}),
+          },
+          include: {
+            colaborador: { select: { nome: true } },
+            avaliador: { select: { nome: true } },
+          },
+          orderBy: { dataInicio: 'desc' },
+        }),
+      { cursor: filter.cursor, take: filter.take ?? 25 },
+    );
+  },
+
+  async obter(id: string, ctx: Ctx) {
+    const av = await prisma.avaliacao.findFirst({
+      where: { id, tenantId: ctx.tenantId },
+      include: {
+        colaborador: { select: { id: true, nome: true, codigo: true } },
+        avaliador: { select: { id: true, nome: true, codigo: true } },
+        criterios: true,
+      },
+    });
+    if (!av) throw new NotFoundError('Avaliação não encontrada');
+    return av;
   },
 
   async transitarStatus(id: string, novoStatus: string, ctx: Ctx): Promise<void> {

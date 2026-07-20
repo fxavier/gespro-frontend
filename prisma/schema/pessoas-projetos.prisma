@@ -124,7 +124,7 @@ enum TipoAssiduidade {
 enum TipoAvaliacao {
   DESEMPENHO
   COMPETENCIAS
-  TREZENTOS_SESSENTA
+  GRAU_360
   PROBATORIO
 }
 
