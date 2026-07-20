@@ -3,6 +3,7 @@ import { withApi } from '@/lib/api/with-api';
 import { NotFoundError, ValidationError } from '@/lib/errors';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import type { ItemReconciliacaoBancaria } from '@/server/services/financas/contabilidade.interface';
+import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 
 /**
  * GET /api/contabilidade/reconciliacao/[id]/export?formato=csv|pdf
@@ -88,6 +89,10 @@ function gerarPdfSimples(linhas: string[]): Uint8Array {
 
 export const GET = withApi(
   async (req: NextRequest, ctx) => {
+    // Rate limiting: 20 exportações por utilizador por hora
+    const rl = await exportLimiter.consume(`${ctx.userId}::export`);
+    if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
+
     const id = String(ctx.params.id ?? '');
     const formato = new URL(req.url).searchParams.get('formato') ?? 'csv';
     if (formato !== 'csv' && formato !== 'pdf') {
