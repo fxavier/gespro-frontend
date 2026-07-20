@@ -4,6 +4,8 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { AppError, ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors';
+import { logger } from '@/server/observability/logger';
+import { runWithRequestContext, newRequestId } from '@/server/observability/context';
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -26,12 +28,21 @@ interface SafeActionOptions<S extends z.ZodType | undefined, T> {
  * Única porta para mutações a partir da UI. Autentica, verifica permissão,
  * valida input com Zod, corre o handler dentro do contexto de tenant e
  * devolve sempre `ActionResult<T>` — nunca lança para o cliente.
+ *
+ * Instrumentação transversal (sem alterar contratos/assinaturas):
+ *   - Gera `requestId` por invocação; propaga via AsyncLocalStorage.
+ *   - Loga início/fim com tenantId, userId, duração e permissão.
+ *   - Erros AppError conhecidos → log warn; outros → log error (stack server-side).
+ *   - Erros inesperados → ActionResult.error.details inclui `traceId` (sem stack ao cliente).
  */
 export function createSafeAction<S extends z.ZodType | undefined, T>(
   opts: SafeActionOptions<S, T>,
 ) {
   type Input = S extends z.ZodType ? z.input<S> : void;
   return async (raw: Input): Promise<ActionResult<T>> => {
+    const requestId = newRequestId();
+    const startTime = Date.now();
+
     try {
       const session = await auth();
       if (!session?.user) throw new UnauthorizedError();
@@ -47,18 +58,57 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
         input = parsed.data;
       }
 
-      const data = await runWithTenantContext({ tenantId, userId }, () =>
-        opts.handler(input as never, { tenantId, userId, permissions: perms }),
+      const log = logger.child({
+        requestId,
+        tenantId,
+        userId,
+        action: opts.permission ?? 'action',
+      });
+      log.info({}, 'action start');
+
+      const data = await runWithRequestContext({ requestId, tenantId, userId }, () =>
+        runWithTenantContext({ tenantId, userId }, () =>
+          opts.handler(input as never, { tenantId, userId, permissions: perms }),
+        ),
       );
 
       opts.revalidate?.paths?.forEach((p) => revalidatePath(p));
       opts.revalidate?.tags?.forEach((t) => updateTag(t));
 
+      const duration = Date.now() - startTime;
+      log.info({ duration }, 'action end');
+
       return { ok: true, data };
     } catch (e) {
-      const err = e instanceof AppError ? e : new AppError('ERRO_INTERNO', 'Erro interno', 500);
-      if (!(e instanceof AppError)) console.error('[safe-action]', e);
-      return { ok: false, error: { code: err.code, message: err.message, details: err.details } };
+      const duration = Date.now() - startTime;
+      const log = logger.child({ requestId, action: opts.permission ?? 'action' });
+
+      if (e instanceof AppError) {
+        // Erro de aplicação conhecido: log ao nível adequado, devolver código estável
+        if (e.status >= 500) {
+          log.error({ code: e.code, status: e.status, duration }, e.message);
+        } else {
+          log.warn({ code: e.code, status: e.status, duration }, e.message);
+        }
+        return { ok: false, error: { code: e.code, message: e.message, details: e.details } };
+      }
+
+      // Erro inesperado: logar no servidor com stack trace; ao cliente só traceId
+      log.error(
+        {
+          err: { message: (e as Error)?.message, stack: (e as Error)?.stack },
+          duration,
+        },
+        '[safe-action] erro inesperado',
+      );
+      return {
+        ok: false,
+        error: {
+          code: 'ERRO_INTERNO',
+          message: 'Erro interno',
+          details: { traceId: requestId },
+        },
+      };
     }
   };
 }
