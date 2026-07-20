@@ -87,8 +87,18 @@ export class TrocaService {
     }
 
     // 0. Emitir NC dos bens devolvidos — MAJOR 5 (tx própria, antes do $tx principal)
-    let notaCreditoId: string | null = null;
-    if (devolucao.faturaId && input.serieNotaCreditoId) {
+    //    Guard: se fatura presente, serieNotaCreditoId é obrigatório (consistente com BLOCKER 3).
+    if (devolucao.faturaId && !input.serieNotaCreditoId) {
+      throw new BusinessRuleError(
+        'SERIE_NC_OBRIGATORIA',
+        'Esta devolução está associada a uma fatura. É obrigatório fornecer uma série de nota de crédito para a troca.',
+      );
+    }
+
+    // Idempotência: reutilizar NC já emitida se existir (evita duplo estorno)
+    let notaCreditoId: string | null = (devolucao.notaCreditoId as string | null) ?? null;
+
+    if (devolucao.faturaId && input.serieNotaCreditoId && !notaCreditoId) {
       const nc = await this.faturacaoService.emitirNotaCredito(
         {
           serieDocumentoId: input.serieNotaCreditoId,
@@ -126,7 +136,7 @@ export class TrocaService {
               localizacaoDestinoId: input.localizacaoId,
               quantidade: Number(item.quantidade),
               documentoReferenciaId: devolucao.id,
-              documentoReferenciaTipo: 'Devolucao',
+              documentoReferenciaTipo: 'DevolucaoVenda',
             },
             ctx,
           );

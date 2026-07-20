@@ -388,7 +388,7 @@ export class DevolucaoService {
               localizacaoDestinoId: options.localizacaoId,
               quantidade: Number(item.quantidade),
               documentoReferenciaId: devolucao.id,
-              documentoReferenciaTipo: 'Devolucao',
+              documentoReferenciaTipo: 'DevolucaoVenda',
             },
             ctx,
           );

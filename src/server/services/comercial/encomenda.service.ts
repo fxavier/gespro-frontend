@@ -184,14 +184,17 @@ function calcularTotaisItens(itens: CreateEncomendaInput['itens']): {
     const desc = new Prisma.Decimal(item.desconto ?? 0).div(100);
     const taxa = new Prisma.Decimal(item.taxaIva ?? 0.16);
 
-    const baseItem = qty.mul(preco).mul(new Prisma.Decimal(1).minus(desc));
-    const ivaItem = baseItem.mul(taxa);
+    // Arredondar por linha a 2dp (igual ao Postgres @db.Decimal(18,2))
+    // para evitar 1-cêntimo de desequilíbrio no lançamento contabilístico.
+    const baseItem = qty.mul(preco).mul(new Prisma.Decimal(1).minus(desc)).toDP(2);
+    const ivaItem = baseItem.mul(taxa).toDP(2);
 
     subtotal = subtotal.plus(baseItem);
     iva = iva.plus(ivaItem);
   }
 
-  return { subtotal, iva, total: subtotal.plus(iva) };
+  // total = sum das linhas já arredondadas → round(s+i) == round(s)+round(i)
+  return { subtotal: subtotal.toDP(2), iva: iva.toDP(2), total: subtotal.toDP(2).plus(iva.toDP(2)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -435,7 +438,7 @@ export class EncomendaService {
               localizacaoId: input.localizacaoId!,
               quantidade: Number(item.quantidade),
               documentoReferenciaId: encomenda.id,
-              documentoReferenciaTipo: 'Encomenda',
+              documentoReferenciaTipo: 'Venda', // encomenda convertida é semanticamente uma Venda
             },
             ctx,
           );
@@ -542,7 +545,7 @@ export class EncomendaService {
               localizacaoOrigemId: opts.localizacaoId,
               quantidade: Number(item.quantidade),
               documentoReferenciaId: encomenda.id,
-              documentoReferenciaTipo: 'Encomenda',
+              documentoReferenciaTipo: 'Venda', // encomenda convertida é semanticamente uma Venda
             },
             ctx,
           );
