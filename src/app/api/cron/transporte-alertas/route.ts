@@ -57,10 +57,10 @@ async function emitirNotificacoesAlerta(
       tenantId,
       ativo: true,
       deletedAt: null,
-      userRoles: {
+      roles: {
         some: {
           role: {
-            rolePermissions: {
+            permissions: {
               some: {
                 permission: { code: PERMISSAO_TRANSPORTE },
               },
