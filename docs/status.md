@@ -1,5 +1,21 @@
 # Estado do Programa de Modernização — GestPro ERP
 
+## ✅ Wave 4 — Funcionalidades em falta (specs 04–09) COMPLETA (2026-07-20)
+6 agentes `feat-*` em paralelo (1 worktree cada), merge determinístico e migrations só pelo orquestrador. `pnpm check` verde (**767 testes**), `pnpm gates` verde, seed completo aplicado.
+
+| Spec | Estado | Migration | Notas de gate |
+|---|---|---|---|
+| 04 reconciliação bancária | ✅ mergido | `0400` (itemParId + unique extratoReferencia) | review APROVADO; 3 MAJOR de concorrência → follow-up |
+| 05 contagem/reconciliação de stock | ✅ mergido | `0500` (ContagemStock/ItemContagemStock + `CONTAGEM_STOCK`) | REJEITADO→corrigido (reconciliar atómico, tenantId na tx, lançamento em qtd removido)→APROVADO |
+| 06 processamento salarial | ✅ mergido | `0600` (FolhaPagamento/LinhaPayroll/TabelaINSS/EscalaoIRPS) | APROVADO; motor 100% cobertura; 3 MAJOR fechados (cancelar idempotente, timeout tx, líquido negativo) |
+| 07 recrutamento | ✅ mergido | `0700` (Vaga/Candidato/Candidatura/Entrevista/Historico) | REJEITADO (Decimal SC→CC + bypass máquina de estados)→corrigido→APROVADO |
+| 08 benefícios | ✅ mergido | `0800` (Beneficio/BeneficioColaborador) | APROVADO; contrato `linhasPayrollDeBeneficios` para o payroll |
+| 09 correções e páginas | ✅ mergido | `0900` (rename enum `TREZENTOS_SESSENTA`→`GRAU_360`, RENAME VALUE) | APROVADO; 2 MAJOR fechados (EquipaService.listar, rota equipa/nova) |
+
+Ordem de merge: 04 → 05 → 06 → 07 → 08 → 09. Conflitos de schema (`pessoas-projetos.prisma`), `state-machines.ts`, `rbac.ts`, `status-badge.tsx` resolvidos aditivamente pelo orquestrador. Infra: `gespro-db` em **:5433** (5432 ocupada), `wt/` excluído de tsc/eslint, teste `tenant-context` alinhado com `runWithTenantContext` async.
+
+**Wave 5 (specs 10–17)**: 8 agentes `feat-*` em execução paralela (branch `wave5`). Detalhe no fim do documento.
+
 ## ✅ PROGRAMA COMPLETO (2026-07-11)
 Os 3 specs entregues e verificados. `pnpm check` verde (569 testes), `pnpm gates` verde (Dialog 0, `'use client'` 0, `src/data` 0), **28 E2E Playwright** + **13 axe (0 violações WCAG AA)** verdes.
 - **Backend**: 144 modelos Prisma, 240 permissões, multi-tenancy, Auth.js (argon2/rate-limit/reset/convite/auditoria), PGC-NIRF (504 contas), integração transaccional real (venda→stock→caixa; receção→stock→conta a pagar; factura→contabilidade; produção→stock; numeração sequencial).
