@@ -1,5 +1,23 @@
 # Estado do Programa de Modernização — GestPro ERP
 
+## ✅ Wave 5 — Funcionalidades + produção (specs 10–17) COMPLETA (2026-07-21)
+8 agentes `feat-*` em paralelo (1 worktree cada), merge determinístico e migrations só pelo orquestrador. `pnpm check` verde (**952 testes**, de 767 na Wave 4), `pnpm gates` verde, **build de produção verde** (`output: standalone`), seed completo, **smoke autenticado das 20 páginas novas + exports CSV/XLSX** OK.
+
+| Spec | Estado | Migration | Notas de gate |
+|---|---|---|---|
+| 10 vendas — encomendas/devoluções/trocas/vendedores | ✅ mergido | `1000` (Encomenda/Devolucao/Troca/Vendedor + enum ENCOMENDA/NOTA_DEVOLUCAO) | REJEITADO 2× (3 BLOCKERs transaccionais: caixa dessincronizada, stock não decrementado, devolução sem NC; depois typecheck vermelho no enum de stock)→corrigido→APROVADO |
+| 11 projetos — cronograma/riscos/qualidade/comunicações | ✅ mergido | `1100` (RiscoProjeto/RegistoQualidade/ComunicacaoProjeto/ConfiguracaoProjeto) | APROVADO; 5 findings de UI fechados (badge de tipo, contraste, cores hardcoded→tokens, handoff) |
+| 12 relatórios/documentos/exportação | ✅ mergido | — (sem schema; `@react-pdf/renderer`) | APROVADO; PDF fiscal reflecte documento emitido, export CSV/XLSX Decimal-lossless; 2 MAJOR fechados; shim de tipos removido pós-install |
+| 13 notificações & email | ✅ mergido | `1300` (Notificacao/PreferenciaNotificacao; `nodemailer`) | REJEITADO 2× (BLOCKER cross-tenant no destinatário; depois tsc no filtro do cron)→corrigido→APROVADO |
+| 14 observabilidade & operações | ✅ mergido | — (`pino`/OTel/`prom-client`) | APROVADO; envelopes sem quebra de contrato, ALS de requestId separado, health/ready/metrics; MAJOR wiring de métricas fechado |
+| 15 CI/CD & testes | ✅ mergido | — (`.github/**`, `testcontainers`) | REJEITADO (4 BLOCKERs de pipeline: cobertura 3× real, skip mascara falha em CI, NODE_ENV parte build, lockfile)→corrigido→APROVADO |
+| 16 infraestrutura & deploy | ✅ mergido | — (`Dockerfile`, `infra/**` Terraform) | APROVADO; App Runner + RDS + Secrets Manager; 4 MAJOR de IaC fechados (NAT, Performance Insights, secrets individuais, lock files); zero segredos no repo |
+| 17 segurança & hardening | ✅ mergido | — (`middleware.ts`, headers `next.config.ts`) | APROVADO; CORS wildcard removido, CSP(nonce)/HSTS/frame/nosniff, rate-limit alargado, revisão multi-tenant sem BLOCKERs; Aviso 1 (headers importáveis) fechado |
+
+Ordem de merge: 10 → 11 → 13 → 12 → 14 → 17 → 15 → 16. Conflitos aditivos resolvidos pelo orquestrador (`state-machines.ts`, `status-badge.tsx`, `pessoas-projetos.prisma`, `.gitignore`, `next.config.ts`); `health/route.ts` (14 vs 16) resolvido pela versão do 14 (withApi público) com `version`+`Cache-Control` do 16. Deps consolidadas num único `pnpm install`/lockfile por merge.
+
+**2 bugs de integração apanhados no smoke (não visíveis no `pnpm check`):** (1) `/auth/login` sem Suspense boundary para `useSearchParams` partia o build de produção (`output: standalone`) → envolto em Suspense; (2) o middleware do 17 redirigia `/api/health,/ready,/metrics` para login → isentos nos PUBLIC_PATHS (probes precisam de 200 sem sessão). **Dívida herdada dos pareceres (follow-up):** ver handoffs `feat-1{0..7}-*.md` — janelas de corrida estreitas em NC de devolução/troca, `CSP_ENFORCE` só após smoke em produção, formulários do spec 11 com schema Zod local, `terraform apply` exige NAT/PI/secrets já corrigidos mas não aplicados.
+
 ## ✅ Wave 4 — Funcionalidades em falta (specs 04–09) COMPLETA (2026-07-20)
 6 agentes `feat-*` em paralelo (1 worktree cada), merge determinístico e migrations só pelo orquestrador. `pnpm check` verde (**767 testes**), `pnpm gates` verde, seed completo aplicado.
 
@@ -14,7 +32,7 @@
 
 Ordem de merge: 04 → 05 → 06 → 07 → 08 → 09. Conflitos de schema (`pessoas-projetos.prisma`), `state-machines.ts`, `rbac.ts`, `status-badge.tsx` resolvidos aditivamente pelo orquestrador. Infra: `gespro-db` em **:5433** (5432 ocupada), `wt/` excluído de tsc/eslint, teste `tenant-context` alinhado com `runWithTenantContext` async.
 
-**Wave 5 (specs 10–17)**: 8 agentes `feat-*` em execução paralela (branch `wave5`). Detalhe no fim do documento.
+**Wave 5 (specs 10–17)**: COMPLETA — ver secção no topo do documento.
 
 ## ✅ PROGRAMA COMPLETO (2026-07-11)
 Os 3 specs entregues e verificados. `pnpm check` verde (569 testes), `pnpm gates` verde (Dialog 0, `'use client'` 0, `src/data` 0), **28 E2E Playwright** + **13 axe (0 violações WCAG AA)** verdes.
