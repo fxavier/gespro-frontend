@@ -1,0 +1,51 @@
+# Dependências (reinstaladas no stage deps)
+node_modules
+.pnpm-store
+
+# Artefactos de build anteriores
+.next
+out
+build
+
+# Outros worktrees e ficheiros de infra (não necessários na imagem)
+wt/
+infra/
+
+# Git
+.git
+.gitignore
+
+# Variáveis de ambiente locais — NUNCA incluir na imagem
+.env
+.env.*
+!.env.example
+
+# Testes e relatórios
+e2e/
+test-results/
+playwright-report/
+playwright/.auth/
+coverage/
+
+# Dev tools
+.vscode/
+.idea/
+
+# Documentação e ficheiros temporários
+docs/
+*.md
+!README.md
+
+# CI (não necessário na imagem)
+.github/
+.kiro/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*

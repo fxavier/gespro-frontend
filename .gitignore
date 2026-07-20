@@ -112,3 +112,13 @@ sketch
 /playwright/.auth/
 /test-results/wt/
 docker-compose.override.yml
+
+# Terraform — ZERO segredos no repo (spec 16)
+infra/**/*.tfvars
+!infra/**/*.tfvars.example
+infra/**/.terraform/
+infra/**/.terraform.lock.hcl
+infra/**/*.tfstate
+infra/**/*.tfstate.backup
+infra/**/*.tfplan
+infra/**/crash.log

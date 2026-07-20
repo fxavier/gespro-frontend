@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Gera output standalone para imagem Docker de produção (spec 16).
+  // O spec 17 gere os headers/CSP — não tocar nesse bloco.
+  output: 'standalone',
+
   // Fixa a raiz do workspace no projeto (existe um package-lock.json perdido em
   // ~/ que faria o Turbopack inferir a raiz errada).
   turbopack: {

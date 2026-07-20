@@ -1,0 +1,28 @@
+# ==============================================================================
+# infra/.gitignore — REGRA: ZERO segredos no repositório
+# ==============================================================================
+
+# Ficheiros de variáveis sensíveis — NUNCA commitar
+*.tfvars
+!*.tfvars.example
+
+# Estado Terraform local (usar sempre backend remoto em S3)
+*.tfstate
+*.tfstate.backup
+
+# Directórios Terraform gerados localmente
+.terraform/
+.terraform.lock.hcl
+
+# Ficheiros de crash
+crash.log
+crash.*.log
+
+# Overrides (ficheiros locais de substituição)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Planos guardados localmente (podem conter segredos)
+*.tfplan
