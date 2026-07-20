@@ -252,6 +252,176 @@ export const FilterComissaoSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// WS-10: Encomendas, Devoluções, Trocas, Vendedores
+// ---------------------------------------------------------------------------
+
+export const StatusEncomendaEnum = z.enum([
+  'RASCUNHO',
+  'CONFIRMADA',
+  'PARCIALMENTE_ENTREGUE',
+  'CONCLUIDA',
+  'CANCELADA',
+]);
+
+export const StatusDevolucaoEnum = z.enum([
+  'PENDENTE',
+  'APROVADA',
+  'PROCESSADA',
+  'REJEITADA',
+]);
+
+export const MotivoDevolucaoEnum = z.enum([
+  'DEFEITO',
+  'PRODUTO_ERRADO',
+  'INSATISFACAO',
+  'EXCESSO_PEDIDO',
+  'AVARIA_TRANSPORTE',
+  'OUTRO',
+]);
+
+export const StatusVendedorEnum = z.enum(['ATIVO', 'INATIVO', 'SUSPENSO']);
+
+// Vendedor
+export const CreateVendedorSchema = z.object({
+  colaboradorId: z.string().cuid().optional(),
+  userId: z.string().cuid().optional(),
+  nome: z.string().min(2, 'Nome obrigatório').max(200),
+  email: z.string().email('Email inválido').optional(),
+  telefone: z.string().max(30).optional(),
+  metaMensal: z.number().nonnegative('Meta não pode ser negativa').optional(),
+  observacoes: z.string().max(1000).optional(),
+});
+
+export const UpdateVendedorSchema = z.object({
+  nome: z.string().min(2).max(200).optional(),
+  email: z.string().email().optional().nullable(),
+  telefone: z.string().max(30).optional().nullable(),
+  metaMensal: z.number().nonnegative().optional().nullable(),
+  status: StatusVendedorEnum.optional(),
+  observacoes: z.string().max(1000).optional().nullable(),
+});
+
+export const FilterVendedorSchema = z.object({
+  cursor: z.string().optional(),
+  take: z.number().int().min(1).max(100).default(25),
+  q: z.string().max(200).optional(),
+  status: StatusVendedorEnum.optional(),
+  orderBy: z.enum(['nome', 'createdAt']).default('nome'),
+  order: z.enum(['asc', 'desc']).default('asc'),
+});
+
+// Item de Encomenda
+export const CreateItemEncomendaSchema = z.object({
+  produtoId: z.string().cuid('ID de produto inválido'),
+  varianteId: z.string().cuid().optional(),
+  nomeProduto: z.string().min(1).max(200),
+  sku: z.string().max(100).optional(),
+  quantidade: z.number().positive('Quantidade deve ser positiva'),
+  precoUnitario: z.number().nonnegative('Preço não pode ser negativo'),
+  desconto: z.number().min(0).max(100).default(0),
+  taxaIva: z.number().min(0).max(1).default(0.16),
+});
+
+// Encomenda
+export const CreateEncomendaSchema = z.object({
+  clienteId: z.string().cuid('ID de cliente inválido'),
+  vendedorId: z.string().cuid().optional(),
+  dataPrevista: z.coerce.date().optional(),
+  enderecoEntregaId: z.string().cuid().optional(),
+  notas: z.string().max(2000).optional(),
+  itens: z.array(CreateItemEncomendaSchema).min(1, 'Encomenda deve ter pelo menos um item'),
+});
+
+export const UpdateEncomendaSchema = z.object({
+  dataPrevista: z.coerce.date().optional().nullable(),
+  enderecoEntregaId: z.string().cuid().optional().nullable(),
+  notas: z.string().max(2000).optional().nullable(),
+  vendedorId: z.string().cuid().optional().nullable(),
+});
+
+export const FilterEncomendaSchema = z.object({
+  cursor: z.string().optional(),
+  take: z.number().int().min(1).max(100).default(25),
+  q: z.string().max(200).optional(),
+  status: StatusEncomendaEnum.optional(),
+  clienteId: z.string().cuid().optional(),
+  vendedorId: z.string().cuid().optional(),
+  dataInicio: z.coerce.date().optional(),
+  dataFim: z.coerce.date().optional(),
+  orderBy: z.enum(['dataPrevista', 'total', 'createdAt']).default('createdAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export const TransitarEncomendaSchema = z.object({
+  encomendaId: z.string().cuid('ID de encomenda inválido'),
+  paraStatus: StatusEncomendaEnum,
+  motivo: z.string().max(500).optional(),
+  localizacaoId: z.string().cuid().optional(), // para reservarStock ao confirmar
+});
+
+export const ConverterEncomendaEmVendaSchema = z.object({
+  encomendaId: z.string().cuid('ID de encomenda inválido'),
+  sessaoCaixaId: z.string().cuid().optional(),
+  /** Localização de stock para baixa directa (fallback se não houver reservas) */
+  localizacaoId: z.string().cuid().optional(),
+  pagamentos: z
+    .array(CreatePagamentoVendaSchema)
+    .min(1, 'A venda deve ter pelo menos um pagamento'),
+});
+
+// Item de Devolução
+export const CreateItemDevolucaoSchema = z.object({
+  produtoId: z.string().cuid('ID de produto inválido'),
+  varianteId: z.string().cuid().optional(),
+  nomeProduto: z.string().min(1).max(200),
+  sku: z.string().max(100).optional(),
+  quantidade: z.number().positive('Quantidade deve ser positiva'),
+  valorUnitario: z.number().nonnegative('Valor não pode ser negativo'),
+  taxaIva: z.number().min(0).max(1).default(0.16),
+});
+
+// Devolução
+export const CreateDevolucaoSchema = z.object({
+  clienteId: z.string().cuid('ID de cliente inválido'),
+  vendaId: z.string().cuid().optional(),
+  faturaId: z.string().cuid().optional(),
+  motivo: MotivoDevolucaoEnum,
+  reembolso: z.boolean().default(false),
+  sessaoCaixaId: z.string().cuid().optional(), // para reembolso em caixa
+  observacoes: z.string().max(2000).optional(),
+  itens: z.array(CreateItemDevolucaoSchema).min(1, 'Devolução deve ter pelo menos um item'),
+  localizacaoId: z.string().cuid().optional(), // destino do stock devolvido
+});
+
+export const FilterDevolucaoSchema = z.object({
+  cursor: z.string().optional(),
+  take: z.number().int().min(1).max(100).default(25),
+  q: z.string().max(200).optional(),
+  status: StatusDevolucaoEnum.optional(),
+  motivo: MotivoDevolucaoEnum.optional(),
+  clienteId: z.string().cuid().optional(),
+  dataInicio: z.coerce.date().optional(),
+  dataFim: z.coerce.date().optional(),
+  orderBy: z.enum(['createdAt', 'valorTotal']).default('createdAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
+
+// Troca
+export const CreateTrocaSchema = z.object({
+  devolucaoId: z.string().cuid('ID de devolução inválido'),
+  // Novo item para substituição
+  novoItem: CreateItemEncomendaSchema,
+  sessaoCaixaId: z.string().cuid().optional(),
+  pagamentos: z
+    .array(CreatePagamentoVendaSchema)
+    .default([]),
+  observacoes: z.string().max(2000).optional(),
+  localizacaoId: z.string().cuid().optional(),
+  /** Série de NC para estornar os bens devolvidos (obrigatório se devolucao tem fatura) */
+  serieNotaCreditoId: z.string().cuid().optional(),
+});
+
+// ---------------------------------------------------------------------------
 // Tipos inferidos
 // ---------------------------------------------------------------------------
 
@@ -267,3 +437,18 @@ export type CreateRegraComissaoInput = z.infer<typeof CreateRegraComissaoSchema>
 export type UpdateRegraComissaoInput = z.infer<typeof UpdateRegraComissaoSchema>;
 export type FilterRegraComissaoInput = z.infer<typeof FilterRegraComissaoSchema>;
 export type FilterComissaoInput = z.infer<typeof FilterComissaoSchema>;
+
+// WS-10
+export type CreateVendedorInput = z.infer<typeof CreateVendedorSchema>;
+export type UpdateVendedorInput = z.infer<typeof UpdateVendedorSchema>;
+export type FilterVendedorInput = z.infer<typeof FilterVendedorSchema>;
+export type CreateItemEncomendaInput = z.infer<typeof CreateItemEncomendaSchema>;
+export type CreateEncomendaInput = z.infer<typeof CreateEncomendaSchema>;
+export type UpdateEncomendaInput = z.infer<typeof UpdateEncomendaSchema>;
+export type FilterEncomendaInput = z.infer<typeof FilterEncomendaSchema>;
+export type TransitarEncomendaInput = z.infer<typeof TransitarEncomendaSchema>;
+export type ConverterEncomendaEmVendaInput = z.infer<typeof ConverterEncomendaEmVendaSchema>;
+export type CreateItemDevolucaoInput = z.infer<typeof CreateItemDevolucaoSchema>;
+export type CreateDevolucaoInput = z.infer<typeof CreateDevolucaoSchema>;
+export type FilterDevolucaoInput = z.infer<typeof FilterDevolucaoSchema>;
+export type CreateTrocaInput = z.infer<typeof CreateTrocaSchema>;

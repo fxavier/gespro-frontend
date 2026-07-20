@@ -75,6 +75,36 @@ export const TRANSICOES_CANDIDATURA: Record<string, string[]> = {
   DESISTIU: [],
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WS-10: Encomendas, Devoluções, Trocas, Vendedores (Spec 10)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ciclo de vida de Encomenda:
+ * RASCUNHO → CONFIRMADA (reserva stock)
+ * CONFIRMADA → PARCIALMENTE_ENTREGUE | CONCLUIDA | CANCELADA
+ * PARCIALMENTE_ENTREGUE → CONCLUIDA | CANCELADA
+ */
+export const TRANSICOES_ENCOMENDA: Record<string, string[]> = {
+  RASCUNHO:              ['CONFIRMADA', 'CANCELADA'],
+  CONFIRMADA:            ['PARCIALMENTE_ENTREGUE', 'CONCLUIDA', 'CANCELADA'],
+  PARCIALMENTE_ENTREGUE: ['CONCLUIDA', 'CANCELADA'],
+  CONCLUIDA:             [],
+  CANCELADA:             [],
+};
+
+/**
+ * Ciclo de vida de Devolução:
+ * PENDENTE → APROVADA | REJEITADA
+ * APROVADA → PROCESSADA
+ */
+export const TRANSICOES_DEVOLUCAO: Record<string, string[]> = {
+  PENDENTE:  ['APROVADA', 'REJEITADA'],
+  APROVADA:  ['PROCESSADA'],
+  PROCESSADA: [],
+  REJEITADA: [],
+};
+
 /**
  * Calcula a posição fraccional entre duas posições (formato string decimal).
  * Inserir entre anterior e posterior: posicao = midpoint(ant, pos).

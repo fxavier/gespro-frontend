@@ -136,6 +136,9 @@ enum TipoSerieDocumento {
   ENTREGA
   // Inventário / Stock (WS A — spec 05)
   CONTAGEM_STOCK
+  // WS-10: Vendas — Encomendas e Devoluções (delta aditivo; não reordenar)
+  ENCOMENDA
+  NOTA_DEVOLUCAO
 }
 
 enum StatusFatura {

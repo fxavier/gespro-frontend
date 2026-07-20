@@ -201,6 +201,20 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   VIDEO: 'info',
   TECNICA: 'warning',
   PAINEL: 'default',
+
+  // WS-10: Encomendas, Devoluções, Trocas, Vendedores (Spec 10)
+  // StatusEncomenda
+  PARCIALMENTE_ENTREGUE: 'warning',
+  // RASCUNHO, CONFIRMADA, CONCLUIDA, CANCELADA já mapeados acima
+
+  // StatusDevolucao
+  // PENDENTE, APROVADA, REJEITADA já mapeados acima
+  PROCESSADA: 'success',
+
+  // MotivoDevolucao (labels no STATUS_LABELS abaixo)
+
+  // StatusVendedor
+  // ATIVO, INATIVO, SUSPENSO já mapeados acima (via ATIVO/INATIVO/SUSPENSO)
 };
 
 const badgeVariants = cva(
@@ -346,6 +360,17 @@ const STATUS_LABELS: Record<string, string> = {
   VIDEO: 'Vídeo',
   TECNICA: 'Técnica',
   PAINEL: 'Painel',
+
+  // WS-10: Encomendas, Devoluções, Trocas, Vendedores (Spec 10)
+  PARCIALMENTE_ENTREGUE: 'Parcialmente Entregue',
+  PROCESSADA: 'Processada',
+  // MotivoDevolucao
+  DEFEITO: 'Defeito',
+  PRODUTO_ERRADO: 'Produto Errado',
+  INSATISFACAO: 'Insatisfação',
+  EXCESSO_PEDIDO: 'Excesso de Pedido',
+  AVARIA_TRANSPORTE: 'Avaria no Transporte',
+  OUTRO: 'Outro',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {
