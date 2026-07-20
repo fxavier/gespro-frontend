@@ -26,8 +26,16 @@ function verificarToken(request: NextRequest): boolean {
 }
 
 // ============================================================
-// Emitir notificações para admins do tenant
+// Emitir notificações para utilizadores com permissão de transporte
 // ============================================================
+
+/**
+ * Permissão mínima para receber alertas de transporte.
+ * Alinha com o catálogo RBAC (prisma/seed/rbac.ts).
+ * Apenas utilizadores com 'transporte:viatura:listar' (ou superior) recebem
+ * notificações de frota — não envia email a toda a gente (ex.: leitura@ sem transporte).
+ */
+const PERMISSAO_TRANSPORTE = 'transporte:viatura:listar';
 
 async function emitirNotificacoesAlerta(
   tenantId: string,
@@ -41,9 +49,26 @@ async function emitirNotificacoesAlerta(
 ): Promise<number> {
   if (alertas.length === 0) return 0;
 
-  // Obter utilizadores activos do tenant com permissão para ver transporte
+  // MAJOR 3 FIX: Filtrar apenas utilizadores com permissão de transporte.
+  // Evita enviar email diário a toda a gente (incluindo perfis sem acesso à frota).
+  // Carrega via roles → rolePermissions → permissão 'transporte:viatura:listar'.
   const utilizadores = await prismaBase.user.findMany({
-    where: { tenantId, ativo: true, deletedAt: null },
+    where: {
+      tenantId,
+      ativo: true,
+      deletedAt: null,
+      userRoles: {
+        some: {
+          role: {
+            rolePermissions: {
+              some: {
+                permission: { code: PERMISSAO_TRANSPORTE },
+              },
+            },
+          },
+        },
+      },
+    },
     select: { id: true },
   });
 

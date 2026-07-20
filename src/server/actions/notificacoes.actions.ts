@@ -2,12 +2,15 @@
 /**
  * Server Actions — Notificações (WS 13)
  *
- * Permissões:
- *   notificacoes:ver           — leitura das próprias notificações
- *   notificacoes:marcar_lida   — marcar como lida
- *   notificacoes:gerir_prefs   — actualizar preferências de notificação
+ * Estas três actions são self-scoped: operam sempre sobre os dados do utilizador
+ * autenticado (ctx.tenantId + ctx.userId), sem guard de permissão adicional —
+ * a autenticação (sessão válida) é suficiente para aceder às próprias notificações.
+ * Não existem permissões "notificacoes:*" no catálogo RBAC; a isenção é intencional.
+ *
+ * A action emitirNotificacao foi removida: não tem consumidor na UI e o único
+ * produtor (cron) chama o serviço diretamente — manter a action aumentava a
+ * superfície de ataque sem benefício.
  */
-import { z } from 'zod';
 import { createSafeAction } from '@/server/safe-action';
 import { notificacaoService } from '@/server/services/plataforma/notificacao.service';
 import { MarcarLidaSchema, ActualizarPreferenciaSchema } from '@/lib/validations/notificacoes';
@@ -45,29 +48,4 @@ export const actualizarPreferenciaNotificacao = createSafeAction({
     await notificacaoService.actualizarPreferencia(tipo, canais, ctx);
     return { tipo };
   },
-});
-
-// ---------------------------------------------------------------------------
-// Emitir notificação (uso interno / admin)
-// ---------------------------------------------------------------------------
-
-export const emitirNotificacao = createSafeAction({
-  schema: z.object({
-    userId: z.string().cuid(),
-    tipo: z.enum([
-      'DOCUMENTO_EXPIRADO',
-      'DOCUMENTO_PROXIMO_EXPIRAR',
-      'MANUTENCAO_PENDENTE',
-      'RESET_PASSWORD',
-      'CONVITE_UTILIZADOR',
-      'ALERTA_SISTEMA',
-    ]),
-    titulo: z.string().min(1).max(200),
-    mensagem: z.string().min(1).max(1000),
-    entidadeTipo: z.string().optional(),
-    entidadeId: z.string().optional(),
-  }),
-  permission: 'admin:gerir_utilizadores',
-  revalidate: { tags: ['notificacoes'] },
-  handler: async (input, ctx) => notificacaoService.emitir(input, ctx),
 });

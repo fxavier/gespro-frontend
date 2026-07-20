@@ -15,7 +15,7 @@ import type { CanalNotificacao, TipoNotificacao } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Canais por defeito para cada tipo de notificação
-// (quando o utilizador não tem preferências explícitas)
+// (quando o utilizador não tem preferências explícitas — "sem registo" ≠ "lista vazia")
 // ---------------------------------------------------------------------------
 
 const CANAIS_DEFAULT: Record<TipoNotificacao, CanalNotificacao[]> = {
@@ -35,21 +35,29 @@ const CANAIS_DEFAULT: Record<TipoNotificacao, CanalNotificacao[]> = {
  * Serviço de notificações — WS 13.
  *
  * PADRÃO "PERSISTIR DEPOIS ENVIAR":
- *   1. Persiste a Notificacao com EstadoEnvio=PENDENTE (dentro ou fora de tx — sempre primeiro).
- *   2. FORA da $transaction de negócio, despacha para os canais activos.
- *   3. Actualiza EstadoEnvio → ENVIADO ou FALHA.
+ *   1. Valida o destinatário no tenant (cross-tenant → NotFoundError).
+ *   2. Persiste a Notificacao com EstadoEnvio=PENDENTE (antes de qualquer I/O externo).
+ *   3. FORA da $transaction de negócio, despacha para os canais efectivos.
+ *   4. Actualiza EstadoEnvio → ENVIADO ou FALHA.
  *
  * Multi-tenant: tenantId e userId vêm sempre do Ctx (nunca do cliente).
- * Isolamento: findMany filtra sempre por { tenantId, userId }.
+ * Isolamento: TODAS as queries filtram por { tenantId, userId }; o destinatário
+ *   é validado como pertencente ao mesmo tenant antes de qualquer escrita.
  */
 
 async function emitir(dto: EmitirNotificacaoDto, ctx: Ctx): Promise<{ id: string }> {
-  const { tenantId, userId: ctxUserId } = ctx;
-  // O userId do destinatário pode ser diferente do userId do caller
-  // (ex.: admin emite para outro utilizador). Para simplificar, assumimos
-  // que o caller e o destinatário são o mesmo utilizador (notificações pessoais).
-  // Para notificações admin→utilizador, passa userId no dto.
+  const { tenantId } = ctx;
   const destinatarioId = dto.userId;
+
+  // BLOCKER FIX: Validar que o destinatário existe e pertence ao tenant do caller.
+  // Impede emissão cross-tenant e carrega o email validado.
+  const dest = await prismaBase.user.findFirst({
+    where: { id: destinatarioId, tenantId, ativo: true },
+    select: { email: true },
+  });
+  if (!dest) {
+    throw new NotFoundError('Destinatário não encontrado neste tenant');
+  }
 
   // Idempotência: não emite o mesmo tipo+entidade+utilizador mais de uma vez por dia.
   if (dto.entidadeId) {
@@ -72,17 +80,24 @@ async function emitir(dto: EmitirNotificacaoDto, ctx: Ctx): Promise<{ id: string
     if (existente) return { id: existente.id };
   }
 
-  // Resolver canais activos para o utilizador
-  const preferencia = await prismaBase.preferenciaNotificacao.findUnique({
-    where: { userId_tipo: { userId: destinatarioId, tipo: dto.tipo } },
+  // MAJOR 1 FIX: Distinguir "sem registo" de "canais=[]]" (opt-out explícito).
+  // preferencia === null → sem preferência → usar defaults.
+  // preferencia.canais === [] → desligou tudo → não enviar por nenhum canal.
+  const preferencia = await prismaBase.preferenciaNotificacao.findFirst({
+    where: { userId: destinatarioId, tenantId, tipo: dto.tipo },
     select: { canais: true },
   });
 
   const canaisActivos: CanalNotificacao[] =
-    preferencia?.canais.length ? preferencia.canais : (CANAIS_DEFAULT[dto.tipo] ?? ['IN_APP']);
+    preferencia !== null
+      ? (preferencia.canais as CanalNotificacao[])
+      : (CANAIS_DEFAULT[dto.tipo] ?? ['IN_APP']);
 
-  // Canal explícito no dto sobrepõe tudo (ex.: email de reset)
-  const canalEfectivo: CanalNotificacao = dto.canal ?? (canaisActivos[0] ?? 'IN_APP');
+  // MAJOR 2 FIX: Deriva canal gravado, estadoEnvio e despacho do mesmo conjunto efectivo.
+  // dto.canal (ex.: EMAIL para reset/convite) substitui canaisActivos integralmente.
+  const canaisEfectivos: CanalNotificacao[] = dto.canal ? [dto.canal] : canaisActivos;
+  const canalPrimario: CanalNotificacao = canaisEfectivos[0] ?? 'IN_APP';
+  const precisaEmail = canaisEfectivos.includes('EMAIL');
 
   // 1. PERSISTIR (efeito duradouro — antes de qualquer I/O externo)
   const notificacao = await prismaBase.notificacao.create({
@@ -92,45 +107,43 @@ async function emitir(dto: EmitirNotificacaoDto, ctx: Ctx): Promise<{ id: string
       tipo: dto.tipo,
       titulo: dto.titulo,
       mensagem: dto.mensagem,
-      canal: canalEfectivo,
+      canal: canalPrimario,
       entidadeTipo: dto.entidadeTipo,
       entidadeId: dto.entidadeId,
-      estadoEnvio: canaisActivos.includes('EMAIL') ? 'PENDENTE' : 'ENVIADO',
+      estadoEnvio: precisaEmail ? 'PENDENTE' : 'ENVIADO',
     },
     select: { id: true },
   });
 
   // 2. ENVIAR por email (fora de qualquer $transaction; efeito colateral assíncrono)
-  if (canaisActivos.includes('EMAIL')) {
-    void enviarEmailNotificacao(notificacao.id, dto.titulo, dto.mensagem);
+  // Passa o email já validado para evitar segunda query sem filtro de tenant.
+  if (precisaEmail && dest.email) {
+    void enviarEmailNotificacao(notificacao.id, dto.titulo, dto.mensagem, dest.email);
+  } else if (precisaEmail && !dest.email) {
+    // Utilizador sem email configurado → marca falha imediatamente
+    await prismaBase.notificacao.update({
+      where: { id: notificacao.id },
+      data: { estadoEnvio: 'FALHA', erroEnvio: 'Utilizador sem email configurado' },
+    }).catch(() => undefined);
   }
 
   return { id: notificacao.id };
 }
 
-/** Envia email e actualiza EstadoEnvio. Não lança — regista FALHA no estado. */
+/**
+ * Envia email e actualiza EstadoEnvio. Não lança — regista FALHA no estado.
+ * Recebe o email já validado (do destinatário verificado no tenant) para evitar
+ * query sem filtro de tenant na execução assíncrona.
+ */
 async function enviarEmailNotificacao(
   notificacaoId: string,
   titulo: string,
   mensagem: string,
+  emailDestinatario: string,
 ): Promise<void> {
   try {
-    // Carregar email do utilizador
-    const notif = await prismaBase.notificacao.findUnique({
-      where: { id: notificacaoId },
-      select: { userId: true },
-    });
-    if (!notif) return;
-
-    const user = await prismaBase.user.findUnique({
-      where: { id: notif.userId },
-      select: { email: true },
-    });
-    if (!user?.email) return;
-
     const { html, texto } = alertaTemplate({ titulo, mensagem });
-
-    await emailProvider.enviar({ para: user.email, assunto: titulo, html, texto });
+    await emailProvider.enviar({ para: emailDestinatario, assunto: titulo, html, texto });
 
     await prismaBase.notificacao.update({
       where: { id: notificacaoId },
