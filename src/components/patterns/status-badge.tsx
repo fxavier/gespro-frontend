@@ -198,7 +198,7 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   ATA: 'info',
   DECISAO: 'warning',
   ANUNCIO: 'default',
-  RELATORIO_TIPO: 'secondary',
+  RELATORIO: 'secondary',
 
   // Spec 11 — Risco (probabilidade / impacto)
   MUITO_ALTA: 'destructive',
@@ -251,7 +251,7 @@ const badgeVariants = cva(
   }
 );
 
-const STATUS_LABELS: Record<string, string> = {
+export const STATUS_LABELS: Record<string, string> = {
   RASCUNHO: 'Rascunho',
   PENDENTE: 'Pendente',
   EM_APROVACAO: 'Em Aprovação',
@@ -367,6 +367,7 @@ const STATUS_LABELS: Record<string, string> = {
   ATA: 'Ata',
   DECISAO: 'Decisão',
   ANUNCIO: 'Anúncio',
+  RELATORIO: 'Relatório',
   MUITO_ALTA: 'Muito Alta',
   MUITO_ALTO: 'Muito Alto',
   MEDIO: 'Médio',

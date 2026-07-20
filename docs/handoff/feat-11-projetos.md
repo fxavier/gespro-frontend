@@ -17,9 +17,9 @@ Adicionados ao fim do ficheiro (additive-only, Wave 5):
 
 | Modelo | Campos-chave | Notas |
 |---|---|---|
-| `RiscoProjeto` | `probabilidade`, `impacto`, `severidade Int`, `status`, `estrategia` | `severidade` derivada no serviço, nunca do cliente |
-| `RegistoQualidade` | `tipo`, `status`, `dataDetecao`, `dataResolucao?` | machine state ABERTA→EM_ANALISE→RESOLVIDA→FECHADA |
-| `ComunicacaoProjeto` | `tipo`, `assunto`, `conteudo`, `participantes String[]`, `deletedAt?` | append-only; soft-delete via `deletedAt` |
+| `RiscoProjeto` | `probabilidade`, `impacto`, `severidade Int`, `status`, `estrategiaResposta` | `severidade` derivada no serviço, nunca do cliente |
+| `RegistoQualidade` | `tipo`, `status`, `descricao`, `acaoCorretiva?` | machine state ABERTA→EM_ANALISE→RESOLVIDA→FECHADA |
+| `ComunicacaoProjeto` | `tipo`, `resumo`, `participantes String[]`, `deletedAt?` | append-only; soft-delete via `deletedAt` |
 | `ConfiguracaoProjeto` | `politicaAprovacaoTimesheet`, `tiposTarefaAtivos String[]`, `papeisEquipaAtivos String[]` | upsert por `projetoId`; lazy create |
 
 ### Novos enums

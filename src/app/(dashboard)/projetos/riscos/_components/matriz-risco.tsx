@@ -37,16 +37,16 @@ const IMPACTO_PESO: Record<string, number> = { BAIXO: 1, MEDIO: 2, ALTO: 3, MUIT
 
 function corCelula(prob: string, impacto: string): string {
   const s = (PROB_PESO[prob] ?? 1) * (IMPACTO_PESO[impacto] ?? 1);
-  if (s <= 2) return 'bg-success/15 border-success/30 dark:bg-success/10';
-  if (s <= 6) return 'bg-warning/15 border-warning/30 dark:bg-warning/10';
-  if (s <= 12) return 'bg-orange-500/15 border-orange-500/30 dark:bg-orange-500/10';
-  return 'bg-destructive/15 border-destructive/30 dark:bg-destructive/10';
+  if (s <= 2) return 'bg-success/15 border-success/30';
+  if (s <= 6) return 'bg-warning/15 border-warning/30';
+  if (s <= 12) return 'bg-destructive/10 border-destructive/25';
+  return 'bg-destructive/25 border-destructive/50';
 }
 
 function corBadge(severidade: number): string {
   if (severidade <= 2) return 'bg-success/80 text-success-foreground';
-  if (severidade <= 6) return 'bg-warning/80 text-warning';
-  if (severidade <= 12) return 'bg-orange-500/80 text-white';
+  if (severidade <= 6) return 'bg-warning/80 text-warning-foreground';
+  if (severidade <= 12) return 'bg-destructive/50 text-destructive-foreground';
   return 'bg-destructive/80 text-destructive-foreground';
 }
 
@@ -137,7 +137,7 @@ export function MatrizRisco({ riscos }: MatrizRiscoProps) {
           {[
             { label: 'Baixo (1-2)', classe: 'bg-success/80' },
             { label: 'Médio (3-6)', classe: 'bg-warning/80' },
-            { label: 'Alto (7-12)', classe: 'bg-orange-500/80' },
+            { label: 'Alto (7-12)', classe: 'bg-destructive/50' },
             { label: 'Crítico (13-16)', classe: 'bg-destructive/80' },
           ].map(({ label, classe }) => (
             <div key={label} className="flex items-center gap-1.5">

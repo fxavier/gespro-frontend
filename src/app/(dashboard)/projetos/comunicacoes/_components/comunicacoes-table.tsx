@@ -3,10 +3,6 @@
 import { DataTable, type TableColumn } from '@/components/patterns/data-table';
 import { StatusBadge } from '@/components/patterns/status-badge';
 
-const TIPO_LABEL: Record<string, string> = {
-  REUNIAO: 'Reunião', ATA: 'Ata', DECISAO: 'Decisão', ANUNCIO: 'Anúncio', RELATORIO: 'Relatório',
-};
-
 type Comunicacao = {
   id: string;
   tipo: string;
@@ -21,7 +17,7 @@ const COLUMNS: TableColumn<Comunicacao>[] = [
   {
     key: 'tipo',
     label: 'Tipo',
-    render: (r) => <StatusBadge status={r.tipo} label={TIPO_LABEL[r.tipo] ?? r.tipo} />,
+    render: (r) => <StatusBadge status={r.tipo} />,
   },
   {
     key: 'data',

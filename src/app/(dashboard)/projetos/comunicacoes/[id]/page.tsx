@@ -7,14 +7,10 @@ import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ComunicacaoService } from '@/server/services/pessoas-projetos/comunicacao.service';
-import { PageHeader } from '@/components/patterns';
+import { PageHeader, STATUS_LABELS } from '@/components/patterns';
 import { StatusBadge } from '@/components/patterns/status-badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, Users } from 'lucide-react';
-
-const TIPO_LABEL: Record<string, string> = {
-  REUNIAO: 'Reunião', ATA: 'Ata', DECISAO: 'Decisão', ANUNCIO: 'Anúncio', RELATORIO: 'Relatório',
-};
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -33,7 +29,7 @@ export default async function ComunicacaoDetailPage({ params }: PageProps) {
 
   if (!comunicacao) notFound();
 
-  const tipo = TIPO_LABEL[comunicacao.tipo as string] ?? comunicacao.tipo as string;
+  const tipo = STATUS_LABELS[comunicacao.tipo as string] ?? (comunicacao.tipo as string).replace(/_/g, ' ');
 
   return (
     <div className="p-6 space-y-6">
@@ -65,7 +61,7 @@ export default async function ComunicacaoDetailPage({ params }: PageProps) {
             <CardContent className="pt-4 space-y-3">
               <div>
                 <p className="text-xs text-muted-foreground">Tipo</p>
-                <div className="mt-1"><StatusBadge status={comunicacao.tipo as string} label={tipo} /></div>
+                <div className="mt-1"><StatusBadge status={comunicacao.tipo as string} /></div>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Data</p>

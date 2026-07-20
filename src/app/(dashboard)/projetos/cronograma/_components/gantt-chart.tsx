@@ -88,14 +88,13 @@ export function GanttChart({ projeto, tarefas, marcos }: GanttChartProps) {
     return { minDate: min, totalDias: total, colunasData: colunas };
   }, [projeto]);
 
-  const hoje = new Date();
-
-  // Posição da linha "hoje"
+  // Posição da linha "hoje" — `new Date()` dentro do useMemo para evitar re-render desnecessário
   const hojeOffset = useMemo(() => {
+    const hoje = new Date();
     const offset = hoje.getTime() - minDate.getTime();
     const total = totalDias * 24 * 60 * 60 * 1000;
     return Math.max(0, Math.min(100, (offset / total) * 100));
-  }, [hoje, minDate, totalDias]);
+  }, [minDate, totalDias]);
 
   const tarefasComDatas = tarefas.filter((t) => t.dataInicio || t.dataFimPrevista);
 
@@ -158,11 +157,11 @@ export function GanttChart({ projeto, tarefas, marcos }: GanttChartProps) {
                   >
                     {/* Progresso interno */}
                     <div
-                      className="absolute inset-y-0 left-0 bg-white/20 rounded"
+                      className="absolute inset-y-0 left-0 bg-primary-foreground/20 rounded"
                       style={{ width: `${tarefa.progresso}%` }}
                       aria-hidden="true"
                     />
-                    <span className="text-xs font-medium text-white dark:text-foreground relative z-10 truncate">
+                    <span className="text-xs font-medium text-primary-foreground relative z-10 truncate">
                       {tarefa.progresso > 0 ? `${tarefa.progresso}%` : ''}
                     </span>
                   </div>

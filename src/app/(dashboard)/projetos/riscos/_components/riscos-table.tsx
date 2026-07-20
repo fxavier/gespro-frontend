@@ -31,7 +31,7 @@ function severidadeLabel(s: number): string {
 function severidadeClasse(s: number): string {
   if (s <= 2) return 'text-success';
   if (s <= 6) return 'text-warning';
-  if (s <= 12) return 'text-orange-500 dark:text-orange-400';
+  if (s <= 12) return 'text-destructive/70';
   return 'text-destructive';
 }
 
