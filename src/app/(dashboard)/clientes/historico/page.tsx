@@ -6,7 +6,7 @@
  * Handler (`/api/export/cliente-historico`). Leitura dentro de
  * `runWithTenantContext` (o serviço usa o cliente Prisma scoped).
  */
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { History, Download } from 'lucide-react';
 import { auth } from '@/lib/auth';
@@ -31,15 +31,23 @@ export default async function HistoricoClientesPage({ searchParams }: PageProps)
   const sp = await searchParams;
   const clienteId = typeof sp.clienteId === 'string' ? sp.clienteId : undefined;
 
-  const { clientes, historico, clienteSelecionado } = await runWithTenantContext(ctx, async () => {
-    const lista = await clienteService.listar({ take: 100, orderBy: 'nome', order: 'asc' }, ctx);
-    if (!clienteId) return { clientes: lista.items, historico: null, clienteSelecionado: null };
-    const [hist, cli] = await Promise.all([
-      clienteService.obterHistorico(clienteId, { take: 100 }, ctx),
-      clienteService.buscarPorId(clienteId, ctx),
-    ]);
-    return { clientes: lista.items, historico: hist.items, clienteSelecionado: cli };
-  });
+  // clienteId inválido/cross-tenant → NotFoundError do serviço → 404 (não error boundary).
+  // Padrão de clientes/[id]/page.tsx.
+  let resultado;
+  try {
+    resultado = await runWithTenantContext(ctx, async () => {
+      const lista = await clienteService.listar({ take: 100, orderBy: 'nome', order: 'asc' }, ctx);
+      if (!clienteId) return { clientes: lista.items, historico: null, clienteSelecionado: null };
+      const [hist, cli] = await Promise.all([
+        clienteService.obterHistorico(clienteId, { take: 100 }, ctx),
+        clienteService.buscarPorId(clienteId, ctx),
+      ]);
+      return { clientes: lista.items, historico: hist.items, clienteSelecionado: cli };
+    });
+  } catch {
+    notFound();
+  }
+  const { clientes, historico, clienteSelecionado } = resultado;
 
   return (
     <div className="p-6 space-y-6">

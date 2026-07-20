@@ -11,6 +11,7 @@ import type { Ctx } from '@/server/services/types';
 import type { Dataset } from '@/lib/reporting';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { OrdemProducaoService } from '@/server/services/pessoas-projetos/producao.service';
+import { StatusOrdemProducaoEnum } from '@/lib/validations/producao';
 import { ValidationError } from '@/lib/errors';
 
 const LIMITE_LINHAS = 5000;
@@ -56,11 +57,20 @@ async function buildClientes(_params: URLSearchParams, ctx: Ctx): Promise<Datase
 }
 
 async function buildProducaoOrdens(params: URLSearchParams, ctx: Ctx): Promise<Dataset> {
-  const status = params.get('status') ?? undefined;
+  // Query param validado com o MESMO enum Zod do FilterSchema — valor inválido → 400.
+  const statusRaw = params.get('status');
+  const parsed = StatusOrdemProducaoEnum.optional().safeParse(statusRaw ?? undefined);
+  if (!parsed.success) {
+    throw new ValidationError(
+      `Parâmetro status inválido — valores: ${StatusOrdemProducaoEnum.options.join(', ')}`,
+    );
+  }
+  const status = parsed.data;
+
   const items = await gatherAll((cursor) =>
     OrdemProducaoService.listar(
       // FilterOrdemProducaoInput — apenas campos suportados
-      { take: 100, cursor, ...(status ? { status: status as never } : {}) },
+      { take: 100, cursor, ...(status ? { status } : {}) },
       ctx,
     ),
   );
