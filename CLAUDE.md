@@ -24,9 +24,21 @@ pnpm e2e:a11y                 # axe (WCAG AA)
 # Um único ficheiro de teste
 npx vitest run src/server/services/financas/__tests__/faturacao.test.ts
 npx playwright test e2e/03-caixa.spec.ts
+
+# Testes de integração isolados (Testcontainers, Postgres efémero — spec 15)
+npx vitest run --config vitest.integration.config.ts
 ```
 
-`pnpm check` **não** apanha erros de runtime RSC (ver "Fronteira Servidor↔Cliente"). Para UI, confirma sempre com um **smoke autenticado** (`pnpm dev` + login) ou `pnpm e2e`.
+`pnpm check` **não** apanha: (1) erros de runtime RSC (ver "Fronteira Servidor↔Cliente"); (2) erros que **só o build de produção** revela. Para UI, confirma sempre com um **smoke autenticado** (`pnpm dev` + login) ou `pnpm e2e`; antes de entregar algo que toque em build/deploy, corre também `pnpm build` (ver "Build de produção" nas regras invioláveis).
+
+### Migrations — só o orquestrador, e **não-interativas**
+`pnpm db:migrate:dev` (`prisma migrate dev`) exige TTY e **rebenta em ambiente não-interactivo**. Para gerar uma migration a partir do delta schema↔DB sem prompts:
+```bash
+mig="prisma/migrations/$(date +%Y%m%d%H%M%S)_<nome>"; mkdir -p "$mig"
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --script > "$mig/migration.sql"
+npx prisma migrate deploy
+```
+Rename de valor de enum: o `migrate diff` gera **drop+recreate** (perde dados) — escreve à mão `ALTER TYPE "X" RENAME VALUE 'A' TO 'B';` e marca com `prisma migrate resolve --applied <migration>`. Em produção usa **sempre** `migrate deploy`, nunca `migrate dev`.
 
 Utilizadores demo (senha `demo1234`): `admin@demo.mz`, `gestor@`, `financeiro@`, `operador@`, `leitura@` — tenant slug `demo`.
 
@@ -53,8 +65,14 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 - **D/finanças expõe**: `registarLancamentoContabilistico` (partida dobrada), `registarMovimentoCaixa`, `proximoNumeroSerie` (numeração atómica `UPDATE...RETURNING FOR UPDATE`, sem lacunas).
 - Fluxos ligados: venda/POS→stock+caixa · recepção→stock+conta a pagar · factura→contabilidade · produção→consumo/entrada de stock.
 
+### Camadas transversais (envelopam, não alteram contratos)
+- **Observabilidade** (`src/server/observability/*`, `instrumentation.ts`) — logger estruturado com redacção de segredos/PII, `requestId` num `AsyncLocalStorage` **separado** do tenant, métricas RED. `withApi`/`createSafeAction` estão envelopados: erros inesperados devolvem `traceId` sem stack ao cliente. `/api/health` (liveness), `/api/ready` (SELECT 1), `/api/metrics` (protegido por `METRICS_SECRET`).
+- **Segurança** (`middleware.ts`, `src/lib/security/headers.ts`, `src/lib/api/cors.ts`) — CSP com nonce por pedido (report-only por omissão; `CSP_ENFORCE=true` em prod só após smoke), HSTS/X-Frame/nosniff/Referrer/Permissions; CORS por allowlist (`ALLOWED_ORIGINS`), **nunca wildcard**; rate-limit em reset/convite/exports. `middleware.ts` é o **único** dono dos headers de segurança e dos paths públicos.
+- **Documentos/exportação** (`src/lib/documents/*`, `src/lib/reporting/*`) — PDF fiscal via `@react-pdf/renderer` (**só runtime Node**, nunca no cliente) que **reflecte** o documento emitido (append-only, nunca recalcula); export CSV/XLSX com `Decimal`→string lossless. Servidos por Route Handlers (`withApi`), nunca Server Actions.
+- **Notificações** (`src/server/services/plataforma/notificacao.service.ts`, `src/server/email/*`) — padrão "persistir-depois-enviar": grava `Notificacao` (estado `PENDENTE`) dentro da tx, envia email como efeito colateral **fora** da tx; porta `EmailProvider` (smtp/noop).
+
 ### UI
-- **Golden standard**: `src/app/(dashboard)/compras/requisicoes/**` — o molde a replicar (lista SC + `@panel`/`(.)[id]` + detalhe com tabs + `novo`/`[id]/editar`).
+- **Golden standard**: `src/app/(dashboard)/compras/requisicoes/**` — o molde a replicar (lista SC + `@panel`/`(.)[id]` + detalhe com tabs + `novo`/`[id]/editar`). **Nota:** o interceptor `@panel/(.)[id]` captura o segmento literal `novo` (é um valor válido para `[id]`) — em build de produção isto mostra a listagem em vez do formulário na navegação client-side. Bug conhecido do molde (ver `docs/status.md`); ao replicar, garante que o painel devolve `null` em vez de `notFound()`.
 - `src/components/patterns/*` — biblioteca única (PageHeader, DataTable, FilterBar, StatusBadge, KpiCard, DetailShell, FormPage, Stepper, UnsavedChangesGuard…). Compor a partir daqui, não dos primitivos `ui/`.
 - `StatusBadge` usa um **mapa único** status→variante (`patterns/status-badge.tsx`); proibido mapa local.
 - Formulários: `react-hook-form` + `zodResolver` com o **mesmo** schema de `src/lib/validations/<modulo>.ts`, submit via Server Action com `useActionState`.
@@ -73,6 +91,10 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 
 **UI** — **sem modais**: criar/editar/detalhar são rotas dedicadas; única excepção é `AlertDialog` para confirmação destrutiva. Zero cores hardcoded (só tokens `@theme`); dark mode obrigatório.
 
+**Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`.
+
+**Middleware e probes** — `middleware.ts` redirige pedidos não-autenticados para `/auth/login`. Endpoints que têm de responder sem sessão (`/api/health`, `/api/ready`, `/api/metrics` para o HEALTHCHECK do Docker/App Runner; `/api/auth/*`) **têm de estar em `PUBLIC_PATHS`** — senão os health checks recebem 307 em vez de 200.
+
 **Gates de CI** (`pnpm gates`, `scripts/gate-*.mjs`) — falham o merge se houver: `Dialog` fora de `AlertDialog`, `'use client'` em `page.tsx` de listagem/detalhe, ou imports de `@/data/` em `src/app`. Manter a zero.
 
 ## Convenções detalhadas (normativas)
@@ -82,6 +104,10 @@ As skills em `.claude/skills/` são a fonte de verdade e devem ser lidas antes d
 - `api-conventions` — Server Actions, serviços, `withApi`, validação Zod, hierarquia `AppError`.
 - `ui-conventions` — padrão sem-modais, patterns, tokens, Server Components, formulários.
 
+## Deploy (spec 16)
+
+`Dockerfile` multi-stage (`output: standalone`, não-root, HEALTHCHECK em `/api/health`); `docker-entrypoint.sh` corre `prisma migrate deploy` antes de arrancar. IaC em `infra/` (Terraform: App Runner + RDS + Secrets Manager). **Zero segredos no repo** — `.tfvars`/`.tfstate` são git-ignored; segredos em runtime via Secrets Manager. CI/CD em `.github/workflows/ci.yml` (spec 15).
+
 ## Referência
 
-Especificações e histórico do programa (backend Waves 0–3, UI Waves 0–2): `.kiro/specs/{01,02,03}-*`. Decisões de arquitectura: `docs/decisions/` (ADR 0001–0004). Contratos de domínio e mapa entidades↔conflitos: `docs/handoff/`. Estado: `docs/status.md`.
+Especificações e histórico do programa: `.kiro/specs/` — backend Waves 0–3 e UI Waves 0–2 em `{01,02,03}-*`; funcionalidades em falta em `04-09` (reconciliações, payroll, recrutamento, benefícios); funcionalidades + produção em `10-17` (encomendas/devoluções, projetos, relatórios/PDF, notificações, observabilidade, CI/CD, infra, segurança). Decisões de arquitectura: `docs/decisions/` (ADR 0001–0004; **três ADRs da Wave 5 colidem no nº 0005** — motor-pdf, infraestrutura, observabilidade; o próximo ADR deve renumerar). Contratos de domínio, mapa entidades↔conflitos e handoffs por spec: `docs/handoff/`. Estado operacional (fonte de verdade do que está feito e da dívida): `docs/status.md`.
