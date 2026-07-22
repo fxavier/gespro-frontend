@@ -143,12 +143,16 @@ Feito: 1.1–1.3, 2.1–2.3, 3.1–3.2, 4.1–4.3, 5.1–5.5, 6.1–6.2, 7.1–7
 ## 4. Como verificar (comandos e resultados)
 
 ```bash
-CI=true pnpm install                 # OK
-pnpm db:generate                     # OK
-pnpm check                           # ver §6 do relatório final
-pnpm gates                           # OK
-pnpm build                           # OK
+CI=true pnpm install     # OK
+pnpm db:generate         # OK
+pnpm check               # OK — 66 ficheiros, 1081 testes, 0 erros de lint/tsc
+pnpm gates               # OK — dialog / use-client / data-imports a zero
+pnpm build               # OK — /auth/registo-callback prerenderiza estático (○)
 ```
+
+Cobertura do código novo (provisionamento, assinatura, handoff, webhook,
+idempotência, bootstrap, captcha, catálogo): **96,6 % stmts · 97,9 % linhas ·
+98,7 % funções · 80 % ramos** — acima do limiar de 80 % do gate.
 
 Testes novos (todos verdes):
 
