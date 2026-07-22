@@ -23,6 +23,12 @@ export default defineConfig({
     // partilham a mesma DB e poderiam colidir se corressem em paralelo.
     fileParallelism: false,
 
+    // ponytail: os beforeAll dos testes de integração fazem import dinâmico de
+    // módulos de serviço pesados (transform + graph) antes da 1.ª query; os 10s
+    // por omissão estouram em cache fria. Se voltar a estourar, o problema é
+    // outro — não subir mais este valor sem investigar.
+    hookTimeout: 30_000,
+
     // Cobertura: foca em código de servidor e utilitários.
     // Os limiares falham o job de CI se a cobertura descer abaixo dos valores.
     // Aumentar progressivamente conforme a cobertura sobe (spec 15, task 2.3).
