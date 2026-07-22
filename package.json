@@ -1,0 +1,26 @@
+{
+  "name": "gespro",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter erp dev",
+    "build": "turbo run build",
+    "start": "pnpm --filter erp start",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "check": "pnpm --filter erp check",
+    "gates": "pnpm --filter erp gates",
+    "e2e": "pnpm --filter erp e2e",
+    "e2e:a11y": "pnpm --filter erp e2e:a11y",
+    "test:integration": "pnpm --filter erp test:integration",
+    "db:generate": "pnpm --filter erp db:generate",
+    "db:migrate:dev": "pnpm --filter erp db:migrate:dev",
+    "db:seed": "pnpm --filter erp db:seed",
+    "db:studio": "pnpm --filter erp db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.8"
+  },
+  "packageManager": "pnpm@10.22.0+sha512.bf049efe995b28f527fd2b41ae0474ce29186f7edcb3bf545087bd61fbbebb2bf75362d1307fda09c2d288e1e499787ac12d4fcb617a974718a6051f2eee741c"
+}

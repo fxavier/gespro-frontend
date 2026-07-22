@@ -6,6 +6,12 @@ GestPro é um ERP **multi-tenant** para empresas moçambicanas. Next.js 16 (App 
 
 ## Comandos
 
+**Monorepo (spec 18 §1, ADR-0006)** — o repositório é um workspace pnpm + Turborepo. O ERP vive em
+`apps/erp/` (todos os caminhos `src/`, `prisma/`, `e2e/`… deste documento são relativos a `apps/erp/`);
+o site de marketing virá em `apps/site/`; config partilhada em `packages/tsconfig` e
+`packages/eslint-config`. Os scripts abaixo correm **da raiz** e delegam via `pnpm --filter erp` /
+`turbo run`; nomes inalterados.
+
 ```bash
 # Base de dados (necessária para dev, seed e testes de integração/E2E)
 docker compose up -d          # Postgres 17 (container gespro-db)
@@ -21,12 +27,12 @@ pnpm gates                    # gates de arquitectura (ver abaixo)
 pnpm e2e                      # Playwright — 5 fluxos críticos (precisa da app + DB)
 pnpm e2e:a11y                 # axe (WCAG AA)
 
-# Um único ficheiro de teste
+# Um único ficheiro de teste (a partir de apps/erp/)
 npx vitest run src/server/services/financas/__tests__/faturacao.test.ts
 npx playwright test e2e/03-caixa.spec.ts
 
 # Testes de integração isolados (Testcontainers, Postgres efémero — spec 15)
-npx vitest run --config vitest.integration.config.ts
+pnpm test:integration
 ```
 
 `pnpm check` **não** apanha: (1) erros de runtime RSC (ver "Fronteira Servidor↔Cliente"); (2) erros que **só o build de produção** revela. Para UI, confirma sempre com um **smoke autenticado** (`pnpm dev` + login) ou `pnpm e2e`; antes de entregar algo que toque em build/deploy, corre também `pnpm build` (ver "Build de produção" nas regras invioláveis).

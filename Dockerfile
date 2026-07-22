@@ -24,8 +24,11 @@ WORKDIR /app
 # Activar pnpm via corepack (versão fixada)
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
-# Copiar apenas os ficheiros de lock para maximizar cache de layer
-COPY package.json pnpm-lock.yaml ./
+# Copiar apenas os manifestos do workspace para maximizar cache de layer
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/erp/package.json ./apps/erp/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
+COPY packages/tsconfig/package.json ./packages/tsconfig/
 
 # Instalar com lockfile congelado (reproduzível)
 RUN pnpm install --frozen-lockfile
@@ -39,24 +42,32 @@ WORKDIR /app
 ARG PNPM_VERSION=10.22.0
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
-# Copiar node_modules do stage deps
+# Copiar node_modules do stage deps (raiz do workspace + cada pacote)
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/erp/node_modules ./apps/erp/node_modules
 
 # Copiar código fonte completo
 COPY . .
 
 # Gerar cliente Prisma (necessário para o build Next.js)
-RUN pnpm prisma generate
+RUN pnpm --filter erp exec prisma generate
 
 # Garantir que a directoria public existe (necessária para next build standalone)
-RUN mkdir -p public
+RUN mkdir -p apps/erp/public
 
 # Build Next.js com output: 'standalone'
 # NEXT_TELEMETRY_DISABLED evita chamadas de rede durante o build
 # NODE_OPTIONS aumenta heap para a verificação TypeScript de projectos grandes
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-RUN pnpm build
+RUN pnpm --filter erp build
+
+# Materializar (sem symlinks pnpm) o que o runtime precisa além do standalone:
+# CLI do Prisma para `migrate deploy` no entrypoint, e dotenv (prisma.config.ts).
+RUN mkdir -p /runtime-deps && \
+    cp -RL apps/erp/node_modules/prisma /runtime-deps/prisma && \
+    cp -RL apps/erp/node_modules/@prisma /runtime-deps/@prisma && \
+    cp -RL apps/erp/node_modules/dotenv /runtime-deps/dotenv
 
 # ==============================================================================
 # Stage 3 — runner: imagem mínima de produção
@@ -79,28 +90,28 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # ---------------------------------------------------------------------------
 # Copiar output standalone do Next.js
-# O standalone contém server.js + node_modules mínimos para runtime
+# Em monorepo o standalone replica a árvore do workspace:
+#   .next/standalone/apps/erp/server.js  +  .next/standalone/node_modules
 # ---------------------------------------------------------------------------
-COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=build --chown=nextjs:nodejs /app/public ./public
+COPY --from=build --chown=nextjs:nodejs /app/apps/erp/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /app/apps/erp/.next/static ./apps/erp/.next/static
+COPY --from=build --chown=nextjs:nodejs /app/apps/erp/public ./apps/erp/public
 
 # ---------------------------------------------------------------------------
 # Copiar Prisma para migrate deploy no entrypoint
-# Precisamos: CLI (prisma/), cliente gerado (.prisma/), adaptadores (@prisma/)
-# e dotenv (importado em prisma.config.ts)
+# Precisamos: CLI (prisma/), adaptadores + cliente gerado (@prisma/) e dotenv
+# (importado em prisma.config.ts). Vêm do stage build já sem symlinks pnpm.
 # ---------------------------------------------------------------------------
-COPY --from=build --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=build --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
-COPY --from=build --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=build --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=build --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
+COPY --from=build --chown=nextjs:nodejs /app/apps/erp/prisma ./apps/erp/prisma
+COPY --from=build --chown=nextjs:nodejs /app/apps/erp/prisma.config.ts ./apps/erp/prisma.config.ts
+COPY --from=build --chown=nextjs:nodejs /runtime-deps/prisma ./node_modules/prisma
+COPY --from=build --chown=nextjs:nodejs /runtime-deps/@prisma ./node_modules/@prisma
+COPY --from=build --chown=nextjs:nodejs /runtime-deps/dotenv ./node_modules/dotenv
 
 # ---------------------------------------------------------------------------
 # Entrypoint: executa migrations antes de arrancar o servidor
 # ---------------------------------------------------------------------------
-COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --chown=nextjs:nodejs apps/erp/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
 USER nextjs
