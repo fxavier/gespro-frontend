@@ -145,14 +145,15 @@ Feito: 1.1–1.3, 2.1–2.3, 3.1–3.2, 4.1–4.3, 5.1–5.5, 6.1–6.2, 7.1–7
 ```bash
 CI=true pnpm install     # OK
 pnpm db:generate         # OK
-pnpm check               # OK — 66 ficheiros, 1081 testes, 0 erros de lint/tsc
+pnpm check               # OK — 70 ficheiros, 1148 testes, 0 erros de lint/tsc
 pnpm gates               # OK — dialog / use-client / data-imports a zero
 pnpm build               # OK — /auth/registo-callback prerenderiza estático (○)
 ```
 
 Cobertura do código novo (provisionamento, assinatura, handoff, webhook,
-idempotência, bootstrap, captcha, catálogo): **96,6 % stmts · 97,9 % linhas ·
-98,7 % funções · 80 % ramos** — acima do limiar de 80 % do gate.
+idempotência, bootstrap, captcha, catálogo, validações e os 4 Route Handlers
+públicos): **97,5 % stmts · 98,5 % linhas · 96,8 % funções · 82,7 % ramos** —
+acima do limiar de 80 % do gate em todas as métricas.
 
 Testes novos (todos verdes):
 
@@ -228,6 +229,55 @@ Dados do smoke removidos da DB no fim (restam só `demo` e o tenant do teste pr�
    prestado do estrangeiro a cliente moçambicano. Bloqueante antes de produção.
 
 ---
+
+## 5c. Correcções da revisão de código (ronda 1)
+
+Parecer inicial: REJEITADO (2 BLOCKER, 9 MAJOR, 6 menores). Corrigido:
+
+| # | Problema | Correcção |
+|---|---|---|
+| BLOCKER-1 | `aplicarTransicao` era check-then-act: dois webhooks concorrentes liam o mesmo estado, ambos validavam, e o último a escrever ganhava — um tenant que pagou podia ficar `SUSPENSA` até ao ciclo seguinte | Compare-and-set: `estado: actual` entra no `where` do `updateMany`; `count !== 1` ⇒ transição perdida (log + `false`), sem sincronizar `statusAtivo`. `expirarTrialsVencidos` fica coberto pelo mesmo caminho |
+| BLOCKER-2 | Evento sem tenant resolvido era gravado em `EventoWebhookStripe` e respondido com 200 ⇒ Stripe parava de reentregar e a reentrega manual batia na trava de idempotência | (a) nada é gravado quando `alvo === null`; (b) 503 + `Retry-After` para `checkout.session.*`/`customer.subscription.*`/`invoice.*`, 200 para o resto; (c) `stripeCustomerId` passa a ser persistido **antes** de `subscriptions.create()`, fechando a janela que originava o caso |
+| MAJOR-1 | `checkout.session.completed` activava sem verificar pagamento | Guardas `mode === 'subscription'` e `payment_status ∈ {paid, no_payment_required}` |
+| MAJOR-2 | `paused` não mapeado ⇒ tenant `ATIVA` para sempre | `paused → SUSPENSA`; `incomplete` documentado como "não transita" (3-D Secure a decorrer) |
+| MAJOR-3 | `tentativasFalhadas` perdia-se quando a transição era inválida ⇒ dunning reiniciava a cada evento | Contador gravado num `updateMany` próprio, antes e independentemente da transição |
+| MAJOR-4 | `Idempotency-Key` presa em `EM_CURSO` se o processo morresse ⇒ 409 permanente | `EM_CURSO` com `updatedAt` > 10 min é reaberto por `UPDATE` condicional (só um concorrente ganha) |
+| MAJOR-5 | Preflight do registo não autorizava `Idempotency-Key` ⇒ browser recusava o POST | `OPTIONS` passa `allowedHeaders: 'Content-Type, Idempotency-Key'` e `methods: 'POST, OPTIONS'` |
+| MAJOR-6 | Route Handlers sem testes | 3 ficheiros novos de teste de handler (39 casos) cobrindo os códigos de erro publicados, o envelope de `/planos`, o handoff de `verificar-email` e o ramo `AppError → 503` do webhook |
+| MAJOR-7 | `@relation` + `onDelete: Cascade` de `Assinatura` para `Tenant`, contra o design.md e o CLAUDE.md | FK escalar `tenantId String @unique`, sem back-reference em `tenant.prisma` |
+| MAJOR-8 | Catálogo **global** de permissões escrito dentro da transacção de cada tenant ⇒ deadlock possível num endpoint público | `garantirCatalogoPermissoes()` corre fora e antes da `$transaction`; `bootstrapRbac` só lê o catálogo |
+| MAJOR-9 | Nome/empresa de origem anónima interpolados directos em HTML de email | `escapeHtml()` em `templates/layout.ts`, aplicado a todos os campos do template de boas-vindas |
+
+Testes exigidos pela revisão, ambos presentes:
+`BLOCKER-1: duas transições concorrentes do mesmo estado — só uma escreve` e
+`BLOCKER-2: evento de faturação sem tenant NÃO é marcado como processado` +
+`BLOCKER-2: a reentrega do evento não resolvido volta a ser avaliada`
+(`src/server/services/plataforma/__tests__/assinatura.service.test.ts`).
+
+### Menores — aceites e documentados, não corrigidos nesta ronda
+
+1. **Update morto do campo `erro` no handler do webhook.** Em falha de processamento, a
+   `$transaction` reverte e a linha de `EventoWebhookStripe` deixa de existir, pelo que o
+   `updateMany` que grava `erro` afecta zero linhas. O alerta continua a sair pelo log
+   estruturado (`alerta: 'webhook_stripe_falhou'`). Para o campo servir para alguma coisa,
+   teria de ser escrito fora da transacção — decisão para quem ligar o pipeline de alertas.
+2. **`/api/cron/expirar-trials` não usa `withApi`** (segue o padrão do cron de transporte já
+   existente) e compara `CRON_SECRET` com `===`, não em tempo constante. Não está em
+   `PUBLIC_PATHS` e o segredo é de alta entropia; a mudança para `timingSafeEqual` e para
+   `withApi` deve ser feita nos dois crons ao mesmo tempo, não só neste.
+3. **`handoffToken` fica em claro em `ChaveIdempotencia.respostaJson`.** É o preço de devolver
+   a mesma resposta numa repetição. Mitigação existente: o token dura 60 s e é de uso único.
+   Se incomodar, guardar só `tenantSlug` e recusar a repetição tardia.
+4. **`withApi` não põe `traceId` no corpo.** Alinhei a **implementação** com o contrato, não o
+   contrário: `/api/publico/registo` constrói as respostas de erro no handler e inclui sempre
+   `traceId` + `erro` (é o que o spec 18 consome). Os restantes endpoints mantêm o envelope
+   normal do `withApi`, com o `traceId` no header `x-request-id`.
+5. **Login ambíguo com o mesmo email em vários tenants**: `authorize` faz `findFirst` sem
+   `tenant` quando o campo não é preenchido. Pré-existente (Wave 0); o registo self-service
+   aumenta a probabilidade de colisão. O ecrã de login já aceita o slug da empresa.
+6. **`tenant-bootstrap.ts` sem `import 'server-only'`** — deliberado e comentado no ficheiro:
+   é importado por `prisma/seed/financas.ts`, que corre em `tsx` fora do contexto react-server,
+   onde `server-only` lançaria.
 
 ## 6. Para o spec 18 (site de marketing)
 

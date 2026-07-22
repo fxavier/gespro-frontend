@@ -58,6 +58,13 @@ spec 13 (notificações/email), spec 16 (secrets/deploy), spec 17 (rate-limit). 
         cobre todos os estados
   - [x] 9.4 Handoff: token expirado/reutilizado rejeitado; consumo atómico sem corrida
   - [x] 9.5 Isolamento: registo/webhook usam sempre `prismaBase` (nunca `prisma` tenant-scoped)
+  - [x] 9.6 (revisão) Route Handlers: códigos de erro publicados em `site-provisionamento.md`,
+        envelope de `/planos`, redirects de `verificar-email`, `AppError → 503` do webhook
+  - [x] 9.7 (revisão) Corridas: duas transições concorrentes do mesmo estado (só uma escreve);
+        evento sem tenant não é marcado como processado e a reentrega volta a ser avaliada
+
+- [x] 11. Correcções da revisão de código (ronda 1) — 2 BLOCKER + 9 MAJOR fechados,
+      6 menores documentados em `docs/handoff/feat-19-onboarding.md` §5c
 
 - [~] 10. Verificação (10.2 parcial — falta só a API real do Stripe)
   - [x] 10.1 `pnpm check` + `pnpm gates` verdes
