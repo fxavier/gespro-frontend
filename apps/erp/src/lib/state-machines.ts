@@ -125,6 +125,56 @@ export const TRANSICOES_QUALIDADE: Record<string, string[]> = {
   FECHADA: [],
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 19 — Assinatura SaaS (onboarding self-service e faturação por subscrição)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ESTADOS_ASSINATURA = [
+  'TRIAL',
+  'ATIVA',
+  'SUSPENSA',
+  'CANCELADA',
+  'EXPIRADO',
+] as const;
+
+export type EstadoAssinatura = (typeof ESTADOS_ASSINATURA)[number];
+
+/**
+ * Ciclo de vida da subscrição (espelha o estado do Stripe).
+ *
+ * `CANCELADA` é terminal para a subscrição corrente: reactivar é uma nova
+ * Checkout Session que, por convenção, actualiza o MESMO registo `Assinatura`
+ * com um novo `stripeSubscriptionId` — daí `CANCELADA → ATIVA` ser permitida.
+ * O Stripe não garante ordem de entrega de webhooks: quem transita valida
+ * sempre contra o estado actual e ignora (sem erro fatal) o que não encaixa.
+ */
+export const TRANSICOES_ASSINATURA: Record<EstadoAssinatura, EstadoAssinatura[]> = {
+  TRIAL: ['ATIVA', 'EXPIRADO', 'CANCELADA'],
+  ATIVA: ['SUSPENSA', 'CANCELADA'],
+  SUSPENSA: ['ATIVA', 'CANCELADA'],
+  EXPIRADO: ['ATIVA', 'CANCELADA'],
+  CANCELADA: ['ATIVA'],
+};
+
+/** `true` se a transição `de → para` é válida. Idempotente: `de === para` é válida. */
+export function transicaoAssinaturaValida(
+  de: EstadoAssinatura,
+  para: EstadoAssinatura,
+): boolean {
+  if (de === para) return true;
+  return (TRANSICOES_ASSINATURA[de] ?? []).includes(para);
+}
+
+/**
+ * Mapa único estado → bloqueio de acesso (Requisito 6.1).
+ * `TRIAL`/`ATIVA` dão acesso; tudo o resto bloqueia.
+ * `ConfiguracaoFiscal.statusAtivo = !bloqueiaAcesso(estado)`, escrito na MESMA
+ * transacção que regista a transição.
+ */
+export function bloqueiaAcesso(estado: EstadoAssinatura): boolean {
+  return estado !== 'TRIAL' && estado !== 'ATIVA';
+}
+
 /**
  * Calcula a posição fraccional entre duas posições (formato string decimal).
  * Inserir entre anterior e posterior: posicao = midpoint(ant, pos).
