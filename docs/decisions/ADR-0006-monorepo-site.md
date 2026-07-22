@@ -91,10 +91,21 @@ O standalone em monorepo produz `apps/erp/.next/standalone/apps/erp/server.js` c
 `node_modules` na raiz do standalone, pelo que os `COPY` do runner mudaram em conformidade e o
 `docker-entrypoint.sh` faz `cd /app/apps/erp` antes do `prisma migrate deploy` (é onde vivem
 `prisma.config.ts` e `prisma/`) e arranca `node /app/apps/erp/server.js`.
-Dois ajustes que não são só de caminho, mas sem os quais a imagem não construía sob pnpm:
-o `COPY` de `node_modules/.prisma` foi removido (esse directório não existe em instalações pnpm —
-o cliente é gerado dentro de `@prisma/client`), e `prisma`/`@prisma`/`dotenv` são materializados
-com `cp -RL` no stage `build` porque em pnpm são symlinks para `.pnpm/` que o `COPY` não segue.
+Dois ajustes **não são de caminho** — são correcções de bugs pré-existentes que só se manifestam
+sob pnpm e que a migração tornou visíveis ao forçar um teste da imagem:
+1. o `COPY` de `node_modules/.prisma` foi removido — esse directório não existe em instalações
+   pnpm (o cliente é gerado dentro de `@prisma/client`), pelo que o `docker build` falhava;
+2. a CLI do Prisma para o `migrate deploy` do entrypoint deixa de ser copiada da árvore pnpm
+   (que é toda symlinks para `.pnpm/`, que o `COPY` não segue, e cujo `@prisma/engines` não é
+   dependência directa da app) e passa a vir de um `npm install` isolado no stage `build`, com
+   as versões exactas resolvidas a partir do que o lockfile instalou, copiado para
+   `/app/node_modules` como árvore plana.
+
+**Verificação da imagem (2026-07-22).** `docker build` verde; `docker run` do entrypoint com uma
+`DATABASE_URL` inalcançável chega a "Loaded Prisma config from prisma.config.ts / Prisma schema
+loaded from prisma/schema" e falha só em `P1001` (prova que a CLI, o `prisma.config.ts` e o
+schema resolvem); com a DB real, `node /app/apps/erp/server.js` arranca e `/api/health` e
+`/api/ready` respondem `200`.
 
 **CI.** `.github/workflows/ci.yml` mantém os mesmos 7 jobs; os passos que invocam binários da app
 (`prisma generate/validate/migrate deploy`, `tsc`, `playwright install`, `test:unit:coverage`,
