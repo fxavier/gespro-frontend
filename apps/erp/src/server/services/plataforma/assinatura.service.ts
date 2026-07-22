@@ -136,10 +136,18 @@ export interface PatchAssinatura {
 /**
  * Aplica uma transição validada contra o estado ACTUAL e sincroniza o bloqueio.
  *
- * O Stripe não garante ordem de entrega de webhooks: uma transição que não
- * encaixa não é um erro fatal — é registada e ignorada (devolve `false`), como
- * manda o design. Transições explícitas da UI usam `estrito: true` e recebem
- * `BusinessRuleError('TRANSICAO_INVALIDA')`.
+ * **Compare-and-set, não check-then-act.** O `estado` lido entra no `where` do
+ * `UPDATE`: se outro evento transitou a assinatura entretanto, o update afecta
+ * zero linhas e esta transição é declarada perdida. Sem isto, um
+ * `invoice.payment_failed` e um `invoice.paid` entregues em paralelo lêem o
+ * mesmo estado, ambos validam, e o último a escrever ganha — um tenant que
+ * pagou podia ficar `SUSPENSA` (e sem acesso) até ao ciclo seguinte. Mesmo
+ * padrão do consumo de `jti` em `handoff.service.ts` e do token de verificação
+ * de email.
+ *
+ * O Stripe não garante ordem de entrega: uma transição que não encaixa não é um
+ * erro fatal — é registada e ignorada (devolve `false`). Transições explícitas
+ * da UI usam `estrito: true` e recebem `BusinessRuleError('TRANSICAO_INVALIDA')`.
  */
 export async function aplicarTransicao(
   tx: Prisma.TransactionClient,
@@ -164,8 +172,9 @@ export async function aplicarTransicao(
     return false;
   }
 
-  await tx.assinatura.updateMany({
-    where: { id: assinatura.id, tenantId: assinatura.tenantId },
+  const { count } = await tx.assinatura.updateMany({
+    // `estado: actual` é a trava: só escreve quem ainda vê o estado que leu.
+    where: { id: assinatura.id, tenantId: assinatura.tenantId, estado: actual as never },
     data: {
       estado: novoEstado as never,
       ...(patch.planoAssinatura !== undefined
@@ -192,6 +201,16 @@ export async function aplicarTransicao(
       ...(patch.trialFim !== undefined ? { trialFim: patch.trialFim } : {}),
     },
   });
+
+  if (count !== 1) {
+    // Outro evento chegou primeiro e mudou o estado sob os nossos pés. Não
+    // sincronizamos `statusAtivo`: isso sobrescreveria a decisão de quem ganhou.
+    logger.warn(
+      { tenantId: assinatura.tenantId, de: actual, para: novoEstado },
+      '[assinatura] transição perdida por corrida — estado mudou entretanto',
+    );
+    return false;
+  }
 
   await sincronizarStatusAtivo(tx, assinatura.tenantId, novoEstado);
   return true;
@@ -414,15 +433,25 @@ export async function criarSubscricaoTrial(
       select: { email: true },
     });
 
-    const customerId =
-      assinatura.stripeCustomerId ??
-      (
+    let customerId = assinatura.stripeCustomerId;
+    if (!customerId) {
+      customerId = (
         await stripe.customers.create({
           name: tenant?.nome,
           email: cfg?.email ?? undefined,
           metadata: { tenantId, nuit: tenant?.nuit ?? '' },
         })
       ).id;
+
+      // Persistir ANTES de criar a subscrição: o Stripe pode disparar
+      // `customer.subscription.created` antes de `subscriptions.create()`
+      // retornar, e sem o `stripeCustomerId` gravado o webhook não resolve o
+      // tenant. É a janela que obriga o handler a devolver 5xx nesse caso.
+      await prismaBase.assinatura.updateMany({
+        where: { id: assinatura.id, tenantId },
+        data: { stripeCustomerId: customerId },
+      });
+    }
 
     const subscricao = await stripe.subscriptions.create({
       customer: customerId,
@@ -464,6 +493,25 @@ export interface ResultadoWebhook {
   tipo: string;
   tenantId: string | null;
   transitou: boolean;
+  /**
+   * `true` quando é um evento de faturação que nos diz respeito mas cujo tenant
+   * não foi possível resolver. O evento NÃO fica registado: o chamador tem de
+   * devolver 5xx para o Stripe reentregar.
+   */
+  naoResolvido: boolean;
+}
+
+/**
+ * Tipos cujo processamento depende de haver um tenant resolvido. Se um destes
+ * chegar sem alvo, é uma falha temporária (a subscrição pode estar a ser criada
+ * neste preciso momento), não um evento a ignorar.
+ */
+function exigeTenantResolvido(tipo: string): boolean {
+  return (
+    tipo.startsWith('checkout.session.') ||
+    tipo.startsWith('customer.subscription.') ||
+    tipo.startsWith('invoice.')
+  );
 }
 
 /** Verifica a assinatura do evento. Lança se o corpo/assinatura não conferirem. */
@@ -512,9 +560,20 @@ function estadoDeStatusStripe(status: string): EstadoAssinatura | null {
     case 'past_due':
     case 'unpaid':
       return 'SUSPENSA';
+    // Subscrição em pausa (`pause_collection`): o Stripe deixa de cobrar. Sem
+    // este ramo a assinatura ficava `ATIVA` para sempre — acesso gratuito
+    // indefinido, sem nenhum evento posterior a corrigi-lo.
+    case 'paused':
+      return 'SUSPENSA';
     case 'canceled':
     case 'incomplete_expired':
       return 'CANCELADA';
+    // `incomplete`: a primeira factura ainda não foi paga (ex.: 3-D Secure
+    // pendente). Deliberadamente não transita — o desfecho chega a seguir como
+    // `active` ou `incomplete_expired`, e bloquear aqui tiraria o acesso a quem
+    // está a meio da autenticação do cartão.
+    case 'incomplete':
+      return null;
     default:
       return null;
   }
@@ -527,6 +586,13 @@ function estadoDeStatusStripe(status: string): EstadoAssinatura | null {
  * o registo é inserido ANTES da lógica de negócio, dentro da mesma transacção.
  * Uma reentrega colide no índice e devolve `duplicado: true` com 200 — o Stripe
  * pára de reentregar e nada é reprocessado.
+ *
+ * **Excepção deliberada**: um evento de faturação cujo tenant não foi resolvido
+ * NÃO é registado. Registá-lo tornaria a perda permanente — o Stripe receberia
+ * 200, deixaria de reentregar, e uma reentrega manual bateria na trava de
+ * idempotência. A janela é real: `criarSubscricaoTrial` chama o Stripe e só
+ * depois grava `stripeCustomerId`/`stripeSubscriptionId`, pelo que um webhook
+ * pode chegar antes de existir por quem procurar.
  */
 export async function processarEventoWebhook(evento: Stripe.Event): Promise<ResultadoWebhook> {
   // Pré-verificação barata (fora da tx) para reentregas frequentes.
@@ -535,7 +601,13 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
     select: { id: true, tenantId: true },
   });
   if (jaVisto) {
-    return { duplicado: true, tipo: evento.type, tenantId: jaVisto.tenantId, transitou: false };
+    return {
+      duplicado: true,
+      tipo: evento.type,
+      tenantId: jaVisto.tenantId,
+      transitou: false,
+      naoResolvido: false,
+    };
   }
 
   // A união de todos os objectos Stripe não é indexável por string; o acesso é
@@ -549,6 +621,43 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
 
   const alvo = await resolverTenant(customerId, subscriptionId);
 
+  if (!alvo) {
+    // Nada é gravado: a decisão de reentregar (ou não) fica com o chamador.
+    if (exigeTenantResolvido(evento.type)) {
+      logger.error(
+        {
+          evento: evento.type,
+          eventoId: evento.id,
+          customerId,
+          subscriptionId,
+          alerta: 'webhook_stripe_tenant_nao_resolvido',
+        },
+        '[webhook-stripe] evento de faturação sem tenant — reentrega necessária',
+      );
+      return {
+        duplicado: false,
+        tipo: evento.type,
+        tenantId: null,
+        transitou: false,
+        naoResolvido: true,
+      };
+    }
+
+    // Tipos que não nos dizem respeito (ex.: `customer.updated` de um cliente
+    // que não é nosso): 200 e seguir em frente, sem sujar o livro de eventos.
+    logger.info(
+      { evento: evento.type, customerId, subscriptionId },
+      '[webhook-stripe] evento sem tenant e sem impacto — ignorado',
+    );
+    return {
+      duplicado: false,
+      tipo: evento.type,
+      tenantId: null,
+      transitou: false,
+      naoResolvido: false,
+    };
+  }
+
   try {
     return await prismaBase.$transaction(async (tx) => {
       // Trava de idempotência — falha por P2002 se outra entrega ganhou a corrida.
@@ -556,17 +665,9 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
         data: {
           stripeEventId: evento.id,
           tipo: evento.type,
-          tenantId: alvo?.tenantId ?? null,
+          tenantId: alvo.tenantId,
         },
       });
-
-      if (!alvo) {
-        logger.warn(
-          { evento: evento.type, customerId, subscriptionId },
-          '[webhook-stripe] evento sem tenant correspondente — registado e ignorado',
-        );
-        return { duplicado: false, tipo: evento.type, tenantId: null, transitou: false };
-      }
 
       const transitou = await aplicarEvento(tx, evento, alvo, {
         customerId,
@@ -574,12 +675,24 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
         objecto,
       });
 
-      return { duplicado: false, tipo: evento.type, tenantId: alvo.tenantId, transitou };
+      return {
+        duplicado: false,
+        tipo: evento.type,
+        tenantId: alvo.tenantId,
+        transitou,
+        naoResolvido: false,
+      };
     });
   } catch (e) {
     // Corrida entre duas entregas do MESMO evento: a perdedora vê P2002.
     if ((e as { code?: string })?.code === 'P2002') {
-      return { duplicado: true, tipo: evento.type, tenantId: alvo?.tenantId ?? null, transitou: false };
+      return {
+        duplicado: true,
+        tipo: evento.type,
+        tenantId: alvo.tenantId,
+        transitou: false,
+        naoResolvido: false,
+      };
     }
     throw e;
   }
@@ -600,6 +713,28 @@ async function aplicarEvento(
 
   switch (evento.type) {
     case 'checkout.session.completed': {
+      // `completed` significa que o fluxo terminou, NÃO que foi pago. Uma sessão
+      // pode completar-se com `payment_status: 'unpaid'` (ex.: débito directo a
+      // liquidar); activar aí dava acesso a quem ainda não pagou.
+      const modo = typeof objecto.mode === 'string' ? objecto.mode : '';
+      if (modo !== 'subscription') {
+        logger.info(
+          { tenantId: alvo.tenantId, modo },
+          '[webhook-stripe] checkout fora do modo subscription — ignorado',
+        );
+        return false;
+      }
+
+      const estadoPagamento =
+        typeof objecto.payment_status === 'string' ? objecto.payment_status : '';
+      if (estadoPagamento !== 'paid' && estadoPagamento !== 'no_payment_required') {
+        logger.warn(
+          { tenantId: alvo.tenantId, estadoPagamento },
+          '[webhook-stripe] checkout completo mas não pago — sem activação',
+        );
+        return false;
+      }
+
       const subId = extrairCustomerId(objecto.subscription);
       return aplicarTransicao(tx, alvo, 'ATIVA', {
         stripeCustomerId: ctx.customerId ?? undefined,
@@ -663,6 +798,15 @@ async function aplicarEvento(
       });
       const tentativas = (registo?.tentativasFalhadas ?? 0) + 1;
 
+      // O contador é gravado SEMPRE e primeiro, num update próprio. Se fosse só
+      // um campo do patch da transição, uma transição inválida (ex.: a partir de
+      // TRIAL, que não pode ir para SUSPENSA) descartava-o — e o dunning
+      // reiniciava do zero a cada falha, sem nunca chegar à suspensão.
+      await tx.assinatura.updateMany({
+        where: { id: alvo.id, tenantId: alvo.tenantId },
+        data: { tentativasFalhadas: tentativas },
+      });
+
       // O Stripe marca a subscrição `unpaid`/`past_due` quando esgota o dunning;
       // até lá só contamos as tentativas e avisamos.
       const status = typeof objecto.status === 'string' ? objecto.status : '';
@@ -671,9 +815,7 @@ async function aplicarEvento(
         proximaTentativa === null || status === 'uncollectible' || tentativas >= 4;
 
       if (dunningEsgotado) {
-        const transitou = await aplicarTransicao(tx, alvo, 'SUSPENSA', {
-          tentativasFalhadas: tentativas,
-        });
+        const transitou = await aplicarTransicao(tx, alvo, 'SUSPENSA');
         await notificarAdministradores(tx, alvo.tenantId, {
           titulo: 'Subscrição suspensa por falta de pagamento',
           mensagem:
@@ -682,10 +824,6 @@ async function aplicarEvento(
         return transitou;
       }
 
-      await tx.assinatura.updateMany({
-        where: { id: alvo.id, tenantId: alvo.tenantId },
-        data: { tentativasFalhadas: tentativas },
-      });
       await notificarAdministradores(tx, alvo.tenantId, {
         titulo: 'Pagamento da subscrição falhou',
         mensagem:
@@ -728,6 +866,11 @@ export interface ResultadoExpiracao {
  * Belt-and-suspenders do trial: expira localmente qualquer tenant em `TRIAL`
  * cujo `trialFim` já passou e cujo evento Stripe não chegou (falha de entrega
  * de webhook). Idempotente — pode correr as vezes que forem precisas.
+ *
+ * O `findMany` é só um candidato: a decisão real é o compare-and-set dentro de
+ * `aplicarTransicao` (`where` inclui `estado: 'TRIAL'`). Se um
+ * `checkout.session.completed` activar o tenant entre a leitura e a escrita, o
+ * update afecta zero linhas e o cron não lhe tira o acesso.
  */
 export async function expirarTrialsVencidos(agora: Date = new Date()): Promise<ResultadoExpiracao> {
   const candidatas = await prismaBase.assinatura.findMany({

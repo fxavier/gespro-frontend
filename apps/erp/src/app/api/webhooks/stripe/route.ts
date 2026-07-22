@@ -76,6 +76,27 @@ export const POST = withApi(
 
     try {
       const resultado = await processarEventoWebhook(evento);
+
+      if (resultado.naoResolvido) {
+        // Evento de faturação sem tenant conhecido: não ficou registado, e
+        // devolver 200 aqui tornaria a perda permanente (o Stripe pararia de
+        // reentregar). 503 mantém a reentrega, que costuma resolver — a janela
+        // é a criação da subscrição ainda a decorrer.
+        logger.warn(
+          { eventoId: evento.id, tipo: resultado.tipo, alerta: 'webhook_stripe_tenant_nao_resolvido' },
+          '[webhook-stripe] tenant não resolvido — a pedir reentrega ao Stripe',
+        );
+        return NextResponse.json(
+          {
+            error: {
+              code: 'TENANT_NAO_RESOLVIDO',
+              message: 'Tenant ainda não associado a esta subscrição.',
+            },
+          },
+          { status: 503, headers: { 'Retry-After': '30' } },
+        );
+      }
+
       logger.info(
         {
           eventoId: evento.id,
