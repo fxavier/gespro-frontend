@@ -1,11 +1,12 @@
 # Dependências (reinstaladas no stage deps)
-node_modules
+**/node_modules
 .pnpm-store
 
 # Artefactos de build anteriores
-.next
-out
-build
+**/.next
+**/out
+**/build
+**/.turbo
 
 # Outros worktrees e ficheiros de infra (não necessários na imagem)
 wt/
@@ -16,20 +17,21 @@ infra/
 .gitignore
 
 # Variáveis de ambiente locais — NUNCA incluir na imagem
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
 # Testes e relatórios
-e2e/
-test-results/
-playwright-report/
-playwright/.auth/
-coverage/
+**/e2e/
+**/test-results/
+**/playwright-report/
+**/playwright/.auth/
+**/coverage/
 
 # Dev tools
 .vscode/
 .idea/
+.claude/
 
 # Documentação e ficheiros temporários
 docs/

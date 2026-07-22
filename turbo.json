@@ -1,0 +1,41 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalEnv": ["NODE_ENV", "CI"],
+  "globalDependencies": ["pnpm-lock.yaml"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "env": [
+        "ALLOWED_ORIGINS",
+        "AUTH_SECRET",
+        "CSP_ENFORCE",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "METRICS_SECRET",
+        "NEXTAUTH_URL",
+        "NEXT_PUBLIC_*",
+        "NEXT_TELEMETRY_DISABLED"
+      ],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "env": ["DATABASE_URL", "DIRECT_URL", "AUTH_SECRET", "NEXTAUTH_URL"],
+      "outputs": []
+    },
+    "check": { "cache": false },
+    "gates": { "cache": false },
+    "e2e": { "cache": false },
+    "e2e:a11y": { "cache": false },
+    "dev": { "cache": false, "persistent": true },
+    "start": { "cache": false, "persistent": true }
+  }
+}

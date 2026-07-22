@@ -1,14 +1,23 @@
+import path from "node:path";
 import type { NextConfig } from "next";
+
+// Raiz do monorepo (apps/erp → ../../). Necessária porque as dependências são
+// instaladas em node_modules na raiz do workspace (pnpm): sem isto o output
+// standalone fica incompleto e o Turbopack infere a raiz errada.
+const monorepoRoot = path.join(__dirname, "../../");
 
 const nextConfig: NextConfig = {
   // Gera output standalone para imagem Docker de produção (spec 16).
   // O spec 17 gere os headers/CSP — não tocar nesse bloco.
   output: 'standalone',
 
-  // Fixa a raiz do workspace no projeto (existe um package-lock.json perdido em
-  // ~/ que faria o Turbopack inferir a raiz errada).
+  // Rastreio de ficheiros do standalone a partir da raiz do monorepo.
+  outputFileTracingRoot: monorepoRoot,
+
+  // Fixa a raiz do workspace (existe um package-lock.json perdido em ~/ que
+  // faria o Turbopack inferir a raiz errada).
   turbopack: {
-    root: process.cwd(),
+    root: monorepoRoot,
   },
   // Sem cabeçalhos globais aqui — os headers de segurança (CSP, HSTS, X-Frame-Options,
   // X-Content-Type-Options, Referrer-Policy, Permissions-Policy) são geridos em

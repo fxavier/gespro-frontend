@@ -6,13 +6,13 @@ o catálogo de planos e o endpoint de trial — pode arrancar em paralelo usando
 contrato do spec 19 estar disponível. Migração do monorepo é pré-requisito interno das restantes
 tarefas e deve ser a primeira a mergear (baixo risco, mecânica).
 
-- [ ] 1. Monorepo — migração mecânica
-  - [ ] 1.1 `pnpm-workspace.yaml`, mover app actual para `apps/erp` (aliases, `next.config.ts`,
+- [x] 1. Monorepo — migração mecânica
+  - [x] 1.1 `pnpm-workspace.yaml`, mover app actual para `apps/erp` (aliases, `next.config.ts`,
         `Dockerfile`/`.dockerignore` context, scripts do `package.json` raiz)
-  - [ ] 1.2 `turbo.json` (pipeline build/lint/typecheck/test, cache de `outputs`)
-  - [ ] 1.3 `packages/tsconfig` e `packages/eslint-config`; `apps/erp` a consumi-los
-  - [ ] 1.4 Confirmar `pnpm check`/`pnpm gates`/`pnpm e2e` do ERP verdes a partir da raiz do monorepo
-  - [ ] 1.5 ADR `docs/decisions/ADR-0006-monorepo-site.md` (monorepo vs. route group único)
+  - [x] 1.2 `turbo.json` (pipeline build/lint/typecheck/test, cache de `outputs`)
+  - [x] 1.3 `packages/tsconfig` e `packages/eslint-config`; `apps/erp` a consumi-los
+  - [x] 1.4 Confirmar `pnpm check`/`pnpm gates`/`pnpm e2e` do ERP verdes a partir da raiz do monorepo
+  - [x] 1.5 ADR `docs/decisions/ADR-0006-monorepo-site.md` (monorepo vs. route group único)
 
 - [ ] 2. `packages/brand` e scaffold de `apps/site`
   - [ ] 2.1 `packages/brand/tokens.css` + assets de logótipo (claro/escuro)

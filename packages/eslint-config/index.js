@@ -1,13 +1,11 @@
 import next from "eslint-config-next";
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-
-// Regra local: ficheiros 'use server' devem usar createSafeAction.
-const useServerNeedsSafeAction = require("./eslint-rules/use-server-needs-safe-action.js");
 
 // Next 16 removeu `next lint`; usamos o flat config nativo do eslint-config-next
 // (o antigo FlatCompat + @eslint/eslintrc rebentava com eslint 9).
+//
+// Config base partilhada pelas apps do monorepo (`apps/*`). Cada app estende-a
+// com as suas regras próprias (ex.: `apps/erp` acrescenta a regra local
+// `use-server-needs-safe-action`).
 const eslintConfig = [
   { ignores: [".next/**", "node_modules/**", "prisma/migrations/**", "scripts/**", "wt/**"] },
   ...next,
@@ -26,17 +24,6 @@ const eslintConfig = [
       // Dispara no padrão SC fetch-em-try/catch + render. O padrão correcto
       // (error.tsx em vez de try/catch) fica como limpeza da Wave UI-2.
       "react-hooks/error-boundaries": "warn",
-    },
-  },
-  // Regra de arquitectura: 'use server' → createSafeAction obrigatório.
-  // Aplicada apenas a ficheiros de actions (não a route handlers).
-  {
-    files: ["src/**/*.actions.ts", "src/**/*.actions.tsx"],
-    plugins: {
-      local: { rules: { "use-server-needs-safe-action": useServerNeedsSafeAction } },
-    },
-    rules: {
-      "local/use-server-needs-safe-action": "error",
     },
   },
 ];
