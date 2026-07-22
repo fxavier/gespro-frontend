@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="GestPro">
+  <title>GestPro</title>
+  <!-- Marca adaptativa: usa currentColor, logo herda a cor do contexto (claro/escuro). -->
+  <rect x="1.5" y="1.5" width="45" height="45" rx="12" fill="none" stroke="currentColor" stroke-width="3" opacity="0.9"/>
+  <!-- Três barras ascendentes = crescimento/gestão -->
+  <rect x="12" y="27" width="6" height="10" rx="2" fill="currentColor" opacity="0.55"/>
+  <rect x="21" y="20" width="6" height="17" rx="2" fill="currentColor" opacity="0.78"/>
+  <rect x="30" y="11" width="6" height="26" rx="2" fill="currentColor"/>
+</svg>
