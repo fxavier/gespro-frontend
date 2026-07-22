@@ -14,8 +14,8 @@ model Tenant {
   auditLogs            AuditLog[]
   passwordResetTokens  PasswordResetToken[]
   userInvites          UserInvite[]
-  // Spec 19 — subscrição SaaS (1:1, criada no provisionamento self-service).
-  assinatura           Assinatura?
+  // Spec 19 — a Assinatura liga-se por `tenantId` escalar (sem @relation), como
+  // ConfiguracaoFiscal. Não há back-reference aqui de propósito.
 
   @@index([deletedAt])
 }

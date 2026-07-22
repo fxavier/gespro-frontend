@@ -188,9 +188,14 @@ enum CicloFaturacao {
 model Assinatura {
   id String @id @default(cuid())
 
-  /// FK para Tenant.id — 1:1 (um tenant, uma subscrição corrente).
+  /// FK escalar para Tenant.id — 1:1 (um tenant, uma subscrição corrente).
+  /// Sem `@relation`, como `ConfiguracaoFiscal` acima: FKs cross-domínio são
+  /// escalares (CLAUDE.md), o que mantém `tenant.prisma` desacoplado dos
+  /// domínios. `onDelete: Cascade` seria ainda pior aqui — o Tenant é
+  /// soft-deleted (`deletedAt`), logo um cascade de hard-delete nunca
+  /// dispararia no fluxo normal e apagaria o histórico de faturação se
+  /// alguma vez disparasse. Os serviços filtram por `tenantId` explicitamente.
   tenantId String @unique
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   planoAssinatura PlanoAssinatura  @default(BASICO)
   ciclo           CicloFaturacao?
