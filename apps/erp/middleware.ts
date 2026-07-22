@@ -15,6 +15,17 @@ const PUBLIC_PATHS = [
   '/api/health',
   '/api/ready',
   '/api/metrics',
+  // Fronteiras públicas do onboarding self-service (spec 19). Sem estes, o site
+  // de marketing e o Stripe recebem 307 → /auth/login em vez de 2xx.
+  // A protecção destes endpoints é própria: rate-limit + captcha no registo,
+  // verificação da assinatura HMAC no webhook, consumo atómico dos tokens.
+  '/api/publico/registo',
+  '/api/publico/planos',
+  '/api/publico/verificar-email',
+  '/api/webhooks/stripe',
+  // Callback de handoff site→app: valida o token e estabelece a sessão. Já
+  // coberto pelo prefixo '/auth/', listado por ser contrato com a spec 18.
+  '/auth/registo-callback',
   '/_next/',
   '/favicon.ico',
 ];

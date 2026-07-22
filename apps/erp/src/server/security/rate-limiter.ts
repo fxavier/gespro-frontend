@@ -101,6 +101,21 @@ export const exportLimiter = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 
 /** Webhooks de entrada: 100 pedidos em 1 min por IP. */
 export const webhookLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 100 });
 
+// --- Onboarding self-service (spec 19) --------------------------------------
+
+/**
+ * Registo público: 5 tentativas em 1 hora por IP e por email.
+ * O trial é sem cartão — sem este limite (mais o captcha) o custo de criar
+ * tenants em massa é zero.
+ */
+export const registoLimiter = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
+
+/** Consumo do token de handoff: 20 tentativas em 15 min por IP. */
+export const handoffLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
+
+/** Verificação de email: 20 tentativas em 15 min por IP. */
+export const verificacaoEmailLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
+
 /**
  * Conveniência: devolve Response 429 pronta com cabeçalho `Retry-After`.
  */

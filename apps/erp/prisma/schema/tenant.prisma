@@ -14,6 +14,8 @@ model Tenant {
   auditLogs            AuditLog[]
   passwordResetTokens  PasswordResetToken[]
   userInvites          UserInvite[]
+  // Spec 19 — a Assinatura liga-se por `tenantId` escalar (sem @relation), como
+  // ConfiguracaoFiscal. Não há back-reference aqui de propósito.
 
   @@index([deletedAt])
 }

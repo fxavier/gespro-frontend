@@ -359,6 +359,10 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'admin:ver_auditoria',      descricao: 'Consultar trilho de auditoria' },
   { code: 'admin:ver_integracoes',    descricao: 'Consultar integrações activas' },
   { code: 'admin:gerir_integracoes',  descricao: 'Configurar integrações externas' },
+
+  // ── Assinatura / Faturação SaaS (spec 19) ─────────────────────────────────
+  { code: 'assinatura:ver',   descricao: 'Consultar o estado da subscrição e do plano' },
+  { code: 'assinatura:gerir', descricao: 'Subscrever, mudar de plano, gerir cartão e cancelar' },
 ];
 
 // ---------------------------------------------------------------------------

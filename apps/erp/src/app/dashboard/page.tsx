@@ -20,6 +20,7 @@ import {
 import { auth } from '@/lib/auth';
 import { dashboardService } from '@/server/services/plataforma/analytics.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
+import { ChecklistOnboarding } from '@/components/onboarding/checklist-onboarding';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -150,11 +151,18 @@ const ACCOES_RAPIDAS = [
 // Página principal — Server Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
 
   const { tenantId, id: userId } = session.user;
+  // Spec 19 — o handoff de registo redirecciona com ?onboarding=1.
+  const params = (await searchParams) ?? {};
+  const vemDoOnboarding = params.onboarding === '1';
 
   return (
     <div className="p-6 space-y-6">
@@ -163,6 +171,11 @@ export default async function DashboardPage() {
         description="Visão geral das operações da empresa"
         breadcrumbs={[{ label: 'Dashboard' }]}
       />
+
+      {/* Checklist de primeiros passos (spec 19) — só em trial/pós-registo */}
+      <Suspense fallback={null}>
+        <ChecklistOnboarding tenantId={tenantId} userId={userId} forcar={vemDoOnboarding} />
+      </Suspense>
 
       {/* KPIs Principais — Suspense independente */}
       <Suspense fallback={<KpiSkeleton />}>

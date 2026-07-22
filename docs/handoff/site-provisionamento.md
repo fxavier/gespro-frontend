@@ -8,26 +8,45 @@ Qualquer alteração a este contrato é decidida no spec 19 e reflectida aqui.
 - **Dono do contrato**: spec 19 (`feat-onboarding-provisionamento`).
 - **Consumidor**: spec 18 (`feat-website-marketing`), via `apps/site/src/lib/planos.ts` e o CTA de trial.
 - **Versão**: v1 (`/api/publico/*`). Mudanças incompatíveis → novo prefixo de versão.
+- **Estado**: **implementado** no spec 19 (branch `ws-19`). As secções abaixo descrevem o
+  comportamento real dos endpoints, não uma intenção. Diferenças face ao contrato congelado
+  estão assinaladas com «⚠ nota de implementação».
 
 ## 1. Catálogo de planos (fonte única de preços)
 
 ```
 GET /api/publico/planos
-Cache-Control: público, curto (ISR no site, revalidate ~300s)
+Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=600
 
 200 OK
 {
-  "planos": [
-    {
-      "id": "BASICO" | "PROFISSIONAL" | "EMPRESARIAL",
-      "nome": "string",
-      "limites": { "<chave>": number | string },
-      "precoMensal": { "valor": number, "moeda": "USD" },
-      "precoAnual":  { "valor": number, "moeda": "USD" }
-    }
-  ]
+  "data": {
+    "trialDias": 14,
+    "planos": [
+      {
+        "id": "BASICO" | "PROFISSIONAL" | "EMPRESARIAL",
+        "nome": "string",
+        "descricao": "string",
+        "limites": {
+          "utilizadores": number,      // -1 = ilimitado
+          "armazens": number,          // -1 = ilimitado
+          "documentosMes": number,     // -1 = ilimitado
+          "produtos": number,          // -1 = ilimitado
+          "suporte": "string"
+        },
+        "precoMensal": { "valor": number, "moeda": "USD" },
+        "precoAnual":  { "valor": number, "moeda": "USD" },
+        "destaque": boolean
+      }
+    ]
+  }
 }
 ```
+
+⚠ **nota de implementação**: a resposta vem dentro do envelope `{ data: … }` (convenção de
+Route Handlers do projecto — `docs/handoff/feat-19-onboarding.md`). Os campos `descricao`,
+`destaque` e `trialDias` são acréscimos compatíveis; `-1` em `limites` significa ilimitado.
+Fonte única: `apps/erp/src/lib/planos.ts`.
 
 Regras: o site **nunca** hardcoda preços/limites — renderiza o que este endpoint devolve
 (`/precos`, JSON-LD `Product`, FAQ). A moeda é a servida pelo endpoint (ver ADR-0009: USD no
@@ -53,8 +72,32 @@ Body:
 { "tenantSlug": "string", "handoffToken": "string" }   # token opaco para o site
 
 4xx
-{ "traceId": "string", "erro": "string" }              # sem stack; site mostra mensagem amigável
+{ "traceId": "string", "erro": "string",
+  "error": { "code": "string", "message": "string", "details"?: {} } }
 ```
+
+Códigos de erro estáveis (`error.code`), para o site mapear em copy própria:
+
+| Estado | `error.code` | Significado |
+|---|---|---|
+| 400 | `IDEMPOTENCY_KEY_OBRIGATORIA` | Cabeçalho `Idempotency-Key` ausente ou fora de 8–200 caracteres |
+| 400 | `JSON_INVALIDO` | Corpo não é JSON válido |
+| 422 | `VALIDACAO` | Zod falhou; `details` traz `fieldErrors` |
+| 403 | `CAPTCHA_INVALIDO` | Captcha recusado ou provedor indisponível (fail-closed) |
+| 409 | `NUIT_JA_REGISTADO` | Já existe conta com esse NUIT |
+| 409 | `REGISTO_EM_CURSO` | Mesma `Idempotency-Key` ainda a ser processada |
+| 409 | `IDEMPOTENCY_KEY_REUTILIZADA` | Mesma chave com corpo diferente |
+| 429 | — | Rate-limit (por IP e por email); ver `Retry-After` |
+| 500 | `ERRO_INTERNO` | Falha inesperada; só `traceId` |
+
+⚠ **notas de implementação**:
+- A `Idempotency-Key` tem de ter entre 8 e 200 caracteres (um UUID serve).
+- Repetir a chave com o **mesmo** corpo devolve **201 com a mesma resposta**, incluindo o
+  `handoffToken` original — que dura 60 s. Num retry tardio esse token já expirou e o callback
+  mostra «ligação inválida»; o utilizador entra pelo login depois de confirmar o email. É
+  deliberado: emitir um token novo transformaria a `Idempotency-Key` numa credencial de sessão.
+- `provincia` é validada contra a lista de províncias de Moçambique (`getProvincias()`).
+- `admin.senha`: mínimo 8 caracteres, com letras e números.
 
 Comportamento do lado do site:
 1. Submete o formulário para este endpoint (do servidor do site, nunca do cliente, para não
@@ -89,8 +132,12 @@ confirmar o email (copy na página pós-registo).
 
 - A **origem** do site de marketing (domínio de produção e de staging) tem de constar em
   `ALLOWED_ORIGINS` (CORS por allowlist, nunca wildcard) **antes** do deploy do spec 19.
-- `POST /api/publico/registo` e `GET /api/publico/planos` estão listados em `PUBLIC_PATHS` do
+- `POST /api/publico/registo`, `GET /api/publico/planos`, `GET /api/publico/verificar-email`,
+  `POST /api/webhooks/stripe` e `/auth/registo-callback` estão listados em `PUBLIC_PATHS` do
   `middleware.ts` do ERP (senão devolvem 307 → `/auth/login`).
+- O widget de captcha do site usa `NEXT_PUBLIC_CAPTCHA_SITE_KEY`; o segredo
+  (`CAPTCHA_SECRET_KEY`) fica **só** no ERP. Provedor: Turnstile ou hCaptcha
+  (`CAPTCHA_PROVIDER`). Em produção, `CAPTCHA_PROVIDER=none` faz o registo **recusar** pedidos.
 - Rate-limit e captcha são aplicados **do lado do spec 19**; o site não precisa de credenciais
   de sessão para chamar estes endpoints.
 
@@ -106,3 +153,17 @@ confirmar o email (copy na página pós-registo).
 
 Mudanças a qualquer linha «dono = spec 19» são versionadas aqui pelo orquestrador antes de
 qualquer alteração no site.
+
+
+## 7. Verificação do contrato (spec 19 implementado)
+
+| Item | Onde |
+|---|---|
+| Catálogo | `apps/erp/src/lib/planos.ts` · `src/app/api/publico/planos/route.ts` |
+| Registo | `src/app/api/publico/registo/route.ts` · `src/server/services/plataforma/tenant-provisioning.service.ts` |
+| Handoff | `src/server/services/plataforma/handoff.service.ts` · `src/app/(auth)/auth/registo-callback/` · provider `handoff` em `src/lib/auth.ts` |
+| Verificação de email | `src/app/api/publico/verificar-email/route.ts` |
+| CORS/allowlist | `src/lib/api/cors.ts` (lê `ALLOWED_ORIGINS` em runtime) |
+
+Testes que fixam o contrato: `src/lib/__tests__/assinatura-state-machine.test.ts` (catálogo),
+`src/server/services/plataforma/__tests__/{handoff,tenant-provisioning}.service.test.ts`.

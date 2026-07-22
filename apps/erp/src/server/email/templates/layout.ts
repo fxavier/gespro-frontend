@@ -1,4 +1,21 @@
 /**
+ * Escapa texto para interpolação segura em HTML de email.
+ *
+ * Obrigatório para qualquer valor de origem não confiável — o nome da empresa e
+ * do utilizador chegam de `POST /api/publico/registo`, que é anónimo. Sem isto,
+ * um nome como `<a href="http://phishing">Clique aqui</a>` seria renderizado
+ * como markup dentro de um email que sai do nosso domínio.
+ */
+export function escapeHtml(valor: string): string {
+  return valor
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * Layout base dos templates de email — pt-PT.
  * Sem dependências externas; gera HTML inline compatível com clientes de email.
  */

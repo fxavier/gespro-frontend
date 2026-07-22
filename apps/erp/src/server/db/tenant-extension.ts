@@ -44,6 +44,11 @@ export function requireTenantContext(): TenantContext {
 // modelos que têm `tenantId` mas NÃO devem ser isolados por tenant.
 const TENANT_MODEL_EXCECOES = new Set<string>([
   'LoginAttempt', // tenantId opcional — rate limiting é global (detecção cross-tenant)
+  // Spec 19 — livros de plataforma, escritos nas fronteiras públicas (registo e
+  // webhook Stripe) onde NÃO existe contexto de tenant. `tenantId` é opcional e
+  // só é conhecido depois de resolvido/provisionado. Acedidos só via prismaBase.
+  'EventoWebhookStripe',
+  'ChaveIdempotencia',
 ]);
 
 export const TENANT_MODELS = new Set<string>(
