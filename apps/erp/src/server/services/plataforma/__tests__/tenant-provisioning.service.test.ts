@@ -52,6 +52,16 @@ import {
   verificarEmail,
 } from '../tenant-provisioning.service';
 import { prismaBase } from '@/server/db/client';
+import { Prisma } from '@prisma/client';
+
+/** Erro P2002 verdadeiro: `isUniqueViolation` usa `instanceof`, não o `.code`. */
+function violacaoUnica(campo: string) {
+  return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: 'teste',
+    meta: { target: [campo] },
+  });
+}
 
 const INPUT = {
   empresa: { nome: 'Padaria Ana, Lda', nuit: '400123456' },
@@ -191,24 +201,43 @@ describe('provisionamento atómico', () => {
   });
 
   it('repete com outro slug quando há corrida no índice único', async () => {
-    const p2002 = Object.assign(new Error('unique'), {
-      code: 'P2002',
-      meta: { target: ['slug'] },
-      name: 'PrismaClientKnownRequestError',
-    });
-    Object.setPrototypeOf(p2002, Error.prototype);
-
     let chamada = 0;
     mocks.$transaction.mockImplementation(async (fn: (t: typeof mocks.tx) => unknown) => {
       chamada++;
-      if (chamada === 1) throw p2002;
+      if (chamada === 1) throw violacaoUnica('slug');
       return fn(mocks.tx);
     });
 
-    // `isUniqueViolation` usa `instanceof Prisma.PrismaClientKnownRequestError`;
-    // um erro simulado não é instância, logo propaga — comportamento seguro
-    // (falha visível) em vez de silencioso.
-    await expect(provisionarTenant(INPUT)).rejects.toBeTruthy();
+    // O slug sugerido pode ser roubado entre a leitura e o commit: a corrida
+    // resolve-se com nova tentativa, não com um erro ao utilizador.
+    const r = await provisionarTenant(INPUT);
+    expect(r.tenantId).toBe('tenant-1');
+    expect(chamada).toBe(2);
+  });
+
+  it('desiste com erro estável se o slug continuar a colidir', async () => {
+    mocks.$transaction.mockImplementation(async () => {
+      throw violacaoUnica('slug');
+    });
+    await expect(provisionarTenant(INPUT)).rejects.toMatchObject({
+      code: 'SLUG_INDISPONIVEL',
+    });
+  });
+
+  it('traduz a colisão de NUIT no índice único para erro de negócio', async () => {
+    mocks.$transaction.mockImplementation(async () => {
+      throw violacaoUnica('nuit');
+    });
+    await expect(provisionarTenant(INPUT)).rejects.toMatchObject({
+      code: 'NUIT_JA_REGISTADO',
+    });
+  });
+
+  it('propaga erros que não sejam violação de unicidade', async () => {
+    mocks.$transaction.mockImplementation(async () => {
+      throw new Error('ligação perdida');
+    });
+    await expect(provisionarTenant(INPUT)).rejects.toThrow('ligação perdida');
   });
 });
 

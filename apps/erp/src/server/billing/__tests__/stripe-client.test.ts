@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   deCentavos,
+  getStripe,
   getWebhookSecret,
   paraCentavos,
+  resetStripeClient,
   resolverPriceId,
   stripeConfigurado,
 } from '../stripe-client';
@@ -10,6 +12,7 @@ import {
 const ORIGINAL = { ...process.env };
 
 beforeEach(() => {
+  resetStripeClient();
   delete process.env.STRIPE_SECRET_KEY;
   delete process.env.STRIPE_WEBHOOK_SECRET;
   delete process.env.STRIPE_PRICE_BASICO_MENSAL;
@@ -53,6 +56,29 @@ describe('configuração', () => {
   it('devolve o segredo do webhook quando definido', () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_abc';
     expect(getWebhookSecret()).toBe('whsec_abc');
+  });
+});
+
+describe('cliente Stripe', () => {
+  it('recusa instanciar sem chave secreta — 503, não um 500 opaco', () => {
+    expect(() => getStripe()).toThrowError(
+      expect.objectContaining({ code: 'STRIPE_NAO_CONFIGURADO', status: 503 }),
+    );
+  });
+
+  it('devolve sempre a mesma instância (singleton)', () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
+    const a = getStripe();
+    const b = getStripe();
+    expect(a).toBe(b);
+    expect(a.webhooks).toBeDefined();
+  });
+
+  it('resetStripeClient força uma instância nova', () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
+    const a = getStripe();
+    resetStripeClient();
+    expect(getStripe()).not.toBe(a);
   });
 });
 
