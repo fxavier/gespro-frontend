@@ -245,6 +245,13 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   NAO_LIDA: 'warning',
   LIDA: 'secondary',
   IN_APP: 'secondary',
+
+  // Assinatura SaaS — Spec 19 (EstadoAssinatura + CicloFaturacao)
+  // ATIVA / SUSPENSA / CANCELADA já mapeados acima — mesmo significado visual.
+  TRIAL: 'info',
+  EXPIRADO: 'destructive',
+  MENSAL: 'secondary',
+  ANUAL: 'secondary',
 };
 
 const badgeVariants = cva(
@@ -432,6 +439,11 @@ export const STATUS_LABELS: Record<string, string> = {
   NAO_LIDA: 'Não Lida',
   LIDA: 'Lida',
   IN_APP: 'In-App',
+  // Assinatura SaaS — Spec 19
+  TRIAL: 'Período de Teste',
+  EXPIRADO: 'Expirado',
+  MENSAL: 'Mensal',
+  ANUAL: 'Anual',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {

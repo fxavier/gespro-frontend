@@ -12,7 +12,7 @@ import {
   Clock, Wallet, FileSpreadsheet, Ticket, BookText, UserCog, Calendar,
   Award, GraduationCap, Heart, Target, Factory, Route, Gauge, ShieldCheck,
   FileBarChart2, PackageSearch, History, LineChart, RotateCcw, AlertCircle,
-  Menu, X, Component, BookMarked as JournalIcon,
+  Menu, X, Component, BookMarked as JournalIcon, CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -162,6 +162,13 @@ const menuItems: MenuItem[] = [
     children: [
       { title: 'Analytics', href: '/analytics', icon: BarChart3 },
       { title: 'Core Tenancy', href: '/core-tenancy', icon: Building2 },
+      // Spec 19 — subscrição SaaS (plano, trial, Checkout/Portal).
+      {
+        title: 'Subscrição',
+        href: '/definicoes/faturacao',
+        icon: CreditCard,
+        permission: 'assinatura:ver',
+      },
     ],
   },
 ];
