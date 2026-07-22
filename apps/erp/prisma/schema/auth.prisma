@@ -7,6 +7,12 @@ model User {
   email        String
   passwordHash String
   ativo        Boolean   @default(true)
+  /// Spec 19 — o login fica bloqueado até o email ser verificado.
+  /// Default `true` para não invalidar utilizadores já existentes (seed/demo e
+  /// utilizadores criados pelo admin, cujo email é confiado); o registo
+  /// self-service (`POST /api/publico/registo`) grava explicitamente `false`.
+  emailVerificado   Boolean   @default(true)
+  emailVerificadoEm DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?

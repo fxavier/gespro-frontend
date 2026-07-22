@@ -155,3 +155,144 @@ model PreferenciaNotificacao {
   @@unique([userId, tipo])
   @@index([tenantId, userId])
 }
+
+// ---------------------------------------------------------------------------
+// Onboarding self-service, provisionamento e faturação por subscrição — Spec 19
+//
+// Fronteiras públicas (POST /api/publico/registo, POST /api/webhooks/stripe)
+// escrevem SEMPRE via `prismaBase` com `tenantId` explícito: não há
+// `runWithTenantContext` (o tenant ainda não existe, ou o pedido vem do Stripe).
+// ---------------------------------------------------------------------------
+
+/// Ciclo de vida da subscrição SaaS do tenant (espelha o estado no Stripe).
+/// Transições válidas em `src/lib/state-machines.ts` (TRANSICOES_ASSINATURA).
+enum EstadoAssinatura {
+  TRIAL
+  ATIVA
+  SUSPENSA
+  CANCELADA
+  EXPIRADO
+}
+
+/// Periodicidade de faturação da subscrição.
+enum CicloFaturacao {
+  MENSAL
+  ANUAL
+}
+
+/// Subscrição SaaS do tenant à plataforma GestPro.
+///
+/// NÃO guarda montantes: o Stripe é a fonte de verdade do valor cobrado
+/// (ADR-0009). Isto evita dupla contabilidade com o livro-razão do tenant,
+/// que continua em MZN/Decimal e não regista a factura da própria GestPro.
+model Assinatura {
+  id String @id @default(cuid())
+
+  /// FK para Tenant.id — 1:1 (um tenant, uma subscrição corrente).
+  tenantId String @unique
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  planoAssinatura PlanoAssinatura  @default(BASICO)
+  ciclo           CicloFaturacao?
+  estado          EstadoAssinatura @default(TRIAL)
+
+  // --- Referências Stripe (nunca segredos; só identificadores) ---
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+  stripePriceId        String?
+
+  // --- Trial sem cartão (14 dias) ---
+  trialInicio DateTime @default(now())
+  trialFim    DateTime
+
+  dataAtivacao       DateTime?
+  dataCancelamento   DateTime?
+  motivoCancelamento String?
+
+  /// Falhas de cobrança consecutivas (dunning do Stripe). Zera em invoice.paid.
+  tentativasFalhadas Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  /// Cron de fallback: estado=TRIAL AND trialFim < now().
+  @@index([estado, trialFim])
+}
+
+/// Livro de idempotência dos webhooks Stripe.
+/// Modelo de plataforma (não é dado de negócio do tenant): `tenantId` é opcional
+/// porque o evento pode chegar antes de o tenant estar resolvido.
+/// Está em TENANT_MODEL_EXCECOES (tenant-extension.ts) — acedido só via prismaBase.
+model EventoWebhookStripe {
+  id String @id @default(cuid())
+
+  /// `evt_...` do Stripe. Unicidade = garantia de processamento no máximo uma vez.
+  stripeEventId String   @unique
+  tipo          String
+  processadoEm  DateTime @default(now())
+  tenantId      String?
+
+  /// Preenchido quando o processamento falhou (alerta — spec 14).
+  erro String?
+
+  @@index([tipo, processadoEm])
+}
+
+/// Token de handoff SSO site→app: uso único, TTL ~60s.
+/// Consumo atómico: `UPDATE ... WHERE jti = ? AND usedAt IS NULL RETURNING *`
+/// (nunca findUnique+update — a corrida entre dois pedidos tem de perder um).
+model TokenHandoff {
+  id String @id @default(cuid())
+
+  jti      String    @unique
+  tenantId String
+  userId   String
+  usedAt   DateTime?
+  expiraEm DateTime
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([expiraEm])
+}
+
+/// Token de verificação do email do administrador criado no registo.
+/// Enquanto não for consumido, o login fica bloqueado (User.emailVerificado=false).
+/// Mesmo padrão de consumo atómico do TokenHandoff.
+model TokenVerificacaoEmail {
+  id String @id @default(cuid())
+
+  token    String    @unique
+  tenantId String
+  userId   String
+  usadoEm  DateTime?
+  expiraEm DateTime
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, userId])
+  @@index([expiraEm])
+}
+
+/// Registo de `Idempotency-Key` de endpoints públicos (POST /api/publico/registo).
+/// A chave é reservada antes do provisionamento (@unique = trava de corrida) e a
+/// resposta é gravada em `respostaJson` para reentregas devolverem o mesmo corpo.
+/// Modelo de plataforma — `tenantId` só é conhecido depois do commit.
+/// Está em TENANT_MODEL_EXCECOES (tenant-extension.ts) — acedido só via prismaBase.
+model ChaveIdempotencia {
+  id String @id @default(cuid())
+
+  chave    String  @unique
+  endpoint String
+  /// Hash do corpo do pedido — mesma chave com corpo diferente = 409.
+  fingerprint String
+
+  /// EM_CURSO | CONCLUIDA | FALHADA
+  estado       String  @default("EM_CURSO")
+  respostaJson Json?
+  tenantId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([endpoint, createdAt])
+}

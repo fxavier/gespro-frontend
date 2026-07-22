@@ -14,6 +14,8 @@ model Tenant {
   auditLogs            AuditLog[]
   passwordResetTokens  PasswordResetToken[]
   userInvites          UserInvite[]
+  // Spec 19 — subscrição SaaS (1:1, criada no provisionamento self-service).
+  assinatura           Assinatura?
 
   @@index([deletedAt])
 }
