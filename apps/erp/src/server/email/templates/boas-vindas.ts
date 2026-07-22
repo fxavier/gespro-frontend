@@ -1,4 +1,4 @@
-import { emailLayout } from './layout';
+import { emailLayout, escapeHtml } from './layout';
 
 interface BoasVindasTemplateProps {
   nomeUtilizador: string;
@@ -19,20 +19,26 @@ export function boasVindasTemplate({
   linkVerificacao,
   trialDias,
 }: BoasVindasTemplateProps): { html: string; texto: string } {
+  // Nome do utilizador, nome da empresa e link vêm de um endpoint anónimo: nada
+  // é interpolado em HTML sem passar por aqui.
+  const nome = escapeHtml(nomeUtilizador);
+  const empresa = escapeHtml(nomeEmpresa);
+  const link = escapeHtml(linkVerificacao);
+
   const conteudo = `
     <h2 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#0f172a;">
       Bem-vindo ao GestPro
     </h2>
     <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#334155;">
-      Olá, ${nomeUtilizador},
+      Olá, ${nome},
     </p>
     <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#334155;">
-      A conta de <strong>${nomeEmpresa}</strong> está criada e tem
+      A conta de <strong>${empresa}</strong> está criada e tem
       <strong>${trialDias} dias</strong> de teste gratuito, sem cartão de crédito.
       Para entrar, confirme primeiro este endereço de email.
     </p>
     <div style="text-align:center;margin:0 0 24px;">
-      <a href="${linkVerificacao}"
+      <a href="${link}"
          style="display:inline-block;padding:12px 28px;background:#0f172a;color:#ffffff;
                 font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;">
         Confirmar endereço de email
@@ -43,7 +49,7 @@ export function boasVindasTemplate({
     </p>
     <p style="margin:0;font-size:13px;color:#64748b;">
       Se o botão não funcionar, copie e cole este endereço no navegador:<br/>
-      <a href="${linkVerificacao}" style="color:#3b82f6;word-break:break-all;">${linkVerificacao}</a>
+      <a href="${link}" style="color:#3b82f6;word-break:break-all;">${link}</a>
     </p>
   `;
 
