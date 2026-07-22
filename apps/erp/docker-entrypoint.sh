@@ -14,8 +14,10 @@ echo "[entrypoint] A aplicar migrations pendentes..."
 
 # prisma migrate deploy: aplica apenas migrations já geradas (.sql committed).
 # Nunca gera novas migrations nem altera o schema.
-node node_modules/prisma/build/index.js migrate deploy
+# Corre a partir de apps/erp — é onde vivem prisma.config.ts e prisma/.
+cd /app/apps/erp
+node /app/node_modules/prisma/build/index.js migrate deploy
 
 echo "[entrypoint] Migrations aplicadas. A iniciar servidor Next.js..."
 
-exec node server.js
+exec node /app/apps/erp/server.js

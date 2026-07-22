@@ -1,5 +1,5 @@
 {
-  "name": "nextjs-template",
+  "name": "erp",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:unit:coverage": "vitest run --coverage",
@@ -105,6 +106,8 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
     "@eslint/eslintrc": "^3",
+    "@gespro/eslint-config": "workspace:*",
+    "@gespro/tsconfig": "workspace:*",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@testcontainers/postgresql": "^10.21.0",
@@ -124,6 +127,5 @@
     "typescript": "^5",
     "vitest": "^4.1.10",
     "xlsx": "^0.18.5"
-  },
-  "packageManager": "pnpm@10.22.0+sha512.bf049efe995b28f527fd2b41ae0474ce29186f7edcb3bf545087bd61fbbebb2bf75362d1307fda09c2d288e1e499787ac12d4fcb617a974718a6051f2eee741c"
+  }
 }
