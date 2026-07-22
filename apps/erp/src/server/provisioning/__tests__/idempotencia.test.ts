@@ -58,6 +58,7 @@ describe('reservarChave', () => {
       fingerprint: fp,
       estado: 'CONCLUIDA',
       respostaJson: { tenantSlug: 'alfa', handoffToken: 'tok' },
+      updatedAt: new Date(),
     });
 
     const r = await reservarChave('k1', ENDPOINT, fp);
@@ -74,6 +75,7 @@ describe('reservarChave', () => {
       fingerprint: fingerprintDe(CORPO),
       estado: 'CONCLUIDA',
       respostaJson: {},
+      updatedAt: new Date(),
     });
 
     const r = await reservarChave('k1', ENDPOINT, fingerprintDe({ empresa: { nome: 'Beta' } }));
@@ -88,6 +90,7 @@ describe('reservarChave', () => {
       fingerprint: fp,
       estado: 'CONCLUIDA',
       respostaJson: {},
+      updatedAt: new Date(),
     });
     expect(await reservarChave('k1', ENDPOINT, fp)).toEqual({ tipo: 'CONFLITO' });
   });
@@ -100,8 +103,51 @@ describe('reservarChave', () => {
       fingerprint: fp,
       estado: 'EM_CURSO',
       respostaJson: null,
+      updatedAt: new Date(),
     });
     expect(await reservarChave('k1', ENDPOINT, fp)).toEqual({ tipo: 'EM_CURSO' });
+    expect(mocks.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('MAJOR-4: EM_CURSO abandonado é retomável (não fica preso em 409)', async () => {
+    // Se o processo morreu entre reservar e concluir, a chave ficava presa em
+    // EM_CURSO para sempre e o cliente nunca mais conseguia registar-se com ela.
+    const fp = fingerprintDe(CORPO);
+    mocks.create.mockRejectedValue(p2002());
+    mocks.findUnique.mockResolvedValue({
+      endpoint: ENDPOINT,
+      fingerprint: fp,
+      estado: 'EM_CURSO',
+      respostaJson: null,
+      updatedAt: new Date(Date.now() - 60 * 60 * 1000), // 1 hora
+    });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+
+    expect(await reservarChave('k1', ENDPOINT, fp)).toEqual({ tipo: 'RETOMAVEL' });
+    // Reabertura por UPDATE condicional, com a guarda de tempo no `where`.
+    const where = mocks.updateMany.mock.calls[0][0].where;
+    expect(where.estado).toBe('EM_CURSO');
+    expect(where.updatedAt.lt).toBeInstanceOf(Date);
+  });
+
+  it('MAJOR-4: só um de dois pedidos concorrentes reabre a chave abandonada', async () => {
+    const fp = fingerprintDe(CORPO);
+    mocks.create.mockRejectedValue(p2002());
+    mocks.findUnique.mockResolvedValue({
+      endpoint: ENDPOINT,
+      fingerprint: fp,
+      estado: 'EM_CURSO',
+      respostaJson: null,
+      updatedAt: new Date(Date.now() - 60 * 60 * 1000),
+    });
+    mocks.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+    const [a, b] = await Promise.all([
+      reservarChave('k1', ENDPOINT, fp),
+      reservarChave('k1', ENDPOINT, fp),
+    ]);
+    expect([a, b].filter((r) => r.tipo === 'RETOMAVEL')).toHaveLength(1);
+    expect([a, b].filter((r) => r.tipo === 'EM_CURSO')).toHaveLength(1);
   });
 
   it('tentativa anterior falhada é retomável (a transacção atómica não deixou resíduo)', async () => {
@@ -112,6 +158,7 @@ describe('reservarChave', () => {
       fingerprint: fp,
       estado: 'FALHADA',
       respostaJson: null,
+      updatedAt: new Date(),
     });
     mocks.updateMany.mockResolvedValue({ count: 1 });
     expect(await reservarChave('k1', ENDPOINT, fp)).toEqual({ tipo: 'RETOMAVEL' });

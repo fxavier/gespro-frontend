@@ -172,11 +172,39 @@ describe('aplicarTransicao', () => {
   it('aplica transição válida e sincroniza o bloqueio na mesma transacção', async () => {
     const ok = await aplicarTransicao(mocks.tx as never, alvo, 'ATIVA', { dataAtivacao: new Date() });
     expect(ok).toBe(true);
+    // Compare-and-set: o estado lido entra no `where`, não só o id.
     expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].where).toEqual({
       id: 'ass-1',
       tenantId: 'tenant-1',
+      estado: 'TRIAL',
     });
     expect(mocks.tx.configuracaoFiscal.updateMany).toHaveBeenCalled();
+  });
+
+  it('declara a transição perdida se o estado mudou entretanto (0 linhas)', async () => {
+    mocks.tx.assinatura.updateMany.mockResolvedValueOnce({ count: 0 });
+    const ok = await aplicarTransicao(mocks.tx as never, alvo, 'ATIVA');
+    expect(ok).toBe(false);
+    // Não sincroniza statusAtivo: isso sobrescreveria a decisão de quem ganhou.
+    expect(mocks.tx.configuracaoFiscal.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('BLOCKER-1: duas transições concorrentes do mesmo estado — só uma escreve', async () => {
+    // O Postgres serializa os UPDATE: o primeiro afecta 1 linha, o segundo 0
+    // porque o `where` já não encontra o estado antigo.
+    mocks.tx.assinatura.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    const partida = { id: 'ass-1', tenantId: 'tenant-1', estado: 'ATIVA' };
+    const [pago, falhado] = await Promise.all([
+      aplicarTransicao(mocks.tx as never, partida, 'ATIVA'),
+      aplicarTransicao(mocks.tx as never, partida, 'SUSPENSA'),
+    ]);
+
+    expect([pago, falhado].filter(Boolean)).toHaveLength(1);
+    // Só o vencedor sincroniza o bloqueio de acesso.
+    expect(mocks.tx.configuracaoFiscal.updateMany).toHaveBeenCalledTimes(1);
   });
 
   it('ignora (sem erro) transições fora de ordem — o Stripe não garante ordem', async () => {
@@ -226,10 +254,15 @@ describe('webhook — idempotência', () => {
   });
 
   it('usa prismaBase (nunca o cliente tenant-scoped)', async () => {
-    mocks.assinaturaFindFirst.mockResolvedValue(null);
-    await processarEventoWebhook(evento('invoice.paid', { customer: 'cus_x' }));
+    mocks.assinaturaFindFirst.mockResolvedValue({
+      id: 'ass-1',
+      tenantId: 'tenant-1',
+      estado: 'SUSPENSA',
+    });
+    await processarEventoWebhook(evento('invoice.paid', { customer: 'cus_1' }));
     expect(prismaBase.$transaction).toHaveBeenCalled();
     expect(prismaBase.assinatura.findFirst).toHaveBeenCalled();
+    expect(prismaBase.eventoWebhookStripe.findUnique).toHaveBeenCalled();
   });
 });
 
@@ -252,13 +285,49 @@ describe('webhook — resolução do tenant', () => {
     });
   });
 
-  it('evento sem tenant conhecido é registado e ignorado (não é erro fatal)', async () => {
+  it('BLOCKER-2: evento de faturação sem tenant NÃO é marcado como processado', async () => {
     mocks.assinaturaFindFirst.mockResolvedValue(null);
     const r = await processarEventoWebhook(evento('invoice.paid', { customer: 'cus_desconhecido' }));
+
+    expect(r.naoResolvido).toBe(true);
     expect(r.tenantId).toBeNull();
     expect(r.transitou).toBe(false);
-    expect(mocks.tx.eventoWebhookStripe.create).toHaveBeenCalled();
-    expect(mocks.tx.assinatura.updateMany).not.toHaveBeenCalled();
+    // Gravá-lo tornaria a perda permanente: o Stripe receberia 200 e pararia de
+    // reentregar, e a reentrega manual bateria na trava de idempotência.
+    expect(mocks.tx.eventoWebhookStripe.create).not.toHaveBeenCalled();
+    expect(mocks.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('BLOCKER-2: a reentrega do evento não resolvido volta a ser avaliada', async () => {
+    // 1.ª entrega: sem tenant, nada registado.
+    mocks.assinaturaFindFirst.mockResolvedValue(null);
+    const primeira = await processarEventoWebhook(
+      evento('customer.subscription.updated', { id: 'sub_9', customer: 'cus_9', status: 'active' }),
+    );
+    expect(primeira.naoResolvido).toBe(true);
+
+    // 2.ª entrega, já com o stripeCustomerId gravado: processa normalmente,
+    // porque a pré-verificação de idempotência não encontra nada.
+    mocks.eventoFindUnique.mockResolvedValue(null);
+    mocks.assinaturaFindFirst.mockResolvedValue({
+      id: 'ass-1',
+      tenantId: 'tenant-1',
+      estado: 'TRIAL',
+    });
+    const segunda = await processarEventoWebhook(
+      evento('customer.subscription.updated', { id: 'sub_9', customer: 'cus_9', status: 'active' }),
+    );
+    expect(segunda.naoResolvido).toBe(false);
+    expect(segunda.transitou).toBe(true);
+    expect(mocks.tx.eventoWebhookStripe.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('evento irrelevante sem tenant é ignorado com 200, sem sujar o livro', async () => {
+    mocks.assinaturaFindFirst.mockResolvedValue(null);
+    const r = await processarEventoWebhook(evento('customer.updated', { id: 'cus_x' }));
+    expect(r.naoResolvido).toBe(false);
+    expect(r.tenantId).toBeNull();
+    expect(mocks.tx.eventoWebhookStripe.create).not.toHaveBeenCalled();
   });
 
   it('não confia em metadata para resolver o tenant', async () => {
@@ -281,7 +350,12 @@ describe('webhook — mapeamento de eventos para estados', () => {
   it('checkout.session.completed activa e limpa o cancelamento', async () => {
     comAssinatura('TRIAL');
     const r = await processarEventoWebhook(
-      evento('checkout.session.completed', { customer: 'cus_1', subscription: 'sub_1' }),
+      evento('checkout.session.completed', {
+        customer: 'cus_1',
+        subscription: 'sub_1',
+        mode: 'subscription',
+        payment_status: 'paid',
+      }),
     );
     expect(r.transitou).toBe(true);
     const data = mocks.tx.assinatura.updateMany.mock.calls[0][0].data;
@@ -311,7 +385,11 @@ describe('webhook — mapeamento de eventos para estados', () => {
   it('subscription.updated com status desconhecido não transita', async () => {
     comAssinatura('ATIVA');
     const r = await processarEventoWebhook(
-      evento('customer.subscription.updated', { id: 'sub_1', customer: 'c', status: 'paused' }),
+      evento('customer.subscription.updated', {
+        id: 'sub_1',
+        customer: 'c',
+        status: 'estado_novo_do_stripe',
+      }),
     );
     expect(r.transitou).toBe(false);
     expect(mocks.tx.assinatura.updateMany).not.toHaveBeenCalled();
@@ -350,6 +428,8 @@ describe('webhook — mapeamento de eventos para estados', () => {
     expect(r.transitou).toBe(false);
     expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data).toEqual({ tentativasFalhadas: 2 });
     expect(mocks.tx.notificacao.createMany).toHaveBeenCalled();
+    // Nenhuma transição de estado foi tentada — só o contador.
+    expect(mocks.tx.configuracaoFiscal.updateMany).not.toHaveBeenCalled();
   });
 
   it('invoice.payment_failed no fim do dunning suspende e bloqueia o login', async () => {
@@ -358,8 +438,9 @@ describe('webhook — mapeamento de eventos para estados', () => {
     await processarEventoWebhook(
       evento('invoice.payment_failed', { customer: 'cus_1', next_payment_attempt: null }),
     );
-    const data = mocks.tx.assinatura.updateMany.mock.calls[0][0].data;
-    expect(data.estado).toBe('SUSPENSA');
+    // 1.º update: contador; 2.º update: transição.
+    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.tentativasFalhadas).toBe(4);
+    expect(mocks.tx.assinatura.updateMany.mock.calls[1][0].data.estado).toBe('SUSPENSA');
     expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data.statusAtivo).toBe(false);
   });
 
@@ -373,11 +454,84 @@ describe('webhook — mapeamento de eventos para estados', () => {
     expect(mocks.tx.notificacao.createMany).toHaveBeenCalled();
   });
 
-  it('evento não tratado é registado sem efeitos', async () => {
+  it('evento não tratado de um tenant conhecido é registado sem efeitos', async () => {
     comAssinatura('ATIVA');
-    const r = await processarEventoWebhook(evento('customer.updated', { id: 'cus_1' }));
+    const r = await processarEventoWebhook(evento('customer.updated', { customer: 'cus_1' }));
     expect(r.transitou).toBe(false);
     expect(mocks.tx.eventoWebhookStripe.create).toHaveBeenCalled();
+    expect(mocks.tx.assinatura.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('MAJOR-1: checkout completo mas NÃO pago não activa', async () => {
+    comAssinatura('TRIAL');
+    const r = await processarEventoWebhook(
+      evento('checkout.session.completed', {
+        customer: 'cus_1',
+        subscription: 'sub_1',
+        mode: 'subscription',
+        payment_status: 'unpaid',
+      }),
+    );
+    expect(r.transitou).toBe(false);
+    expect(mocks.tx.assinatura.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('MAJOR-1: checkout fora do modo subscription não activa', async () => {
+    comAssinatura('TRIAL');
+    const r = await processarEventoWebhook(
+      evento('checkout.session.completed', {
+        customer: 'cus_1',
+        mode: 'payment',
+        payment_status: 'paid',
+      }),
+    );
+    expect(r.transitou).toBe(false);
+    expect(mocks.tx.assinatura.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('MAJOR-1: aceita no_payment_required (100% de desconto)', async () => {
+    comAssinatura('TRIAL');
+    const r = await processarEventoWebhook(
+      evento('checkout.session.completed', {
+        customer: 'cus_1',
+        subscription: 'sub_1',
+        mode: 'subscription',
+        payment_status: 'no_payment_required',
+      }),
+    );
+    expect(r.transitou).toBe(true);
+  });
+
+  it('MAJOR-2: status=paused suspende (não fica ATIVA para sempre)', async () => {
+    comAssinatura('ATIVA');
+    await processarEventoWebhook(
+      evento('customer.subscription.updated', { id: 'sub_1', customer: 'c', status: 'paused' }),
+    );
+    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('SUSPENSA');
+  });
+
+  it('MAJOR-2: status=incomplete não transita (3-D Secure a decorrer)', async () => {
+    comAssinatura('TRIAL');
+    const r = await processarEventoWebhook(
+      evento('customer.subscription.updated', { id: 'sub_1', customer: 'c', status: 'incomplete' }),
+    );
+    expect(r.transitou).toBe(false);
+    expect(mocks.tx.assinatura.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('MAJOR-3: tentativasFalhadas é gravado mesmo quando a transição é inválida', async () => {
+    // Em TRIAL, TRIAL → SUSPENSA é inválida; o contador não pode perder-se,
+    // senão o dunning reinicia do zero a cada falha e nunca suspende.
+    comAssinatura('TRIAL');
+    mocks.tx.assinatura.findFirst.mockResolvedValue({ tentativasFalhadas: 2 });
+    const r = await processarEventoWebhook(
+      evento('invoice.payment_failed', { customer: 'cus_1', next_payment_attempt: null }),
+    );
+    expect(r.transitou).toBe(false);
+    const contador = mocks.tx.assinatura.updateMany.mock.calls.find(
+      (c) => c[0].data.tentativasFalhadas !== undefined,
+    );
+    expect(contador?.[0].data.tentativasFalhadas).toBe(3);
   });
 });
 
@@ -483,9 +637,19 @@ describe('subscrição de trial em background', () => {
 
     expect(await criarSubscricaoTrial('tenant-1', 'BASICO')).toEqual({ criada: true });
     expect(mocks.subsCreate.mock.calls[0][0].trial_period_days).toBe(14);
-    const data = mocks.assinaturaUpdateMany.mock.calls[0][0].data;
+
+    // BLOCKER-2(c): o stripeCustomerId é persistido ANTES de criar a subscrição
+    // — senão um webhook que chegue nesse intervalo não resolve o tenant.
+    expect(mocks.assinaturaUpdateMany.mock.calls[0][0].data).toEqual({
+      stripeCustomerId: 'cus_1',
+    });
+    expect(mocks.assinaturaUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.subsCreate.mock.invocationCallOrder[0],
+    );
+
+    const data = mocks.assinaturaUpdateMany.mock.calls[1][0].data;
     expect(data.stripeSubscriptionId).toBe('sub_1');
-    expect(mocks.assinaturaUpdateMany.mock.calls[0][0].where.tenantId).toBe('tenant-1');
+    expect(mocks.assinaturaUpdateMany.mock.calls[1][0].where.tenantId).toBe('tenant-1');
   });
 
   it('não duplica se já existir subscrição', async () => {
@@ -525,6 +689,19 @@ describe('cron de fallback — expiração de trials', () => {
     });
     expect(r).toEqual({ avaliadas: 2, expiradas: 2 });
     expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data.statusAtivo).toBe(false);
+  });
+
+  it('não expira um trial que foi activado entre a leitura e a escrita', async () => {
+    // O cron lê candidatos, mas quem decide é o compare-and-set: se um webhook
+    // activou o tenant entretanto, o UPDATE não encontra `estado: TRIAL`.
+    mocks.assinaturaFindMany.mockResolvedValue([{ id: 'a1', tenantId: 't1', estado: 'TRIAL' }]);
+    mocks.tx.assinatura.updateMany.mockResolvedValue({ count: 0 });
+
+    const r = await expirarTrialsVencidos(new Date('2026-08-01'));
+
+    expect(r).toEqual({ avaliadas: 1, expiradas: 0 });
+    expect(mocks.tx.configuracaoFiscal.updateMany).not.toHaveBeenCalled();
+    expect(mocks.tx.notificacao.createMany).not.toHaveBeenCalled();
   });
 
   it('sem trials vencidos não faz nada', async () => {

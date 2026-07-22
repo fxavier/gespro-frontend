@@ -9,6 +9,7 @@ import {
   bootstrapSeriesDocumento,
   classeEnum,
   derivarTipoConta,
+  garantirCatalogoPermissoes,
 } from '../tenant-bootstrap';
 
 interface Linha {
@@ -133,11 +134,31 @@ describe('diários e séries', () => {
   });
 });
 
+describe('catálogo global de permissões', () => {
+  it('garantirCatalogoPermissoes escreve o catálogo com skipDuplicates', async () => {
+    await garantirCatalogoPermissoes(tx as never);
+    const args = tx.permission.createMany.mock.calls[0][0] as unknown as {
+      data: unknown[];
+      skipDuplicates: boolean;
+    };
+    expect(args.skipDuplicates).toBe(true);
+    expect(args.data.length).toBeGreaterThan(100);
+  });
+});
+
 describe('bootstrapRbac', () => {
+  it('NÃO escreve o catálogo global dentro da transacção do tenant', async () => {
+    // MAJOR-8: Permission.code é único e global; dois provisionamentos
+    // concorrentes a escrever as mesmas ~400 linhas dentro das suas transacções
+    // bloqueiam-se no mesmo índice, com deadlock possível num endpoint público.
+    await bootstrapRbac(tx as never, 'tenant-1');
+    expect(tx.permission.createMany).not.toHaveBeenCalled();
+    expect(tx.permission.findMany).toHaveBeenCalled();
+  });
+
   it('cria os roles de sistema do tenant e devolve-os', async () => {
     const roles = await bootstrapRbac(tx as never, 'tenant-1');
     expect(roles.map((r) => r.nome)).toContain('ADMIN');
-    expect(tx.permission.createMany).toHaveBeenCalled();
     for (const call of tx.role.upsert.mock.calls) {
       expect(call[0].create.tenantId).toBe('tenant-1');
       expect(call[0].where.tenantId_nome.tenantId).toBe('tenant-1');

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => {
     $transaction: vi.fn(),
     bootstrapRbac: vi.fn(),
     bootstrapContabilidade: vi.fn(),
+    garantirCatalogoPermissoes: vi.fn(),
     emitirToken: vi.fn(),
   };
 });
@@ -39,6 +40,7 @@ vi.mock('@/server/db/client', () => ({
 vi.mock('@/server/provisioning/tenant-bootstrap', () => ({
   bootstrapRbac: mocks.bootstrapRbac,
   bootstrapContabilidade: mocks.bootstrapContabilidade,
+  garantirCatalogoPermissoes: mocks.garantirCatalogoPermissoes,
 }));
 
 vi.mock('../handoff.service', () => ({ emitirToken: mocks.emitirToken }));
@@ -86,7 +88,8 @@ beforeEach(() => {
     { id: 'role-admin', nome: 'ADMIN' },
     { id: 'role-leitura', nome: 'LEITURA' },
   ]);
-  mocks.bootstrapContabilidade.mockResolvedValue({ contas: 504, diarios: 9, series: 18 });
+  mocks.bootstrapContabilidade.mockResolvedValue({ contas: 502, diarios: 9, series: 18 });
+  mocks.garantirCatalogoPermissoes.mockResolvedValue(undefined);
   mocks.emitirToken.mockResolvedValue('token-handoff');
 });
 
@@ -125,6 +128,14 @@ describe('provisionamento atómico', () => {
     expect(mocks.tx.notificacao.create.mock.calls[0][0].data.tenantId).toBe('tenant-1');
     expect(mocks.bootstrapRbac).toHaveBeenCalledWith(mocks.tx, 'tenant-1');
     expect(mocks.bootstrapContabilidade).toHaveBeenCalledWith(mocks.tx, 'tenant-1');
+  });
+
+  it('MAJOR-8: garante o catálogo global de permissões FORA da transacção', async () => {
+    await provisionarTenant(INPUT);
+    expect(mocks.garantirCatalogoPermissoes).toHaveBeenCalledTimes(1);
+    expect(mocks.garantirCatalogoPermissoes.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.$transaction.mock.invocationCallOrder[0],
+    );
   });
 
   it('usa prismaBase (nunca o cliente tenant-scoped)', async () => {
