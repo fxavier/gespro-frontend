@@ -193,15 +193,31 @@ export interface RoleCriado {
 }
 
 /**
- * Garante o catálogo global de permissões e cria os roles de sistema do tenant
- * com as respectivas permissões. Idempotente (`skipDuplicates`).
+ * Garante o catálogo **global** de permissões. Idempotente.
+ *
+ * Tem de correr FORA da transacção de provisionamento: `Permission.code` é
+ * único e global, por isso dois registos concorrentes escrevendo as mesmas ~400
+ * linhas dentro das suas transacções bloqueiam-se no mesmo índice — e podem
+ * chegar a deadlock. Num endpoint público isso é um vector de indisponibilidade
+ * trivial de accionar. Fora da transacção, o `skipDuplicates` resolve a corrida
+ * sem locks longos.
+ */
+export async function garantirCatalogoPermissoes(client: BootstrapClient): Promise<void> {
+  await client.permission.createMany({ data: PERMISSIONS, skipDuplicates: true });
+}
+
+/**
+ * Cria os roles de sistema do tenant e liga-lhes as permissões do catálogo.
+ * Idempotente (`upsert` + `skipDuplicates`).
  * Devolve os roles criados/existentes, para atribuição ao utilizador admin.
+ *
+ * **Pré-requisito**: `garantirCatalogoPermissoes()` já correu (fora da tx).
+ * Aqui só se LÊ o catálogo — escrever-lhe dentro da tx é que causava o problema.
  */
 export async function bootstrapRbac(
   tx: BootstrapClient,
   tenantId: string,
 ): Promise<RoleCriado[]> {
-  await tx.permission.createMany({ data: PERMISSIONS, skipDuplicates: true });
   const todas = await tx.permission.findMany({ select: { id: true, code: true } });
   const idPorCode = new Map(todas.map((p) => [p.code, p.id]));
 

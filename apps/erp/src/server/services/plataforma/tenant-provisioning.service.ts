@@ -9,6 +9,7 @@ import { TRIAL_DIAS, type PlanoId } from '@/lib/planos';
 import {
   bootstrapRbac,
   bootstrapContabilidade,
+  garantirCatalogoPermissoes,
 } from '@/server/provisioning/tenant-bootstrap';
 import { emitirToken } from './handoff.service';
 
@@ -127,6 +128,11 @@ export async function provisionarTenant(
 
   // Hash fora da transacção: argon2 demora ~100 ms e não deve segurar locks.
   const passwordHash = await hash(input.admin.senha);
+
+  // Catálogo global de permissões também fora: é partilhado por todos os
+  // tenants, e escrevê-lo dentro da tx punha dois registos concorrentes a
+  // disputar o mesmo índice único (deadlock possível num endpoint público).
+  await garantirCatalogoPermissoes(prismaBase);
 
   let ultimoErro: unknown;
   for (let tentativa = 0; tentativa < MAX_TENTATIVAS_SLUG; tentativa++) {
