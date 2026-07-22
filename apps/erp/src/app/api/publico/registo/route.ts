@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { withApi } from '@/lib/api/with-api';
-import { buildCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
+import { buildCorsHeaders } from '@/lib/api/cors';
 import { registoLimiter } from '@/server/security/rate-limiter';
 import { verificarCaptcha } from '@/server/security/captcha';
 import { RegistoTenantSchema } from '@/lib/validations/onboarding';
@@ -263,6 +263,18 @@ async function enviarBoasVindas(resultado: {
   }
 }
 
+/**
+ * Preflight. Tem de anunciar `Idempotency-Key` em `Access-Control-Allow-Headers`
+ * — sem isso o browser recusa o POST antes sequer de o enviar, porque o header
+ * obrigatório deste endpoint não consta da lista de omissão de `cors.ts`.
+ */
 export function OPTIONS(req: NextRequest): Response {
-  return corsPreflightResponse(req);
+  return new Response(null, {
+    status: 204,
+    headers: buildCorsHeaders(req, {
+      methods: 'POST, OPTIONS',
+      allowedHeaders: 'Content-Type, Idempotency-Key',
+      credentials: false,
+    }),
+  });
 }
