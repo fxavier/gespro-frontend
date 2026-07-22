@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="30.2.4">
+  <diagram name="Data-Flow">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Fluxo de Dados — integração transaccional venda/POS → stock + caixa + contabilidade" style="text;html=1;align=center;fontSize=17;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="330" y="20" width="740" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="note" value="Convenção DFD: ellipse=entidade externa · rounded=processo · cylinder=data store. Tudo dentro de uma única $transaction (atómico)." style="text;html=1;align=center;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="330" y="52" width="740" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="op" value="Operador&#xa;(POS)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="380" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1" value="P1 · Registar venda&#xa;(venda.service / POS)&#xa;valida linhas, total em Decimal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="260" y="370" width="220" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2" value="P2 · Baixar stock&#xa;contrato A: baixarStock()&#xa;(por localização)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="580" y="120" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="P3 · Numerar documento&#xa;contrato D: proximoNumeroSerie()&#xa;atómico, sem lacunas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="580" y="250" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" value="P4 · Movimento de caixa&#xa;contrato D: registarMovimentoCaixa()&#xa;entrada na sessão de caixa" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="580" y="390" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p5" value="P5 · Lançamento contabilístico&#xa;contrato D: registarLancamentoContabilistico()&#xa;partida dobrada — débito == crédito" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="580" y="530" width="220" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="dsStock" value="MovimentoStock" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="960" y="120" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="dsSerie" value="SerieDocumento" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="960" y="255" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="dsCaixa" value="MovimentoCaixa /&#xa;SessaoCaixa" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="960" y="390" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="dsLanc" value="Lancamento /&#xa;Partida (PGC-NIRF)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="960" y="530" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="dsVenda" value="Venda / ItemVenda" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="260" y="640" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="f0" value="itens + pagamento" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="op" target="p1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" value="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1" target="p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.4;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1" target="p3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.6;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1" target="p4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" value="4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1" target="p5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="w1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="p2" target="dsStock">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="p3" target="dsSerie">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="p4" target="dsCaixa">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="p5" target="dsLanc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w5" value="grava venda" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1" target="dsVenda">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,5 +1,8 @@
 # Estado do Programa de Modernização — GestPro ERP
 
+## 📝 Wave 6 — Website de Marketing + Onboarding (specs 18–19) PLANEADA
+Specs escritas, por implementar: `.kiro/specs/18-website-marketing/`, `.kiro/specs/19-onboarding-provisionamento/` (+ visão geral `.kiro/specs/18-website-marketing-visao-geral.md`); handoffs `docs/handoff/execucao-paralela-18-19.md` + `docs/handoff/site-provisionamento.md`; ADRs 0006–0009 (`docs/decisions/`); prompt de execução paralela `docs/prompt-wave6-claude-code.md`. Âmbito: monorepo pnpm+Turborepo (`apps/site` de marketing, animações Motion) + registo self-service com trial 14 dias sem cartão e faturação Stripe (USD), provisionamento atómico de tenant e handoff SSO site→app.
+
 ## ✅ Wave 5 — Funcionalidades + produção (specs 10–17) COMPLETA (2026-07-21)
 8 agentes `feat-*` em paralelo (1 worktree cada), merge determinístico e migrations só pelo orquestrador. `pnpm check` verde (**952 testes**, de 767 na Wave 4), `pnpm gates` verde, **build de produção verde** (`output: standalone`), seed completo, **smoke autenticado das 20 páginas novas + exports CSV/XLSX** OK.
 

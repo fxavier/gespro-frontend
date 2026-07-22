@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="30.2.4">
+  <diagram name="Casos-de-Uso">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Diagrama de Casos de Uso — GestPro (RBAC por role)" style="text;html=1;align=center;fontSize=17;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="15" width="500" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="admin" value="Administrador" style="shape=umlActor;whiteSpace=wrap;html=1;verticalLabelPosition=bottom;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="70" y="110" width="50" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="gestor" value="Gestor" style="shape=umlActor;whiteSpace=wrap;html=1;verticalLabelPosition=bottom;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="70" y="280" width="50" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="fin" value="Financeiro" style="shape=umlActor;whiteSpace=wrap;html=1;verticalLabelPosition=bottom;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="70" y="470" width="50" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="oper" value="Operador" style="shape=umlActor;whiteSpace=wrap;html=1;verticalLabelPosition=bottom;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="70" y="650" width="50" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="leit" value="Leitura" style="shape=umlActor;whiteSpace=wrap;html=1;verticalLabelPosition=bottom;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="70" y="820" width="50" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="boundary" value="GestPro ERP" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#333333;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="320" y="90" width="900" height="840" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uPOS" value="Registar venda / POS" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="380" y="640" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uEnc" value="Gerir encomendas /&#xa;devoluções / trocas" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="620" y="600" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uStock" value="Movimentar / contar&#xa;stock" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="380" y="730" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uTransp" value="Transporte / tickets" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="620" y="720" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uCaixa" value="Abrir / fechar caixa" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="380" y="450" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uFat" value="Emitir factura / NC / ND" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="620" y="420" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uReco" value="Reconciliar banco / stock" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="860" y="450" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uPay" value="Processar payroll&#xa;(INSS/IRPS)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="620" y="510" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uAprov" value="Aprovar requisições /&#xa;despesas" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="380" y="270" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uProj" value="Gerir projetos / riscos" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="620" y="270" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uRel" value="Ver relatórios / exportar&#xa;(PDF/CSV/XLSX)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="860" y="270" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uTenant" value="Gerir tenancy / RBAC" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="380" y="130" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uAudit" value="Consultar auditoria" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="620" y="130" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uNotif" value="Notificações /&#xa;preferências" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="860" y="130" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uConsulta" value="Consultar dados&#xa;(read-only)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="860" y="820" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ln1" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="admin" target="uTenant"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln2" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="admin" target="uAudit"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln3" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="gestor" target="uAprov"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln4" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="gestor" target="uProj"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln5" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="gestor" target="uRel"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln6" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="fin" target="uCaixa"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln7" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="fin" target="uFat"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln8" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="fin" target="uReco"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln9" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="fin" target="uPay"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln10" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="oper" target="uPOS"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln11" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="oper" target="uEnc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln12" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="oper" target="uStock"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln13" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="oper" target="uTransp"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln14" value="" style="html=1;endArrow=none;" edge="1" parent="1" source="leit" target="uConsulta"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ln15" value="todos" style="html=1;endArrow=none;dashed=1;" edge="1" parent="1" source="leit" target="uNotif"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="30.2.4">
+  <diagram name="Baixo-Nivel">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="GestPro — Arquitectura de Baixo Nível: pipeline de um pedido" style="text;html=1;align=center;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="600" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cc" value="Client Component&#xa;submit via useActionState" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="mw" value="middleware.ts (edge)&#xa;isPublic? não → exige sessão · injecta headers CSP(nonce)/HSTS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="180" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="safe" value="createSafeAction  /  withApi&#xa;(src/server/safe-action.ts · src/lib/api/with-api.ts)" style="swimlane;startSize=30;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="380" y="80" width="360" height="470" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" value="1. auth() → sessão&#xa;(tenantId, userId, permissões)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="safe">
+          <mxGeometry x="30" y="45" width="300" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="2. requirePermission(permission)&#xa;can() sobre catálogo RBAC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="safe">
+          <mxGeometry x="30" y="110" width="300" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="3. Zod parse (schema de&#xa;src/lib/validations/&lt;modulo&gt;.ts)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="safe">
+          <mxGeometry x="30" y="175" width="300" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" value="4. runWithTenantContext({tenantId,userId})&#xa;+ runWithRequestContext (requestId, ALS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="safe">
+          <mxGeometry x="30" y="240" width="300" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="s5" value="5. handler → serviço de domínio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="safe">
+          <mxGeometry x="30" y="305" width="300" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="s6" value="6. log início/fim + métricas RED&#xa;erro inesperado → ActionResult com traceId (sem stack)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="safe">
+          <mxGeometry x="30" y="360" width="300" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="s7" value="7. revalidateTag / updateTag&#xa;devolve ActionResult&lt;T&gt; (nunca lança ao cliente)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="safe">
+          <mxGeometry x="30" y="425" width="300" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="svc" value="Serviço de domínio (server-only)&#xa;valida FKs por tenantId · BusinessRuleError&#xa;transitar(TRANSICOES_*, de, para)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="820" y="90" width="320" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="tx" value="prismaBase.$transaction(tx =&gt; { … })&#xa;tenantId explícito em TODAS as escritas" style="swimlane;startSize=30;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="820" y="210" width="320" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="cA" value="A: baixarStock / reservarStock /&#xa;confirmarConsumoStock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="tx">
+          <mxGeometry x="20" y="45" width="280" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="cD1" value="D: proximoNumeroSerie&#xa;(UPDATE…RETURNING FOR UPDATE)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="tx">
+          <mxGeometry x="20" y="100" width="280" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="cD2" value="D: registarMovimentoCaixa" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="tx">
+          <mxGeometry x="20" y="155" width="280" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="cD3" value="D: registarLancamentoContabilistico&#xa;(partida dobrada, débito==crédito)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="tx">
+          <mxGeometry x="20" y="195" width="280" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db" value="PostgreSQL 17&#xa;(tenant-extension injecta tenantId em&#xa;create/findMany; findUnique/update NÃO scoped)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="860" y="500" width="240" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rsc" value="Leitura de página (RSC)&#xa;Server Component → serviço directo&#xa;dentro de runWithTenantContext" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="240" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ed1" value="POST action" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cc" target="mw">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="mw" target="safe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed3" value="chama" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="safe" target="svc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="svc" target="tx">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed5" value="commit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="tx" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ed6" value="serviço" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.9;entryDx=0;entryDy=0;" edge="1" parent="1" source="rsc" target="svc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
