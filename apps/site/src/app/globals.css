@@ -1,0 +1,190 @@
+@import "tailwindcss";
+/* Tokens de marca partilhados com apps/erp — fonte única (Requisito 2). */
+@import "@gespro/brand/tokens.css";
+/* Extensão expressiva do site (nunca redefine os tokens base). */
+@import "./theme.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    /* Compensa o cabeçalho fixo ao saltar para uma âncora. */
+    scroll-padding-top: 5.5rem;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Foco visível em tudo o que é focável (WCAG 2.2 — 2.4.11/2.4.13). */
+  :focus-visible {
+    @apply outline-ring outline-2 outline-offset-2;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Alvos de toque com área mínima confortável (WCAG 2.2 — 2.5.8). */
+  a,
+  button,
+  summary,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    @apply bg-primary text-accao-texto;
+  }
+}
+
+@layer components {
+  /* Salto para o conteúdo — visível apenas quando recebe foco. */
+  .salto-conteudo {
+    @apply sr-only;
+  }
+  .salto-conteudo:focus {
+    @apply not-sr-only fixed top-3 left-3 z-[100] rounded-md bg-primary px-4 py-2 text-sm font-medium text-accao-texto;
+  }
+
+  /* Gradiente de marca usado no hero e nas etiquetas de secção.
+     Deriva dos tokens — sem cores literais. */
+  .gradiente-marca {
+    background-image: linear-gradient(
+      100deg,
+      var(--gradiente-inicio) 0%,
+      var(--gradiente-fim) 100%
+    );
+    color: var(--gradiente-texto);
+  }
+
+  .texto-gradiente {
+    background-image: linear-gradient(
+      100deg,
+      var(--primary) 0%,
+      var(--destaque) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Brilho difuso de fundo do hero. Puramente decorativo → aria-hidden. */
+  .aurora {
+    background-image:
+      radial-gradient(
+        60% 60% at 20% 0%,
+        color-mix(in oklch, var(--primary) 22%, transparent) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        50% 50% at 90% 10%,
+        color-mix(in oklch, var(--destaque) 18%, transparent) 0%,
+        transparent 65%
+      );
+  }
+
+  /* Grelha subtil de fundo (decorativa). */
+  .grelha-suave {
+    background-image:
+      linear-gradient(to right, var(--contorno-suave) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--contorno-suave) 1px, transparent 1px);
+    background-size: 3rem 3rem;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black, transparent);
+  }
+}
+
+@layer utilities {
+  /* Micro-interacções simples em CSS puro — sem custo de JS (Requisito 3.1). */
+  .subir-hover {
+    transition:
+      transform var(--duracao-media) var(--ease-saida),
+      box-shadow var(--duracao-media) var(--ease-saida),
+      border-color var(--duracao-rapida) var(--ease-suave);
+  }
+  .subir-hover:hover {
+    transform: translateY(-3px);
+  }
+
+  .sublinhado-animado {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    transition: background-size var(--duracao-media) var(--ease-saida);
+  }
+  .sublinhado-animado:hover,
+  .sublinhado-animado:focus-visible {
+    background-size: 100% 1px;
+  }
+}
+
+/*
+ * View Transitions nativas entre páginas (Requisito 3.3).
+ * Progressive enhancement puro: browsers sem suporte ignoram a regra e navegam
+ * normalmente — não há JS envolvido, logo não há fallback a partir.
+ */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--duracao-media);
+  animation-timing-function: var(--ease-suave);
+}
+
+/*
+ * `prefers-reduced-motion` (Requisito 3.2 / WCAG 2.3.3).
+ * Rede de segurança global: mesmo que um componente esqueça o `useReducedMotion()`
+ * do Motion, nada se move e — crítico — nada fica invisível, porque as
+ * animações são forçadas a terminar no estado final em vez de removidas.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .subir-hover:hover {
+    transform: none;
+  }
+
+  /*
+   * Anula o estado inicial que o Motion escreve em estilo inline. Sem isto, o
+   * conteúdo abaixo da dobra fica a `opacity: 0` até o observador de viewport
+   * disparar — visível na prática como conteúdo em falta.
+   */
+  [data-revelar] {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  @view-transition {
+    navigation: none;
+  }
+}
