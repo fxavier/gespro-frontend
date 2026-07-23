@@ -1,0 +1,40 @@
+{
+  "_TODO": "Catálogo inglês por traduzir (Requisito 6.1: só PT-PT é obrigatório nesta entrega). As chaves vazias caem para PT-PT por fusão em src/i18n/request.ts; `/en` está fora do índice em app/robots.ts até a tradução estar completa. Ao traduzir, manter a MESMA estrutura de pt.json — src/lib/__tests__/mensagens.test.ts verifica-a.",
+  "comum": {
+    "produto": "GestPro",
+    "tagline": "The ERP built for Mozambican businesses",
+    "moeda": "MZN",
+    "carregando": "",
+    "saibaMais": "",
+    "voltar": "",
+    "voltarInicio": "",
+    "verTodos": "",
+    "porMes": "",
+    "porAno": "",
+    "iva": "",
+    "novo": ""
+  },
+  "nav": {
+    "inicio": "Home",
+    "funcionalidades": "Features",
+    "precos": "Pricing",
+    "recursos": "Resources",
+    "sobre": "About",
+    "contacto": "Contact",
+    "entrar": "Sign in",
+    "comecar": "Start free trial"
+  },
+  "rodape": {},
+  "metadata": {},
+  "home": {},
+  "modulos": {},
+  "funcionalidades": {},
+  "precos": {},
+  "comecar": {},
+  "sobre": {},
+  "contacto": {},
+  "recursos": {},
+  "legal": {},
+  "erros": {},
+  "analytics": {}
+}
