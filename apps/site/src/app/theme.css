@@ -1,0 +1,172 @@
+/*
+ * Tema do SITE — estende `@gespro/brand/tokens.css`, nunca o redefine.
+ *
+ * Duas partes:
+ *  1. `@theme inline` — mapeia os tokens de marca (que são custom properties
+ *     puras) para os nomes que o Tailwind v4 usa para gerar utilitários.
+ *     Igual ao do ERP: é a MESMA marca.
+ *  2. `@theme` — tokens EXCLUSIVOS do site: paleta de acento por módulo,
+ *     escala tipográfica maior (o site respira mais do que um dashboard),
+ *     curvas de aceleração e durações de animação.
+ *
+ * Regra: nenhum valor de cor fora deste ficheiro ou de packages/brand.
+ * Verificado por `pnpm --filter site gate:cores`.
+ */
+
+@theme inline {
+  /* ── Marca partilhada (packages/brand) ───────────────────────────────── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --font-sans: var(--font-geist-sans), var(--font-sans-fallback);
+  --font-mono: var(--font-geist-mono), var(--font-mono-fallback);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-3xl: calc(var(--radius) + 22px);
+
+  --shadow-sm: var(--shadow-sm-val);
+  --shadow-md: var(--shadow-md-val);
+
+  /* ── Superfícies e acentos próprios do site ──────────────────────────── */
+  --color-texto-suave: var(--texto-suave);
+  --color-accao-texto: var(--accao-texto);
+  --color-gradiente-texto: var(--gradiente-texto);
+  --color-superficie: var(--superficie);
+  --color-superficie-forte: var(--superficie-forte);
+  --color-contorno-suave: var(--contorno-suave);
+  --color-destaque: var(--destaque);
+  --color-destaque-suave: var(--destaque-suave);
+  --color-modulo-vendas: var(--modulo-vendas);
+  --color-modulo-stock: var(--modulo-stock);
+  --color-modulo-compras: var(--modulo-compras);
+  --color-modulo-financas: var(--modulo-financas);
+  --color-modulo-rh: var(--modulo-rh);
+  --color-modulo-operacoes: var(--modulo-operacoes);
+  --color-modulo-pos: var(--modulo-pos);
+}
+
+@theme {
+  /* ── Escala tipográfica de marketing (maior que a do dashboard) ──────── */
+  --text-display: clamp(2.75rem, 1.6rem + 5.2vw, 5rem);
+  --text-display--line-height: 1.02;
+  --text-display--letter-spacing: -0.035em;
+  --text-display--font-weight: 650;
+
+  --text-titulo: clamp(2rem, 1.3rem + 3vw, 3.25rem);
+  --text-titulo--line-height: 1.08;
+  --text-titulo--letter-spacing: -0.028em;
+  --text-titulo--font-weight: 620;
+
+  --text-seccao: clamp(1.5rem, 1.15rem + 1.5vw, 2.25rem);
+  --text-seccao--line-height: 1.15;
+  --text-seccao--letter-spacing: -0.02em;
+  --text-seccao--font-weight: 600;
+
+  --text-lead: clamp(1.0625rem, 1rem + 0.4vw, 1.3125rem);
+  --text-lead--line-height: 1.6;
+
+  /* ── Movimento (ADR-0007) ────────────────────────────────────────────── */
+  --ease-saida: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-suave: cubic-bezier(0.4, 0, 0.2, 1);
+  --duracao-rapida: 150ms;
+  --duracao-media: 320ms;
+  --duracao-lenta: 620ms;
+
+  /* ── Larguras de conteúdo (namespace --container-* → utilitários max-w-*) ── */
+  --container-conteudo: 75rem;
+  --container-texto: 44rem;
+}
+
+/*
+ * Tokens de superfície e acento — valores literais permitidos APENAS aqui
+ * (e em packages/brand). Espaço oklch, com pares claro/escuro escolhidos para
+ * manter contraste AA sobre o respectivo fundo.
+ */
+:root {
+  /*
+   * Texto secundário do site. NÃO reutiliza `--muted-foreground` da marca:
+   * esse valor (oklch 0.556) dá 4.53:1 sobre `--superficie` e 4.15:1 sobre
+   * `--superficie-forte` — abaixo do mínimo AA de 4.5:1 assim que o texto
+   * assenta numa superfície que não seja branco puro. O dashboard usa-o quase
+   * sempre sobre branco; o site usa secções alternadas, logo precisa de
+   * margem. 6.5:1 sobre branco, 5.7:1 sobre a superfície mais escura.
+   */
+  --texto-suave: oklch(0.48 0.012 250);
+  /*
+   * Texto sobre `bg-primary`. No tema CLARO o primário é escuro (#0056a4) e o
+   * branco dá 7.4:1. No ESCURO o primário clareia para #2f8adc e o branco cai
+   * para 3.6:1 — abaixo de AA. Daí um token próprio em vez de
+   * `--primary-foreground` da marca (que o ERP usa e não devemos alterar).
+   */
+  --accao-texto: oklch(1 0 0);
+  /*
+   * Gradiente de marca (CTA final). Fixo nos dois temas — se seguisse
+   * `--primary`/`--destaque`, no tema escuro ficariam duas cores claras e o
+   * texto branco por cima daria 2.3:1. Pior ponto do gradiente com branco: 6.1:1.
+   */
+  --gradiente-inicio: oklch(0.45 0.15 250);
+  --gradiente-fim: oklch(0.52 0.16 35);
+  --gradiente-texto: oklch(1 0 0);
+  --superficie: oklch(0.985 0.004 250);
+  --superficie-forte: oklch(0.955 0.008 250);
+  --contorno-suave: oklch(0.905 0.006 250);
+  /* Acento quente que contrasta com o índigo da marca; escuro o suficiente
+     para servir de cor de texto sobre fundos claros (AA). */
+  --destaque: oklch(0.52 0.16 35);
+  --destaque-suave: oklch(0.95 0.03 45);
+  /* Acentos por módulo — usados só como cor de ícone/borda em fundos suaves. */
+  --modulo-vendas: oklch(0.5 0.16 258);
+  --modulo-stock: oklch(0.48 0.12 195);
+  --modulo-compras: oklch(0.5 0.15 300);
+  --modulo-financas: oklch(0.45 0.14 150);
+  --modulo-rh: oklch(0.52 0.15 20);
+  --modulo-operacoes: oklch(0.5 0.14 75);
+  --modulo-pos: oklch(0.48 0.14 330);
+}
+
+.dark {
+  /* 8.4:1 sobre a superfície escura — mesma margem, tema invertido. */
+  --texto-suave: oklch(0.75 0.012 250);
+  /* Quase-preto sobre o primário claro do tema escuro → 5.4:1. */
+  --accao-texto: oklch(0.15 0.02 250);
+  /* `--gradiente-*` NÃO é redefinido aqui: ver a nota em :root. */
+  --superficie: oklch(0.185 0.005 250);
+  --superficie-forte: oklch(0.23 0.008 250);
+  --contorno-suave: oklch(0.32 0.008 250);
+  --destaque: oklch(0.76 0.14 45);
+  --destaque-suave: oklch(0.28 0.05 40);
+  --modulo-vendas: oklch(0.74 0.13 258);
+  --modulo-stock: oklch(0.75 0.11 195);
+  --modulo-compras: oklch(0.75 0.12 300);
+  --modulo-financas: oklch(0.75 0.12 150);
+  --modulo-rh: oklch(0.76 0.12 20);
+  --modulo-operacoes: oklch(0.79 0.12 75);
+  --modulo-pos: oklch(0.75 0.12 330);
+}

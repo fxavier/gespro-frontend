@@ -1,0 +1,62 @@
+---
+titulo: Migrar de folhas de cálculo para um ERP sem parar a operação
+resumo: Uma sequência de arranque em quatro fases, com o que importar em cada uma e os erros que obrigam a recomeçar.
+data: 2026-04-14
+autor: Equipa GestPro
+etiquetas: ["Operações", "Dados"]
+---
+
+A maior parte das migrações falhadas não falha por causa do software. Falha por tentar importar
+tudo ao mesmo tempo, incluindo o histórico, e por escolher a semana errada.
+
+## Fase 1 — Cadastros (semana 1)
+
+Clientes, fornecedores, artigos e colaboradores. Sem saldos, sem movimentos.
+
+O trabalho real aqui é de limpeza, não de importação: eliminar duplicados, normalizar NUIT,
+decidir a estrutura de famílias de artigos. Fazer esta limpeza *antes* da importação é a diferença
+entre uma base de dados nova e uma base de dados com os problemas antigos.
+
+Critério de conclusão: pesquisar um cliente pelo nome devolve exactamente uma ficha.
+
+## Fase 2 — Saldos iniciais (fim de mês)
+
+Existências por armazém, contas-correntes de clientes e fornecedores, saldos de caixa e bancos.
+
+Escolher uma data de corte que coincida com um fecho contabilístico. Migrar a meio do mês obriga a
+reconciliar dois sistemas para o mesmo período — é o erro que mais vezes leva a recomeçar.
+
+Critério de conclusão: o total de existências valorizadas e os saldos de terceiros batem com o
+balancete do sistema antigo à data de corte.
+
+## Fase 3 — Operação a sério (mês 1)
+
+A partir da data de corte, tudo é emitido no sistema novo. Sem excepções "só esta factura no
+antigo" — cada excepção cria uma divergência que alguém terá de reconciliar.
+
+É a fase que exige presença: as dúvidas surgem no balcão e no armazém, e resolvê-las no momento
+evita que se instale uma prática paralela.
+
+## Fase 4 — Histórico (quando fizer sentido)
+
+O histórico anterior à data de corte fica **no sistema antigo**, em modo de consulta. Importá-lo é
+tentador e quase nunca compensa: o histórico não tem a mesma estrutura, não gera lançamentos
+equivalentes e, com frequência, tem os erros que a Fase 1 acabou de limpar.
+
+Se for mesmo necessário — porque a operação consulta faturação de anos anteriores todos os dias —
+importe-o como dados de consulta, claramente identificados como migrados, sem gerar movimentos.
+
+## Erros que obrigam a recomeçar
+
+- **Data de corte a meio do mês.** Dois sistemas a reconciliar no mesmo período.
+- **Importar saldos antes de limpar cadastros.** Os saldos ficam presos a fichas duplicadas.
+- **Manter os dois sistemas "por segurança".** Na prática significa introduzir tudo duas vezes;
+  ao fim de duas semanas, um dos dois deixa de estar certo — e ninguém sabe qual.
+- **Migrar em época alta.** Escolher Dezembro, ou o mês de fecho anual, é escolher não ter
+  ninguém disponível para resolver dúvidas.
+
+## Quanto tempo demora
+
+Para uma empresa com um armazém e algumas centenas de artigos: cadastros numa semana, saldos num
+dia, primeiro mês de operação acompanhada. O que estica o prazo é quase sempre a qualidade dos
+dados de partida — e essa é a parte que compensa não apressar.

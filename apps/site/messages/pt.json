@@ -1,0 +1,477 @@
+{
+  "comum": {
+    "produto": "GestPro",
+    "tagline": "O ERP feito para empresas moçambicanas",
+    "descricaoCurta": "Gestão de vendas, stock, compras, finanças, RH e operações num só sistema — em meticais, com PGC-NIRF e validação de NUIT.",
+    "empresa": "GestPro, Lda.",
+    "cidade": "Maputo, Moçambique",
+    "email": "ola@gestpro.co.mz",
+    "telefone": "+258 84 000 0000",
+    "moeda": "MZN",
+    "carregando": "A carregar…",
+    "saibaMais": "Saber mais",
+    "voltar": "Voltar",
+    "voltarInicio": "Voltar ao início",
+    "verTodos": "Ver todos",
+    "porMes": "por mês",
+    "porAno": "por ano",
+    "iva": "Valores sem IVA",
+    "novo": "Novo"
+  },
+  "nav": {
+    "abrirMenu": "Abrir menu de navegação",
+    "fecharMenu": "Fechar menu de navegação",
+    "menuPrincipal": "Navegação principal",
+    "saltarParaConteudo": "Saltar para o conteúdo principal",
+    "inicio": "Início",
+    "funcionalidades": "Funcionalidades",
+    "precos": "Preços",
+    "recursos": "Recursos",
+    "sobre": "Sobre",
+    "contacto": "Contacto",
+    "entrar": "Entrar",
+    "comecar": "Começar teste grátis",
+    "temaAlternar": "Alternar entre tema claro e escuro",
+    "temaClaro": "Tema claro",
+    "temaEscuro": "Tema escuro",
+    "temaSistema": "Seguir o sistema"
+  },
+  "rodape": {
+    "descricao": "ERP multi-empresa para o mercado moçambicano: facturação conforme, contabilidade PGC-NIRF e operação diária num só sítio.",
+    "produto": "Produto",
+    "empresa": "Empresa",
+    "legal": "Legal",
+    "termos": "Termos de Serviço",
+    "privacidade": "Política de Privacidade",
+    "direitos": "Todos os direitos reservados.",
+    "feitoEm": "Desenhado e construído em Maputo."
+  },
+  "metadata": {
+    "tituloBase": "GestPro",
+    "modeloTitulo": "%s · GestPro",
+    "home": {
+      "titulo": "GestPro — ERP para empresas moçambicanas",
+      "descricao": "Vendas, stock, compras, finanças, RH, operações e POS num só ERP. Meticais, PGC-NIRF, NUIT e BI validados. Teste grátis de 14 dias, sem cartão."
+    },
+    "funcionalidades": {
+      "titulo": "Funcionalidades",
+      "descricao": "Sete módulos integrados que cobrem o ciclo completo da empresa — da requisição de compra à declaração fiscal."
+    },
+    "precos": {
+      "titulo": "Preços",
+      "descricao": "Planos simples e transparentes. Teste grátis de 14 dias, sem cartão de crédito."
+    },
+    "sobre": {
+      "titulo": "Sobre",
+      "descricao": "Quem constrói o GestPro e porquê um ERP desenhado de raiz para Moçambique."
+    },
+    "contacto": {
+      "titulo": "Contacto",
+      "descricao": "Fale com a equipa do GestPro — demonstrações, migração de dados e apoio."
+    },
+    "recursos": {
+      "titulo": "Recursos",
+      "descricao": "Guias práticos sobre gestão, fiscalidade e operações em Moçambique."
+    },
+    "comecar": {
+      "titulo": "Começar teste grátis",
+      "descricao": "Crie a sua conta GestPro em menos de dois minutos. 14 dias grátis, sem cartão."
+    },
+    "termos": {
+      "titulo": "Termos de Serviço",
+      "descricao": "Condições de utilização do serviço GestPro."
+    },
+    "privacidade": {
+      "titulo": "Política de Privacidade",
+      "descricao": "Como o GestPro trata dados pessoais, à luz do RGPD e da lei moçambicana."
+    }
+  },
+  "home": {
+    "hero": {
+      "etiqueta": "Novo: facturação conforme PGC-NIRF",
+      "titulo": "A gestão da sua empresa,",
+      "tituloDestaque": "finalmente num só sítio",
+      "subtitulo": "O GestPro junta vendas, stock, compras, finanças, recursos humanos e ponto de venda num ERP desenhado para a realidade moçambicana — em meticais, com NUIT validado e contabilidade PGC-NIRF.",
+      "ctaPrimario": "Começar teste grátis",
+      "ctaSecundario": "Ver funcionalidades",
+      "notaCta": "14 dias grátis · sem cartão de crédito · cancela quando quiser",
+      "legendaVisual": "Painel de gestão do GestPro com indicadores de tesouraria, vendas e stock"
+    },
+    "provaSocial": {
+      "titulo": "Empresas que operam melhor com o GestPro",
+      "subtitulo": "De retalho a construção civil, em Maputo, Beira e Nampula.",
+      "metricas": [
+        { "valor": "7", "rotulo": "módulos integrados" },
+        { "valor": "100%", "rotulo": "em meticais e PGC-NIRF" },
+        { "valor": "14 dias", "rotulo": "de teste sem cartão" },
+        { "valor": "< 2 min", "rotulo": "para criar a conta" }
+      ],
+      "testemunhos": [
+        {
+          "citacao": "Deixámos de reconciliar caixa em folhas de cálculo. Fecha-se o dia no GestPro e a contabilidade já está lançada.",
+          "autor": "Direcção Financeira",
+          "papel": "Distribuição alimentar, Maputo"
+        },
+        {
+          "citacao": "O stock por armazém com reserva de mercadoria acabou com as vendas de artigos que já não existiam.",
+          "autor": "Gestão de Operações",
+          "papel": "Retalho de materiais, Beira"
+        },
+        {
+          "citacao": "O processamento salarial com INSS e IRPS já calculados poupa-nos dois dias por mês.",
+          "autor": "Recursos Humanos",
+          "papel": "Serviços, Nampula"
+        }
+      ]
+    },
+    "modulos": {
+      "etiqueta": "Um ERP, sete domínios",
+      "titulo": "Tudo o que a empresa faz, ligado de ponta a ponta",
+      "subtitulo": "Cada módulo funciona sozinho e todos falam entre si: uma venda baixa stock e lança caixa; uma recepção cria a conta a pagar; uma factura escreve na contabilidade."
+    },
+    "conformidade": {
+      "etiqueta": "Conformidade moçambicana",
+      "titulo": "Construído para as regras daqui — não adaptado depois",
+      "subtitulo": "A conformidade não é um módulo extra: está no núcleo do sistema.",
+      "itens": [
+        {
+          "titulo": "Plano de contas PGC-NIRF",
+          "descricao": "Plano Geral de Contabilidade baseado no Decreto 70/2009, semeado de origem e pronto a usar. Cada documento emitido gera o lançamento por partida dobrada correspondente."
+        },
+        {
+          "titulo": "NUIT e BI validados",
+          "descricao": "Número Único de Identificação Tributária e Bilhete de Identidade verificados no momento da introdução — clientes, fornecedores e colaboradores entram já com dados fiscais utilizáveis."
+        },
+        {
+          "titulo": "Metical como moeda nativa",
+          "descricao": "Todos os valores em MZN com aritmética decimal exacta, sem erros de vírgula flutuante. Documentos fiscais são imutáveis: corrige-se por nota de crédito ou estorno, nunca por edição."
+        },
+        {
+          "titulo": "INSS e IRPS no processamento salarial",
+          "descricao": "Tabelas de retenção versionadas por período de vigência: o salário de Março é calculado com as regras de Março, mesmo que as tabelas mudem depois."
+        }
+      ]
+    },
+    "ctaFinal": {
+      "titulo": "Comece hoje. Sem cartão, sem instalação.",
+      "subtitulo": "Crie a sua conta, importe os seus dados e emita a primeira factura no mesmo dia.",
+      "ctaPrimario": "Começar teste grátis",
+      "ctaSecundario": "Falar com a equipa"
+    }
+  },
+  "modulos": {
+    "vendas": {
+      "nome": "Vendas",
+      "resumo": "Do orçamento à factura, com o cliente sempre no centro.",
+      "descricao": "Gere clientes, orçamentos, encomendas e facturação num fluxo único. Cada documento herda o anterior, os preços seguem tabelas por cliente e o estado de cada encomenda é visível em tempo real.",
+      "funcionalidades": [
+        "Ficha de cliente com NUIT validado e limite de crédito",
+        "Orçamentos convertíveis em encomenda com um clique",
+        "Encomendas com reserva automática de stock",
+        "Facturação em série numerada sem lacunas",
+        "Notas de crédito e devoluções rastreáveis ao documento de origem",
+        "Conta-corrente de cliente e antiguidade de saldos"
+      ]
+    },
+    "stock": {
+      "nome": "Stock e Inventário",
+      "resumo": "Saber o que existe, onde está e quanto vale.",
+      "descricao": "Controlo de existências por armazém e por lote, com movimentos auditáveis. O stock é alterado apenas por funções de contrato — nunca por edição manual de quantidades.",
+      "funcionalidades": [
+        "Multi-armazém com transferências rastreadas",
+        "Reserva, consumo e libertação de stock por documento",
+        "Inventários físicos com apuramento de diferenças",
+        "Valorização de existências e custo médio",
+        "Alertas de ruptura e stock mínimo por artigo",
+        "Histórico completo de movimentos por artigo"
+      ]
+    },
+    "compras": {
+      "nome": "Compras",
+      "resumo": "Requisitar, aprovar, receber e pagar — com rasto.",
+      "descricao": "Ciclo completo de aprovisionamento com circuito de aprovação configurável. A recepção de mercadoria entra em stock e cria a conta a pagar na mesma transacção.",
+      "funcionalidades": [
+        "Requisições internas com aprovação por alçada",
+        "Consulta ao mercado e comparação de propostas",
+        "Encomendas a fornecedor e acompanhamento de entregas",
+        "Recepção parcial ou total com entrada automática em stock",
+        "Conferência de factura contra recepção e encomenda",
+        "Conta-corrente de fornecedor e plano de pagamentos"
+      ]
+    },
+    "financas": {
+      "nome": "Finanças e Contabilidade",
+      "resumo": "Contabilidade PGC-NIRF que se escreve sozinha.",
+      "descricao": "Tesouraria, contas correntes e contabilidade geral integradas. Cada documento operacional gera automaticamente o lançamento por partida dobrada, com o plano de contas moçambicano de origem.",
+      "funcionalidades": [
+        "Plano de contas PGC-NIRF (Decreto 70/2009) pré-configurado",
+        "Lançamentos por partida dobrada gerados a partir da operação",
+        "Caixa e bancos com abertura, fecho e reconciliação",
+        "Contas a receber e a pagar com antiguidade de saldos",
+        "Balancete, balanço e demonstração de resultados",
+        "Exportação para CSV e XLSX sem perda de precisão"
+      ]
+    },
+    "rh": {
+      "nome": "Recursos Humanos",
+      "resumo": "Pessoas, contratos e salários com INSS e IRPS calculados.",
+      "descricao": "Cadastro de colaboradores, assiduidade, férias e processamento salarial com as retenções moçambicanas. As tabelas fiscais são versionadas por vigência para que os históricos nunca sejam recalculados.",
+      "funcionalidades": [
+        "Ficha de colaborador com BI e NUIT validados",
+        "Contratos, categorias e tabelas salariais",
+        "Assiduidade, faltas, férias e licenças",
+        "Processamento salarial com INSS e IRPS",
+        "Recibos de vencimento em PDF",
+        "Lançamento contabilístico automático da folha"
+      ]
+    },
+    "operacoes": {
+      "nome": "Operações e Projectos",
+      "resumo": "Obras, projectos e produção com custo real.",
+      "descricao": "Planeamento e execução de projectos e ordens de produção, com imputação de materiais, mão-de-obra e custos indirectos. O consumo de materiais baixa stock; a produção acabada dá entrada.",
+      "funcionalidades": [
+        "Projectos e obras com orçamento e realizado",
+        "Ordens de produção com lista de materiais",
+        "Consumo de stock e entrada de produto acabado",
+        "Imputação de horas e custos por centro",
+        "Margem por projecto em tempo real",
+        "Facturação por auto de medição ou por marco"
+      ]
+    },
+    "pos": {
+      "nome": "Ponto de Venda (POS)",
+      "resumo": "Balcão rápido, offline-tolerante, sempre ligado à retaguarda.",
+      "descricao": "Terminal de venda pensado para volume: teclado, leitor de código de barras e fecho de caixa diário. Cada venda baixa stock e regista o movimento de caixa na mesma transacção.",
+      "funcionalidades": [
+        "Venda rápida por código de barras ou pesquisa",
+        "Múltiplos meios de pagamento no mesmo talão",
+        "Abertura e fecho de caixa com contagem física",
+        "Talão e factura simplificada em PDF",
+        "Baixa de stock e movimento de caixa atómicos",
+        "Sessões por operador com rasto de auditoria"
+      ]
+    }
+  },
+  "funcionalidades": {
+    "etiqueta": "Funcionalidades",
+    "titulo": "Sete módulos. Um só sistema.",
+    "subtitulo": "O GestPro é um monólito modular: cada domínio tem fronteiras próprias, mas comunicam por contratos transaccionais. Na prática, os dados nunca ficam a metade.",
+    "verModulo": "Ver {modulo} em detalhe",
+    "indice": "Índice de módulos",
+    "integracao": {
+      "titulo": "Como os módulos se ligam",
+      "subtitulo": "Não há sincronizações nocturnas nem importações manuais: as operações que atravessam domínios acontecem dentro da mesma transacção.",
+      "fluxos": [
+        { "origem": "Venda / POS", "destino": "Stock + Caixa", "descricao": "A venda baixa existências e regista o movimento de caixa em conjunto — ou nenhuma das duas acontece." },
+        { "origem": "Recepção de compra", "destino": "Stock + Conta a pagar", "descricao": "A mercadoria entra em armazém e a dívida ao fornecedor é reconhecida no mesmo instante." },
+        { "origem": "Factura emitida", "destino": "Contabilidade", "descricao": "O lançamento por partida dobrada é escrito a partir do documento, no plano PGC-NIRF." },
+        { "origem": "Ordem de produção", "destino": "Consumo + Entrada de stock", "descricao": "Os materiais saem e o produto acabado entra, com o custo real apurado." }
+      ]
+    },
+    "listaFuncionalidades": "Funcionalidades do módulo",
+    "outrosModulos": "Outros módulos"
+  },
+  "precos": {
+    "etiqueta": "Preços",
+    "titulo": "Um plano para cada fase da empresa",
+    "subtitulo": "Comece com 14 dias grátis, sem cartão de crédito. Muda de plano quando quiser, sem perder dados.",
+    "mensal": "Mensal",
+    "anual": "Anual",
+    "poupancaAnual": "2 meses grátis",
+    "escolher": "Começar com {plano}",
+    "maisPopular": "Mais escolhido",
+    "incluido": "Inclui",
+    "limites": "Limites",
+    "todosOsPlanos": {
+      "titulo": "Em todos os planos",
+      "itens": [
+        "Contabilidade PGC-NIRF e facturação conforme",
+        "Utilizadores com perfis e permissões",
+        "Cópias de segurança diárias",
+        "Actualizações incluídas, sem custo de versão",
+        "Apoio em português"
+      ]
+    },
+    "avisoCatalogoLocal": "Catálogo de planos em modo de demonstração — os valores apresentados são indicativos até o serviço de subscrições estar ligado.",
+    "erroCatalogo": "Não foi possível obter os planos neste momento. Tente novamente dentro de instantes ou fale connosco.",
+    "faq": {
+      "titulo": "Perguntas frequentes",
+      "itens": [
+        {
+          "pergunta": "O teste grátis exige cartão de crédito?",
+          "resposta": "Não. Os 14 dias de teste são activados sem qualquer meio de pagamento. No fim do período escolhe um plano; se não escolher, a conta fica em leitura e os dados permanecem disponíveis."
+        },
+        {
+          "pergunta": "Em que moeda é feita a cobrança?",
+          "resposta": "A operação do ERP é integralmente em meticais (MZN). A subscrição do serviço é cobrada na moeda indicada em cada plano, por limitação do processador de pagamentos internacional."
+        },
+        {
+          "pergunta": "Posso mudar de plano mais tarde?",
+          "resposta": "Sim, a qualquer momento e nos dois sentidos. A diferença é ajustada proporcionalmente no ciclo seguinte e nenhum dado é perdido na mudança."
+        },
+        {
+          "pergunta": "Os meus dados ficam onde?",
+          "resposta": "Em infraestrutura gerida, com isolamento por empresa ao nível da base de dados e cópias de segurança diárias. Pode exportar tudo em CSV ou XLSX quando quiser."
+        },
+        {
+          "pergunta": "O GestPro emite documentos fiscalmente válidos?",
+          "resposta": "Sim. As séries de facturação são numeradas sequencialmente e sem lacunas, os documentos emitidos são imutáveis e as correcções fazem-se por nota de crédito ou estorno."
+        },
+        {
+          "pergunta": "Existe apoio na migração dos dados actuais?",
+          "resposta": "Sim. A importação de clientes, fornecedores, artigos e saldos iniciais está incluída no arranque. Fale connosco pela página de contacto para agendar."
+        }
+      ]
+    }
+  },
+  "comecar": {
+    "titulo": "Criar a sua conta GestPro",
+    "subtitulo": "14 dias grátis, sem cartão. Fica com a empresa criada e pronta a usar.",
+    "seccaoEmpresa": "A empresa",
+    "seccaoAdmin": "O administrador da conta",
+    "seccaoPlano": "Plano",
+    "campos": {
+      "empresaNome": "Nome da empresa",
+      "empresaNuit": "NUIT da empresa",
+      "empresaNuitAjuda": "9 dígitos, sem espaços",
+      "provincia": "Província",
+      "provinciaPlaceholder": "Seleccione a província",
+      "adminNome": "O seu nome",
+      "adminEmail": "E-mail profissional",
+      "adminSenha": "Senha",
+      "adminSenhaAjuda": "Mínimo de 10 caracteres",
+      "plano": "Plano a experimentar"
+    },
+    "submeter": "Criar conta e começar",
+    "aSubmeter": "A criar a conta…",
+    "aceitacao": "Ao criar a conta aceita os <termos>Termos de Serviço</termos> e a <privacidade>Política de Privacidade</privacidade>.",
+    "sucesso": "Conta criada. A encaminhar para o GestPro…",
+    "erros": {
+      "generico": "Não foi possível criar a conta. Tente novamente dentro de instantes.",
+      "indisponivel": "O serviço de registo está temporariamente indisponível. Deixe-nos o contacto e criamos a conta consigo.",
+      "obrigatorio": "Campo obrigatório",
+      "emailInvalido": "Introduza um e-mail válido",
+      "nuitInvalido": "O NUIT deve ter exactamente 9 dígitos",
+      "senhaCurta": "A senha deve ter pelo menos 10 caracteres",
+      "nomeCurto": "Introduza pelo menos 2 caracteres",
+      "planoInvalido": "Seleccione um plano válido",
+      "provinciaInvalida": "Seleccione uma província"
+    }
+  },
+  "sobre": {
+    "etiqueta": "Sobre",
+    "titulo": "Software de gestão que fala a língua do mercado",
+    "subtitulo": "O GestPro nasceu de uma constatação simples: as empresas moçambicanas estavam a adaptar-se a software feito para outras realidades fiscais.",
+    "seccoes": [
+      {
+        "titulo": "O problema",
+        "texto": "Plano de contas importado e traduzido à pressa, moeda tratada como detalhe de formatação, retenções calculadas fora do sistema em folhas de cálculo paralelas. O resultado é sempre o mesmo: dados que não fecham e um mês de trabalho para fechar o ano."
+      },
+      {
+        "titulo": "A abordagem",
+        "texto": "Construímos o GestPro a partir das regras locais para dentro. O PGC-NIRF não é um mapeamento opcional — é o plano de contas de origem. O metical não é uma opção de configuração — é a moeda do sistema, com aritmética decimal exacta. O NUIT não é um campo de texto livre — é validado à entrada."
+      },
+      {
+        "titulo": "Como trabalhamos",
+        "texto": "Cada operação que atravessa dois domínios acontece numa única transacção. Documentos emitidos são imutáveis. Cada empresa vive isolada das restantes ao nível dos dados. São decisões de engenharia aborrecidas — e é exactamente por isso que os números fecham."
+      },
+      {
+        "titulo": "O compromisso",
+        "texto": "Interface e apoio integralmente em português, preços claros e exportação total dos seus dados a qualquer momento. Não há dependência forçada: se um dia sair, sai com tudo."
+      }
+    ],
+    "valores": {
+      "titulo": "O que nos guia",
+      "itens": [
+        { "titulo": "Correcção antes de rapidez", "descricao": "Um número errado depressa não vale nada. Preferimos um ecrã a mais a um saldo que não fecha." },
+        { "titulo": "Conformidade de origem", "descricao": "A lei moçambicana é o ponto de partida do modelo de dados, não uma camada de tradução por cima." },
+        { "titulo": "Os dados são seus", "descricao": "Exportação completa, em formatos abertos, sempre disponível." },
+        { "titulo": "Português em todo o lado", "descricao": "Interface, documentação, mensagens de erro e apoio — sem excepções." }
+      ]
+    }
+  },
+  "contacto": {
+    "etiqueta": "Contacto",
+    "titulo": "Falemos sobre a sua operação",
+    "subtitulo": "Demonstração, migração de dados ou uma dúvida sobre conformidade — respondemos em dias úteis.",
+    "campos": {
+      "nome": "Nome",
+      "email": "E-mail",
+      "empresa": "Empresa",
+      "telefone": "Telefone (opcional)",
+      "assunto": "Assunto",
+      "mensagem": "Mensagem"
+    },
+    "assuntos": {
+      "demonstracao": "Pedir demonstração",
+      "migracao": "Migração de dados",
+      "precos": "Dúvidas sobre planos e preços",
+      "apoio": "Apoio técnico",
+      "outro": "Outro assunto"
+    },
+    "submeter": "Enviar mensagem",
+    "aSubmeter": "A enviar…",
+    "sucesso": "Mensagem enviada. Entramos em contacto brevemente.",
+    "erroGenerico": "Não foi possível enviar a mensagem. Tente novamente ou escreva directamente para {email}.",
+    "erroLimite": "Recebemos demasiados pedidos deste dispositivo. Aguarde alguns minutos antes de tentar de novo.",
+    "erros": {
+      "obrigatorio": "Campo obrigatório",
+      "emailInvalido": "Introduza um e-mail válido",
+      "nomeCurto": "Introduza pelo menos 2 caracteres",
+      "mensagemCurta": "Descreva o seu pedido em pelo menos 20 caracteres",
+      "mensagemLonga": "A mensagem não pode exceder 4000 caracteres",
+      "assuntoInvalido": "Seleccione um assunto"
+    },
+    "outrosCanais": {
+      "titulo": "Outros canais",
+      "emailRotulo": "E-mail",
+      "telefoneRotulo": "Telefone",
+      "moradaRotulo": "Morada",
+      "horarioRotulo": "Horário",
+      "morada": "Av. 24 de Julho, Maputo, Moçambique",
+      "horario": "Segunda a sexta, 08h00–17h00 (CAT)"
+    }
+  },
+  "recursos": {
+    "etiqueta": "Recursos",
+    "titulo": "Guias práticos para gerir melhor",
+    "subtitulo": "Artigos sobre fiscalidade, contabilidade e operações em Moçambique — escritos para quem tem a empresa a andar.",
+    "porAutor": "Por {autor}",
+    "tempoLeitura": "{minutos} min de leitura",
+    "publicadoEm": "Publicado a {data}",
+    "vazio": "Ainda não há artigos publicados.",
+    "todos": "Todos",
+    "artigosRelacionados": "Continuar a ler",
+    "voltarLista": "Voltar aos recursos",
+    "indiceArtigo": "Nesta página"
+  },
+  "legal": {
+    "ultimaActualizacao": "Última actualização: {data}",
+    "indice": "Índice"
+  },
+  "erros": {
+    "naoEncontrado": {
+      "codigo": "404",
+      "titulo": "Não encontrámos esta página",
+      "descricao": "O endereço pode estar errado ou a página pode ter mudado de sítio.",
+      "acao": "Voltar ao início",
+      "acaoSecundaria": "Ver funcionalidades"
+    },
+    "erroServidor": {
+      "codigo": "500",
+      "titulo": "Alguma coisa correu mal",
+      "descricao": "O erro foi registado e vamos analisá-lo. Tente novamente dentro de momentos.",
+      "acao": "Tentar novamente",
+      "acaoSecundaria": "Voltar ao início",
+      "referencia": "Referência do erro: {id}"
+    }
+  },
+  "analytics": {
+    "titulo": "Privacidade e medição",
+    "descricao": "Medimos visitas de forma agregada e sem cookies de rastreio. Não partilhamos dados com terceiros para publicidade.",
+    "aceitar": "Aceitar",
+    "recusar": "Recusar",
+    "saibaMais": "Ler a política de privacidade",
+    "regiao": "Aviso de privacidade"
+  }
+}

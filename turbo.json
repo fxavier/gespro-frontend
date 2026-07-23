@@ -6,6 +6,12 @@
     "build": {
       "dependsOn": ["^build"],
       "env": [
+        "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_APP_URL",
+        "PLATAFORMA_API_URL",
+        "NEXT_PUBLIC_PLAUSIBLE_DOMINIO",
+        "NEXT_PUBLIC_PLAUSIBLE_HOST",
+        "NEXT_PUBLIC_ANALYTICS_CONSENTIMENTO",
         "ALLOWED_ORIGINS",
         "AUTH_SECRET",
         "CSP_ENFORCE",
@@ -35,6 +41,7 @@
     "gates": { "cache": false },
     "e2e": { "cache": false },
     "e2e:a11y": { "cache": false },
+    "gate:cores": { "cache": false },
     "dev": { "cache": false, "persistent": true },
     "start": { "cache": false, "persistent": true }
   }
