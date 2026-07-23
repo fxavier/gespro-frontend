@@ -1,0 +1,57 @@
+---
+titulo: Guia rápido — NUIT e BI em cadastros de clientes e colaboradores
+resumo: O que validar à entrada, porque é que validar depois sai caro, e como tratar os casos legítimos que não encaixam na regra.
+data: 2026-06-02
+autor: Equipa GestPro
+etiquetas: ["Conformidade", "Dados"]
+---
+
+O NUIT (Número Único de Identificação Tributária) e o BI (Bilhete de Identidade) são os dois
+identificadores que atravessam todo o ciclo documental: aparecem na factura, no recibo de
+vencimento e na declaração. Se entrarem errados no cadastro, saem errados em todo o lado.
+
+## Validar à entrada, não no fecho
+
+A validação tardia tem um custo assimétrico. Corrigir um NUIT no momento em que se cria a ficha
+do cliente é um campo. Corrigi-lo depois de emitidas doze facturas implica notas de crédito,
+reemissões e explicações — porque o documento emitido é imutável, e bem.
+
+Regra prática: **nenhum documento fiscal deve poder ser emitido a partir de uma entidade cujo
+identificador nunca foi validado.**
+
+## O que verificar
+
+**NUIT** — nove dígitos, sem espaços nem separadores. A verificação de formato apanha a esmagadora
+maioria dos erros reais, que são de digitação: dígitos a mais, dígitos a menos, e a colagem de
+valores com espaços ou pontos vindos de outra folha.
+
+**BI** — o formato varia com a série de emissão; a verificação sensata é de comprimento e conjunto
+de caracteres, complementada por unicidade dentro da empresa. Duas fichas de colaborador com o
+mesmo BI é quase sempre duplicação de cadastro, não coincidência.
+
+## Casos legítimos que não encaixam
+
+Três situações reais em que insistir na regra causa mais problemas do que resolve:
+
+1. **Cliente particular sem NUIT.** Existe e é legítimo. A solução é um tipo de entidade
+   "consumidor final" com regras documentais próprias — não um NUIT inventado para desbloquear o
+   formulário.
+2. **Fornecedor estrangeiro.** Não tem NUIT moçambicano. Precisa de um campo de identificação
+   fiscal estrangeira, com o país, e de tratamento próprio na declaração.
+3. **Entidade em processo de registo.** O NUIT ainda não foi atribuído. Aqui a resposta certa é
+   permitir criar a ficha e **bloquear a emissão de documentos fiscais** até o número existir —
+   não bloquear o cadastro inteiro.
+
+O padrão comum: a regra é rígida onde tem de ser (o documento fiscal) e flexível onde não tem de
+ser (o cadastro). Sistemas que invertem isto produzem sempre o mesmo resultado — dados falsos
+introduzidos para contornar o formulário.
+
+## Higiene de cadastro que compensa
+
+- **Unicidade de NUIT** por empresa: impede a duplicação silenciosa de clientes, que estraga
+  contas-correntes e antiguidade de saldos.
+- **Normalização à entrada**: remover espaços e pontos antes de gravar, para que a pesquisa
+  encontre sempre.
+- **Auditoria de alterações**: quem mudou o NUIT de um cliente, quando e a partir de quê.
+
+Nenhuma destas medidas é sofisticada. Todas evitam trabalho que, sem elas, aparece meses depois.

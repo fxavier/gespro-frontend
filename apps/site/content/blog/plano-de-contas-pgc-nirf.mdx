@@ -1,0 +1,62 @@
+---
+titulo: PGC-NIRF na prática — o que muda quando a contabilidade nasce do documento
+resumo: Porque é que um plano de contas importado e traduzido dá sempre trabalho no fecho, e o que significa gerar o lançamento a partir da operação.
+data: 2026-06-18
+autor: Equipa GestPro
+etiquetas: ["Contabilidade", "Conformidade"]
+destaque: true
+---
+
+O Plano Geral de Contabilidade baseado no Decreto 70/2009 (PGC-NIRF) não é uma variante cosmética
+de um plano internacional. Tem contas próprias, uma lógica de agregação própria e mapas que a
+Autoridade Tributária espera numa forma concreta. Quando o sistema de gestão nasce com outro
+plano e o PGC-NIRF é adicionado por tradução, o custo aparece sempre no mesmo sítio: o fecho.
+
+## O padrão que causa o problema
+
+O desenho habitual separa "operação" de "contabilidade": vende-se, factura-se, e no fim do mês
+alguém exporta os documentos e lança-os. Entre os dois momentos há uma folha de cálculo, um
+mapeamento de contas e uma pessoa a decidir casos.
+
+Três consequências previsíveis:
+
+1. **A contabilidade está sempre atrasada** em relação à operação. Perguntar "qual é a margem
+   deste mês" a meio do mês não tem resposta fiável.
+2. **O mapeamento diverge.** Cada excepção resolvida à mão é uma regra que existe na cabeça de
+   alguém e não no sistema.
+3. **A correcção é destrutiva.** Corrige-se o lançamento errado editando-o, e o histórico do que
+   realmente aconteceu desaparece.
+
+## A alternativa: o lançamento é consequência, não tarefa
+
+No GestPro, emitir uma factura escreve o lançamento por partida dobrada na mesma transacção. Não
+há janela em que o documento existe e o lançamento não — ou acontecem os dois, ou não acontece
+nenhum.
+
+Isto obriga a três decisões que valem a pena explicitar:
+
+**O plano de contas vem semeado.** Não se começa por configurar contabilidade: as contas
+PGC-NIRF existem desde o primeiro dia, e o trabalho de arranque é ligar famílias de artigos e
+tipos de documento às contas certas — uma vez.
+
+**Os documentos são imutáveis.** Uma factura emitida não se edita. Corrige-se por nota de crédito
+ou por estorno, que são eles próprios documentos com lançamento. O histórico fica completo,
+incluindo o erro e a correcção, que é exactamente o que uma inspecção quer ver.
+
+**As séries não têm lacunas.** A numeração é atribuída de forma atómica na base de dados. Dois
+utilizadores a facturar ao mesmo tempo não produzem números repetidos nem saltos.
+
+## O que isto muda no dia a dia
+
+O balancete deixa de ser um produto do fim do mês e passa a estar sempre disponível. A pergunta
+"porquê este saldo" tem resposta: cada linha do razão aponta para o documento que a originou.
+
+Não elimina o trabalho do contabilista — elimina o trabalho de *transcrição*, que é o que
+consumia o tempo sem acrescentar julgamento.
+
+## O que não fica resolvido
+
+Duas coisas continuam a exigir decisão humana e nenhum sistema as deve automatizar em silêncio:
+a classificação de operações atípicas e as estimativas de fecho (imparidades, provisões,
+especializações). O papel do sistema aqui é tornar o lançamento manual explícito, identificado e
+reversível — não fingir que não é preciso.
