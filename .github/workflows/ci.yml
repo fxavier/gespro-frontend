@@ -4,7 +4,7 @@
 # Todos os jobs têm de ser verdes para que o merge seja permitido (branch protection).
 #
 # Branch protection requerida (configurar em Settings → Branches → main):
-#   Required status checks: lint-type, gates, test, integration, e2e, a11y, build
+#   Required status checks: lint-type, gates, test, integration, e2e, a11y, site, build
 #   Require branches to be up to date before merging: ✓
 #   Restrict who can push to matching branches: maintainers
 #
@@ -381,7 +381,73 @@ jobs:
           retention-days: 14
 
   # ────────────────────────────────────────────────────────────────────────────
-  # 7. BUILD DE PRODUÇÃO
+  # 7. SITE DE MARKETING (apps/site) — spec 18
+  #    Isolado do ERP por desenho: sem base de dados, sem prisma generate e sem
+  #    migrations. É o que permite publicar conteúdo do site sem tocar no ciclo
+  #    de deploy do produto (ADR-0006).
+  # ────────────────────────────────────────────────────────────────────────────
+  site:
+    name: Site (lint + types + tests + a11y + build)
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SITE_URL: http://localhost:3100
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: '1'
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint + typecheck + tests (site)
+        run: pnpm exec turbo run lint typecheck test --filter=site
+
+      - name: Gate de cores hardcoded (site)
+        run: pnpm --filter site gate:cores
+
+      - name: Cache .next/cache (site)
+        uses: actions/cache@v4
+        with:
+          path: apps/site/.next/cache
+          key: ${{ runner.os }}-nextjs-site-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/site/src/**', 'apps/site/content/**', 'apps/site/messages/**') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-site-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-site-
+
+      - name: Build (site)
+        run: pnpm exec turbo run build --filter=site
+
+      - name: Install Playwright browsers
+        working-directory: apps/site
+        run: npx playwright install --with-deps chromium
+
+      - name: A11y (axe WCAG 2.2 AA) + movimento reduzido
+        # O webServer do playwright.config.ts arranca `pnpm build && pnpm start`;
+        # o build acima já preencheu o cache, pelo que é quase instantâneo.
+        working-directory: apps/site
+        run: npx playwright test
+
+      - name: Upload relatório do Playwright (site)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-site
+          path: apps/site/playwright-report/
+          retention-days: 14
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 8. BUILD DE PRODUÇÃO
   #    Verifica que next build não tem erros de compilação.
   #    Não precisa de DB activo (sem SSG; toda a app é dinâmica).
   # ────────────────────────────────────────────────────────────────────────────
@@ -426,7 +492,7 @@ jobs:
             ${{ runner.os }}-nextjs-build-${{ hashFiles('pnpm-lock.yaml') }}-
             ${{ runner.os }}-nextjs-build-
 
-      - name: Build production app
+      - name: Build production app (ERP)
         env:
           NODE_ENV: production
-        run: pnpm build
+        run: pnpm exec turbo run build --filter=erp
