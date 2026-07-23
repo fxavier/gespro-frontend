@@ -68,16 +68,11 @@ src/
 ```mermaid
 graph TD
   A[Navegador / App Shell] --> B[Camada de Interface<br/>Next.js + Tailwind + Radix]
-  B --> C[Camada de Domínio
-(páginas em `src/app/(dashboard)`)]
-  C --> D[Serviços Partilhados
-`src/services`]
-  D --> E[Conectores & APIs
-`src/lib/api-client.ts` / PostgREST]
-  E --> F[Bases de Dados, ERPs externos,
-serviços logísticos]
-  C --> G[Componentes Reutilizáveis
-`src/components`]
+  B --> C[Camada de Domínio<br/>páginas em src/app/dashboard]
+  C --> D[Serviços Partilhados<br/>src/services]
+  D --> E[Conectores & APIs<br/>src/lib/api-client.ts / PostgREST]
+  E --> F[Bases de Dados, ERPs externos,<br/>serviços logísticos]
+  C --> G[Componentes Reutilizáveis<br/>src/components]
   G --> B
 ```
 
@@ -120,18 +115,12 @@ Cada módulo segue o mesmo padrão: exporta um componente React client-side (`'u
 ### Fluxo de Procurement Integrado
 ```mermaid
 graph LR
-  A[Requisição (Compras/Requisições)] --> B[Aprovação multiescala
-(Procurement/Aprovações)]
-  B --> C[Pedido de Compra
-(Procurement/Pedidos)]
-  C --> D[Recepção Física
-(Compras/Recepção)]
-  D --> E[Validação de Stock
-StockValidationService]
-  E --> F[Facturação & Pagamento
-/financeiro]
-  F --> G[Análise de Fornecedores
-/fornecedores]
+  A[Requisição<br/>Compras/Requisições] --> B[Aprovação multiescala<br/>Procurement/Aprovações]
+  B --> C[Pedido de Compra<br/>Procurement/Pedidos]
+  C --> D[Recepção Física<br/>Compras/Recepção]
+  D --> E[Validação de Stock<br/>StockValidationService]
+  E --> F[Facturação & Pagamento<br/>/financeiro]
+  F --> G[Análise de Fornecedores<br/>/fornecedores]
 ```
 
 ### Fluxo Comercial com Comissões
