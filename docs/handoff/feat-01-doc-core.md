@@ -57,8 +57,16 @@ import { UploadDocumento } from '@/components/patterns';
 ### Download nas listas
 Construir o link como `GET /api/documentos/{documentoId}/download?recurso={recurso}`.
 O `recurso` é opcional (sem ele o handler procura nas tabelas conhecidas), mas
-**passá-lo é mais eficiente**. O endpoint verifica posse no tenant (cross-tenant
-→ 404) e faz 302 para um presigned GET de 300s.
+**passá-lo é mais eficiente**. O endpoint (revisão de segurança B1/M1):
+1. verifica posse no tenant (cross-tenant → **404**);
+2. exige a **permissão de escrita do recurso** (a mesma do presign,
+   `PERMISSAO_ESCRITA_POR_RECURSO`) — sem ela → **403**. **Nota para consumidores:**
+   um perfil só-leitura que veja a ficha do recurso **não** consegue descarregar
+   o ficheiro; se precisares de download para leitura, sinaliza-me para eu
+   introduzir um mapa `:read` (por agora é conservador de propósito);
+3. reafirma que a key resolvida está sob `tenant/{tenantId}/` antes de assinar
+   (defesa contra `url`/`anexo` a apontar para outro tenant) — falha → **404**;
+4. faz 302 para um presigned GET de 300s.
 
 ## Rotas (API)
 
@@ -66,7 +74,9 @@ O `recurso` é opcional (sem ele o handler procura nas tabelas conhecidas), mas
   recurso). Zod: `{ recurso, recursoId(cuid), nome(1..200), contentType(allowlist), tamanho(1..10MB) }`.
   Deriva a **key server-side** (nunca aceita key do cliente). Devolve
   `{ uploadUrl, key, requiredHeaders, urlRef }`. Não está em `PUBLIC_PATHS`.
-- `GET /api/documentos/[id]/download[?recurso=]` — `withApi`; posse no tenant → 302 presigned GET (300s); cross-tenant → 404.
+- `GET /api/documentos/[id]/download[?recurso=]` — `withApi`; posse no tenant +
+  permissão de escrita do recurso + reafirmação do prefixo do tenant na key → 302
+  presigned GET (300s); cross-tenant/key-de-outro-tenant → 404; sem permissão → 403.
 - `PUT|GET /api/documentos/local/[...key]` — só ativo com `STORAGE_DRIVER=local`;
   faz o papel do S3 em dev/CI. Em `s3` responde 404.
 
@@ -124,7 +134,11 @@ foi preciso adicionar. **Não gerei migração** (regra do CLAUDE.md); gerar com
    `storageKey` quando presente; cai para o parse de `url`; URL http legada →
    302 direto.
 2. **Permissão dinâmica no handler** (não `withApi({permission})`) porque
-   depende do `recurso` do corpo — mesmo padrão de `/api/export/[modulo]`.
+   depende do `recurso` — mesmo padrão de `/api/export/[modulo]`. Após revisão,
+   o **download exige a mesma permissão do recurso que o presign** (um documento
+   é tão sensível como o recurso que descreve) e **reafirma o prefixo do tenant
+   na key resolvida** antes de assinar — porque `url`/`anexo` são preenchidos no
+   registo (schema `z.string().url()` de outros WS) e não são de confiança.
 3. **Driver local com rota interna** em vez de S3 real em dev/CI → sem rede,
    testável, smoke autenticado funciona. `STORAGE_DRIVER` decide.
 4. **Download resolve URL relativa** do driver local contra `req.nextUrl.origin`
