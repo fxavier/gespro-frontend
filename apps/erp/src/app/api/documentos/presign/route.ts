@@ -22,19 +22,10 @@ import {
   CONTENT_TYPES_PERMITIDOS,
   MAX_DOCUMENTO_BYTES,
   RECURSOS_DOCUMENTO,
-  type RecursoDocumento,
+  PERMISSAO_ESCRITA_POR_RECURSO,
 } from '@/lib/storage/documento-config';
 
 export const runtime = 'nodejs';
-
-/** Mapa recurso → permissão de escrita (ver `prisma/seed/rbac.ts`). */
-const PERMISSAO_POR_RECURSO: Record<RecursoDocumento, string> = {
-  fornecedor: 'fornecedores:editar',
-  ativo: 'ativos:write',
-  viatura: 'transporte:viatura:documentos',
-  motorista: 'transporte:motorista:documentos',
-  colaborador: 'rh:colaboradores:update',
-};
 
 const PresignSchema = z.object({
   recurso: z.enum(RECURSOS_DOCUMENTO),
@@ -53,7 +44,7 @@ export const POST = withApi(async (req: NextRequest, ctx) => {
   const { recurso, recursoId, nome, contentType, tamanho } = parsed.data;
 
   // Permissão dinâmica por recurso.
-  const permissao = PERMISSAO_POR_RECURSO[recurso];
+  const permissao = PERMISSAO_ESCRITA_POR_RECURSO[recurso];
   if (!ctx.permissions.has(permissao)) throw new ForbiddenError();
 
   // Key derivada server-side a partir do tenant do contexto — nunca do cliente.

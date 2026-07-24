@@ -31,14 +31,14 @@ function pedido(id: string, recurso?: string): NextRequest {
 }
 const segmento = (id: string) => ({ params: Promise.resolve({ id }) });
 
-function sessao() {
-  return { user: { id: 'u1', tenantId: 'tenant-abc', permissions: [] } };
+function sessao(permissions: string[] = []) {
+  return { user: { id: 'u1', tenantId: 'tenant-abc', permissions } };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.STORAGE_DRIVER = 'local';
-  mocks.auth.mockResolvedValue(sessao());
+  mocks.auth.mockResolvedValue(sessao(['fornecedores:editar', 'ativos:write']));
   // Todos os findFirst já filtram por { id, tenantId } → cross-tenant devolve null.
   mocks.fornecedorFindFirst.mockResolvedValue(null);
   mocks.ativoFindFirst.mockResolvedValue(null);
@@ -85,5 +85,41 @@ describe('download — posse de tenant', () => {
     const res = await GET(pedido('doc2', 'ativo'), segmento('doc2'));
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toContain('/api/documentos/local/');
+  });
+
+  // B1: doc do PRÓPRIO tenant mas com `url` a apontar para a key de OUTRO tenant.
+  it('bloqueia (404) key fora do prefixo do tenant, mesmo com o doc no tenant', async () => {
+    mocks.fornecedorFindFirst.mockResolvedValue({
+      id: 'doc3',
+      nome: 'roubado.pdf',
+      storageKey: null,
+      url: 'gestpro-storage:tenant/outro-tenant/fornecedor/x/uuid-segredo.pdf',
+    });
+    const res = await GET(pedido('doc3', 'fornecedor'), segmento('doc3'));
+    expect(res.status).toBe(404);
+  });
+
+  it('mesmo com storageKey manipulado para outro tenant → 404', async () => {
+    mocks.fornecedorFindFirst.mockResolvedValue({
+      id: 'doc4',
+      nome: 'x.pdf',
+      storageKey: 'tenant/outro-tenant/fornecedor/x/uuid-x.pdf',
+      url: 'gestpro-storage:tenant/outro-tenant/fornecedor/x/uuid-x.pdf',
+    });
+    const res = await GET(pedido('doc4', 'fornecedor'), segmento('doc4'));
+    expect(res.status).toBe(404);
+  });
+
+  // M1: sem a permissão do recurso, não descarrega (mesmo pertencendo ao tenant).
+  it('403 quando o utilizador não tem a permissão do recurso', async () => {
+    mocks.auth.mockResolvedValue(sessao([])); // sem fornecedores:editar
+    mocks.fornecedorFindFirst.mockResolvedValue({
+      id: 'doc5',
+      nome: 'contrato.pdf',
+      storageKey: 'tenant/tenant-abc/fornecedor/f1/uuid-contrato.pdf',
+      url: 'gestpro-storage:tenant/tenant-abc/fornecedor/f1/uuid-contrato.pdf',
+    });
+    const res = await GET(pedido('doc5', 'fornecedor'), segmento('doc5'));
+    expect(res.status).toBe(403);
   });
 });

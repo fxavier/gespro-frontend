@@ -42,6 +42,19 @@ export const RECURSOS_DOCUMENTO = [
 
 export type RecursoDocumento = (typeof RECURSOS_DOCUMENTO)[number];
 
+/**
+ * Mapa recurso → permissão de escrita do recurso (ver `prisma/seed/rbac.ts`).
+ * Usada tanto no presign (autorizar o upload) como no download (autorizar o
+ * acesso ao ficheiro) — um documento é tão sensível como o recurso que descreve.
+ */
+export const PERMISSAO_ESCRITA_POR_RECURSO: Record<RecursoDocumento, string> = {
+  fornecedor: 'fornecedores:editar',
+  ativo: 'ativos:write',
+  viatura: 'transporte:viatura:documentos',
+  motorista: 'transporte:motorista:documentos',
+  colaborador: 'rh:colaboradores:update',
+};
+
 /** True se o content-type está na allowlist. */
 export function contentTypePermitido(ct: string): ct is ContentTypePermitido {
   return (CONTENT_TYPES_PERMITIDOS as readonly string[]).includes(ct);
