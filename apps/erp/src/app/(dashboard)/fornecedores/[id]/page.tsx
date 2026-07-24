@@ -4,7 +4,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Edit, ArrowLeft, Mail, Phone, MapPin } from 'lucide-react';
+import { Edit, ArrowLeft, Mail, Phone, MapPin, Users, FileUp, Download } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { fornecedorService } from '@/server/services/compras/fornecedor.service';
@@ -139,10 +139,18 @@ export default async function FornecedorDetalhePage({ params }: Props) {
   // Aba: Contactos
   const tabContactos = (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/fornecedores/${fornecedor.id}/contactos`}>
+            <Users className="h-4 w-4 mr-1.5" />
+            Gerir contactos
+          </Link>
+        </Button>
+      </div>
       {fornecedor.contactos.length === 0 ? (
         <EmptyState
           title="Sem contactos registados"
-          description="Adicione contactos a este fornecedor através da edição."
+          description="Use “Gerir contactos” para adicionar contactos a este fornecedor."
         />
       ) : (
         <div className="rounded-lg border overflow-hidden">
@@ -202,10 +210,18 @@ export default async function FornecedorDetalhePage({ params }: Props) {
   // Aba: Documentos
   const tabDocumentos = (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/fornecedores/${fornecedor.id}/documentos`}>
+            <FileUp className="h-4 w-4 mr-1.5" />
+            Gerir documentos
+          </Link>
+        </Button>
+      </div>
       {fornecedor.documentos.length === 0 ? (
         <EmptyState
           title="Sem documentos"
-          description="Associe documentos a este fornecedor através da edição."
+          description="Use “Gerir documentos” para carregar ficheiros deste fornecedor."
         />
       ) : (
         <div className="rounded-lg border overflow-hidden">
@@ -223,11 +239,12 @@ export default async function FornecedorDetalhePage({ params }: Props) {
                 <TableRow key={doc.id} className="h-10">
                   <TableCell>
                     <a
-                      href={doc.url}
+                      href={`/api/documentos/${doc.id}/download?recurso=fornecedor`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-medium text-primary hover:underline"
+                      className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                     >
+                      <Download className="h-3.5 w-3.5" />
                       {doc.nome}
                     </a>
                   </TableCell>

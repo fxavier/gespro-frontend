@@ -2,10 +2,10 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Save, X } from 'lucide-react';
+import { Save, X, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,7 +48,15 @@ const DEFAULT_VALUES: CreateFornecedorInput = {
   prazoMedioPagamento: 30,
   formasPagamento: [],
   tags: [],
+  contactos: [],
 };
+
+const CONTACTO_TIPOS = [
+  { value: 'PRINCIPAL', label: 'Principal' },
+  { value: 'SECUNDARIO', label: 'Secundário' },
+  { value: 'TECNICO', label: 'Técnico' },
+  { value: 'FINANCEIRO', label: 'Financeiro' },
+] as const;
 
 export function NovoFornecedorForm() {
   const router = useRouter();
@@ -62,6 +70,8 @@ export function NovoFornecedorForm() {
     defaultValues: DEFAULT_VALUES,
     mode: 'onBlur',
   });
+
+  const contactos = useFieldArray({ control: form.control, name: 'contactos' });
 
   useEffect(() => {
     if (!state) return;
@@ -335,6 +345,145 @@ export function NovoFornecedorForm() {
                 </FormItem>
               )}
             />
+          </div>
+        </FormSection>
+
+        {/* Secção: Contactos */}
+        <FormSection
+          title="Contactos"
+          description="Pessoas de contacto (opcional — pode gerir depois no detalhe)"
+        >
+          <div className="space-y-4">
+            {contactos.fields.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Sem contactos. Adicione o primeiro contacto abaixo.
+              </p>
+            )}
+
+            {contactos.fields.map((linha, index) => (
+              <div
+                key={linha.id}
+                className="rounded-lg border p-4 space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Contacto {index + 1}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => contactos.remove(index)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Remover
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name={`contactos.${index}.nome`}
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Nome</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nome do contacto" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`contactos.${index}.cargo`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cargo</FormLabel>
+                        <FormControl>
+                          <Input placeholder="ex.: Gestor de conta" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`contactos.${index}.tipo`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? 'PRINCIPAL'}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar tipo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {CONTACTO_TIPOS.map((t) => (
+                              <SelectItem key={t.value} value={t.value}>
+                                {t.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`contactos.${index}.email`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="email@empresa.co.mz"
+                            {...field}
+                            value={field.value ?? ''}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`contactos.${index}.telefone`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Telefone</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="+258 84 000 0000"
+                            {...field}
+                            value={field.value ?? ''}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                contactos.append({ nome: '', tipo: 'PRINCIPAL', ativo: true })
+              }
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Adicionar contacto
+            </Button>
           </div>
         </FormSection>
 
