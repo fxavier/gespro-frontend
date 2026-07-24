@@ -113,9 +113,9 @@ const FILTER_CONFIGS: FilterConfig[] = [
     placeholder: 'Todos',
     options: [
       { label: 'Gasolina', value: 'GASOLINA' },
-      { label: 'Gasóleo', value: 'GASOLEO' },
-      { label: 'GPL', value: 'GPL' },
-      { label: 'Eléctrico', value: 'ELECTRICO' },
+      { label: 'Diesel', value: 'DIESEL' },
+      { label: 'Etanol', value: 'ETANOL' },
+      { label: 'GNV', value: 'GNV' },
     ],
   },
 ];
