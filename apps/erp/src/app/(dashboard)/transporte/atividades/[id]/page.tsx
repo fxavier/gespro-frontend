@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import type { AtividadeDetalhe, EventoAtividadeRef } from '@/server/services/operacoes/atividade.interface';
+import { AtividadeComandos } from '../_components/atividade-comandos';
 
 const TIPO_LABELS: Record<string, string> = {
   DESLOCACAO: 'Deslocação',
@@ -117,6 +118,15 @@ export default async function AtividadeDetalhePage({ params }: PageProps) {
           />
         }
         tabs={[
+          ...(atividade.estado !== 'CONCLUIDA' && atividade.estado !== 'CANCELADA'
+            ? [
+                {
+                  key: 'acoes',
+                  label: 'Ações',
+                  content: <AtividadeComandos atividadeId={atividade.id} estado={atividade.estado} />,
+                },
+              ]
+            : []),
           {
             key: 'descricao',
             label: 'Descrição',

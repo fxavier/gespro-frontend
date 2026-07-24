@@ -8,7 +8,10 @@ import { Edit, MapPin, Package } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { rotaService } from '@/server/services/operacoes/rota.service';
+import { viaturaService } from '@/server/services/operacoes/viatura.service';
+import { motoristaService } from '@/server/services/operacoes/motorista.service';
 import { PageHeader, DetailShell, StatusBadge } from '@/components/patterns';
+import { RotaComandos } from '../_components/rota-comandos';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -97,6 +100,19 @@ export default async function RotaDetalhePage({ params }: PageProps) {
   }
 
   const podeEditar = rota.estado === 'PLANEADA' || rota.estado === 'PAUSADA';
+  const temAcoes = rota.estado !== 'CONCLUIDA' && rota.estado !== 'CANCELADA';
+
+  const [viaturasResult, motoristasResult] = await Promise.all([
+    runWithTenantContext(ctx, () =>
+      viaturaService.listarViaturas({ take: 100, orderBy: 'matricula', order: 'asc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      motoristaService.listarMotoristas({ take: 100, orderBy: 'nomeCompleto', order: 'asc' }, ctx)
+    ),
+  ]);
+
+  const viaturasOpcoes = viaturasResult.items.map((v) => ({ id: v.id, label: `${v.matricula} — ${v.marca} ${v.modelo}` }));
+  const motoristasOpcoes = motoristasResult.items.map((m) => ({ id: m.id, label: m.nomeCompleto }));
 
   return (
     <div className="p-6">
@@ -124,6 +140,24 @@ export default async function RotaDetalhePage({ params }: PageProps) {
           />
         }
         tabs={[
+          ...(temAcoes
+            ? [
+                {
+                  key: 'acoes',
+                  label: 'Ações',
+                  content: (
+                    <RotaComandos
+                      rotaId={rota.id}
+                      estado={rota.estado}
+                      viaturaId={rota.viaturaId}
+                      motoristaId={rota.motoristaId}
+                      viaturas={viaturasOpcoes}
+                      motoristas={motoristasOpcoes}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             key: 'pontos',
             label: 'Pontos de Entrega',

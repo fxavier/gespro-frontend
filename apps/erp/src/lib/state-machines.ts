@@ -134,6 +134,45 @@ export const TRANSICOES_QUALIDADE: Record<string, string[]> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Spec 06 (Wave 7) — Transporte & Logística
+// Espelham TRANSICOES_* das interfaces server-only (operacoes/*.interface.ts).
+// Usados nos componentes-folha de acções para mostrar só transições válidas.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const TRANSICOES_VIATURA: Record<string, string[]> = {
+  DISPONIVEL: ['EM_ACTIVIDADE', 'EM_MANUTENCAO', 'INACTIVA', 'ABATIDA'],
+  EM_ACTIVIDADE: ['DISPONIVEL'],
+  EM_MANUTENCAO: ['DISPONIVEL', 'INACTIVA'],
+  INACTIVA: ['DISPONIVEL', 'ABATIDA'],
+  ABATIDA: [],
+};
+
+export const TRANSICOES_ROTA: Record<string, string[]> = {
+  PLANEADA: ['ATIVA', 'CANCELADA'],
+  ATIVA: ['PAUSADA', 'CONCLUIDA', 'CANCELADA'],
+  PAUSADA: ['ATIVA', 'CANCELADA'],
+  CONCLUIDA: [],
+  CANCELADA: [],
+};
+
+export const TRANSICOES_ATIVIDADE: Record<string, string[]> = {
+  PLANEADA: ['EM_CURSO', 'CANCELADA'],
+  EM_CURSO: ['SUSPENSA', 'CONCLUIDA', 'CANCELADA'],
+  SUSPENSA: ['EM_CURSO', 'CANCELADA'],
+  CONCLUIDA: [],
+  CANCELADA: [],
+};
+
+export const TRANSICOES_ENTREGA: Record<string, string[]> = {
+  PENDENTE: ['AGENDADA', 'CANCELADA'],
+  AGENDADA: ['EM_TRANSITO', 'CANCELADA'],
+  EM_TRANSITO: ['ENTREGUE', 'FALHADA'],
+  FALHADA: ['AGENDADA', 'CANCELADA'],
+  ENTREGUE: [],
+  CANCELADA: [],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Spec 19 — Assinatura SaaS (onboarding self-service e faturação por subscrição)
 // ─────────────────────────────────────────────────────────────────────────────
 

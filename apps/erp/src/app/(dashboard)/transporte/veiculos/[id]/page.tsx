@@ -13,6 +13,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import type { ViaturaDetalhe, DocumentoViaturaRef, ManutencaoViaturaRef } from '@/server/services/operacoes/viatura.interface';
+import { ViaturaComandos } from '../_components/viatura-comandos';
+import { DocumentoUploadForm } from '../../_components/documento-upload-form';
+
+const TIPOS_DOC_VIATURA = [
+  { value: 'LIVRETE', label: 'Livrete' },
+  { value: 'INSPECAO', label: 'Inspecção' },
+  { value: 'SEGURO', label: 'Seguro' },
+  { value: 'LICENCA', label: 'Licença' },
+  { value: 'MANIFESTO', label: 'Manifesto' },
+  { value: 'TAXA_RADIO', label: 'Taxa de Rádio' },
+  { value: 'OUTRO', label: 'Outro' },
+];
 
 const DOC_ESTADO_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   VALIDO: 'default',
@@ -52,6 +64,12 @@ function DocumentosTab({ documentos }: { documentos: DocumentoViaturaRef[] }) {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">N.º {doc.numero} — {doc.entidadeEmissora}</p>
+                <a
+                  href={`/api/documentos/${doc.id}/download?recurso=viatura`}
+                  className="text-xs text-primary hover:underline inline-block mt-1"
+                >
+                  Descarregar ficheiro
+                </a>
               </div>
               <div className="text-right text-xs text-muted-foreground flex-shrink-0">
                 <p>Emissão: {new Date(doc.dataEmissao).toLocaleDateString('pt-MZ', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
@@ -160,11 +178,32 @@ export default async function ViaturaDetalhePage({ params }: PageProps) {
           />
         }
         tabs={[
+          ...(podeEditar
+            ? [
+                {
+                  key: 'acoes',
+                  label: 'Ações',
+                  content: <ViaturaComandos viaturaId={viatura.id} estado={viatura.estado} />,
+                },
+              ]
+            : []),
           {
             key: 'documentos',
             label: 'Documentos',
             count: viatura.documentos.length,
-            content: <DocumentosTab documentos={viatura.documentos} />,
+            content: (
+              <div className="space-y-4">
+                {podeEditar && (
+                  <Card>
+                    <CardContent className="p-5">
+                      <p className="font-medium text-sm mb-3">Adicionar Documento</p>
+                      <DocumentoUploadForm recurso="viatura" recursoId={viatura.id} tipos={TIPOS_DOC_VIATURA} />
+                    </CardContent>
+                  </Card>
+                )}
+                <DocumentosTab documentos={viatura.documentos} />
+              </div>
+            ),
           },
           {
             key: 'manutencoes',
