@@ -50,7 +50,8 @@ test.describe('Transporte — entrega ponta-a-ponta', () => {
 
     // Redireciona para o detalhe
     await page.waitForURL(/\/transporte\/entregas\/[^/]+$/, { timeout: 20_000 });
-    await expect(page.getByText(/ENT-/).first()).toBeVisible({ timeout: 10_000 });
+    // Número de entrega da série 'ENTREGA': formato ENT/AAAA/NNNNNN
+    await expect(page.getByText(/ENT\/\d{4}\/\d+/).first()).toBeVisible({ timeout: 10_000 });
 
     // Separador Ações presente
     const abaAcoes = page.getByRole('tab', { name: 'Ações' });

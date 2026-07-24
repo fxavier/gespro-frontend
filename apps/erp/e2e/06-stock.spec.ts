@@ -13,7 +13,8 @@
 import { test, expect } from '@playwright/test';
 
 async function escolherPrimeiraOpcao(page: import('@playwright/test').Page, label: string) {
-  await page.getByLabel(label, { exact: false }).click();
+  // combobox por nome exacto: 'Produto' com match parcial colidia com 'Variante'/valor
+  await page.getByRole('combobox', { name: label, exact: true }).click();
   await page.getByRole('option').first().click();
 }
 
