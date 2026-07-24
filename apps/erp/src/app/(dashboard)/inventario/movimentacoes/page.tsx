@@ -3,11 +3,14 @@
  */
 
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { stockService } from '@/server/services/inventario/stock.service';
+import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
 import { TableSkeleton } from '../ativos/_components/table-skeletons';
@@ -84,6 +87,14 @@ export default async function MovimentacoesPage({ searchParams }: PageProps) {
           { label: 'Inventário', href: '/inventario' },
           { label: 'Movimentações' },
         ]}
+        actions={
+          <Button asChild size="sm">
+            <Link href="/inventario/movimentacoes/nova">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Movimentação
+            </Link>
+          </Button>
+        }
       />
 
       <FilterBar

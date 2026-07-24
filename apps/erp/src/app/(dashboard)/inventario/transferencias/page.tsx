@@ -41,11 +41,17 @@ export default async function TransferenciasPage() {
           { label: 'Transferências' },
         ]}
         actions={
-          <Button asChild size="sm">
-            <Link href="/inventario/movimentacoes">
-              Ver Todas as Movimentações
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/inventario/movimentacoes">Ver Todas as Movimentações</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/inventario/movimentacoes/nova/transferencia">
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Transferência
+              </Link>
+            </Button>
+          </div>
         }
       />
 
