@@ -286,6 +286,10 @@ model DocumentoViatura {
   estado            EstadoDocumento     @default(VALIDO)
   prazoAlertaDias   Int                 @default(30)
   anexo             String?
+  /// Key do objeto no storage (S3/local); precede `anexo` no download. WS-DOC-CORE.
+  storageKey        String?
+  contentType       String?
+  tamanhoBytes      Int?
   observacoes       String?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
@@ -403,6 +407,10 @@ model DocumentoMotorista {
   /// Calculado pelo job F3; nunca vem do cliente
   estado           EstadoDocumento        @default(VALIDO)
   anexo            String?
+  /// Key do objeto no storage (S3/local); precede `anexo` no download. WS-DOC-CORE.
+  storageKey       String?
+  contentType      String?
+  tamanhoBytes     Int?
   observacoes      String?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
