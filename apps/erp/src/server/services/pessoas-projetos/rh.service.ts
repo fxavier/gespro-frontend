@@ -760,4 +760,20 @@ export const FormacaoService = {
       { cursor: filter.cursor, take: filter.take ?? 25 },
     );
   },
+
+  async obter(id: string, ctx: Ctx) {
+    const formacao = await prisma.formacao.findFirst({
+      where: { id, tenantId: ctx.tenantId },
+      include: {
+        participantes: {
+          include: {
+            colaborador: { select: { id: true, nome: true, codigo: true } },
+          },
+          orderBy: { dataInscricao: 'asc' },
+        },
+      },
+    });
+    if (!formacao) throw new NotFoundError('Formação não encontrada');
+    return formacao;
+  },
 };

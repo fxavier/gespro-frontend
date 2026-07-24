@@ -51,6 +51,14 @@ export const TRANSICOES_PAYROLL: Record<string, string[]> = {
   CANCELADO: [],
 };
 
+// Formação — Spec 05 (Wave 7). Espelha TRANSICOES_FORMACAO em rh.interface.ts.
+export const TRANSICOES_FORMACAO: Record<string, string[]> = {
+  PLANEADA: ['EM_ANDAMENTO', 'CANCELADA'],
+  EM_ANDAMENTO: ['CONCLUIDA', 'CANCELADA'],
+  CONCLUIDA: [],
+  CANCELADA: [],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Recrutamento — Spec 07
 // ─────────────────────────────────────────────────────────────────────────────
