@@ -104,6 +104,7 @@ module "storage" {
   project         = local.project
   environment     = local.environment
   expiration_days = 30
+  allowed_origins = [var.app_url]
   tags            = local.default_tags
 }
 

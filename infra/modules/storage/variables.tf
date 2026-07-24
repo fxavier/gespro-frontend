@@ -14,6 +14,12 @@ variable "expiration_days" {
   default     = 30
 }
 
+variable "allowed_origins" {
+  description = "Origens (ALLOWED_ORIGINS) permitidas no CORS do bucket para upload/download directo. NUNCA usar wildcard em produção."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Tags adicionais"
   type        = map(string)

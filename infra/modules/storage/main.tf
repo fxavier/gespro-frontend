@@ -65,6 +65,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
     }
   }
 
+  # Objectos órfãos (presign sem registo subsequente) — aborta multipart incompletos.
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
   rule {
     id     = "expire-noncurrent-versions"
     status = "Enabled"
@@ -77,13 +89,15 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   }
 }
 
+# CORS: só PUT/GET (upload directo + download por presigned URL), restrito às
+# origens da app (ALLOWED_ORIGINS). NUNCA wildcard em produção — ver spec 01 §7.
 resource "aws_s3_bucket_cors_configuration" "uploads" {
   bucket = aws_s3_bucket.uploads.id
 
   cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "PUT", "POST"]
-    allowed_origins = ["*"] # Restringir ao domínio da app em prod
+    allowed_headers = ["Content-Type"]
+    allowed_methods = ["GET", "PUT"]
+    allowed_origins = var.allowed_origins
     expose_headers  = ["ETag"]
     max_age_seconds = 3600
   }

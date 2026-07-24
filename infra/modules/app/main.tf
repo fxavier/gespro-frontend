@@ -121,14 +121,13 @@ resource "aws_iam_role" "apprunner_instance" {
 data "aws_iam_policy_document" "apprunner_s3" {
   statement {
     effect = "Allow"
+    # Política mínima (spec 01 §Infra): apenas operações de objecto no bucket.
     actions = [
       "s3:GetObject",
       "s3:PutObject",
       "s3:DeleteObject",
-      "s3:ListBucket",
     ]
     resources = [
-      var.s3_bucket_arn,
       "${var.s3_bucket_arn}/*",
     ]
   }
@@ -210,6 +209,11 @@ resource "aws_apprunner_service" "main" {
           S3_BUCKET_NAME = var.s3_bucket_name
           AWS_REGION     = var.aws_region
           APP_VERSION    = var.image_tag
+
+          # Storage de documentos (WS-DOC-CORE / spec 01)
+          STORAGE_DRIVER = "s3"
+          S3_BUCKET      = var.s3_bucket_name
+          S3_REGION      = var.aws_region
         }
 
         # Segredos injectados do Secrets Manager em runtime.
