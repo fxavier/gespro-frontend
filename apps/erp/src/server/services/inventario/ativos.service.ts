@@ -3,7 +3,8 @@ import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
-import { getObjectStorage, urlRefParaKey } from '@/lib/storage/objeto';
+import { getObjectStorage, urlRefParaKey, prefixoTenant } from '@/lib/storage/objeto';
+import { logger } from '@/server/observability/logger';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type {
   AtivoCreate,
@@ -322,6 +323,18 @@ async function arquivarAtivo(id: string, ctx: Ctx): Promise<void> {
 // ─── Documentos ───────────────────────────────────────────────────────────────
 
 async function adicionarDocumento(data: DocumentoAtivoCreate, ctx: Ctx): Promise<DocumentoAtivoDto> {
+  // Isolamento multi-tenant (B1): a key/urlRef vem do cliente (derivada no
+  // presign server-side, mas reenviada). Nunca persistir uma key que aponte
+  // para fora do prefixo do tenant — senão o delete/download apagaria/lería
+  // objetos de outro tenant. Rejeita na ESCRITA para que nunca entre na BD.
+  const keyCandidata = data.storageKey ?? urlRefParaKey(data.url);
+  if (keyCandidata && !keyCandidata.startsWith(prefixoTenant(ctx.tenantId))) {
+    throw new BusinessRuleError(
+      'KEY_FORA_DO_TENANT',
+      'A referência do documento não pertence ao tenant',
+    );
+  }
+
   const doc = await prisma.documentoAtivo.create({
     data: {
       tenantId: ctx.tenantId,
@@ -348,20 +361,19 @@ async function removerDocumento(documentoId: string, ctx: Ctx): Promise<void> {
   if (!doc) throw new NotFoundError('Documento não encontrado');
 
   // WS-DOC-CORE (gap 3): apaga o objeto no storage antes do metadado.
-  // A key vem de `storageKey`; em falta, tenta extrair da ref opaca em `url`.
-  let key = doc.storageKey ?? null;
-  if (!key && doc.url) {
-    try {
-      key = urlRefParaKey(doc.url);
-    } catch {
-      key = null; // url http legada / não-ref → sem objeto a apagar
-    }
-  }
-  if (key) {
+  // A key vem de `storageKey`; em falta, extrai-se da ref opaca em `url`
+  // (http legada / não-ref → null, sem objeto a apagar).
+  const key = doc.storageKey ?? (doc.url ? urlRefParaKey(doc.url) : null);
+
+  // Defesa em profundidade (B1): mesmo que uma key forjada tivesse entrado na
+  // BD, nunca apagar um objeto fora do prefixo do tenant.
+  if (key && key.startsWith(prefixoTenant(ctx.tenantId))) {
     try {
       await getObjectStorage().delete(key);
-    } catch {
-      // remoção de objeto é best-effort/idempotente; não bloqueia o metadado
+    } catch (err) {
+      // Best-effort/idempotente: não bloqueia a remoção do metadado, mas
+      // regista para não deixar objetos órfãos sem rasto.
+      logger.warn({ err, key }, 'falha ao remover objeto de storage do documento de ativo');
     }
   }
 

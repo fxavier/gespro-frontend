@@ -84,6 +84,27 @@ a app **exige** a migração aplicada em runtime.
   irmãos). Fica para a integração. `STORAGE_DRIVER` não definido em `.env` → default `local`
   (upload/download funcionam sem AWS).
 
+## Segurança — isolamento multi-tenant (B1, corrigido)
+
+**Vetor** (mesmo do B1 do doc-core, aqui em documentos de activo): a `meta.key`/`urlRef`
+é derivada server-side no presign mas **volta ao cliente** e é reenviada por
+`adicionarDocumentoAtivoAction` (`storageKey`/`url`). Um utilizador do tenant A podia registar
+um doc com `storageKey:"tenant/{B}/…"` (ou `url:"gestpro-storage:tenant/{B}/…"`, que passa
+`z.string().url()`): a linha ficava scoped a A, mas ao remover, `getObjectStorage().delete(key)`
+apagaria o objeto de storage do tenant B (e a mesma key alimentava o `presignGet` no download).
+
+**Correção (fechada na ESCRITA + defesa em profundidade):**
+- `adicionarDocumento`: resolve a key candidata (`storageKey ?? urlRefParaKey(url)`) e, se ela
+  **não** `startsWith(prefixoTenant(ctx.tenantId))`, lança `BusinessRuleError('KEY_FORA_DO_TENANT')`
+  — uma key forjada nunca entra na BD.
+- `removerDocumento`: só chama `.delete(key)` se `key.startsWith(prefixoTenant(ctx.tenantId))`;
+  falha do delete é logada (`logger.warn`) sem bloquear a remoção do metadado.
+
+**Follow-up (M1, pré-existente — NÃO feito aqui):** `adicionarDocumento` não valida a **posse do
+`ativoId`** no tenant antes de anexar (o `ativoId` vem do cliente). A escrita fica scoped a A pela
+extensão, mas convém validar explicitamente que o ativo existe no tenant. A registar por quem detém
+o contrato de documentos.
+
 ## Dívida / gaps
 
 - **Validade opcional do documento (RF2)**: não implementada — não há campo `validade`/`dataValidade`
