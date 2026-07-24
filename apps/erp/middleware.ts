@@ -26,6 +26,8 @@ const PUBLIC_PATHS = [
   // Callback de handoff site→app: valida o token e estabelece a sessão. Já
   // coberto pelo prefixo '/auth/', listado por ser contrato com a spec 18.
   '/auth/registo-callback',
+  // Página pública de contacto/suporte, ligada a partir do ecrã de login.
+  '/contactos',
   '/_next/',
   '/favicon.ico',
 ];
