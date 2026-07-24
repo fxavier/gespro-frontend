@@ -51,6 +51,14 @@ export const TRANSICOES_PAYROLL: Record<string, string[]> = {
   CANCELADO: [],
 };
 
+// Formação — Spec 05 (Wave 7). Espelha TRANSICOES_FORMACAO em rh.interface.ts.
+export const TRANSICOES_FORMACAO: Record<string, string[]> = {
+  PLANEADA: ['EM_ANDAMENTO', 'CANCELADA'],
+  EM_ANDAMENTO: ['CONCLUIDA', 'CANCELADA'],
+  CONCLUIDA: [],
+  CANCELADA: [],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Recrutamento — Spec 07
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,6 +131,45 @@ export const TRANSICOES_QUALIDADE: Record<string, string[]> = {
   EM_ANALISE: ['RESOLVIDA', 'FECHADA'],
   RESOLVIDA: ['FECHADA'],
   FECHADA: [],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spec 06 (Wave 7) — Transporte & Logística
+// Espelham TRANSICOES_* das interfaces server-only (operacoes/*.interface.ts).
+// Usados nos componentes-folha de acções para mostrar só transições válidas.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const TRANSICOES_VIATURA: Record<string, string[]> = {
+  DISPONIVEL: ['EM_ACTIVIDADE', 'EM_MANUTENCAO', 'INACTIVA', 'ABATIDA'],
+  EM_ACTIVIDADE: ['DISPONIVEL'],
+  EM_MANUTENCAO: ['DISPONIVEL', 'INACTIVA'],
+  INACTIVA: ['DISPONIVEL', 'ABATIDA'],
+  ABATIDA: [],
+};
+
+export const TRANSICOES_ROTA: Record<string, string[]> = {
+  PLANEADA: ['ATIVA', 'CANCELADA'],
+  ATIVA: ['PAUSADA', 'CONCLUIDA', 'CANCELADA'],
+  PAUSADA: ['ATIVA', 'CANCELADA'],
+  CONCLUIDA: [],
+  CANCELADA: [],
+};
+
+export const TRANSICOES_ATIVIDADE: Record<string, string[]> = {
+  PLANEADA: ['EM_CURSO', 'CANCELADA'],
+  EM_CURSO: ['SUSPENSA', 'CONCLUIDA', 'CANCELADA'],
+  SUSPENSA: ['EM_CURSO', 'CANCELADA'],
+  CONCLUIDA: [],
+  CANCELADA: [],
+};
+
+export const TRANSICOES_ENTREGA: Record<string, string[]> = {
+  PENDENTE: ['AGENDADA', 'CANCELADA'],
+  AGENDADA: ['EM_TRANSITO', 'CANCELADA'],
+  EM_TRANSITO: ['ENTREGUE', 'FALHADA'],
+  FALHADA: ['AGENDADA', 'CANCELADA'],
+  ENTREGUE: [],
+  CANCELADA: [],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

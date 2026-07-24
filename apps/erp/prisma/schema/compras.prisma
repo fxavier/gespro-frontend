@@ -321,6 +321,10 @@ model DocumentoFornecedor {
   dataUpload   DateTime                @default(now())
   dataValidade DateTime?
   url          String
+  /// Key do objeto no storage (S3/local); precede `url` no download. WS-DOC-CORE.
+  storageKey   String?
+  contentType  String?
+  tamanhoBytes Int?
   observacoes  String?
   createdAt    DateTime                @default(now())
   updatedAt    DateTime                @updatedAt

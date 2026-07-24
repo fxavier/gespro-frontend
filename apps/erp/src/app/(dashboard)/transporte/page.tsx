@@ -12,12 +12,14 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Truck, User, Activity, AlertTriangle, Wrench, Fuel, MapPin, Plus } from 'lucide-react';
+import { Truck, User, Activity, AlertTriangle, Wrench, Fuel, MapPin, Plus, Package } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { viaturaService } from '@/server/services/operacoes/viatura.service';
 import { atividadeService } from '@/server/services/operacoes/atividade.service';
 import { motoristaService } from '@/server/services/operacoes/motorista.service';
+import { entregaService } from '@/server/services/operacoes/entrega.service';
+import { abastecimentoService } from '@/server/services/operacoes/abastecimento.service';
 import { gerarAlertasDocumentos, gerarAlertasManutencao } from '@/server/services/operacoes/alertas.service';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
@@ -32,7 +34,7 @@ import { KpiSkeleton } from './_components/table-skeletons';
 async function TransporteKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
 
-  const [viaturasResult, atividadesResult, motoristasResult] = await Promise.all([
+  const [viaturasResult, atividadesResult, motoristasResult, entregasResult, abastecimentosResult] = await Promise.all([
     runWithTenantContext(ctx, () =>
       viaturaService.listarViaturas({ take: 100, orderBy: 'createdAt', order: 'desc' }, ctx)
     ),
@@ -42,12 +44,26 @@ async function TransporteKpis({ tenantId, userId }: { tenantId: string; userId: 
     runWithTenantContext(ctx, () =>
       motoristaService.listarMotoristas({ take: 100, orderBy: 'createdAt', order: 'desc' }, ctx)
     ),
+    runWithTenantContext(ctx, () =>
+      entregaService.listarEntregas({ take: 200, orderBy: 'dataAgendada', order: 'desc' }, ctx)
+    ),
+    runWithTenantContext(ctx, () =>
+      abastecimentoService.listarAbastecimentos({ take: 200, orderBy: 'data', order: 'desc' }, ctx)
+    ),
   ]);
 
   const viaturasDisponiveis = viaturasResult.items.filter((v) => v.estado === 'DISPONIVEL').length;
   const atividadesEmCurso = atividadesResult.items.filter((a) => a.estado === 'EM_CURSO').length;
   const totalViaturas = viaturasResult.items.length;
   const totalAtividades = atividadesResult.items.length;
+
+  const entregasEmTransito = entregasResult.items.filter((e) => e.estado === 'EM_TRANSITO').length;
+  const entregasEntregues = entregasResult.items.filter((e) => e.estado === 'ENTREGUE').length;
+  const entregasNoPrazo = entregasResult.items.filter(
+    (e) => e.estado === 'ENTREGUE' && e.dataEntrega && new Date(e.dataEntrega) <= new Date(e.dataAgendada)
+  ).length;
+  const taxaNoPrazo = entregasEntregues > 0 ? Math.round((entregasNoPrazo / entregasEntregues) * 100) : 0;
+  const custoCombustivel = abastecimentosResult.items.reduce((sum, a) => sum + parseFloat(a.valorTotal), 0);
 
   // Alertas operacionais — requere documentos; buscar viaturas com documentos
   const viaturasComDocs = await runWithTenantContext(ctx, async () =>
@@ -111,6 +127,28 @@ async function TransporteKpis({ tenantId, userId }: { tenantId: string; userId: 
           icon={<Truck className="h-5 w-5" />}
         />
         <KpiCard
+          title="Entregas em Trânsito"
+          value={String(entregasEmTransito)}
+          description={entregasEntregues > 0 ? `${taxaNoPrazo}% no prazo (${entregasEntregues} entregues)` : 'sem entregas concluídas'}
+          icon={<Package className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Custo de Combustível"
+          value={`MZN ${custoCombustivel.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+          description="total de abastecimentos"
+          icon={<Fuel className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Alertas Activos"
+          value={String(todosAlertas.length)}
+          description="documentos e manutenção"
+          icon={<AlertTriangle className="h-5 w-5" />}
+        />
+      </div>
+
+      {/* KPIs secundários */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
           title="Atividades em Curso"
           value={String(atividadesEmCurso)}
           description={`de ${totalAtividades} atividades`}
@@ -120,12 +158,6 @@ async function TransporteKpis({ tenantId, userId }: { tenantId: string; userId: 
           title="Total de Motoristas"
           value={String(motoristasResult.items.length)}
           icon={<User className="h-5 w-5" />}
-        />
-        <KpiCard
-          title="Alertas Activos"
-          value={String(todosAlertas.length)}
-          description="documentos e manutenção"
-          icon={<AlertTriangle className="h-5 w-5" />}
         />
       </div>
 

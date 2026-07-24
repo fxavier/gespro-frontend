@@ -57,7 +57,7 @@ async function KpiSection({ tenantId, userId }: { tenantId: string; userId: stri
 
 const SHORTCUTS = [
   { label: 'Produtos', href: '/produtos', icon: Package, desc: 'Catálogo de produtos e serviços' },
-  { label: 'Movimentações', href: '/stock/movimentacao', icon: PackageOpen, desc: 'Entradas, saídas e transferências' },
+  { label: 'Movimentações', href: '/inventario/movimentacoes', icon: PackageOpen, desc: 'Entradas, saídas e transferências' },
   { label: 'Reposição', href: '/stock/reposicao', icon: PackagePlus, desc: 'Produtos com stock baixo' },
   { label: 'Localizações', href: '/inventario/localizacoes', icon: Package, desc: 'Armazéns e áreas de stock' },
 ];
@@ -76,7 +76,7 @@ export default async function StockDashboardPage() {
         breadcrumbs={[{ label: 'Stock', href: '/stock' }, { label: 'Dashboard' }]}
         actions={
           <Button asChild size="sm">
-            <Link href="/stock/movimentacao/nova">
+            <Link href="/inventario/movimentacoes/nova">
               <PackagePlus className="h-4 w-4 mr-2" />
               Nova Movimentação
             </Link>
