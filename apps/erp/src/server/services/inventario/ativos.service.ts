@@ -3,6 +3,8 @@ import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
+import { getObjectStorage, urlRefParaKey, prefixoTenant } from '@/lib/storage/objeto';
+import { logger } from '@/server/observability/logger';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type {
   AtivoCreate,
@@ -321,6 +323,18 @@ async function arquivarAtivo(id: string, ctx: Ctx): Promise<void> {
 // ─── Documentos ───────────────────────────────────────────────────────────────
 
 async function adicionarDocumento(data: DocumentoAtivoCreate, ctx: Ctx): Promise<DocumentoAtivoDto> {
+  // Isolamento multi-tenant (B1): a key/urlRef vem do cliente (derivada no
+  // presign server-side, mas reenviada). Nunca persistir uma key que aponte
+  // para fora do prefixo do tenant — senão o delete/download apagaria/lería
+  // objetos de outro tenant. Rejeita na ESCRITA para que nunca entre na BD.
+  const keyCandidata = data.storageKey ?? urlRefParaKey(data.url);
+  if (keyCandidata && !keyCandidata.startsWith(prefixoTenant(ctx.tenantId))) {
+    throw new BusinessRuleError(
+      'KEY_FORA_DO_TENANT',
+      'A referência do documento não pertence ao tenant',
+    );
+  }
+
   const doc = await prisma.documentoAtivo.create({
     data: {
       tenantId: ctx.tenantId,
@@ -329,6 +343,10 @@ async function adicionarDocumento(data: DocumentoAtivoCreate, ctx: Ctx): Promise
       tipo: data.tipo as never,
       url: data.url,
       dataUpload: data.dataUpload ?? new Date(),
+      // Delta WS-DOC-CORE: guarda a key/metadados do objeto para download e remoção.
+      ...(data.storageKey !== undefined ? { storageKey: data.storageKey } : {}),
+      ...(data.contentType !== undefined ? { contentType: data.contentType } : {}),
+      ...(data.tamanhoBytes !== undefined ? { tamanhoBytes: data.tamanhoBytes } : {}),
     },
     select: { id: true, ativoId: true, nome: true, tipo: true, url: true, dataUpload: true },
   });
@@ -336,8 +354,29 @@ async function adicionarDocumento(data: DocumentoAtivoCreate, ctx: Ctx): Promise
 }
 
 async function removerDocumento(documentoId: string, ctx: Ctx): Promise<void> {
-  const doc = await prisma.documentoAtivo.findFirst({ where: { id: documentoId, tenantId: ctx.tenantId } });
+  const doc = await prisma.documentoAtivo.findFirst({
+    where: { id: documentoId, tenantId: ctx.tenantId },
+    select: { id: true, storageKey: true, url: true },
+  });
   if (!doc) throw new NotFoundError('Documento não encontrado');
+
+  // WS-DOC-CORE (gap 3): apaga o objeto no storage antes do metadado.
+  // A key vem de `storageKey`; em falta, extrai-se da ref opaca em `url`
+  // (http legada / não-ref → null, sem objeto a apagar).
+  const key = doc.storageKey ?? (doc.url ? urlRefParaKey(doc.url) : null);
+
+  // Defesa em profundidade (B1): mesmo que uma key forjada tivesse entrado na
+  // BD, nunca apagar um objeto fora do prefixo do tenant.
+  if (key && key.startsWith(prefixoTenant(ctx.tenantId))) {
+    try {
+      await getObjectStorage().delete(key);
+    } catch (err) {
+      // Best-effort/idempotente: não bloqueia a remoção do metadado, mas
+      // regista para não deixar objetos órfãos sem rasto.
+      logger.warn({ err, key }, 'falha ao remover objeto de storage do documento de ativo');
+    }
+  }
+
   await prisma.documentoAtivo.delete({ where: { id: documentoId } });
 }
 

@@ -163,6 +163,10 @@ export const DocumentoAtivoCreateSchema = z.object({
   tipo: TipoDocumentoAtivoEnum,
   url: z.string().url('URL do documento inválida'),
   dataUpload: z.coerce.date().optional(),
+  // Delta WS-DOC-CORE (aditivo/nullable): metadados do objeto no storage.
+  storageKey: z.string().max(1024).optional(),
+  contentType: z.string().max(200).optional(),
+  tamanhoBytes: z.coerce.number().int().nonnegative().optional(),
 });
 
 export type DocumentoAtivoCreate = z.infer<typeof DocumentoAtivoCreateSchema>;
