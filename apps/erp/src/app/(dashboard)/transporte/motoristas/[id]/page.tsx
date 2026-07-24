@@ -13,6 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import type { MotoristaDetalhe } from '@/server/services/operacoes/motorista.service';
+import { MotoristaComandos } from '../_components/motorista-comandos';
+import { DocumentoUploadForm } from '../../_components/documento-upload-form';
+
+const TIPOS_DOC_MOTORISTA = [
+  { value: 'CARTA_CONDUCAO', label: 'Carta de Condução' },
+  { value: 'BI', label: 'Bilhete de Identidade' },
+  { value: 'OUTRO', label: 'Outro' },
+];
 
 const DOC_ESTADO_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   VALIDO: 'default',
@@ -79,7 +87,15 @@ export default async function MotoristaDetalhePage({ params }: PageProps) {
             label: 'Documentos',
             count: motorista.documentos.length,
             content: (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {podeEditar && (
+                  <Card>
+                    <CardContent className="p-5">
+                      <p className="font-medium text-sm mb-3">Adicionar Documento</p>
+                      <DocumentoUploadForm recurso="motorista" recursoId={motorista.id} tipos={TIPOS_DOC_MOTORISTA} />
+                    </CardContent>
+                  </Card>
+                )}
                 {motorista.documentos.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
                     Sem documentos registados.
@@ -101,6 +117,12 @@ export default async function MotoristaDetalhePage({ params }: PageProps) {
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">N.º {doc.numero}</p>
+                            <a
+                              href={`/api/documentos/${doc.id}/download?recurso=motorista`}
+                              className="text-xs text-primary hover:underline inline-block mt-1"
+                            >
+                              Descarregar ficheiro
+                            </a>
                           </div>
                           <div className="text-right text-xs text-muted-foreground flex-shrink-0">
                             <p>Validade: {new Date(doc.dataValidade).toLocaleDateString('pt-MZ', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
@@ -117,6 +139,13 @@ export default async function MotoristaDetalhePage({ params }: PageProps) {
             key: 'disponibilidade',
             label: 'Disponibilidade',
             content: (
+              <div className="space-y-4">
+                {podeEditar && (
+                  <MotoristaComandos
+                    motoristaId={motorista.id}
+                    disponivelActual={motorista.disponibilidade?.disponivel ?? true}
+                  />
+                )}
               <Card>
                 <CardContent className="p-5">
                   {motorista.disponibilidade ? (
@@ -140,6 +169,7 @@ export default async function MotoristaDetalhePage({ params }: PageProps) {
                   )}
                 </CardContent>
               </Card>
+              </div>
             ),
           },
         ]}
