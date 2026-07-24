@@ -3,6 +3,7 @@ import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
+import { getObjectStorage, urlRefParaKey } from '@/lib/storage/objeto';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type {
   AtivoCreate,
@@ -329,6 +330,10 @@ async function adicionarDocumento(data: DocumentoAtivoCreate, ctx: Ctx): Promise
       tipo: data.tipo as never,
       url: data.url,
       dataUpload: data.dataUpload ?? new Date(),
+      // Delta WS-DOC-CORE: guarda a key/metadados do objeto para download e remoção.
+      ...(data.storageKey !== undefined ? { storageKey: data.storageKey } : {}),
+      ...(data.contentType !== undefined ? { contentType: data.contentType } : {}),
+      ...(data.tamanhoBytes !== undefined ? { tamanhoBytes: data.tamanhoBytes } : {}),
     },
     select: { id: true, ativoId: true, nome: true, tipo: true, url: true, dataUpload: true },
   });
@@ -336,8 +341,30 @@ async function adicionarDocumento(data: DocumentoAtivoCreate, ctx: Ctx): Promise
 }
 
 async function removerDocumento(documentoId: string, ctx: Ctx): Promise<void> {
-  const doc = await prisma.documentoAtivo.findFirst({ where: { id: documentoId, tenantId: ctx.tenantId } });
+  const doc = await prisma.documentoAtivo.findFirst({
+    where: { id: documentoId, tenantId: ctx.tenantId },
+    select: { id: true, storageKey: true, url: true },
+  });
   if (!doc) throw new NotFoundError('Documento não encontrado');
+
+  // WS-DOC-CORE (gap 3): apaga o objeto no storage antes do metadado.
+  // A key vem de `storageKey`; em falta, tenta extrair da ref opaca em `url`.
+  let key = doc.storageKey ?? null;
+  if (!key && doc.url) {
+    try {
+      key = urlRefParaKey(doc.url);
+    } catch {
+      key = null; // url http legada / não-ref → sem objeto a apagar
+    }
+  }
+  if (key) {
+    try {
+      await getObjectStorage().delete(key);
+    } catch {
+      // remoção de objeto é best-effort/idempotente; não bloqueia o metadado
+    }
+  }
+
   await prisma.documentoAtivo.delete({ where: { id: documentoId } });
 }
 

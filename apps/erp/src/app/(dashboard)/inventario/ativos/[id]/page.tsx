@@ -4,21 +4,14 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Edit, ArrowLeft, FileText, History } from 'lucide-react';
+import { Edit, ArrowLeft } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ativosService } from '@/server/services/inventario/ativos.service';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
 import { AtivoAcoes } from '../_components/ativo-acoes';
+import { DocumentosAtivo } from './_components/documentos-ativo';
 
 const ESTADO_VARIANTES: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'info' | 'outline'> = {
   NOVO: 'info',
@@ -166,35 +159,8 @@ export default async function AtivoDetalhePage({ params }: Props) {
     </div>
   );
 
-  // Aba: Documentos
-  const tabDocumentos = (
-    <div className="space-y-3">
-      {ativo.documentos.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4 text-center">
-          Nenhum documento anexado a este ativo.
-        </p>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-3">
-          {ativo.documentos.map((doc) => (
-            <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">{doc.nome}</p>
-                  <p className="text-xs text-muted-foreground">{doc.tipo}</p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                  Ver
-                </a>
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  // Aba: Documentos (upload real + download seguro + remoção — WS-DOC-CORE)
+  const tabDocumentos = <DocumentosAtivo ativoId={ativo.id} documentos={ativo.documentos} />;
 
   // Aba: Amortização
   const tabAmortizacao = (
