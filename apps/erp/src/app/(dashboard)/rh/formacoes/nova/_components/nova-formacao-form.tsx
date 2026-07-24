@@ -123,6 +123,7 @@ export function NovaFormacaoForm() {
     <Form {...form}>
       <UnsavedChangesGuard isDirty={isDirty} />
 
+      <form onSubmit={onSubmit}>
       <FormPage
         actions={
           <>
@@ -136,7 +137,7 @@ export function NovaFormacaoForm() {
               <X className="h-4 w-4 mr-1.5" />
               Cancelar
             </Button>
-            <Button type="submit" size="sm" disabled={isPending} onClick={onSubmit}>
+            <Button type="submit" size="sm" disabled={isPending}>
               <Save className="h-4 w-4 mr-1.5" />
               {isPending ? 'A guardar...' : 'Guardar Formação'}
             </Button>
@@ -391,6 +392,7 @@ export function NovaFormacaoForm() {
           </div>
         )}
       </FormPage>
+      </form>
     </Form>
   );
 }

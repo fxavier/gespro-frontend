@@ -106,6 +106,11 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   FERIAS: 'info',
   AFASTADO: 'warning',
   DESLIGADO: 'secondary',
+  // ParticipanteFormacao — Spec 05 Wave 7 (CONFIRMADO/APROVADO já definidos acima)
+  INSCRITO: 'info',
+  PRESENTE: 'success',
+  AUSENTE: 'secondary',
+  REPROVADO: 'destructive',
   // Payroll — Spec 06 (PENDENTE/CANCELADO já definidos acima)
   PROCESSADO: 'info',
   PAGO: 'success',
@@ -376,6 +381,11 @@ export const STATUS_LABELS: Record<string, string> = {
   // RH adicional
   INACTIVO: 'Inactivo',
   PERIODO_EXPERIMENTAL: 'Período Experimental',
+  // ParticipanteFormacao — Spec 05 Wave 7 (CONFIRMADO/APROVADO já definidos acima)
+  INSCRITO: 'Inscrito',
+  PRESENTE: 'Presente',
+  AUSENTE: 'Ausente',
+  REPROVADO: 'Reprovado',
 
   // Prioridades
   URGENTE: 'Urgente',
