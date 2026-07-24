@@ -34,3 +34,10 @@ export type { StepperStep } from './stepper';
 export { UnsavedChangesGuard } from './unsaved-changes-guard';
 
 export { PageLoading } from './page-loading';
+
+export { UploadDocumento } from './upload-documento';
+export type {
+  UploadDocumentoProps,
+  UploadDocumentoMeta,
+  RegistoResultado,
+} from './upload-documento';
