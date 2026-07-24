@@ -53,9 +53,12 @@ após sucesso. O contador das abas "Contactos"/"Documentos" (SC `obter()` com
 - `pnpm db:generate` → OK (schema com delta de doc-core).
 - `npx vitest run src/lib/validations/__tests__/fornecedores.test.ts` → **14/14**.
 - `node scripts/gates.mjs` → **OK** (dialog / use-client / data-imports a zero).
-- `pnpm check` → ver `RESULTADO_CHECK` abaixo (preenchido pelo orquestrador na
-  integração se o ambiente estava saturado; localmente tsc esteve muito lento por
-  contenção com outros worktrees a correr `check` em paralelo).
+- `pnpm check` → **VERDE** (`prisma validate` + `tsc --noEmit` + `eslint .` +
+  `vitest run`: **1184/1184 testes, 75 ficheiros**). Nota: o ambiente esteve
+  muito saturado (load avg >170 por vários worktrees a correr `check` em
+  paralelo), pelo que as primeiras tentativas foram mortas por SIGTERM antes de
+  concluir; o `check` só passou quando a carga baixou.
+- `node scripts/gates.mjs` → **OK** (repetido, a zero).
 
 ## Gaps / notas para o orquestrador
 
