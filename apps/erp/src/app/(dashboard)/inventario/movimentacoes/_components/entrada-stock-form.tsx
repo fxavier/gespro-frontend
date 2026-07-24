@@ -92,7 +92,11 @@ export function EntradaStockForm({ produtos, localizacoes }: Props) {
   }, [state, form, router]);
 
   const onSubmit = form.handleSubmit((data) =>
-    dispatch({ ...data, varianteProdutoId: data.varianteProdutoId || undefined }),
+    dispatch({
+      ...data,
+      varianteProdutoId: data.varianteProdutoId || undefined,
+      documentoReferenciaId: data.documentoReferenciaId || undefined,
+    }),
   );
 
   const isDirty = form.formState.isDirty;
