@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { criarAtividadeAction, atualizarAtividadeAction } from '@/server/actions/transporte.actions';
+import { CriarAtividadeSchema } from '@/lib/validations/transporte';
 
 interface Opcao {
   id: string;
@@ -92,10 +93,19 @@ export function AtividadeForm({ viaturas, motoristas, atividade }: AtividadeForm
       observacoes: (data.get('observacoes') as string)?.trim() || undefined,
     };
 
+    // Valida no cliente com o schema partilhado; narrowa os enums (string → união).
+    const parsed = CriarAtividadeSchema.safeParse({ ...base, anexos: [] });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Dados inválidos.');
+      return;
+    }
+    // Em edição não mexemos nos anexos (o form não os gere) → removê-los do payload.
+    const { anexos: _anexos, ...semAnexos } = parsed.data;
+
     startTransition(async () => {
       const result = edicao
-        ? await atualizarAtividadeAction({ id: atividade!.id, ...base })
-        : await criarAtividadeAction({ ...base, anexos: [] });
+        ? await atualizarAtividadeAction({ id: atividade!.id, ...semAnexos })
+        : await criarAtividadeAction(parsed.data);
 
       if (result.ok) {
         toast.success(edicao ? 'Atividade atualizada.' : 'Atividade criada.');

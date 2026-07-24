@@ -26,6 +26,7 @@ import {
   criarViaturaAction,
   atualizarViaturaAction,
 } from '@/server/actions/transporte.actions';
+import { CriarViaturaSchema } from '@/lib/validations/transporte';
 
 interface MotoristaOpcao {
   id: string;
@@ -94,10 +95,17 @@ export function ViaturaForm({ motoristas, viatura }: ViaturaFormProps) {
       observacoes: (data.get('observacoes') as string)?.trim() || undefined,
     };
 
+    // Valida no cliente com o schema partilhado; narrowa os enums (string → união).
+    const parsed = CriarViaturaSchema.safeParse(base);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Dados inválidos.');
+      return;
+    }
+
     startTransition(async () => {
       const result = edicao
-        ? await atualizarViaturaAction({ id: viatura!.id, ...base })
-        : await criarViaturaAction(base);
+        ? await atualizarViaturaAction({ id: viatura!.id, ...parsed.data })
+        : await criarViaturaAction(parsed.data);
 
       if (result.ok) {
         toast.success(edicao ? 'Viatura atualizada.' : 'Viatura registada.');
