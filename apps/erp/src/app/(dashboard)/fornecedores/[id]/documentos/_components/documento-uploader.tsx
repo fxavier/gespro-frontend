@@ -50,7 +50,7 @@ export function DocumentoUploader({ fornecedorId, voltarHref }: Props) {
       storageKey: meta.key,
       contentType: meta.contentType,
       tamanhoBytes: meta.tamanho,
-      ...(dataValidade ? { dataValidade } : {}),
+      ...(dataValidade ? { dataValidade: new Date(dataValidade) } : {}),
     });
   }
 
