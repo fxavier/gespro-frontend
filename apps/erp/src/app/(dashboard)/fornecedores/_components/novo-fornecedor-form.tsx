@@ -102,13 +102,9 @@ export function NovoFornecedorForm() {
 
   const isDirty = form.formState.isDirty;
 
+  // A confirmação de alterações não guardadas é responsabilidade única do
+  // <UnsavedChangesGuard>; não duplicar com window.confirm.
   const handleCancel = () => {
-    if (isDirty) {
-      const confirmed = window.confirm(
-        'Tem alterações não guardadas. Tem a certeza que pretende sair?'
-      );
-      if (!confirmed) return;
-    }
     router.push('/fornecedores/lista');
   };
 

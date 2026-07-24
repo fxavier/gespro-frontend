@@ -7,7 +7,7 @@ import { PrismaClient } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
-import { getObjectStorage, urlRefParaKey } from '@/lib/storage/objeto';
+import { getObjectStorage, urlRefParaKey, prefixoTenant } from '@/lib/storage/objeto';
 import { logger } from '@/server/observability/logger';
 import type {
   IFornecedorService,
@@ -242,6 +242,19 @@ export const fornecedorService: IFornecedorService = {
     const fornecedor = await db.fornecedor.findUnique({ where: { id: fornecedorId } });
     if (!fornecedor || fornecedor.tenantId !== ctx.tenantId) throw new NotFoundError('Fornecedor não encontrado');
 
+    // Isolamento multi-tenant (B2): `storageKey`/`url` vêm crus do cliente. Se
+    // resolverem para uma key de storage, tem de pertencer ao prefixo do tenant;
+    // caso contrário, é um metadado envenenado (aponta para o objeto de outro
+    // tenant) e nunca pode chegar à BD — bloquearia a fuga no download e a
+    // remoção do objeto estrangeiro.
+    const keyCandidata = input.storageKey ?? (input.url ? urlRefParaKey(input.url) : null);
+    if (keyCandidata && !keyCandidata.startsWith(prefixoTenant(ctx.tenantId))) {
+      throw new BusinessRuleError(
+        'STORAGE_KEY_CROSS_TENANT',
+        'A referência de armazenamento do documento não pertence a este tenant',
+      );
+    }
+
     const doc = await db.documentoFornecedor.create({
       data: { ...input, tenantId: ctx.tenantId },
     });
@@ -254,14 +267,18 @@ export const fornecedorService: IFornecedorService = {
 
     // RF5: apagar o objeto no storage além do metadado (best-effort — a key
     // vem de `storageKey` ou, em falta, do parse da ref opaca em `url`).
+    // Isolamento multi-tenant (B2): só apaga se a key pertencer ao prefixo do
+    // tenant. Uma key fora do prefixo (metadado envenenado/legado) NUNCA é
+    // apagada — apagaria o objeto de outro tenant. Defesa em profundidade
+    // mesmo com a validação de escrita em `adicionarDocumento`.
     const key = doc.storageKey ?? (doc.url ? urlRefParaKey(doc.url) : null);
-    if (key) {
+    if (key && key.startsWith(prefixoTenant(ctx.tenantId))) {
       try {
         await getObjectStorage().delete(key);
       } catch (e) {
         // O objeto órfão é recolhido pelo lifecycle do bucket; não bloquear
         // a remoção do metadado por uma falha transitória de storage.
-        logger.warn({ documentoId, err: e }, 'falha ao remover objeto de storage do documento');
+        logger.warn({ documentoId, err: e, key }, 'falha ao remover objeto de storage do documento');
       }
     }
 
