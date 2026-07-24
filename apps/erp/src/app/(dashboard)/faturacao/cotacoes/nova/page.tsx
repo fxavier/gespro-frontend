@@ -1,7 +1,7 @@
 /**
- * Nova Fatura Proforma — Server Component shell.
- * Carrega as séries de documento; o cliente é indicado por ID (mesmo padrão de
- * `faturacao/nova`, até haver pesquisa comercial integrada).
+ * Nova Cotação Comercial — Server Component shell.
+ * Carrega as séries de documento para o formulário; o cliente é indicado por ID
+ * (mesmo padrão de `faturacao/nova`, até haver pesquisa comercial integrada).
  */
 
 import { redirect } from 'next/navigation';
@@ -9,9 +9,9 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
 import { PageHeader } from '@/components/patterns';
-import { NovaProformaForm } from './_components/nova-proforma-form';
+import { NovaCotacaoForm } from './_components/nova-cotacao-form';
 
-export default async function NovaProformaPage() {
+export default async function NovaCotacaoPage() {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId } = session.user;
@@ -33,15 +33,15 @@ export default async function NovaProformaPage() {
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title="Nova Fatura Proforma"
-        description="Documento pró-forma para o cliente"
+        title="Nova Cotação"
+        description="Proposta ou orçamento para o cliente"
         breadcrumbs={[
           { label: 'Faturação', href: '/faturacao' },
-          { label: 'Proformas', href: '/faturacao/proforma' },
-          { label: 'Nova Proforma' },
+          { label: 'Cotações', href: '/faturacao/cotacoes' },
+          { label: 'Nova Cotação' },
         ]}
       />
-      <NovaProformaForm series={series} />
+      <NovaCotacaoForm series={series} />
     </div>
   );
 }
