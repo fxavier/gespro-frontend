@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { registarAbastecimentoAction } from '@/server/actions/transporte.actions';
+import { RegistarAbastecimentoSchema } from '@/lib/validations/transporte';
 
 interface Opcao {
   id: string;
@@ -66,21 +67,28 @@ export function AbastecimentoForm({ viaturas, motoristas }: AbastecimentoFormPro
 
     const kmPercorridoRaw = data.get('kmPercorrido') as string;
 
+    // Valida no cliente com o schema partilhado (inclui a regra valorTotal ≈ litros×valor/litro).
+    const parsed = RegistarAbastecimentoSchema.safeParse({
+      viaturaId,
+      motoristaId,
+      data: new Date(data.get('data') as string),
+      kmVeiculo: Number(data.get('kmVeiculo')),
+      tipoCombustivel: data.get('tipoCombustivel') as string,
+      litros,
+      valorLitro,
+      valorTotal,
+      posto: (data.get('posto') as string)?.trim() || undefined,
+      notaFiscal: (data.get('notaFiscal') as string)?.trim() || undefined,
+      kmPercorrido: kmPercorridoRaw ? Number(kmPercorridoRaw) : undefined,
+      observacoes: (data.get('observacoes') as string)?.trim() || undefined,
+    });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Dados inválidos.');
+      return;
+    }
+
     startTransition(async () => {
-      const result = await registarAbastecimentoAction({
-        viaturaId,
-        motoristaId,
-        data: new Date(data.get('data') as string),
-        kmVeiculo: Number(data.get('kmVeiculo')),
-        tipoCombustivel: data.get('tipoCombustivel') as 'GASOLINA' | 'DIESEL' | 'ETANOL' | 'GNV',
-        litros,
-        valorLitro,
-        valorTotal,
-        posto: (data.get('posto') as string)?.trim() || undefined,
-        notaFiscal: (data.get('notaFiscal') as string)?.trim() || undefined,
-        kmPercorrido: kmPercorridoRaw ? Number(kmPercorridoRaw) : undefined,
-        observacoes: (data.get('observacoes') as string)?.trim() || undefined,
-      });
+      const result = await registarAbastecimentoAction(parsed.data);
 
       if (result.ok) {
         toast.success('Abastecimento registado.');

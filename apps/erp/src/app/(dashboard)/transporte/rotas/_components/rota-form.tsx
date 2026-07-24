@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { criarRotaAction, atualizarRotaAction } from '@/server/actions/transporte.actions';
+import { CriarRotaSchema } from '@/lib/validations/transporte';
 
 interface Opcao {
   id: string;
@@ -83,10 +84,17 @@ export function RotaForm({ viaturas, motoristas, rota }: RotaFormProps) {
       observacoes: (data.get('observacoes') as string)?.trim() || undefined,
     };
 
+    // Valida no cliente com o schema partilhado.
+    const parsed = CriarRotaSchema.safeParse(base);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Dados inválidos.');
+      return;
+    }
+
     startTransition(async () => {
       const result = edicao
-        ? await atualizarRotaAction({ id: rota!.id, ...base })
-        : await criarRotaAction(base);
+        ? await atualizarRotaAction({ id: rota!.id, ...parsed.data })
+        : await criarRotaAction(parsed.data);
 
       if (result.ok) {
         toast.success(edicao ? 'Rota atualizada.' : 'Rota criada.');

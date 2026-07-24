@@ -18,6 +18,7 @@ import {
   criarMotoristaAction,
   atualizarMotoristaAction,
 } from '@/server/actions/transporte.actions';
+import { CriarMotoristaSchema } from '@/lib/validations/transporte';
 
 export interface MotoristaFormValores {
   id: string;
@@ -69,10 +70,17 @@ export function MotoristaForm({ motorista }: MotoristaFormProps) {
       observacoes: (data.get('observacoes') as string)?.trim() || undefined,
     };
 
+    // Valida no cliente com o schema partilhado (inclui validadeCarta > emissão).
+    const parsed = CriarMotoristaSchema.safeParse(base);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Dados inválidos.');
+      return;
+    }
+
     startTransition(async () => {
       const result = edicao
-        ? await atualizarMotoristaAction({ id: motorista!.id, ...base })
-        : await criarMotoristaAction(base);
+        ? await atualizarMotoristaAction({ id: motorista!.id, ...parsed.data })
+        : await criarMotoristaAction(parsed.data);
 
       if (result.ok) {
         toast.success(edicao ? 'Motorista atualizado.' : 'Motorista registado.');
