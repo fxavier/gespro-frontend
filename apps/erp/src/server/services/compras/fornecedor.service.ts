@@ -7,6 +7,8 @@ import { PrismaClient } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
+import { getObjectStorage, urlRefParaKey } from '@/lib/storage/objeto';
+import { logger } from '@/server/observability/logger';
 import type {
   IFornecedorService,
   FornecedorResumo,
@@ -249,6 +251,20 @@ export const fornecedorService: IFornecedorService = {
   async removerDocumento(documentoId: string, ctx: Ctx): Promise<void> {
     const doc = await db.documentoFornecedor.findUnique({ where: { id: documentoId } });
     if (!doc || doc.tenantId !== ctx.tenantId) throw new NotFoundError('Documento não encontrado');
+
+    // RF5: apagar o objeto no storage além do metadado (best-effort — a key
+    // vem de `storageKey` ou, em falta, do parse da ref opaca em `url`).
+    const key = doc.storageKey ?? (doc.url ? urlRefParaKey(doc.url) : null);
+    if (key) {
+      try {
+        await getObjectStorage().delete(key);
+      } catch (e) {
+        // O objeto órfão é recolhido pelo lifecycle do bucket; não bloquear
+        // a remoção do metadado por uma falha transitória de storage.
+        logger.warn({ documentoId, err: e }, 'falha ao remover objeto de storage do documento');
+      }
+    }
+
     await db.documentoFornecedor.delete({ where: { id: documentoId } });
   },
 

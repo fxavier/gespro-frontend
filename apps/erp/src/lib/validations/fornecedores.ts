@@ -56,6 +56,11 @@ export const CreateDocumentoFornecedorSchema = z.object({
   nome: z.string().min(1, 'Nome do documento obrigatório').max(200),
   dataValidade: z.coerce.date().optional(),
   url: z.string().url('URL inválida'),
+  // Metadados de armazenamento (WS-DOC-CORE). `url` guarda a ref opaca
+  // (gestpro-storage:{key}); estes campos preservam a key e o tipo/tamanho.
+  storageKey: z.string().max(500).optional(),
+  contentType: z.string().max(150).optional(),
+  tamanhoBytes: z.number().int().nonnegative().optional(),
   observacoes: z.string().max(500).optional(),
 });
 
@@ -103,6 +108,9 @@ export const CreateFornecedorSchema = z.object({
   tags: z.array(z.string().max(50)).default([]),
   // Endereço principal (opcional; pode ser adicionado depois)
   enderecoPrincipal: CreateEnderecoFornecedorSchema.optional(),
+  // Contactos capturados no momento da criação (persistidos atomicamente via
+  // nested create no serviço). Sem `fornecedorId` — ainda não existe.
+  contactos: z.array(CreateContactoFornecedorSchema.omit({ fornecedorId: true })).default([]),
 });
 
 export type CreateFornecedorInput = z.infer<typeof CreateFornecedorSchema>;
