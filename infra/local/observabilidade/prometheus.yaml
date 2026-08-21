@@ -1,0 +1,66 @@
+# Configuração do Prometheus — GestPro ERP (otel-lgtm)
+# Montado em /otel-lgtm/prometheus.yaml no contentor otel-lgtm.
+# Substitui a configuração padrão da imagem (preservando todas as secções originais).
+#
+# Alteração face ao default: adiciona scrape_configs para as instâncias ERP
+# (autorização estreita do orquestrador — ver docs/handoff/w8-observabilidade.md §Fase B).
+#
+# NOTA: O endpoint /api/metrics das instâncias ERP devolve JSON até a imagem ser
+# reconstruída com prom-client (Phase A do w8-observabilidade). Após reconstrução,
+# o endpoint devolve formato texto Prometheus e o job gespro-erp fica operacional.
+# METRICS_SECRET dev local: dev-metrics-secret (compose .env.example)
+
+# --- Secções originais da imagem grafana/otel-lgtm:0.31.0 ---
+global:
+  scrape_native_histograms: true
+
+otlp:
+  keep_identifying_resource_attributes: true
+  # Atributos de recurso OTLP promovidos a labels Prometheus
+  promote_resource_attributes:
+    - service.instance.id
+    - service.name
+    - service.namespace
+    - service.version
+    - cloud.availability_zone
+    - cloud.region
+    - container.name
+    - deployment.environment
+    - deployment.environment.name
+    - k8s.cluster.name
+    - k8s.container.name
+    - k8s.cronjob.name
+    - k8s.daemonset.name
+    - k8s.deployment.name
+    - k8s.job.name
+    - k8s.namespace.name
+    - k8s.node.name
+    - k8s.pod.name
+    - k8s.replicaset.name
+    - k8s.statefulset.name
+    - host.name
+    - postgresql.database.name
+    - postgresql.schema.name
+    - postgresql.table.name
+    - postgresql.index.name
+    - database
+    - kafka.cluster.alias
+
+storage:
+  tsdb:
+    out_of_order_time_window: 10m
+
+# --- Adição w8-observabilidade: scrape das instâncias ERP ---
+scrape_configs:
+  # Métricas das instâncias ERP em formato texto Prometheus (prom-client).
+  # Activo quando a imagem gespro-erp:local for reconstruída com Phase A.
+  # Antes disso: o endpoint devolve JSON, o scrape falha, up{job="gespro-erp"}=0.
+  - job_name: gespro-erp
+    scrape_interval: 15s
+    metrics_path: /api/metrics
+    authorization:
+      credentials: dev-metrics-secret
+    static_configs:
+      - targets:
+          - erp-1:3000
+          - erp-2:3000

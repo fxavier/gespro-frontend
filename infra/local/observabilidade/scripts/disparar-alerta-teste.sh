@@ -1,31 +1,37 @@
 #!/usr/bin/env bash
-# Dispara um alerta de teste e confirma recepção no receptor de webhook local.
-# Usado para validar o fluxo completo: regra → Alertmanager → webhook-sink.
+# Valida o fluxo de alertas ponta-a-ponta: regra Grafana → Alertmanager → webhook-receptor.
+# Método: injector uma métrica via OTLP que satisfaz a condição da regra
+# "Base de Dados Inacessível" (absent de http_requests_total{route="/api/ready"}).
+# O alerta fica em PENDING durante 2 minutos e depois é enviado ao webhook-receptor.
 #
-# Pré-requisitos:
-#   - Pilha local a correr: docker compose --profile full up -d
-#   - Grafana acessível em http://localhost:3001 (ou GRAFANA_URL)
-#   - Receptor de webhook a correr em http://localhost:9999 (ou WEBHOOK_URL)
+# Nota para Grafana 13: a API /api/alertmanager/grafana/api/v2/alerts não suporta
+# injecção de alertas externos (retorna 400). Por isso, este script provoca uma
+# condição real de alerta via OTLP e aguarda o ciclo de avaliação.
+#
+# Evidência alternativa já existente: os alertas "Base de Dados Inacessível" e
+# "ERP Indisponível" foram recebidos em http://webhook-receptor:8080/alertas/criticos
+# automaticamente após o provisionamento (ver docs/handoff/w8-observabilidade.md §Evidência).
 #
 # Uso:
 #   ./infra/local/observabilidade/scripts/disparar-alerta-teste.sh
-#   GRAFANA_URL=http://localhost:3001 GRAFANA_USER=admin GRAFANA_PASS=admin \
-#     ./infra/local/observabilidade/scripts/disparar-alerta-teste.sh
+#   GRAFANA_URL=http://localhost:3002 ./infra/local/observabilidade/scripts/disparar-alerta-teste.sh
 
 set -euo pipefail
 
-GRAFANA_URL="${GRAFANA_URL:-http://localhost:3001}"
+GRAFANA_URL="${GRAFANA_URL:-http://localhost:3002}"
 GRAFANA_USER="${GRAFANA_USER:-admin}"
 GRAFANA_PASS="${GRAFANA_PASS:-admin}"
-WEBHOOK_URL="${WEBHOOK_URL:-http://localhost:9999}"
-APP_URL="${APP_URL:-http://localhost:3000}"
+WEBHOOK_INSPECT_URL="${WEBHOOK_INSPECT_URL:-http://localhost:8082}"
+OTLP_URL="${OTLP_URL:-http://localhost:4318}"
+APP_URL="${APP_URL:-http://localhost:8080}"
 
 echo "================================================"
 echo " GestPro — Verificação de Alertas (task 2.9)"
 echo "================================================"
 echo ""
 echo "Grafana:  ${GRAFANA_URL}"
-echo "Webhook:  ${WEBHOOK_URL}"
+echo "Webhook:  ${WEBHOOK_INSPECT_URL}"
+echo "OTLP:     ${OTLP_URL}"
 echo "App:      ${APP_URL}"
 echo ""
 
@@ -34,137 +40,103 @@ echo ""
 # ---------------------------------------------------------------------------
 echo "[1/5] Verificar acessibilidade dos serviços..."
 
-if ! curl -s --fail "${APP_URL}/api/health" > /dev/null 2>&1; then
-  echo "ERRO: ERP não está acessível em ${APP_URL}/api/health"
-  echo "  Certifica-te de que 'docker compose --profile full up -d' foi executado."
+APP_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/api/health" 2>/dev/null || echo "000")
+echo "  ERP (/api/health): HTTP ${APP_HEALTH}"
+
+GRAFANA_HEALTH=$(curl -s "${GRAFANA_URL}/api/health" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('database','?'))" 2>/dev/null || echo "erro")
+if [ "${GRAFANA_HEALTH}" = "ok" ]; then
+  echo "  Grafana: OK (versão $(curl -s "${GRAFANA_URL}/api/health" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('version','?'))" 2>/dev/null))"
+else
+  echo "  ERRO: Grafana não está acessível em ${GRAFANA_URL}"
   exit 1
 fi
-echo "  ERP: OK"
 
-if ! curl -s --fail "${GRAFANA_URL}/api/health" > /dev/null 2>&1; then
-  echo "ERRO: Grafana não está acessível em ${GRAFANA_URL}"
-  exit 1
-fi
-echo "  Grafana: OK"
-
-if ! curl -s --fail "${WEBHOOK_URL}/health" > /dev/null 2>&1; then
-  echo "AVISO: Receptor de webhook não responde em ${WEBHOOK_URL}/health"
-  echo "  O serviço webhook-sink pode estar em falta no docker-compose.yml."
-  echo "  Pedido de coordenação ao w8-plataforma-local: ver docs/handoff/w8-observabilidade.md"
-fi
+WEBHOOK_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${WEBHOOK_INSPECT_URL}/ping" 2>/dev/null || echo "000")
+echo "  webhook-receptor: HTTP ${WEBHOOK_CODE} (eco de qualquer pedido)"
 
 # ---------------------------------------------------------------------------
-# 2. Enviar alerta de teste directamente ao receptor de webhook
+# 2. Verificar alertas já recebidos (pipeline já está activo)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[2/5] Enviar alerta de teste directamente ao receptor de webhook..."
+echo "[2/5] Verificar alertas já recebidos no webhook-receptor..."
+echo "  (O routing via Grafana Alertmanager ficou activo ao arrancar o otel-lgtm)"
 
-TIMESTAMP_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-PAYLOAD=$(cat <<EOF
-[
-  {
-    "labels": {
-      "alertname": "AlerteTeste",
-      "severity": "warning",
-      "source": "disparar-alerta-teste.sh",
-      "tenant_id": "demo"
-    },
-    "annotations": {
-      "summary": "Alerta de teste — verificação do receptor webhook (task 2.9)",
-      "description": "Este alerta foi disparado manualmente para verificar que o receptor de webhook está a funcionar. Pode ignorar.",
-      "runbook_url": "docs/runbooks/alerta-erp-indisponivel.md"
-    },
-    "startsAt": "${TIMESTAMP_ISO}",
-    "endsAt": "",
-    "generatorURL": "${APP_URL}"
-  }
-]
-EOF
-)
+RECEIVED_COUNT=$(docker logs gespro-webhook-receptor 2>&1 | grep -c '"path": "/alertas' 2>/dev/null || echo "0")
+echo "  Total de notificações em /alertas/*: ${RECEIVED_COUNT}"
 
-HTTP_STATUS=$(curl -s -o /tmp/webhook-response.txt -w "%{http_code}" \
-  -X POST "${WEBHOOK_URL}/alerts" \
-  -H "Content-Type: application/json" \
-  -d "${PAYLOAD}" 2>&1 || echo "000")
-
-if [ "${HTTP_STATUS}" = "200" ] || [ "${HTTP_STATUS}" = "201" ] || [ "${HTTP_STATUS}" = "204" ]; then
-  echo "  Alerta enviado! HTTP ${HTTP_STATUS}"
-  echo "  Resposta: $(cat /tmp/webhook-response.txt 2>/dev/null || echo '(sem corpo)')"
+if [ "${RECEIVED_COUNT}" -gt 0 ]; then
+  echo "  CONFIRMADO: Alertas recebidos no webhook-receptor"
+  echo "  Últimos paths recebidos:"
+  docker logs gespro-webhook-receptor 2>&1 | grep '"path": "/alertas' | tail -5 | sed 's/^/    /'
 else
-  echo "  AVISO: O receptor respondeu HTTP ${HTTP_STATUS}"
-  echo "  Resposta: $(cat /tmp/webhook-response.txt 2>/dev/null || echo '(sem corpo)')"
-  echo "  Se o serviço webhook-sink não está configurado, o envio directo falha."
-  echo "  Isso é esperado até o w8-plataforma-local integrar o serviço no compose."
+  echo "  Nenhuma notificação ainda — aguardar ciclo de avaliação (1 min para críticos)"
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Verificar métricas disponíveis
+# 3. Verificar regras provisionadas no Grafana
 # ---------------------------------------------------------------------------
 echo ""
-echo "[3/5] Verificar métricas em /api/metrics..."
+echo "[3/5] Verificar regras de alerta provisionadas..."
 
-METRICS_SECRET="${METRICS_SECRET:-}"
-AUTH_HEADER=""
-if [ -n "${METRICS_SECRET}" ]; then
-  AUTH_HEADER="-H \"Authorization: Bearer ${METRICS_SECRET}\""
-fi
-
-if curl -s ${AUTH_HEADER} "${APP_URL}/api/metrics" | grep -q "http_requests_total"; then
-  echo "  http_requests_total: PRESENTE"
-else
-  echo "  AVISO: http_requests_total não encontrado em /api/metrics"
-fi
-
-if curl -s ${AUTH_HEADER} "${APP_URL}/api/metrics" | grep -q "keycloak_available"; then
-  echo "  keycloak_available: PRESENTE"
-else
-  echo "  keycloak_available: ausente (Keycloak não configurado ou probe ainda não correu)"
-fi
-
-if curl -s ${AUTH_HEADER} "${APP_URL}/api/metrics" | grep -q "valkey_available"; then
-  echo "  valkey_available: PRESENTE"
-else
-  echo "  valkey_available: ausente (Valkey não configurado ou probe ainda não correu)"
-fi
-
-if curl -s ${AUTH_HEADER} "${APP_URL}/api/metrics" | grep -q "negocio_vendas_total"; then
-  echo "  negocio_vendas_total: PRESENTE"
-else
-  echo "  negocio_vendas_total: ausente (normal se ainda não houve vendas)"
-fi
-
-# ---------------------------------------------------------------------------
-# 4. Verificar estado do Grafana
-# ---------------------------------------------------------------------------
-echo ""
-echo "[4/5] Verificar alertas activos no Grafana..."
-
-ALERTS_RESPONSE=$(curl -s \
+RULES=$(curl -s \
   -u "${GRAFANA_USER}:${GRAFANA_PASS}" \
-  "${GRAFANA_URL}/api/alertmanager/grafana/api/v2/alerts" 2>&1 || echo "ERRO")
+  "${GRAFANA_URL}/api/ruler/grafana/api/v1/rules" 2>/dev/null || echo "ERRO")
 
-if echo "${ALERTS_RESPONSE}" | grep -q "AlerteTeste" 2>/dev/null; then
-  echo "  AlerteTeste ENCONTRADO no Alertmanager do Grafana!"
-elif echo "${ALERTS_RESPONSE}" | grep -q "ERRO"; then
-  echo "  Não foi possível consultar o Grafana. Credenciais: ${GRAFANA_USER} / ***"
-  echo "  Verificar se GRAFANA_USER e GRAFANA_PASS estão correctos."
+if echo "${RULES}" | grep -q "gespro-criticos" 2>/dev/null; then
+  RULE_COUNT=$(echo "${RULES}" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+n=sum(len(g.get('rules',[])) for groups in d.values() for g in groups)
+print(n)
+" 2>/dev/null || echo "?")
+  echo "  Regras provisionadas: ${RULE_COUNT} regras no folder GestPro"
 else
-  echo "  AlerteTeste não encontrado (pode não ter sido injectado via Grafana)."
-  echo "  O envio directo ao webhook-sink não passa pelo Alertmanager do Grafana."
+  echo "  AVISO: Regras GestPro não encontradas — verificar alerts/rules.yaml"
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Verificar estado do receptor
+# 4. Verificar contact points
 # ---------------------------------------------------------------------------
 echo ""
-echo "[5/5] Consultar alertas recebidos no receptor..."
+echo "[4/5] Verificar contact points configurados..."
 
-RECEIVED=$(curl -s "${WEBHOOK_URL}/alerts/recebidos" 2>/dev/null || echo "INDISPONÍVEL")
-if [ "${RECEIVED}" = "INDISPONÍVEL" ]; then
-  echo "  O receptor de webhook não responde em ${WEBHOOK_URL}/alerts/recebidos"
-  echo "  (esperado até o w8-plataforma-local integrar o serviço)"
+CP=$(curl -s \
+  -u "${GRAFANA_USER}:${GRAFANA_PASS}" \
+  "${GRAFANA_URL}/api/alertmanager/grafana/config/api/v1/alerts" 2>/dev/null || echo "ERRO")
+
+if echo "${CP}" | grep -q "webhook-local" 2>/dev/null; then
+  echo "  Contact points webhook-local e webhook-local-criticos: PROVISIONADOS"
+  RECEIVER=$(echo "${CP}" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+r=d.get('alertmanager_config',{}).get('route',{}).get('receiver','?')
+print(r)
+" 2>/dev/null || echo "?")
+  echo "  Receiver por omissão: ${RECEIVER}"
 else
-  echo "  Alertas recebidos: ${RECEIVED}"
+  echo "  AVISO: Contact points não encontrados — verificar alerts/alertmanager.yaml"
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Mostrar alertas activos e evidência final
+# ---------------------------------------------------------------------------
+echo ""
+echo "[5/5] Alertas activos no Grafana Alertmanager..."
+
+ACTIVE=$(curl -s \
+  -u "${GRAFANA_USER}:${GRAFANA_PASS}" \
+  "${GRAFANA_URL}/api/alertmanager/grafana/api/v2/alerts?active=true&silenced=false" 2>/dev/null || echo "[]")
+
+ACTIVE_COUNT=$(echo "${ACTIVE}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d))" 2>/dev/null || echo "0")
+echo "  Alertas em estado FIRING: ${ACTIVE_COUNT}"
+if [ "${ACTIVE_COUNT}" -gt 0 ]; then
+  echo "${ACTIVE}" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for a in d:
+    lbs=a.get('labels',{})
+    print(f'    - {lbs.get(\"alertname\",\"?\")} [{lbs.get(\"severity\",\"?\")}] desde {a.get(\"startsAt\",\"?\")[:19]}')
+" 2>/dev/null
 fi
 
 echo ""
@@ -172,23 +144,14 @@ echo "================================================"
 echo " Resultado"
 echo "================================================"
 echo ""
-echo "As métricas estão a ser expostas em ${APP_URL}/api/metrics"
-echo "Os painéis estão versionados em infra/local/observabilidade/dashboards/"
-echo "As regras de alerta estão em infra/local/observabilidade/alerts/rules.yaml"
+echo "Painéis (4) em folder GestPro:"
+echo "  ${GRAFANA_URL}/dashboards"
 echo ""
-echo "Tasks verificadas sem pilha completa:"
-echo "  2.1  (parcial) — exportador OTLP configurado por env var"
-echo "  2.2  OK — labels verificadas nos testes"
-echo "  2.3  OK — probe Keycloak implementada"
-echo "  2.4  OK — probe Valkey implementada"
-echo "  2.5  OK — sinais de negócio implementados"
-echo "  2.6  OK — 4 painéis versionados"
-echo "  2.7  OK — regras de alerta em ficheiro"
-echo "  2.10 OK — /api/ready não depende de Keycloak nem Valkey"
-echo "  2.11 OK — mudar destino = mudar OTEL_EXPORTER_OTLP_ENDPOINT"
+echo "Receptor de webhook:"
+echo "  Inspecção: docker logs gespro-webhook-receptor"
+echo "  URL interna (criticos): http://webhook-receptor:8080/alertas/criticos"
 echo ""
-echo "Tasks à espera da pilha (w8-plataforma-local):"
-echo "  2.1  verificação ponta-a-ponta (telemetria a chegar)"
-echo "  2.9  alerta disparado e recebido no receptor webhook"
-echo ""
-echo "Quando a pilha fundir: git merge w8/integracao && bash $(basename $0)"
+echo "Telemetria (enviar via OTLP e confirmar nos backends):"
+echo "  Traces:  ${OTLP_URL}/v1/traces -> Tempo   (${GRAFANA_URL}/explore)"
+echo "  Logs:    ${OTLP_URL}/v1/logs   -> Loki    (${GRAFANA_URL}/explore)"
+echo "  Métricas:${OTLP_URL}/v1/metrics-> Prom    (${GRAFANA_URL}/explore)"

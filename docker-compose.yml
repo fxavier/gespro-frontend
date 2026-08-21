@@ -243,6 +243,8 @@ services:
     volumes:
       - ./infra/local/observabilidade/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards
       - ./infra/local/observabilidade/alerts:/otel-lgtm/grafana/conf/provisioning/alerting
+      # Prometheus config com scrape job gespro-erp (w8-observabilidade Fase B)
+      - ./infra/local/observabilidade/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
     deploy:
       resources:
         limits:
