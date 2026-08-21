@@ -14,12 +14,21 @@ o site de marketing virá em `apps/site/`; config partilhada em `packages/tsconf
 
 ```bash
 # Base de dados (necessária para dev, seed e testes de integração/E2E)
-docker compose up -d          # Postgres 17 (container gespro-db)
+docker compose up -d          # perfil mínimo: só o Postgres 17 (gespro-db, porta 5432, WAL arquivado)
 pnpm db:migrate:dev           # aplica migrations
 pnpm db:seed                  # tenant demo + utilizadores + PGC + dados dos 7 domínios
 pnpm db:studio
 
 pnpm dev                      # http://localhost:3000  (login: admin@demo.mz / demo1234)
+
+# Pilha local de referência COMPLETA (ADR-0026): Keycloak + Valkey + MinIO +
+# otel-lgtm + Mailpit + 2× ERP (imagem de produção) atrás de proxy. Segredos por
+# .env na raiz (ver .env.example); tem placeholders de dev, sobe sem .env.
+docker compose --profile full up -d --build
+#   ERP via proxy:  http://localhost:8080  (header X-Gespro-Instancia mostra a instância)
+#   Keycloak :8081 · Grafana :3002 (OTLP 4317/4318) · MinIO :9001 · Mailpit :8025
+# Ensaio de cópia/restauro cronometrado (runbooks em docs/runbooks/):
+./infra/local/scripts/ensaio-restauro.sh
 
 # Verificação (tudo tem de estar verde antes de entregar)
 pnpm check                    # prisma validate && tsc --noEmit && eslint . && vitest run

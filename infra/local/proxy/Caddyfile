@@ -1,0 +1,25 @@
+# Proxy da pilha local de referência (ADR-0026 §2).
+#
+# Duas instâncias da aplicação (erp-1, erp-2) em round-robin — é o que torna
+# verificáveis o limitador partilhado (ADR-0014), a sessão entre instâncias e a
+# publicação em duas fases (ADR-0022 §6).
+#
+# O cabeçalho X-Gespro-Instancia expõe o upstream que serviu cada pedido, para
+# o smoke poder provar a alternância de instância.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	reverse_proxy erp-1:3000 erp-2:3000 {
+		lb_policy round_robin
+
+		# Sondas activas: instância que falhe /api/health sai da rotação.
+		health_uri /api/health
+		health_interval 10s
+		health_timeout 5s
+
+		header_down X-Gespro-Instancia {http.reverse_proxy.upstream.hostport}
+	}
+}
