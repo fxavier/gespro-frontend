@@ -1,0 +1,243 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 952" width="1240" height="952" role="img">
+<defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#40506a"/></marker>
+  <marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#1f5f9e"/></marker>
+  <marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#0d7a63"/></marker>
+  <marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#68409c"/></marker>
+  <marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#a8232f"/></marker>
+  <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#a35c07"/></marker>
+  <marker id="hollow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+    <path d="M0 0 L11 6 L0 12 z" fill="#ffffff" stroke="#40506a" stroke-width="1.2"/></marker>
+  <marker id="dot" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5">
+    <circle cx="4" cy="4" r="3" fill="#40506a"/></marker>
+</defs>
+<rect x="0" y="0" width="1240" height="952" rx="6" fill="#ffffff"/>
+<text x="30" y="26" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.6" fill="#5d6b7c" text-anchor="start">Casos de uso por subsistema — as etiquetas em cada elipse indicam os perfis RBAC autorizados a executá-lo</text>
+<rect x="254" y="54" width="452" height="259" rx="10" fill="none" stroke="#68409c" stroke-width="1.25"/>
+<rect x="270" y="45" width="94.16" height="18" rx="4" fill="#ffffff" stroke="#68409c" stroke-width="1"/>
+<text x="280" y="58" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.6" fill="#68409c" text-anchor="start" font-weight="700">Comercial &amp; POS</text>
+<ellipse cx="480.0" cy="92" rx="191.0" ry="21" fill="#ffffff" stroke="#68409c" stroke-width="1.15"/>
+<text x="480.0" y="93.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Abrir e fechar sessão de caixa</text>
+<rect x="461.0" y="101" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="469.0" y="109.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<rect x="480.0" y="101" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="488.0" y="109.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="480.0" cy="139" rx="191.0" ry="21" fill="#ffffff" stroke="#68409c" stroke-width="1.15"/>
+<text x="480.0" y="140.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Registar venda no POS</text>
+<rect x="470.5" y="148" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="478.5" y="156.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<ellipse cx="480.0" cy="186" rx="191.0" ry="21" fill="#ffffff" stroke="#68409c" stroke-width="1.15"/>
+<text x="480.0" y="187.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Gerir encomenda de cliente</text>
+<rect x="461.0" y="195" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="469.0" y="203.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<rect x="480.0" y="195" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="488.0" y="203.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<ellipse cx="480.0" cy="233" rx="191.0" ry="21" fill="#ffffff" stroke="#68409c" stroke-width="1.15"/>
+<text x="480.0" y="234.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Processar devolução ou troca</text>
+<rect x="461.0" y="242" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="469.0" y="250.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<rect x="480.0" y="242" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="488.0" y="250.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<ellipse cx="480.0" cy="280" rx="191.0" ry="21" fill="#ffffff" stroke="#68409c" stroke-width="1.15"/>
+<text x="480.0" y="281.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Calcular e liquidar comissões</text>
+<rect x="461.0" y="289" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="469.0" y="297.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<rect x="480.0" y="289" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="488.0" y="297.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<rect x="756" y="54" width="452" height="259" rx="10" fill="none" stroke="#0d7a63" stroke-width="1.25"/>
+<rect x="772" y="45" width="113.936" height="18" rx="4" fill="#ffffff" stroke="#0d7a63" stroke-width="1"/>
+<text x="782" y="58" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.6" fill="#0d7a63" text-anchor="start" font-weight="700">Inventário &amp; Ativos</text>
+<ellipse cx="982.0" cy="92" rx="191.0" ry="21" fill="#ffffff" stroke="#0d7a63" stroke-width="1.15"/>
+<text x="982.0" y="93.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Consultar saldos e alertas de mínimo</text>
+<rect x="953.5" y="101" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="961.5" y="109.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<rect x="972.5" y="101" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="980.5" y="109.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<rect x="991.5" y="101" width="16" height="11" rx="3" fill="#40506a"/>
+<text x="999.5" y="109.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">LE</text>
+<ellipse cx="982.0" cy="139" rx="191.0" ry="21" fill="#ffffff" stroke="#0d7a63" stroke-width="1.15"/>
+<text x="982.0" y="140.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Registar entrada, saída e transferência</text>
+<rect x="972.5" y="148" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="980.5" y="156.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<ellipse cx="982.0" cy="186" rx="191.0" ry="21" fill="#ffffff" stroke="#0d7a63" stroke-width="1.15"/>
+<text x="982.0" y="187.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Reconciliar contagem de stock</text>
+<rect x="972.5" y="195" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="980.5" y="203.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="982.0" cy="233" rx="191.0" ry="21" fill="#ffffff" stroke="#0d7a63" stroke-width="1.15"/>
+<text x="982.0" y="234.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Gerir ativos, manutenção e amortização</text>
+<rect x="972.5" y="242" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="980.5" y="250.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="982.0" cy="280" rx="191.0" ry="21" fill="#ffffff" stroke="#0d7a63" stroke-width="1.15"/>
+<text x="982.0" y="281.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Reservar e libertar stock para encomendas</text>
+<rect x="963.0" y="289" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="971.0" y="297.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<rect x="982.0" y="289" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="990.0" y="297.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<rect x="254" y="326" width="452" height="259" rx="10" fill="none" stroke="#a35c07" stroke-width="1.25"/>
+<rect x="270" y="317" width="108.99199999999999" height="18" rx="4" fill="#ffffff" stroke="#a35c07" stroke-width="1"/>
+<text x="280" y="330" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.6" fill="#a35c07" text-anchor="start" font-weight="700">Compras &amp; Serviços</text>
+<ellipse cx="480.0" cy="364" rx="191.0" ry="21" fill="#ffffff" stroke="#a35c07" stroke-width="1.15"/>
+<text x="480.0" y="365.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Criar requisição de compra</text>
+<rect x="461.0" y="373" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="469.0" y="381.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<rect x="480.0" y="373" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="488.0" y="381.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="480.0" cy="411" rx="191.0" ry="21" fill="#ffffff" stroke="#a35c07" stroke-width="1.15"/>
+<text x="480.0" y="412.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Aprovar por níveis configuráveis</text>
+<rect x="461.0" y="420" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="469.0" y="428.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<rect x="480.0" y="420" width="16" height="11" rx="3" fill="#a8232f"/>
+<text x="488.0" y="428.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">AD</text>
+<ellipse cx="480.0" cy="458" rx="191.0" ry="21" fill="#ffffff" stroke="#a35c07" stroke-width="1.15"/>
+<text x="480.0" y="459.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Emitir pedido ao fornecedor</text>
+<rect x="470.5" y="467" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="478.5" y="475.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="480.0" cy="505" rx="191.0" ry="21" fill="#ffffff" stroke="#a35c07" stroke-width="1.15"/>
+<text x="480.0" y="506.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Registar recepção de mercadoria</text>
+<rect x="461.0" y="514" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="469.0" y="522.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<rect x="480.0" y="514" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="488.0" y="522.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="480.0" cy="552" rx="191.0" ry="21" fill="#ffffff" stroke="#a35c07" stroke-width="1.15"/>
+<text x="480.0" y="553.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Gerir contas a pagar e pagamentos</text>
+<rect x="470.5" y="561" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="478.5" y="569.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<rect x="756" y="326" width="452" height="259" rx="10" fill="none" stroke="#1f5f9e" stroke-width="1.25"/>
+<rect x="772" y="317" width="133.712" height="18" rx="4" fill="#ffffff" stroke="#1f5f9e" stroke-width="1"/>
+<text x="782" y="330" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.6" fill="#1f5f9e" text-anchor="start" font-weight="700">Finanças &amp; Conformidade</text>
+<ellipse cx="982.0" cy="364" rx="191.0" ry="21" fill="#ffffff" stroke="#1f5f9e" stroke-width="1.15"/>
+<text x="982.0" y="365.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Emitir factura, nota de crédito e de débito</text>
+<rect x="972.5" y="373" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="980.5" y="381.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<ellipse cx="982.0" cy="411" rx="191.0" ry="21" fill="#ffffff" stroke="#1f5f9e" stroke-width="1.15"/>
+<text x="982.0" y="412.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Registar lançamento PGC-NIRF</text>
+<rect x="972.5" y="420" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="980.5" y="428.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<ellipse cx="982.0" cy="458" rx="191.0" ry="21" fill="#ffffff" stroke="#1f5f9e" stroke-width="1.15"/>
+<text x="982.0" y="459.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Reconciliar extracto bancário</text>
+<rect x="972.5" y="467" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="980.5" y="475.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<ellipse cx="982.0" cy="505" rx="191.0" ry="21" fill="#ffffff" stroke="#1f5f9e" stroke-width="1.15"/>
+<text x="982.0" y="506.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Gerar balancete e razão de conta</text>
+<rect x="963.0" y="514" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="971.0" y="522.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<rect x="982.0" y="514" width="16" height="11" rx="3" fill="#40506a"/>
+<text x="990.0" y="522.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">LE</text>
+<ellipse cx="982.0" cy="552" rx="191.0" ry="21" fill="#ffffff" stroke="#1f5f9e" stroke-width="1.15"/>
+<text x="982.0" y="553.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Exportar PDF fiscal, CSV e XLSX</text>
+<rect x="963.0" y="561" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="971.0" y="569.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<rect x="982.0" y="561" width="16" height="11" rx="3" fill="#40506a"/>
+<text x="990.0" y="569.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">LE</text>
+<rect x="254" y="598" width="452" height="259" rx="10" fill="none" stroke="#0f6f88" stroke-width="1.25"/>
+<rect x="270" y="589" width="163.376" height="18" rx="4" fill="#ffffff" stroke="#0f6f88" stroke-width="1"/>
+<text x="280" y="602" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.6" fill="#0f6f88" text-anchor="start" font-weight="700">Pessoas, Projectos &amp; Produção</text>
+<ellipse cx="480.0" cy="636" rx="191.0" ry="21" fill="#ffffff" stroke="#0f6f88" stroke-width="1.15"/>
+<text x="480.0" y="637.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Processar salários com INSS e IRPS</text>
+<rect x="470.5" y="645" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="478.5" y="653.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<ellipse cx="480.0" cy="683" rx="191.0" ry="21" fill="#ffffff" stroke="#0f6f88" stroke-width="1.15"/>
+<text x="480.0" y="684.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Gerir férias, ausências e assiduidade</text>
+<rect x="470.5" y="692" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="478.5" y="700.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="480.0" cy="730" rx="191.0" ry="21" fill="#ffffff" stroke="#0f6f88" stroke-width="1.15"/>
+<text x="480.0" y="731.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Conduzir recrutamento e formações</text>
+<rect x="470.5" y="739" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="478.5" y="747.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="480.0" cy="777" rx="191.0" ry="21" fill="#ffffff" stroke="#0f6f88" stroke-width="1.15"/>
+<text x="480.0" y="778.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Planear projecto, tarefas, riscos e marcos</text>
+<rect x="470.5" y="786" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="478.5" y="794.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="480.0" cy="824" rx="191.0" ry="21" fill="#ffffff" stroke="#0f6f88" stroke-width="1.15"/>
+<text x="480.0" y="825.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Emitir ordem de produção e consumir stock</text>
+<rect x="461.0" y="833" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="469.0" y="841.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<rect x="480.0" y="833" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="488.0" y="841.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<rect x="756" y="598" width="452" height="259" rx="10" fill="none" stroke="#a8232f" stroke-width="1.25"/>
+<rect x="772" y="589" width="128.768" height="18" rx="4" fill="#ffffff" stroke="#a8232f" stroke-width="1"/>
+<text x="782" y="602" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.6" fill="#a8232f" text-anchor="start" font-weight="700">Operações &amp; Plataforma</text>
+<ellipse cx="982.0" cy="636" rx="191.0" ry="21" fill="#ffffff" stroke="#a8232f" stroke-width="1.15"/>
+<text x="982.0" y="637.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Planear rota e registar prova de entrega</text>
+<rect x="963.0" y="645" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="971.0" y="653.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<rect x="982.0" y="645" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="990.0" y="653.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="982.0" cy="683" rx="191.0" ry="21" fill="#ffffff" stroke="#a8232f" stroke-width="1.15"/>
+<text x="982.0" y="684.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Atender e resolver tickets de suporte</text>
+<rect x="963.0" y="692" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="971.0" y="700.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<rect x="982.0" y="692" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="990.0" y="700.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<ellipse cx="982.0" cy="730" rx="191.0" ry="21" fill="#ffffff" stroke="#a8232f" stroke-width="1.15"/>
+<text x="982.0" y="731.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Gerir utilizadores, papéis e convites</text>
+<rect x="972.5" y="739" width="16" height="11" rx="3" fill="#a8232f"/>
+<text x="980.5" y="747.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">AD</text>
+<ellipse cx="982.0" cy="777" rx="191.0" ry="21" fill="#ffffff" stroke="#a8232f" stroke-width="1.15"/>
+<text x="982.0" y="778.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Configurar séries e dados fiscais</text>
+<rect x="963.0" y="786" width="16" height="11" rx="3" fill="#a8232f"/>
+<text x="971.0" y="794.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">AD</text>
+<rect x="982.0" y="786" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="990.0" y="794.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<ellipse cx="982.0" cy="824" rx="191.0" ry="21" fill="#ffffff" stroke="#a8232f" stroke-width="1.15"/>
+<text x="982.0" y="825.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.9" fill="#16202e" text-anchor="middle">Processar webhook de subscrição Stripe</text>
+<rect x="972.5" y="833" width="16" height="11" rx="3" fill="#0f6f88"/>
+<text x="980.5" y="841.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">SY</text>
+<circle cx="84" cy="96" r="11" fill="#e6eff8" stroke="#1f5f9e" stroke-width="1.5"/>
+<path d="M84 108 v17 M71 114 h26 M84 125 l-11 13 M84 125 l11 13" fill="none" stroke="#1f5f9e" stroke-width="1.5"/>
+<text x="84" y="154" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.2" fill="#16202e" text-anchor="middle" font-weight="700">Operador / Caixa</text>
+<text x="84" y="166" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#5d6b7c" text-anchor="middle">vendas · stock · caixa</text>
+<text x="84" y="180" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#1f5f9e" text-anchor="middle">11 casos de uso</text>
+<circle cx="84" cy="226" r="11" fill="#fbf0dd" stroke="#a35c07" stroke-width="1.5"/>
+<path d="M84 238 v17 M71 244 h26 M84 255 l-11 13 M84 255 l11 13" fill="none" stroke="#a35c07" stroke-width="1.5"/>
+<text x="84" y="284" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.2" fill="#16202e" text-anchor="middle" font-weight="700">Gestor operacional</text>
+<text x="84" y="296" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#5d6b7c" text-anchor="middle">compras · projectos · RH</text>
+<text x="84" y="310" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#a35c07" text-anchor="middle">18 casos de uso</text>
+<circle cx="84" cy="356" r="11" fill="#eee7f7" stroke="#68409c" stroke-width="1.5"/>
+<path d="M84 368 v17 M71 374 h26 M84 385 l-11 13 M84 385 l11 13" fill="none" stroke="#68409c" stroke-width="1.5"/>
+<text x="84" y="414" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.2" fill="#16202e" text-anchor="middle" font-weight="700">Financeiro</text>
+<text x="84" y="426" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#5d6b7c" text-anchor="middle">facturação · PGC · payroll</text>
+<text x="84" y="440" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#68409c" text-anchor="middle">10 casos de uso</text>
+<circle cx="84" cy="486" r="11" fill="#fbe8ea" stroke="#a8232f" stroke-width="1.5"/>
+<path d="M84 498 v17 M71 504 h26 M84 515 l-11 13 M84 515 l11 13" fill="none" stroke="#a8232f" stroke-width="1.5"/>
+<text x="84" y="544" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.2" fill="#16202e" text-anchor="middle" font-weight="700">Administrador</text>
+<text x="84" y="556" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#5d6b7c" text-anchor="middle">tenant · RBAC · séries</text>
+<text x="84" y="570" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#a8232f" text-anchor="middle">3 casos de uso</text>
+<circle cx="84" cy="616" r="11" fill="#eaeef4" stroke="#40506a" stroke-width="1.5"/>
+<path d="M84 628 v17 M71 634 h26 M84 645 l-11 13 M84 645 l11 13" fill="none" stroke="#40506a" stroke-width="1.5"/>
+<text x="84" y="674" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.2" fill="#16202e" text-anchor="middle" font-weight="700">Leitura / auditoria</text>
+<text x="84" y="686" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#5d6b7c" text-anchor="middle">consulta e exportação</text>
+<text x="84" y="700" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#40506a" text-anchor="middle">3 casos de uso</text>
+<circle cx="84" cy="746" r="11" fill="#e3f1f5" stroke="#0f6f88" stroke-width="1.5"/>
+<path d="M84 758 v17 M71 764 h26 M84 775 l-11 13 M84 775 l11 13" fill="none" stroke="#0f6f88" stroke-width="1.5"/>
+<text x="84" y="804" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.2" fill="#16202e" text-anchor="middle" font-weight="700">Stripe · Agendador</text>
+<text x="84" y="816" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#5d6b7c" text-anchor="middle">ator sistema (webhook, cron)</text>
+<text x="84" y="830" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.2" fill="#0f6f88" text-anchor="middle">1 caso de uso</text>
+<rect x="30" y="876" width="1180" height="64" rx="9" fill="#f2f6fa" stroke="#b9c4d2" stroke-width="1"/>
+<text x="48" y="898" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.6" fill="#16202e" text-anchor="start" font-weight="700">Autorização</text>
+<text x="120" y="898" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#5d6b7c" text-anchor="start">— cada caso de uso está ligado a uma permissão nomeada do catálogo (298 permissões, formato modulo:accao[:sub]); a Server Action declara-a e o pipeline recusa antes de tocar no domínio.</text>
+<rect x="48" y="910" width="16" height="11" rx="3" fill="#1f5f9e"/>
+<text x="56" y="918.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">OP</text>
+<text x="70" y="919" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9" fill="#5d6b7c" text-anchor="start">Operador</text>
+<rect x="115.064" y="910" width="16" height="11" rx="3" fill="#a35c07"/>
+<text x="123.064" y="918.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">GE</text>
+<text x="137.064" y="919" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9" fill="#5d6b7c" text-anchor="start">Gestor</text>
+<rect x="173.362" y="910" width="16" height="11" rx="3" fill="#68409c"/>
+<text x="181.362" y="918.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">FI</text>
+<text x="195.362" y="919" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9" fill="#5d6b7c" text-anchor="start">Financeiro</text>
+<rect x="249.192" y="910" width="16" height="11" rx="3" fill="#a8232f"/>
+<text x="257.192" y="918.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">AD</text>
+<text x="271.192" y="919" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9" fill="#5d6b7c" text-anchor="start">Administrador</text>
+<rect x="338.171" y="910" width="16" height="11" rx="3" fill="#40506a"/>
+<text x="346.171" y="918.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">LE</text>
+<text x="360.171" y="919" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9" fill="#5d6b7c" text-anchor="start">Leitura/auditoria</text>
+<rect x="444.682" y="910" width="16" height="11" rx="3" fill="#0f6f88"/>
+<text x="452.682" y="918.6" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="6.8" fill="#ffffff" text-anchor="middle" font-weight="700">SY</text>
+<text x="466.682" y="919" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9" fill="#5d6b7c" text-anchor="start">Ator sistema</text>
+</svg>

@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1220 880" width="1220" height="880" role="img">
+<defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#40506a"/></marker>
+  <marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#1f5f9e"/></marker>
+  <marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#0d7a63"/></marker>
+  <marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#68409c"/></marker>
+  <marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#a8232f"/></marker>
+  <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#a35c07"/></marker>
+  <marker id="hollow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+    <path d="M0 0 L11 6 L0 12 z" fill="#ffffff" stroke="#40506a" stroke-width="1.2"/></marker>
+  <marker id="dot" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5">
+    <circle cx="4" cy="4" r="3" fill="#40506a"/></marker>
+</defs>
+<rect x="0" y="0" width="1220" height="880" rx="6" fill="#ffffff"/>
+<rect x="30" y="52" width="1160" height="190" rx="10" fill="none" stroke="#40506a" stroke-width="1.1" stroke-dasharray="5 4"/>
+<rect x="42" y="44" width="468.23" height="16" rx="4" fill="#ffffff" stroke="none" stroke-width="1.2"/>
+<text x="49" y="56" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.5" fill="#40506a" text-anchor="start" font-weight="700">Domínios consumidores  —  orquestram fluxos de negócio e chamam contratos publicados</text>
+<rect x="48" y="78" width="272" height="146" rx="9" fill="#fbf0dd" stroke="#a35c07" stroke-width="1.3"/>
+<rect x="48" y="78" width="272" height="26" rx="9" fill="#a35c07"/>
+<rect x="48" y="94" width="272" height="10" rx="6" fill="#a35c07"/>
+<text x="58" y="96" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.6" fill="#ffffff" text-anchor="start" font-weight="700">B   Compras &amp; Serviços</text>
+<text x="310" y="96" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#ffffff" text-anchor="end" opacity="0.9">27 modelos</text>
+<text x="59" y="120" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#a35c07" text-anchor="start" font-weight="700">·</text>
+<text x="69" y="120.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Fornecedor, avaliação, workflow de aprovação</text>
+<text x="59" y="135.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#a35c07" text-anchor="start" font-weight="700">·</text>
+<text x="69" y="135.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Requisição → cotação → pedido → recepção</text>
+<text x="59" y="150.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#a35c07" text-anchor="start" font-weight="700">·</text>
+<text x="69" y="150.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">ContaPagar, Pagamento</text>
+<text x="59" y="165.29999999999998" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#a35c07" text-anchor="start" font-weight="700">·</text>
+<text x="69" y="165.29999999999998" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Catálogo de serviços, contratos, agendamentos</text>
+<text x="59" y="215" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.6" fill="#a35c07" text-anchor="start" font-weight="700">4 serviços</text>
+<rect x="336" y="78" width="272" height="146" rx="9" fill="#eee7f7" stroke="#68409c" stroke-width="1.3"/>
+<rect x="336" y="78" width="272" height="26" rx="9" fill="#68409c"/>
+<rect x="336" y="94" width="272" height="10" rx="6" fill="#68409c"/>
+<text x="346" y="96" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.6" fill="#ffffff" text-anchor="start" font-weight="700">C   Comercial &amp; POS</text>
+<text x="598" y="96" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#ffffff" text-anchor="end" opacity="0.9">18 modelos</text>
+<text x="347" y="120" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#68409c" text-anchor="start" font-weight="700">·</text>
+<text x="357" y="120.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Cliente, segmentação, histórico</text>
+<text x="347" y="135.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#68409c" text-anchor="start" font-weight="700">·</text>
+<text x="357" y="135.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">SessaoPOS, Venda, ItemVenda, pagamentos</text>
+<text x="347" y="150.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#68409c" text-anchor="start" font-weight="700">·</text>
+<text x="357" y="150.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Encomenda, Devolução, Troca</text>
+<text x="347" y="165.29999999999998" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#68409c" text-anchor="start" font-weight="700">·</text>
+<text x="357" y="165.29999999999998" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Vendedor, RegraComissao, Comissao</text>
+<text x="347" y="215" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.6" fill="#68409c" text-anchor="start" font-weight="700">7 serviços</text>
+<rect x="624" y="78" width="272" height="146" rx="9" fill="#e3f1f5" stroke="#0f6f88" stroke-width="1.3"/>
+<rect x="624" y="78" width="272" height="26" rx="9" fill="#0f6f88"/>
+<rect x="624" y="94" width="272" height="10" rx="6" fill="#0f6f88"/>
+<text x="634" y="96" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.6" fill="#ffffff" text-anchor="start" font-weight="700">E   Pessoas &amp; Projectos</text>
+<text x="886" y="96" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#ffffff" text-anchor="end" opacity="0.9">50 modelos</text>
+<text x="635" y="120" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#0f6f88" text-anchor="start" font-weight="700">·</text>
+<text x="645" y="120.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Colaborador, férias, assiduidade, avaliações</text>
+<text x="635" y="135.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#0f6f88" text-anchor="start" font-weight="700">·</text>
+<text x="645" y="135.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Payroll (INSS/IRPS), benefícios, recrutamento</text>
+<text x="635" y="150.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#0f6f88" text-anchor="start" font-weight="700">·</text>
+<text x="645" y="150.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Projecto, tarefas, marcos, riscos, qualidade</text>
+<text x="635" y="165.29999999999998" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#0f6f88" text-anchor="start" font-weight="700">·</text>
+<text x="645" y="165.29999999999998" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Produção: BOM, roteiro, ordem, consumo</text>
+<text x="635" y="215" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.6" fill="#0f6f88" text-anchor="start" font-weight="700">10 serviços</text>
+<rect x="912" y="78" width="260" height="146" rx="9" fill="#fbe8ea" stroke="#a8232f" stroke-width="1.3"/>
+<rect x="912" y="78" width="260" height="26" rx="9" fill="#a8232f"/>
+<rect x="912" y="94" width="260" height="10" rx="6" fill="#a8232f"/>
+<text x="922" y="96" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.6" fill="#ffffff" text-anchor="start" font-weight="700">F   Operações</text>
+<text x="1162" y="96" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#ffffff" text-anchor="end" opacity="0.9">21 modelos</text>
+<text x="923" y="120" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#a8232f" text-anchor="start" font-weight="700">·</text>
+<text x="933" y="120.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Viatura, motorista, manutenção, checklist</text>
+<text x="923" y="135.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#a8232f" text-anchor="start" font-weight="700">·</text>
+<text x="933" y="135.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Rota, PontoEntrega, Entrega, abastecimento</text>
+<text x="923" y="150.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#a8232f" text-anchor="start" font-weight="700">·</text>
+<text x="933" y="150.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Ticket, base de conhecimento, equipas</text>
+<text x="923" y="165.29999999999998" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#a8232f" text-anchor="start" font-weight="700">·</text>
+<text x="933" y="165.29999999999998" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Atividade e eventos de campo</text>
+<text x="923" y="215" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.6" fill="#a8232f" text-anchor="start" font-weight="700">9 serviços</text>
+<rect x="30" y="300" width="1160" height="180" rx="10" fill="none" stroke="#40506a" stroke-width="1.1" stroke-dasharray="5 4"/>
+<rect x="42" y="292" width="495.2675" height="16" rx="4" fill="#ffffff" stroke="none" stroke-width="1.2"/>
+<text x="49" y="304" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.5" fill="#40506a" text-anchor="start" font-weight="700">Domínios fornecedores de contrato  —  únicos donos das invariantes de stock e de dinheiro</text>
+<rect x="120" y="326" width="460" height="138" rx="9" fill="#e2f2ee" stroke="#0d7a63" stroke-width="1.3"/>
+<rect x="120" y="326" width="460" height="26" rx="9" fill="#0d7a63"/>
+<rect x="120" y="342" width="460" height="10" rx="6" fill="#0d7a63"/>
+<text x="130" y="344" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.6" fill="#ffffff" text-anchor="start" font-weight="700">A   Inventário &amp; Ativos</text>
+<text x="570" y="344" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#ffffff" text-anchor="end" opacity="0.9">19 modelos</text>
+<text x="131" y="368" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#0d7a63" text-anchor="start" font-weight="700">·</text>
+<text x="141" y="368.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Produto, variante, categoria, localização</text>
+<text x="131" y="383.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#0d7a63" text-anchor="start" font-weight="700">·</text>
+<text x="141" y="383.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">SaldoStock, MovimentoStock, ReservaStock</text>
+<text x="131" y="398.20000000000005" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#0d7a63" text-anchor="start" font-weight="700">·</text>
+<text x="141" y="398.20000000000005" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Ativo, manutenção, amortização</text>
+<text x="131" y="413.30000000000007" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#0d7a63" text-anchor="start" font-weight="700">·</text>
+<text x="141" y="413.30000000000007" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Contagem e inventário físico</text>
+<text x="131" y="455" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.6" fill="#0d7a63" text-anchor="start" font-weight="700">7 serviços</text>
+<rect x="640" y="326" width="460" height="138" rx="9" fill="#e6eff8" stroke="#1f5f9e" stroke-width="1.3"/>
+<rect x="640" y="326" width="460" height="26" rx="9" fill="#1f5f9e"/>
+<rect x="640" y="342" width="460" height="10" rx="6" fill="#1f5f9e"/>
+<text x="650" y="344" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.6" fill="#ffffff" text-anchor="start" font-weight="700">D   Finanças</text>
+<text x="1090" y="344" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#ffffff" text-anchor="end" opacity="0.9">21 modelos</text>
+<text x="651" y="368" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#1f5f9e" text-anchor="start" font-weight="700">·</text>
+<text x="661" y="368.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Plano de contas PGC-NIRF (504 contas), diários</text>
+<text x="651" y="383.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#1f5f9e" text-anchor="start" font-weight="700">·</text>
+<text x="661" y="383.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Lançamento e PartidaLancamento (partida dobrada)</text>
+<text x="651" y="398.20000000000005" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#1f5f9e" text-anchor="start" font-weight="700">·</text>
+<text x="661" y="398.20000000000005" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">SessaoCaixa, MovimentoCaixa, conta bancária</text>
+<text x="651" y="413.30000000000007" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#1f5f9e" text-anchor="start" font-weight="700">·</text>
+<text x="661" y="413.30000000000007" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Fatura, NC/ND, proforma, SerieDocumento</text>
+<text x="651" y="455" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.6" fill="#1f5f9e" text-anchor="start" font-weight="700">3 serviços</text>
+<rect x="120" y="472" width="460" height="54" rx="6" fill="#ffffff" stroke="#0d7a63" stroke-width="1.2"/>
+<text x="132" y="489" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#0d7a63" text-anchor="start" font-weight="700">Contrato A (aceita tx)</text>
+<text x="132" y="503" font-family='"DejaVu Sans Mono", monospace' font-size="8.7" fill="#5d6b7c" text-anchor="start">entradaStock · baixarStock · reservarStock</text>
+<text x="132" y="516" font-family='"DejaVu Sans Mono", monospace' font-size="8.7" fill="#5d6b7c" text-anchor="start">confirmarConsumoStock · libertarStock</text>
+<rect x="640" y="472" width="460" height="54" rx="6" fill="#ffffff" stroke="#1f5f9e" stroke-width="1.2"/>
+<text x="652" y="489" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#1f5f9e" text-anchor="start" font-weight="700">Contrato D (aceita tx)</text>
+<text x="652" y="503" font-family='"DejaVu Sans Mono", monospace' font-size="8.7" fill="#5d6b7c" text-anchor="start">registarLancamentoContabilistico · registarMovimentoCaixa</text>
+<text x="652" y="516" font-family='"DejaVu Sans Mono", monospace' font-size="8.7" fill="#5d6b7c" text-anchor="start">proximoNumeroSerie  (UPDATE…RETURNING FOR UPDATE, sem lacunas)</text>
+<path d="M150 224 C 150 266, 300 278, 300 320" fill="none" stroke="#0d7a63" stroke-width="1.15" stroke-dasharray="4 3" marker-end="url(#arG)"/>
+<path d="M230 224 C 230 266, 700 278, 700 320" fill="none" stroke="#1f5f9e" stroke-width="1.15" stroke-dasharray="4 3" marker-end="url(#arB)"/>
+<path d="M430 224 C 430 266, 360 278, 360 320" fill="none" stroke="#0d7a63" stroke-width="1.15" stroke-dasharray="4 3" marker-end="url(#arG)"/>
+<path d="M500 224 C 500 266, 760 278, 760 320" fill="none" stroke="#1f5f9e" stroke-width="1.15" stroke-dasharray="4 3" marker-end="url(#arB)"/>
+<path d="M700 224 C 700 266, 430 278, 430 320" fill="none" stroke="#0d7a63" stroke-width="1.15" stroke-dasharray="4 3" marker-end="url(#arG)"/>
+<path d="M760 224 C 760 266, 830 278, 830 320" fill="none" stroke="#1f5f9e" stroke-width="1.15" stroke-dasharray="4 3" marker-end="url(#arB)"/>
+<path d="M1020 224 C 1020 266, 940 278, 940 320" fill="none" stroke="#1f5f9e" stroke-width="1.15" stroke-dasharray="4 3" marker-end="url(#arB)"/>
+<rect x="300" y="252" width="620" height="36" rx="5" fill="#ffffff" stroke="#b9c4d2" stroke-width="1"/>
+<text x="610" y="268" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.6" fill="#16202e" text-anchor="middle" font-weight="700">Consistência transaccional: o consumidor abre a $transaction e chama os contratos DENTRO dela.</text>
+<text x="610" y="281" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#5d6b7c" text-anchor="middle">FKs cross-domínio são escalares (clienteId String + índice) — nunca @relation entre schemas de domínio.</text>
+<rect x="30" y="556" width="1160" height="150" rx="10" fill="none" stroke="#40506a" stroke-width="1.1" stroke-dasharray="5 4"/>
+<rect x="42" y="548" width="327.635" height="16" rx="4" fill="#ffffff" stroke="none" stroke-width="1.2"/>
+<text x="49" y="560" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10.5" fill="#40506a" text-anchor="start" font-weight="700">Plataforma e fundação  —  transversais a todos os domínios</text>
+<rect x="48" y="582" width="340" height="110" rx="9" fill="#eaeef4" stroke="#40506a" stroke-width="1.3"/>
+<rect x="48" y="582" width="340" height="26" rx="9" fill="#40506a"/>
+<rect x="48" y="598" width="340" height="10" rx="6" fill="#40506a"/>
+<text x="58" y="600" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.6" fill="#ffffff" text-anchor="start" font-weight="700">G   Plataforma</text>
+<text x="378" y="600" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.2" fill="#ffffff" text-anchor="end" opacity="0.9">8 modelos</text>
+<text x="59" y="624" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#40506a" text-anchor="start" font-weight="700">·</text>
+<text x="69" y="624.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Notificação e preferências (persistir-depois-enviar)</text>
+<text x="59" y="639.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#40506a" text-anchor="start" font-weight="700">·</text>
+<text x="69" y="639.1" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Assinatura, webhooks Stripe, idempotência</text>
+<text x="59" y="654.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="10" fill="#40506a" text-anchor="start" font-weight="700">·</text>
+<text x="69" y="654.2" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.4" fill="#16202e" text-anchor="start">Configuração fiscal, tokens de handoff</text>
+<text x="59" y="683" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="8.6" fill="#40506a" text-anchor="start" font-weight="700">11 serviços</text>
+<rect x="404" y="582" width="376" height="110" rx="7" fill="#eee7f7" stroke="#68409c" stroke-width="1.1"/>
+<path d="M411 582 h-7 a7 7 0 0 0 -7 7 v96 a7 7 0 0 0 7 7 h0 v-110 z" fill="#68409c"/>
+<rect x="404" y="582" width="3.4" height="110" rx="1.6" fill="#68409c"/>
+<text x="415" y="599.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.4" fill="#16202e" text-anchor="start" font-weight="700">Fundação · auth.prisma (9 modelos)</text>
+<text x="415" y="616.908" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.1" fill="#5d6b7c" text-anchor="start">User, Role, Permission, UserRole, RolePermission, AuditLog, PasswordResetToken,</text>
+<text x="415" y="628.738" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.1" fill="#5d6b7c" text-anchor="start">UserInvite, LoginAttempt. 298 permissões no catálogo, 5 papéis de sistema,</text>
+<text x="415" y="640.568" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.1" fill="#5d6b7c" text-anchor="start">argon2 + rate-limit de login.</text>
+<rect x="796" y="582" width="376" height="110" rx="7" fill="#e6eff8" stroke="#1f5f9e" stroke-width="1.1"/>
+<path d="M803 582 h-7 a7 7 0 0 0 -7 7 v96 a7 7 0 0 0 7 7 h0 v-110 z" fill="#1f5f9e"/>
+<rect x="796" y="582" width="3.4" height="110" rx="1.6" fill="#1f5f9e"/>
+<text x="807" y="599.0" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="11.4" fill="#16202e" text-anchor="start" font-weight="700">Fundação · tenant.prisma (1 modelo)</text>
+<text x="807" y="616.908" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.1" fill="#5d6b7c" text-anchor="start">Tenant é a raiz de isolamento. 174 modelos no total; os que têm tenantId são</text>
+<text x="807" y="628.738" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.1" fill="#5d6b7c" text-anchor="start">auto-registados em TENANT_MODELS a partir do Prisma.dmmf — adicionar um módulo</text>
+<text x="807" y="640.568" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.1" fill="#5d6b7c" text-anchor="start">não toca em ficheiros partilhados.</text>
+<rect x="30" y="726" width="1160" height="124" rx="9" fill="#f2f6fa" stroke="#b9c4d2" stroke-width="1"/>
+<text x="48" y="748" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="12" fill="#16202e" text-anchor="start" font-weight="700">Invariantes que o compilador e os gates de CI fiscalizam</text>
+<circle cx="56" cy="764" r="3" fill="#1f5f9e"/>
+<text x="68" y="768" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.7"><tspan font-weight="700" fill="#16202e">Sem tipos-espelho  —  </tspan><tspan font-weight="400" fill="#5d6b7c">O consumidor importa o tipo canónico do fornecedor; o tsc passa a ser o fiscal do contrato (ADR-0003).</tspan></text>
+<circle cx="56" cy="783" r="3" fill="#1f5f9e"/>
+<text x="68" y="787" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.7"><tspan font-weight="700" fill="#16202e">findUnique/update/delete não são scoped  —  </tspan><tspan font-weight="400" fill="#5d6b7c">A extensão só injecta tenantId em create/findMany; o serviço filtra explicitamente. Cross-tenant → 404, nunca 403.</tspan></text>
+<circle cx="56" cy="802" r="3" fill="#1f5f9e"/>
+<text x="68" y="806" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.7"><tspan font-weight="700" fill="#16202e">Dinheiro em Prisma.Decimal  —  </tspan><tspan font-weight="400" fill="#5d6b7c">Nunca Float. Serializa Decimal→string ao atravessar Server → Client Component.</tspan></text>
+<circle cx="56" cy="821" r="3" fill="#1f5f9e"/>
+<text x="68" y="825" font-family='"Carlito", "DejaVu Sans", sans-serif' font-size="9.7"><tspan font-weight="700" fill="#16202e">Documentos append-only  —  </tspan><tspan font-weight="400" fill="#5d6b7c">Facturas emitidas e lançamentos corrigem-se por estorno ou nota de crédito, nunca por UPDATE de valores.</tspan></text>
+</svg>
