@@ -112,6 +112,19 @@ async function main() {
         tenants: perfil.tenants,
         scale: perfil.scale,
         volumesPorTenant: volumes,
+        // Aritmética explícita para leitura contra o ADR-0018 §2 (linha
+        // «Lançamentos contabilísticos e partidas: 250 000»): a dimensão
+        // pedida conta-se nas PARTIDAS — 100 000 lançamentos × ~2,5 partidas
+        // (débito principal em todos + débito secundário nos ímpares +
+        // crédito em todos) = 250 000 partidas por tenant à escala 1.
+        derivadosPorTenant: {
+          partidasLancamento:
+            volumes.lancamentos * 2 + Math.ceil(volumes.lancamentos / 2),
+          produtosMaisVariantes: volumes.produtos + volumes.variantes,
+          itensVenda: volumes.vendas * volumes.itensPorVenda,
+          linhasFatura: volumes.faturas * volumes.linhasPorFatura,
+          payrollsIndividuais: volumes.colaboradores * volumes.mesesFolha,
+        },
         tenantsSeed: manifestTenants,
       },
       null,

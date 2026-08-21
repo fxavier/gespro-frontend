@@ -1,0 +1,20 @@
+                                                                     QUERY PLAN                                                                     
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=12.32..12.32 rows=2 width=174) (actual time=0.094..0.095 rows=2 loops=1)
+   Sort Key: "ordemLinha"
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=7
+   ->  Bitmap Heap Scan on "LinhaFatura"  (cost=4.43..12.31 rows=2 width=174) (actual time=0.028..0.029 rows=2 loops=1)
+         Recheck Cond: ("faturaId" = 'cf5c35cf24c5fbcbf0bcf9ea2'::text)
+         Heap Blocks: exact=1
+         Buffers: shared hit=4
+         ->  Bitmap Index Scan on "LinhaFatura_faturaId_ordemLinha_idx"  (cost=0.00..4.43 rows=2 width=0) (actual time=0.023..0.024 rows=2 loops=1)
+               Index Cond: ("faturaId" = 'cf5c35cf24c5fbcbf0bcf9ea2'::text)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=190 read=1
+   I/O Timings: shared read=1.418
+ Planning Time: 3.265 ms
+ Execution Time: 0.173 ms
+(16 rows)
+

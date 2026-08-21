@@ -1,0 +1,15 @@
+                                                                              QUERY PLAN                                                                               
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.41..7.86 rows=51 width=91) (actual time=1.891..23.328 rows=51 loops=1)
+   Buffers: shared hit=44 read=15
+   I/O Timings: shared read=13.611
+   ->  Index Scan Backward using "Fatura_tenantId_dataEmissao_idx" on "Fatura" f  (cost=0.41..8946.03 rows=61269 width=91) (actual time=1.889..23.313 rows=51 loops=1)
+         Index Cond: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+         Buffers: shared hit=44 read=15
+         I/O Timings: shared read=13.611
+ Planning:
+   Buffers: shared hit=236
+ Planning Time: 2.411 ms
+ Execution Time: 23.411 ms
+(11 rows)
+

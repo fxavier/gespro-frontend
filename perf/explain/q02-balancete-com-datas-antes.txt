@@ -1,0 +1,21 @@
+                                                                                              QUERY PLAN                                                                                               
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=5402.44..15163.17 rows=127680 width=209) (actual time=78.443..312.150 rows=125732 loops=1)
+   Hash Cond: (p."lancamentoId" = j0.id)
+   Buffers: shared hit=8254
+   ->  Seq Scan on "PartidaLancamento" p  (cost=0.00..8451.64 rows=255491 width=181) (actual time=0.020..162.180 rows=254005 loops=1)
+         Filter: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+         Buffers: shared hit=5258
+   ->  Hash  (cost=4767.56..4767.56 rows=50790 width=26) (actual time=77.998..77.999 rows=50287 loops=1)
+         Buckets: 65536  Batches: 1  Memory Usage: 3361kB
+         Buffers: shared hit=2989
+         ->  Seq Scan on "Lancamento" j0  (cost=0.00..4767.56 rows=50790 width=26) (actual time=0.006..68.440 rows=50287 loops=1)
+               Filter: ((status <> 'ESTORNADO'::"StatusLancamento") AND (data >= '2025-01-01 00:00:00'::timestamp without time zone) AND (data <= '2025-12-31 23:59:59'::timestamp without time zone))
+               Rows Removed by Filter: 51048
+               Buffers: shared hit=2989
+ Planning:
+   Buffers: shared hit=486
+ Planning Time: 4.750 ms
+ Execution Time: 317.474 ms
+(17 rows)
+

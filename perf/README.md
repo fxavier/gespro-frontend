@@ -95,6 +95,17 @@ O 7.º cenário (autenticação) **só existe na fase 2**, contra Keycloak real 
 medi-lo contra o `Credentials` actual produziria um número inválido no dia em
 que a identidade fundir (ADR-0018, «duas linhas de base»).
 
+## Estado — fase A triada
+
+A campanha local de instância única correu e está triada: as 20 consultas mais
+lentas têm `EXPLAIN (ANALYZE, BUFFERS)` versionado em `perf/explain/`
+(pares `-antes`/`-depois` para as afectadas pelos índices propostos) e os
+índices testados vivem em `perf/sql/proposed-indexes.sql`. A triagem completa,
+os defeitos de domínio encontrados (D1–D7) e a resposta preliminar à cache do
+ADR-0014 estão em **`docs/handoff/w8-desempenho.md`**. Atenção: o p95 da razão
+de conta da fase A é **inválido** (a página devolvia erro com HTTP 200) e o
+balancete correu sem filtro de datas — ver o handoff antes de citar números.
+
 ## Gate de CI
 
 `.github/workflows/perf.yml` — cenário reduzido (`ci-smoke.js`) contra o

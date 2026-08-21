@@ -24,7 +24,12 @@ export const VOLUMES_BASE = {
   vendas: 120_000,
   itensPorVenda: 2,
   movimentosStock: 400_000,
-  lancamentos: 100_000, // ~2,5 partidas/lançamento → 250 000 partidas
+  // ADR-0018 §2 «Lançamentos contabilísticos e partidas: 250 000» conta-se
+  // nas PARTIDAS: 100 000 lançamentos × ~2,5 partidas = 250 000 partidas
+  // (débito principal em todos + débito secundário nos ímpares + crédito em
+  // todos — ver bulk.ts). Confirmado na BD de volume: 250 000 + deltas da
+  // própria campanha. NÃO subir para 250 000 lançamentos sem rever o ADR.
+  lancamentos: 100_000,
   faturas: 60_000,
   linhasPorFatura: 2,
   colaboradores: 80,

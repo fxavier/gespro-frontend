@@ -1,0 +1,24 @@
+                                                                        QUERY PLAN                                                                         
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=25757.02..25757.15 rows=51 width=333) (actual time=183.893..183.902 rows=51 loops=1)
+   Buffers: shared hit=10128
+   ->  Sort  (cost=25757.02..26094.29 rows=134907 width=333) (actual time=183.891..183.898 rows=51 loops=1)
+         Sort Key: m."createdAt" DESC, m.id DESC
+         Sort Method: top-N heapsort  Memory: 48kB
+         Buffers: shared hit=10128
+         ->  Nested Loop  (cost=0.42..21256.24 rows=134907 width=333) (actual time=0.105..119.263 rows=204088 loops=1)
+               Join Filter: (ROW(m."createdAt", m.id) < ROW("MovimentoStock"."createdAt", "MovimentoStock".id))
+               Rows Removed by Join Filter: 200001
+               Buffers: shared hit=10122
+               ->  Index Scan using "MovimentoStock_pkey" on "MovimentoStock"  (cost=0.42..8.44 rows=1 width=34) (actual time=0.044..0.047 rows=1 loops=1)
+                     Index Cond: (id = 'cd2bcd9d15a9044cd04bc2c26'::text)
+                     Buffers: shared hit=4
+               ->  Seq Scan on "MovimentoStock" m  (cost=0.00..15177.00 rows=404720 width=333) (actual time=0.058..61.892 rows=404089 loops=1)
+                     Filter: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+                     Buffers: shared hit=10118
+ Planning:
+   Buffers: shared hit=321
+ Planning Time: 4.533 ms
+ Execution Time: 184.085 ms
+(20 rows)
+

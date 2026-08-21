@@ -1,0 +1,27 @@
+                                                                       QUERY PLAN                                                                       
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ Update on "SerieDocumento"  (cost=4.48..8.77 rows=1 width=10) (actual time=4.002..4.008 rows=1 loops=1)
+   Buffers: shared hit=89 dirtied=1
+   InitPlan 1
+     ->  Limit  (cost=4.47..4.48 rows=1 width=44) (actual time=3.409..3.411 rows=1 loops=1)
+           Buffers: shared hit=66 dirtied=1
+           ->  LockRows  (cost=4.47..4.48 rows=1 width=44) (actual time=3.408..3.409 rows=1 loops=1)
+                 Buffers: shared hit=66 dirtied=1
+                 ->  Sort  (cost=4.47..4.47 rows=1 width=44) (actual time=2.023..2.023 rows=1 loops=1)
+                       Sort Key: "SerieDocumento_1".ano DESC, "SerieDocumento_1"."createdAt" DESC
+                       Sort Method: quicksort  Memory: 25kB
+                       Buffers: shared hit=65
+                       ->  Seq Scan on "SerieDocumento" "SerieDocumento_1"  (cost=0.00..4.46 rows=1 width=44) (actual time=0.043..1.929 rows=2 loops=1)
+                             Filter: (ativo AND ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text) AND ((tipo)::text = 'FATURA'::text))
+                             Rows Removed by Filter: 21
+                             Buffers: shared hit=59
+   ->  Seq Scan on "SerieDocumento"  (cost=0.00..4.29 rows=1 width=10) (actual time=3.438..3.443 rows=1 loops=1)
+         Filter: (id = (InitPlan 1).col1)
+         Rows Removed by Filter: 22
+         Buffers: shared hit=70 dirtied=1
+ Planning:
+   Buffers: shared hit=177 dirtied=1
+ Planning Time: 2.688 ms
+ Execution Time: 5.216 ms
+(23 rows)
+

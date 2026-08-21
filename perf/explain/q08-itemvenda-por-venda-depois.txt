@@ -1,0 +1,12 @@
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ Index Scan using "ItemVenda_vendaId_idx" on "ItemVenda"  (cost=0.42..12.45 rows=2 width=215) (actual time=0.050..0.051 rows=2 loops=1)
+   Index Cond: ("vendaId" = 'caf529c305738629b8ecbd4cb'::text)
+   Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=192 read=1
+   I/O Timings: shared read=0.553
+ Planning Time: 2.638 ms
+ Execution Time: 0.112 ms
+(8 rows)
+
