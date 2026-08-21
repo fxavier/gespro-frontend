@@ -1,0 +1,11 @@
+{
+  "realm": "gespro",
+  "enabled": true,
+  "displayName": "GestPro",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "bruteForceProtected": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["pt"],
+  "defaultLocale": "pt"
+}
