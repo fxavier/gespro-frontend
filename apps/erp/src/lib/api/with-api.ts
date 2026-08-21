@@ -6,6 +6,7 @@ import { AppError, ForbiddenError, UnauthorizedError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import { runWithRequestContext, newRequestId } from '@/server/observability/context';
 import { recordRequest } from '@/server/observability/metrics';
+import { recordHttpRequest } from '@/server/observability/prom-registry';
 
 interface ApiCtx {
   tenantId: string;
@@ -92,6 +93,7 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
       const duration = Date.now() - startTime;
       log.info({ status: response.status, duration }, 'request end');
       recordRequest(duration, response.status >= 500);
+      recordHttpRequest({ method, route: url, statusCode: response.status, durationMs: duration, tenantId });
 
       return addId(response);
     } catch (e) {
@@ -109,6 +111,7 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
         log.warn({ code: err.code, status: err.status, duration }, err.message);
       }
       recordRequest(duration, true);
+      recordHttpRequest({ method, route: url, statusCode: err.status, durationMs: duration, tenantId: '' });
 
       return addId(
         NextResponse.json(
