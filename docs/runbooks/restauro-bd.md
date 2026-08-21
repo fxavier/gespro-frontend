@@ -63,7 +63,7 @@ exemplo, restaurar para um instante anterior a uma migração destrutiva):
 6. **Verificar** (ADR-0020 §3): `pg_is_in_recovery()` = `f`; contagens de
    `"Tenant"`/`"User"`; coerência da numeração de séries; base `keycloak` presente.
 7. **Reapontar a aplicação** (variável `DATABASE_URL`) OU repor o volume da pilha:
-   parar a pilca, substituir o conteúdo de `gespro-pgdata` pelo PGDATA restaurado,
+   parar a pilha, substituir o conteúdo de `gespro-pgdata` pelo PGDATA restaurado,
    subir de novo.
 8. Registar o ensaio/incidente em `docs/runbooks/ensaio-restauro.md`.
 

@@ -15,16 +15,22 @@ set -eu
 
 export PGPASSWORD
 
+# Aspas simples na password não podem partir o SQL (revisão w8: escaping)
+KC_DB_PASSWORD_SQL=$(printf %s "$KC_DB_PASSWORD" | sed "s/'/''/g")
+
 echo "[db-init] A garantir role e base de dados do Keycloak em ${PGHOST}..."
 
 psql -h "$PGHOST" -U "$PGUSER" -d postgres -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${KC_DB_USER}') THEN
-    CREATE ROLE ${KC_DB_USER} LOGIN PASSWORD '${KC_DB_PASSWORD}';
+    CREATE ROLE ${KC_DB_USER} LOGIN PASSWORD '${KC_DB_PASSWORD_SQL}';
   END IF;
 END
 \$\$;
+-- Idempotência da password (revisão w8): se KC_DB_PASSWORD mudar depois do
+-- primeiro arranque, a role é actualizada em vez de ficar com a antiga.
+ALTER ROLE ${KC_DB_USER} WITH LOGIN PASSWORD '${KC_DB_PASSWORD_SQL}';
 SELECT 'CREATE DATABASE ${KC_DB_NAME} OWNER ${KC_DB_USER}'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${KC_DB_NAME}')
 \gexec
