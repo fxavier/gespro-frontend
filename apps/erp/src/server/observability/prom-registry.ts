@@ -11,9 +11,10 @@ import { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } from 'prom
  *   Violar esta regra faz explodir o custo e degrada o Prometheus.
  *
  * Destino (ADR-0026 §1):
- *   O exportador é o endpoint /api/metrics (formato Prometheus text).
- *   O Prometheus do otel-lgtm raspa esse endpoint.
- *   Mudar de destino é mudar OTEL_EXPORTER_OTLP_ENDPOINT — não código.
+ *   O endpoint /api/metrics expõe as métricas em formato Prometheus text.
+ *   O Prometheus do otel-lgtm raspa esse endpoint via scrape job 'gespro-erp'.
+ *   As séries ficam com etiqueta job="gespro-erp" (scrape) e service="gespro" (default label).
+ *   Mudar de destino de traces/logs é mudar OTEL_EXPORTER_OTLP_ENDPOINT — não código.
  */
 
 export const registry = new Registry();
@@ -63,10 +64,15 @@ export const keycloakAvailable = new Gauge({
   registers: [registry],
 });
 
-/** Latência do endpoint de health do Keycloak em ms. */
-export const keycloakTokenDurationMs = new Histogram({
-  name: 'keycloak_token_duration_ms',
-  help: 'Latência do probe de saúde do Keycloak em milissegundos',
+/**
+ * Latência do probe de saúde do Keycloak em ms.
+ * Mede o tempo de resposta do endpoint /health/live do Keycloak.
+ * Nota: isto é a latência do probe de saúde, não do endpoint de token.
+ * (renomeado de keycloak_token_duration_ms — era nome enganador)
+ */
+export const keycloakHealthProbeDurationMs = new Histogram({
+  name: 'keycloak_health_probe_duration_ms',
+  help: 'Latência do probe de saúde do Keycloak em milissegundos (endpoint /health/live)',
   buckets: [10, 50, 100, 200, 500, 1000, 2000, 5000],
   registers: [registry],
 });
@@ -168,7 +174,8 @@ export interface HttpRequestMetricOpts {
 
 /**
  * Regista um pedido HTTP concluído no registo Prometheus.
- * Chamado pelos envelopes withApi e createSafeAction.
+ * Chamado pelo envelope withApi.
+ * NOTA: createSafeAction NÃO chama recordHttpRequest — integração futura (dívida fase 2/3).
  *
  * NÃO aceita userId nem requestId — vão no log e no trace.
  */

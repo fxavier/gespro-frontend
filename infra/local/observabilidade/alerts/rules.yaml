@@ -11,11 +11,12 @@
 #
 # Runbooks obrigatórios (ADR-0019): cada alerta que PAGINA tem docs/runbooks/alerta-*.md
 #
-# FONTE DE MÉTRICAS:
-#   As métricas RED (http_requests_total, etc.) chegam por OTLP via otelcol → Prometheus.
-#   service_name="gespro-erp" identifica as instâncias do ERP.
-#   Quando a imagem ERP for reconstruída com prom-client (Phase A do w8-observabilidade),
-#   o Prometheus passa também a raspar /api/metrics em formato texto — job="gespro-erp".
+# SELECTORS CORRECTOS (M1 fix):
+#   As métricas do ERP são geradas pelo prom-client e raspadas via scrape job 'gespro-erp'.
+#   Séries resultantes: job="gespro-erp", service="gespro" (default label do registry).
+#   NÃO usar service_name="gespro-erp" — esse label só existe em métricas OTLP do SDK,
+#   não nas métricas prom-client que são a fonte de dados desta pilha de alertas.
+#   O selector correcto para isolar métricas do ERP é job="gespro-erp".
 
 apiVersion: 1
 
@@ -36,11 +37,10 @@ groups:
             relativeTimeRange: { from: 300, to: 0 }
             datasourceUid: prometheus
             model:
-              # Usa ausência de métricas OTLP como proxy de disponibilidade.
-              # absent() devolve 1 se nenhum dado chegou nos últimos 5 min.
-              # Quando a imagem for reconstruída com prom-client, substituir por:
-              #   absent(up{job="gespro-erp"}) or up{job="gespro-erp"} == 0
-              expr: "absent(http_requests_total{service_name=\"gespro-erp\"})"
+              # up{job="gespro-erp"} = 0 quando o Prometheus não consegue raspar /api/metrics
+              # absent(...) = 1 quando o job não existe de todo (scrape config ausente)
+              # Ambas as condições indicam ERP inacessível.
+              expr: "absent(up{job=\"gespro-erp\"}) or up{job=\"gespro-erp\"} == 0"
               instant: true
               refId: A
           - refId: C
@@ -55,8 +55,6 @@ groups:
               expression: A
               refId: C
               type: classic_conditions
-        # NoData = sem dados OTLP — pode significar ambiente sem tráfego,
-        # não necessariamente falha. Alerting só quando há dado e é 1.
         noDataState: NoData
         execErrState: Alerting
         for: 2m
@@ -65,7 +63,7 @@ groups:
           runbook: "docs/runbooks/alerta-erp-indisponivel.md"
         annotations:
           summary: "ERP GestPro indisponível há mais de 2 minutos"
-          description: "O ERP não está a enviar telemetria. Verificar o processo Next.js e a conectividade de rede. Runbook: {{ $labels.runbook }}"
+          description: "O Prometheus não consegue raspar o /api/metrics do ERP (up=0 ou ausente). Verificar o processo Next.js e a conectividade de rede. Runbook: {{ $labels.runbook }}"
           runbook_url: "docs/runbooks/alerta-erp-indisponivel.md"
 
       - uid: "gespro-keycloak-indisponivel"
@@ -76,7 +74,9 @@ groups:
             relativeTimeRange: { from: 300, to: 0 }
             datasourceUid: prometheus
             model:
-              expr: "keycloak_available == 0"
+              # keycloak_available é um gauge prom-client actualizado pelo probe de saúde
+              # (probes.ts → KEYCLOAK_HEALTH_URL ou http://keycloak:9000/health/live)
+              expr: "keycloak_available{job=\"gespro-erp\"} == 0"
               instant: true
               refId: A
           - refId: C
@@ -99,7 +99,7 @@ groups:
           runbook: "docs/runbooks/alerta-keycloak-indisponivel.md"
         annotations:
           summary: "Keycloak indisponível — login bloqueado"
-          description: "O Keycloak não responde ao probe de saúde. Nenhum utilizador consegue autenticar-se. Runbook: {{ $labels.runbook }}"
+          description: "O Keycloak não responde ao probe de saúde (keycloak_available=0). Nenhum utilizador consegue autenticar-se. Runbook: {{ $labels.runbook }}"
           runbook_url: "docs/runbooks/alerta-keycloak-indisponivel.md"
 
       - uid: "gespro-taxa-erro-elevada"
@@ -110,7 +110,9 @@ groups:
             relativeTimeRange: { from: 600, to: 0 }
             datasourceUid: prometheus
             model:
-              expr: "sum(rate(http_requests_total{status_code=~\"5..\",service_name=\"gespro-erp\"}[5m])) / sum(rate(http_requests_total{service_name=\"gespro-erp\"}[5m])) > 0.01"
+              # job="gespro-erp": selector correcto para métricas prom-client (M1 fix)
+              # service_name="gespro-erp" era incorrecto — não existe nestas séries
+              expr: "sum(rate(http_requests_total{status_code=~\"5..\",job=\"gespro-erp\"}[5m])) / sum(rate(http_requests_total{job=\"gespro-erp\"}[5m])) > 0.01"
               instant: true
               refId: A
           - refId: C
@@ -144,9 +146,10 @@ groups:
             relativeTimeRange: { from: 300, to: 0 }
             datasourceUid: prometheus
             model:
-              # DB inacessível: o ERP não consegue responder ao /api/ready (SELECT 1)
-              # Quando prom-client estiver activo: db_pool_errors_total ou similar
-              expr: "absent(http_requests_total{service_name=\"gespro-erp\",route=\"/api/ready\"})"
+              # Proxy para DB inacessível: ERP está up (scrape OK) mas >90% dos pedidos
+              # são 5xx, o que indica falha de conectividade com a BD.
+              # noDataState=NoData garante que não dispara sem tráfego (M1 fix).
+              expr: "sum(rate(http_requests_total{status_code=~\"5..\",job=\"gespro-erp\"}[5m])) / sum(rate(http_requests_total{job=\"gespro-erp\"}[5m])) > 0.90"
               instant: true
               refId: A
           - refId: C
@@ -154,7 +157,7 @@ groups:
             datasourceUid: "__expr__"
             model:
               conditions:
-                - evaluator: { params: [0.5], type: "gt" }
+                - evaluator: { params: [0], type: "gt" }
                   operator: { type: "and" }
                   query: { params: [A] }
                   reducer: { params: [], type: "last" }
@@ -169,7 +172,7 @@ groups:
           runbook: "docs/runbooks/alerta-db-inacessivel.md"
         annotations:
           summary: "PostgreSQL possivelmente inacessível"
-          description: "O endpoint /api/ready não está a ser chamado. O ERP pode estar sem conectividade com a BD. Runbook: {{ $labels.runbook }}"
+          description: "Mais de 90% dos pedidos estão a retornar 5xx — a BD pode estar inacessível. Runbook: {{ $labels.runbook }}"
           runbook_url: "docs/runbooks/alerta-db-inacessivel.md"
 
   # ---------------------------------------------------------------------------
@@ -188,7 +191,8 @@ groups:
             relativeTimeRange: { from: 1800, to: 0 }
             datasourceUid: prometheus
             model:
-              expr: "histogram_quantile(0.95, sum(rate(http_request_duration_ms_bucket{service_name=\"gespro-erp\"}[5m])) by (le)) > 800"
+              # job="gespro-erp": selector correcto (M1 fix)
+              expr: "histogram_quantile(0.95, sum(rate(http_request_duration_ms_bucket{job=\"gespro-erp\"}[5m])) by (le)) > 800"
               instant: true
               refId: A
           - refId: C
@@ -316,7 +320,8 @@ groups:
             relativeTimeRange: { from: 1800, to: 0 }
             datasourceUid: prometheus
             model:
-              expr: "histogram_quantile(0.95, sum(rate(keycloak_token_duration_ms_bucket[5m])) by (le)) > 1000"
+              # Métrica renomeada: keycloak_health_probe_duration_ms (era keycloak_token_duration_ms)
+              expr: "histogram_quantile(0.95, sum(rate(keycloak_health_probe_duration_ms_bucket[5m])) by (le)) > 1000"
               instant: true
               refId: A
           - refId: C
@@ -337,7 +342,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Latência do Keycloak acima de 1000ms"
+          summary: "Latência do probe de saúde do Keycloak acima de 1000ms"
           description: "O probe de saúde do Keycloak está a demorar mais de 1000ms. Pode indicar pressão na base de dados do Keycloak ou problemas de rede."
 
       - uid: "gespro-slo-budget-burn"
@@ -348,8 +353,8 @@ groups:
             relativeTimeRange: { from: 3600, to: 0 }
             datasourceUid: prometheus
             model:
-              # Consumo de budget: taxa de erro actual vs budget permitido (0.5% = 1 - 99.5%)
-              expr: "sum(rate(http_requests_total{status_code=~\"5..\",service_name=\"gespro-erp\"}[1h])) / sum(rate(http_requests_total{service_name=\"gespro-erp\"}[1h])) > 0.005"
+              # job="gespro-erp": selector correcto (M1 fix)
+              expr: "sum(rate(http_requests_total{status_code=~\"5..\",job=\"gespro-erp\"}[1h])) / sum(rate(http_requests_total{job=\"gespro-erp\"}[1h])) > 0.005"
               instant: true
               refId: A
           - refId: C

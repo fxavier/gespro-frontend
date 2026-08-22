@@ -7,6 +7,9 @@ import { logger } from '@/server/observability/logger';
 import { runWithRequestContext, newRequestId } from '@/server/observability/context';
 import { recordRequest } from '@/server/observability/metrics';
 import { recordHttpRequest } from '@/server/observability/prom-registry';
+import { normalizeRoute } from './route-utils';
+
+export { normalizeRoute } from './route-utils';
 
 interface ApiCtx {
   tenantId: string;
@@ -47,6 +50,8 @@ function withRequestIdHeader(response: Response, requestId: string): Response {
  *   - Inclui `x-request-id` no header de resposta.
  *   - Loga início/fim/erro com tenantId, userId, método, rota, duração.
  *   - Erros inesperados → log server-side com stack; cliente recebe envelope sem stack.
+ *   - Route normalizada: /api/faturacao/[id]/pdf (não o ID concreto) — B2 fix.
+ *   - tenantId registado mesmo no caminho de erro (M4 fix).
  */
 export function withApi(handler: Handler, opts?: WithApiOptions) {
   return async (
@@ -55,16 +60,21 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
   ): Promise<Response> => {
     const requestId = newRequestId();
     const startTime = Date.now();
-    const url = req.nextUrl?.pathname ?? req.url;
+    const rawUrl = req.nextUrl?.pathname ?? req.url;
     const method = req.method;
+
+    // tenantId e userId içados para fora do try — disponíveis no caminho de erro (M4 fix)
+    let tenantId = '';
+    let userId = '';
 
     const addId = (r: Response) => withRequestIdHeader(r, requestId);
 
     try {
       const params = segment?.params ? await segment.params : {};
 
-      let tenantId = '';
-      let userId = '';
+      // Rota normalizada: substitui valores concretos de params pelos placeholders (B2 fix)
+      const route = normalizeRoute(rawUrl, params);
+
       let perms = new Set<string>();
 
       if (!opts?.public) {
@@ -77,7 +87,7 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
         if (opts?.permission && !perms.has(opts.permission)) throw new ForbiddenError();
       }
 
-      const log = logger.child({ requestId, method, url, tenantId, userId });
+      const log = logger.child({ requestId, method, url: route, tenantId, userId });
       log.info({}, 'request start');
 
       const response = await runWithRequestContext({ requestId, tenantId, userId }, () => {
@@ -93,13 +103,15 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
       const duration = Date.now() - startTime;
       log.info({ status: response.status, duration }, 'request end');
       recordRequest(duration, response.status >= 500);
-      recordHttpRequest({ method, route: url, statusCode: response.status, durationMs: duration, tenantId });
+      recordHttpRequest({ method, route, statusCode: response.status, durationMs: duration, tenantId });
 
       return addId(response);
     } catch (e) {
       const err = e instanceof AppError ? e : new AppError('ERRO_INTERNO', 'Erro interno', 500);
       const duration = Date.now() - startTime;
-      const log = logger.child({ requestId, method, url });
+      // route pode não estar definida ainda se o erro ocorreu antes de normalizeRoute
+      const route = rawUrl;
+      const log = logger.child({ requestId, method, url: route, tenantId });
 
       if (!(e instanceof AppError)) {
         // Erro inesperado: logar no servidor com stack (nunca ao cliente)
@@ -111,7 +123,8 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
         log.warn({ code: err.code, status: err.status, duration }, err.message);
       }
       recordRequest(duration, true);
-      recordHttpRequest({ method, route: url, statusCode: err.status, durationMs: duration, tenantId: '' });
+      // tenantId içado: já tem o valor correcto se a sessão foi estabelecida (M4 fix)
+      recordHttpRequest({ method, route, statusCode: err.status, durationMs: duration, tenantId });
 
       return addId(
         NextResponse.json(

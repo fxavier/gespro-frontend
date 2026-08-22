@@ -1,7 +1,7 @@
 import 'server-only';
 import {
   keycloakAvailable,
-  keycloakTokenDurationMs,
+  keycloakHealthProbeDurationMs,
   valkeyAvailable,
   valkeyOperationDurationMs,
 } from './prom-registry';
@@ -28,17 +28,39 @@ const PROBE_INTERVAL_MS = 30_000; // 30 segundos
 
 /**
  * Verifica a disponibilidade do Keycloak via o endpoint de health.
- * URL derivada de KEYCLOAK_ISSUER (ex.: http://keycloak:8080/realms/gespro
- * → http://keycloak:8080/health/live).
+ *
+ * URL de saúde (M2 fix — ADR-0019 §2):
+ *   KEYCLOAK_HEALTH_URL (variável dedicada, preferida) — ex.: http://keycloak:9000/health/live
+ *   Fallback: deriva de KEYCLOAK_URL substituindo a porta por 9000
+ *             ex.: http://keycloak:8080 → http://keycloak:9000/health/live
+ *
+ * NOTA IMPORTANTE:
+ *   - KEYCLOAK_ISSUER (ex.: http://localhost:8081/realms/gespro) aponta para o browser,
+ *     não para o contentor — NÃO usar para derivar o URL de health dentro do compose.
+ *   - O Keycloak 26 serve /health na porta de gestão 9000 (interna à rede Docker),
+ *     nunca na porta 8080 (HTTP) nem na 8443 (HTTPS).
+ *   - A porta 9000 não é publicada no compose — só acessível dentro da rede Docker.
  */
 async function probeKeycloak(): Promise<void> {
-  const issuer = process.env.KEYCLOAK_ISSUER ?? process.env.AUTH_KEYCLOAK_ISSUER;
-  if (!issuer) return; // Keycloak não configurado — probe silenciosa
+  // 1. URL dedicado (preferido) — ex.: http://keycloak:9000/health/live
+  let healthUrl = process.env.KEYCLOAK_HEALTH_URL;
 
-  // Derivar o URL de health a partir do issuer
-  // Ex.: http://keycloak:8080/realms/gespro → http://keycloak:8080/health/live
-  const baseUrl = issuer.replace(/\/realms\/[^/].*$/, '');
-  const healthUrl = `${baseUrl}/health/live`;
+  if (!healthUrl) {
+    // 2. Fallback: deriva de KEYCLOAK_URL (URL interno do contentor Keycloak)
+    //    ex.: http://keycloak:8080 → http://keycloak:9000/health/live
+    const keycloakUrl = process.env.KEYCLOAK_URL;
+    if (!keycloakUrl) return; // Keycloak não configurado — probe silenciosa
+
+    try {
+      const parsed = new URL(keycloakUrl);
+      // Porta de gestão do Keycloak 26: sempre 9000
+      parsed.port = '9000';
+      parsed.pathname = '/health/live';
+      healthUrl = parsed.toString();
+    } catch {
+      return; // URL inválido — probe silenciosa
+    }
+  }
 
   const start = Date.now();
   try {
@@ -47,7 +69,7 @@ async function probeKeycloak(): Promise<void> {
       headers: { Accept: 'application/json' },
     });
     const duration = Date.now() - start;
-    keycloakTokenDurationMs.observe(duration);
+    keycloakHealthProbeDurationMs.observe(duration);
     keycloakAvailable.set(resp.ok ? 1 : 0);
   } catch {
     // Timeout, conexão recusada ou erro de rede

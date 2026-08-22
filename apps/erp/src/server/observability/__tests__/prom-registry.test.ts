@@ -14,7 +14,7 @@ import {
   httpRequestsTotal,
   httpRequestDurationMs,
   keycloakAvailable,
-  keycloakTokenDurationMs,
+  keycloakHealthProbeDurationMs,
   keycloakFailuresTotal,
   valkeyAvailable,
   valkeyOperationDurationMs,
@@ -26,6 +26,7 @@ import {
   recordHttpRequest,
   type HttpRequestMetricOpts,
 } from '../prom-registry';
+import { normalizeRoute } from '@/lib/api/route-utils';
 
 // ---------------------------------------------------------------------------
 // Utilitários
@@ -84,8 +85,8 @@ describe('cardinalidade de etiquetas (ADR-0019 §2)', () => {
       assertNoHighCardinalityLabels(getLabelNames(keycloakAvailable));
     });
 
-    it('keycloak_token_duration_ms não tem etiquetas de alta cardinalidade', () => {
-      assertNoHighCardinalityLabels(getLabelNames(keycloakTokenDurationMs));
+    it('keycloak_health_probe_duration_ms não tem etiquetas de alta cardinalidade', () => {
+      assertNoHighCardinalityLabels(getLabelNames(keycloakHealthProbeDurationMs));
     });
 
     it('keycloak_failures_total usa reason como etiqueta (não userId)', () => {
@@ -216,5 +217,52 @@ describe('recordHttpRequest', () => {
     expect(keys).not.toContain('requestId');
     expect(keys).not.toContain('user_id');
     expect(keys).not.toContain('request_id');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// normalizeRoute — B2 fix: cardinalidade da etiqueta `route` (ADR-0019 §2)
+// ---------------------------------------------------------------------------
+
+describe('normalizeRoute (B2 — cardinalidade da etiqueta route)', () => {
+  it('rota estática sem params — não altera', () => {
+    expect(normalizeRoute('/api/health', {})).toBe('/api/health');
+  });
+
+  it('rota dinâmica simples: /api/faturacao/<id>/pdf → /api/faturacao/[id]/pdf', () => {
+    const normalized = normalizeRoute('/api/faturacao/clj123abc/pdf', { id: 'clj123abc' });
+    expect(normalized).toBe('/api/faturacao/[id]/pdf');
+    // CRÍTICO: o valor concreto NÃO pode aparecer na rota normalizada
+    expect(normalized).not.toContain('clj123abc');
+  });
+
+  it('rota dinâmica: /api/documentos/<id>/download → /api/documentos/[id]/download', () => {
+    const normalized = normalizeRoute('/api/documentos/doc-uuid-456/download', { id: 'doc-uuid-456' });
+    expect(normalized).toBe('/api/documentos/[id]/download');
+    expect(normalized).not.toContain('doc-uuid-456');
+  });
+
+  it('rota catch-all: /api/documentos/local/a/b/c → /api/documentos/local/[...key]', () => {
+    const normalized = normalizeRoute('/api/documentos/local/a/b/c', { key: ['a', 'b', 'c'] });
+    expect(normalized).toBe('/api/documentos/local/[...key]');
+    expect(normalized).not.toContain('/a/b/c');
+  });
+
+  it('múltiplos params: /api/reconciliacao/<id>/export → normaliza o param', () => {
+    const normalized = normalizeRoute('/api/contabilidade/reconciliacao/rec-789/export', { id: 'rec-789' });
+    expect(normalized).toBe('/api/contabilidade/reconciliacao/[id]/export');
+    expect(normalized).not.toContain('rec-789');
+  });
+
+  it('rota sem params mas com params vazio — inalterada', () => {
+    expect(normalizeRoute('/api/ready', {})).toBe('/api/ready');
+  });
+
+  it('a etiqueta route normalizada não cria série por documento (anti-cardinalidade)', () => {
+    // Dois pedidos para o mesmo endpoint mas IDs diferentes → mesma série normalizada
+    const route1 = normalizeRoute('/api/faturacao/id-001/pdf', { id: 'id-001' });
+    const route2 = normalizeRoute('/api/faturacao/id-999/pdf', { id: 'id-999' });
+    expect(route1).toBe(route2); // Mesma série no Prometheus — cardinalidade controlada
+    expect(route1).toBe('/api/faturacao/[id]/pdf');
   });
 });
