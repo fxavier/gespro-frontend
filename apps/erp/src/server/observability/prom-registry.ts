@@ -192,3 +192,28 @@ export function recordHttpRequest(opts: HttpRequestMetricOpts): void {
     opts.durationMs,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Auto-arranque das sondas (fallback para quando instrumentation.ts não é
+// compilado pelo Turbopack para .next/server/instrumentation.js)
+//
+// Porquê aqui e não apenas em instrumentation.ts?
+// O Turbopack (Next.js 16) não compila instrumentation.ts para
+// .next/server/instrumentation.js na build standalone — a função register()
+// nunca é chamada. Como prom-registry.ts É compilado (está em todos os chunks
+// de Route Handlers que usam recordHttpRequest), esta é a localização mais
+// fiável para garantir que as sondas arrancam.
+//
+// Dependência circular intencional e segura:
+//   probes.ts → importa gauges de prom-registry.ts
+//   prom-registry.ts → importa startProbes de probes.ts (aqui, em baixo)
+// O import() dinâmico garante que todos os exports de prom-registry.ts estão
+// definidos ANTES de probes.ts tentar aceder a eles (ESM live bindings).
+//
+// O _resetProbesState() em probes.ts permite reiniciar nas suites de testes.
+// ---------------------------------------------------------------------------
+if (typeof process !== 'undefined' && process.env.NEXT_RUNTIME !== 'edge') {
+  void import('./probes').then(({ startProbes }) => startProbes()).catch(() => {
+    // Sondas não críticas — falha silenciosa para não bloquear métricas RED
+  });
+}

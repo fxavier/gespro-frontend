@@ -40,6 +40,9 @@ groups:
               # up{job="gespro-erp"} = 0 quando o Prometheus não consegue raspar /api/metrics
               # absent(...) = 1 quando o job não existe de todo (scrape config ausente)
               # Ambas as condições indicam ERP inacessível.
+              # NOTA: quando ERP está UP (up=1), ambas as condições retornam vazio.
+              # noDataState: OK garante que vazio = Normal (não dispara).
+              # noDataState: NoData causaria DatasourceNoData mesmo com ERP saudável (M2 fix).
               expr: "absent(up{job=\"gespro-erp\"}) or up{job=\"gespro-erp\"} == 0"
               instant: true
               refId: A
@@ -55,7 +58,7 @@ groups:
               expression: A
               refId: C
               type: classic_conditions
-        noDataState: NoData
+        noDataState: OK
         execErrState: Alerting
         for: 2m
         labels:
@@ -76,6 +79,8 @@ groups:
             model:
               # keycloak_available é um gauge prom-client actualizado pelo probe de saúde
               # (probes.ts → KEYCLOAK_HEALTH_URL ou http://keycloak:9000/health/live)
+              # noDataState: OK — quando Keycloak está UP (keycloak_available=1),
+              # a expressão == 0 retorna vazio, e vazio = Normal (não dispara).
               expr: "keycloak_available{job=\"gespro-erp\"} == 0"
               instant: true
               refId: A
@@ -91,7 +96,7 @@ groups:
               expression: A
               refId: C
               type: classic_conditions
-        noDataState: NoData
+        noDataState: OK
         execErrState: Alerting
         for: 2m
         labels:
@@ -148,7 +153,9 @@ groups:
             model:
               # Proxy para DB inacessível: ERP está up (scrape OK) mas >90% dos pedidos
               # são 5xx, o que indica falha de conectividade com a BD.
-              # noDataState=NoData garante que não dispara sem tráfego (M1 fix).
+              # noDataState: OK — sem 5xx (sistema saudável), a expressão retorna vazio,
+              # e vazio = Normal (não dispara). noDataState: NoData causava DatasourceNoData
+              # em falso quando não havia tráfego de erros (M2 fix).
               expr: "sum(rate(http_requests_total{status_code=~\"5..\",job=\"gespro-erp\"}[5m])) / sum(rate(http_requests_total{job=\"gespro-erp\"}[5m])) > 0.90"
               instant: true
               refId: A
@@ -164,7 +171,7 @@ groups:
               expression: A
               refId: C
               type: classic_conditions
-        noDataState: NoData
+        noDataState: OK
         execErrState: Alerting
         for: 2m
         labels:
