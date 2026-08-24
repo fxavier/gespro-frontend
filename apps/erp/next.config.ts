@@ -11,6 +11,20 @@ const nextConfig: NextConfig = {
   // O spec 17 gere os headers/CSP — não tocar nesse bloco.
   output: 'standalone',
 
+  // Pacotes OTel tratados como externos pelo bundler Next.js — garante que
+  // @vercel/nft os inclui no output standalone e que não são tree-shaken
+  // quando carregados dinamicamente em instrumentation.ts.
+  serverExternalPackages: [
+    '@opentelemetry/sdk-node',
+    '@opentelemetry/exporter-trace-otlp-http',
+    '@opentelemetry/exporter-logs-otlp-http',
+    '@opentelemetry/sdk-logs',
+    '@opentelemetry/sdk-trace-base',
+    '@opentelemetry/resources',
+    '@opentelemetry/semantic-conventions',
+    '@prisma/instrumentation',
+  ],
+
   // Rastreio de ficheiros do standalone a partir da raiz do monorepo.
   outputFileTracingRoot: monorepoRoot,
 

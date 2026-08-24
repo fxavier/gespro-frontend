@@ -59,6 +59,10 @@ x-erp-ambiente: &erp-ambiente
   VALKEY_URL: redis://valkey:6379
   KEYCLOAK_URL: http://keycloak:8080
   KEYCLOAK_ISSUER: http://localhost:8081/realms/gespro
+  # Endpoint de saúde do Keycloak (porta de gestão 9000, interna à rede Docker).
+  # KEYCLOAK_ISSUER aponta para o browser (localhost:8081) — não usar dentro do contentor.
+  # M2 fix (ADR-0019 §2): probes.ts usa esta variável para sonda de saúde.
+  KEYCLOAK_HEALTH_URL: http://keycloak:9000/health/live
 
 services:
   # ----------------------------------------------------------------------------
@@ -243,6 +247,8 @@ services:
     volumes:
       - ./infra/local/observabilidade/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards
       - ./infra/local/observabilidade/alerts:/otel-lgtm/grafana/conf/provisioning/alerting
+      # Prometheus config com scrape job gespro-erp (w8-observabilidade Fase B)
+      - ./infra/local/observabilidade/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
     deploy:
       resources:
         limits:
