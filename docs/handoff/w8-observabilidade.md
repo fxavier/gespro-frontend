@@ -1,7 +1,7 @@
 # Handoff — w8-observabilidade
 
 **Wave**: 8 — Prontidão para Produção
-**Fases**: 1A (2026-08-21) + 1B (2026-08-22) + 1C (2026-08-23 — correcções B1/B2/M1-M6 + prova final)
+**Fases**: 1A (2026-08-21) + 1B (2026-08-22) + 1C (2026-08-23) + 1D (2026-08-24 — correcções B-N1/B-N2)
 **Branch**: w8-observabilidade
 **ADRs**: ADR-0019, ADR-0026
 
@@ -9,26 +9,41 @@
 
 ## 1. Resumo do trabalho feito
 
-Implementação completa do ADR-0019 (telemetria + SLO) conforme ADR-0026 (stack local).
+Implementação do ADR-0019 (telemetria + SLO) conforme ADR-0026 (stack local).
 
-A telemetria chega ao destino local (`otel-lgtm`): traces em Tempo, logs em Loki, métricas em
-Prometheus por OTLP. Os 4 painéis e as 10 regras de alerta estão provisionados em ficheiro
-versionado. Um alerta (TesteDisparoW8) foi disparado intencionalmente, avaliado pelo motor
-de alertas Grafana, e a notificação chegou ao `webhook-receptor` (confirmado por log do contentor).
+**O que está operacional:**
+- Métricas por scrape Prometheus: `http_requests_total`, `http_request_duration_ms`, sondas
+  Keycloak e Valkey, sinais de negócio — a chegar ao otel-lgtm e visíveis no Grafana.
+- Quatro painéis provisionados por ficheiro versionado.
+- Dez regras de alerta provisionadas; um alerta (`TesteDisparoW8`) disparado intencionalmente
+  e recebido pelo `webhook-receptor` (confirmado por log do contentor).
+- Sondas de saúde Keycloak e Valkey a correr via auto-arranque em `prom-registry.ts`.
 
-Princípio central confirmado: mudar de destino é mudar `OTEL_EXPORTER_OTLP_ENDPOINT` — não código.
+**O que NÃO está operacional (dívida declarada — fase 2/3):**
+- Traces: o Turbopack do Next 16 não compila `instrumentation.ts` para
+  `.next/server/instrumentation.js` no standalone → `register()`/NodeSDK nunca arranca
+  na imagem de produção → **zero traces da app**. Código correcto e pronto; bloqueia o runtime,
+  não o código (ver §8.5).
+- Logs OTLP: `logger.ts` não emite para `@opentelemetry/api-logs` → o pipeline de logs OTLP
+  **não existe em nenhum runtime** (ver §8.6).
+
+Princípio central confirmado: mudar de destino de métricas é mudar `OTEL_EXPORTER_OTLP_ENDPOINT`
+— não código. O mesmo princípio aplica-se a traces e logs quando ficarem operacionais.
 
 ### Estado final das verificações
 
 | Verificação | Resultado |
 |---|---|
-| `pnpm check` (1244 testes) | VERDE |
+| `pnpm check` (testes unitários) | VERDE (falhas pré-existentes apenas em testes de integração com DB) |
 | `keycloak_available` | 1 (sonda rodou 57+ vezes) |
 | `valkey_available` | 1 |
 | Alertas a disparar em falso-positivo | 0 (10 rules inactive) |
 | `tenant_id` em métricas autenticadas | PRESENTE (`cmryxrzzx0000wg9kkdtsdta5`) |
 | `userId`/`requestId` em métricas | AUSENTES (apenas em logs e traces) |
 | Rota normalizada em métricas | PRESENTE (`/api/export/[modulo]` em vez do valor real) |
+| Rota normalizada no caminho de erro | PRESENTE (B-N1 fix: route içada, normalizada antes do catch) |
+| Traces em produção | NÃO OPERACIONAL (dívida §8.5) |
+| Logs OTLP | NÃO OPERACIONAL (dívida §8.6) |
 
 ---
 
@@ -46,14 +61,15 @@ Princípio central confirmado: mudar de destino é mudar `OTEL_EXPORTER_OTLP_END
 #### Modificados (Fase A)
 | Ficheiro | Alteração |
 |---|---|
-| `apps/erp/instrumentation.ts` | Exportador OTLP de logs; chama `startProbes()` |
+| `apps/erp/instrumentation.ts` | Exportador OTLP de traces (NodeSDK); chama `startProbes()` — note: não corre em standalone (ver §8.5) |
 | `apps/erp/src/app/api/metrics/route.ts` | Serve métricas em formato Prometheus text (prom-client) |
-| `apps/erp/src/lib/api/with-api.ts` | Chama `recordHttpRequest()` com `tenantId`, `route`, `statusCode`, `durationMs` |
+| `apps/erp/src/lib/api/with-api.ts` | Chama `recordHttpRequest()` com `tenantId`, `route`, `statusCode`, `durationMs`; `route` içada e normalizada antes do catch (B-N1) |
+| `apps/erp/src/lib/api/route-utils.ts` | `normalizeRoute()` com comparação segmento-a-segmento (NIT) |
 
-#### Testes (Fase A)
+#### Testes (Fase A + 1D)
 | Ficheiro | O que testa |
 |---|---|
-| `apps/erp/src/server/observability/__tests__/prom-registry.test.ts` | Cardinalidade; tenant_id presente; userId/requestId ausentes |
+| `apps/erp/src/server/observability/__tests__/prom-registry.test.ts` | Cardinalidade; tenant_id presente; userId/requestId ausentes; B-N1 (error path) |
 | `apps/erp/src/server/observability/__tests__/negocio.test.ts` | Contadores de negócio; labels correctos |
 | `apps/erp/src/server/observability/__tests__/ready-independence.test.ts` | /api/ready sem dependência de Keycloak/Valkey |
 
@@ -68,7 +84,7 @@ Princípio central confirmado: mudar de destino é mudar `OTEL_EXPORTER_OTLP_END
 | `infra/local/observabilidade/dashboards/03-erros-por-tenant.json` | Painel: taxa de erro por tenant |
 | `infra/local/observabilidade/dashboards/04-sinais-negocio.json` | Painel: vendas, facturas, Stripe, tarefas |
 | `infra/local/observabilidade/alerts/alertmanager.yaml` | Contact points + notification policies |
-| `infra/local/observabilidade/alerts/rules.yaml` | 4 críticos + 6 avisos; `noDataState: OK` nos 3 que precisam |
+| `infra/local/observabilidade/alerts/rules.yaml` | 4 críticos + 6 avisos; `noDataState: OK` nas regras que precisam (ver §3.2) |
 | `infra/local/observabilidade/prometheus.yaml` | Config Prometheus com scrape job `gespro-erp` |
 | `infra/local/observabilidade/scripts/disparar-alerta-teste.sh` | Script de verificação ponta-a-ponta |
 
@@ -80,13 +96,22 @@ Princípio central confirmado: mudar de destino é mudar `OTEL_EXPORTER_OTLP_END
 | `alerta-taxa-erro-elevada.md` | Taxa de Erro 5xx Elevada (CRITICO) |
 | `alerta-db-inacessivel.md` | Base de Dados Inacessível (CRITICO) |
 
-### Fase C — Correcções runtime (M1/M2)
+### Fase C — Correcções runtime (M1/M2/M3/M4)
 
 | Ficheiro | Alteração | Razão |
 |---|---|---|
 | `apps/erp/src/server/observability/prom-registry.ts` | Auto-arranque de sondas via `import()` dinâmico | Turbopack não compila `instrumentation.ts` → `register()` nunca corria |
 | `infra/local/observabilidade/alerts/rules.yaml` | `noDataState: OK` em 3 regras | Falso-positivo DatasourceNoData quando ERP saudável |
 | `docker-compose.yml` (árvore principal) | `KEYCLOAK_HEALTH_URL: http://keycloak:9000/health/live` | Env ausente nos contentores pré-M2 |
+
+### Fase 1D — Correcções B-N1 (esta ronda)
+
+| Ficheiro | Alteração | Razão |
+|---|---|---|
+| `apps/erp/src/lib/api/with-api.ts` | `route` içada para fora do `try`; `const route = rawUrl` removido do `catch` | Erros numa rota dinâmica usavam rawUrl no catch → cardinalidade violada |
+| `apps/erp/src/lib/api/route-utils.ts` | Substituição substring → comparação segmento-a-segmento | Valor de param que é prefixo/sufixo de segmento estático normalizava segmento errado |
+| `apps/erp/src/server/observability/prom-registry.ts` | Guard `!process.env.VITEST` + guard `globalThis.__gespro_probes_started` | Previne arranque de sondas em suites de testes e em hot-reload duplo |
+| `apps/erp/src/server/observability/__tests__/prom-registry.test.ts` | 2 novos testes B-N1 (error path: rota normalizada vs rawUrl) | Cobre o caminho de erro com rota dinâmica |
 
 ---
 
@@ -100,7 +125,14 @@ As sondas Keycloak e Valkey nunca arrancavam: `keycloak_available=0`, `valkey_av
 
 Fix: no final de `prom-registry.ts`, após todos os exports inicializados:
 ```typescript
-if (typeof process !== 'undefined' && process.env.NEXT_RUNTIME !== 'edge') {
+const _g = globalThis as typeof globalThis & { __gespro_probes_started?: boolean };
+if (
+  typeof process !== 'undefined' &&
+  process.env.NEXT_RUNTIME !== 'edge' &&
+  !process.env.VITEST &&
+  !_g.__gespro_probes_started
+) {
+  _g.__gespro_probes_started = true;
   void import('./probes').then(({ startProbes }) => startProbes()).catch(() => {});
 }
 ```
@@ -110,18 +142,28 @@ em `with-api.ts`). A dependência circular (`probes.ts` → `prom-registry.ts` �
 é segura via ESM live bindings: todos os exports de `prom-registry.ts` estão definidos antes
 de `import()` resolver.
 
+O guard `VITEST` previne que as sondas arranquem em suites de testes.
+O guard `globalThis.__gespro_probes_started` previne duplo arranque em hot-reload (padrão do
+prisma client).
+
 ### 3.2 noDataState em regras de alerta
 
-Três regras usavam `noDataState: NoData` em expressões que devolvem série vazia quando
-as condições **não** estão satisfeitas (i.e. em estado saudável):
+Quatro regras usavam `noDataState: NoData` em expressões que devolvem série vazia quando as
+condições **não** estão satisfeitas (i.e. em estado saudável):
 
 - `ERP Indisponível`: `absent(up{...}) or up{...} == 0` → vazio quando `up=1`
 - `Keycloak Indisponível`: `keycloak_available{...} == 0` → vazio quando `available=1`
 - `Base de Dados Inacessível`: ratio de 5xx → vazio quando não há 5xx
+- `Tarefa Agendada em Falta`: `max(negocio_tarefas_agendadas_em_falta) > 0` → vazio porque
+  a métrica não tem séries ainda (`negocio.ts` não está integrado nos serviços de domínio)
 
 `noDataState: NoData` com série vazia → `DatasourceNoData` → estado `Alerting` (falso-positivo).
-Fix: `noDataState: OK` → série vazia = Normal. As regras que SÊ devem disparar com dados ausentes
-(ex: Tarefa Agendada em Falta) mantêm `noDataState: NoData` correctamente.
+Fix: `noDataState: OK` em todas as quatro → série vazia = Normal.
+
+**Decisão para a Tarefa Agendada em Falta**: mantém `noDataState: OK` enquanto `negocio.ts`
+não estiver integrado nos serviços de domínio. Quando a integração acontecer (fase 2/3), esta
+regra deve mudar para `noDataState: Alerting` — porque «a tarefa nunca reportou» é o modo de
+falha primário (ver §8.3).
 
 ### 3.3 Cardinalidade (regra inviolável ADR-0019)
 
@@ -135,13 +177,19 @@ http_requests_total{method="GET",route="/api/audit",status_code="200",tenant_id=
 # userId e requestId: ausentes das métricas, presentes nos logs estruturados
 ```
 
-### 3.4 Rota normalizada
+### 3.4 Rota normalizada (inclui caminho de erro — B-N1)
 
-`with-api.ts` chama `normalizeRoute(rawUrl, params)` antes de `recordHttpRequest()`.
-Resultado: `/api/export/clientes` → `/api/export/[modulo]`. Confirmado nas métricas:
-```
-http_requests_total{route="/api/export/[modulo]",tenant_id="cmryxrzzx0000wg9kkdtsdta5"} 1
-```
+`with-api.ts` içou `route` para fora do `try`, inicializando com `rawUrl`.
+Dentro do `try`, após `await segment.params`, `route = normalizeRoute(rawUrl, params)`.
+No `catch`, `route` já tem os placeholders se o erro ocorreu depois de `normalizeRoute`.
+
+Resultado para erros numa rota dinâmica:
+- ANTES: catch usava `const route = rawUrl` → `/api/faturacao/clj123abc/pdf` (série por ID)
+- DEPOIS: catch usa `route` içada → `/api/faturacao/[id]/pdf` (cardinalidade controlada)
+
+`normalizeRoute` usa comparação segmento-a-segmento (`pathname.split('/')`) em vez de
+`String.includes()` + `replace()` — previne correspondência parcial (e.g. param `'test'`
+substituindo incorrectamente o segmento `'test123'`).
 
 ### 3.5 /api/ready não depende de Keycloak nem Valkey
 
@@ -235,18 +283,16 @@ Os 10 alertas permanentes voltaram ao estado `inactive`.
 
 ---
 
-## 6. Tabela fix → prova (B1/B2/M1-M6)
+## 6. Tabela fix → prova (B1 + M1-M4 da revisão original + B-N1 desta ronda)
 
 | ID | Problema | Fix | Prova |
 |---|---|---|---|
-| B1 | `keycloak_available=0`, `valkey_available=0` | Auto-arranque em `prom-registry.ts` (import dinâmico) | `keycloak_available=1`, `keycloak_health_probe_duration_ms_count=57+` |
-| B2 | `userId`/`requestId` nas labels de métricas | Regra de cardinalidade desde o início em `prom-registry.ts` | Métricas reais: apenas `tenant_id`, `method`, `route`, `status_code` |
-| M1 | Turbopack não compila `instrumentation.ts` | Import dinâmico de `probes.ts` no fim de `prom-registry.ts` | Sondas a correr 57+ vezes em runtime |
-| M2 | Falso-positivo DatasourceNoData em alertas críticos | `noDataState: OK` em 3 regras | 10 regras `inactive`, 0 a disparar em falso |
-| M3 | `KEYCLOAK_HEALTH_URL` ausente no compose | Adicionado a `x-erp-ambiente` em `docker-compose.yml` | Probe conecta a `keycloak:9000/health/live` com sucesso |
-| M4 | `tenantId` ausente no caminho de erro de `withApi` | `tenantId` içado para fora do `try` em `with-api.ts` | Métricas de erro incluem `tenant_id` correcto |
-| M5 | Rota com ID concreto em métricas (cardinalidade) | `normalizeRoute()` chamado antes de `recordHttpRequest()` | `/api/export/[modulo]` em vez de `/api/export/clientes` |
-| M6 | `noDataState: NoData` = DatasourceNoData falso | `noDataState: OK` (ver M2) | Confirmado em 3 regras |
+| B1 | `keycloak_available=0`, `valkey_available=0` — sondas nunca arrancavam | Auto-arranque via `import()` dinâmico no fim de `prom-registry.ts` | `keycloak_available=1`, `keycloak_health_probe_duration_ms_count=57+` |
+| M1 | Falso-positivo `DatasourceNoData` em alertas críticos (`noDataState: NoData` com série vazia) | `noDataState: OK` nas 3 regras cujas expressões devolvem vazio quando ERP está saudável | 10 regras `inactive`, 0 a disparar em falso; confirmado em runtime |
+| M2 | `KEYCLOAK_HEALTH_URL` ausente no compose — probe não sabia a onde conectar | Adicionado `KEYCLOAK_HEALTH_URL: http://keycloak:9000/health/live` a `x-erp-ambiente` | Probe conecta com sucesso; latência < 10ms confirmada |
+| M3 | `tenantId` ausente no caminho de erro de `withApi` | `tenantId` içado para fora do `try`; disponível no `catch` | Métricas de erro incluem `tenant_id` correcto |
+| M4 | Rota com ID concreto em métricas do caminho de sucesso (cardinalidade) | `normalizeRoute()` chamado no `try` antes de `recordHttpRequest()` | `/api/export/[modulo]` em vez de `/api/export/clientes` confirmado nas métricas reais |
+| B-N1 | No caminho de erro (`catch`), `const route = rawUrl` criava série por ID (cardinalidade violada) | `route` içada para fora do `try` como `let`; `const route = rawUrl` removido do `catch` | 2 testes novos: erro após resolução de params usa `[param]`, não o valor; `prom-registry.test.ts` 32/32 |
 
 ---
 
@@ -255,16 +301,16 @@ Os 10 alertas permanentes voltaram ao estado `inactive`.
 | Task | Estado | Evidência |
 |---|---|---|
 | 2.1 Verificação ponta-a-ponta | **Completo** | Métricas com tenant_id, sondas a correr, 4 painéis activos |
-| 2.2 tenantId como etiqueta; userId/requestId ausentes | **Completo** | Métricas reais confirmam — 60 testes unitários |
+| 2.2 tenantId como etiqueta; userId/requestId ausentes | **Completo** | Métricas reais confirmam — 69 testes unitários de observabilidade |
 | 2.3 Métricas Keycloak | **Completo** | `keycloak_available=1`, `keycloak_health_probe_duration_ms_count=57+` |
 | 2.4 Métricas Valkey (prefixo `valkey_`) | **Completo** | `valkey_available=1`; probe TCP PING em `probes.ts` |
-| 2.5 Sinais de negócio | **Completo** | `negocio.ts`; 4 funções com testes |
+| 2.5 Sinais de negócio | **Completo** | `negocio.ts`; 4 funções com testes; integração nos serviços é dívida §8.3 |
 | 2.6 Quatro painéis versionados | **Completo** | Provisionados em Grafana (confirmado por API `/api/search`) |
 | 2.7 Alertas com receptor webhook local | **Completo** | 10 regras; routing `severity=critical` → `/alertas/criticos` |
 | 2.8 Runbooks por alerta que pagina | **Completo** | 4 runbooks em `docs/runbooks/` |
 | 2.9 Alerta disparado e recebido | **Completo** | TesteDisparoW8: POST de `User-Agent: Grafana` no receptor às 22:37:50 |
 | 2.10 /api/ready sem dependência de Keycloak/Valkey | **Completo** | 8 testes confirmam independência |
-| 2.11 Destino = uma variável de ambiente | **Completo** | `OTEL_EXPORTER_OTLP_ENDPOINT` em `instrumentation.ts`; `mudar env, não código` |
+| 2.11 Destino = uma variável de ambiente | **Completo** | `OTEL_EXPORTER_OTLP_ENDPOINT` em `instrumentation.ts`; muda env, não código |
 
 ---
 
@@ -272,8 +318,9 @@ Os 10 alertas permanentes voltaram ao estado `inactive`.
 
 ### 8.1 SimpleLogRecordProcessor em produção
 
-O exportador de logs usa `SimpleLogRecordProcessor` (síncrono) — adequado para dev.
-Em produção, mudar para `BatchLogRecordProcessor` em `instrumentation.ts`.
+O exportador de traces usa `SimpleSpanProcessor` (síncrono) — adequado para dev.
+Em produção, mudar para `BatchSpanProcessor` em `instrumentation.ts` quando o Turbopack
+issue (§8.5) for resolvido.
 
 ### 8.2 Probe Valkey sem cliente partilhado
 
@@ -283,8 +330,11 @@ actualizar `probeValkey()` em `probes.ts` para reutilizar o mesmo cliente.
 ### 8.3 Integração de sinais de negócio nos serviços de domínio
 
 As funções em `negocio.ts` existem mas não estão chamadas nos serviços de domínio ainda.
-Integrar após merge da branch:
+A regra `Tarefa Agendada em Falta` tem `noDataState: OK` enquanto a métrica não tem séries.
+**Quando a integração acontecer (fase 2/3), mudar para `noDataState: Alerting`** — porque
+«a tarefa nunca reportou» é o modo de falha primário desta regra, e a série estará presente.
 
+Integrar após merge da branch:
 ```typescript
 // src/server/services/comercial/venda.service.ts
 import { registarVenda } from '@/server/observability/negocio';
@@ -309,6 +359,30 @@ O alerta `ERP Indisponível` usa `absent(up{job="gespro-erp"}) or up{job="gespro
 Com a imagem actual (Prometheus scrape activo), `up=1` para ambas as instâncias. Em produção
 usar o mesmo selector — mais fiável que OTLP absent que depende de tráfego.
 
+### 8.5 Traces: Turbopack não compila instrumentation.ts no standalone (zero traces em produção)
+
+O Turbopack do Next.js 16 não emite `.next/server/instrumentation.js` na build standalone.
+A função `register()` — e portanto o NodeSDK OTel com o exportador OTLP de traces — **nunca
+arranca na imagem de produção**. Resultado: zero traces da aplicação chegam ao Tempo.
+
+O código em `instrumentation.ts` está correcto e pronto para quando o problema for resolvido.
+Possíveis vias de resolução (decisão adiada para fase 2/3):
+- Aguardar fix do Turbopack / upgrade do Next.js
+- Importar o SDK de instrumentação num ponto que o Turbopack compila (e.g. no início de um
+  Route Handler ou middleware), com guarda para evitar duplo arranque — invasivo mas possível
+
+O auto-arranque das sondas (§3.1) é o análogo a este fallback, mas para métricas.
+
+### 8.6 Logs OTLP: logger.ts não emite para @opentelemetry/api-logs
+
+`logger.ts` (pino) não está ligado à `LoggerProvider` do SDK OTel. Não existe pino-transport
+para `@opentelemetry/api-logs` configurado. Resultado: o pipeline de logs OTLP **não existe
+em nenhum runtime** — nem em dev, nem na imagem de produção. Os logs vão para stdout (correcto
+para dev/Docker) mas não para o Loki via OTLP.
+
+Ligar o logger à API OTel é trabalho futuro (fase 2/3): adicionar `pino-opentelemetry-transport`
+ou um pino-transport custom que emita `LogRecord` para a `LoggerProvider`.
+
 ---
 
 ## 9. Ficheiros copiados para a árvore principal
@@ -316,8 +390,11 @@ usar o mesmo selector — mais fiável que OTLP absent que depende de tráfego.
 Os seguintes ficheiros foram copiados de `wt/w8-observabilidade/` para a raiz do repo (sem commit):
 
 ```
-apps/erp/src/server/observability/prom-registry.ts   ← fix M1 (auto-arranque sondas)
-infra/local/observabilidade/alerts/rules.yaml         ← fix M2 (noDataState: OK)
+apps/erp/src/lib/api/with-api.ts                              ← B-N1 fix (route içada)
+apps/erp/src/lib/api/route-utils.ts                           ← NIT fix (segmento-a-segmento)
+apps/erp/src/server/observability/prom-registry.ts            ← fix M1 (auto-arranque) + NIT (VITEST/globalThis)
+apps/erp/src/server/observability/__tests__/prom-registry.test.ts  ← 2 testes B-N1
+infra/local/observabilidade/alerts/rules.yaml                 ← fix M1 (noDataState: OK)
 infra/local/observabilidade/dashboards/provider.yaml
 infra/local/observabilidade/dashboards/01-visao-geral.json
 infra/local/observabilidade/dashboards/02-latencia-por-rota.json
@@ -326,6 +403,7 @@ infra/local/observabilidade/dashboards/04-sinais-negocio.json
 infra/local/observabilidade/alerts/alertmanager.yaml
 infra/local/observabilidade/prometheus.yaml
 infra/local/observabilidade/scripts/disparar-alerta-teste.sh
+docs/handoff/w8-observabilidade.md
 ```
 
 A alteração ao `docker-compose.yml` (mount do `prometheus.yaml` e `KEYCLOAK_HEALTH_URL`)
@@ -333,4 +411,4 @@ está na árvore principal.
 
 ---
 
-*Wave 8 — Fases 1A+1B+1C · w8-observabilidade · 2026-08-23*
+*Wave 8 — Fases 1A+1B+1C+1D · w8-observabilidade · 2026-08-24*

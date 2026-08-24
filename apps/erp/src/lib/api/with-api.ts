@@ -63,17 +63,21 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
     const rawUrl = req.nextUrl?.pathname ?? req.url;
     const method = req.method;
 
-    // tenantId e userId içados para fora do try — disponíveis no caminho de erro (M4 fix)
+    // tenantId, userId e route içados para fora do try — disponíveis no caminho de erro (M4/B-N1 fix)
     let tenantId = '';
     let userId = '';
+    // route começa com rawUrl; é normalizada depois de params resolvidos (B-N1 fix).
+    // No catch, se o erro ocorreu ANTES de normalizeRoute, rawUrl é usado (sem params, sem risco de
+    // cardinalidade). Se ocorreu DEPOIS, route já tem os placeholders e não o valor concreto.
+    let route = rawUrl;
 
     const addId = (r: Response) => withRequestIdHeader(r, requestId);
 
     try {
       const params = segment?.params ? await segment.params : {};
 
-      // Rota normalizada: substitui valores concretos de params pelos placeholders (B2 fix)
-      const route = normalizeRoute(rawUrl, params);
+      // Rota normalizada: substitui valores concretos de params pelos placeholders (B2/B-N1 fix)
+      route = normalizeRoute(rawUrl, params);
 
       let perms = new Set<string>();
 
@@ -109,8 +113,8 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
     } catch (e) {
       const err = e instanceof AppError ? e : new AppError('ERRO_INTERNO', 'Erro interno', 500);
       const duration = Date.now() - startTime;
-      // route pode não estar definida ainda se o erro ocorreu antes de normalizeRoute
-      const route = rawUrl;
+      // route: içada — já normalizada se o erro ocorreu depois de normalizeRoute (B-N1 fix).
+      // Garante que métricas de erro em rotas dinâmicas usam [param] e não o valor concreto.
       const log = logger.child({ requestId, method, url: route, tenantId });
 
       if (!(e instanceof AppError)) {

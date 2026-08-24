@@ -221,6 +221,82 @@ describe('recordHttpRequest', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Caminho de erro withApi — B-N1 fix: route içada garante placeholder no catch
+// ---------------------------------------------------------------------------
+// Verifica o padrão implementado em withApi (B-N1 fix): route é içada para fora
+// do try; após normalizeRoute ser chamado (params resolvidos), o valor de route
+// já tem os placeholders. Se um erro for lançado depois disso, o catch usa a
+// route normalizada — não o rawUrl com o ID concreto.
+//
+// Testa a invariante de cardinalidade: uma rota dinâmica com 10.000 IDs diferentes
+// produz UMA série no Prometheus, não 10.000.
+// ---------------------------------------------------------------------------
+
+describe('B-N1 — error path usa rota normalizada (não rawUrl concreto)', () => {
+  it('erro lançado após resolução de params → métrica com [param], não com o valor', async () => {
+    const rawUrl = '/api/faturacao/clj123abc/pdf';
+    const params = { id: 'clj123abc' };
+
+    // Simula o padrão de withApi: route içada, depois normalizada antes do handler
+    let route = rawUrl; // içada — valor inicial = rawUrl
+    route = normalizeRoute(rawUrl, params); // atribuída no try, antes do handler
+
+    // Handler lança erro (ex: NotFoundError, BusinessRuleError, etc.)
+    // O catch usa `route` — que já tem o placeholder
+    recordHttpRequest({
+      method: 'GET',
+      route, // '/api/faturacao/[id]/pdf' — não '/api/faturacao/clj123abc/pdf'
+      statusCode: 404,
+      durationMs: 12,
+      tenantId: 'tenant-bn1',
+    });
+
+    const allMetrics = await registry.getMetricsAsJSON();
+    const counter = allMetrics.find((m) => m.name === 'http_requests_total');
+    expect(counter).toBeDefined();
+
+    // A métrica deve ter o placeholder [id] — não o valor concreto
+    const normalizedEntry = counter?.values.find(
+      (v) =>
+        v.labels['route'] === '/api/faturacao/[id]/pdf' &&
+        v.labels['status_code'] === '404' &&
+        v.labels['tenant_id'] === 'tenant-bn1',
+    );
+    expect(normalizedEntry, 'métrica de erro deve usar rota normalizada com [id]').toBeDefined();
+    expect(normalizedEntry?.value).toBeGreaterThan(0);
+
+    // O rawUrl concreto NÃO deve aparecer como etiqueta (cardinalidade violada)
+    const rawEntry = counter?.values.find(
+      (v) => v.labels['route'] === rawUrl && v.labels['status_code'] === '404',
+    );
+    expect(rawEntry, 'rawUrl concreto não deve ser etiqueta de métrica').toBeUndefined();
+  });
+
+  it('catch-all: erro após resolução → [...]key] em vez de segmentos concretos', async () => {
+    const rawUrl = '/api/documentos/local/pasta/sub/ficheiro.pdf';
+    const params = { key: ['pasta', 'sub', 'ficheiro.pdf'] };
+
+    let route = rawUrl;
+    route = normalizeRoute(rawUrl, params);
+
+    recordHttpRequest({ method: 'GET', route, statusCode: 403, durationMs: 5, tenantId: 'tenant-bn1b' });
+
+    const allMetrics = await registry.getMetricsAsJSON();
+    const counter = allMetrics.find((m) => m.name === 'http_requests_total');
+
+    const normalizedEntry = counter?.values.find(
+      (v) => v.labels['route'] === '/api/documentos/local/[...key]' && v.labels['status_code'] === '403',
+    );
+    expect(normalizedEntry, 'catch-all deve normalizar para [...key]').toBeDefined();
+
+    const rawEntry = counter?.values.find(
+      (v) => v.labels['route'] === rawUrl && v.labels['status_code'] === '403',
+    );
+    expect(rawEntry, 'segmentos concretos do catch-all não devem aparecer em métricas').toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // normalizeRoute — B2 fix: cardinalidade da etiqueta `route` (ADR-0019 §2)
 // ---------------------------------------------------------------------------
 

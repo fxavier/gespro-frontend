@@ -26,17 +26,34 @@
  *   /api/health                        + {}                     → /api/health
  */
 export function normalizeRoute(pathname: string, params: Record<string, string | string[]>): string {
-  let normalized = pathname;
+  // Comparação segmento-a-segmento (NIT fix): a implementação anterior usava
+  // String.prototype.includes() + replace(), que substitui substrings sem verificar
+  // fronteiras de segmento. Exemplo do problema:
+  //   pathname = '/api/test123/data', params = {id: 'test'}
+  //   includes('test') = true → replace produzia '/api/[id]123/data' — ERRADO.
+  // Com split('/'), cada segmento é comparado por igualdade estrita, sem risco de
+  // correspondência parcial.
+  const segments = pathname.split('/');
+
   for (const [key, value] of Object.entries(params)) {
     if (Array.isArray(value)) {
-      // Catch-all: [...key] — o valor é um array de segmentos
-      const joined = value.join('/');
-      if (joined && normalized.includes(joined)) {
-        normalized = normalized.replace(joined, `[...${key}]`);
+      // Catch-all: [...key] — o valor é um array de segmentos consecutivos.
+      // Procura a janela de segmentos que corresponde ao array completo.
+      const valueLen = value.length;
+      for (let i = 0; i <= segments.length - valueLen; i++) {
+        if (value.every((v, j) => segments[i + j] === v)) {
+          segments.splice(i, valueLen, `[...${key}]`);
+          break;
+        }
       }
-    } else if (value && normalized.includes(value)) {
-      normalized = normalized.replace(value, `[${key}]`);
+    } else if (value) {
+      // Param simples: encontra o primeiro segmento que é exactamente igual ao valor.
+      const idx = segments.findIndex((s) => s === value);
+      if (idx !== -1) {
+        segments[idx] = `[${key}]`;
+      }
     }
   }
-  return normalized;
+
+  return segments.join('/');
 }

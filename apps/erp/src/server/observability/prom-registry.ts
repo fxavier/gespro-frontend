@@ -212,7 +212,16 @@ export function recordHttpRequest(opts: HttpRequestMetricOpts): void {
 //
 // O _resetProbesState() em probes.ts permite reiniciar nas suites de testes.
 // ---------------------------------------------------------------------------
-if (typeof process !== 'undefined' && process.env.NEXT_RUNTIME !== 'edge') {
+// Guarda VITEST: não arranca sondas em suites de testes (NIT fix — análogo ao prisma client).
+// Guarda globalThis: previne duplo arranque em hot-reload de desenvolvimento.
+const _g = globalThis as typeof globalThis & { __gespro_probes_started?: boolean };
+if (
+  typeof process !== 'undefined' &&
+  process.env.NEXT_RUNTIME !== 'edge' &&
+  !process.env.VITEST &&
+  !_g.__gespro_probes_started
+) {
+  _g.__gespro_probes_started = true;
   void import('./probes').then(({ startProbes }) => startProbes()).catch(() => {
     // Sondas não críticas — falha silenciosa para não bloquear métricas RED
   });
