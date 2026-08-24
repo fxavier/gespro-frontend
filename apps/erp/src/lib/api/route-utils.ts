@@ -25,6 +25,16 @@
  *   /api/rh/payroll/pid/recibo         + {id:'pid'}             → /api/rh/payroll/[id]/recibo
  *   /api/health                        + {}                     → /api/health
  */
+/** Igualdade de segmento com tolerância a percent-encoding (pathname encoded vs params decodificados). */
+function segEquals(seg: string, value: string): boolean {
+  if (seg === value) return true;
+  try {
+    return decodeURIComponent(seg) === value;
+  } catch {
+    return false; // segmento percent-encoded malformado — nunca casa
+  }
+}
+
 export function normalizeRoute(pathname: string, params: Record<string, string | string[]>): string {
   // Comparação segmento-a-segmento (NIT fix): a implementação anterior usava
   // String.prototype.includes() + replace(), que substitui substrings sem verificar
@@ -40,15 +50,16 @@ export function normalizeRoute(pathname: string, params: Record<string, string |
       // Catch-all: [...key] — o valor é um array de segmentos consecutivos.
       // Procura a janela de segmentos que corresponde ao array completo.
       const valueLen = value.length;
+      if (valueLen === 0) continue; // catch-all vazio: janela vácua produziria splice(0,0) e label corrompido
       for (let i = 0; i <= segments.length - valueLen; i++) {
-        if (value.every((v, j) => segments[i + j] === v)) {
+        if (value.every((v, j) => segEquals(segments[i + j], v))) {
           segments.splice(i, valueLen, `[...${key}]`);
           break;
         }
       }
     } else if (value) {
       // Param simples: encontra o primeiro segmento que é exactamente igual ao valor.
-      const idx = segments.findIndex((s) => s === value);
+      const idx = segments.findIndex((s) => segEquals(s, value));
       if (idx !== -1) {
         segments[idx] = `[${key}]`;
       }

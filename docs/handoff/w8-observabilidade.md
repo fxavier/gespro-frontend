@@ -39,7 +39,7 @@ Princípio central confirmado: mudar de destino de métricas é mudar `OTEL_EXPO
 | `valkey_available` | 1 |
 | Alertas a disparar em falso-positivo | 0 (10 rules inactive) |
 | `tenant_id` em métricas autenticadas | PRESENTE (`cmryxrzzx0000wg9kkdtsdta5`) |
-| `userId`/`requestId` em métricas | AUSENTES (apenas em logs e traces) |
+| `userId`/`requestId` em métricas | AUSENTES (apenas em logs; em traces quando estes ficarem operacionais) |
 | Rota normalizada em métricas | PRESENTE (`/api/export/[modulo]` em vez do valor real) |
 | Rota normalizada no caminho de erro | PRESENTE (B-N1 fix: route içada, normalizada antes do catch) |
 | Traces em produção | NÃO OPERACIONAL (dívida §8.5) |
