@@ -126,3 +126,20 @@ As skills em `.claude/skills/` são a fonte de verdade e devem ser lidas antes d
 ## Referência
 
 Especificações e histórico do programa: `.kiro/specs/` — backend Waves 0–3 e UI Waves 0–2 em `{01,02,03}-*`; funcionalidades em falta em `04-09` (reconciliações, payroll, recrutamento, benefícios); funcionalidades + produção em `10-17` (encomendas/devoluções, projetos, relatórios/PDF, notificações, observabilidade, CI/CD, infra, segurança). Decisões de arquitectura: `docs/decisions/` — índice canónico e próximo número livre em `docs/decisions/README.md` (**três ADRs da Wave 5 colidem no nº 0005**; por decisão do ADR-0023 **não são renumerados** e citam-se como `ADR-0005-a/-b/-c`). Wave 8 (prontidão para produção): ADR-0010 a 0025, com plano de execução em `docs/handoff/execucao-paralela-w8.md`. Contratos de domínio, mapa entidades↔conflitos e handoffs por spec: `docs/handoff/`. Estado operacional (fonte de verdade do que está feito e da dívida): `docs/status.md`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues no GitHub (`fxavier/gespro-frontend`), via `gh`. PRs externos **não** entram na fila de
+triagem. Ver `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Vocabulário canónico — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
+`wontfix`. Ver `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Contexto único: `CONTEXT.md` na raiz. **ADRs em `docs/decisions/`, não em `docs/adr/`** —
+numeração governada pelo ADR-0023. Ver `docs/agents/domain.md`.

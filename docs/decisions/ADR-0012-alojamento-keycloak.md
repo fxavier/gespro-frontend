@@ -72,6 +72,28 @@ mantém-se como referência do que é preciso ao fornecedor que vier a ser escol
    ficheiro, e — enquanto não houver fornecedor — **é este o único ambiente onde o Keycloak corre**.
    **A configuração do realm é código**, não estado clicado numa consola.
 
+8. **Tema próprio, deliberadamente mínimo.** A partir da adopção, `/auth/login` deixa de ser um ecrã
+   nosso e passa a ser um redireccionamento: a **porta de entrada do produto** passa a ser servida
+   pelo Keycloak. Isso colide com três regras que este repositório trata como duras — toda a UI em
+   Português de Portugal (`CLAUDE.md`), tokens de marca do `packages/brand` com tema escuro
+   obrigatório, e o portão de acessibilidade de 32/32 WCAG AA, cujo `a11y.a11y.ts` testa hoje
+   `/auth/login` nos dois temas.
+
+   O tema vive em `infra/keycloak/themes/gespro/`, versionado e construído para dentro da imagem
+   (ponto 3), estende o tema base do Keycloak e substitui **apenas** três coisas: as variáveis CSS
+   derivadas do `packages/brand`, incluindo o tema escuro; o logótipo; e um
+   `messages_pt_PT.properties` a cobrir as cadeias do login, da verificação de e-mail e da definição
+   de palavra-passe. **Os *templates* FreeMarker não são tocados.**
+
+   É esse o tecto, e é escolhido pelo custo recorrente: substituir *templates* obrigaria a revalidá-los
+   a cada actualização trimestral (ponto 6), que é precisamente o compromisso operacional que este ADR
+   já teme não conseguir cumprir. Aceita-se que a **disposição** do ecrã seja a do Keycloak; o que não
+   se aceita é que as cores, o logótipo e a língua o sejam.
+
+   Rejeitado o *Direct Access Grant* — manter o nosso ecrã de login e enviar as credenciais ao
+   Keycloak por trás. Devolvia o aspecto, mas punha o ERP a receber palavras-passe outra vez e matava
+   MFA e federação, que são as duas coisas pelas quais se adoptou o Keycloak (ADR-0010).
+
 **Alternativas consideradas:**
 
 | Opção | Prós | Contras |
@@ -100,6 +122,20 @@ fiscais, isso é uma conversa difícil de ter com um cliente empresarial.
   derrubar instâncias saudáveis do ERP.
 - **A disponibilidade do login passa a ser um SLO de primeira linha** (ADR-0019), com alerta próprio.
   Quem já tem sessão continua a trabalhar durante uma indisponibilidade; quem não tem, não entra.
+- **O `a11y.a11y.ts` passa a apontar ao ecrã de login do Keycloak, nos dois temas.** Se a rota fosse
+  simplesmente apagada, o portão descia de 32/32 para 30/32 sem ninguém reparar — e a página onde o
+  cliente escreve a palavra-passe ficaria a única do produto sem verificação de acessibilidade.
+- **O pacote `pt` do Keycloak é português europeu — verificado contra a imagem fixada.** Em
+  `org.keycloak.keycloak-themes-26.7.0.jar` existem `messages_pt.properties` e
+  `messages_pt_BR.properties` como pacotes distintos, e o primeiro é europeu:
+  `password = Palavra-passe`, `usernameOrEmail = Nome de utilizador ou e-mail`, contra `Senha` e
+  `Nome de usuário` no brasileiro. O `defaultLocale: "pt"` do `realm-gespro.json` está correcto e não
+  precisa de mudar.
+
+  Isso **reduz** o âmbito do `messages_pt_PT.properties` do ponto 8, mas não o elimina: o pacote usa
+  grafia do Acordo Ortográfico (`Atualizar palavra-passe`) e o produto inteiro escreve pré-AO
+  (`actualizar`, `recepção`, `correcção`). O overlay passa a ser uma dúzia de cadeias de ortografia e
+  de vocabulário nosso, não uma tradução.
 - **A configuração do realm é versionada e importada**, não clicada. Alterações ao realm passam por
   *pull request* como qualquer outra mudança. É a única forma de `dev`, CI e `prod` não divergirem.
 - **Custo estimado**: duas tarefas Fargate pequenas em `prod` mais uma em `dev`, ALB, e uma base de

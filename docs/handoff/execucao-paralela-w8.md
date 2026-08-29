@@ -33,7 +33,7 @@ FASE 2 — Identidade e bloqueadores comerciais       (4 em paralelo + 1 sequenc
 ├── w8-cache ................ ADR-0014 (app)
 ├── w8-auditoria ............ ADR-0015
 ├── w8-billing .............. ADR-0021        ← pede alterações a plataforma.prisma
-└── w8-anti-abuso ........... ADR-0016        ← arranca após merge de w8-cache
+└── w8-anti-abuso ........... ADR-0016        ← após w8-cache, e ANTES de w8-identidade (§6-quater)
     GATE: E2E verdes contra Keycloak REAL · gate-auditoria verde · re-medição k6
           com o cenário de autenticação → baseline.json · parecer fiscal pedido.
 
@@ -96,7 +96,8 @@ FASE 5 — Provisionamento                             PARADA por decisão
 
 **Fase 1:** `w8-plataforma-local` → `w8-observabilidade` → `w8-desempenho`
 *(a plataforma primeiro: os outros dois precisam da pilha a correr)*
-**Fase 2:** `w8-identidade` → `w8-cache` → `w8-auditoria` → `w8-billing` → `w8-anti-abuso` → *(re-medição k6)*
+**Fase 2:** `w8-cache` → `w8-anti-abuso` → `w8-identidade` → `w8-auditoria` → `w8-billing` → *(re-medição k6)*
+*(revisto em 2026-08-29 — o `w8-anti-abuso` passou para a frente do `w8-identidade`; ver §6-quater)*
 **Fase 3:** `w8-docs` → `w8-armazenamento` → `w8-correcoes` → `w8-gates`
 **Fase 4:** `w8-separacao-dominio` sozinho.
 
@@ -127,6 +128,77 @@ instâncias da pilha local, que é onde se prova que funciona.
 | 4 | Migração vazia | `prisma migrate diff` sem SQL |
 | 5 | *(parada — ver ADR-0026 §5)* | — |
 | **Todas** | parecer do `code-reviewer` sem BLOCKERs | — |
+
+### 6-bis. O gate da Fase 1 fecha **antes** de o `w8-identidade` arrancar
+
+Decidido em 2026-08-29, numa sessão de revisão de desenho da Fase 2. Não é disciplina de processo —
+é a única linha do plano cuja janela **caduca**.
+
+Estado nessa data: `w8-plataforma-local` e `w8-observabilidade` fundidos em `w8/integracao`;
+`w8-desempenho` com dois commits reais no seu *worktree* (cenários k6, gerador de volume, triagem
+EXPLAIN de 20 consultas, `run-baseline.mjs`, `compare-baseline.mjs`) e **por fundir**, sem nenhum
+`baseline-pre-keycloak.json` versionado.
+
+O nome do artefacto é o argumento: no instante em que a Fase 2 funde, deixa de existir um sistema
+pré-Keycloak para medir. E o número que mais interessa é o do login — hoje um `verify` de argon2 em
+processo, a partir da Fase 2 uma ida e volta OIDC a outro contentor. Sem número de antes, «o Keycloak
+tornou isto mais lento?» é uma discussão em vez de uma comparação.
+
+O custo é assimétrico: fundir um branch já escrito e correr a linha de base uma vez são horas; a
+medição perdida não se recupera com nenhum trabalho posterior.
+
+**Ordem:** fundir `w8-desempenho` → correr a linha de base contra a pilha local → commitar
+`perf/baseline-pre-keycloak.json` → fechar os restantes critérios da Fase 1 → só então lançar
+`w8-identidade`.
+
+### 6-ter. Deltas de desenho da Fase 2 apurados na revisão de 2026-08-29
+
+O `w8-identidade` **tem de ler os ADR-0010, 0011 e 0013 na versão actual** — os três foram emendados
+no lugar (estavam *Proposto*) e várias afirmações da versão de 21 de Agosto já não valem:
+
+| Delta | Efeito no âmbito do `w8-identidade` |
+|---|---|
+| **Organizations adiadas** (ADR-0010) | Realm simples. Sem provisionamento de organizações, sem mapper, sem claim de organização. `tenantId` resolvido de `sub → User`. Reconciliação (0013 §3) desce a nível de utilizador |
+| **Uma Identidade por Tenant** (`CONTEXT.md`) | `User.email` passa de `@@unique([tenantId, email])` a `@unique` global |
+| **`TokenHandoff` removido** (0013 §5) | Sai também `handoff.service.ts`, o provider `handoff`, `handoffLimiter`, `HANDOFF_SIGNING_SECRET`, `/auth/registo-callback` e o campo `senha` do registo público. O delta de `plataforma.prisma` é maior do que a v1 previa |
+| **`permsVersion` removido** (0011 §4) | Re-resolução de permissões, `ativo` e subscrição no `callbacks.jwt` da renovação. Nunca por pedido |
+| **`primeiroAcessoEm`** (0013 §5-bis) | Coluna nova em `User`; idempotência de convite por e-mail, sem tabela de chaves |
+| **Durações de sessão parametrizáveis** (0011, 0013 §6) | 15 min / 8 h / 12 h **não** fixas no `realm-gespro.json`, senão o cenário E2E obrigatório de renovação não é escrevível |
+| **Keycloak no perfil por omissão** (0013 §7) | Muda `docker-compose.yml`, o `CLAUDE.md`, e os jobs `e2e` **e** `a11y` do CI — que sobem o Keycloak num *step*, nunca em `services:` (arrancam antes do checkout) |
+
+Acresce um acoplamento novo a testar: os `sub` dos cinco utilizadores de demonstração são fixados no
+`realm-gespro.json` e o `prisma/seed` tem de gravar exactamente esses valores. Dois ficheiros que têm
+de concordar levam um teste que falha no `pnpm check`.
+
+### 6-quater. Porque é que o `w8-anti-abuso` passou à frente do `w8-identidade`
+
+O desenho da Fase 2 mudou a economia do `POST /api/publico/registo`, e não foi de propósito.
+
+Aquele pedido não autenticado já criava `Tenant`, `ConfiguracaoFiscal`, `Assinatura`, RBAC, o plano de
+contas PGC-NIRF **inteiro — 504 contas**, diários e séries. Passa a criar também um utilizador via
+Admin API do Keycloak **e a fazer o Keycloak enviar um e-mail**.
+
+O e-mail muda a natureza do problema: deixa de ser consumo dos nossos recursos e passa a ser
+**amplificação** — um pedido não autenticado faz o nosso servidor mandar correio para um endereço à
+escolha de quem chama. Queima reputação de domínio e de IP de envio, que é das poucas coisas nesta
+lista que não se recupera a reiniciar um contentor.
+
+Hoje aquele endpoint tem um limitador em memória por processo e um campo-armadilha; o `captchaToken`
+vai vazio porque o fornecedor nunca foi fixado — é o que o ADR-0016 resolve. Correr os dois agentes em
+paralelo abriria uma janela em que o registo é **mais barato de abusar do que hoje**, por ter ganho um
+vector de e-mail sem ter ganho o captcha. «Ainda ninguém sabe que o endpoint existe» não é um
+controlo de segurança.
+
+Daí decorrem mais duas obrigações:
+
+- **A verificação do Turnstile é a primeira instrução do handler**, antes de tocar no Keycloak — senão
+  a Admin API passa a ser a superfície exposta.
+- **A reconciliação (ADR-0013 §3) alerta por taxa, não por linha.** A ordem «Keycloak primeiro» —
+  correcta, porque o modo de falha mau é *tenant sem identidade* — faz com que cada pedido abusivo
+  deixe um utilizador Keycloak órfão, incluindo os que falham depois. Reportar um alerta por órfão
+  transforma uma onda de spam numa tempestade de alertas, que é como se ensina uma equipa a ignorá-los.
+  Reportar apenas órfãos **com mais de uma hora** e alertar quando a **contagem** cruza um limiar é uma
+  cláusula `WHERE` e uma comparação.
 
 ## 7. O que fica explicitamente fora desta wave
 
