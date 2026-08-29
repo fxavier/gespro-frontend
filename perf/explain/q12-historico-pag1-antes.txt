@@ -1,0 +1,15 @@
+                                                                                                QUERY PLAN                                                                                                 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..131.17 rows=1001 width=168) (actual time=0.049..7.418 rows=1001 loops=1)
+   Buffers: shared hit=1013 read=12
+   I/O Timings: shared read=6.512
+   ->  Index Scan Backward using "HistoricoTransacao_tenantId_clienteId_dataTransacao_idx" on "HistoricoTransacao" h  (cost=0.28..784.85 rows=6000 width=168) (actual time=0.048..7.338 rows=1001 loops=1)
+         Index Cond: (("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text) AND ("clienteId" = 'c980786d5e9bdd0563d1b51d6'::text))
+         Buffers: shared hit=1013 read=12
+         I/O Timings: shared read=6.512
+ Planning:
+   Buffers: shared hit=202
+ Planning Time: 1.567 ms
+ Execution Time: 7.569 ms
+(11 rows)
+

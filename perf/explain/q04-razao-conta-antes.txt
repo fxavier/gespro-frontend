@@ -1,0 +1,29 @@
+                                                                                              QUERY PLAN                                                                                               
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=11145.95..11154.05 rows=3239 width=185) (actual time=41.874..42.036 rows=3342 loops=1)
+   Sort Key: j0.data
+   Sort Method: quicksort  Memory: 513kB
+   Buffers: shared hit=7139
+   ->  Hash Join  (cost=5807.32..10957.09 rows=3239 width=185) (actual time=12.449..40.481 rows=3342 loops=1)
+         Hash Cond: (j0.id = p."lancamentoId")
+         Buffers: shared hit=7136
+         ->  Seq Scan on "Lancamento" j0  (cost=0.00..4767.56 rows=50790 width=60) (actual time=0.008..21.577 rows=50287 loops=1)
+               Filter: ((status <> 'ESTORNADO'::"StatusLancamento") AND (data >= '2025-01-01 00:00:00'::timestamp without time zone) AND (data <= '2025-12-31 23:59:59'::timestamp without time zone))
+               Rows Removed by Filter: 51048
+               Buffers: shared hit=2989
+         ->  Hash  (cost=5726.30..5726.30 rows=6481 width=95) (actual time=12.278..12.280 rows=6666 loops=1)
+               Buckets: 8192  Batches: 1  Memory Usage: 694kB
+               Buffers: shared hit=4134
+               ->  Bitmap Heap Scan on "PartidaLancamento" p  (cost=94.85..5726.30 rows=6481 width=95) (actual time=1.471..10.431 rows=6666 loops=1)
+                     Recheck Cond: (("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text) AND ("contaId" = 'c7908e7733dfee429e2f0ff21'::text))
+                     Heap Blocks: exact=4126
+                     Buffers: shared hit=4134
+                     ->  Bitmap Index Scan on "PartidaLancamento_tenantId_contaId_tipo_idx"  (cost=0.00..93.23 rows=6481 width=0) (actual time=0.999..0.999 rows=6666 loops=1)
+                           Index Cond: (("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text) AND ("contaId" = 'c7908e7733dfee429e2f0ff21'::text))
+                           Buffers: shared hit=8
+ Planning:
+   Buffers: shared hit=497
+ Planning Time: 6.709 ms
+ Execution Time: 42.483 ms
+(25 rows)
+

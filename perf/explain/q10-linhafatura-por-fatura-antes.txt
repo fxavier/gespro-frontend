@@ -1,0 +1,16 @@
+                                                     QUERY PLAN                                                     
+--------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4688.55..4688.55 rows=2 width=174) (actual time=556.100..556.101 rows=2 loops=1)
+   Sort Key: "ordemLinha"
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=3163
+   ->  Seq Scan on "LinhaFatura"  (cost=0.00..4688.54 rows=2 width=174) (actual time=0.092..556.055 rows=2 loops=1)
+         Filter: ("faturaId" = 'cf5c35cf24c5fbcbf0bcf9ea2'::text)
+         Rows Removed by Filter: 122668
+         Buffers: shared hit=3160
+ Planning:
+   Buffers: shared hit=173
+ Planning Time: 3.961 ms
+ Execution Time: 556.479 ms
+(12 rows)
+

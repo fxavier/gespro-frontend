@@ -1,0 +1,13 @@
+                                                                             QUERY PLAN                                                                             
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..7.40 rows=51 width=91) (actual time=1.633..1.724 rows=51 loops=1)
+   Buffers: shared hit=55
+   ->  Index Scan Backward using "Venda_tenantId_dataVenda_idx" on "Venda" v  (cost=0.42..16712.27 rows=122010 width=91) (actual time=1.632..1.718 rows=51 loops=1)
+         Index Cond: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+         Buffers: shared hit=55
+ Planning:
+   Buffers: shared hit=302
+ Planning Time: 4.486 ms
+ Execution Time: 1.818 ms
+(9 rows)
+

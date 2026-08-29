@@ -1,0 +1,16 @@
+                                                                        QUERY PLAN                                                                        
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..159.69 rows=1001 width=232) (actual time=0.338..19.166 rows=1001 loops=1)
+   Buffers: shared hit=235 read=12
+   I/O Timings: shared read=10.042
+   ->  Index Scan using "Cliente_tenantId_nome_idx" on "Cliente" c  (cost=0.28..318.78 rows=2000 width=232) (actual time=0.337..19.064 rows=1001 loops=1)
+         Index Cond: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+         Filter: ("deletedAt" IS NULL)
+         Buffers: shared hit=235 read=12
+         I/O Timings: shared read=10.042
+ Planning:
+   Buffers: shared hit=279
+ Planning Time: 3.601 ms
+ Execution Time: 19.310 ms
+(12 rows)
+

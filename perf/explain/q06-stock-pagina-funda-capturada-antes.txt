@@ -1,0 +1,31 @@
+                                                                      QUERY PLAN                                                                       
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=18090.72..31207.42 rows=112421 width=333) (actual time=410.764..533.865 rows=204088 loops=1)
+   Buffers: shared hit=10135 read=1
+   I/O Timings: shared read=1.543
+   InitPlan 1
+     ->  Index Scan using "MovimentoStock_pkey" on "MovimentoStock" i  (cost=0.42..8.44 rows=1 width=8) (actual time=2.193..2.194 rows=1 loops=1)
+           Index Cond: (id = 'cd2bcd9d15a9044cd04bc2c26'::text)
+           Buffers: shared hit=3 read=1
+           I/O Timings: shared read=1.543
+   ->  Gather Merge  (cost=18082.17..31198.98 rows=112422 width=333) (actual time=410.760..520.752 rows=204089 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=10135 read=1
+         I/O Timings: shared read=1.543
+         ->  Sort  (cost=17082.14..17222.67 rows=56211 width=333) (actual time=339.153..352.520 rows=68030 loops=3)
+               Sort Key: m."createdAt" DESC
+               Sort Method: quicksort  Memory: 15917kB
+               Buffers: shared hit=10132
+               Worker 0:  Sort Method: quicksort  Memory: 10933kB
+               Worker 1:  Sort Method: quicksort  Memory: 19096kB
+               ->  Parallel Seq Scan on "MovimentoStock" m  (cost=0.00..12647.50 rows=56211 width=333) (actual time=0.039..109.222 rows=68030 loops=3)
+                     Filter: (("createdAt" <= (InitPlan 1).col1) AND ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text))
+                     Rows Removed by Filter: 66667
+                     Buffers: shared hit=10118
+ Planning:
+   Buffers: shared hit=284
+ Planning Time: 2.537 ms
+ Execution Time: 542.815 ms
+(27 rows)
+

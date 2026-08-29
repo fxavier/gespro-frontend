@@ -20,6 +20,7 @@
     "db:generate": "pnpm --filter erp db:generate",
     "db:migrate:dev": "pnpm --filter erp db:migrate:dev",
     "db:seed": "pnpm --filter erp db:seed",
+    "db:seed:volume": "pnpm --filter erp db:seed:volume",
     "db:studio": "pnpm --filter erp db:studio"
   },
   "devDependencies": {

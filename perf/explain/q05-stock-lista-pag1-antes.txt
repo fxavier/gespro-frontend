@@ -1,0 +1,23 @@
+                                                                       QUERY PLAN                                                                       
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=18851.90..18857.85 rows=51 width=333) (actual time=42.098..46.192 rows=51 loops=1)
+   Buffers: shared hit=10192
+   ->  Gather Merge  (cost=18851.90..58202.34 rows=337266 width=333) (actual time=42.097..46.187 rows=51 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=10192
+         ->  Sort  (cost=17851.87..18273.45 rows=168633 width=333) (actual time=38.467..38.469 rows=40 loops=3)
+               Sort Key: "createdAt" DESC
+               Sort Method: top-N heapsort  Memory: 46kB
+               Buffers: shared hit=10192
+               Worker 0:  Sort Method: top-N heapsort  Memory: 47kB
+               Worker 1:  Sort Method: top-N heapsort  Memory: 48kB
+               ->  Parallel Seq Scan on "MovimentoStock" m  (cost=0.00..12225.92 rows=168633 width=333) (actual time=0.024..21.984 rows=134696 loops=3)
+                     Filter: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+                     Buffers: shared hit=10118
+ Planning:
+   Buffers: shared hit=281
+ Planning Time: 2.782 ms
+ Execution Time: 46.407 ms
+(19 rows)
+

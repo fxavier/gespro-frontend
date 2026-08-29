@@ -1,0 +1,16 @@
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..9047.20 rows=2 width=215) (actual time=1.053..613.708 rows=2 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=6797
+   ->  Parallel Seq Scan on "ItemVenda"  (cost=0.00..8047.00 rows=1 width=215) (actual time=399.813..601.191 rows=1 loops=3)
+         Filter: ("vendaId" = 'caf529c305738629b8ecbd4cb'::text)
+         Rows Removed by Filter: 81362
+         Buffers: shared hit=6797
+ Planning:
+   Buffers: shared hit=179
+ Planning Time: 3.615 ms
+ Execution Time: 613.878 ms
+(12 rows)
+

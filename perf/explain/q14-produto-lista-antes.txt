@@ -1,0 +1,17 @@
+                                                        QUERY PLAN                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=294.61..294.77 rows=61 width=67) (actual time=28.316..28.322 rows=61 loops=1)
+   Buffers: shared hit=109
+   ->  Sort  (cost=294.61..304.61 rows=4000 width=67) (actual time=28.315..28.317 rows=61 loops=1)
+         Sort Key: nome
+         Sort Method: top-N heapsort  Memory: 36kB
+         Buffers: shared hit=109
+         ->  Seq Scan on "Produto" p  (cost=0.00..156.00 rows=4000 width=67) (actual time=0.453..27.047 rows=4000 loops=1)
+               Filter: (ativo AND ("deletedAt" IS NULL) AND ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text))
+               Buffers: shared hit=106
+ Planning:
+   Buffers: shared hit=214
+ Planning Time: 3.305 ms
+ Execution Time: 28.402 ms
+(13 rows)
+

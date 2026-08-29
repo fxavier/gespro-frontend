@@ -1,0 +1,29 @@
+                                                                               QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..6.97 rows=51 width=99) (actual time=1.760..2.341 rows=51 loops=1)
+   Buffers: shared hit=58
+   ->  Index Scan Backward using "Lancamento_tenantId_data_idx" on "Lancamento" l  (cost=0.42..13048.89 rows=101632 width=99) (actual time=1.759..2.332 rows=51 loops=1)
+         Index Cond: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+         Buffers: shared hit=58
+ Planning:
+   Buffers: shared hit=259
+ Planning Time: 3.398 ms
+ Execution Time: 2.427 ms
+(9 rows)
+
+                                                                                QUERY PLAN                                                                                
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=2738.01..2738.02 rows=1 width=8) (actual time=51.913..51.914 rows=1 loops=1)
+   Buffers: shared hit=54 read=79
+   I/O Timings: shared read=38.105
+   ->  Index Only Scan using "Lancamento_tenantId_status_idx" on "Lancamento" l  (cost=0.29..2483.93 rows=101632 width=0) (actual time=2.750..47.706 rows=101335 loops=1)
+         Index Cond: (("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text) AND (status = 'LANCADO'::"StatusLancamento"))
+         Heap Fetches: 1350
+         Buffers: shared hit=54 read=79
+         I/O Timings: shared read=38.105
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.219 ms
+ Execution Time: 51.976 ms
+(12 rows)
+
