@@ -13,7 +13,7 @@
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, carregarManifesto, opcoesCarga, cuidLike, chave } from '../lib/util.js';
+import { BASE_URL, carregarManifesto, opcoesCarga, cuidLike, chave, rendeuDados } from '../lib/util.js';
 import { garantirSessao } from '../lib/session.js';
 
 const { manifesto, tenant } = carregarManifesto(
@@ -26,6 +26,7 @@ export const options = Object.assign(opcoesCarga(), {
     'http_req_duration{operation:stock_lista}': ['p(95)<800'],
     'http_req_duration{operation:stock_pagina_funda}': ['p(95)<800'],
     'http_req_failed{operation:stock_lista}': ['rate<0.001'],
+    checks: ['rate>0.99'],
   },
 });
 
@@ -37,7 +38,10 @@ export default function () {
     headers: sessao,
     tags: { operation: 'stock_lista' },
   });
-  check(r1, { 'lista 200': (r) => r.status === 200 });
+  check(r1, {
+    'lista rendeu linhas': (r) =>
+      rendeuDados(r, 'Movimentações de Stock', 'Sem movimentações registadas'),
+  });
 
   // Página profunda: cursor determinístico algures na tabela.
   const n = 1 + ((__VU * 7919 + __ITER * 104729) % TOTAL_MOVIMENTOS);
@@ -46,7 +50,10 @@ export default function () {
     `${BASE_URL}/inventario/movimentacoes?take=50&tipo=SAIDA&cursor=${cursor}`,
     { headers: sessao, tags: { operation: 'stock_pagina_funda' } },
   );
-  check(r2, { 'página funda 200': (r) => r.status === 200 });
+  check(r2, {
+    'página funda rendeu linhas': (r) =>
+      rendeuDados(r, 'Movimentações de Stock', 'Sem movimentações registadas'),
+  });
 
   sleep(0.3);
 }

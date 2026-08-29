@@ -44,3 +44,18 @@ export function opcoesCarga(overrides) {
   // na campanha de baseline; smoke e ci têm formas fixas e comparáveis.
   return perfil === 'baseline' ? Object.assign({}, base, overrides || {}) : base;
 }
+
+/**
+ * Verifica que a página rendeu **dados reais**, não só que respondeu 200.
+ *
+ * Um cenário que só verifica o estado mede o que calhar: durante a fase A da
+ * campanha, a razão de conta devolvia uma página de erro com HTTP 200 (defeitos
+ * D2/D7, ADR-0018 §6) e os 13,2 s registados não correspondiam a consulta
+ * nenhuma. O `marcador` é uma cadeia que SÓ aparece quando a página rendeu o
+ * conteúdo pesado; `ausente` é opcional, para excluir estados vazios.
+ */
+export function rendeuDados(r, marcador, ausente) {
+  if (r.status !== 200 || typeof r.body !== 'string') return false;
+  if (!r.body.includes(marcador)) return false;
+  return ausente ? !r.body.includes(ausente) : true;
+}

@@ -9,7 +9,7 @@
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, carregarManifesto, opcoesCarga } from '../lib/util.js';
+import { BASE_URL, carregarManifesto, opcoesCarga, rendeuDados } from '../lib/util.js';
 import { garantirSessao } from '../lib/session.js';
 
 const { tenant } = carregarManifesto(
@@ -21,6 +21,9 @@ export const options = Object.assign(opcoesCarga(), {
     'http_req_duration{operation:balancete}': ['p(95)<3000'],
     'http_req_duration{operation:razao}': ['p(95)<3000'],
     'http_req_failed{operation:balancete}': ['rate<0.001'],
+    // Sem isto as verificações de conteúdo abaixo seriam decorativas: uma
+    // verificação falhada não faz falhar a execução por omissão.
+    checks: ['rate>0.99'],
   },
 });
 
@@ -33,7 +36,8 @@ export default function () {
     `${BASE_URL}/contabilidade/balancete?dataInicio=${ano}-01-01&dataFim=${ano}-12-31&incluirZeradas=false`,
     { headers: sessao, tags: { operation: 'balancete' } },
   );
-  check(rb, { 'balancete 200': (r) => r.status === 200 });
+  // `TOTAIS` só existe na linha de totais, que só rende com o balancete gerado.
+  check(rb, { 'balancete rendeu totais': (r) => rendeuDados(r, 'TOTAIS') });
 
   // Razão de uma conta-folha aleatória no mesmo intervalo.
   const conta = tenant.contaIds[(__VU + __ITER) % tenant.contaIds.length];
@@ -41,7 +45,9 @@ export default function () {
     `${BASE_URL}/contabilidade/razao-geral?contaId=${conta}&dataInicio=${ano}-01-01&dataFim=${ano}-12-31`,
     { headers: sessao, tags: { operation: 'razao' } },
   );
-  check(rr, { 'razão 200': (r) => r.status === 200 });
+  // `Saldo Acum.` é cabeçalho da tabela de movimentos — ausente na página de
+  // erro e no estado vazio. É a verificação que teria apanhado o D2.
+  check(rr, { 'razão rendeu movimentos': (r) => rendeuDados(r, 'Saldo Acum.') });
 
   sleep(0.5);
 }

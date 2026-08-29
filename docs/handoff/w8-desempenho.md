@@ -151,6 +151,25 @@ pela FK** — toda a relação N:1 consultada via include precisa também de `@@
 | D6 | Listagem de clientes (POS/procura) | `take ~1000` por pedido (1 001 linhas, 2 375 chamadas) | Paginar/pesquisar server-side com take pequeno |
 | D7 | Páginas balancete/razão | `catch {}` genérico devolve cartão de erro com **HTTP 200** — mascarou D2 e engana health/k6 | Deixar o erro propagar para `error.tsx` ou responder ≠200; os cenários k6 passarão a validar conteúdo, não só status (dívida minha, ver §10) |
 
+> **Actualização 2026-08-30 — D1, D2 e D7 corrigidos.** Não ficaram para o `w8-correcoes`: sem eles
+> a linha de base pré-Keycloak mediria uma página de erro e um balancete sem filtro de datas, e ficava
+> versionada como referência para sempre. As correcções foram as três mínimas que separam «medir a
+> página» de «medir outra coisa»:
+>
+> - **D1** — `balancete/page.tsx`: o schema de URL deixa de sobrepor as datas com `z.string()` e lê o
+>   booleano explicitamente (`z.coerce.boolean()` não serve: `Boolean("false") === true`). O `as any`
+>   saiu com ele.
+> - **D2** — `razao-geral/page.tsx`: idem; só o `take` precisa de coerção.
+> - **D7** — ambas as páginas perderam o `catch` genérico. O erro propaga para `app/error.tsx` e a
+>   resposta é ≠ 200.
+> - **Fallback silencioso** (a causa-raiz comum, que a tabela não isolava): as duas páginas faziam
+>   `parseResult.success ? data : FILTROS_DEFAULT`. Filtros inválidos passavam a ser um pedido
+>   diferente, sem ninguém saber. Agora mostram a instrução.
+>
+> **D3, D4, D5 e D6 continuam para os donos.** São estáveis e estão presentes nas duas medições,
+> portanto não estragam a comparação pré/pós-Keycloak — só confirmam que os números absolutos valem
+> pouco, o que o ADR-0018 já diz.
+
 ## 7. Task 3.5 — SLOs provisórios: veredicto preliminar
 
 - **POS < 1 500 ms, factura < 1 200 ms, PDF < 3 000 ms: confirmados** (folga ≥ 4× na fase A).
@@ -212,9 +231,11 @@ não para consultas.
    proxy), *depois* de D1–D4 e I1–I4 aplicados pelos donos → 3.4 (baseline versionada),
    3.5 (fecho dos SLOs), 3.9 (**tenants por instância** — com perfil `multi` de 50
    tenants, task 3.2), 3.8 (activar o gate com `baseline.json`).
-2. **Cenários k6 validam pouco** (dívida minha): verificam HTTP 200 — o que deixou passar
-   a página de erro da razão (D2/D7). Antes da fase B, os cenários de
-   balancete/razão/stock passarão a verificar um marcador de conteúdo.
+2. ~~**Cenários k6 validam pouco** (dívida minha): verificam HTTP 200.~~ **Feito (2026-08-30).**
+   `rendeuDados()` em `perf/k6/lib/util.js` verifica estado **e** um marcador que só existe com
+   conteúdo real — `TOTAIS` no balancete, `Saldo Acum.` na razão, ausência de «Sem movimentações
+   registadas» no stock. Acrescentado `checks: ['rate>0.99']` aos limiares dos dois cenários: sem
+   isso uma verificação falhada não faz falhar a execução, e a asserção era decorativa.
 3. A razão de conta não tem número válido; o export XLSX é limítrofe e re-mede-se depois
    do D4.
 4. `perf/results/campanha-local-fase-a.json` existe **só em disco** neste worktree — não

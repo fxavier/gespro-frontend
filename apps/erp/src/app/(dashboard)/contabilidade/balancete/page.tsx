@@ -23,91 +23,104 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
+/**
+ * Parâmetros de URL — tudo chega como string.
+ *
+ * As datas usam a coerção que o `FiltroBalanceteSchema` já traz; sobrepô-las
+ * com `z.string()` era o defeito D1 (ADR-0018 §6): as datas seguiam em string
+ * para o serviço (daí o `as any`) e, pior, o `incluirZeradas` recebia a string
+ * `"false"` num `z.boolean()`, o `safeParse` falhava e a página caía num
+ * default SEM datas — varrendo o razão inteiro em cada pedido.
+ *
+ * `z.coerce.boolean()` não serve aqui: `Boolean("false") === true`.
+ */
+const BooleanoUrl = z.union([
+  z.boolean(),
+  z.enum(['true', 'false']).transform((v) => v === 'true'),
+]);
+
 const FiltroUrlSchema = FiltroBalanceteSchema.extend({
-  dataInicio: z.string().optional(),
-  dataFim: z.string().optional(),
+  incluirZeradas: BooleanoUrl.default(false),
 });
 
 type FiltroUrl = z.infer<typeof FiltroUrlSchema>;
-const FILTROS_DEFAULT: FiltroUrl = { incluirZeradas: false };
 
 const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
 
+/**
+ * Sem `try/catch`: um erro aqui propaga para `app/error.tsx` e a resposta é
+ * ≠ 200. O `catch` genérico anterior devolvia um cartão de erro com HTTP 200
+ * (defeito D7) — mascarou o D2 durante toda a fase A da campanha e engana
+ * igualmente as sondas de saúde e os cenários k6. Entrada malformada já não
+ * chega aqui: é apanhada pelo `safeParse` da página.
+ */
 async function BalanceteSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
-  try {
-    const result = await runWithTenantContext({ tenantId, userId }, () =>
-      contabilidadeService.gerarBalancete(filtros as any, { tenantId, userId })
-    );
+  const result = await runWithTenantContext({ tenantId, userId }, () =>
+    contabilidadeService.gerarBalancete(filtros, { tenantId, userId })
+  );
 
-    const n = (v: any) => parseFloat(v?.toString() ?? '0');
-    const periodo = `${result.dataInicio ? new Date(result.dataInicio).toLocaleDateString('pt-PT') : '?'} – ${result.dataFim ? new Date(result.dataFim).toLocaleDateString('pt-PT') : '?'}`;
-    const totalDeb = n(result.totalDebitos);
-    const totalCred = n(result.totalCreditos);
-    const diferenca = totalDeb - totalCred;
+  const n = (v: any) => parseFloat(v?.toString() ?? '0');
+  const periodo = `${result.dataInicio ? new Date(result.dataInicio).toLocaleDateString('pt-PT') : '?'} – ${result.dataFim ? new Date(result.dataFim).toLocaleDateString('pt-PT') : '?'}`;
+  const totalDeb = n(result.totalDebitos);
+  const totalCred = n(result.totalCreditos);
+  const diferenca = totalDeb - totalCred;
 
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Balancete — {periodo}</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Conta</TableHead>
-                <TableHead className="text-right tabular-nums">Saldo Anterior</TableHead>
-                <TableHead className="text-right tabular-nums">Débitos</TableHead>
-                <TableHead className="text-right tabular-nums">Créditos</TableHead>
-                <TableHead className="text-right tabular-nums">Saldo Actual</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.contas.map((linha) => {
-                const saldoAtual = n(linha.saldoAtual);
-                return (
-                  <TableRow key={linha.conta.codigo}>
-                    <TableCell className="font-mono text-primary">{linha.conta.codigo}</TableCell>
-                    <TableCell className="font-medium">{linha.conta.nome}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {fmtMZN.format(n(linha.saldoAnterior))}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {fmtMZN.format(n(linha.debitos))}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {fmtMZN.format(n(linha.creditos))}
-                    </TableCell>
-                    <TableCell className={`text-right tabular-nums font-semibold ${saldoAtual < 0 ? 'text-destructive' : ''}`}>
-                      {fmtMZN.format(saldoAtual)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Balancete — {periodo}</CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Código</TableHead>
+              <TableHead>Conta</TableHead>
+              <TableHead className="text-right tabular-nums">Saldo Anterior</TableHead>
+              <TableHead className="text-right tabular-nums">Débitos</TableHead>
+              <TableHead className="text-right tabular-nums">Créditos</TableHead>
+              <TableHead className="text-right tabular-nums">Saldo Actual</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {result.contas.map((linha) => {
+              const saldoAtual = n(linha.saldoAtual);
+              return (
+                <TableRow key={linha.conta.codigo}>
+                  <TableCell className="font-mono text-primary">{linha.conta.codigo}</TableCell>
+                  <TableCell className="font-medium">{linha.conta.nome}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {fmtMZN.format(n(linha.saldoAnterior))}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {fmtMZN.format(n(linha.debitos))}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {fmtMZN.format(n(linha.creditos))}
+                  </TableCell>
+                  <TableCell className={`text-right tabular-nums font-semibold ${saldoAtual < 0 ? 'text-destructive' : ''}`}>
+                    {fmtMZN.format(saldoAtual)}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
 
-              <TableRow className="font-bold bg-muted/50">
-                <TableCell colSpan={3}>TOTAIS</TableCell>
-                <TableCell className="text-right tabular-nums">{fmtMZN.format(totalDeb)}</TableCell>
-                <TableCell className="text-right tabular-nums">{fmtMZN.format(totalCred)}</TableCell>
-                <TableCell className="text-right tabular-nums">{fmtMZN.format(totalDeb - totalCred)}</TableCell>
-              </TableRow>
+            <TableRow className="font-bold bg-muted/50">
+              <TableCell colSpan={3}>TOTAIS</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtMZN.format(totalDeb)}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtMZN.format(totalCred)}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtMZN.format(totalDeb - totalCred)}</TableCell>
+            </TableRow>
 
-              <TableRow className={`font-bold ${Math.abs(diferenca) < 0.01 ? 'text-success' : 'text-destructive'}`}>
-                <TableCell colSpan={5}>DIFERENÇA (deve ser zero)</TableCell>
-                <TableCell className="text-right tabular-nums text-lg">{fmtMZN.format(diferenca)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    );
-  } catch {
-    return (
-      <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
-        Erro ao gerar balancete. Seleccione um período válido.
-      </div>
-    );
-  }
+            <TableRow className={`font-bold ${Math.abs(diferenca) < 0.01 ? 'text-success' : 'text-destructive'}`}>
+              <TableCell colSpan={5}>DIFERENÇA (deve ser zero)</TableCell>
+              <TableCell className="text-right tabular-nums text-lg">{fmtMZN.format(diferenca)}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 }
 
 const FILTER_CONFIGS: FilterConfig[] = [
@@ -134,10 +147,9 @@ export default async function BalancetePage({ searchParams }: PageProps) {
   const flat = Object.fromEntries(
     Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
   );
+  // Sem fallback silencioso: filtros inválidos mostram a instrução, nunca um
+  // balancete de um período que o utilizador não pediu (defeito D1).
   const parseResult = FiltroUrlSchema.safeParse(flat);
-  const filtros: FiltroUrl = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
-
-  const hasFilter = !!(flat.dataInicio || flat.dataFim);
 
   return (
     <div className="p-6 space-y-6">
@@ -171,9 +183,9 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         filters={FILTER_CONFIGS}
       />
 
-      {hasFilter ? (
-        <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton rows={12} cols={6} />}>
-          <BalanceteSection filtros={filtros} tenantId={tenantId} userId={userId} />
+      {parseResult.success ? (
+        <Suspense key={JSON.stringify(parseResult.data)} fallback={<TableSkeleton rows={12} cols={6} />}>
+          <BalanceteSection filtros={parseResult.data} tenantId={tenantId} userId={userId} />
         </Suspense>
       ) : (
         <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
