@@ -125,15 +125,23 @@ código que a impõe).
   a ganhar, porque o claim seria escrito pelo mesmo provisionamento que escreve a linha em Postgres.
   Quando as Organizations entrarem, a confirmação nos dois lados volta, e uma divergência passa a ser
   incidente de segurança registado.
-- **Tempo de vida da sessão passa a 15 minutos**, com renovação silenciosa pelo token de renovação do
-  Keycloak. É isto que fixa a garantia que se pode dizer a um cliente sem mentir: **retirar um papel,
-  desactivar um utilizador ou suspender uma subscrição faz efeito em 15 minutos, no máximo.**
+- **O intervalo de re-resolução passa a 15 minutos**, com renovação silenciosa pelo token de renovação
+  do Keycloak. É isto que fixa a garantia que se pode dizer a um cliente sem mentir: **retirar um
+  papel, desactivar um utilizador ou suspender uma subscrição faz efeito em 15 minutos, no máximo.**
+
+  > **Correcção de redacção (2026-08-30).** Este ponto dizia «tempo de vida da sessão passa a 15
+  > minutos». Estava mal escrito e contradizia o ponto seguinte, escrito no mesmo dia. **Os 15 minutos
+  > não são o tempo de vida do cookie** — são o prazo ao fim do qual o `callbacks.jwt` volta a ler o
+  > Postgres. Lido à letra, mandava pôr o `maxAge` do cookie em 900 s, o que reintroduzia exactamente
+  > o formulário perdido que o ponto seguinte exclui. O `w8-identidade` reparou na contradição durante
+  > a implementação, escolheu a leitura certa e justificou-a — mas uma redacção que só sobrevive
+  > porque alguém a desobedeceu é uma redacção a corrigir, não a defender.
 - **Os 15 minutos não são o tempo até alguém ser expulso.** São três durações distintas, e confundi-las
   é como se desenha um ERP que deita fora formulários:
 
   | Duração | O que controla | Valor |
   |---|---|---|
-  | `maxAge` do JWT do Auth.js | De quanto em quanto tempo o `callbacks.jwt` re-resolve contra o Postgres | **15 min** |
+  | `AUTH_SESSION_MAX_AGE` | Prazo, **dentro** do JWT, ao fim do qual o `callbacks.jwt` re-resolve contra o Postgres. **Não** é o `maxAge` do cookie: esse tem o tecto do *SSO Session Max* | **15 min** |
   | *SSO Session Idle* do Keycloak | Quanto tempo sem renovar antes de o token de renovação morrer | **8 h** (omissão: 30 min) |
   | *SSO Session Max* do Keycloak | Tecto absoluto, haja actividade ou não | **12 h** (omissão: 10 h) |
 
