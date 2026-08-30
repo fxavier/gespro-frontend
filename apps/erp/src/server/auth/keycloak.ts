@@ -1,0 +1,301 @@
+import 'server-only';
+import { logger } from '@/server/observability/logger';
+
+/**
+ * Cliente Keycloak do ERP — ADR-0010/0012/0013.
+ *
+ * Duas responsabilidades, ambas de servidor:
+ *  1. Renovação silenciosa da sessão (grant `refresh_token`) — usada pelo
+ *     `callbacks.jwt` de `src/lib/auth.ts` a cada intervalo de re-resolução.
+ *  2. Admin API com a conta de serviço do cliente `gespro-erp` (`view-users` +
+ *     `manage-users`): provisionar utilizadores (registo público e convites —
+ *     ADR-0013 §2 e §5-bis), disparar o `execute-actions-email` e desactivar.
+ *
+ * O ERP nunca vê palavras-passe: os utilizadores são criados SEM credencial,
+ * com as acções obrigatórias `VERIFY_EMAIL` + `UPDATE_PASSWORD` pendentes, e é
+ * o e-mail de acções do Keycloak — e só ele — que dá entrada no produto.
+ *
+ * URLs: o browser fala com o Keycloak pelo issuer PÚBLICO (`KEYCLOAK_ISSUER`);
+ * o servidor fala pelo issuer INTERNO (`KEYCLOAK_ISSUER_INTERNO`, na pilha
+ * docker `http://keycloak:8080/...`). Os tokens levam `iss` público porque o
+ * `KC_HOSTNAME` do contentor está fixado (backchannel dinâmico desligado).
+ */
+
+// ---------------------------------------------------------------------------
+// Configuração
+// ---------------------------------------------------------------------------
+
+export interface KeycloakConfig {
+  /** Issuer público (o que o browser vê e o que o `iss` dos tokens declara). */
+  issuer: string;
+  /** Base do issuer para chamadas servidor→Keycloak (backchannel). */
+  issuerInterno: string;
+  /** Nome do realm, derivado do issuer. */
+  realm: string;
+  /** Base da Admin API (backchannel): `…/admin/realms/<realm>`. */
+  adminBase: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+function obrigatoriaEmProducao(nome: string, valor: string | undefined, devFallback: string): string {
+  if (valor) return valor;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`[keycloak] Variável de ambiente obrigatória em produção: ${nome}`);
+  }
+  return devFallback;
+}
+
+/** Lê a configuração do ambiente. Função (não constante) para ser testável. */
+export function kcConfig(): KeycloakConfig {
+  const issuer = process.env.KEYCLOAK_ISSUER ?? 'http://localhost:8081/realms/gespro';
+  const issuerInterno = process.env.KEYCLOAK_ISSUER_INTERNO ?? issuer;
+  const m = /\/realms\/([^/]+)\/?$/.exec(issuerInterno);
+  const realm = m?.[1] ?? 'gespro';
+  const adminBase = `${issuerInterno.replace(/\/realms\/[^/]+\/?$/, '')}/admin/realms/${realm}`;
+  return {
+    issuer,
+    issuerInterno,
+    realm,
+    adminBase,
+    clientId: process.env.KEYCLOAK_CLIENT_ID ?? 'gespro-erp',
+    // Placeholder de dev alinhado com o docker-compose.yml; em produção a
+    // ausência é erro de arranque, nunca um valor por omissão.
+    clientSecret: obrigatoriaEmProducao(
+      'KEYCLOAK_CLIENT_SECRET',
+      process.env.KEYCLOAK_CLIENT_SECRET,
+      'gespro-erp-dev-secret',
+    ),
+  };
+}
+
+/** Intervalo de re-resolução do Auth.js em segundos (ADR-0011: 15 min). */
+export function intervaloResolucaoSegundos(): number {
+  const v = Number(process.env.AUTH_SESSION_MAX_AGE);
+  return Number.isFinite(v) && v > 0 ? v : 900;
+}
+
+/** Tecto absoluto da sessão (espelha o *SSO Session Max* do realm — 12 h). */
+export function tectoSessaoSegundos(): number {
+  const v = Number(process.env.KEYCLOAK_SSO_MAX_SECONDS);
+  return Number.isFinite(v) && v > 0 ? v : 43_200;
+}
+
+// ---------------------------------------------------------------------------
+// Renovação silenciosa (grant refresh_token)
+// ---------------------------------------------------------------------------
+
+export type ResultadoRenovacao =
+  | { ok: true; accessToken: string; refreshToken?: string; expiresIn?: number }
+  /**
+   * `recusada`: o Keycloak respondeu e disse não — a sessão SSO terminou
+   * (idle de 8 h, tecto de 12 h, logout administrativo). A sessão do ERP cai.
+   *
+   * `indisponivel`: o Keycloak não respondeu (rede/5xx). Recusar aqui seria
+   * expulsar toda a gente por causa de uma indisponibilidade transitória —
+   * o ADR-0010 garante o contrário («quem já tem sessão continua a
+   * trabalhar»). O chamador mantém a sessão, mas re-resolve na mesma contra
+   * o Postgres, que é quem impõe a revogação (ADR-0011 §3).
+   */
+  | { ok: false; motivo: 'recusada' | 'indisponivel' };
+
+/** Troca o token de renovação por tokens novos (renovação silenciosa). */
+export async function renovarTokens(refreshToken: string): Promise<ResultadoRenovacao> {
+  const cfg = kcConfig();
+  try {
+    const res = await fetch(`${cfg.issuerInterno}/protocol/openid-connect/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: cfg.clientId,
+        client_secret: cfg.clientSecret,
+      }),
+    });
+    if (res.status >= 500) {
+      logger.error({ status: res.status }, '[keycloak] renovação indisponível (5xx)');
+      return { ok: false, motivo: 'indisponivel' };
+    }
+    if (!res.ok) {
+      logger.info({ status: res.status }, '[keycloak] renovação recusada — sessão SSO terminou');
+      return { ok: false, motivo: 'recusada' };
+    }
+    const corpo = (await res.json()) as {
+      access_token: string;
+      refresh_token?: string;
+      expires_in?: number;
+    };
+    return {
+      ok: true,
+      accessToken: corpo.access_token,
+      refreshToken: corpo.refresh_token,
+      expiresIn: corpo.expires_in,
+    };
+  } catch (e) {
+    logger.error({ err: (e as Error)?.message }, '[keycloak] falha de rede na renovação');
+    return { ok: false, motivo: 'indisponivel' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Admin API (conta de serviço)
+// ---------------------------------------------------------------------------
+
+let adminTokenCache: { token: string; expiraEm: number } | null = null;
+
+async function adminToken(): Promise<string> {
+  const agora = Date.now();
+  if (adminTokenCache && adminTokenCache.expiraEm > agora + 15_000) {
+    return adminTokenCache.token;
+  }
+  const cfg = kcConfig();
+  const res = await fetch(`${cfg.issuerInterno}/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`[keycloak] conta de serviço recusada (HTTP ${res.status})`);
+  }
+  const corpo = (await res.json()) as { access_token: string; expires_in?: number };
+  adminTokenCache = {
+    token: corpo.access_token,
+    expiraEm: agora + (corpo.expires_in ?? 60) * 1000,
+  };
+  return corpo.access_token;
+}
+
+/** Só para testes: limpa a cache do token da conta de serviço. */
+export function __limparCacheAdminToken(): void {
+  adminTokenCache = null;
+}
+
+async function adminFetch(caminho: string, init?: RequestInit): Promise<Response> {
+  const cfg = kcConfig();
+  const token = await adminToken();
+  return fetch(`${cfg.adminBase}${caminho}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(init?.headers ?? {}),
+    },
+  });
+}
+
+export interface UtilizadorKeycloak {
+  id: string;
+  email?: string;
+  enabled?: boolean;
+}
+
+/**
+ * Procura um utilizador do realm por e-mail (correspondência exacta).
+ * É a chave de idempotência do provisionamento (ADR-0013 §5-bis): o e-mail é
+ * único em todo o sistema, portanto procurar-antes-de-criar reutiliza o `sub`
+ * de uma tentativa anterior que tenha ficado a meio.
+ */
+export async function procurarPorEmail(email: string): Promise<UtilizadorKeycloak | null> {
+  const res = await adminFetch(`/users?email=${encodeURIComponent(email)}&exact=true`);
+  if (!res.ok) {
+    throw new Error(`[keycloak] procura por e-mail falhou (HTTP ${res.status})`);
+  }
+  const lista = (await res.json()) as UtilizadorKeycloak[];
+  return lista[0] ?? null;
+}
+
+/**
+ * Garante o utilizador no Keycloak e devolve o seu `sub`.
+ *
+ * Keycloak PRIMEIRO, Postgres depois (ADR-0013 §2): o lado sem transacção vai
+ * à frente. Criado sem palavra-passe, com `VERIFY_EMAIL` + `UPDATE_PASSWORD`
+ * pendentes — é o e-mail de acções que dá entrada no produto (§5).
+ */
+export async function garantirUtilizador(input: { email: string; nome: string }): Promise<string> {
+  const existente = await procurarPorEmail(input.email);
+  if (existente) return existente.id;
+
+  const [primeiro, ...resto] = input.nome.trim().split(/\s+/);
+  const res = await adminFetch('/users', {
+    method: 'POST',
+    body: JSON.stringify({
+      username: input.email,
+      email: input.email,
+      enabled: true,
+      emailVerified: false,
+      firstName: primeiro ?? input.nome,
+      lastName: resto.join(' ') || undefined,
+      requiredActions: ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
+    }),
+  });
+  if (res.status === 409) {
+    // Corrida entre dois pedidos com o mesmo e-mail: o outro ganhou — reutiliza.
+    const corrida = await procurarPorEmail(input.email);
+    if (corrida) return corrida.id;
+  }
+  if (!res.ok && res.status !== 201) {
+    throw new Error(`[keycloak] criação de utilizador falhou (HTTP ${res.status})`);
+  }
+  const criado = await procurarPorEmail(input.email);
+  if (!criado) {
+    throw new Error('[keycloak] utilizador criado mas não encontrado na releitura');
+  }
+  return criado.id;
+}
+
+/**
+ * Dispara o e-mail de acções pendentes (verificar e-mail + definir
+ * palavra-passe). Devolve `false` em falha — o chamador decide se é fatal:
+ * no registo público NÃO é (o tenant existe; reenvia-se por suporte), e
+ * tratá-la como fatal desfaria um provisionamento válido por causa do SMTP.
+ */
+export async function dispararEmailAccoes(sub: string): Promise<boolean> {
+  const cfg = kcConfig();
+  const destino = (process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000')
+    .replace(/\/$/, '');
+  try {
+    const res = await adminFetch(
+      `/users/${encodeURIComponent(sub)}/execute-actions-email` +
+        `?client_id=${encodeURIComponent(cfg.clientId)}` +
+        `&redirect_uri=${encodeURIComponent(`${destino}/dashboard`)}`,
+      { method: 'PUT', body: JSON.stringify(['VERIFY_EMAIL', 'UPDATE_PASSWORD']) },
+    );
+    if (!res.ok) {
+      logger.error({ status: res.status, sub }, '[keycloak] execute-actions-email falhou');
+      return false;
+    }
+    return true;
+  } catch (e) {
+    logger.error({ err: (e as Error)?.message, sub }, '[keycloak] execute-actions-email falhou');
+    return false;
+  }
+}
+
+/**
+ * Desactiva (ou reactiva) o utilizador no Keycloak e, ao desactivar, encerra
+ * as sessões SSO. Ambas as ordens Keycloak↔Postgres são seguras na
+ * desactivação (ADR-0013): falhe o lado que falhar, o resultado é acesso
+ * fechado, nunca aberto.
+ */
+export async function definirActivo(sub: string, ativo: boolean): Promise<void> {
+  const res = await adminFetch(`/users/${encodeURIComponent(sub)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ enabled: ativo }),
+  });
+  if (!res.ok) {
+    throw new Error(`[keycloak] actualização de estado falhou (HTTP ${res.status})`);
+  }
+  if (!ativo) {
+    const logout = await adminFetch(`/users/${encodeURIComponent(sub)}/logout`, { method: 'POST' });
+    if (!logout.ok) {
+      // Não fatal: sem sessão SSO a renovação morre sozinha; a re-resolução
+      // dos 15 minutos fecha o resto (ADR-0011).
+      logger.warn({ status: logout.status, sub }, '[keycloak] logout de sessões falhou');
+    }
+  }
+}

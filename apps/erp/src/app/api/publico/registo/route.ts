@@ -7,12 +7,10 @@ import { RegistoTenantSchema } from '@/lib/validations/onboarding';
 import { AppError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import { getRequestContext } from '@/server/observability/context';
-import { emailProvider } from '@/server/email';
-import { boasVindasTemplate } from '@/server/email/templates/boas-vindas';
-import { prismaBase } from '@/server/db/client';
-import { TRIAL_DIAS, type PlanoId } from '@/lib/planos';
+import { type PlanoId } from '@/lib/planos';
 import { provisionarTenant } from '@/server/services/plataforma/tenant-provisioning.service';
 import { criarSubscricaoTrial } from '@/server/services/plataforma/assinatura.service';
+import { dispararEmailAccoes } from '@/server/auth/keycloak';
 import {
   concluirChave,
   falharChave,
@@ -23,14 +21,24 @@ import {
 /**
  * POST /api/publico/registo — registo self-service (público, sem sessão).
  *
- * Contrato congelado com o site de marketing (spec 18):
- * `docs/handoff/site-provisionamento.md` §2. Resposta 201
- * `{ tenantSlug, handoffToken }`; erros `{ traceId, erro }` — sem stack.
+ * Reescrito pelo ADR-0013: SEM campo `senha` e SEM `handoffToken`. O registo
+ * cria a identidade no Keycloak (VERIFY_EMAIL + UPDATE_PASSWORD pendentes),
+ * provisiona o tenant em Postgres, e dispara o `execute-actions-email` — é
+ * esse e-mail, e só ele, que dá entrada no produto. Resposta 201
+ * `{ tenantSlug, mensagem }`; erros `{ traceId, erro }` — sem stack.
+ * Contrato com o site actualizado em `docs/handoff/site-provisionamento.md` §2.
  *
  * Defesas, por ordem: rate-limit (IP) → `Idempotency-Key` obrigatória → Zod
- * estrito → captcha → provisionamento atómico. O captcha vem depois do Zod de
- * propósito: não se gasta uma chamada ao provedor de captcha com um corpo que
- * nem sequer é válido.
+ * estrito → rate-limit (e-mail) → captcha → provisionamento. O captcha vem
+ * SEMPRE antes de tocar no Keycloak (execução paralela W8 §6-quater: este
+ * endpoint faz o nosso servidor mandar correio para um endereço à escolha de
+ * quem chama — amplificação), e depois do Zod de propósito (não se gasta uma
+ * chamada ao fornecedor com um corpo inválido). A reentrega idempotente
+ * responde antes do captcha porque não tem efeitos: devolve o corpo gravado.
+ *
+ * PONTO DE EXTENSÃO w8-anti-abuso (ADR-0016): quando o Turnstile ficar fixado,
+ * a verificação vive em `verificarCaptcha` (CAPTCHA_PROVIDER) — a chamada
+ * abaixo é o gancho; endurecê-la não deve reordenar o Keycloak para antes dela.
  *
  * Escreve tudo via `prismaBase` (sem contexto de tenant — o tenant é criado
  * aqui) e nunca aceita `tenantId` ou `slug` do cliente.
@@ -67,12 +75,8 @@ function erro(
   );
 }
 
-function urlBase(): string {
-  return (process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000').replace(
-    /\/$/,
-    '',
-  );
-}
+const MENSAGEM_SUCESSO =
+  'Conta criada. Verifique a sua caixa de correio: o e-mail de activação é onde confirma o endereço e define a palavra-passe.';
 
 export const POST = withApi(
   async (req: NextRequest) => {
@@ -152,7 +156,9 @@ export const POST = withApi(
       );
     }
 
-    // 5. Rate-limit por email + captcha (só depois de o corpo ser válido).
+    // 5. Rate-limit por email + captcha — OBRIGATORIAMENTE antes de qualquer
+    //    toque no Keycloak (§6-quater): sem isto, a Admin API e o correio de
+    //    activação passam a ser a superfície exposta de um endpoint anónimo.
     const rlEmail = await registoLimiter.consume(`${dados.admin.email}::registo`);
     if (rlEmail.limited) {
       await falharChave(chave);
@@ -176,7 +182,7 @@ export const POST = withApi(
       );
     }
 
-    // 6. Provisionamento atómico.
+    // 6. Provisionamento: Keycloak primeiro, Postgres depois (ADR-0013 §2).
     let resultado;
     try {
       resultado = await provisionarTenant({
@@ -197,14 +203,20 @@ export const POST = withApi(
       return erro(500, 'ERRO_INTERNO', 'Não foi possível concluir o registo.', cors);
     }
 
-    const resposta = {
-      tenantSlug: resultado.tenantSlug,
-      handoffToken: resultado.handoffToken,
-    };
+    const resposta = { tenantSlug: resultado.tenantSlug, mensagem: MENSAGEM_SUCESSO };
     await concluirChave(chave, resposta, resultado.tenantId);
 
     // 7. Efeitos externos — FORA da transacção (persistir-depois-enviar).
-    await enviarBoasVindas(resultado);
+    //    O e-mail de acções do Keycloak é a porta de entrada; a falha não
+    //    desfaz o registo (o tenant existe e é reparável — reconciliação
+    //    ADR-0013 §3 e reenvio por suporte), mas fica gritada no log.
+    const enviado = await dispararEmailAccoes(resultado.keycloakSub);
+    if (!enviado) {
+      logger.error(
+        { tenantId: resultado.tenantId, keycloakSub: resultado.keycloakSub },
+        '[registo] e-mail de activação NÃO enviado — tenant sem porta de entrada até reenvio',
+      );
+    }
 
     // Subscrição de trial no Stripe: best-effort, não bloqueia a resposta nem o
     // acesso ao trial local. O cron de fallback cobre a falha.
@@ -214,54 +226,6 @@ export const POST = withApi(
   },
   { public: true },
 );
-
-async function enviarBoasVindas(resultado: {
-  tenantId: string;
-  adminEmail: string;
-  adminNome: string;
-  tokenVerificacaoEmail: string;
-  notificacaoBoasVindasId: string;
-}): Promise<void> {
-  const link = `${urlBase()}/api/publico/verificar-email?token=${encodeURIComponent(
-    resultado.tokenVerificacaoEmail,
-  )}`;
-
-  const tenant = await prismaBase.tenant.findFirst({
-    where: { id: resultado.tenantId },
-    select: { nome: true },
-  });
-
-  const { html, texto } = boasVindasTemplate({
-    nomeUtilizador: resultado.adminNome,
-    nomeEmpresa: tenant?.nome ?? 'a sua empresa',
-    linkVerificacao: link,
-    trialDias: TRIAL_DIAS,
-  });
-
-  try {
-    await emailProvider.enviar({
-      para: resultado.adminEmail,
-      assunto: 'Bem-vindo ao GestPro — confirme o seu email',
-      html,
-      texto,
-    });
-    await prismaBase.notificacao.updateMany({
-      where: { id: resultado.notificacaoBoasVindasId, tenantId: resultado.tenantId },
-      data: { estadoEnvio: 'ENVIADO', enviadoEm: new Date() },
-    });
-  } catch (e) {
-    // O tenant existe e o token é válido: a falha de email não invalida o
-    // registo. Fica FALHA para reenvio manual/job.
-    logger.error(
-      { tenantId: resultado.tenantId, err: (e as Error)?.message },
-      '[registo] falha ao enviar email de boas-vindas',
-    );
-    await prismaBase.notificacao.updateMany({
-      where: { id: resultado.notificacaoBoasVindasId, tenantId: resultado.tenantId },
-      data: { estadoEnvio: 'FALHA', erroEnvio: 'Falha no envio do email de boas-vindas' },
-    });
-  }
-}
 
 /**
  * Preflight. Tem de anunciar `Idempotency-Key` em `Access-Control-Allow-Headers`

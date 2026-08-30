@@ -38,6 +38,12 @@ export interface UserRow {
   nome: string;
   email: string;
   ativo: boolean;
+  /**
+   * Primeiro login bem sucedido (ADR-0013 §5-bis). «Por activar» é `null` —
+   * o convite foi enviado mas a pessoa nunca entrou. Substitui o
+   * `UserInvite.acceptedAt` sem chamada de rede por linha.
+   */
+  primeiroAcessoEm: Date | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

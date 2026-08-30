@@ -7,7 +7,11 @@ import { buildSecurityHeaders } from '@/lib/security/headers';
 // Rotas públicas — não exigem autenticação.
 // ---------------------------------------------------------------------------
 const PUBLIC_PATHS = [
+  // '/auth/' cobre /auth/login (redireccionamento para o Keycloak — ADR-0012
+  // §8) e /auth/erro (recusas explícitas do callbacks.signIn — ADR-0011).
   '/auth/',
+  // Rotas do Auth.js (signin/callback/session/csrf). Sem isto, o regresso do
+  // Keycloak recebe 307 e o login nunca fecha.
   '/api/auth/',
   // Probes de saúde/observabilidade (spec 14): acessíveis sem sessão para o
   // HEALTHCHECK do Docker e o health check do App Runner. /api/metrics tem
@@ -18,14 +22,12 @@ const PUBLIC_PATHS = [
   // Fronteiras públicas do onboarding self-service (spec 19). Sem estes, o site
   // de marketing e o Stripe recebem 307 → /auth/login em vez de 2xx.
   // A protecção destes endpoints é própria: rate-limit + captcha no registo,
-  // verificação da assinatura HMAC no webhook, consumo atómico dos tokens.
+  // verificação da assinatura HMAC no webhook.
+  // (O ADR-0013 removeu /api/publico/verificar-email e /auth/registo-callback:
+  // verificação de e-mail e definição de palavra-passe são do Keycloak.)
   '/api/publico/registo',
   '/api/publico/planos',
-  '/api/publico/verificar-email',
   '/api/webhooks/stripe',
-  // Callback de handoff site→app: valida o token e estabelece a sessão. Já
-  // coberto pelo prefixo '/auth/', listado por ser contrato com a spec 18.
-  '/auth/registo-callback',
   // Página pública de contacto/suporte, ligada a partir do ecrã de login.
   '/contactos',
   '/_next/',

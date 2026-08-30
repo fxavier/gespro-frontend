@@ -38,15 +38,18 @@ export async function ChecklistOnboarding({
     prismaBase.user.count({ where: { tenantId, deletedAt: null } }),
     prismaBase.user.findFirst({
       where: { id: userId, tenantId },
-      select: { emailVerificado: true },
+      select: { primeiroAcessoEm: true },
     }),
   ]);
 
   const passos = [
     {
-      feito: Boolean(utilizador?.emailVerificado),
-      titulo: 'Confirmar o endereço de email',
-      descricao: 'Sem confirmação, não é possível iniciar sessão de novo.',
+      // O primeiro login só fecha depois de o e-mail ser verificado e a
+      // palavra-passe definida no Keycloak (acções obrigatórias) — quem vê
+      // este ecrã já activou a conta. `primeiroAcessoEm` regista-o (ADR-0013).
+      feito: Boolean(utilizador?.primeiroAcessoEm),
+      titulo: 'Activar a conta (e-mail confirmado e palavra-passe definida)',
+      descricao: 'Concluído no primeiro início de sessão.',
       href: null as string | null,
       accao: null as string | null,
     },
