@@ -204,3 +204,40 @@ Confirmam que o modo de falha está a ser exercitado (não silenciado).
 | `pnpm-lock.yaml` | Modificado (lock ioredis) | consequência do package.json |
 
 **Nota sobre `docker-compose.yml`**: o ficheiro pertence ao `w8-plataforma-local` (fase 1). A alteração é uma linha (`RATE_LIMIT_DRIVER: valkey`) no bloco `x-erp-ambiente`, que é exactamente onde o comentário "Contratos para a fase 2 (w8-cache e w8-identidade)" já existia. Sem esta linha, o gate de runtime (limite partilhado entre instâncias) não é satisfeito com a pilha Docker — é o requisito central do ADR-0014.
+
+---
+
+## Prova de runtime entre instâncias — feita pelo orquestrador, 2026-08-30
+
+O agente não conseguiu construir a imagem e deixou esta prova por fazer. É o critério do gate, portanto
+foi feita aqui, contra a pilha real (`erp-1` + `erp-2` atrás do Caddy em `:8080`, `RATE_LIMIT_DRIVER=valkey`).
+
+Cinco POSTs a `/api/publico/registo` com corpo inválido — o limitador por IP corre **antes** do Zod
+(`route.ts:87` vs `:114`), portanto um corpo inválido consome quota na mesma:
+
+| Pedido | Instância | Resposta |
+|---|---|---|
+| 1 | `erp-1` | 400 |
+| 2 | `erp-2` | 400 |
+| 3 | `erp-1` | 400 |
+| 4 | **`erp-2`** | **429** |
+| 5 | `erp-1` | 429 |
+
+**O que prova:** o `erp-2` recusou no **seu segundo pedido próprio**. Só é possível lendo um contador
+que o `erp-1` também incrementou. Com o limitador em memória por processo, o `erp-2` teria contado 1, 2
+e deixado passar o quarto. Chave criada no Valkey: `172.19.0.1::registo` (o IP do cliente visto pelo
+proxy).
+
+### Tentativa de contorno por cabeçalho — não passa
+
+`ipDe()` lê a **primeira** entrada de `X-Forwarded-For`. Se o proxy *acrescentasse* ao cabeçalho, um
+valor forjado pelo cliente ficaria em primeiro lugar e daria um balde novo por pedido — contorno total
+do limitador, precisamente contra quem ele existe. Testado com três IPs forjados: **todos receberam 429
+e nenhuma chave nova foi criada.** O Caddy **sobrepõe** o `X-Forwarded-For` em vez de acrescentar, que é
+o comportamento seguro por omissão de um proxy de fronteira.
+
+> **Dependência a não perder de vista:** esta propriedade vem do **proxy**, não do código. Um proxy de
+> produção que acrescente ao `X-Forwarded-For`, ou que trate o cliente como confiável, reabre o
+> contorno. Quem escolher o fornecedor de infraestrutura (ADR-0026 §5, parado) tem de verificar isto
+> explicitamente — e um `ipDe()` que lesse a **última** entrada em vez da primeira seria mais robusto a
+> essa escolha.
