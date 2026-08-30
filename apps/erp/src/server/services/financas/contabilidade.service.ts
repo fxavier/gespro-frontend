@@ -1,5 +1,5 @@
 import 'server-only';
-import { Prisma } from '@prisma/client';
+import { Prisma, type TipoPartida } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
@@ -46,6 +46,7 @@ import {
   type ReconciliacaoComConta,
   type StatusReconciliacao,
   type Balancete,
+  type ContaBalancete,
   type LinhaRazao,
   type DRE,
   type PaginacaoContabilidade,
@@ -445,33 +446,44 @@ export async function listarLancamentos(filtro: FiltroLancamentoInput, ctx: Ctx)
 // Relatórios
 // ---------------------------------------------------------------------------
 
-export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Promise<Balancete> {
-  const partidas = await prisma.partidaLancamento.findMany({
-    where: {
-      tenantId: ctx.tenantId,
-      lancamento: {
-        data: { gte: filtro.dataInicio, lte: filtro.dataFim },
-        status: { not: 'ESTORNADO' },
-      },
-    },
-    include: {
-      conta: { select: { id: true, codigo: true, nome: true, tipo: true, natureza: true } },
-    },
-  });
+/** Uma linha de `groupBy(['contaId','tipo'])` com `_sum.valor`. */
+export interface AgregadoPartida {
+  contaId: string;
+  tipo: TipoPartida;
+  _sum: { valor: Prisma.Decimal | null };
+}
 
-  const mapa = new Map<string, { conta: typeof partidas[0]['conta']; debitos: Prisma.Decimal; creditos: Prisma.Decimal }>();
-  for (const p of partidas) {
-    const e = mapa.get(p.contaId) ?? { conta: p.conta, debitos: new Prisma.Decimal(0), creditos: new Prisma.Decimal(0) };
-    if (p.tipo === 'DEBITO') e.debitos = e.debitos.plus(p.valor);
-    else e.creditos = e.creditos.plus(p.valor);
-    mapa.set(p.contaId, e);
+/**
+ * Monta as linhas do balancete a partir de somas já agregadas.
+ *
+ * Pura de propósito: é aqui que vive a aritmética (que lado soma, que natureza
+ * inverte o sinal, que contas se filtram) e é o que um teste consegue cobrir
+ * sem base de dados. A consulta fica em `gerarBalancete`.
+ */
+export function montarLinhasBalancete(
+  agregados: AgregadoPartida[],
+  contas: Map<string, ContaBalancete['conta']>,
+  incluirZeradas: boolean,
+): { contas: ContaBalancete[]; totalDebitos: Prisma.Decimal; totalCreditos: Prisma.Decimal } {
+  const mapa = new Map<string, { conta: ContaBalancete['conta']; debitos: Prisma.Decimal; creditos: Prisma.Decimal }>();
+
+  for (const a of agregados) {
+    const conta = contas.get(a.contaId);
+    // Uma partida cuja conta não existe neste tenant não é somável — e não é
+    // silenciável noutro sítio: seria uma fuga cross-tenant a acontecer.
+    if (!conta) continue;
+    const e = mapa.get(a.contaId) ?? { conta, debitos: new Prisma.Decimal(0), creditos: new Prisma.Decimal(0) };
+    const valor = a._sum.valor ?? new Prisma.Decimal(0);
+    if (a.tipo === 'DEBITO') e.debitos = e.debitos.plus(valor);
+    else e.creditos = e.creditos.plus(valor);
+    mapa.set(a.contaId, e);
   }
 
   let totalDebitos = new Prisma.Decimal(0);
   let totalCreditos = new Prisma.Decimal(0);
 
-  const contas = Array.from(mapa.values())
-    .filter((e) => filtro.incluirZeradas || !e.debitos.equals(0) || !e.creditos.equals(0))
+  const linhas = Array.from(mapa.values())
+    .filter((e) => incluirZeradas || !e.debitos.equals(0) || !e.creditos.equals(0))
     .map((e) => {
       totalDebitos = totalDebitos.plus(e.debitos);
       totalCreditos = totalCreditos.plus(e.creditos);
@@ -488,7 +500,46 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
     })
     .sort((a, b) => a.conta.codigo.localeCompare(b.conta.codigo));
 
-  return { dataInicio: filtro.dataInicio, dataFim: filtro.dataFim, contas, totalDebitos, totalCreditos };
+  return { contas: linhas, totalDebitos, totalCreditos };
+}
+
+/**
+ * Balancete de verificação do período.
+ *
+ * A agregação é feita em **SQL** (defeito D3, ADR-0018 §6). A versão anterior
+ * trazia todas as partidas do período com `findMany` e somava-as num `Map` em
+ * JavaScript: ~6 s de base de dados mais a hidratação de um `Prisma.Decimal`
+ * por linha. Com 250 000 partidas e o limite de memória da pilha de referência
+ * (768 MB por instância, ou seja ~384 MB de *old space*), isso não era lento —
+ * **esgotava a heap e matava o processo** com 15 utilizadores concorrentes.
+ * O `groupBy` devolve uma linha por (conta, lado): dezenas, não centenas de
+ * milhares.
+ */
+export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Promise<Balancete> {
+  const agregados = await prisma.partidaLancamento.groupBy({
+    by: ['contaId', 'tipo'],
+    where: {
+      tenantId: ctx.tenantId,
+      lancamento: {
+        data: { gte: filtro.dataInicio, lte: filtro.dataFim },
+        status: { not: 'ESTORNADO' },
+      },
+    },
+    _sum: { valor: true },
+  });
+
+  const contas = await prisma.contaPGC.findMany({
+    where: { tenantId: ctx.tenantId, id: { in: [...new Set(agregados.map((a) => a.contaId))] } },
+    select: { id: true, codigo: true, nome: true, tipo: true, natureza: true },
+  });
+
+  const { contas: linhas, totalDebitos, totalCreditos } = montarLinhasBalancete(
+    agregados,
+    new Map(contas.map((c) => [c.id, c])),
+    filtro.incluirZeradas,
+  );
+
+  return { dataInicio: filtro.dataInicio, dataFim: filtro.dataFim, contas: linhas, totalDebitos, totalCreditos };
 }
 
 export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<LinhaRazao[]> {
@@ -528,8 +579,18 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Li
   });
 }
 
+/**
+ * Demonstração de resultados do período.
+ *
+ * Agregação em SQL pelo mesmo motivo do `gerarBalancete` (defeito D3): a versão
+ * anterior trazia todas as partidas do período para memória. O agrupamento por
+ * (conta, lado) não altera a aritmética — a soma é associativa e o sinal
+ * depende só do `tipo` (que está na chave de agrupamento) e da `natureza` da
+ * conta (que é constante por conta).
+ */
 export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
-  const partidas = await prisma.partidaLancamento.findMany({
+  const agregados = await prisma.partidaLancamento.groupBy({
+    by: ['contaId', 'tipo'],
     where: {
       tenantId: ctx.tenantId,
       ...(filtro.centroCustoId ? { centroCustoId: filtro.centroCustoId } : {}),
@@ -538,18 +599,25 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
         status: { not: 'ESTORNADO' },
       },
     },
-    include: {
-      conta: { select: { codigo: true, natureza: true } },
-    },
+    _sum: { valor: true },
   });
 
-  // Saldo líquido das partidas para um prefixo de código de conta
+  const contas = await prisma.contaPGC.findMany({
+    where: { tenantId: ctx.tenantId, id: { in: [...new Set(agregados.map((a) => a.contaId))] } },
+    select: { id: true, codigo: true, natureza: true },
+  });
+  const porId = new Map(contas.map((c) => [c.id, c]));
+
+  // Saldo líquido das somas agregadas para um prefixo de código de conta
   function saldoPrefixo(prefixo: string): Prisma.Decimal {
     let s = new Prisma.Decimal(0);
-    for (const p of partidas.filter((p) => p.conta.codigo.startsWith(prefixo))) {
-      const isDevedora = p.conta.natureza === 'DEVEDORA';
-      if (p.tipo === 'DEBITO') s = isDevedora ? s.plus(p.valor) : s.minus(p.valor);
-      else s = isDevedora ? s.minus(p.valor) : s.plus(p.valor);
+    for (const a of agregados) {
+      const conta = porId.get(a.contaId);
+      if (!conta || !conta.codigo.startsWith(prefixo)) continue;
+      const valor = a._sum.valor ?? new Prisma.Decimal(0);
+      const isDevedora = conta.natureza === 'DEVEDORA';
+      if (a.tipo === 'DEBITO') s = isDevedora ? s.plus(valor) : s.minus(valor);
+      else s = isDevedora ? s.minus(valor) : s.plus(valor);
     }
     return s.abs(); // retornar valor absoluto — o sinal é interpretado pelo contexto DRE
   }
