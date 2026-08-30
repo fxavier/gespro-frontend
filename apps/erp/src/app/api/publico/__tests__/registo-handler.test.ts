@@ -16,9 +16,7 @@ const mocks = vi.hoisted(() => ({
   concluirChave: vi.fn(),
   falharChave: vi.fn(),
   consumir: vi.fn(),
-  enviar: vi.fn(),
-  tenantFindFirst: vi.fn(),
-  notificacaoUpdateMany: vi.fn(),
+  dispararEmailAccoes: vi.fn(),
 }));
 
 // `withApi` importa `@/lib/auth` (next-auth), que não resolve fora do runtime
@@ -46,12 +44,10 @@ vi.mock('@/server/provisioning/idempotencia', async () => {
 vi.mock('@/server/security/rate-limiter', () => ({
   registoLimiter: { consume: mocks.consumir },
 }));
-vi.mock('@/server/email', () => ({ emailProvider: { enviar: mocks.enviar } }));
-vi.mock('@/server/db/client', () => ({
-  prismaBase: {
-    tenant: { findFirst: mocks.tenantFindFirst },
-    notificacao: { updateMany: mocks.notificacaoUpdateMany },
-  },
+// Keycloak dublado — o e-mail de acções (a porta de entrada) é disparado pelo
+// handler como efeito externo; o caminho real é provado no E2E.
+vi.mock('@/server/auth/keycloak', () => ({
+  dispararEmailAccoes: mocks.dispararEmailAccoes,
 }));
 
 import { NextRequest } from 'next/server';
@@ -60,7 +56,7 @@ import { BusinessRuleError } from '@/lib/errors';
 
 const CORPO_VALIDO = {
   empresa: { nome: 'Padaria Ana, Lda', nuit: '400123456' },
-  admin: { nome: 'Ana Sitoe', email: 'ana@padaria.mz', senha: 'segredo123' },
+  admin: { nome: 'Ana Sitoe', email: 'ana@padaria.mz' },
   planoId: 'PROFISSIONAL',
   provincia: 'Maputo Cidade',
   captchaToken: 'ok',
@@ -90,26 +86,23 @@ beforeEach(() => {
     tenantId: 'tenant-1',
     tenantSlug: 'padaria-ana-lda',
     userId: 'user-1',
+    keycloakSub: 'kc-sub-ana',
     adminEmail: 'ana@padaria.mz',
     adminNome: 'Ana Sitoe',
-    handoffToken: 'tok-handoff',
-    tokenVerificacaoEmail: 'tok-verif',
     notificacaoBoasVindasId: 'notif-1',
   });
-  mocks.tenantFindFirst.mockResolvedValue({ nome: 'Padaria Ana, Lda' });
-  mocks.enviar.mockResolvedValue(undefined);
-  mocks.notificacaoUpdateMany.mockResolvedValue({ count: 1 });
+  mocks.dispararEmailAccoes.mockResolvedValue(true);
   mocks.criarSubscricaoTrial.mockResolvedValue({ criada: true });
 });
 
 describe('201 — contrato de sucesso', () => {
-  it('devolve tenantSlug e handoffToken no topo do corpo (sem envelope)', async () => {
+  it('devolve tenantSlug e mensagem no topo do corpo (sem envelope, sem handoffToken)', async () => {
     const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({
-      tenantSlug: 'padaria-ana-lda',
-      handoffToken: 'tok-handoff',
-    });
+    const corpo = await res.json();
+    expect(corpo.tenantSlug).toBe('padaria-ana-lda');
+    expect(corpo.mensagem).toContain('caixa de correio');
+    expect(corpo).not.toHaveProperty('handoffToken');
   });
 
   it('devolve CORS para a origem do site na allowlist', async () => {
@@ -121,23 +114,20 @@ describe('201 — contrato de sucesso', () => {
     await POST(pedido(CORPO_VALIDO, COM_CHAVE));
     expect(mocks.concluirChave).toHaveBeenCalledWith(
       expect.any(String),
-      { tenantSlug: 'padaria-ana-lda', handoffToken: 'tok-handoff' },
+      expect.objectContaining({ tenantSlug: 'padaria-ana-lda' }),
       'tenant-1',
     );
   });
 
-  it('envia o email de verificação FORA da transacção e marca ENVIADO', async () => {
+  it('dispara o e-mail de acções do Keycloak FORA da transacção — a porta de entrada', async () => {
     await POST(pedido(CORPO_VALIDO, COM_CHAVE));
-    expect(mocks.enviar).toHaveBeenCalledTimes(1);
-    expect(mocks.enviar.mock.calls[0][0].para).toBe('ana@padaria.mz');
-    expect(mocks.notificacaoUpdateMany.mock.calls[0][0].data.estadoEnvio).toBe('ENVIADO');
+    expect(mocks.dispararEmailAccoes).toHaveBeenCalledWith('kc-sub-ana');
   });
 
-  it('uma falha de email não invalida o registo — fica FALHA para reenvio', async () => {
-    mocks.enviar.mockRejectedValue(new Error('smtp down'));
+  it('uma falha no e-mail de acções não invalida o registo (tenant reparável)', async () => {
+    mocks.dispararEmailAccoes.mockResolvedValue(false);
     const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
     expect(res.status).toBe(201);
-    expect(mocks.notificacaoUpdateMany.mock.calls[0][0].data.estadoEnvio).toBe('FALHA');
   });
 });
 
@@ -180,12 +170,25 @@ describe('códigos de erro publicados', () => {
     expect((await res.json()).error.code).toBe('VALIDACAO');
   });
 
-  it('VALIDACAO (422) com senha fraca — e nunca chega ao captcha', async () => {
+  it('VALIDACAO (422) com e-mail inválido — e nunca chega ao captcha', async () => {
     const res = await POST(
-      pedido({ ...CORPO_VALIDO, admin: { ...CORPO_VALIDO.admin, senha: 'abc' } }, COM_CHAVE),
+      pedido({ ...CORPO_VALIDO, admin: { ...CORPO_VALIDO.admin, email: 'nao-e-email' } }, COM_CHAVE),
     );
     expect(res.status).toBe(422);
     expect(mocks.verificarCaptcha).not.toHaveBeenCalled();
+  });
+
+  it('ADR-0013: um `senha` residual enviado pelo site é ignorado e nunca lido', async () => {
+    const res = await POST(
+      pedido(
+        { ...CORPO_VALIDO, admin: { ...CORPO_VALIDO.admin, senha: 'segredo-residual' } },
+        COM_CHAVE,
+      ),
+    );
+    expect(res.status).toBe(201);
+    // O serviço recebe o admin SEM senha — o ERP não vê palavras-passe.
+    const input = mocks.provisionarTenant.mock.calls[0][0];
+    expect(JSON.stringify(input)).not.toContain('segredo-residual');
   });
 
   it('CAPTCHA_INVALIDO (403) e liberta a chave para nova tentativa', async () => {
@@ -245,15 +248,17 @@ describe('idempotência no handler', () => {
   it('repetição devolve 201 com a MESMA resposta, sem reprovisionar', async () => {
     mocks.reservarChave.mockResolvedValue({
       tipo: 'REPETIDA',
-      resposta: { tenantSlug: 'padaria-ana-lda', handoffToken: 'tok-original' },
+      resposta: { tenantSlug: 'padaria-ana-lda', mensagem: 'corpo-original' },
     });
     const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({
       tenantSlug: 'padaria-ana-lda',
-      handoffToken: 'tok-original',
+      mensagem: 'corpo-original',
     });
     expect(mocks.provisionarTenant).not.toHaveBeenCalled();
+    // A reentrega não repete o e-mail de acções nem toca no Keycloak.
+    expect(mocks.dispararEmailAccoes).not.toHaveBeenCalled();
   });
 });
 

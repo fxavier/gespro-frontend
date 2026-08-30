@@ -1,0 +1,68 @@
+/*
+ * gespro.css — variáveis de marca sobre o tema keycloak.v2 (PatternFly v5).
+ * Fonte dos valores: packages/brand/tokens.css (oklch). Nenhuma cor nova é
+ * inventada aqui; só se mapeiam os tokens da marca nas variáveis do PF5.
+ */
+
+:root {
+  /* Marca — índigo GestPro (tema claro) */
+  --pf-v5-global--primary-color--100: oklch(0.45 0.15 250);
+  --pf-v5-global--primary-color--200: oklch(0.4 0.15 250);
+  --pf-v5-global--link--Color: oklch(0.45 0.15 250);
+  --pf-v5-global--link--Color--hover: oklch(0.4 0.15 250);
+  --pf-v5-global--active-color--100: oklch(0.45 0.15 250);
+  --pf-v5-global--BorderRadius--sm: 0.625rem;
+  --pf-v5-global--danger-color--100: oklch(0.577 0.245 27.325);
+  --pf-v5-global--success-color--100: oklch(0.45 0.15 150);
+  --pf-v5-global--warning-color--100: oklch(0.5 0.17 85);
+}
+
+/* Tema escuro — aplicado pelo keycloak.v2 (darkMode=true) via classe no <html> */
+:root.pf-v5-theme-dark {
+  --pf-v5-global--primary-color--100: oklch(0.62 0.15 250);
+  --pf-v5-global--primary-color--200: oklch(0.68 0.15 250);
+  /* Mais claro do que o azul PF (#2f8adc, 4.02:1) — precisa de ≥4.5:1 (AA)
+     sobre o fundo do cartão escuro. Verificado com axe no gate e2e:a11y. */
+  --pf-v5-global--link--Color: oklch(0.75 0.11 250);
+  --pf-v5-global--link--Color--hover: oklch(0.8 0.1 250);
+  --pf-v5-global--active-color--100: oklch(0.62 0.15 250);
+  --pf-v5-global--BackgroundColor--dark-300: oklch(0.145 0 0);
+  --pf-v5-global--BackgroundColor--dark-100: oklch(0.205 0 0);
+}
+
+/* O PF escuro pinta as âncoras ao nível do elemento — a variável global não
+   chega; sem esta regra o link «Esqueceu-se…» fica a 4.02:1 (falha AA). */
+:root.pf-v5-theme-dark .pf-v5-c-login a {
+  /* !important: o dark theme do PF pinta a âncora com especificidade maior;
+     este é um overlay de marca, não CSS de componente — aceita-se. */
+  color: var(--pf-v5-global--link--Color) !important;
+}
+:root.pf-v5-theme-dark .pf-v5-c-login a:hover {
+  color: var(--pf-v5-global--link--Color--hover) !important;
+}
+
+/* Fundo da página de login: superfície plana da marca em vez da imagem PF. */
+.pf-v5-c-login {
+  --pf-v5-c-login--m-gradient--BackgroundImage: none;
+  background: oklch(0.97 0 0);
+}
+:root.pf-v5-theme-dark .pf-v5-c-login {
+  background: oklch(0.145 0 0);
+}
+.pf-v5-c-background-image {
+  display: none;
+}
+
+/* Logótipo: substitui o texto do displayName pelo SVG da marca. */
+#kc-header-wrapper.pf-v5-c-brand {
+  display: block;
+  width: 200px;
+  height: 48px;
+  margin-inline: auto;
+  overflow: hidden;
+  text-indent: -9999px;
+  background: url("../img/gespro-logo-claro.svg") no-repeat center / contain;
+}
+:root.pf-v5-theme-dark #kc-header-wrapper.pf-v5-c-brand {
+  background-image: url("../img/gespro-logo-escuro.svg");
+}

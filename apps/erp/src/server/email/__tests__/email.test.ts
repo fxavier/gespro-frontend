@@ -9,8 +9,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { noopEmailProvider } from '../noop';
-import { resetPasswordTemplate } from '../templates/reset';
-import { conviteTemplate } from '../templates/convite';
 import { alertaTemplate } from '../templates/alerta';
 
 // ---------------------------------------------------------------------------
@@ -48,92 +46,6 @@ describe('noopEmailProvider', () => {
     );
 
     consoleSpy.mockRestore();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Template: reset de password
-// ---------------------------------------------------------------------------
-
-describe('resetPasswordTemplate', () => {
-  it('gera HTML com o link de reset', () => {
-    const { html, texto } = resetPasswordTemplate({
-      linkReset: 'https://demo.gespro.mz/reset?token=abc123',
-    });
-
-    expect(html).toContain('https://demo.gespro.mz/reset?token=abc123');
-    expect(texto).toContain('https://demo.gespro.mz/reset?token=abc123');
-  });
-
-  it('inclui saudação personalizada quando nome é fornecido', () => {
-    const { html, texto } = resetPasswordTemplate({
-      linkReset: 'https://link',
-      nomeUtilizador: 'Maria Nhampule',
-    });
-
-    expect(html).toContain('Maria Nhampule');
-    expect(texto).toContain('Maria Nhampule');
-  });
-
-  it('está em português de Portugal', () => {
-    const { html } = resetPasswordTemplate({ linkReset: 'https://link' });
-
-    expect(html).toContain('Recupera');
-    expect(html).toContain('palavra-passe');
-  });
-
-  it('menciona a expiração em horas', () => {
-    const { texto } = resetPasswordTemplate({
-      linkReset: 'https://link',
-      expiracaoHoras: 2,
-    });
-
-    expect(texto).toContain('2 hora');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Template: convite de utilizador
-// ---------------------------------------------------------------------------
-
-describe('conviteTemplate', () => {
-  it('inclui o link de convite no HTML e texto', () => {
-    const { html, texto } = conviteTemplate({
-      linkConvite: 'https://demo.gespro.mz/aceitar-convite?token=xyz',
-      emailConvidado: 'novo@empresa.mz',
-    });
-
-    expect(html).toContain('https://demo.gespro.mz/aceitar-convite?token=xyz');
-    expect(texto).toContain('https://demo.gespro.mz/aceitar-convite?token=xyz');
-  });
-
-  it('inclui o email convidado', () => {
-    const { html } = conviteTemplate({
-      linkConvite: 'https://link',
-      emailConvidado: 'colaborador@empresa.mz',
-    });
-
-    expect(html).toContain('colaborador@empresa.mz');
-  });
-
-  it('inclui o nome da empresa quando fornecido', () => {
-    const { html } = conviteTemplate({
-      linkConvite: 'https://link',
-      emailConvidado: 'x@y.mz',
-      nomeEmpresa: 'Empresa ABC, Lda.',
-    });
-
-    expect(html).toContain('Empresa ABC, Lda.');
-  });
-
-  it('está em português de Portugal', () => {
-    const { html } = conviteTemplate({
-      linkConvite: 'https://link',
-      emailConvidado: 'x@y.mz',
-    });
-
-    expect(html).toContain('Convite');
-    expect(html).toContain('GestPro');
   });
 });
 

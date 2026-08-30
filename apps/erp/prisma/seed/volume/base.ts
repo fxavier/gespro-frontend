@@ -6,7 +6,6 @@
  * Idempotente: upsert por chave natural em tudo.
  */
 import type { PrismaClient } from '@prisma/client';
-import { hash } from '@node-rs/argon2';
 import { seedRbac } from '../rbac';
 import {
   bootstrapPlanoContas,
@@ -27,7 +26,6 @@ export interface TenantBase {
   serieFaturaId: string;
 }
 
-const SENHA_PERF = 'perf1234';
 
 /** Contas-folha do PGC usadas pelas partidas (30 contas, classes 1–7). */
 const CONTAS_PERF: Array<{
@@ -63,16 +61,19 @@ export async function seedTenantBase(
   if (!adminRole) throw new Error('Role ADMIN não criada pelo seedRbac');
 
   const adminEmail = `admin@${slug}.mz`;
-  const passwordHash = await hash(SENHA_PERF);
+  // `keycloakSub` sintético e determinístico: estes utilizadores de carga NÃO
+  // existem no Keycloak (por decisão — o gerador é set-based e local). O
+  // cenário k6 de autenticação da re-medição pós-Keycloak usa os utilizadores
+  // demo do realm, não estes. Ver handoff do w8-identidade.
   const admin = await prisma.user.upsert({
-    where: { tenantId_email: { tenantId: tenant.id, email: adminEmail } },
+    where: { email: adminEmail },
     update: {},
     create: {
       id: cuidLike(chave(slug, 'user', 'admin')),
       tenantId: tenant.id,
+      keycloakSub: `perf-${slug}-admin`,
       nome: `Admin ${slug}`,
       email: adminEmail,
-      passwordHash,
       ativo: true,
     },
   });
@@ -359,4 +360,7 @@ export async function seedTenantBase(
   };
 }
 
-export const SENHA_PERF_EXPORT = SENHA_PERF;
+// Desde o ADR-0013 os utilizadores de carga não têm palavra-passe local nem
+// identidade no Keycloak: o campo `senha` do manifesto perde o significado.
+// Mantém-se o export para o manifesto não mudar de forma; o valor assinala-o.
+export const SENHA_PERF_EXPORT = 'sem-palavra-passe-local (ADR-0013)';

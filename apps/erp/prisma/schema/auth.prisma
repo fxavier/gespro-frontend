@@ -1,30 +1,33 @@
-// Autenticação (Credentials + JWT) e RBAC. Sessões são JWT — sem tabela.
+// Identidade (espelho local do Keycloak — ADR-0010/0013) e RBAC (ADR-0011).
+// Sessões são JWT — sem tabela. Palavras-passe, MFA, recuperação, convites e
+// detecção de força bruta são do Keycloak; o ERP nunca vê uma palavra-passe.
 
 model User {
-  id           String    @id @default(cuid())
-  tenantId     String
-  nome         String
-  email        String
-  passwordHash String
-  ativo        Boolean   @default(true)
-  /// Spec 19 — o login fica bloqueado até o email ser verificado.
-  /// Default `true` para não invalidar utilizadores já existentes (seed/demo e
-  /// utilizadores criados pelo admin, cujo email é confiado); o registo
-  /// self-service (`POST /api/publico/registo`) grava explicitamente `false`.
-  emailVerificado   Boolean   @default(true)
-  emailVerificadoEm DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id          String    @id @default(cuid())
+  tenantId    String
+  /// `sub` do Keycloak — chave de correlação entre os dois sistemas (ADR-0013).
+  /// Única e não nula: um utilizador sem identidade no Keycloak não entra.
+  keycloakSub String    @unique
+  nome        String
+  /// Único em TODO o sistema, não por tenant: uma Identidade pertence a
+  /// exactamente um Tenant (CONTEXT.md). Quem gere duas empresas precisa de
+  /// dois endereços de e-mail — o registo di-lo com essas palavras.
+  email       String    @unique
+  ativo       Boolean   @default(true)
+  /// Escrito UMA vez no primeiro `callbacks.signIn` bem sucedido (ADR-0013
+  /// §5-bis). «Por activar» é `primeiroAcessoEm == null` — substitui o
+  /// `UserInvite.acceptedAt`: mede «já entrou alguma vez», não «aceitou».
+  primeiroAcessoEm DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
-  tenant               Tenant               @relation(fields: [tenantId], references: [id])
-  roles                UserRole[]
-  auditLogs            AuditLog[]
-  passwordResetTokens  PasswordResetToken[]
-  sentInvites          UserInvite[]         @relation("InvitedBy")
+  tenant Tenant     @relation(fields: [tenantId], references: [id])
+  roles  UserRole[]
+  auditLogs AuditLog[]
 
-  @@unique([tenantId, email])
   @@index([tenantId, ativo])
+  @@index([tenantId, email])
 }
 
 model Role {
@@ -39,7 +42,6 @@ model Role {
   tenant      Tenant           @relation(fields: [tenantId], references: [id])
   users       UserRole[]
   permissions RolePermission[]
-  invites     UserInvite[]
 
   @@unique([tenantId, nome])
   @@index([tenantId])
@@ -77,10 +79,17 @@ model RolePermission {
 }
 
 // Trilho de auditoria — append-only.
+// `requestId` e `keycloakSub` acrescentados a pedido do w8-auditoria
+// (execucao-paralela-w8.md §4, conflito 2): correlação com o trilho de
+// autenticação do Keycloak (ADR-0011/0015) e com os logs estruturados.
 model AuditLog {
   id       String   @id @default(cuid())
   tenantId String
   userId   String?
+  /// `requestId` do AsyncLocalStorage de observabilidade — liga o acto ao trace.
+  requestId   String?
+  /// `sub` do autor no Keycloak no momento do acto — correlação entre trilhos.
+  keycloakSub String?
   action   String
   entity   String
   entityId String?
@@ -93,56 +102,4 @@ model AuditLog {
 
   @@index([tenantId, createdAt])
   @@index([tenantId, entity, entityId])
-}
-
-// Token de recuperação de palavra-passe — uso único, expira em 1h.
-model PasswordResetToken {
-  id        String    @id @default(cuid())
-  tenantId  String
-  userId    String
-  token     String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@index([token])
-}
-
-// Convite de utilizador por email — expira em 48h.
-model UserInvite {
-  id          String    @id @default(cuid())
-  tenantId    String
-  email       String
-  token       String    @unique
-  roleId      String?
-  invitedById String
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdAt   DateTime  @default(now())
-
-  tenant      Tenant  @relation(fields: [tenantId], references: [id])
-  invitedBy   User    @relation("InvitedBy", fields: [invitedById], references: [id])
-  role        Role?   @relation(fields: [roleId], references: [id])
-
-  @@index([tenantId, email])
-  @@index([token])
-}
-
-// Tentativas de login — para rate limiting (15 min / 5 tentativas por email ou IP).
-// Não é tenant-scoped: as tentativas são globais para detectar ataques cross-tenant.
-model LoginAttempt {
-  id        String   @id @default(cuid())
-  email     String
-  ip        String
-  success   Boolean
-  tenantId  String?
-  userId    String?
-  createdAt DateTime @default(now())
-
-  @@index([email, createdAt])
-  @@index([ip, createdAt])
 }

@@ -43,7 +43,6 @@ interface CriarUtilizadorFormProps {
 const DEFAULT_VALUES: CreateUserInput = {
   nome: '',
   email: '',
-  password: '',
   roleIds: [],
   ativo: true,
 };
@@ -138,26 +137,16 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
                   <FormControl>
                     <Input type="email" placeholder="ex.: joao@empresa.co.mz" {...field} />
                   </FormControl>
+                  <FormDescription>
+                    O colaborador recebe neste endereço o e-mail de activação, onde confirma o
+                    e-mail e define a sua palavra-passe. Um endereço só pode pertencer a uma
+                    empresa GestPro.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
-
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Palavra-passe Inicial</FormLabel>
-                <FormControl>
-                  <Input type="password" placeholder="Mínimo 8 caracteres" {...field} />
-                </FormControl>
-                <FormDescription>O utilizador poderá alterar a palavra-passe após o primeiro acesso.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
 
           <FormField
             control={form.control}
@@ -170,7 +159,7 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-                <FormLabel className="font-normal">Utilizador activo (com acesso imediato)</FormLabel>
+                <FormLabel className="font-normal">Utilizador activo</FormLabel>
               </FormItem>
             )}
           />

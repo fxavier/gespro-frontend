@@ -133,7 +133,13 @@ export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderP
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={() => void signOut({ callbackUrl: '/auth/login' })}
+              onClick={() =>
+                void signOut({ redirect: false }).then(() => {
+                  // Termina também a sessão SSO no Keycloak — sem isto o
+                  // regresso a /auth/login faz re-login automático.
+                  window.location.href = '/api/auth/logout-keycloak';
+                })
+              }
             >
               Terminar sessão
             </DropdownMenuItem>

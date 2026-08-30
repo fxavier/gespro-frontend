@@ -2,8 +2,9 @@
 # Pilha local de referência — encarnação executável da topologia de produção
 # (ADR-0026 §2; partes locais dos ADR-0012, 0014, 0017, 0019, 0020).
 #
-# Perfis (task 1.8):
-#   docker compose up -d                  → perfil mínimo: só o Postgres de dev
+# Perfis (task 1.8; revisto pelo ADR-0013 §7):
+#   docker compose up -d                  → perfil mínimo: Postgres + Keycloak
+#                                           (o login é OIDC; sem Keycloak não há sessão)
 #   docker compose --profile full up -d   → pilha completa (11 serviços):
 #     db · keycloak · valkey · minio · otel-lgtm · mailpit ·
 #     erp-1 + erp-2 (mesma imagem de produção) atrás de proxy · webhook-receptor
@@ -70,6 +71,15 @@ x-erp-ambiente: &erp-ambiente
   VALKEY_URL: redis://valkey:6379
   KEYCLOAK_URL: http://keycloak:8080
   KEYCLOAK_ISSUER: http://localhost:8081/realms/gespro
+  # Base interna para o backchannel OIDC (troca de código, renovação, Admin
+  # API): o browser vai a localhost:8081, o contentor vai a keycloak:8080.
+  KEYCLOAK_ISSUER_INTERNO: http://keycloak:8080/realms/gespro
+  KEYCLOAK_CLIENT_ID: gespro-erp
+  KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-gespro-erp-dev-secret}
+  # Intervalo de re-resolução do Auth.js (ADR-0011): permissões, `ativo` e
+  # bloqueio de subscrição relidos do Postgres a cada renovação. 900 s = 15 min.
+  AUTH_SESSION_MAX_AGE: ${AUTH_SESSION_MAX_AGE:-900}
+  KEYCLOAK_SSO_MAX_SECONDS: ${KEYCLOAK_SSO_MAX_SECONDS:-43200}
   # Endpoint de saúde do Keycloak (porta de gestão 9000, interna à rede Docker).
   # KEYCLOAK_ISSUER aponta para o browser (localhost:8081) — não usar dentro do contentor.
   # M2 fix (ADR-0019 §2): probes.ts usa esta variável para sonda de saúde.
@@ -122,7 +132,6 @@ services:
   db-init:
     image: postgres:17-alpine
     container_name: gespro-db-init
-    profiles: [full]
     depends_on:
       db:
         condition: service_healthy
@@ -136,16 +145,23 @@ services:
   # ----------------------------------------------------------------------------
   # Keycloak — versão FIXADA (nunca latest, ADR-0012 §1), realm importado de
   # ficheiro versionado (§7). Consola de administração só em localhost.
-  # A partir da fase 2, infra/keycloak/realm-gespro.json é do w8-identidade.
+  # infra/keycloak/** é do w8-identidade (fase 2, exclusivo toda a wave).
+  #
+  # PERFIL POR OMISSÃO desde o ADR-0013 §7: o login do ERP é OIDC e não há
+  # atalho de autenticação só para dev — `docker compose up -d` levanta
+  # Postgres E Keycloak. As durações de sessão do realm são PARÂMETROS
+  # (ADR-0013 §6): o ambiente de E2E põe-nas em segundos.
   # ----------------------------------------------------------------------------
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.0
     container_name: gespro-keycloak
-    profiles: [full]
     depends_on:
       db-init:
         condition: service_completed_successfully
-    command: ["start", "--import-realm"]
+    # O entrypoint próprio injecta os parâmetros de ambiente no realm antes do
+    # `--import-realm` (os campos Integer não aceitam `${env.…}` nativo — ver
+    # infra/keycloak/import-realm.sh) e delega no kc.sh.
+    entrypoint: ["/bin/sh", "/opt/keycloak/import-realm.sh"]
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://db:5432/keycloak
@@ -155,12 +171,24 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin-dev}
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME: http://localhost:8081
-      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # false: os tokens emitidos via backchannel (http://keycloak:8080) levam
+      # iss = KC_HOSTNAME — é o que o Auth.js valida (ADR-0010 §3).
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
+      # Substituídos no import do realm (infra/keycloak/realm-gespro.json).
+      GESPRO_SSO_IDLE_SECONDS: ${KEYCLOAK_SSO_IDLE_SECONDS:-28800}
+      GESPRO_SSO_MAX_SECONDS: ${KEYCLOAK_SSO_MAX_SECONDS:-43200}
+      GESPRO_ERP_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-gespro-erp-dev-secret}
+      GESPRO_SMTP_HOST: ${KEYCLOAK_SMTP_HOST:-mailpit}
+      GESPRO_SMTP_PORT: ${KEYCLOAK_SMTP_PORT:-1025}
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
       JAVA_OPTS_APPEND: -XX:MaxRAMPercentage=70
     volumes:
-      - ./infra/keycloak/realm-gespro.json:/opt/keycloak/data/import/realm-gespro.json:ro
+      - ./infra/keycloak/realm-gespro.json:/opt/keycloak/realm-template/realm-gespro.json:ro
+      - ./infra/keycloak/import-realm.sh:/opt/keycloak/import-realm.sh:ro
+      # Tema mínimo (ADR-0012 §8): variáveis de cor da marca, logótipo e
+      # ortografia pré-AO. Templates FreeMarker NÃO são tocados.
+      - ./infra/keycloak/themes/gespro:/opt/keycloak/themes/gespro:ro
     ports:
       - "127.0.0.1:8081:8080"
     healthcheck:

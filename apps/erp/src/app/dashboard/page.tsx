@@ -160,7 +160,7 @@ export default async function DashboardPage({
   if (!session?.user) redirect('/auth/login');
 
   const { tenantId, id: userId } = session.user;
-  // Spec 19 — o handoff de registo redirecciona com ?onboarding=1.
+  // Spec 19/ADR-0013 — o regresso do e-mail de acções do Keycloak traz ?onboarding=1.
   const params = (await searchParams) ?? {};
   const vemDoOnboarding = params.onboarding === '1';
 

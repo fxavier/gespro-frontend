@@ -21,7 +21,13 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@node-rs/argon2', () => ({ hash: vi.fn(async () => 'hashed') }));
+// Keycloak Admin API — dublada: os unitários não tocam em rede (ADR-0013 §6).
+const kc = vi.hoisted(() => ({
+  garantirUtilizador: vi.fn(async () => 'kc-sub-novo'),
+  dispararEmailAccoes: vi.fn(async () => true),
+  definirActivo: vi.fn(async () => undefined),
+}));
+vi.mock('@/server/auth/keycloak', () => kc);
 
 vi.mock('@/server/db/client', () => ({
   prismaBase: {
@@ -67,9 +73,11 @@ const SYSTEM_ROLE = { ...DEMO_ROLE, id: 'role-sys', nome: 'ADMIN', isSystem: tru
 const DEMO_USER = {
   id: 'user-42',
   tenantId: 'tenant-1',
+  keycloakSub: 'kc-sub-42',
   nome: 'Alice',
   email: 'alice@demo.mz',
   ativo: true,
+  primeiroAcessoEm: null,
   createdAt: new Date(),
   updatedAt: new Date(),
   deletedAt: null,
@@ -101,40 +109,57 @@ describe('userAdminService.obterUtilizador', () => {
 });
 
 describe('userAdminService.criarUtilizador', () => {
-  it('cria user + userRole em transacção com hash da password', async () => {
-    mocks.userFindFirst.mockResolvedValueOnce(null); // sem duplicado email
+  it('convida: Keycloak PRIMEIRO, depois tx local, depois e-mail de acções (ADR-0013 §5-bis)', async () => {
+    mocks.userFindFirst.mockResolvedValueOnce(null); // sem duplicado email (global)
     mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
     mocks.mockTx.user.create.mockResolvedValue(DEMO_USER);
     mocks.mockTx.userRole.createMany.mockResolvedValue({ count: 1 });
     mocks.userFindFirst.mockResolvedValueOnce(DEMO_USER); // fetchUser após criar
 
     const row = await userAdminService.criarUtilizador(
-      { nome: 'Alice', email: 'alice@demo.mz', password: 'password1', roleIds: ['role-1'], ativo: true },
+      { nome: 'Alice', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true },
       CTX,
     );
+    expect(kc.garantirUtilizador).toHaveBeenCalledWith({ email: 'alice@demo.mz', nome: 'Alice' });
     expect(mocks.$transaction).toHaveBeenCalledOnce();
+    // O user local nasce com o sub devolvido pelo Keycloak
+    expect(mocks.mockTx.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ keycloakSub: 'kc-sub-novo' }),
+      }),
+    );
+    // Keycloak antes da transacção — a ordem inversa deixaria User sem identidade
+    expect(kc.garantirUtilizador.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.$transaction.mock.invocationCallOrder[0],
+    );
+    expect(kc.dispararEmailAccoes).toHaveBeenCalledWith('kc-sub-novo');
     expect(row.email).toBe('alice@demo.mz');
   });
 
-  it('lança BusinessRuleError em email duplicado', async () => {
+  it('recusa e-mail já registado — unicidade GLOBAL, com a mensagem das duas empresas', async () => {
     mocks.userFindFirst.mockResolvedValue(DEMO_USER);
     await expect(
       userAdminService.criarUtilizador(
-        { nome: 'X', email: 'alice@demo.mz', password: 'password1', roleIds: ['role-1'], ativo: true },
+        { nome: 'X', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true },
         CTX,
       ),
-    ).rejects.toBeInstanceOf(BusinessRuleError);
+    ).rejects.toMatchObject({
+      code: 'EMAIL_JA_REGISTADO',
+      message: expect.stringContaining('dois endereços de e-mail'),
+    });
+    expect(kc.garantirUtilizador).not.toHaveBeenCalled();
   });
 
-  it('lança NotFoundError se roleId não existe no tenant', async () => {
+  it('lança NotFoundError se roleId não existe no tenant (sem tocar no Keycloak)', async () => {
     mocks.userFindFirst.mockResolvedValueOnce(null); // sem duplicado email
     mocks.roleFindMany.mockResolvedValue([]);
     await expect(
       userAdminService.criarUtilizador(
-        { nome: 'X', email: 'x@x.com', password: 'password1', roleIds: ['role-nao-existe'], ativo: true },
+        { nome: 'X', email: 'x@x.com', roleIds: ['role-nao-existe'], ativo: true },
         CTX,
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
+    expect(kc.garantirUtilizador).not.toHaveBeenCalled();
   });
 });
 
@@ -146,13 +171,17 @@ describe('userAdminService.desactivarUtilizador', () => {
     ).rejects.toBeInstanceOf(BusinessRuleError);
   });
 
-  it('desactiva o utilizador sem ser self (utilizador sem role ADMIN)', async () => {
+  it('desactiva NOS DOIS lados: Keycloak (com logout de sessões) e Postgres', async () => {
     const userSemAdmin = { ...DEMO_USER, roles: [] }; // sem role ADMIN
     mocks.userFindFirst.mockResolvedValue(userSemAdmin);
     mocks.userUpdate.mockResolvedValue(DEMO_USER);
     await expect(
       userAdminService.desactivarUtilizador('user-42', CTX),
     ).resolves.toBeUndefined();
+    expect(kc.definirActivo).toHaveBeenCalledWith('kc-sub-42', false);
+    expect(mocks.userUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ ativo: false }) }),
+    );
   });
 
   it('Wave 3: lança ULTIMO_ADMIN ao desactivar o único admin activo', async () => {

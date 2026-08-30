@@ -113,13 +113,15 @@ export type ConfiguracaoFiscalInput = z.infer<typeof ConfiguracaoFiscalSchema>;
 // Gestão de Utilizadores — admin do tenant (permissão: utilizadores:gerir)
 // ---------------------------------------------------------------------------
 
+/**
+ * Convidar um colaborador é o mesmo mecanismo do registo (ADR-0013 §5-bis):
+ * cria a identidade no Keycloak com VERIFY_EMAIL + UPDATE_PASSWORD pendentes
+ * e dispara o e-mail de acções. SEM palavra-passe — o ERP deixou de a ver,
+ * transportar ou guardar em qualquer ponto, público ou administrativo.
+ */
 export const CreateUserSchema = z.object({
   nome: z.string().min(2, 'Nome obrigatório').max(200),
   email: z.string().email('Email inválido'),
-  password: z
-    .string()
-    .min(8, 'A palavra-passe deve ter pelo menos 8 caracteres')
-    .max(128),
   roleIds: z
     .array(z.string().cuid('ID de papel inválido'))
     .min(1, 'Atribua pelo menos um papel ao utilizador'),
@@ -127,10 +129,13 @@ export const CreateUserSchema = z.object({
 });
 export type CreateUserInput = z.infer<typeof CreateUserSchema>;
 
+/**
+ * O e-mail deixou de ser editável aqui: é o identificador da Identidade e
+ * pertence ao Keycloak (CONTEXT.md). Corrigir um e-mail errado é desactivar
+ * este utilizador e convidar o endereço certo.
+ */
 export const UpdateUserSchema = z.object({
   nome: z.string().min(2).max(200).optional(),
-  email: z.string().email().optional(),
-  password: z.string().min(8).max(128).optional(),
   ativo: z.boolean().optional(),
 });
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;

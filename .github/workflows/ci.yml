@@ -227,20 +227,10 @@ jobs:
   e2e:
     name: E2E tests (Playwright)
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: gespro
-          POSTGRES_PASSWORD: gespro
-          POSTGRES_DB: gespro
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U gespro -d gespro"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
+    # SEM service containers para Postgres/Keycloak: os `services:` do GitHub
+    # Actions arrancam ANTES do actions/checkout, e o realm-gespro.json ainda
+    # não existe no disco nesse momento (ADR-0013, Consequências). A pilha
+    # sobe num STEP via docker compose — a mesma definição do dev local.
     env:
       DATABASE_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
       DIRECT_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
@@ -251,6 +241,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Postgres + Keycloak (perfil por omissão do compose) sobem JÁ, em
+      # paralelo com o install; o passo de espera vem antes das migrations.
+      - name: Start Postgres + Keycloak (docker compose)
+        run: docker compose up -d
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -272,6 +267,13 @@ jobs:
       - name: Install Playwright browsers
         working-directory: apps/erp
         run: npx playwright install --with-deps chromium
+
+      - name: Wait for Postgres + Keycloak health
+        # Não usa `up --wait`: o one-shot db-init sai com 0 e algumas versões
+        # do compose tratam qualquer saída como falha. Espera pelos healthchecks.
+        run: |
+          timeout 120 bash -c 'until docker inspect -f "{{.State.Health.Status}}" gespro-db 2>/dev/null | grep -q healthy; do sleep 3; done'
+          timeout 300 bash -c 'until docker inspect -f "{{.State.Health.Status}}" gespro-keycloak 2>/dev/null | grep -q healthy; do sleep 3; done'
 
       - name: Apply DB migrations
         working-directory: apps/erp
@@ -307,20 +309,8 @@ jobs:
   a11y:
     name: Accessibility (axe WCAG AA)
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: gespro
-          POSTGRES_PASSWORD: gespro
-          POSTGRES_DB: gespro
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U gespro -d gespro"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
+    # Keycloak num step, nunca em services: — mesma razão do job e2e
+    # (ADR-0013): o realm importado de ficheiro exige o checkout feito.
     env:
       DATABASE_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
       DIRECT_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
@@ -331,6 +321,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Postgres + Keycloak (perfil por omissão do compose) sobem JÁ, em
+      # paralelo com o install; o passo de espera vem antes das migrations.
+      - name: Start Postgres + Keycloak (docker compose)
+        run: docker compose up -d
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -352,6 +347,13 @@ jobs:
       - name: Install Playwright browsers
         working-directory: apps/erp
         run: npx playwright install --with-deps chromium
+
+      - name: Wait for Postgres + Keycloak health
+        # Não usa `up --wait`: o one-shot db-init sai com 0 e algumas versões
+        # do compose tratam qualquer saída como falha. Espera pelos healthchecks.
+        run: |
+          timeout 120 bash -c 'until docker inspect -f "{{.State.Health.Status}}" gespro-db 2>/dev/null | grep -q healthy; do sleep 3; done'
+          timeout 300 bash -c 'until docker inspect -f "{{.State.Health.Status}}" gespro-keycloak 2>/dev/null | grep -q healthy; do sleep 3; done'
 
       - name: Apply DB migrations
         working-directory: apps/erp

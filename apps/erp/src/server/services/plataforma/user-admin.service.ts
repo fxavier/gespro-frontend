@@ -1,7 +1,12 @@
 import 'server-only';
-import { hash } from '@node-rs/argon2';
 import { prismaBase } from '@/server/db/client';
+import {
+  garantirUtilizador,
+  dispararEmailAccoes,
+  definirActivo,
+} from '@/server/auth/keycloak';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
+import { inviteLimiter } from '@/server/security/rate-limiter';
 import { paginate } from '@/server/db/paginate';
 import type { Ctx } from '@/server/services/types';
 import type {
@@ -34,9 +39,11 @@ type PrismaRoleWithPerms = {
 type PrismaUserWithRoles = {
   id: string;
   tenantId: string;
+  keycloakSub: string;
   nome: string;
   email: string;
   ativo: boolean;
+  primeiroAcessoEm: Date | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -71,6 +78,7 @@ function mapUser(u: PrismaUserWithRoles): UserRow {
     nome: u.nome,
     email: u.email,
     ativo: u.ativo,
+    primeiroAcessoEm: u.primeiroAcessoEm,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
     deletedAt: u.deletedAt,
@@ -186,13 +194,48 @@ export const userAdminService: IUserAdminService = {
     return mapUser(await findUser(userId, ctx));
   },
 
+  /**
+   * Convidar um colaborador — o mesmo mecanismo do registo público (ADR-0013
+   * §5-bis): Keycloak PRIMEIRO (identidade sem palavra-passe, com
+   * VERIFY_EMAIL + UPDATE_PASSWORD pendentes), Postgres depois, e por fim o
+   * e-mail de acções. A idempotência é por e-mail: `garantirUtilizador`
+   * procura no realm antes de criar, portanto o segundo clique depois de uma
+   * falha a meio reutiliza o `sub` em vez de criar uma segunda identidade.
+   * O papel é atribuído à partida — nada viaja dentro de um convite.
+   */
   async criarUtilizador(input: CreateUserInput, ctx: Ctx) {
-    // Verificar unicidade de email no tenant
+    // Limitação de tráfego por tenant (ADR-0014). Vive aqui, e não na action,
+    // por duas razões: o `createSafeAction` não tem gancho de limitação, e é
+    // este o caminho que dispara efectivamente o e-mail de acções do Keycloak.
+    //
+    // Ficou órfã no merge da Fase 2: o `w8-cache` pôs o limitador na rota
+    // `/api/auth/invite`, que o `w8-identidade` apagou ao mover os convites
+    // para o Keycloak. Nenhum dos dois agentes podia ter visto — o cache não
+    // sabia que a rota ia morrer, o identidade não sabia do limitador — e a
+    // superfície de convites, que é uma das três que o ADR-0014 cobre, ficou
+    // sem protecção nenhuma.
+    const rl = await inviteLimiter.consume(`${ctx.tenantId}::convite`);
+    if (rl.limited) {
+      throw new BusinessRuleError(
+        'DEMASIADOS_CONVITES',
+        `Demasiados convites enviados. Tente novamente dentro de ${Math.ceil(rl.retryAfterSec / 60)} minutos.`,
+      );
+    }
+
+    const email = input.email.toLowerCase().trim();
+
+    // O e-mail é único em TODO o sistema (CONTEXT.md): uma Identidade pertence
+    // a exactamente um Tenant. A verificação é global de propósito — e a
+    // mensagem diz porquê, com as palavras certas.
     const existing = await prismaBase.user.findFirst({
-      where: { tenantId: ctx.tenantId, email: input.email, deletedAt: null },
+      where: { email },
+      select: { id: true },
     });
     if (existing) {
-      throw new BusinessRuleError('EMAIL_DUPLICADO', 'Email já existe neste tenant');
+      throw new BusinessRuleError(
+        'EMAIL_JA_REGISTADO',
+        'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem trabalha com duas empresas precisa de dois endereços de e-mail distintos.',
+      );
     }
 
     // Verificar que os roles existem e pertencem ao tenant
@@ -203,15 +246,18 @@ export const userAdminService: IUserAdminService = {
       throw new NotFoundError('Um ou mais papéis não existem neste tenant');
     }
 
-    const passwordHash = await hash(input.password);
+    // 1. Keycloak primeiro — o lado sem transacção (ADR-0013 §2). Se falhar,
+    //    nada foi escrito em Postgres e o pedido é simplesmente repetível.
+    const keycloakSub = await garantirUtilizador({ email, nome: input.nome });
 
+    // 2. Postgres numa transacção.
     const user = await prismaBase.$transaction(async (tx) => {
       const u = await tx.user.create({
         data: {
           tenantId: ctx.tenantId,
+          keycloakSub,
           nome: input.nome,
-          email: input.email,
-          passwordHash,
+          email,
           ativo: input.ativo ?? true,
         },
       });
@@ -221,26 +267,33 @@ export const userAdminService: IUserAdminService = {
       return u;
     });
 
+    // 3. E-mail de acções (verificar e-mail + definir palavra-passe) — é ELE
+    //    que dá entrada no produto. Falha não é fatal: o convite reenviar-se-á
+    //    voltando a submeter (idempotente por e-mail).
+    await dispararEmailAccoes(keycloakSub);
+
     return mapUser(await findUser(user.id, ctx));
   },
 
   async actualizarUtilizador(userId: string, input: UpdateUserInput, ctx: Ctx) {
-    await findUser(userId, ctx); // garante que existe e pertence ao tenant
+    const actual = await findUser(userId, ctx); // garante que existe e pertence ao tenant
 
-    if (input.email) {
-      const conflict = await prismaBase.user.findFirst({
-        where: { tenantId: ctx.tenantId, email: input.email, id: { not: userId }, deletedAt: null },
-      });
-      if (conflict) throw new BusinessRuleError('EMAIL_DUPLICADO', 'Email já existe neste tenant');
+    // Reactivação/desactivação escreve NOS DOIS lados (ADR-0013): Keycloak
+    // primeiro. Na desactivação qualquer ordem é segura (falhe o lado que
+    // falhar, o acesso fica fechado); na reactivação a ordem Keycloak-primeiro
+    // evita um User local activo cuja identidade continua desligada.
+    if (input.ativo !== undefined && input.ativo !== actual.ativo) {
+      await definirActivo(actual.keycloakSub, input.ativo);
     }
 
     const data: Record<string, unknown> = {};
     if (input.nome !== undefined) data.nome = input.nome;
-    if (input.email !== undefined) data.email = input.email;
     if (input.ativo !== undefined) data.ativo = input.ativo;
-    if (input.password) data.passwordHash = await hash(input.password);
 
-    await prismaBase.user.update({ where: { id: userId }, data });
+    if (Object.keys(data).length > 0) {
+      // update por id: o findUser acima já validou o tenant (regra CLAUDE.md).
+      await prismaBase.user.update({ where: { id: userId }, data });
+    }
     return mapUser(await findUser(userId, ctx));
   },
 
@@ -264,6 +317,10 @@ export const userAdminService: IUserAdminService = {
       }
     }
 
+    // Desactiva nos DOIS lados (ADR-0013): no Keycloak desliga a identidade e
+    // encerra as sessões SSO; localmente fecha a autorização. A re-resolução
+    // dos 15 minutos (ADR-0011) apanha quem tinha sessão aberta.
+    await definirActivo(user.keycloakSub, false);
     await prismaBase.user.update({
       where: { id: userId },
       data: { ativo: false, deletedAt: new Date() },

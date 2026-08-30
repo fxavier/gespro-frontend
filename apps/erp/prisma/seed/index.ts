@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { hash } from '@node-rs/argon2';
 import { seedRbac, SYSTEM_ROLES } from './rbac';
+import { DEMO_USERS } from './demo-users';
 import { seedPlataforma } from './plataforma';
 import { seedInventario } from './inventario';
 import { seedCompras } from './compras';
@@ -45,23 +45,23 @@ async function main() {
   const roles = await seedRbac(prisma, tenant.id);
   console.log('Roles de sistema criados:', roles.map((r) => r.nome).join(', '));
 
-  // 3. Utilizadores demo por role
-  const userDefs = [
-    { email: 'admin@demo.mz', nome: 'Administrador Demo', roleNome: 'ADMIN', senha: 'demo1234' },
-    { email: 'gestor@demo.mz', nome: 'Gestor Demo', roleNome: 'GESTOR', senha: 'demo1234' },
-    { email: 'financeiro@demo.mz', nome: 'Financeiro Demo', roleNome: 'FINANCEIRO', senha: 'demo1234' },
-    { email: 'operador@demo.mz', nome: 'Operador Demo', roleNome: 'OPERADOR', senha: 'demo1234' },
-    { email: 'leitura@demo.mz', nome: 'Utilizador Leitura', roleNome: 'LEITURA', senha: 'demo1234' },
-  ];
-
+  // 3. Utilizadores demo por role — os `keycloakSub` são os `id` FIXOS dos
+  //    utilizadores em infra/keycloak/realm-gespro.json (ADR-0013 §7). A
+  //    palavra-passe (`demo1234`) vive só no ficheiro de realm: o ERP deixou
+  //    de guardar credenciais. Um teste no pnpm check garante a concordância
+  //    dos dois ficheiros (realm-demo-sync.test.ts).
   const rolesByNome = Object.fromEntries(roles.map((r) => [r.nome, r]));
 
-  for (const def of userDefs) {
-    const passwordHash = await hash(def.senha);
+  for (const def of DEMO_USERS) {
     const user = await prisma.user.upsert({
-      where: { tenantId_email: { tenantId: tenant.id, email: def.email } },
-      update: {},
-      create: { tenantId: tenant.id, nome: def.nome, email: def.email, passwordHash },
+      where: { email: def.email },
+      update: { keycloakSub: def.keycloakSub },
+      create: {
+        tenantId: tenant.id,
+        keycloakSub: def.keycloakSub,
+        nome: def.nome,
+        email: def.email,
+      },
     });
 
     const role = rolesByNome[def.roleNome];
@@ -98,12 +98,12 @@ async function main() {
   // 6. Províncias (referência, sem tabela DB na Wave 0)
   await seedProvincias();
 
-  // 7. Log de credenciais demo
-  console.log('\n=== Credenciais Demo ===');
-  for (const d of userDefs) {
-    console.log(`  ${d.email} / ${d.senha} (${d.roleNome})`);
+  // 7. Log de credenciais demo (a palavra-passe vive no realm do Keycloak)
+  console.log('\n=== Credenciais Demo (Keycloak — realm gespro) ===');
+  for (const d of DEMO_USERS) {
+    console.log(`  ${d.email} / demo1234 (${d.roleNome})`);
   }
-  console.log('========================\n');
+  console.log('==================================================\n');
 }
 
 main()

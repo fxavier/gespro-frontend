@@ -21,18 +21,17 @@ export const estadoAssinaturaEnum = z.enum([
 // Registo público (POST /api/publico/registo)
 // ---------------------------------------------------------------------------
 
-const senhaSchema = z
-  .string()
-  .min(8, 'A palavra-passe deve ter pelo menos 8 caracteres')
-  .max(128, 'Palavra-passe demasiado longa')
-  .refine((s) => /[a-zA-Z]/.test(s) && /[0-9]/.test(s), {
-    message: 'A palavra-passe deve conter letras e números',
-  });
-
 /**
  * Contrato de `POST /api/publico/registo` (ver `docs/handoff/site-provisionamento.md`).
  * NUNCA aceita `tenantId`, `slug` nem `estado`: o slug é derivado server-side do
  * nome da empresa e o tenant é criado, não recebido.
+ *
+ * SEM campo `senha` desde o ADR-0013 §5: o registo cria a identidade no
+ * Keycloak com VERIFY_EMAIL + UPDATE_PASSWORD pendentes e a palavra-passe é
+ * definida lá — o ERP nunca a vê. Um campo de palavra-passe a menos num
+ * formulário público não autenticado também alivia o ADR-0016.
+ * (Chaves desconhecidas são descartadas: um site que ainda envie `senha` não
+ * rebenta — mas o valor nunca é lido.)
  */
 export const RegistoTenantSchema = z.object({
   empresa: z.object({
@@ -45,7 +44,6 @@ export const RegistoTenantSchema = z.object({
   admin: z.object({
     nome: z.string().trim().min(2, 'Nome obrigatório').max(150),
     email: z.string().trim().toLowerCase().email('Email inválido').max(254),
-    senha: senhaSchema,
   }),
   planoId: planoIdEnum,
   provincia: z.string().refine((v) => getProvincias().includes(v), {

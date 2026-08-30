@@ -3,7 +3,6 @@ import { logger } from '@/server/observability/logger';
 import {
   expirarTrialsVencidos,
 } from '@/server/services/plataforma/assinatura.service';
-import { purgarTokensExpirados } from '@/server/services/plataforma/handoff.service';
 
 /**
  * GET /api/cron/expirar-trials — fallback do ciclo de vida do trial (spec 19).
@@ -38,15 +37,11 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     const resultado = await expirarTrialsVencidos();
-    const tokensPurgados = await purgarTokensExpirados();
 
-    logger.info(
-      { ...resultado, tokensPurgados },
-      '[cron] expirar-trials-fallback concluído',
-    );
+    logger.info({ ...resultado }, '[cron] expirar-trials-fallback concluído');
 
     return NextResponse.json({
-      data: { ...resultado, tokensPurgados, timestamp: new Date().toISOString() },
+      data: { ...resultado, timestamp: new Date().toISOString() },
     });
   } catch (e) {
     logger.error(
