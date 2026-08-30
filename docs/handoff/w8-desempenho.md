@@ -241,3 +241,65 @@ não para consultas.
 4. `perf/results/campanha-local-fase-a.json` existe **só em disco** neste worktree — não
    apagar até a fase B produzir a linha de base versionada.
 5. Lição para `prisma-conventions` (§5) por propor ao dono da skill.
+
+---
+
+## 11. Campanha da Fase B — executada 2026-08-30, com a linha de base versionada
+
+**`perf/baseline-pre-keycloak.json` existe.** Fecha o gate da Fase 1. Mas metade do valor desta
+campanha não está nos números — está no que ela derrubou.
+
+### 11.1 O método teve de mudar: cenário a cenário
+
+A primeira tentativa correu os 6 cenários seguidos e produziu **zeros em tudo com código de saída 0**.
+As duas instâncias tinham morrido a meio (`FATAL ERROR: Reached heap limit`, exit 139) e o resto da
+campanha mediu o proxy a responder erro em 23 ms. O JSON parecia uma linha de base legítima.
+
+A campanha final corre **cada cenário isolado, contra instâncias recriadas de fresco**, e regista o
+estado das instâncias no fim de cada um. Um crash deixa de apagar os cenários seguintes e passa a ser
+um resultado. O `run-baseline.mjs` ganhou uma guarda que **recusa escrever** quando algum cenário não
+produz medição nenhuma.
+
+### 11.2 Dois defeitos que não eram lentidão — eram crashes
+
+| | Era documentado como | É |
+|---|---|---|
+| **D3** balancete | «56 s p95, falha o SLO < 3 000 ms» | **Matava o processo.** 250 000 partidas hidratadas em `Prisma.Decimal` por pedido, contra ~384 MB de *old space* (contentor a 768 MB). **Corrigido** nesta ronda: `groupBy` + `_sum`, com `montarLinhasBalancete` pura e 6 testes |
+| **D4** `paginate` | «Prisma emite SQL sem LIMIT; ~190k linhas/pedido» | **Mata o processo**, provado em isolamento: `movimentos-stock` derruba as duas instâncias a 15 VUs, 98,8 % de erro. **Por corrigir — são 61 chamadas de `paginate` em 30 ficheiros de serviço, nenhuma com `id` como desempate do `orderBy`.** Não é a página de stock: são todas as listagens paginadas do ERP |
+
+### 11.3 D8 — novo, não estava na lista
+
+`razaoConta` **ignora `filtro.take` e `filtro.cursor`**. O schema declara `take` com máximo 200 e
+omissão 50, a página passa-o, e o serviço faz `findMany` sem `take`: devolve todas as partidas da
+conta no período (~8 300 com este volume). A paginação da razão é ficção. Consequência medida: a
+razão **não completa** a 15 VUs — p50 e p95 são exactamente 60 s, que é o *timeout* do k6.
+
+### 11.4 Validade — ler antes de citar qualquer número
+
+- **Não é comparável com a fase A** (§3). A fase A correu **um processo no anfitrião**; esta corre
+  **duas instâncias em contentores limitados a 768 MB**, a partilhar CPU com o Postgres numa máquina
+  de 16 GB. Daí os números serem 20 a 70 vezes maiores. É comparável com a re-medição pós-Keycloak,
+  que é para o que serve.
+- **Dois cenários não produzem medição utilizável**, e o JSON diz isso em `_validade`:
+  `movimentos-stock` (crash, D4) e `razao` (*timeout*, D8).
+- Os SLOs de §7 **não podem ser fechados com estes números** — o ambiente mudou. Fecham-se quando
+  houver produção, ou contra uma configuração que se decida representativa.
+- O «tenants por instância» (task 3.9) continua **pendente** e não sai daqui.
+
+### 11.5 Também corrigido antes de medir
+
+D1, D2 e D7 — sem eles a campanha media uma página de erro devolvida com HTTP 200 e um balancete sem
+filtro de datas. Ver a nota em §6. Os cenários k6 passaram a validar **conteúdo**, não estado
+(`rendeuDados()`), com `checks: ['rate>0.99']` nos limiares.
+
+### 11.6 Para os donos
+
+1. **D4 — prioridade alta, e é maior do que parecia.** 61 chamadas, 30 ficheiros, 7 domínios. Toda a
+   listagem paginada carrega o conjunto filtrado inteiro para memória. `paginate.ts` **não** o pode
+   corrigir a partir de dentro: os chamadores põem o `orderBy` **depois** do spread de `args`.
+2. **D8 — `razaoConta` honrar `take`/`cursor`.** Pequeno e contido.
+3. **D5, D6** — como antes.
+4. **`erp-1`/`erp-2` não têm política de reinício.** A pilha diz emular produção, onde o orquestrador
+   reinicia; aqui um crash é permanente. Decisão do dono do `docker-compose.yml`.
+5. **Rever o limite de 768 MB por instância.** Se produção der mais, a pilha de referência
+   sub-representa produção; se der o mesmo, então o D4 é um incidente à espera de acontecer.

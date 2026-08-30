@@ -1,0 +1,193 @@
+{
+  "$schema": "gespro/perf-baseline@1",
+  "nota": "LINHA DE BASE PRÉ-KEYCLOAK (ADR-0018, gate da Fase 1 da Wave 8). Medição LOCAL: vale como GRANDEZA RELATIVA contra a re-medição pós-Keycloak na MESMA configuração, nunca como valor absoluto de produção. NÃO é comparável com a campanha \"fase A\" do handoff w8-desempenho: essa correu um processo no anfitrião, esta corre duas instâncias em contentores limitados a 768 MB a partilhar CPU com o Postgres numa máquina de 16 GB — daí os números serem 20 a 70 vezes maiores. Cada cenário correu ISOLADO, contra instâncias recriadas de fresco, para que um crash não envenenasse os seguintes. Ver `_validade` em cada cenário: dois não produzem medição utilizável e dizem-no explicitamente.",
+  "geradoEm": "2026-08-30T01:34:43.310Z",
+  "perfilCarga": "baseline",
+  "alvo": "http://localhost:8080",
+  "ambiente": {
+    "so": "darwin 24.3.0",
+    "cpus": 16,
+    "modeloCpu": "Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz",
+    "memoriaGB": 17,
+    "pilha": "db+valkey+erp-1+erp-2+proxy",
+    "instancias": 2,
+    "limiteMemoriaInstancia": "768m",
+    "execucao": "cenario-a-cenario com reinicio entre cada um",
+    "excluidos": [
+      "otel-lgtm",
+      "mailpit",
+      "minio",
+      "keycloak"
+    ],
+    "motivoExclusao": "telemetria fora para nao meter ruido de CPU numa maquina de 16GB; keycloak ausente por ser a variavel em teste",
+    "defeitosCorrigidos": [
+      "D1",
+      "D2",
+      "D3",
+      "D7"
+    ],
+    "defeitosPresentes": [
+      "D4 paginate.ts sem LIMIT (61 chamadas)",
+      "D5",
+      "D6",
+      "D8 razaoConta ignora take/cursor"
+    ]
+  },
+  "seed": {
+    "perfil": "pme",
+    "tenants": 1,
+    "scale": 1,
+    "volumesPorTenant": {
+      "categorias": 10,
+      "produtos": 4000,
+      "variantes": 1000,
+      "localizacoes": 2,
+      "clientes": 2000,
+      "vendas": 120000,
+      "itensPorVenda": 2,
+      "movimentosStock": 400000,
+      "lancamentos": 100000,
+      "faturas": 60000,
+      "linhasPorFatura": 2,
+      "colaboradores": 80,
+      "mesesFolha": 24,
+      "auditoria": 1000000,
+      "historicoExport": 6000,
+      "contasPGC": 30,
+      "diarios": 4,
+      "centrosCusto": 5,
+      "departamentos": 5,
+      "cargos": 8
+    }
+  },
+  "cenarios": {
+    "pos-venda": {
+      "pos_venda": {
+        "p50_ms": 4086.4,
+        "p95_ms": 10113.9,
+        "p99_ms": null,
+        "avg_ms": 4682.7,
+        "max_ms": 18284,
+        "amostras": null,
+        "taxa_erro": 0.004784688995215311
+      },
+      "_validade": {
+        "valido": true,
+        "nota": "Instâncias vivas no fim. 87,7% das verificações passaram."
+      }
+    },
+    "movimentos-stock": {
+      "stock_pagina_funda": {
+        "p50_ms": 30.9,
+        "p95_ms": 118,
+        "p99_ms": null,
+        "avg_ms": 777.5,
+        "max_ms": 60012.2,
+        "amostras": null
+      },
+      "stock_lista": {
+        "p50_ms": 30.9,
+        "p95_ms": 115.4,
+        "p99_ms": null,
+        "avg_ms": 242.8,
+        "max_ms": 18542.4,
+        "amostras": null,
+        "taxa_erro": 0.9875827814569537
+      },
+      "_validade": {
+        "valido": false,
+        "nota": "MEDIÇÃO INVÁLIDA — as duas instâncias morreram com heap OOM (exit 139) por causa do D4: `paginate` com `orderBy` não-único faz o Prisma trazer o conjunto filtrado inteiro (~190k linhas) e paginar em memória. 98,8% de erro. O dado útil aqui é o crash, não o tempo."
+      }
+    },
+    "balancete-razao": {
+      "balancete": {
+        "p50_ms": 15788,
+        "p95_ms": 31382,
+        "p99_ms": null,
+        "avg_ms": 19358.4,
+        "max_ms": 31421.1,
+        "amostras": null,
+        "taxa_erro": 0
+      },
+      "razao": {
+        "p50_ms": 60015.4,
+        "p95_ms": 60020.9,
+        "p99_ms": null,
+        "avg_ms": 58150.4,
+        "max_ms": 60023.3,
+        "amostras": null
+      },
+      "_validade": {
+        "valido": "parcial",
+        "nota": "BALANCETE válido (instâncias vivas; D3 corrigido nesta ronda). RAZÃO INVÁLIDA — p50 e p95 são exactamente 60 s, que é o timeout do k6: com o D8 (`razaoConta` ignora `take`/`cursor`, ~8 300 linhas por pedido) não completa a 15 VUs."
+      }
+    },
+    "fatura-pdf": {
+      "fatura_emitir": {
+        "p50_ms": 1747.8,
+        "p95_ms": 9310.3,
+        "p99_ms": null,
+        "avg_ms": 3137,
+        "max_ms": 10125,
+        "amostras": null,
+        "taxa_erro": 0
+      },
+      "fatura_pdf": {
+        "p50_ms": 13234.8,
+        "p95_ms": 21197.6,
+        "p99_ms": null,
+        "avg_ms": 13539.9,
+        "max_ms": 22794.2,
+        "amostras": null
+      },
+      "_validade": {
+        "valido": true,
+        "nota": "Instâncias vivas. 95,9% das verificações passaram."
+      }
+    },
+    "payroll": {
+      "payroll_processar": {
+        "p50_ms": 4100,
+        "p95_ms": 10070.2,
+        "p99_ms": null,
+        "avg_ms": 5267.5,
+        "max_ms": 10460.6,
+        "amostras": null,
+        "taxa_erro": 0
+      },
+      "_validade": {
+        "valido": true,
+        "nota": "Instâncias vivas. 100% das verificações."
+      }
+    },
+    "export-xlsx": {
+      "export_xlsx": {
+        "p50_ms": 19559.2,
+        "p95_ms": 51354.1,
+        "p99_ms": null,
+        "avg_ms": 22548.2,
+        "max_ms": 53402.2,
+        "amostras": null
+      },
+      "_validade": {
+        "valido": true,
+        "nota": "Instâncias vivas. 100% das verificações. Lento (p95 51 s) — o export usa `paginate` e sofre o D4 sem chegar a rebentar."
+      }
+    }
+  },
+  "execucao": {
+    "modo": "cenário-a-cenário, instâncias recriadas entre cada um",
+    "cenariosValidos": [
+      "pos_venda",
+      "balancete",
+      "fatura_emitir",
+      "fatura_pdf",
+      "payroll_processar",
+      "export_xlsx"
+    ],
+    "cenariosInvalidos": {
+      "stock_lista/stock_pagina_funda": "crash de heap (D4)",
+      "razao": "timeout de 60 s (D8)"
+    }
+  }
+}

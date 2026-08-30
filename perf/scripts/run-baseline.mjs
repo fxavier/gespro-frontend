@@ -130,5 +130,24 @@ const baseline = {
   cenarios: porCenario,
 };
 
+// Guarda contra o pior desfecho desta ferramenta: escrever um ficheiro de
+// zeros e sair com código 0. Aconteceu em 2026-08-30 — as duas instâncias
+// morreram com heap OOM a meio da campanha, o proxy passou a responder erro em
+// 23 ms, e o JSON resultante parecia uma linha de base legítima. Um artefacto
+// que aparenta autoridade e não a tem é pior do que não haver artefacto.
+const vazios = Object.entries(porCenario).filter(([, ops]) => {
+  const medidas = Object.values(ops).filter((o) => o && typeof o === 'object');
+  return medidas.length === 0 || medidas.every((o) => !o.p95_ms);
+});
+if (vazios.length > 0) {
+  console.error(
+    `\nRECUSADO: ${vazios.length} de ${Object.keys(porCenario).length} cenários não produziram ` +
+      `medição nenhuma (${vazios.map(([c]) => c).join(', ')}).\n` +
+      'Causa provável: a aplicação morreu ou ficou inacessível durante a campanha — ' +
+      'confirma com `docker compose ps` e `docker logs`. Nada foi escrito.',
+  );
+  process.exit(1);
+}
+
 writeFileSync(outPath, JSON.stringify(baseline, null, 2));
 console.log(`\nLinha de base escrita em ${outPath}`);
