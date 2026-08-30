@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef } from "react";
+import { useState, useActionState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -11,6 +11,7 @@ import { EVENTOS, registarEvento } from "@/lib/analytics";
 import { Armadilha, Campo, CampoSelecao } from "./campos";
 import { Botao } from "./primitivos";
 import { Gesto } from "./movimento";
+import { WidgetTurnstile } from "./turnstile";
 
 const INICIAL: EstadoRegisto = { estado: "inicial" };
 
@@ -22,12 +23,20 @@ const INICIAL: EstadoRegisto = { estado: "inicial" };
  * formulário (`useRef`): se o utilizador voltar a carregar em "Criar conta"
  * após um timeout, o spec 19 reconhece o pedido repetido e não cria uma segunda
  * empresa.
+ *
+ * SEM campo de senha (ADR-0013 §5): a palavra-passe é definida no Keycloak
+ * através do e-mail de activação enviado após o registo.
+ * COM widget Turnstile (ADR-0016 Camada 3): o token é enviado no FormData via
+ * campo oculto e verificado server-side pelo ERP.
  */
 export function FormularioRegisto({ planos }: { planos: Plano[] }) {
   const t = useTranslations("comecar");
   const [estado, accao, pendente] = useActionState(registarEmpresa, INICIAL);
   const campoChave = useRef<HTMLInputElement>(null);
   const parametros = useSearchParams();
+
+  // Token do Turnstile: preenchido pelo widget, enviado no FormData.
+  const [captchaToken, setCaptchaToken] = useState("");
 
   /**
    * Gera a chave de idempotência no *evento* de submissão (não no render, que
@@ -56,7 +65,8 @@ export function FormularioRegisto({ planos }: { planos: Plano[] }) {
   useEffect(() => {
     if (estado.estado === "sucesso") {
       registarEvento(EVENTOS.registoConcluido);
-      window.location.assign(estado.destino);
+      // Sem redirect: o utilizador fica na página e vê a mensagem de
+      // "verifique o e-mail" (ADR-0013 §5: entrada pelo link de activação).
     } else if (estado.estado === "erro") {
       registarEvento(EVENTOS.registoFalhado);
     }
@@ -67,12 +77,33 @@ export function FormularioRegisto({ planos }: { planos: Plano[] }) {
   const mensagemErro =
     estado.estado === "erro" && !estado.camposComErro
       ? t(`erros.${estado.chaveMensagem}`)
-      : undefined;
+      : estado.estado === "erro" &&
+          estado.camposComErro &&
+          Object.keys(estado.camposComErro).length === 0
+        ? t(`erros.${estado.chaveMensagem}`)
+        : undefined;
 
   function traduzirErro(campo: string): string | undefined {
     const chave = erros[campo];
     return chave ? t(`erros.${chave}`) : undefined;
   }
+
+  // Após sucesso, mostra a mensagem de "verifique o e-mail".
+  if (estado.estado === "sucesso") {
+    return (
+      <div
+        role="status"
+        className="flex flex-col gap-4 rounded-2xl border border-success/40 bg-success/10 px-6 py-8 text-center"
+      >
+        <p className="text-base font-semibold text-foreground">
+          {t("sucesso")}
+        </p>
+        <p className="text-sm text-texto-suave">{t("sucessoDetalhe")}</p>
+      </div>
+    );
+  }
+
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
   return (
     <form
@@ -90,6 +121,8 @@ export function FormularioRegisto({ planos }: { planos: Plano[] }) {
         name="chaveIdempotencia"
         defaultValue=""
       />
+      {/* Token Turnstile — preenchido pelo widget antes da submissão. */}
+      <input type="hidden" name="captchaToken" value={captchaToken} readOnly />
       <Armadilha />
 
       {mensagemErro ? (
@@ -98,15 +131,6 @@ export function FormularioRegisto({ planos }: { planos: Plano[] }) {
           className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground"
         >
           {mensagemErro}
-        </p>
-      ) : null}
-
-      {estado.estado === "sucesso" ? (
-        <p
-          role="status"
-          className="rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm text-foreground"
-        >
-          {t("sucesso")}
         </p>
       ) : null}
 
@@ -172,16 +196,8 @@ export function FormularioRegisto({ planos }: { planos: Plano[] }) {
             erro={traduzirErro("adminEmail")}
           />
         </div>
-        <Campo
-          name="adminSenha"
-          type="password"
-          rotulo={t("campos.adminSenha")}
-          ajuda={t("campos.adminSenhaAjuda")}
-          autoComplete="new-password"
-          minLength={10}
-          required
-          erro={traduzirErro("adminSenha")}
-        />
+        {/* Sem campo de senha (ADR-0013 §5): a palavra-passe é definida
+            no Keycloak através do e-mail de activação. */}
       </fieldset>
 
       <fieldset className="flex flex-col gap-5 border-0 p-0">
@@ -202,6 +218,20 @@ export function FormularioRegisto({ planos }: { planos: Plano[] }) {
           ))}
         </CampoSelecao>
       </fieldset>
+
+      {/* Widget Turnstile (ADR-0016 Camada 3). Só renderiza com chave configurada.
+          Sem chave (dev sem Cloudflare), o campo viaja vazio e o ERP aceita
+          porque CAPTCHA_PROVIDER=none em dev (falha fechado só em produção). */}
+      {turnstileSiteKey ? (
+        <div className="flex justify-center">
+          <WidgetTurnstile
+            siteKey={turnstileSiteKey}
+            onToken={setCaptchaToken}
+            onExpirado={() => setCaptchaToken("")}
+            onErro={() => setCaptchaToken("")}
+          />
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-4">
         <Gesto>

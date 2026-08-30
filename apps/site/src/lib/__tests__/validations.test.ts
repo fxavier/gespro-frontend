@@ -5,14 +5,18 @@ import {
   paraPayloadRegisto,
 } from "../validations";
 
+/**
+ * Registo válido de base: SEM adminSenha (ADR-0013 §5 + ADR-0016), COM
+ * captchaToken obrigatório (ADR-0016 Camada 3).
+ */
 const registoValido = {
   empresaNome: "Comercial Zambeze, Lda.",
   empresaNuit: "400123456",
   provincia: "Maputo Cidade",
   adminNome: "Ana Macuácua",
   adminEmail: "ana@zambeze.co.mz",
-  adminSenha: "senha-muito-segura",
   planoId: "PROFISSIONAL",
+  captchaToken: "tok-turnstile-test",
 };
 
 describe("registoSchema", () => {
@@ -36,17 +40,23 @@ describe("registoSchema", () => {
     ).toBe(false);
   });
 
-  it("rejeita senhas com menos de dez caracteres", () => {
-    expect(
-      registoSchema.safeParse({ ...registoValido, adminSenha: "curta123" })
-        .success
-    ).toBe(false);
-  });
-
   it("rejeita planos fora do catálogo do spec 19", () => {
     expect(
       registoSchema.safeParse({ ...registoValido, planoId: "OURO" }).success
     ).toBe(false);
+  });
+
+  it("rejeita captchaToken vazio (ADR-0016: widget Turnstile obrigatório)", () => {
+    expect(
+      registoSchema.safeParse({ ...registoValido, captchaToken: "" }).success
+    ).toBe(false);
+  });
+
+  it("não aceita campo adminSenha — a palavra-passe é definida no Keycloak (ADR-0013 §5)", () => {
+    // O schema não tem adminSenha; mesmo que venha no objecto, é descartado pelo Zod.
+    // O que testamos aqui é que um registo sem a chave continua a ser válido.
+    const semSenha = { ...registoValido };
+    expect(registoSchema.safeParse(semSenha).success).toBe(true);
   });
 });
 
@@ -60,17 +70,24 @@ describe("paraPayloadRegisto", () => {
       admin: {
         nome: "Ana Macuácua",
         email: "ana@zambeze.co.mz",
-        senha: "senha-muito-segura",
       },
       planoId: "PROFISSIONAL",
       provincia: "Maputo Cidade",
-      captchaToken: "",
+      captchaToken: "tok-turnstile-test",
     });
   });
 
-  it("relaia o token de captcha quando existe", () => {
+  it("não inclui senha no payload (ADR-0013 §5)", () => {
     const dados = registoSchema.parse(registoValido);
-    expect(paraPayloadRegisto(dados, "tok-123").captchaToken).toBe("tok-123");
+    const payload = paraPayloadRegisto(dados);
+    expect("senha" in (payload.admin as object)).toBe(false);
+    expect("adminSenha" in payload).toBe(false);
+  });
+
+  it("inclui captchaToken no payload (ADR-0016)", () => {
+    const dados = registoSchema.parse(registoValido);
+    const payload = paraPayloadRegisto(dados);
+    expect(payload.captchaToken).toBe("tok-turnstile-test");
   });
 });
 

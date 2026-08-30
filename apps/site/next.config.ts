@@ -25,7 +25,30 @@ const nextConfig: NextConfig = {
   // Headers de segurança do SITE. Deliberadamente distintos do ERP:
   // o `middleware.ts` do ERP (spec 17) é dono dos headers dessa app e não é
   // partilhado — é exactamente o isolamento que justifica o monorepo (ADR-0006).
+  //
+  // CSP do site (estática — sem nonce; o ERP tem nonce por pedido no middleware).
+  // Domínios Cloudflare Turnstile adicionados em ADR-0016: script-src e frame-src
+  // são necessários para o widget de captcha da página /comecar.
+  // Este header deve ser acrescentado ANTES de o w8-correcoes activar o modo
+  // estrito (CSP_ENFORCE) — conforme §3 do conflito 3 no execucao-paralela-w8.md.
   async headers() {
+    // Política CSP do site. 'unsafe-inline' em script-src é necessário para os
+    // scripts de hidratação do Next.js (sem middleware de nonce no site).
+    const csp = [
+      "default-src 'self'",
+      // Scripts próprios + hidratação Next.js + Turnstile (ADR-0016)
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+      // Widget Turnstile usa um iframe (ADR-0016)
+      "frame-src https://challenges.cloudflare.com",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self'",
+      "connect-src 'self' https://challenges.cloudflare.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+
     return [
       {
         source: "/:path*",
@@ -36,6 +59,10 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: csp,
           },
         ],
       },

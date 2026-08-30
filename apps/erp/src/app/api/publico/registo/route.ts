@@ -173,13 +173,22 @@ export const POST = withApi(
 
     const captcha = await verificarCaptcha(dados.captchaToken, ip);
     if (!captcha.valido) {
-      await falharChave(chave);
-      return erro(
-        403,
-        'CAPTCHA_INVALIDO',
-        'Verificação anti-robô falhou. Actualize a página e tente de novo.',
-        cors,
-      );
+      if (captcha.motivo === 'captcha_indisponivel') {
+        // Modo degradado (ADR-0016 §modo degradado): Turnstile inacessível →
+        // aceitar o registo com alerta. Um verificador em baixa não pode fechar
+        // o funil comercial — as camadas 2 (rate-limit) e 4 (verificação de
+        // e-mail) continuam de pé. O alerta deve ser monitorizado (ADR-0019).
+        logger.warn({ ip, motivo: captcha.motivo }, '[registo] captcha indisponível — aceitar em modo degradado (ADR-0016)');
+      } else {
+        // 'captcha_invalido' ou 'captcha_nao_configurado': rejeitar.
+        await falharChave(chave);
+        return erro(
+          403,
+          'CAPTCHA_INVALIDO',
+          'Verificação anti-robô falhou. Actualize a página e tente de novo.',
+          cors,
+        );
+      }
     }
 
     // 6. Provisionamento: Keycloak primeiro, Postgres depois (ADR-0013 §2).
