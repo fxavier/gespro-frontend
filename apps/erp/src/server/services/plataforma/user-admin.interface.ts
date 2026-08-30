@@ -92,20 +92,23 @@ export interface IUserAdminService {
   obterUtilizador(userId: string, ctx: Ctx): Promise<UserRow>;
 
   /**
-   * Cria utilizador no tenant, faz hash da password com argon2 e associa roles.
-   * Operação atómica: User + UserRole em `$transaction`.
-   * Lança `BusinessRuleError('EMAIL_DUPLICADO')` se email já existir no tenant.
+   * Convida um colaborador: identidade no Keycloak (sem palavra-passe, acções
+   * pendentes), User local com papéis, e-mail de acções (ADR-0013 §5-bis).
+   * Operação atómica do lado Postgres: User + UserRole em `$transaction`.
+   * Lança `BusinessRuleError('EMAIL_JA_REGISTADO')` se o email já existir em
+   * QUALQUER tenant — o email é único em todo o sistema (CONTEXT.md).
    */
   criarUtilizador(input: CreateUserInput, ctx: Ctx): Promise<UserRow>;
 
   /**
-   * Actualiza campos do utilizador. Se `password` for fornecida, gera novo hash.
-   * Não permite alterar o email para um já existente no tenant.
+   * Actualiza nome/estado. Email e palavra-passe são da Identidade (Keycloak)
+   * e não se editam aqui; mudanças de `ativo` sincronizam os dois lados.
    */
   actualizarUtilizador(userId: string, input: UpdateUserInput, ctx: Ctx): Promise<UserRow>;
 
   /**
-   * Soft-delete do utilizador: preenche deletedAt e ativo=false.
+   * Soft-delete do utilizador: desactiva no Keycloak (com logout de sessões)
+   * e localmente (deletedAt + ativo=false).
    * Não permite desactivar o próprio utilizador autenticado.
    * Lança `BusinessRuleError('ULTIMO_ADMIN')` se for o único admin do tenant.
    */

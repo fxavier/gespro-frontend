@@ -360,4 +360,7 @@ export async function seedTenantBase(
   };
 }
 
-export const SENHA_PERF_EXPORT = SENHA_PERF;
+// Desde o ADR-0013 os utilizadores de carga não têm palavra-passe local nem
+// identidade no Keycloak: o campo `senha` do manifesto perde o significado.
+// Mantém-se o export para o manifesto não mudar de forma; o valor assinala-o.
+export const SENHA_PERF_EXPORT = 'sem-palavra-passe-local (ADR-0013)';

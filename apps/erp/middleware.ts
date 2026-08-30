@@ -28,6 +28,11 @@ const PUBLIC_PATHS = [
   '/api/publico/registo',
   '/api/publico/planos',
   '/api/webhooks/stripe',
+  // Crons: cada rota impõe `Authorization: Bearer <CRON_SECRET>` e devolve 401
+  // sem ele. Sem esta entrada, o agendador recebia 307 → /auth/login antes de
+  // a credencial própria ser sequer lida (defeito latente que afectava também
+  // o cron de transporte).
+  '/api/cron/',
   // Página pública de contacto/suporte, ligada a partir do ecrã de login.
   '/contactos',
   '/_next/',

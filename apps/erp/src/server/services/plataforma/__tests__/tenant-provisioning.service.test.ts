@@ -7,32 +7,26 @@ const mocks = vi.hoisted(() => {
     assinatura: { create: vi.fn() },
     user: { create: vi.fn() },
     userRole: { create: vi.fn() },
-    tokenVerificacaoEmail: { create: vi.fn() },
     notificacao: { create: vi.fn() },
   };
   return {
     tx,
     tenantFindFirst: vi.fn(),
     tenantFindMany: vi.fn(),
-    tokenFindUnique: vi.fn(),
-    tokenUpdateMany: vi.fn(),
-    userUpdateMany: vi.fn(),
+    userFindFirst: vi.fn(),
     $transaction: vi.fn(),
     bootstrapRbac: vi.fn(),
     bootstrapContabilidade: vi.fn(),
     garantirCatalogoPermissoes: vi.fn(),
-    emitirToken: vi.fn(),
+    garantirUtilizador: vi.fn(),
+    dispararEmailAccoes: vi.fn(),
   };
 });
 
 vi.mock('@/server/db/client', () => ({
   prismaBase: {
     tenant: { findFirst: mocks.tenantFindFirst, findMany: mocks.tenantFindMany },
-    tokenVerificacaoEmail: {
-      findUnique: mocks.tokenFindUnique,
-      updateMany: mocks.tokenUpdateMany,
-    },
-    user: { updateMany: mocks.userUpdateMany },
+    user: { findFirst: mocks.userFindFirst },
     $transaction: mocks.$transaction,
   },
 }));
@@ -43,15 +37,17 @@ vi.mock('@/server/provisioning/tenant-bootstrap', () => ({
   garantirCatalogoPermissoes: mocks.garantirCatalogoPermissoes,
 }));
 
-vi.mock('../handoff.service', () => ({ emitirToken: mocks.emitirToken }));
-
-vi.mock('@node-rs/argon2', () => ({ hash: vi.fn(async () => 'hash-argon2') }));
+// Keycloak dublado — os unitários não tocam em rede (ADR-0013 §6); o caminho
+// real contra um Keycloak vivo é da suite E2E.
+vi.mock('@/server/auth/keycloak', () => ({
+  garantirUtilizador: mocks.garantirUtilizador,
+  dispararEmailAccoes: mocks.dispararEmailAccoes,
+}));
 
 import {
   provisionarTenant,
   slugificar,
   sugerirSlug,
-  verificarEmail,
 } from '../tenant-provisioning.service';
 import { prismaBase } from '@/server/db/client';
 import { Prisma } from '@prisma/client';
@@ -67,7 +63,7 @@ function violacaoUnica(campo: string) {
 
 const INPUT = {
   empresa: { nome: 'Padaria Ana, Lda', nuit: '400123456' },
-  admin: { nome: 'Ana Sitoe', email: 'ana@padaria.mz', senha: 'segredo123' },
+  admin: { nome: 'Ana Sitoe', email: 'ana@padaria.mz' },
   planoId: 'PROFISSIONAL' as const,
   provincia: 'Maputo Cidade',
 };
@@ -76,13 +72,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.tenantFindFirst.mockResolvedValue(null);
   mocks.tenantFindMany.mockResolvedValue([]);
+  mocks.userFindFirst.mockResolvedValue(null);
   mocks.$transaction.mockImplementation(async (fn: (t: typeof mocks.tx) => unknown) => fn(mocks.tx));
   mocks.tx.tenant.create.mockResolvedValue({ id: 'tenant-1', slug: 'padaria-ana-lda' });
   mocks.tx.configuracaoFiscal.create.mockResolvedValue({});
   mocks.tx.assinatura.create.mockResolvedValue({});
   mocks.tx.user.create.mockResolvedValue({ id: 'user-1' });
   mocks.tx.userRole.create.mockResolvedValue({});
-  mocks.tx.tokenVerificacaoEmail.create.mockResolvedValue({});
   mocks.tx.notificacao.create.mockResolvedValue({ id: 'notif-1' });
   mocks.bootstrapRbac.mockResolvedValue([
     { id: 'role-admin', nome: 'ADMIN' },
@@ -90,7 +86,8 @@ beforeEach(() => {
   ]);
   mocks.bootstrapContabilidade.mockResolvedValue({ contas: 502, diarios: 9, series: 18 });
   mocks.garantirCatalogoPermissoes.mockResolvedValue(undefined);
-  mocks.emitirToken.mockResolvedValue('token-handoff');
+  mocks.garantirUtilizador.mockResolvedValue('kc-sub-ana');
+  mocks.dispararEmailAccoes.mockResolvedValue(true);
 });
 
 describe('slug derivado do nome (nunca vem do cliente)', () => {
@@ -118,13 +115,12 @@ describe('provisionamento atómico', () => {
     expect(mocks.$transaction).toHaveBeenCalledTimes(1);
     expect(r.tenantId).toBe('tenant-1');
     expect(r.tenantSlug).toBe('padaria-ana-lda');
-    expect(r.handoffToken).toBe('token-handoff');
+    expect(r.keycloakSub).toBe('kc-sub-ana');
 
     // Toda a escrita dentro da tx leva tenantId (não há extensão de tenant aqui).
     expect(mocks.tx.configuracaoFiscal.create.mock.calls[0][0].data.tenantId).toBe('tenant-1');
     expect(mocks.tx.assinatura.create.mock.calls[0][0].data.tenantId).toBe('tenant-1');
     expect(mocks.tx.user.create.mock.calls[0][0].data.tenantId).toBe('tenant-1');
-    expect(mocks.tx.tokenVerificacaoEmail.create.mock.calls[0][0].data.tenantId).toBe('tenant-1');
     expect(mocks.tx.notificacao.create.mock.calls[0][0].data.tenantId).toBe('tenant-1');
     expect(mocks.bootstrapRbac).toHaveBeenCalledWith(mocks.tx, 'tenant-1');
     expect(mocks.bootstrapContabilidade).toHaveBeenCalledWith(mocks.tx, 'tenant-1');
@@ -162,13 +158,30 @@ describe('provisionamento atómico', () => {
     expect(data.provincia).toBe('Maputo Cidade');
   });
 
-  it('cria o admin com emailVerificado=false (login bloqueado até confirmar)', async () => {
+  it('ADR-0013 §2: Keycloak PRIMEIRO, Postgres depois — e o sub fica no User', async () => {
     await provisionarTenant(INPUT);
+    expect(mocks.garantirUtilizador).toHaveBeenCalledWith({
+      email: 'ana@padaria.mz',
+      nome: 'Ana Sitoe',
+    });
+    // A ordem inversa deixaria «um cliente pago sem forma de entrar».
+    expect(mocks.garantirUtilizador.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.$transaction.mock.invocationCallOrder[0],
+    );
     const data = mocks.tx.user.create.mock.calls[0][0].data;
-    expect(data.emailVerificado).toBe(false);
-    expect(data.passwordHash).toBe('hash-argon2');
-    // A senha em claro nunca é persistida.
-    expect(JSON.stringify(data)).not.toContain('segredo123');
+    expect(data.keycloakSub).toBe('kc-sub-ana');
+    // O ERP nunca vê nem persiste credenciais.
+    expect(JSON.stringify(data)).not.toMatch(/senha|password/i);
+  });
+
+  it('recusa e-mail já registado em qualquer tenant, com a mensagem das duas empresas', async () => {
+    mocks.userFindFirst.mockResolvedValue({ id: 'user-existente' });
+    await expect(provisionarTenant(INPUT)).rejects.toMatchObject({
+      code: 'EMAIL_JA_REGISTADO',
+      message: expect.stringContaining('dois endereços de e-mail distintos'),
+    });
+    expect(mocks.garantirUtilizador).not.toHaveBeenCalled();
+    expect(mocks.$transaction).not.toHaveBeenCalled();
   });
 
   it('atribui o role ADMIN ao utilizador criado', async () => {
@@ -178,19 +191,10 @@ describe('provisionamento atómico', () => {
     });
   });
 
-  it('persiste a notificação de boas-vindas PENDENTE (envio fora da tx)', async () => {
+  it('persiste a notificação de boas-vindas IN_APP (o único e-mail é o do Keycloak)', async () => {
     await provisionarTenant(INPUT);
     const data = mocks.tx.notificacao.create.mock.calls[0][0].data;
-    expect(data.estadoEnvio).toBe('PENDENTE');
-    expect(data.canal).toBe('EMAIL');
-  });
-
-  it('emite o token de handoff DENTRO da transacção', async () => {
-    await provisionarTenant(INPUT);
-    expect(mocks.emitirToken).toHaveBeenCalledWith(
-      { tenantId: 'tenant-1', userId: 'user-1' },
-      mocks.tx,
-    );
+    expect(data.canal).toBe('IN_APP');
   });
 
   it('falha em qualquer passo propaga o erro (rollback total pela tx)', async () => {
@@ -205,9 +209,10 @@ describe('provisionamento atómico', () => {
     await expect(provisionarTenant(INPUT)).rejects.toMatchObject({ code: 'RBAC_INCOMPLETO' });
   });
 
-  it('recusa NUIT já registado antes de gastar CPU no hash', async () => {
+  it('recusa NUIT já registado antes de tocar no Keycloak', async () => {
     mocks.tenantFindFirst.mockResolvedValue({ id: 'outro' });
     await expect(provisionarTenant(INPUT)).rejects.toMatchObject({ code: 'NUIT_JA_REGISTADO' });
+    expect(mocks.garantirUtilizador).not.toHaveBeenCalled();
     expect(mocks.$transaction).not.toHaveBeenCalled();
   });
 
@@ -249,38 +254,5 @@ describe('provisionamento atómico', () => {
       throw new Error('ligação perdida');
     });
     await expect(provisionarTenant(INPUT)).rejects.toThrow('ligação perdida');
-  });
-});
-
-describe('verificação de email — consumo atómico', () => {
-  it('marca o email verificado quando o token é válido', async () => {
-    mocks.tokenFindUnique.mockResolvedValue({ tenantId: 'tenant-1', userId: 'user-1' });
-    mocks.tokenUpdateMany.mockResolvedValue({ count: 1 });
-    mocks.userUpdateMany.mockResolvedValue({ count: 1 });
-    mocks.tenantFindFirst.mockResolvedValue({ slug: 'padaria' });
-
-    const r = await verificarEmail('tok-1');
-    expect(r).toEqual({ tenantId: 'tenant-1', userId: 'user-1', tenantSlug: 'padaria' });
-
-    const where = mocks.tokenUpdateMany.mock.calls[0][0].where;
-    expect(where.usadoEm).toBeNull();
-    expect(where.expiraEm.gt).toBeInstanceOf(Date);
-    expect(mocks.userUpdateMany.mock.calls[0][0].where).toEqual({
-      id: 'user-1',
-      tenantId: 'tenant-1',
-    });
-  });
-
-  it('devolve null para token inexistente', async () => {
-    mocks.tokenFindUnique.mockResolvedValue(null);
-    expect(await verificarEmail('tok-x')).toBeNull();
-    expect(mocks.userUpdateMany).not.toHaveBeenCalled();
-  });
-
-  it('devolve null para token já usado ou expirado (0 linhas afectadas)', async () => {
-    mocks.tokenFindUnique.mockResolvedValue({ tenantId: 't', userId: 'u' });
-    mocks.tokenUpdateMany.mockResolvedValue({ count: 0 });
-    expect(await verificarEmail('tok-1')).toBeNull();
-    expect(mocks.userUpdateMany).not.toHaveBeenCalled();
   });
 });

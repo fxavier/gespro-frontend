@@ -50,3 +50,18 @@ Nota sobre o nome do ficheiro de mensagens: o ADR-0012 §8 fala de
 Keycloak 26.7.0 já é português europeu — verificado no jar). Pela regra de
 resolução de `ResourceBundle`, a sobreposição eficaz para o locale `pt`
 chama-se `messages_pt.properties`. É essa que existe.
+
+## Iterar no tema em dev — armadilha do cache gzip
+
+O Keycloak em modo `start` guarda cópias comprimidas dos recursos do tema em
+`/opt/keycloak/data/tmp/kc-gzip-cache/…` **que sobrevivem a `docker compose
+restart`** (o browser pede `Accept-Encoding: gzip` e recebe a cópia velha; um
+`curl` sem compressão recebe a nova — depurar isto custou uma hora). Depois de
+editar CSS/mensagens do tema:
+
+```bash
+docker exec gespro-keycloak rm -rf /opt/keycloak/data/tmp/kc-gzip-cache
+docker compose restart keycloak
+```
+
+Em CI e em contentores recém-criados o problema não existe.

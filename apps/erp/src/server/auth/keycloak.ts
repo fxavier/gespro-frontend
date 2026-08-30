@@ -40,7 +40,12 @@ export interface KeycloakConfig {
 
 function obrigatoriaEmProducao(nome: string, valor: string | undefined, devFallback: string): string {
   if (valor) return valor;
-  if (process.env.NODE_ENV === 'production') {
+  // Durante o `next build` (standalone) os segredos não existem — e o auth.ts
+  // avalia esta config no import, em quase todas as páginas. Lançar aqui
+  // partiria o build; lança-se no RUNTIME de produção (primeiro pedido), que
+  // é onde a ausência é um erro real de configuração.
+  const emBuild = process.env.NEXT_PHASE === 'phase-production-build';
+  if (process.env.NODE_ENV === 'production' && !emBuild) {
     throw new Error(`[keycloak] Variável de ambiente obrigatória em produção: ${nome}`);
   }
   return devFallback;
@@ -262,7 +267,9 @@ export async function dispararEmailAccoes(sub: string): Promise<boolean> {
     const res = await adminFetch(
       `/users/${encodeURIComponent(sub)}/execute-actions-email` +
         `?client_id=${encodeURIComponent(cfg.clientId)}` +
-        `&redirect_uri=${encodeURIComponent(`${destino}/dashboard`)}`,
+        // ?onboarding=1: preserva o checklist forçado do dashboard (spec 19) —
+        // era o handoff que o punha; agora é o regresso do e-mail de acções.
+        `&redirect_uri=${encodeURIComponent(`${destino}/dashboard?onboarding=1`)}`,
       { method: 'PUT', body: JSON.stringify(['VERIFY_EMAIL', 'UPDATE_PASSWORD']) },
     );
     if (!res.ok) {

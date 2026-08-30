@@ -13,13 +13,16 @@ o site de marketing virá em `apps/site/`; config partilhada em `packages/tsconf
 `turbo run`; nomes inalterados.
 
 ```bash
-# Base de dados (necessária para dev, seed e testes de integração/E2E)
-docker compose up -d          # perfil mínimo: só o Postgres 17 (gespro-db, porta 5432, WAL arquivado)
+# Base + identidade (necessárias para dev, seed e testes de integração/E2E).
+# Desde o ADR-0013 §7 o perfil por omissão inclui o KEYCLOAK: o login é OIDC
+# (realm `gespro` importado de infra/keycloak/, consola em http://localhost:8081)
+# e sem ele não há sessão. O arranque local fica mais lento — custo aceite.
+docker compose up -d          # Postgres 17 (gespro-db, porta 5432, WAL arquivado) + Keycloak 26.7
 pnpm db:migrate:dev           # aplica migrations
 pnpm db:seed                  # tenant demo + utilizadores + PGC + dados dos 7 domínios
 pnpm db:studio
 
-pnpm dev                      # http://localhost:3000  (login: admin@demo.mz / demo1234)
+pnpm dev                      # http://localhost:3000  (login: admin@demo.mz / demo1234, via ecrã Keycloak)
 
 # Pilha local de referência COMPLETA (ADR-0026): Keycloak + Valkey + MinIO +
 # otel-lgtm + Mailpit + 2× ERP (imagem de produção) atrás de proxy. Segredos por
@@ -33,7 +36,7 @@ docker compose --profile full up -d --build
 # Verificação (tudo tem de estar verde antes de entregar)
 pnpm check                    # prisma validate && tsc --noEmit && eslint . && vitest run
 pnpm gates                    # gates de arquitectura (ver abaixo)
-pnpm e2e                      # Playwright — 5 fluxos críticos (precisa da app + DB)
+pnpm e2e                      # Playwright — fluxos críticos (precisa da app + DB + Keycloak REAL)
 pnpm e2e:a11y                 # axe (WCAG AA)
 
 # Um único ficheiro de teste (a partir de apps/erp/)
@@ -55,7 +58,7 @@ npx prisma migrate deploy
 ```
 Rename de valor de enum: o `migrate diff` gera **drop+recreate** (perde dados) — escreve à mão `ALTER TYPE "X" RENAME VALUE 'A' TO 'B';` e marca com `prisma migrate resolve --applied <migration>`. Em produção usa **sempre** `migrate deploy`, nunca `migrate dev`.
 
-Utilizadores demo (senha `demo1234`): `admin@demo.mz`, `gestor@`, `financeiro@`, `operador@`, `leitura@` — tenant slug `demo`.
+Utilizadores demo (senha `demo1234`): `admin@demo.mz`, `gestor@`, `financeiro@`, `operador@`, `leitura@` — tenant slug `demo`. As identidades vivem no **realm Keycloak** (`infra/keycloak/realm-gespro.json`, `sub` fixos) e o seed grava exactamente esses `sub` em `User.keycloakSub` — um teste no `pnpm check` garante a concordância (ADR-0013 §7).
 
 ## Arquitectura
 

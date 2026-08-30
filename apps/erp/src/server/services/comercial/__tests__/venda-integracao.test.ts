@@ -44,7 +44,7 @@ beforeAll(async () => {
 
   // 2. User
   await prismaBase.user.create({
-    data: { id: USER_ID, tenantId: TENANT_ID, nome: 'Vendedor Teste', email: `vendedor-${Date.now()}@test.local`, passwordHash: 'test' },
+    data: { id: USER_ID, tenantId: TENANT_ID, nome: 'Vendedor Teste', email: `vendedor-${Date.now()}@test.local`, keycloakSub: `kc-vendedor-${Date.now()}` },
   });
 
   // 3. Categoria de produto

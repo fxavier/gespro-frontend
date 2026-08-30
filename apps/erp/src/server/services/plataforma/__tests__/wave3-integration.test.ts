@@ -16,6 +16,16 @@ vi.mock('next/cache', () => ({
   unstable_cache: <T extends (...args: unknown[]) => unknown>(fn: T) => fn,
 }));
 
+// Keycloak DUBLADO (ADR-0013 §6): estes testes provam a guarda ULTIMO_ADMIN no
+// Postgres. Sem o duplo, `desactivarUtilizador` desactivava o `operador` demo
+// no Keycloak REAL partilhado e só restaurava a linha local — deixando o
+// utilizador de demonstração sem login (aconteceu; não repetir).
+vi.mock('@/server/auth/keycloak', () => ({
+  garantirUtilizador: vi.fn(async () => 'kc-sub-wave3'),
+  dispararEmailAccoes: vi.fn(async () => true),
+  definirActivo: vi.fn(async () => undefined),
+}));
+
 const hasDB = Boolean(process.env.DATABASE_URL);
 
 describe.skipIf(!hasDB)('Wave 3 integração — kpiVendas sobre dados reais', () => {

@@ -3,10 +3,12 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright E2E — GestPro
  *
- * Corre contra a app local (pnpm dev ou pnpm build && pnpm start).
- * DB semeada deterministicamente via `pnpm db:seed`.
+ * Corre contra a app local (pnpm dev ou pnpm build && pnpm start) e contra um
+ * Keycloak REAL (docker compose up -d — o realm gespro importa os cinco
+ * utilizadores demo; ADR-0013 §6/§7). O login E2E conduz o formulário do
+ * Keycloak, nunca um duplo.
  *
- * Utilizadores de teste (criados pelo seed):
+ * Utilizadores de teste (identidade no realm, espelho local pelo seed):
  *   admin@demo.mz       / demo1234  (ADMIN)
  *   gestor@demo.mz      / demo1234  (GESTOR)
  *   financeiro@demo.mz  / demo1234  (FINANCEIRO)
@@ -79,5 +81,12 @@ export default defineConfig({
     timeout: 120_000,
     stdout: 'pipe',
     stderr: 'pipe',
+    env: {
+      ...process.env,
+      // Cenário obrigatório de expiração/renovação (07-sessao.spec.ts):
+      // o intervalo de re-resolução em SEGUNDOS — nenhum teste espera 15 min
+      // (ADR-0013 §6). Sobrepõe-se com AUTH_SESSION_MAX_AGE no ambiente.
+      AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE ?? '8',
+    },
   },
 });

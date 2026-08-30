@@ -21,6 +21,7 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { esperarFormularioKeycloak } from './helpers/auth';
 
 // ─── Helper: executar axe e falhar em violações AA ────────────────────────────
 
@@ -63,36 +64,53 @@ async function checkA11y(
 
 // ─── Testes ───────────────────────────────────────────────────────────────────
 
-// Login usa sessão limpa (não autenticado)
-test.describe('A11y: Página de Login', () => {
+// Login usa sessão limpa (não autenticado). Desde o ADR-0012 §8 a porta de
+// entrada é o ECRÃ DO KEYCLOAK (tema gespro): /auth/login salta para lá, e é
+// lá que o axe corre — nos dois temas, senão a página onde o cliente escreve a
+// palavra-passe ficava a única do produto sem verificação de acessibilidade.
+test.describe('A11y: Página de Login (Keycloak, tema gespro)', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('sem violações AA na página de login', async ({ page }) => {
+  test('sem violações AA no ecrã de login — tema claro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
     await page.goto('/auth/login');
-    // CardTitle "Iniciar Sessão" é div, não heading; aguarda o campo de email
-    await expect(page.getByLabel('E-mail Corporativo')).toBeVisible({ timeout: 15_000 });
+    await esperarFormularioKeycloak(page);
 
-    await checkA11y(page, 'login');
+    await checkA11y(page, 'login Keycloak (claro)');
+  });
+
+  test('sem violações AA no ecrã de login — tema escuro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/auth/login');
+    await esperarFormularioKeycloak(page);
+
+    await checkA11y(page, 'login Keycloak (escuro)');
   });
 
   test('foco visível nos campos do formulário de login', async ({ page }) => {
     await page.goto('/auth/login');
-    await expect(page.getByLabel('E-mail Corporativo')).toBeVisible({ timeout: 15_000 });
+    await esperarFormularioKeycloak(page);
 
-    // Foca directamente no campo de email para testar navegação por teclado
-    await page.getByLabel('E-mail Corporativo').focus();
-    const emailFocused = await page.evaluate(() => document.activeElement?.id ?? document.activeElement?.tagName);
-    expect(emailFocused).toBeTruthy();
+    // Foca directamente no campo de utilizador para testar navegação por teclado
+    await page.locator('#username').focus();
+    const focado = await page.evaluate(() => document.activeElement?.id);
+    expect(focado).toBe('username');
 
-    // Tab para o campo de password
+    // Tab avança para um elemento interactivo (password / mostrar palavra-passe)
     await page.keyboard.press('Tab');
-    const afterTab = await page.evaluate(() => {
+    const aposTab = await page.evaluate(() => {
       const el = document.activeElement;
-      return el ? { tag: el.tagName, type: (el as HTMLInputElement).type } : null;
+      return el ? { tag: el.tagName } : null;
     });
-    expect(afterTab).not.toBeNull();
-    // Deve ser um elemento interactivo (input, button, etc.)
-    expect(['INPUT', 'BUTTON', 'A', 'SELECT', 'TEXTAREA'].includes(afterTab!.tag)).toBeTruthy();
+    expect(aposTab).not.toBeNull();
+    expect(['INPUT', 'BUTTON', 'A', 'SELECT', 'TEXTAREA'].includes(aposTab!.tag)).toBeTruthy();
+  });
+
+  test('a página de recusa /auth/erro é acessível', async ({ page }) => {
+    // A recusa explícita («contacte o administrador…») é nossa e também conta.
+    await page.goto('/auth/erro?motivo=nao-provisionado');
+    await expect(page.getByRole('heading')).toBeVisible({ timeout: 15_000 });
+    await checkA11y(page, 'erro de autenticação');
   });
 });
 
