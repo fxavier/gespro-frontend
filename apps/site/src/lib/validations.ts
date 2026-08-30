@@ -47,40 +47,43 @@ export const nuitSchema = z
   .trim()
   .regex(/^\d{9}$/, "nuitInvalido");
 
+/**
+ * Schema do formulário de registo.
+ *
+ * SEM campo `adminSenha` desde o ADR-0013 §5 + ADR-0016: a palavra-passe é
+ * definida no Keycloak através do e-mail de activação — o site nunca a recolhe.
+ * `captchaToken` é obrigatório (ADR-0016 Camada 3): o widget Turnstile preenche
+ * o campo antes da submissão; uma string vazia é recusada aqui e no ERP.
+ */
 export const registoSchema = z.object({
   empresaNome: z.string().trim().min(2, "nomeCurto").max(160),
   empresaNuit: nuitSchema,
   provincia: z.enum(PROVINCIAS, { message: "provinciaInvalida" }),
   adminNome: z.string().trim().min(2, "nomeCurto").max(120),
   adminEmail: z.string().trim().email("emailInvalido").max(200),
-  adminSenha: z.string().min(10, "senhaCurta").max(200),
   planoId: z.enum(IDS_PLANO, { message: "planoInvalido" }),
+  captchaToken: z.string().min(1, "captchaObrigatorio"),
   website: z.string().max(0).optional().or(z.literal("")),
 });
 
 export type DadosRegisto = z.infer<typeof registoSchema>;
 
 /**
- * Payload exacto de `POST /api/publico/registo` (contrato do spec 19).
+ * Payload exacto de `POST /api/publico/registo` (contrato do spec 19, ADR-0013).
+ * SEM `senha`: a palavra-passe é definida no Keycloak. `captchaToken` é
+ * obrigatório — o widget preenche-o antes da submissão.
  * A tradução acontece aqui, num só sítio, para que uma mudança do contrato
  * seja um edit local e não uma caça pelo formulário.
  */
-export function paraPayloadRegisto(
-  dados: DadosRegisto,
-  captchaToken?: string
-) {
+export function paraPayloadRegisto(dados: DadosRegisto) {
   return {
     empresa: { nome: dados.empresaNome, nuit: dados.empresaNuit },
     admin: {
       nome: dados.adminNome,
       email: dados.adminEmail,
-      senha: dados.adminSenha,
     },
     planoId: dados.planoId,
     provincia: dados.provincia,
-    // O contrato prevê `captchaToken`; enquanto o spec 19 não fixar o provedor
-    // de captcha, o site envia string vazia e conta com o rate-limit do lado
-    // do 19. Ver gap em docs/handoff/feat-18-website-marketing.md.
-    captchaToken: captchaToken ?? "",
+    captchaToken: dados.captchaToken,
   };
 }

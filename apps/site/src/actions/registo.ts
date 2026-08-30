@@ -12,14 +12,14 @@ import { identificarCliente, verificarLimite } from "@/lib/rate-limit";
  * Nunca lança para o cliente: devolve sempre um resultado tratável, com uma
  * chave de tradução em vez de mensagem literal (o texto vive em `messages`).
  *
- * O redireccionamento é feito pelo cliente com o `destino` devolvido — e não
- * com `redirect()` aqui — para o formulário poder registar o evento de
- * analytics e mostrar a mensagem de sucesso antes de sair da página.
+ * Em caso de sucesso, não redireciona: o utilizador vê a mensagem "verifique
+ * o e-mail" no formulário (ADR-0013 §5, ADR-0016). A entrada no ERP faz-se
+ * pelo link de activação do Keycloak.
  */
 
 export type EstadoRegisto =
   | { estado: "inicial" }
-  | { estado: "sucesso"; destino: string }
+  | { estado: "sucesso" }
   | {
       estado: "erro";
       chaveMensagem: string;
@@ -50,7 +50,7 @@ export async function registarEmpresa(
   // Campo-armadilha preenchido → robô. Responde como sucesso silencioso, sem
   // chamar o endpoint de provisionamento.
   if (typeof bruto.website === "string" && bruto.website.length > 0) {
-    return { estado: "sucesso", destino: "/" };
+    return { estado: "sucesso" };
   }
 
   const validado = registoSchema.safeParse(bruto);
@@ -76,7 +76,7 @@ export async function registarEmpresa(
   });
 
   if (resultado.estado === "sucesso") {
-    return { estado: "sucesso", destino: resultado.destino };
+    return { estado: "sucesso" };
   }
 
   return { estado: "erro", chaveMensagem: resultado.chaveMensagem };

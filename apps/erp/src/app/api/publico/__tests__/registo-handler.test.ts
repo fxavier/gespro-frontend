@@ -200,6 +200,17 @@ describe('códigos de erro publicados', () => {
     expect(mocks.provisionarTenant).not.toHaveBeenCalled();
   });
 
+  it('modo degradado (ADR-0016): captcha_indisponivel → aceitar com 201', async () => {
+    // Turnstile inacessível não pode fechar o funil — as camadas 2 e 4 continuam.
+    mocks.verificarCaptcha.mockResolvedValue({ valido: false, motivo: 'captcha_indisponivel' });
+    const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
+    expect(res.status).toBe(201);
+    // O provisionamento deve ter corrido normalmente.
+    expect(mocks.provisionarTenant).toHaveBeenCalled();
+    // A chave não é libertada como falha.
+    expect(mocks.falharChave).not.toHaveBeenCalled();
+  });
+
   it('NUIT_JA_REGISTADO (409) propagado do serviço', async () => {
     mocks.provisionarTenant.mockRejectedValue(
       new BusinessRuleError('NUIT_JA_REGISTADO', 'Já existe uma conta com este NUIT.'),

@@ -306,3 +306,24 @@ export async function definirActivo(sub: string, ativo: boolean): Promise<void> 
     }
   }
 }
+
+/**
+ * Elimina um utilizador do realm pelo seu `sub` (Keycloak ID).
+ * Usado pelo expurgo de registos não verificados (ADR-0016 Camada 4).
+ *
+ * Não lança em 404 (utilizador já eliminado ou nunca existiu — idempotente).
+ * Lança em outros erros HTTP ou de rede (o chamador decide se continua ou para).
+ */
+export async function eliminarUtilizador(sub: string): Promise<void> {
+  const res = await adminFetch(`/users/${encodeURIComponent(sub)}`, {
+    method: 'DELETE',
+  });
+  if (res.status === 404) {
+    // Já eliminado — idempotente.
+    logger.warn({ sub }, '[keycloak] utilizador já não existe no realm (expurgo idempotente)');
+    return;
+  }
+  if (!res.ok) {
+    throw new Error(`[keycloak] eliminação de utilizador falhou (HTTP ${res.status})`);
+  }
+}

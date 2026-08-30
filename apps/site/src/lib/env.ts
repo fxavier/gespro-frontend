@@ -17,7 +17,7 @@ function limpar(valor: string | undefined): string | undefined {
 export const SITE_URL =
   limpar(process.env.NEXT_PUBLIC_SITE_URL) ?? "http://localhost:3100";
 
-/** URL da aplicação ERP (destino dos CTAs de login e do handoff de registo). */
+/** URL da aplicação ERP (destino dos CTAs de login). */
 export const APP_URL =
   limpar(process.env.NEXT_PUBLIC_APP_URL) ?? "http://localhost:3000";
 
@@ -29,11 +29,22 @@ export const APP_URL =
 export const API_PUBLICA_URL =
   limpar(process.env.PLATAFORMA_API_URL) ?? APP_URL;
 
-/** Endpoints consumidos do spec 19 — ver docs/handoff/site-provisionamento-consumo.md. */
+/** Endpoints consumidos do spec 19 — ver docs/handoff/site-provisionamento.md. */
 export const ENDPOINT_PLANOS = `${API_PUBLICA_URL}/api/publico/planos`;
 export const ENDPOINT_REGISTO = `${API_PUBLICA_URL}/api/publico/registo`;
-export const URL_CALLBACK_REGISTO = `${APP_URL}/auth/registo-callback`;
 export const URL_LOGIN = `${APP_URL}/auth/login`;
+
+/**
+ * Chave pública do widget Turnstile (ADR-0016 Camada 3).
+ * Acaba no bundle do browser — nunca é segredo.
+ * O segredo (`CAPTCHA_SECRET_KEY`) fica EXCLUSIVAMENTE no ERP.
+ *
+ * Chaves de teste Cloudflare (não precisam de conta):
+ *   sempre passa:   1x00000000000000000000AA
+ *   sempre bloqueia: 2x00000000000000000000AB
+ */
+export const TURNSTILE_SITE_KEY =
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
 
 /** Domínio configurado no Plausible; ausente = analytics desligado (ADR-0008). */
 export const PLAUSIBLE_DOMINIO = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMINIO?.trim();
