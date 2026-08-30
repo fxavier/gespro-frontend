@@ -25,6 +25,15 @@
 #   http://localhost:8082  → Receptor de webhook (alertas; config do w8-observabilidade)
 # ==============================================================================
 
+# Nome do projecto FIXO. Sem isto o Compose deriva-o do directório, e um agente
+# a correr `docker compose` a partir de `wt/<agente>/` cria um projecto novo —
+# mas como os `container_name:` abaixo são fixos, apossa-se dos contentores
+# partilhados e liga-lhes volumes VAZIOS. Aconteceu em 2026-08-30: o `gespro-db`
+# foi substituído por um com 0 tabelas, e os dados ficaram órfãos em
+# `gespro_gespro-pgdata`. Com o nome fixo, qualquer worktree reutiliza a mesma
+# pilha e os mesmos volumes.
+name: gespro
+
 # Ambiente comum às duas instâncias do ERP — a paridade instância-a-instância é
 # o que torna verificável o limitador partilhado e a sessão entre instâncias.
 x-erp-ambiente: &erp-ambiente
