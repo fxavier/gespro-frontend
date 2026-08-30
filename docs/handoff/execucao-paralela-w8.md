@@ -151,6 +151,17 @@ medição perdida não se recupera com nenhum trabalho posterior.
 `perf/baseline-pre-keycloak.json` → fechar os restantes critérios da Fase 1 → só então lançar
 `w8-identidade`.
 
+> **Executado em 2026-08-30.** `w8-desempenho` fundido; `perf/baseline-pre-keycloak.json` versionado.
+> A campanha custou mais do que previsto porque **descobriu dois crashes**, não duas lentidões: o
+> balancete (D3) e a paginação por cursor (D4) esgotam a heap do Node ao limite de 768 MB da pilha de
+> referência e matam a instância. O D3 foi corrigido para a medição poder existir; o **D4 fica para o
+> `w8-correcoes` e é maior do que a triagem dizia — 61 chamadas de `paginate` em 30 ficheiros, todas
+> as listagens paginadas do ERP.** Um oitavo defeito apareceu (D8, `razaoConta` ignora `take`).
+> Detalhe e evidência em `w8-desempenho.md` §11.
+>
+> Dois cenários não produzem medição utilizável e o JSON declara-o. Os SLOs **não** foram fechados: o
+> ambiente de medição mudou face à fase A (contentores limitados vs. processo no anfitrião).
+
 ### 6-ter. Deltas de desenho da Fase 2 apurados na revisão de 2026-08-29
 
 O `w8-identidade` **tem de ler os ADR-0010, 0011 e 0013 na versão actual** — os três foram emendados
