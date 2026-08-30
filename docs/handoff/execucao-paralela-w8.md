@@ -69,7 +69,8 @@ FASE 5 — Provisionamento                             PARADA por decisão
 | `src/server/security/rate-limiter.ts` + adaptador Valkey | `w8-cache` | 2 | — |
 | `src/server/db/audit-extension.ts`, `scripts/gate-auditoria.mjs` | `w8-auditoria` | 2 | campos novos de `AuditLog` **pedidos** a `w8-identidade` |
 | `src/server/billing/**`, `src/lib/planos.ts`, `src/lib/fiscalidade-saas.ts` | `w8-billing` | 2 | modelos em plataforma são pedidos |
-| `apps/site/src/lib/validations.ts`, widget do site, `api/publico/registo/route.ts` | `w8-anti-abuso` | 2 | — |
+| `apps/site/src/lib/validations.ts`, widget do site | `w8-anti-abuso` | 2 | — |
+| `api/publico/registo/route.ts` | **partilhado, serializado** | 2 | `w8-anti-abuso` **primeiro** (verificação do Turnstile como primeira instrução do handler); `w8-identidade` **depois**, e reescreve o resto da rota — sem palavra-passe, Keycloak primeiro, `execute-actions-email` (ADR-0013 §2 e §5). **O `w8-identidade` tem de preservar a verificação do Turnstile**, que já lá está quando ele chega |
 | `src/lib/storage/objeto/**`, rotas de presign e download, `DocumentoColaborador` | `w8-armazenamento` | 3 | — |
 | `scripts/gate-*.mjs` (excepto auditoria), `eslint.config.mjs`, `eslint-rules/**` | `w8-gates` | 3 | — |
 | `docs/**` (excepto `handoff/` e `runbooks/`), `CLAUDE.md` §Referência | `w8-docs` | 3 | — |
