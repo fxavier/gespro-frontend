@@ -18,8 +18,8 @@ const InviteSchema = z.object({
  */
 export const POST = withApi(
   async (req: NextRequest, ctx) => {
-    // Rate limiting por userId (chave: userId::invite)
-    const rl = await inviteLimiter.consume(`${ctx.userId}::invite`);
+    // Rate limiting por tenant (chave: tenantId::invite) — ADR-0014: 20/h por tenant.
+    const rl = await inviteLimiter.consume(`${ctx.tenantId}::invite`);
     if (rl.limited) {
       return rateLimitedResponse(rl.retryAfterSec);
     }

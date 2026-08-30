@@ -1,16 +1,41 @@
 import 'server-only';
+import { createValkeyRateLimiter } from './rate-limiter-valkey';
 
 /**
- * Abstracção de rate limiting — porta hexagonal.
+ * Porta hexagonal de limitação de tráfego.
  *
- * Backend de memória em desenvolvimento; em produção substitui-se por um
- * adaptador Redis (ou tabela DB como o login já tem).
+ * A porta define três operações: `check` (lê sem incrementar), `increment`
+ * (incrementa sem verificar) e `consume` (verifica + incrementa numa só
+ * chamada atómica). Os adaptadores implementam-na de forma intercambiável.
+ *
+ * Adaptadores disponíveis (selecção por RATE_LIMIT_DRIVER):
+ *   memory  — mapa em memória, por processo. Default. Adequado para testes
+ *             unitários e desenvolvimento local sem pilha completa. Não
+ *             partilha estado entre instâncias — em produção com duas
+ *             instâncias o limite efectivo duplica.
+ *   valkey  — janela deslizante em Valkey (protocolo Redis). Estado partilhado
+ *             entre todas as instâncias. Requer VALKEY_URL. Modo de falha
+ *             configurável por superfície (ver failClosed em RateLimiterExtendedOptions).
+ *
+ * Âmbito (ADR-0014, revisto pelo ADR-0010):
+ *   Protegidos aqui:
+ *     - Registo público (3/h por IP e por e-mail)       → registoLimiter
+ *     - Convites de utilizador (20/h por tenant)         → inviteLimiter
+ *     - Exportações CSV/XLSX/PDF (10/min por utilizador) → exportLimiter
+ *     - Assinatura de URL de armazenamento (30/min/user) → presignLimiter
+ *   Protegidos pelo Keycloak (force bruta nativa):
+ *     - Login, recuperação de palavra-passe, verificação de e-mail.
+ *   Compatibilidade (serão removidos por w8-identidade ao fundir ADR-0010):
+ *     - passwordResetLimiter, handoffLimiter, verificacaoEmailLimiter
  *
  * Uso:
- *   const limiter = createRateLimiter({ windowMs: 15*60*1000, max: 5 });
- *   const result = await limiter.check('ip::email');
- *   if (result.limited) return new Response(null, { status: 429, headers: { 'Retry-After': String(result.retryAfterSec) } });
+ *   const rl = await registoLimiter.consume(`${ip}::registo`);
+ *   if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
  */
+
+// ---------------------------------------------------------------------------
+// Interface pública da porta
+// ---------------------------------------------------------------------------
 
 export interface RateLimitResult {
   limited: boolean;
@@ -19,32 +44,57 @@ export interface RateLimitResult {
 }
 
 export interface RateLimiterOptions {
-  /** Janela de tempo em milissegundos. Default: 15 min. */
-  windowMs?: number;
-  /** Número máximo de pedidos na janela. Default: 5. */
-  max?: number;
+  /** Janela de tempo em milissegundos. */
+  windowMs: number;
+  /** Número máximo de pedidos na janela. */
+  max: number;
 }
+
+export interface RateLimiterExtendedOptions extends RateLimiterOptions {
+  /**
+   * Comportamento quando o backend (Valkey) está inacessível.
+   *
+   * false (default) — falha aberta: devolve limited=false e regista alerta.
+   *   O produto continua a funcionar sem limitação. Adequado para superfícies
+   *   autenticadas onde a indisponibilidade do Valkey não deve causar downtime.
+   *
+   * true — falha fechada: devolve limited=true e regista alerta.
+   *   Usado EXCLUSIVAMENTE no registo público — a única superfície não
+   *   autenticada e com custo real por pedido (e-mail + provisão de tenant).
+   *   Se o Valkey estiver em baixa, o registo fica bloqueado; é preferível
+   *   à alternativa de deixar uma botnet registar tenants ilimitadamente.
+   *
+   * O adaptador em memória ignora esta opção (não tem backend remoto).
+   */
+  failClosed?: boolean;
+}
+
+export interface RateLimiter {
+  /** Verifica o limite sem incrementar o contador. */
+  check(key: string): Promise<RateLimitResult>;
+  /** Incrementa o contador sem verificar o limite. */
+  increment(key: string): Promise<void>;
+  /** Conveniência: check + increment numa só chamada atómica. */
+  consume(key: string): Promise<RateLimitResult>;
+}
+
+// ---------------------------------------------------------------------------
+// Adaptador em memória (por processo)
+// ---------------------------------------------------------------------------
 
 interface Entry {
   count: number;
   resetAt: number;
 }
 
-export interface RateLimiter {
-  check(key: string): Promise<RateLimitResult>;
-  increment(key: string): Promise<void>;
-  /** Conveniência: check + increment numa só chamada. */
-  consume(key: string): Promise<RateLimitResult>;
-}
-
 /**
- * Cria uma instância de RateLimiter com backend em memória.
- * Adequado para desenvolvimento e testes unitários.
- * Em produção, usar o adaptador Redis (spec 16/17).
+ * Cria um RateLimiter com backend em memória.
+ * Adequado para testes unitários e desenvolvimento sem pilha completa.
+ * Não partilha estado entre processos — não usar em produção com múltiplas
+ * instâncias.
  */
-export function createRateLimiter(opts?: RateLimiterOptions): RateLimiter {
-  const windowMs = opts?.windowMs ?? 15 * 60 * 1000;
-  const max = opts?.max ?? 5;
+export function createRateLimiter(opts: RateLimiterOptions): RateLimiter {
+  const { windowMs, max } = opts;
   const store = new Map<string, Entry>();
 
   function getOrCreate(key: string): Entry {
@@ -62,9 +112,7 @@ export function createRateLimiter(opts?: RateLimiterOptions): RateLimiter {
     async check(key: string): Promise<RateLimitResult> {
       const entry = getOrCreate(key);
       const limited = entry.count >= max;
-      const retryAfterSec = limited
-        ? Math.ceil((entry.resetAt - Date.now()) / 1000)
-        : 0;
+      const retryAfterSec = limited ? Math.ceil((entry.resetAt - Date.now()) / 1000) : 0;
       return { limited, remaining: Math.max(0, max - entry.count), retryAfterSec };
     },
 
@@ -77,51 +125,141 @@ export function createRateLimiter(opts?: RateLimiterOptions): RateLimiter {
       const entry = getOrCreate(key);
       const limited = entry.count >= max;
       if (!limited) entry.count += 1;
-      const retryAfterSec = limited
-        ? Math.ceil((entry.resetAt - Date.now()) / 1000)
-        : 0;
+      const retryAfterSec = limited ? Math.ceil((entry.resetAt - Date.now()) / 1000) : 0;
       return { limited, remaining: Math.max(0, max - entry.count), retryAfterSec };
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Instâncias pré-configuradas para cada endpoint sensível
+// Selecção de adaptador por variável de ambiente (padrão STORAGE_DRIVER)
 // ---------------------------------------------------------------------------
 
-/** Reset de palavra-passe: 5 tentativas em 15 min por IP+email. */
+export type RateLimitDriver = 'memory' | 'valkey';
+
+function resolverDriver(): RateLimitDriver {
+  const d = (process.env.RATE_LIMIT_DRIVER ?? 'memory').trim();
+  if (d !== 'memory' && d !== 'valkey') {
+    throw new Error(`RATE_LIMIT_DRIVER inválido: "${d}" (usa "memory" ou "valkey")`);
+  }
+  return d;
+}
+
+/**
+ * Cria um RateLimiter escolhendo o adaptador conforme RATE_LIMIT_DRIVER:
+ *   memory (default) → adaptador em memória (createRateLimiter)
+ *   valkey            → adaptador Valkey (createValkeyRateLimiter)
+ *
+ * As instâncias pré-configuradas abaixo usam esta função — não chamar
+ * createRateLimiter directamente em código de produção.
+ */
+export function createRateLimiterFromEnv(opts: RateLimiterExtendedOptions): RateLimiter {
+  const driver = resolverDriver();
+  if (driver === 'valkey') {
+    return createValkeyRateLimiter({
+      windowMs: opts.windowMs,
+      max: opts.max,
+      failClosed: opts.failClosed ?? false,
+    });
+  }
+  return createRateLimiter({ windowMs: opts.windowMs, max: opts.max });
+}
+
+// ---------------------------------------------------------------------------
+// Instâncias pré-configuradas — âmbito ADR-0014 (revisto pelo ADR-0010)
+// ---------------------------------------------------------------------------
+
+/**
+ * Registo público: 3 pedidos/hora por IP e por e-mail (ADR-0014 §3).
+ *
+ * FALHA FECHADA: se o Valkey estiver em baixa, bloqueia o registo.
+ * Justificação: é a única superfície não autenticada com custo real por
+ * pedido (e-mail enviado + provisão de tenant com 504 contas PGC). Deixar
+ * passar sem limitação em caso de falha do Valkey é uma porta escancarada.
+ */
+export const registoLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  failClosed: true,
+});
+
+/**
+ * Convites de utilizador: 20 convites/hora por tenant (ADR-0014 §3).
+ * Chave a usar no handler: `${ctx.tenantId}::invite`
+ *
+ * Falha aberta: uma interrupção do Valkey não deve impedir a gestão de equipa.
+ */
+export const inviteLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  failClosed: false,
+});
+
+/**
+ * Exportações CSV/XLSX/PDF: 10 pedidos/minuto por utilizador (ADR-0014 §3).
+ * Chave a usar no handler: `${ctx.userId}::export`
+ *
+ * Falha aberta: uma exportação não limitada é indesejável mas não catastrófica.
+ */
+export const exportLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 1000,
+  max: 10,
+  failClosed: false,
+});
+
+/**
+ * Assinatura de URL de armazenamento (presign): 30 pedidos/minuto por
+ * utilizador (ADR-0014 §3).
+ * Chave a usar no handler: `${ctx.userId}::presign`
+ *
+ * Falha aberta: o upload de documentos não deve ser bloqueado por indisponibilidade
+ * do Valkey.
+ */
+export const presignLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 1000,
+  max: 30,
+  failClosed: false,
+});
+
+// ---------------------------------------------------------------------------
+// Compatibilidade — serão removidos por w8-identidade (ADR-0010)
+// ---------------------------------------------------------------------------
+// Estas superfícies passam a ser geridas pela detecção de força bruta nativa
+// do Keycloak. As instâncias mantêm-se até ao merge do w8-identidade para
+// não quebrar o código que as importa.
+//
+// Os limitadores de compatibilidade usam SEMPRE o adaptador em memória
+// (createRateLimiter), não o adaptador Valkey, porque vão ser removidos.
+// Distribuir um limitador que está prestes a desaparecer não traz valor.
+
+/** @deprecated Keycloak trata força bruta nativa. Remover com w8-identidade. */
 export const passwordResetLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5 });
 
-/** Convite de utilizador: 10 convites em 1 hora por utilizador. */
-export const inviteLimiter = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 10 });
-
-/** Exportações (CSV/PDF): 20 pedidos em 1 hora por utilizador. */
-export const exportLimiter = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 20 });
-
-/** Webhooks de entrada: 100 pedidos em 1 min por IP. */
-export const webhookLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 100 });
-
-// --- Onboarding self-service (spec 19) --------------------------------------
-
-/**
- * Registo público: 5 tentativas em 1 hora por IP e por email.
- * O trial é sem cartão — sem este limite (mais o captcha) o custo de criar
- * tenants em massa é zero.
- */
-export const registoLimiter = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
-
-/** Consumo do token de handoff: 20 tentativas em 15 min por IP. */
+/** @deprecated TokenHandoff é removido pelo ADR-0013 §5. Remover com w8-identidade. */
 export const handoffLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
 
-/** Verificação de email: 20 tentativas em 15 min por IP. */
+/** @deprecated Keycloak trata verificação de e-mail. Remover com w8-identidade. */
 export const verificacaoEmailLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
 
+/** Webhooks de entrada: 100 pedidos/minuto por IP. Mantido — não é Keycloak. */
+export const webhookLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 1000,
+  max: 100,
+  failClosed: false,
+});
+
+// ---------------------------------------------------------------------------
+// Utilitários
+// ---------------------------------------------------------------------------
+
 /**
- * Conveniência: devolve Response 429 pronta com cabeçalho `Retry-After`.
+ * Devolve uma Response 429 pronta com cabeçalho `Retry-After`.
  */
 export function rateLimitedResponse(retryAfterSec: number): Response {
   return new Response(
-    JSON.stringify({ error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Demasiados pedidos. Tente mais tarde.' } }),
+    JSON.stringify({
+      error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Demasiados pedidos. Tente mais tarde.' },
+    }),
     {
       status: 429,
       headers: {
