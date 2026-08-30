@@ -55,7 +55,9 @@ x-erp-ambiente: &erp-ambiente
   # Telemetria: destino OTLP é UMA variável (ADR-0019 / task 2.11)
   OTEL_SERVICE_NAME: gespro-erp
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
-  # Contratos para a fase 2 (w8-cache e w8-identidade)
+  # Rate limiting distribuído (ADR-0014, w8-cache): adaptador Valkey partilhado
+  # pelas duas instâncias. É o que torna o limite verificável entre instâncias.
+  RATE_LIMIT_DRIVER: valkey
   VALKEY_URL: redis://valkey:6379
   KEYCLOAK_URL: http://keycloak:8080
   KEYCLOAK_ISSUER: http://localhost:8081/realms/gespro
