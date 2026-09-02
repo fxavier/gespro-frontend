@@ -68,6 +68,13 @@ x-erp-ambiente: &erp-ambiente
   # Rate limiting distribuído (ADR-0014, w8-cache): adaptador Valkey partilhado
   # pelas duas instâncias. É o que torna o limite verificável entre instâncias.
   RATE_LIMIT_DRIVER: valkey
+  # Anti-abuso (ADR-0016). Sem estas, os contentores correm em modo produção com
+  # CAPTCHA_PROVIDER por definir → `captcha_nao_configurado` → o registo público
+  # é SEMPRE recusado, e a pilha de referência não consegue correr o seu próprio
+  # fluxo de inscrição. Os valores por omissão são as chaves de TESTE públicas da
+  # Cloudflare, que passam sempre — nunca chaves reais.
+  CAPTCHA_PROVIDER: ${CAPTCHA_PROVIDER:-turnstile}
+  CAPTCHA_SECRET_KEY: ${CAPTCHA_SECRET_KEY:-1x0000000000000000000000000000000AA}
   VALKEY_URL: redis://valkey:6379
   KEYCLOAK_URL: http://keycloak:8080
   KEYCLOAK_ISSUER: http://localhost:8081/realms/gespro

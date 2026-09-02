@@ -266,3 +266,46 @@ no ERP) não é coberto por nenhum E2E existente. Bom candidato para o `w8-corre
 **Nota sobre `keycloak.ts`:** O ficheiro pertence ao `w8-identidade`. A alteração é um
 acréscimo cirúrgico (função nova no final do ficheiro, sem alterar nada existente) necessária
 para o expurgo. O `w8-identidade` deve preservá-la ao fundir.
+
+---
+
+## Smoke ponta-a-ponta — feito pelo orquestrador, 2026-09-02
+
+O agente deixou este gate por fazer, por falta de chaves de ambiente. Foi feito aqui, contra a pilha
+real, e é o gate da Fase 2 inteira: era esta a costura que se tinha partido entre o `w8-identidade`
+(dono do ERP) e o `w8-anti-abuso` (dono do site), sem que nenhum dos dois a pudesse ver sozinho.
+
+**Lacuna da pilha encontrada e corrigida primeiro:** o `docker-compose.yml` não passava
+`CAPTCHA_PROVIDER` nem `CAPTCHA_SECRET_KEY` às instâncias do ERP. Como correm em modo produção,
+`verificarCaptcha` devolvia `captcha_nao_configurado` e o registo era **sempre** recusado — a pilha de
+referência não conseguia correr o seu próprio fluxo de inscrição. Agora leva as chaves de **teste**
+públicas da Cloudflare por omissão.
+
+O site não está no `docker-compose.yml`; foi levantado com `pnpm dev` em `:3100`, apontado ao ERP em
+`:8080` através do proxy.
+
+| Elo | Evidência |
+|---|---|
+| Formulário do site | Zero elementos `input[type="password"]`; campo oculto `captchaToken` presente e preenchido pelo widget |
+| Corpo submetido | Nenhum contém a cadeia `senha` |
+| Ecrã pós-submissão | Encaminha para a caixa de correio; nenhuma sessão estabelecida no acto |
+| Keycloak (realm `gespro`) | 1 utilizador · `sub eeeee9e7-bd1c-438c-bf5f-fde7bfd5e435` · `emailVerified: false` · `requiredActions: ['VERIFY_EMAIL','UPDATE_PASSWORD']` · **`credentials`: nenhuma** |
+| Postgres | `User` com o **mesmo** `keycloakSub` · `primeiroAcessoEm` **NULL** (estado «por activar») · `Tenant` com slug derivado |
+| Mailpit | E-mail «Atualização de conta» entregue ao endereço registado |
+
+**A linha que mais vale:** `credentials: nenhuma`. Em nenhum ponto do caminho existiu uma
+palavra-passe — não foi recolhida no site, não viajou no pedido, não foi guardada no ERP, e não
+existe no Keycloak. É definida lá pelo utilizador ao clicar no e-mail.
+
+O `keycloakSub` coincidente nos dois lados prova a ordem do ADR-0013 §2: Keycloak primeiro, Postgres
+depois, com o `sub` devolvido pela Admin API gravado no espelho local.
+
+### O que continua por provar
+
+- **O clique no link do e-mail** não foi automatizado — a definição da palavra-passe e o primeiro
+  login (que escreve `primeiroAcessoEm`) ficam por cobrir ponta-a-ponta.
+- **A recusa do Turnstile** não foi provada: a chave de teste que passa sempre aceita qualquer token,
+  incluindo lixo, portanto o caminho `captcha_invalido` exigiria recriar as instâncias com o segredo
+  `2x0000000000000000000000000000000AA`. O caminho está coberto por teste unitário, não por runtime.
+- O site continua **fora do `docker-compose.yml`**, o que torna este smoke um procedimento manual em
+  vez de um gate automático. Vale a pena acrescentá-lo à pilha.
