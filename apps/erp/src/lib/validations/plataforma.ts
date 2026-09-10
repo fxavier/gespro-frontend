@@ -104,8 +104,13 @@ export const ConfiguracaoFiscalSchema = z.object({
     .optional()
     .or(z.literal('')),
   assinaturaDigital: z.string().max(500).optional(),
-  planoAssinatura: planoAssinaturaEnum.optional(),
-  statusAtivo: z.boolean().optional(),
+  // `planoAssinatura` e `statusAtivo` NÃO entram aqui, e não é omissão (#31).
+  // Este schema é editado pelo ADMIN do próprio Tenant; aqueles dois campos
+  // governam o acesso e a facturação da empresa e pertencem a outras duas
+  // autoridades — o webhook de facturação e a administração da GestPro.
+  // Aceitá-los deixava um Tenant suspenso desbloquear-se e promover-se de
+  // Plano. O Zod remove chaves desconhecidas, logo ausentá-los basta: nunca
+  // chegam ao serviço. Ver ADR-0027 §5/§6.
 });
 export type ConfiguracaoFiscalInput = z.infer<typeof ConfiguracaoFiscalSchema>;
 
