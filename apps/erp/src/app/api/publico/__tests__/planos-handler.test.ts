@@ -43,6 +43,12 @@ describe('GET /api/publico/planos', () => {
         destaque: expect.any(Boolean),
       });
       expect(plano.limites.utilizadores).toBeDefined();
+      expect(plano.limites.armazens).toBeDefined();
+
+      // Só é Limite do plano o que o produto verifica (ADR-0027 §2, issue #32).
+      // Publicar um número que ninguém aplica não é um limite, é uma promessa.
+      expect(plano.limites).not.toHaveProperty('documentosMes');
+      expect(plano.limites).not.toHaveProperty('produtos');
     }
   });
 

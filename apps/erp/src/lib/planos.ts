@@ -31,12 +31,20 @@ export interface Preco {
   moeda: typeof MOEDA_FATURACAO;
 }
 
+/**
+ * Só entra aqui o que o produto VERIFICA (ADR-0027 §2). Um número publicado
+ * que ninguém aplica não é um limite, é uma promessa — e o primeiro cliente
+ * que descobrir passa a tratar todo o catálogo como decorativo.
+ *
+ * `documentosMes` foi retirado por decisão, não por preguiça: recusar a
+ * emissão de um documento fiscal por razão comercial mete o contrato de venda
+ * dentro de um acto que é do Estado, e pune o Tenant que cresce.
+ */
 export interface LimitesPlano {
-  utilizadores: number;
-  armazens: number;
-  documentosMes: number;
   /** -1 = ilimitado. */
-  produtos: number;
+  utilizadores: number;
+  /** -1 = ilimitado. Conta Localizações de tipo ARMAZEM, activas. */
+  armazens: number;
   suporte: string;
 }
 
@@ -62,8 +70,6 @@ export const PLANOS: Record<PlanoId, Plano> = {
     limites: {
       utilizadores: 3,
       armazens: 1,
-      documentosMes: 200,
-      produtos: 500,
       suporte: 'Email (48h)',
     },
     precoMensal: { valor: 29, moeda: MOEDA_FATURACAO },
@@ -78,8 +84,6 @@ export const PLANOS: Record<PlanoId, Plano> = {
     limites: {
       utilizadores: 15,
       armazens: 5,
-      documentosMes: 2000,
-      produtos: -1,
       suporte: 'Email + telefone (24h)',
     },
     precoMensal: { valor: 79, moeda: MOEDA_FATURACAO },
@@ -95,8 +99,6 @@ export const PLANOS: Record<PlanoId, Plano> = {
     limites: {
       utilizadores: -1,
       armazens: -1,
-      documentosMes: -1,
-      produtos: -1,
       suporte: 'Gestor de conta dedicado (4h)',
     },
     precoMensal: { valor: 199, moeda: MOEDA_FATURACAO },

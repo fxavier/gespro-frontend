@@ -74,7 +74,6 @@ export const PLANOS_DEMONSTRACAO: Plano[] = [
     limites: {
       utilizadores: 3,
       armazens: 1,
-      documentosPorMes: 500,
       empresas: 1,
     },
     funcionalidades: [
@@ -94,7 +93,6 @@ export const PLANOS_DEMONSTRACAO: Plano[] = [
     limites: {
       utilizadores: 15,
       armazens: 5,
-      documentosPorMes: 5000,
       empresas: 1,
     },
     funcionalidades: [
@@ -115,7 +113,6 @@ export const PLANOS_DEMONSTRACAO: Plano[] = [
     limites: {
       utilizadores: null,
       armazens: null,
-      documentosPorMes: null,
       empresas: null,
     },
     funcionalidades: [
