@@ -66,3 +66,116 @@
 :root.pf-v5-theme-dark #kc-header-wrapper.pf-v5-c-brand {
   background-image: url("../img/gespro-logo-escuro.svg");
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Disposição (ADR-0028)
+ *
+ * O §8 do ADR-0012 entregava a disposição ao PatternFly; o ADR-0028 trouxe-a
+ * de volta. Faz-se por CSS sobre as classes que o `template.ftl` já emite —
+ * NÃO por substituição de templates. Doze das classes de layout são
+ * configuráveis por propriedade e só três estão cravadas, portanto não há
+ * nada aqui que exija tocar em FreeMarker.
+ *
+ * É essa a razão de ser deste bloco em vez de um `template.ftl` próprio: o
+ * custo de revalidação por subida de versão do Keycloak é ZERO. Foi o custo
+ * recorrente que pôs o tecto do §8; sem ele, o tecto não tinha razão de ser.
+ *
+ * Valores: packages/brand/tokens.css. Nenhuma cor nova é inventada.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --gespro-radius: 0.625rem;
+  --gespro-card: oklch(1 0 0);
+  --gespro-border: oklch(0.922 0 0);
+  --gespro-input: oklch(0.922 0 0);
+  --gespro-muted-fg: oklch(0.556 0 0);
+  --gespro-fg: oklch(0.145 0 0);
+  --gespro-ring: oklch(0.45 0.15 250);
+}
+:root.pf-v5-theme-dark {
+  --gespro-card: oklch(0.205 0 0);
+  --gespro-border: oklch(1 0 0 / 10%);
+  --gespro-input: oklch(1 0 0 / 15%);
+  --gespro-muted-fg: oklch(0.708 0 0);
+  --gespro-fg: oklch(0.985 0 0);
+  --gespro-ring: oklch(0.62 0.15 250);
+}
+
+/* O cartão: superfície da marca, com raio e contorno em vez da sombra do PF.
+   O ERP não usa sombras pesadas — usa contorno de 1px e raio de 0.625rem. */
+.pf-v5-c-login__main {
+  background: var(--gespro-card);
+  border: 1px solid var(--gespro-border);
+  border-radius: var(--gespro-radius);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+/* Largura do cartão: o PF usa uma medida larga que faz o formulário parecer
+   perdido. 26rem é a mesma medida dos formulários de autenticação do ERP. */
+.pf-v5-c-login__container {
+  max-width: 26rem;
+}
+
+/* Cabeçalho e corpo com o mesmo ritmo de espaçamento do ERP. */
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+  padding-inline: 2rem;
+}
+.pf-v5-c-login__main-header {
+  padding-block: 2rem 0.5rem;
+  /* O PF põe aqui uma barra de destaque de 4px no seu próprio azul (#0066CC),
+     que não é o da marca e não existe em nenhum cartão do ERP. */
+  border-top: 0;
+}
+.pf-v5-c-login__main-body {
+  padding-block: 1.5rem 2rem;
+}
+
+/* Título: o PF usa 3xl, que grita. O ERP titula os formulários a 1.5rem
+   com peso 600 — é o mesmo que o PageHeader dos patterns faz. */
+.pf-v5-c-login__main-header .pf-v5-c-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--gespro-fg);
+}
+
+/* Campos: raio da marca, contorno de 1px, e anel de foco em vez da linha
+   inferior grossa do PF. Mesma mecânica do input do ERP. */
+.pf-v5-c-form-control {
+  border: 1px solid var(--gespro-input);
+  border-radius: var(--gespro-radius);
+  background: transparent;
+  --pf-v5-c-form-control--after--BorderBottomWidth: 0;
+}
+.pf-v5-c-form-control:focus-within {
+  border-color: var(--gespro-ring);
+  outline: 2px solid var(--gespro-ring);
+  outline-offset: -1px;
+}
+
+/* Botões: raio da marca e altura confortável para toque. */
+.pf-v5-c-button {
+  border-radius: var(--gespro-radius);
+  font-weight: 500;
+}
+.pf-v5-c-button.pf-m-primary {
+  padding-block: 0.625rem;
+}
+
+/* Rodapé do cartão (registo, «esqueceu-se»): separado por contorno, não por
+   banda cinzenta — a banda do PF lê-se como outro componente. */
+.pf-v5-c-login__main-footer-band {
+  background: transparent;
+  border-top: 1px solid var(--gespro-border);
+  padding-block: 1rem;
+  color: var(--gespro-muted-fg);
+}
+
+/* Espaço entre o logótipo e o cartão. */
+#kc-header {
+  padding-block-end: 1.5rem;
+}
