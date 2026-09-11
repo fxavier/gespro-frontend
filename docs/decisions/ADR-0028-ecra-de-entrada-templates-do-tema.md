@@ -32,17 +32,35 @@ exactamente a peça que o §8 entregou de propósito.
 
 ## Decisão
 
-### 1. O tecto do §8 sobe: os *templates* passam a ser nossos
+### 1. O tecto do §8 sobe: a disposição passa a ser nossa
 
-O tema `gespro` passa a substituir quatro *templates* FreeMarker: `login.ftl`,
-`login-update-password.ftl`, `login-verify-email.ftl` e `login-reset-password.ftl`.
+O tecto do §8 — «os *templates* FreeMarker não são tocados» — deixa de valer. A disposição dos
+ecrãs de credenciais passa a ser desenhada por nós, nos quatro: entrada, definição de
+palavra-passe, verificação de e-mail e recuperação.
 
-**Foram considerados dois âmbitos.** Só o `login.ftl` — o ecrã que toda a gente vê todos os dias,
-com o custo recorrente de um ficheiro — ou os quatro, cobrindo também o primeiro acesso e a
-recuperação. **Escolheram-se os quatro**, aceitando que o custo de revalidação é proporcional ao
-número de ficheiros: quatro leituras por subida de versão, não uma. A razão é a coerência — um
-utilizador que define a palavra-passe num ecrã e entra noutro, com desenhos diferentes, vê a
-costura que este ADR existe para apagar.
+**Por que mecanismo, depende do desenho alvo**, e a distinção foi apurada depois de ler o tema
+base do Keycloak 26.7. Não é a que a issue #57 e a primeira redacção deste ADR supunham:
+
+| Alcance pretendido | Mecanismo | Custo recorrente |
+|---|---|---|
+| Outra **aparência** da estrutura que já existe — espaçamento, tipografia, cor, dimensão e posição do cartão | `theme.properties` + CSS. **Zero `.ftl`** | Nenhum. As doze propriedades de layout são um contrato mais estável do que os *templates* |
+| Outra **estrutura** — painel lateral, logótipo dentro do cartão, ordem diferente dos elementos | `template.ftl` — **um** ficheiro, e muda os quatro ecrãs de uma vez | Um ficheiro a revalidar por subida de versão |
+| Outros **campos** ou outra ordem de campos dentro de um ecrã | O `.ftl` desse ecrã | Um ficheiro por ecrã alterado |
+
+O que o apuramento mostrou: `login.ftl` são 56 linhas que importam o `template.ftl` e preenchem
+duas secções — o título e os campos. Todo o chrome vive no `template.ftl`, e nele **doze classes
+de layout são configuráveis por propriedade** (`kcLogin`, `kcLoginContainer`, `kcLoginMain`,
+`kcLoginMainHeader`, `kcLoginMainTitle`, `kcLoginMainBody`, `kcLoginMainFooter` e afins). Só três
+classes estão cravadas — `pf-v5-c-login__header`, `pf-v5-c-brand` e `pf-v5-svg` — e o
+`gespro.css` já estiliza duas delas.
+
+**Consequência prática:** o eixo «um *template* ou quatro», que foi discutido ao decidir isto, era
+o eixo errado. O eixo real é **estilo contra estrutura**. Os quatro ecrãs partilham um chrome; ou
+se muda esse chrome uma vez, ou não se muda de todo.
+
+**Este ADR não fixa o mecanismo**, porque o desenho alvo não existe: ninguém desenhou o que é «a
+disposição do GestPro». Fixa a autorização — a disposição pode passar a ser nossa — e manda
+escolher o mecanismo mais barato que sirva o desenho, pela ordem da tabela acima.
 
 ### 2. O *Direct Access Grant* continua rejeitado
 
@@ -97,10 +115,12 @@ esse custo à actualização em vez do calendário, remover a razão pela qual o
 
 ## Consequências
 
-- **Quatro `.ftl` novos** em `infra/keycloak/themes/gespro/login/`. O `theme.properties` mantém
-  `parent=keycloak.v2`: herda-se tudo o que não for substituído.
-- **Custo recorrente assumido:** quatro ficheiros a reler em cada subida do Keycloak. É maior do
-  que o mínimo possível e foi escolhido de propósito; se doer, reduz-se a `login.ftl` com um ADR novo.
+- **Falta o desenho alvo**, e é o que bloqueia a execução. Enquanto não existir, não se sabe se
+  bastam `theme.properties` e CSS ou se é preciso `template.ftl` — e a diferença entre os dois é
+  todo o custo recorrente desta decisão.
+- **O `theme.properties` mantém `parent=keycloak.v2`** em qualquer dos caminhos: herda-se tudo o
+  que não for substituído, e nunca se copia o tema base inteiro.
+- **Se o caminho for `template.ftl`:** um ficheiro a reler em cada subida do Keycloak, não quatro.
 - **O portão de acessibilidade não muda de sítio.** O `a11y.a11y.ts` continua a apontar ao ecrã do
   Keycloak nos dois temas, como o ADR-0012 deixou. O que muda é que o ecrã passa a ser desenhado
   por nós — e portanto os 32/32 WCAG AA passam a ser responsabilidade nossa, não herdada do
