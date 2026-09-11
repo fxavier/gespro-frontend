@@ -67,10 +67,40 @@ na política de privacidade, sem interruptor, sem prazo e sem registo visível a
 | **GitHub Enterprise** | Sessão de uma hora · **razão obrigatória** · e-mail ao impersonado que **não se pode desactivar** |
 | **SAP** | Dez níveis de acesso nomeados, autorização ligada ao caso, e log visível ao cliente durante 12 meses que «cannot be deactivated» |
 
+## Dois anti-padrões documentados, e valem mais que os bons exemplos
+
+**A Zendesk não regista a impersonação.** O artigo oficial do registo de auditoria não contém as
+palavras «assume», «assumption» nem «impersonate». E na impersonação agente→utilizador final a
+documentação diz: «**any actions you take… are done by the user you're logged in as**» — acções
+sem atribuição a quem as praticou. É exactamente o defeito que o `audit-extension` deste
+repositório teria se alguma vez se adoptasse impersonação.
+
+A Zendesk reserva-se ainda o direito de assumir a conta **sem aviso prévio** em emergências ou
+suspeita de violação dos termos — e nas contas de avaliação a assunção está **sempre ligada**.
+
+**A Salesforce classifica a própria funcionalidade como não-conforme.** O Security Health Check
+marca «Administrators Can Log In As Any User» com valor conforme = **desmarcado**, e «Force
+relogin after Login-As-User» = **marcado**. O fornecedor documenta que a impersonação permanente
+é um risco, no seu próprio produto.
+
+## Correcções a uma versão anterior deste documento
+
+Três afirmações da primeira recolha não resistiram à leitura verbatim e **nunca chegaram a ser
+publicadas aqui** — ficaram de fora por terem vindo de resumos de motor de busca:
+
+| Afirmado | Apurado |
+|---|---|
+| Acesso da Atlassian revogado **24 h** após o fecho do ticket | Revogado **no momento** do fecho. As 24 h vinham de um artigo de fórum |
+| Acesso da Atlassian é **por site** | É **à organização inteira**: «full access to any sites in your organization» |
+| Existe página `admin.atlassian.com → Support access` | **Não existe.** Era alucinação do resumo de pesquisa |
+| Picklist da Salesforce: 1 dia / 1 semana / 1 mês / 1 ano | **Não verificado.** A documentação só afirma o **máximo de 1 ano** |
+
+**A residência de dados não remove o acesso**, na Atlassian: mesmo em Isolated Cloud, o conteúdo
+«may transit or be accessed by Atlassian staff for support purposes with customer consent».
+
 ## O que continua por saber
 
 - A definição directa da Gartner para *just-in-time* e *zero standing privilege* (403).
-- A janela exacta da Atlassian após o fecho do ticket.
 - As opções de duração do interruptor da Cloudflare.
 - Salesforce e Atlassian ficaram com **recolha secundária**: os sítios estão atrás de CAPTCHA
   ou de JavaScript. Verificar em navegador antes de citar em qualquer documento externo.
