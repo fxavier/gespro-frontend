@@ -121,6 +121,10 @@ esse custo à actualização em vez do calendário, remover a razão pela qual o
 - **O `theme.properties` mantém `parent=keycloak.v2`** em qualquer dos caminhos: herda-se tudo o
   que não for substituído, e nunca se copia o tema base inteiro.
 - **Se o caminho for `template.ftl`:** um ficheiro a reler em cada subida do Keycloak, não quatro.
+- **Executado pelo primeiro caminho** (issue #57, 2026-09-11): `theme.properties` intacto, **zero
+  `.ftl`**, tudo em `gespro.css` sobre as classes que o `template.ftl` já emite. Custo recorrente
+  nulo. Se um desenho futuro exigir outra estrutura, sobe-se ao segundo caminho sem ADR novo — a
+  autorização deste cobre os três.
 - **O portão de acessibilidade não muda de sítio.** O `a11y.a11y.ts` continua a apontar ao ecrã do
   Keycloak nos dois temas, como o ADR-0012 deixou. O que muda é que o ecrã passa a ser desenhado
   por nós — e portanto os 32/32 WCAG AA passam a ser responsabilidade nossa, não herdada do

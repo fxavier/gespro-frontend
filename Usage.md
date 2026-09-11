@@ -124,3 +124,32 @@ e **resultado de um compromisso real**. Falhando uma, não escreva.
   fornecedores, outro descobriu que citara um código legal revogado. **Verifique antes de publicar,
   e diga sempre o que verificou e o que não.** Um relatório que distingue as duas coisas vale mais
   do que um que soa seguro.
+
+## Mexer no tema do Keycloak
+
+O ecrã de entrada é servido pelo Keycloak com o tema `gespro` (ADR-0012 §8, ADR-0028). Editar o
+tema tem uma armadilha que custa meia hora a quem não a conhece.
+
+**O Keycloak serve-lhe o ficheiro antigo, e o `curl` mente-lhe.** Há uma cache gzip **em disco**,
+em `/opt/keycloak/data/tmp/kc-gzip-cache/`, dentro de um volume — **sobrevive ao restart do
+contentor**. Quem pede sem compressão lê do disco e vê o ficheiro novo; um browser pede gzip e
+recebe a cópia obsoleta.
+
+```bash
+# o que um browser realmente recebe (não use curl simples — dá-lhe o ficheiro certo e engana-o)
+curl -s --compressed -H 'Accept-Encoding: gzip' \
+  http://localhost:8081/resources/<hash>/login/gespro/css/gespro.css | wc -c
+
+# limpar depois de cada edição ao tema
+docker compose exec keycloak sh -c 'rm -rf /opt/keycloak/data/tmp/kc-gzip-cache'
+```
+
+**Duas outras que já morderam:**
+
+- **Os SVG do tema são XML a sério.** Um comentário com `--` lá dentro invalida o documento
+  inteiro e o browser não renderiza nada — os estilos computados continuam a dizer que o elemento
+  lá está, com a imagem de fundo certa. Foi assim que os dois logótipos passaram despercebidos
+  desde que o tema foi escrito. Valide com `python3 -c "import xml.dom.minidom as m; m.parse(...)"`.
+- **Os estilos computados não chegam.** Raio, contorno e largura podem estar todos certos e o
+  ecrã na mesma errado. **Tire a fotografia**: o cliente PKCE aceita um pedido de autorização
+  construído à mão, portanto dá para abrir o ecrã sem passar pelo ERP.
