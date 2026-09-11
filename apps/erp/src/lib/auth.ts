@@ -1,19 +1,27 @@
-import NextAuth from 'next-auth';
-import Keycloak from 'next-auth/providers/keycloak';
+import NextAuth, { CredentialsSignin } from 'next-auth';
+import Credentials from 'next-auth/providers/credentials';
 import { prismaBase } from '@/server/db/client';
 import { ForbiddenError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import {
-  kcConfig,
   renovarTokens,
+  revogarRefreshToken,
   intervaloResolucaoSegundos,
   tectoSessaoSegundos,
 } from '@/server/auth/keycloak';
+import { autenticarPorPalavraPasse } from '@/server/auth/direct-grant';
+import { loginLimiter } from '@/server/security/rate-limiter';
 
 /**
- * Autenticação OIDC contra o Keycloak (ADR-0010) com a fronteira de
- * autorização em Postgres (ADR-0011): o Keycloak responde «quem és», a base
- * de dados responde «o que podes».
+ * Autenticação por Direct Access Grant contra o Keycloak (ADR-0029) com a
+ * fronteira de autorização em Postgres (ADR-0011): o Keycloak responde
+ * «quem és», a base de dados responde «o que podes».
+ *
+ * Até ao ADR-0029 isto era um fluxo OIDC com salto para o ecrã do Keycloak.
+ * Passou a ser um formulário nosso que fala com o Keycloak pela API. O que
+ * se perdeu — federação, MFA a sério, cookie de SSO — está escrito no
+ * ADR-0029 §3, e não é pouco. O que NÃO mudou é tudo o resto desta
+ * descrição: a fronteira de autorização é a mesma, linha por linha.
  *
  * O token do Keycloak transporta identidade (`sub`, `email`, `name`) — nunca
  * permissões nem tenant. O `tenantId` resolve-se `sub → User → tenantId`:
@@ -108,7 +116,32 @@ async function resolverUtilizadorLocal(keycloakSub: string): Promise<Resolucao> 
 // NextAuth
 // ---------------------------------------------------------------------------
 
-const cfg = kcConfig();
+/**
+ * Códigos que o formulário de login sabe traduzir. Viajam no `code` do erro
+ * `CredentialsSignin`; o ecrã mapeia-os para mensagens em PT-PT. Nunca se
+ * devolve «palavra-passe errada» quando o que houve foi uma falha nossa.
+ */
+export type MotivoRecusaLogin =
+  | 'credenciais'
+  | 'conta-por-activar'
+  | 'conta-desactivada'
+  | 'nao-provisionado'
+  | 'inactivo'
+  | 'subscricao'
+  | 'indisponivel';
+
+/**
+ * Tem de estender `CredentialsSignin` do Auth.js, não `Error`: um erro
+ * qualquer lançado no `authorize` é convertido em `Configuration` e o motivo
+ * perde-se pelo caminho. Verificado — era o que acontecia.
+ */
+class RecusaLogin extends CredentialsSignin {
+  code: MotivoRecusaLogin;
+  constructor(code: MotivoRecusaLogin) {
+    super(code);
+    this.code = code;
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
@@ -120,63 +153,112 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   pages: { signIn: '/auth/login', error: '/auth/erro' },
   providers: [
-    // PKCE (S256, imposto pelo realm) + state; o segredo do cliente fica no
-    // servidor — nunca no navegador (ADR-0010 §3). Endpoints divididos:
-    // autorização pelo issuer público (é o browser que lá vai), troca de
-    // código/userinfo pelo interno (é o servidor que lá vai — na pilha docker
-    // o público não é alcançável de dentro do contentor).
-    Keycloak({
-      clientId: cfg.clientId,
-      clientSecret: cfg.clientSecret,
-      issuer: cfg.issuer,
-      authorization: {
-        url: `${cfg.issuer}/protocol/openid-connect/auth`,
-        params: { scope: 'openid profile email' },
+    /**
+     * Direct Access Grant (ADR-0029). O `authorize` é a porta de entrada:
+     * autentica no Keycloak e só depois resolve o `User` local. A ordem
+     * importa — não se diz a um desconhecido se um e-mail existe ou não
+     * antes de ele provar quem é.
+     *
+     * As recusas que viviam no `callbacks.signIn` estão aqui, porque é aqui
+     * que passa a haver identidade: com Credentials não há `profile`.
+     */
+    Credentials({
+      credentials: {
+        identificador: { label: 'E-mail', type: 'email' },
+        palavraPasse: { label: 'Palavra-passe', type: 'password' },
       },
-      token: `${cfg.issuerInterno}/protocol/openid-connect/token`,
-      userinfo: `${cfg.issuerInterno}/protocol/openid-connect/userinfo`,
+      async authorize(raw, req) {
+        const identificador = typeof raw?.identificador === 'string' ? raw.identificador.trim() : '';
+        const palavraPasse = typeof raw?.palavraPasse === 'string' ? raw.palavraPasse : '';
+        if (!identificador || !palavraPasse) throw new RecusaLogin('credenciais');
+
+        // Limite antes de tocar no Keycloak (ADR-0029 §4). Duas chaves: o IP
+        // trava quem varre contas, o identificador trava quem martela uma.
+        //
+        // `check` agora e `increment` SÓ na falha — de propósito. Contar
+        // logins com êxito puniria o escritório inteiro atrás de um NAT e a
+        // pessoa que entra em três dispositivos. Força bruta é sobre falhas.
+        const ip =
+          req?.headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+          req?.headers?.get('x-real-ip') ||
+          'desconhecido';
+        const chaveIp = `${ip}::login`;
+        const chaveConta = `${identificador.toLowerCase()}::login`;
+
+        const [porIp, porConta] = await Promise.all([
+          loginLimiter.check(chaveIp),
+          loginLimiter.check(chaveConta),
+        ]);
+        if (porIp.limited || porConta.limited) {
+          logger.warn(
+            { ip, identificador, porIp: porIp.limited, porConta: porConta.limited },
+            '[auth] tentativas de início de sessão limitadas',
+          );
+          // «Credenciais» de propósito: dizer «está bloqueado» confirmaria a
+          // quem varre que a conta existe e que vale a pena voltar.
+          throw new RecusaLogin('credenciais');
+        }
+
+        const kc = await autenticarPorPalavraPasse(identificador, palavraPasse);
+        if (!kc.ok) {
+          // Indisponibilidade do Keycloak não é tentativa falhada: seria o
+          // produto a bloquear-se a si próprio durante uma avaria.
+          if (kc.motivo !== 'indisponivel') {
+            await Promise.all([
+              loginLimiter.increment(chaveIp),
+              loginLimiter.increment(chaveConta),
+            ]);
+          }
+          throw new RecusaLogin(kc.motivo);
+        }
+
+        const res = await resolverUtilizadorLocal(kc.sub);
+        if (!res.ok) {
+          logger.warn(
+            { keycloakSub: kc.sub, motivo: res.motivo },
+            '[auth] sessão recusada após autenticação',
+          );
+          throw new RecusaLogin(res.motivo);
+        }
+
+        // «Por activar» é primeiroAcessoEm == null (ADR-0013 §5-bis): escrita
+        // única, idempotente por construção (updateMany com filtro null).
+        await prismaBase.user.updateMany({
+          where: { keycloakSub: kc.sub, primeiroAcessoEm: null },
+          data: { primeiroAcessoEm: new Date() },
+        });
+
+        // Só o que o `jwt` precisa na emissão inicial. Nunca a palavra-passe.
+        return { id: res.userId, keycloakSub: kc.sub, kcRefreshToken: kc.refreshToken };
+      },
     }),
   ],
   callbacks: {
     /**
-     * Porta de entrada. Recusas com mensagem explícita em `/auth/erro`:
-     * «contacte o administrador da sua empresa» é o caso legítimo de um
-     * colaborador ainda não provisionado (ADR-0013), não um erro anónimo.
+     * Sem `callbacks.signIn`: com Credentials, quem recusa é o `authorize`,
+     * e recusa ANTES de haver sessão. Um `signIn` aqui correria depois e
+     * seria uma segunda porta para a mesma fechadura — pior, porque só a
+     * primeira conhece o motivo.
      */
-    async signIn({ profile }) {
-      const sub = profile?.sub;
-      if (!sub) return '/auth/erro?motivo=sem-identidade';
-
-      const res = await resolverUtilizadorLocal(sub);
-      if (!res.ok) {
-        logger.warn({ keycloakSub: sub, motivo: res.motivo }, '[auth] sessão recusada no signIn');
-        return `/auth/erro?motivo=${res.motivo}`;
-      }
-
-      // «Por activar» é primeiroAcessoEm == null (ADR-0013 §5-bis): escrita
-      // única, idempotente por construção (updateMany com filtro null).
-      await prismaBase.user.updateMany({
-        where: { keycloakSub: sub, primeiroAcessoEm: null },
-        data: { primeiroAcessoEm: new Date() },
-      });
-
-      return true;
-    },
-
-    async jwt({ token, account, profile }) {
+    async jwt({ token, user }) {
       const agora = Math.floor(Date.now() / 1000);
 
       // --- Emissão inicial (login acabado de acontecer) --------------------
-      if (account && profile?.sub) {
-        const res = await resolverUtilizadorLocal(profile.sub);
-        // O signIn já recusou os casos !ok; isto cobre a corrida entre os dois.
+      // `user` é o que o `authorize` devolveu; só existe neste momento.
+      if (user) {
+        const sub = (user as { keycloakSub?: unknown }).keycloakSub;
+        const refresh = (user as { kcRefreshToken?: unknown }).kcRefreshToken;
+        if (typeof sub !== 'string' || typeof refresh !== 'string') return null;
+
+        const res = await resolverUtilizadorLocal(sub);
+        // O authorize já recusou os casos !ok; isto cobre a corrida entre os dois.
         if (!res.ok) return null;
 
         token.uid = res.userId;
         token.tenantId = res.tenantId;
         token.permissions = res.permissions;
-        token.keycloakSub = profile.sub;
-        token.kcRefreshToken = account.refresh_token;
+        token.keycloakSub = sub;
+        token.kcRefreshToken = refresh;
         token.resolverEm = agora + intervaloResolucaoSegundos();
         return token;
       }
@@ -225,6 +307,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.tenantId = token.tenantId;
       session.user.permissions = token.permissions;
       return session;
+    },
+  },
+  events: {
+    /**
+     * Terminar sessão revoga o token de renovação (ADR-0029). Sem cookie de
+     * SSO para encerrar, é isto que impede a re-resolução seguinte de trocar
+     * um token de uma sessão que o utilizador julga fechada.
+     *
+     * Aqui — e não numa rota própria — porque cobre TODOS os caminhos de
+     * saída, incluindo os que ainda não existem.
+     */
+    async signOut(message) {
+      const token = 'token' in message ? message.token : null;
+      const refresh = token?.kcRefreshToken;
+      if (typeof refresh === 'string') await revogarRefreshToken(refresh);
     },
   },
 });

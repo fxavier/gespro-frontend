@@ -133,13 +133,10 @@ export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderP
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={() =>
-                void signOut({ redirect: false }).then(() => {
-                  // Termina também a sessão SSO no Keycloak — sem isto o
-                  // regresso a /auth/login faz re-login automático.
-                  window.location.href = '/api/auth/logout-keycloak';
-                })
-              }
+              // Desde o ADR-0029 não há sessão SSO a encerrar: o `signOut`
+              // limpa o cookie e o `events.signOut` revoga o token de
+              // renovação no servidor. Uma chamada, sem salto de domínio.
+              onClick={() => void signOut({ callbackUrl: '/auth/login' })}
             >
               Terminar sessão
             </DropdownMenuItem>

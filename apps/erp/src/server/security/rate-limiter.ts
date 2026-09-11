@@ -184,6 +184,35 @@ export const registoLimiter = createRateLimiterFromEnv({
 });
 
 /**
+ * Início de sessão: 10 tentativas/15 min por IP e 5/15 min por identificador
+ * (ADR-0029 §4).
+ *
+ * Existe porque o Direct Access Grant tirou o IP de quem tenta ao Keycloak:
+ * todas as tentativas lhe chegam com o IP do servidor, e a detecção de força
+ * bruta dele deixa de distinguir um atacante de toda a gente. Este limite é o
+ * que repõe essa distinção.
+ *
+ * Duas chaves, de propósito: a do identificador trava quem martela uma conta
+ * a partir de muitos IPs; a do IP trava quem varre muitas contas a partir de
+ * um.
+ *
+ * **Conta FALHAS, não tentativas.** O chamador faz `check` antes e
+ * `increment` só quando a autenticação é recusada. Contar entradas com êxito
+ * trancaria o escritório inteiro atrás de um NAT — e foi o que aconteceu à
+ * suite E2E na primeira versão disto.
+ *
+ * **Falha ABERTA**, ao contrário do registo. Uma interrupção do Valkey com
+ * `failClosed: true` aqui seria uma paragem total do produto — ninguém
+ * entraria. O que sobra nesse intervalo é a protecção do próprio Keycloak:
+ * degradada pelo IP único, mas viva.
+ */
+export const loginLimiter = createRateLimiterFromEnv({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  failClosed: false,
+});
+
+/**
  * Convites de utilizador: 20 convites/hora por tenant (ADR-0014 §3).
  * Chave a usar no handler: `${ctx.tenantId}::invite`
  *
