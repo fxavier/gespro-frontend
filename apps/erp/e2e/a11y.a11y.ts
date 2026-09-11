@@ -21,7 +21,7 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { esperarFormularioKeycloak } from './helpers/auth';
+import { esperarFormularioLogin } from './helpers/auth';
 
 // ─── Helper: executar axe e falhar em violações AA ────────────────────────────
 
@@ -64,37 +64,40 @@ async function checkA11y(
 
 // ─── Testes ───────────────────────────────────────────────────────────────────
 
-// Login usa sessão limpa (não autenticado). Desde o ADR-0012 §8 a porta de
-// entrada é o ECRÃ DO KEYCLOAK (tema gespro): /auth/login salta para lá, e é
-// lá que o axe corre — nos dois temas, senão a página onde o cliente escreve a
-// palavra-passe ficava a única do produto sem verificação de acessibilidade.
-test.describe('A11y: Página de Login (Keycloak, tema gespro)', () => {
+// Login usa sessão limpa (não autenticado). Desde o ADR-0029 a porta de
+// entrada voltou a ser NOSSA: `/auth/login` não salta, e o axe corre no nosso
+// ecrã — nos dois temas, senão a página onde o cliente escreve a palavra-passe
+// ficava a única do produto sem verificação de acessibilidade.
+//
+// Os 32/32 WCAG AA deixaram de ser herdados do PatternFly: passaram a ser
+// responsabilidade deste repositório.
+test.describe('A11y: Página de Login (ecrã do GestPro)', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test('sem violações AA no ecrã de login — tema claro', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.goto('/auth/login');
-    await esperarFormularioKeycloak(page);
+    await esperarFormularioLogin(page);
 
-    await checkA11y(page, 'login Keycloak (claro)');
+    await checkA11y(page, 'login GestPro (claro)');
   });
 
   test('sem violações AA no ecrã de login — tema escuro', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/auth/login');
-    await esperarFormularioKeycloak(page);
+    await esperarFormularioLogin(page);
 
-    await checkA11y(page, 'login Keycloak (escuro)');
+    await checkA11y(page, 'login GestPro (escuro)');
   });
 
   test('foco visível nos campos do formulário de login', async ({ page }) => {
     await page.goto('/auth/login');
-    await esperarFormularioKeycloak(page);
+    await esperarFormularioLogin(page);
 
     // Foca directamente no campo de utilizador para testar navegação por teclado
-    await page.locator('#username').focus();
+    await page.locator('#identificador').focus();
     const focado = await page.evaluate(() => document.activeElement?.id);
-    expect(focado).toBe('username');
+    expect(focado).toBe('identificador');
 
     // Tab avança para um elemento interactivo (password / mostrar palavra-passe)
     await page.keyboard.press('Tab');

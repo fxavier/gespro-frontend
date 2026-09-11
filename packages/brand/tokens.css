@@ -91,7 +91,12 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.62 0.15 250);
+  /* 0.62 dava 3.63:1 com `--primary-foreground` branco — falha o AA (4.5:1)
+     em qualquer botão primário do tema escuro. Apanhado pelo axe no ecrã de
+     login (ADR-0029), mas o defeito era de token e valia para o produto todo:
+     até então nenhuma página com botão primário passava pelo gate no escuro.
+     0.55 dá 4.85:1. O matiz e a saturação não mudam. */
+  --primary: oklch(0.55 0.15 250);
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -111,7 +116,8 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.19 0.002 250);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.62 0.15 250);
+  /* Mesma razão do `--primary` acima: texto branco por cima. */
+  --sidebar-primary: oklch(0.55 0.15 250);
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);

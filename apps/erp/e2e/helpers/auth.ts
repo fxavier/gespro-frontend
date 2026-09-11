@@ -1,14 +1,13 @@
 /**
  * Helper de autenticação para testes E2E — contra um Keycloak REAL.
  *
- * Desde o ADR-0010/0012, `/auth/login` é um redireccionamento: a porta de
- * entrada é o ecrã do Keycloak (realm `gespro`, tema `gespro`, locale pt).
- * O login E2E conduz o formulário do Keycloak de verdade — nunca um duplo
- * (gate da fase 2, ADR-0013 §6).
+ * Desde o ADR-0029 o formulário é NOSSO: `/auth/login` não salta para lado
+ * nenhum, e as credenciais vão por Direct Access Grant. O Keycloak continua a
+ * ser quem autentica de verdade — nunca um duplo (gate da fase 2, ADR-0013
+ * §6) —, só deixou de ser ele a mostrar o ecrã.
  *
- * Selectores do keycloak.v2: `#username`, `#password`, `#kc-login`. O texto
- * do botão («Iniciar sessão») vem do nosso overlay de mensagens — usar os IDs
- * torna os testes imunes a ajustes de copy.
+ * Selectores: `#identificador`, `#palavraPasse`, `button[type=submit]`. Usar
+ * IDs torna os testes imunes a ajustes de copy.
  */
 
 import type { Page } from '@playwright/test';
@@ -30,44 +29,42 @@ export const USERS = {
 /** Base pública do Keycloak — a mesma que o browser usa. */
 export const KEYCLOAK_BASE = process.env.KEYCLOAK_E2E_BASE ?? 'http://localhost:8081';
 
-/** Espera pelo formulário de login do Keycloak (após o salto OIDC). */
-export async function esperarFormularioKeycloak(page: Page): Promise<void> {
-  await page.waitForURL(/\/realms\/gespro\/protocol\/openid-connect\/auth/, { timeout: 20_000 });
-  await expect(page.locator('#username')).toBeVisible({ timeout: 15_000 });
+/** Espera pelo nosso formulário em `/auth/login` — já não há salto a esperar. */
+export async function esperarFormularioLogin(page: Page): Promise<void> {
+  await expect(page.locator('#identificador')).toBeVisible({ timeout: 20_000 });
 }
 
 /**
- * Preenche o formulário do Keycloak. NÃO navega antes — o chamador decide o
- * ponto de partida (normalmente `/auth/login`, que salta para o Keycloak).
+ * Preenche o formulário. NÃO navega antes — o chamador decide o ponto de
+ * partida (normalmente `/auth/login`).
  */
-export async function preencherLoginKeycloak(page: Page, user: TestUser): Promise<void> {
-  await esperarFormularioKeycloak(page);
-  await page.locator('#username').fill(user.email);
-  await page.locator('#password').fill(user.password);
-  await page.locator('#kc-login').click();
+export async function preencherLogin(page: Page, user: TestUser): Promise<void> {
+  await esperarFormularioLogin(page);
+  await page.locator('#identificador').fill(user.email);
+  await page.locator('#palavraPasse').fill(user.password);
+  await page.locator('button[type=submit]').click();
 }
 
 /**
- * Login completo: `/auth/login` → Keycloak → callback → dashboard.
- * Sem sleeps; confia no waitForURL com timeout explícito.
+ * Login completo: `/auth/login` → direct grant → dashboard. Sem salto de
+ * domínio — e o `loginAs` afirma-o, para a regressão não passar despercebida.
  */
 export async function loginAs(page: Page, user: TestUser): Promise<void> {
   await page.goto('/auth/login');
-  await preencherLoginKeycloak(page, user);
+  await preencherLogin(page, user);
   // 60 s: em dev a primeira compilação do /dashboard demora mais do que o
-  // fluxo OIDC inteiro. Não é rede — é o Turbopack a aquecer.
+  // próprio login. Não é rede — é o Turbopack a aquecer.
   await page.waitForURL(/\/(dashboard|$)/, { timeout: 60_000 });
+  expect(new URL(page.url()).host).not.toContain('8081');
 }
 
 /**
- * Mensagem de erro DO KEYCLOAK (credenciais inválidas, conta desactivada…).
- * keycloak.v2 rende-a com `kcInputErrorMessageClass` (`.kc-feedback-text`);
- * alertas de página usam `.pf-v5-c-alert`.
+ * Mensagem de recusa do NOSSO formulário (credenciais inválidas, conta por
+ * activar, subscrição suspensa…). O ecrã rende-a num `role=alert` dentro do
+ * formulário — ver `MotivoRecusaLogin` em `src/lib/auth.ts`.
  */
-export async function expectKeycloakError(page: Page): Promise<void> {
-  await expect(page.locator('.kc-feedback-text, .pf-v5-c-alert').first()).toBeVisible({
-    timeout: 10_000,
-  });
+export async function expectErroLogin(page: Page): Promise<void> {
+  await expect(page.locator('form [role=alert]').first()).toBeVisible({ timeout: 15_000 });
 }
 
 // ---------------------------------------------------------------------------
