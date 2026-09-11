@@ -45,7 +45,7 @@
       "secret": "${env.GESPRO_ERP_CLIENT_SECRET}",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": true,
       "attributes": {

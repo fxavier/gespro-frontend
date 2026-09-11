@@ -75,14 +75,25 @@ describe('invariantes do realm que o E2E assume', () => {
     expect(realm.ssoSessionMaxLifespan).toBe('${env.GESPRO_SSO_MAX_SECONDS}');
   });
 
-  it('o cliente gespro-erp é confidencial, com PKCE S256 e sem password grant', () => {
+  it('o cliente gespro-erp é confidencial, com PKCE S256 e com password grant', () => {
     const cliente = realm.clients.find((c) => c.clientId === 'gespro-erp');
     expect(cliente).toBeDefined();
+
+    // Confidencial: o segredo fica no servidor. Isto NÃO mudou com o
+    // ADR-0029, e é o que torna o direct grant defensável de todo — um
+    // cliente público a fazer password grant seria outra conversa.
     expect(cliente!.publicClient).toBe(false);
+
+    // Direct Access Grant: rejeitado pelo ADR-0012 §8, ADOPTADO pelo
+    // ADR-0029. O que se perdeu com a inversão — federação e MFA a sério —
+    // está escrito no §3 desse ADR. Este teste passou de guardar a ausência
+    // a guardar a presença: se um dia voltar a `false`, o login do produto
+    // deixa de funcionar, e é melhor descobri-lo aqui.
+    expect(cliente!.directAccessGrantsEnabled).toBe(true);
+
+    // O fluxo padrão fica ligado: o tema `gespro` continua a servir o
+    // primeiro acesso e a recuperação de palavra-passe (ADR-0029 §5).
     expect(cliente!.standardFlowEnabled).toBe(true);
-    // Direct Access Grant rejeitado pelo ADR-0012 §8: devolvia palavras-passe
-    // ao ERP e matava MFA/federação.
-    expect(cliente!.directAccessGrantsEnabled).toBe(false);
     expect(cliente!.attributes?.['pkce.code.challenge.method']).toBe('S256');
   });
 

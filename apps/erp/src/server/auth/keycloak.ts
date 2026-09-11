@@ -104,6 +104,39 @@ export type ResultadoRenovacao =
    */
   | { ok: false; motivo: 'recusada' | 'indisponivel' };
 
+/**
+ * Revoga um token de renovação (ADR-0029). Com o Direct Access Grant não há
+ * cookie de SSO para encerrar: terminar sessão é invalidar este token, para
+ * que a re-resolução seguinte não o consiga trocar por outro.
+ *
+ * Falhar aqui não impede o utilizador de sair — a sessão local já caiu. Fica
+ * registado, porque um token que sobrevive a um logout é coisa que se quer
+ * ver num painel.
+ */
+export async function revogarRefreshToken(refreshToken: string): Promise<boolean> {
+  const cfg = kcConfig();
+  try {
+    const res = await fetch(`${cfg.issuerInterno}/protocol/openid-connect/revoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        token: refreshToken,
+        token_type_hint: 'refresh_token',
+        client_id: cfg.clientId,
+        client_secret: cfg.clientSecret,
+      }),
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status }, '[keycloak] revogação do refresh token falhou');
+      return false;
+    }
+    return true;
+  } catch (e) {
+    logger.warn({ err: (e as Error)?.message }, '[keycloak] revogação indisponível');
+    return false;
+  }
+}
+
 /** Troca o token de renovação por tokens novos (renovação silenciosa). */
 export async function renovarTokens(refreshToken: string): Promise<ResultadoRenovacao> {
   const cfg = kcConfig();
