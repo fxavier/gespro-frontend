@@ -10,7 +10,7 @@ o histórico).
 - **Ficheiro**: `ADR-<NNNN>-<slug>.md` (quatro dígitos, zero-padded). Os ADRs 0001–0004 usam o
   prefixo curto `<NNNN>-<slug>.md` por razões históricas; do 0006 em diante a convenção é
   `ADR-<NNNN>-<slug>.md`.
-- **Numeração**: sequencial e **única**. O próximo número livre é **0029**.
+- **Numeração**: sequencial e **única**. O próximo número livre é **0030**.
 - **Estado**: `Proposto` → `Aceite` → (`Substituído por ADR-XXXX` | `Descontinuado`).
 - **Citação**: use sempre o identificador canónico da coluna «ADR» deste índice. Para os três
   documentos que colidem no número 0005, o identificador canónico é `ADR-0005-a`, `-b` ou `-c`
@@ -59,7 +59,8 @@ o histórico).
 | [0016](./ADR-0016-anti-abuso-registo.md) | Protecção anti-abuso do registo público | Proposto | 0014 |
 | [0021](./ADR-0021-fiscalidade-subscricao-saas.md) | Fiscalidade moçambicana da subscrição SaaS | **Proposto — requer parecer externo** | 0009 |
 | [0027](./ADR-0027-modelo-comercial-planos-limites.md) | Modelo comercial: planos, limites e ciclo de vida do acesso | Proposto | 0009, 0011, 0017, 0021 |
-| [0028](./ADR-0028-ecra-de-entrada-templates-do-tema.md) | O ecrã de entrada: templates próprios no tema do Keycloak | Proposto | substitui 0012 §8 (tecto) |
+| [0028](./ADR-0028-ecra-de-entrada-templates-do-tema.md) | O ecrã de entrada: templates próprios no tema do Keycloak | Proposto⁵ | substitui 0012 §8 (tecto) |
+| [0029](./ADR-0029-login-no-erp-direct-grant.md) | **O início de sessão volta ao ERP (Direct Access Grant)** | Proposto | substitui 0012 §8 e 0028 §2 |
 
 **Operação e capacidade**
 
@@ -91,7 +92,9 @@ o histórico).
 
 ³ Revisto na parte de infraestrutura pelo [ADR-0026](./ADR-0026-adiamento-fornecedor-infraestrutura.md).
 
-⁴ O §8 foi substituído pelo [ADR-0028](./ADR-0028-ecra-de-entrada-templates-do-tema.md) **apenas** no tecto de personalização do tema. A rejeição do *Direct Access Grant*, no mesmo parágrafo, mantém-se em vigor.
+⁴ O §8 foi substituído **duas vezes, em partes diferentes**: o tecto de personalização do tema pelo [ADR-0028](./ADR-0028-ecra-de-entrada-templates-do-tema.md), e a rejeição do *Direct Access Grant* pelo [ADR-0029](./ADR-0029-login-no-erp-direct-grant.md). Do §8 original já não vigora nada.
+
+⁵ O §2 — que reconfirmava a rejeição do *Direct Access Grant* — foi substituído pelo [ADR-0029](./ADR-0029-login-no-erp-direct-grant.md). O resto do ADR-0028 mantém-se: o tema continua a servir o primeiro acesso e a recuperação de palavra-passe.
 
 ## O que **não** tem ADR, e porquê
 
