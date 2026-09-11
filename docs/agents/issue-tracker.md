@@ -44,3 +44,42 @@ abrir uma issue duplicada:
 - `docs/handoff/` — contratos entre domínios e entregas por spec
 
 As issues são para trabalho **novo** que ainda não tem spec.
+
+## Wayfinding operations
+
+Como este repositório expressa os conceitos do skill `wayfinder`. O GitHub **não** tem
+relação de bloqueio nativa fora dos Projects, mas **tem** sub-issues nativas — usam-se
+essas para a árvore, e convenção no corpo para o bloqueio.
+
+| Conceito | Como se exprime aqui |
+|---|---|
+| Mapa | Issue com o label `wayfinder:map` |
+| Ticket | Issue com `wayfinder:{research,prototype,grilling,task}`, **sub-issue do mapa** |
+| Filiação | Sub-issues nativas (árvore visível na UI do GitHub) |
+| Bloqueio | Secção `## Blocked by` no corpo, com referências `#NN` |
+| Reclamação | `assignee` — um ticket aberto e sem assignee está por reclamar |
+| Fronteira | Aberto · sub-issue do mapa · sem assignee · todos os bloqueadores fechados |
+
+```bash
+# Ligar um ticket ao mapa (precisa do id interno, não do número; -F envia inteiro)
+id=$(gh api repos/fxavier/gespro-frontend/issues/<NN> --jq '.id')
+gh api -X POST repos/fxavier/gespro-frontend/issues/<MAPA>/sub_issues -F sub_issue_id="$id"
+
+# Filhos do mapa
+gh api repos/fxavier/gespro-frontend/issues/<MAPA>/sub_issues --jq '.[] | "#\(.number) \(.title)"'
+
+# Candidatos a fronteira (por reclamar) — confirmar o "Blocked by" de cada um
+gh issue list --state open --search "no:assignee" \
+  --json number,title,labels --jq '.[] | select(.labels[].name | startswith("wayfinder:"))'
+
+# Reclamar antes de trabalhar
+gh issue edit <NN> --add-assignee @me
+```
+
+**Armadilha:** `-f sub_issue_id=...` envia string e a API devolve `Invalid request`. Tem
+de ser `-F`.
+
+**Investigação em paralelo:** lançar vários agentes de investigação na mesma árvore de
+trabalho parte-a — cada um faz `git checkout` por cima do outro. Ou se lhes dá um
+worktree isolado, ou se lhes diz para não tocarem no git e escreverem para fora do
+repositório.
