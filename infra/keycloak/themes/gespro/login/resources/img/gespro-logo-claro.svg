@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" width="200" height="48" role="img" aria-label="GestPro">
   <title>GestPro</title>
-  <!-- Variante para fundos CLAROS (tinta escura). Cor = --primary do tema claro. -->
+  <!-- Variante para fundos CLAROS (tinta escura). Cor = token «primary» do tema claro. -->
   <g fill="oklch(0.45 0.15 250)">
     <rect x="1.5" y="1.5" width="45" height="45" rx="12" fill="none" stroke="oklch(0.45 0.15 250)" stroke-width="3" opacity="0.9"/>
     <rect x="12" y="27" width="6" height="10" rx="2" opacity="0.55"/>
