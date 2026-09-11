@@ -47,7 +47,7 @@ o histórico).
 |---|---|---|---|
 | [0010](./ADR-0010-keycloak-fornecedor-identidade.md) | Keycloak como fornecedor de identidade | Proposto | — |
 | [0011](./ADR-0011-fronteira-autorizacao.md) | Fronteira de autorização: Keycloak autentica, a BD autoriza | Proposto | 0010 |
-| [0012](./ADR-0012-alojamento-keycloak.md) | Alojamento e operação do Keycloak | Proposto³ | 0010 |
+| [0012](./ADR-0012-alojamento-keycloak.md) | Alojamento e operação do Keycloak | Proposto³ ⁴ | 0010 |
 | [0013](./ADR-0013-migracao-identidade.md) | Migração da identidade e provisionamento de tenants | Proposto | 0010, 0011, 0012 |
 
 **Bloqueadores comerciais e de segurança**
@@ -90,6 +90,8 @@ o histórico).
 | [0025](./ADR-0025-separacao-dominio-pessoas-projetos.md) | Separação do domínio Pessoas & Projectos | Proposto | 0017, 0024 |
 
 ³ Revisto na parte de infraestrutura pelo [ADR-0026](./ADR-0026-adiamento-fornecedor-infraestrutura.md).
+
+⁴ O §8 foi substituído pelo [ADR-0028](./ADR-0028-ecra-de-entrada-templates-do-tema.md) **apenas** no tecto de personalização do tema. A rejeição do *Direct Access Grant*, no mesmo parágrafo, mantém-se em vigor.
 
 ## O que **não** tem ADR, e porquê
 
