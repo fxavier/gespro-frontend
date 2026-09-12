@@ -22,7 +22,7 @@ export default function LoginPage() {
     <main className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-6 py-12">
       <div className="w-full max-w-sm space-y-8">
         <div className="space-y-2 text-center">
-          <p className="text-2xl font-semibold tracking-tight">GestPro</p>
+          <p className="font-display text-3xl font-medium tracking-tight">GestPro</p>
           <p className="text-sm text-muted-foreground">Sistema de gestão empresarial</p>
         </div>
 

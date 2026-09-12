@@ -242,8 +242,8 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
                 <Button
                   variant="ghost"
                   className={cn(
-                    'w-full justify-center h-10 px-0 hover:bg-primary/10 hover:text-primary transition-colors',
-                    isParentItemActive && 'bg-primary/10 text-primary'
+                    'w-full justify-center h-10 px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors',
+                    isParentItemActive && 'bg-sidebar-accent text-sidebar-accent-foreground'
                   )}
                 >
                   <item.icon className="h-4 w-4" aria-hidden="true" />
@@ -272,9 +272,9 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
           <Button
             variant="ghost"
             className={cn(
-              'w-full justify-start h-9 px-3 hover:bg-primary/10 hover:text-primary transition-colors group',
+              'w-full justify-start h-9 px-3 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group',
               level > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
-              (isParentItemActive || isExpanded) && 'bg-primary/5 text-primary'
+              (isParentItemActive || isExpanded) && 'bg-sidebar-accent/60 text-sidebar-accent-foreground'
             )}
             onClick={() => toggleExpanded(item.title)}
             aria-expanded={isExpanded}
@@ -310,8 +310,8 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
               <Button
                 variant="ghost"
                 className={cn(
-                  'w-full justify-center h-10 px-0 hover:bg-primary/10 hover:text-primary transition-colors',
-                  isItemActive && 'bg-primary/10 text-primary font-medium'
+                  'w-full justify-center h-10 px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors',
+                  isItemActive && 'bg-sidebar-primary text-sidebar-primary-foreground font-medium'
                 )}
                 asChild
               >
@@ -334,9 +334,9 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
         key={item.title}
         variant="ghost"
         className={cn(
-          'w-full justify-start h-9 px-3 hover:bg-primary/10 hover:text-primary transition-colors group',
+          'w-full justify-start h-9 px-3 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group',
           level > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
-          isItemActive && 'bg-primary/10 text-primary font-medium'
+          isItemActive && 'bg-sidebar-primary text-sidebar-primary-foreground font-medium'
         )}
         asChild
       >
@@ -365,15 +365,15 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
         {!isCollapsed && (
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 font-semibold text-foreground hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 font-semibold text-sidebar-foreground hover:opacity-80 transition-opacity"
           >
-            <Store className="h-5 w-5 text-primary" aria-hidden="true" />
-            <span className="text-base">GestPro ERP</span>
+            <Store className="h-5 w-5 text-sidebar-primary" aria-hidden="true" />
+            <span className="font-display text-lg tracking-tight">GestPro</span>
           </Link>
         )}
         {isCollapsed && (
           <Link href="/dashboard" aria-label="GestPro ERP — Início">
-            <Store className="h-5 w-5 text-primary" />
+            <Store className="h-5 w-5 text-sidebar-primary" />
           </Link>
         )}
       </div>
@@ -391,7 +391,7 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
       {/* Rodapé */}
       {!isCollapsed && (
         <div className="border-t px-3 py-3 flex-shrink-0">
-          <p className="text-xs text-muted-foreground text-center">
+          <p className="text-xs text-sidebar-foreground/55 text-center">
             GestPro ERP v1.0
           </p>
         </div>
@@ -427,7 +427,7 @@ export function AppSidebar({ userPermissions = [] }: { userPermissions?: string[
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors"
+            className="h-8 w-8 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
             onClick={() => setIsCollapsed(!isCollapsed)}
             aria-label={isCollapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
           >
