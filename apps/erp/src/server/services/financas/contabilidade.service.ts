@@ -36,9 +36,11 @@ import {
   TRANSICOES_LANCAMENTO,
   type StatusLancamento,
   type ContaPGC,
+  type ContaDetalhe,
   type Diario,
   type CentroCusto,
   type Lancamento,
+  type LancamentoDetalhe,
   type LancamentoComPartidas,
   type ContaBancaria,
   type ReconciliacaoBancaria,
@@ -133,10 +135,36 @@ export async function criarConta(input: CriarContaPGCInput, ctx: Ctx): Promise<C
   }) as unknown as ContaPGC;
 }
 
+/**
+ * Campos que deixam de poder mudar assim que a conta tem movimento.
+ *
+ * Renumerar ou reclassificar uma conta com lançamentos reescreve o significado
+ * de documentos já emitidos: o balancete e o razão do ano passado passariam a
+ * dizer outra coisa. O nome e a descrição são rótulo — esses mudam sempre.
+ */
+const CAMPOS_TRANCADOS = ['codigo', 'classe', 'natureza', 'nivel', 'tipo', 'contaMaeId'] as const;
+
 export async function atualizarConta(input: AtualizarContaPGCInput, ctx: Ctx): Promise<ContaPGC> {
   const { id, ...data } = input;
   const conta = await prisma.contaPGC.findFirst({ where: { id, tenantId: ctx.tenantId } });
   if (!conta) throw new NotFoundError('Conta não encontrada');
+
+  const alteraTrancado = CAMPOS_TRANCADOS.filter(
+    (campo) => data[campo] !== undefined && data[campo] !== conta[campo],
+  );
+
+  if (alteraTrancado.length > 0) {
+    const comUso = await prisma.partidaLancamento.count({
+      where: { contaId: id, tenantId: ctx.tenantId },
+    });
+    if (comUso > 0) {
+      throw new BusinessRuleError(
+        'CONTA_COM_LANCAMENTOS',
+        `Esta conta já tem ${comUso} movimento(s): ${alteraTrancado.join(', ')} não pode(m) ser alterado(s). Crie uma conta nova e desactive esta.`,
+      );
+    }
+  }
+
   return prisma.contaPGC.update({ where: { id }, data }) as unknown as ContaPGC;
 }
 
@@ -152,6 +180,74 @@ export async function desativarConta(id: string, ctx: Ctx): Promise<ContaPGC> {
 
 export async function obterConta(id: string, ctx: Ctx): Promise<ContaPGC | null> {
   return prisma.contaPGC.findFirst({ where: { id, tenantId: ctx.tenantId } }) as unknown as ContaPGC | null;
+}
+
+/**
+ * A conta com o que a torna legível numa página de detalhe: onde está na
+ * hierarquia e quanto movimento tem.
+ *
+ * O saldo é agregado em SQL (mesmo motivo do `gerarBalancete`): trazer as
+ * partidas todas para memória só para as somar é o defeito que já se corrigiu
+ * uma vez aqui.
+ */
+export async function obterContaDetalhe(
+  id: string,
+  intervalo: { dataInicio: Date; dataFim: Date },
+  ctx: Ctx,
+): Promise<ContaDetalhe | null> {
+  const conta = await prisma.contaPGC.findFirst({
+    where: { id, tenantId: ctx.tenantId },
+    include: {
+      contaMae: { select: { id: true, codigo: true, nome: true } },
+      subContas: {
+        select: { id: true, codigo: true, nome: true, nivel: true, ativo: true },
+        orderBy: { codigo: 'asc' },
+      },
+    },
+  });
+  if (!conta) return null;
+
+  const agregados = await prisma.partidaLancamento.groupBy({
+    by: ['tipo'],
+    where: {
+      tenantId: ctx.tenantId,
+      contaId: id,
+      lancamento: {
+        data: { gte: intervalo.dataInicio, lte: intervalo.dataFim },
+        status: { not: 'ESTORNADO' },
+      },
+    },
+    _sum: { valor: true },
+    _count: { _all: true },
+  });
+
+  const soma = (lado: 'DEBITO' | 'CREDITO') =>
+    agregados.find((a) => a.tipo === lado)?._sum.valor ?? new Prisma.Decimal(0);
+
+  const debitos = soma('DEBITO');
+  const creditos = soma('CREDITO');
+  const movimentos = agregados.reduce((acc, a) => acc + a._count._all, 0);
+
+  // O sinal do saldo é a natureza da conta, não o lado com mais valor.
+  const saldo =
+    conta.natureza === 'DEVEDORA' ? debitos.minus(creditos) : creditos.minus(debitos);
+
+  // Contagem sem janela: é o que decide se os campos estruturais estão
+  // trancados, e isso não depende do exercício que se está a ver.
+  const movimentosTotais = await prisma.partidaLancamento.count({
+    where: { contaId: id, tenantId: ctx.tenantId },
+  });
+
+  return {
+    conta: conta as unknown as ContaPGC,
+    contaMae: conta.contaMae,
+    subContas: conta.subContas,
+    debitos,
+    creditos,
+    saldo,
+    movimentos,
+    movimentosTotais,
+  };
 }
 
 export async function listarContas(filtro: FiltroContaPGCInput, ctx: Ctx): Promise<PaginacaoContabilidade<ContaPGC>> {
@@ -198,6 +294,14 @@ export async function atualizarDiario(input: AtualizarDiarioInput, ctx: Ctx): Pr
   const diario = await prisma.diario.findFirst({ where: { id, tenantId: ctx.tenantId } });
   if (!diario) throw new NotFoundError('Diário não encontrado');
   return prisma.diario.update({ where: { id }, data }) as unknown as Diario;
+}
+
+export async function obterDiario(id: string, ctx: Ctx): Promise<Diario | null> {
+  return prisma.diario.findFirst({ where: { id, tenantId: ctx.tenantId } }) as unknown as Diario | null;
+}
+
+export async function contarLancamentosDoDiario(diarioId: string, ctx: Ctx): Promise<number> {
+  return prisma.lancamento.count({ where: { diarioId, tenantId: ctx.tenantId } });
 }
 
 export async function listarDiarios(ctx: Ctx): Promise<Diario[]> {
@@ -410,6 +514,43 @@ export async function obterLancamento(id: string, ctx: Ctx): Promise<LancamentoC
       diario: { select: { id: true, codigo: true, nome: true, tipo: true } },
     },
   }) as unknown as LancamentoComPartidas | null;
+}
+
+/**
+ * O lançamento com os dois lados do estorno resolvidos.
+ *
+ * Atenção ao sentido de `lancamentoEstornoId`: apesar do que o comentário do
+ * schema deixa supor, é o **estorno** que aponta para o original, não o
+ * contrário. Por isso «quem estornou este?» é uma procura inversa e não uma
+ * leitura de campo.
+ */
+export async function obterLancamentoDetalhe(
+  id: string,
+  ctx: Ctx,
+): Promise<LancamentoDetalhe | null> {
+  const lancamento = await obterLancamento(id, ctx);
+  if (!lancamento) return null;
+
+  const resumo = { id: true, numero: true, data: true, historico: true, status: true } as const;
+
+  // Este lançamento é um estorno: `lancamentoEstornoId` guarda o original.
+  const original = lancamento.lancamentoEstornoId
+    ? await prisma.lancamento.findFirst({
+        where: { id: lancamento.lancamentoEstornoId, tenantId: ctx.tenantId },
+        select: resumo,
+      })
+    : null;
+
+  // Este lançamento foi estornado: o estorno é quem aponta para cá.
+  const estorno =
+    lancamento.status === 'ESTORNADO'
+      ? await prisma.lancamento.findFirst({
+          where: { lancamentoEstornoId: id, tenantId: ctx.tenantId },
+          select: resumo,
+        })
+      : null;
+
+  return { lancamento, original, estorno };
 }
 
 export async function listarLancamentos(filtro: FiltroLancamentoInput, ctx: Ctx): Promise<PaginacaoContabilidade<LancamentoComPartidas>> {

@@ -74,6 +74,12 @@ export interface Ctx {
  *
  * Implementação em Wave 2: `src/server/services/plataforma/user-admin.service.ts`
  */
+export interface CriacaoUtilizador {
+  utilizador: UserRow;
+  /** Só no modo `palavra-passe`; não volta em nenhuma leitura posterior. */
+  palavraPasseInicial: string | null;
+}
+
 export interface IUserAdminService {
   // -------------------------------------------------------------------------
   // Utilizadores
@@ -98,7 +104,13 @@ export interface IUserAdminService {
    * Lança `BusinessRuleError('EMAIL_JA_REGISTADO')` se o email já existir em
    * QUALQUER tenant — o email é único em todo o sistema (CONTEXT.md).
    */
-  criarUtilizador(input: CreateUserInput, ctx: Ctx): Promise<UserRow>;
+  /**
+   * Devolve o utilizador e, no modo `palavra-passe`, a temporária gerada —
+   * UMA vez, fora do modelo persistido (ADR-0030 §2).
+   */
+  criarUtilizador(input: CreateUserInput, ctx: Ctx): Promise<CriacaoUtilizador>;
+  /** Nova palavra-passe temporária, devolvida uma vez (ADR-0030 §6). */
+  reporPalavraPasse(userId: string, ctx: Ctx): Promise<string>;
 
   /**
    * Actualiza nome/estado. Email e palavra-passe são da Identidade (Keycloak)

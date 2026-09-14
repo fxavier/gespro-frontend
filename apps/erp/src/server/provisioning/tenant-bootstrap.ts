@@ -27,7 +27,7 @@ interface ContaJSON {
   nome: string;
   classe: number;
   nivel: number;
-  contaPaiCodigo: string | null;
+  contaMaeCodigo: string | null;
   aceitaLancamento: boolean;
   natureza: string;
 }
@@ -56,9 +56,10 @@ export function derivarTipoConta(classe: number, natureza: string): string {
 /**
  * Cria o plano de contas PGC-NIRF completo do tenant.
  *
- * Insere por nível (1→4) com `createMany`: garante que o pai já existe quando o
- * filho referencia `contaPaiId` (FK auto-referencial, verificada por linha em
- * Postgres) e mantém a transacção curta — 4 statements em vez de 504 INSERTs.
+ * Insere por nível (1→4) com `createMany`: garante que a conta mãe já existe
+ * quando a subconta referencia `contaMaeId` (FK auto-referencial, verificada
+ * por linha em Postgres) e mantém a transacção curta — 4 statements em vez de
+ * 504 INSERTs.
  */
 export async function bootstrapPlanoContas(
   tx: BootstrapClient,
@@ -93,7 +94,7 @@ export async function bootstrapPlanoContas(
         tipo: derivarTipoConta(c.classe, c.natureza) as never,
         natureza: c.natureza as never,
         nivel: c.nivel,
-        contaPaiId: c.contaPaiCodigo ? (idPorCodigo.get(c.contaPaiCodigo) ?? null) : null,
+        contaMaeId: c.contaMaeCodigo ? (idPorCodigo.get(c.contaMaeCodigo) ?? null) : null,
         aceitaLancamento: c.aceitaLancamento,
         ativo: true,
       }));
@@ -161,6 +162,14 @@ export const SERIES_INICIAIS: Array<{ tipo: string; prefixo: string }> = [
   { tipo: 'ATIVIDADE', prefixo: 'ATI' },
   { tipo: 'TICKET', prefixo: 'TKT' },
   { tipo: 'ENTREGA', prefixo: 'ENT' },
+  // Acrescentados depois da lista original: o enum `TipoSerieDocumento` foi
+  // estendido pelas specs 05 e 10, esta lista não. Sem elas, `criar encomenda`,
+  // `criar devolução` e `iniciar contagem de stock` falhavam em TODOS os
+  // tenants com «série activa não encontrada» — a numeração é atribuída dentro
+  // da transacção e não há como continuar sem ela.
+  { tipo: 'CONTAGEM_STOCK', prefixo: 'CTG' },
+  { tipo: 'ENCOMENDA', prefixo: 'ENC' },
+  { tipo: 'NOTA_DEVOLUCAO', prefixo: 'NDV' },
 ];
 
 export async function bootstrapSeriesDocumento(

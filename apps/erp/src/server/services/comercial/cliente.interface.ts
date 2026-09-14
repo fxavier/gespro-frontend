@@ -122,6 +122,12 @@ export interface ClienteRow {
 }
 
 /** Resumo de cliente para listagens (sem relações pesadas). */
+/** O mínimo para identificar um cliente numa listagem de outro domínio. */
+export interface NomeCliente {
+  codigo: string;
+  nome: string;
+}
+
 export interface ClienteSummary {
   id: string;
   codigo: string;
@@ -149,6 +155,8 @@ export interface IClienteService {
   // --- CRUD principal ---
   criar(input: CreateClienteInput, ctx: Ctx): Promise<ClienteRow>;
   buscarPorId(id: string, ctx: Ctx): Promise<ClienteRow>;
+  /** Nome e código de vários clientes de uma vez — para listagens de outros domínios. */
+  nomesPorIds(ids: string[], ctx: Ctx): Promise<Record<string, NomeCliente>>;
   listar(filtros: FilterClienteInput, ctx: Ctx): Promise<PaginatedClientes>;
   atualizar(id: string, input: UpdateClienteInput, ctx: Ctx): Promise<ClienteRow>;
   /**

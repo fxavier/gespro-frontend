@@ -11,6 +11,7 @@ import {
   trocaService,
   vendedorService,
 } from '@/server/services/comercial/index';
+import { listarProdutos } from '@/server/services/inventario/catalogo.service';
 import {
   CreateVendaSchema,
   UpdateVendaSchema,
@@ -136,6 +137,44 @@ export const retomarSessaoPOS = createSafeAction({
 // ---------------------------------------------------------------------------
 // Encomendas (WS-10)
 // ---------------------------------------------------------------------------
+
+/**
+ * Pesquisas para as caixas de selecção dos formulários de venda.
+ *
+ * São leituras, mas passam pelo pipeline de action porque quem as chama é um
+ * Client Component — o termo vem do que o utilizador escreve. Devolvem poucos
+ * campos de propósito: é o que a caixa mostra, nada mais.
+ */
+export const procurarVendedores = createSafeAction({
+  schema: z.object({ q: z.string().max(200).optional() }),
+  permission: 'vendas:vendedores:ver',
+  handler: async ({ q }, ctx) => {
+    const pagina = await vendedorService.listar(
+      { q, status: 'ATIVO', take: 20, orderBy: 'nome', order: 'asc' },
+      ctx,
+    );
+    return pagina.items.map((v) => ({ id: v.id, nome: v.nome }));
+  },
+});
+
+export const procurarProdutos = createSafeAction({
+  schema: z.object({ q: z.string().max(200).optional() }),
+  permission: 'produtos:ver',
+  handler: async ({ q }, ctx) => {
+    const pagina = await listarProdutos(
+      { search: q, ativo: true, take: 20, orderBy: 'nome', orderDir: 'asc' },
+      ctx,
+    );
+    // `precoVenda` já vem serializado em string pelo serviço (ADR A9).
+    return pagina.items.map((p) => ({
+      id: p.id,
+      nome: p.nome,
+      sku: p.sku,
+      precoVenda: p.precoVenda,
+      taxaIva: p.taxaIva,
+    }));
+  },
+});
 
 export const criarEncomenda = createSafeAction({
   schema: CreateEncomendaSchema,

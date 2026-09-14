@@ -6,8 +6,8 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import * as faturacaoService from '@/server/services/financas/faturacao.service';
 import { PageHeader } from '@/components/patterns';
+import { listarSeriesParaSelecao, type SerieOpcao } from '../../_lib/series';
 import { NovaNotaCreditoForm } from './_components/nova-nota-credito-form';
 
 export default async function NovaNotaCreditoPage() {
@@ -15,18 +15,11 @@ export default async function NovaNotaCreditoPage() {
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId } = session.user;
 
-  let series: Array<{ id: string; codigo: string; nome: string }> = [];
+  let series: SerieOpcao[] = [];
   try {
-    const rawSeries = await runWithTenantContext({ tenantId, userId }, () =>
-      faturacaoService.listarSeries({ tenantId, userId })
+    series = await runWithTenantContext({ tenantId, userId }, () =>
+      listarSeriesParaSelecao('NOTA_CREDITO', { tenantId, userId }),
     );
-    series = rawSeries
-      .filter((s: any) => s.tipo === 'NOTA_CREDITO')
-      .map((s: any) => ({
-        id: s.id,
-        codigo: s.prefixo,
-        nome: `${s.prefixo} ${s.ano}`,
-      }));
   } catch {
     // Form will show empty series list
   }

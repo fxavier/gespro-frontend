@@ -26,6 +26,7 @@ const kc = vi.hoisted(() => ({
   garantirUtilizador: vi.fn(async () => 'kc-sub-novo'),
   dispararEmailAccoes: vi.fn(async () => true),
   definirActivo: vi.fn(async () => undefined),
+  definirPalavraPasse: vi.fn(async () => undefined),
 }));
 vi.mock('@/server/auth/keycloak', () => kc);
 
@@ -116,8 +117,8 @@ describe('userAdminService.criarUtilizador', () => {
     mocks.mockTx.userRole.createMany.mockResolvedValue({ count: 1 });
     mocks.userFindFirst.mockResolvedValueOnce(DEMO_USER); // fetchUser após criar
 
-    const row = await userAdminService.criarUtilizador(
-      { nome: 'Alice', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true },
+    const { utilizador, palavraPasseInicial } = await userAdminService.criarUtilizador(
+      { nome: 'Alice', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true, metodoAcesso: 'convite' },
       CTX,
     );
     expect(kc.garantirUtilizador).toHaveBeenCalledWith({ email: 'alice@demo.mz', nome: 'Alice' });
@@ -133,14 +134,17 @@ describe('userAdminService.criarUtilizador', () => {
       mocks.$transaction.mock.invocationCallOrder[0],
     );
     expect(kc.dispararEmailAccoes).toHaveBeenCalledWith('kc-sub-novo');
-    expect(row.email).toBe('alice@demo.mz');
+    expect(utilizador.email).toBe('alice@demo.mz');
+    // No modo convite não se gera palavra-passe nenhuma.
+    expect(palavraPasseInicial).toBeNull();
+    expect(kc.definirPalavraPasse).not.toHaveBeenCalled();
   });
 
   it('recusa e-mail já registado — unicidade GLOBAL, com a mensagem das duas empresas', async () => {
     mocks.userFindFirst.mockResolvedValue(DEMO_USER);
     await expect(
       userAdminService.criarUtilizador(
-        { nome: 'X', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true },
+        { nome: 'X', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true, metodoAcesso: 'convite' },
         CTX,
       ),
     ).rejects.toMatchObject({
@@ -155,11 +159,67 @@ describe('userAdminService.criarUtilizador', () => {
     mocks.roleFindMany.mockResolvedValue([]);
     await expect(
       userAdminService.criarUtilizador(
-        { nome: 'X', email: 'x@x.com', roleIds: ['role-nao-existe'], ativo: true },
+        { nome: 'X', email: 'x@x.com', roleIds: ['role-nao-existe'], ativo: true, metodoAcesso: 'convite' },
         CTX,
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
     expect(kc.garantirUtilizador).not.toHaveBeenCalled();
+  });
+});
+
+describe('userAdminService.criarUtilizador — modo palavra-passe (ADR-0030)', () => {
+  it('cria sem VERIFY_EMAIL, define temporária e não envia e-mail nenhum', async () => {
+    mocks.userFindFirst.mockResolvedValueOnce(null);
+    mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
+    mocks.mockTx.user.create.mockResolvedValue(DEMO_USER);
+    mocks.mockTx.userRole.createMany.mockResolvedValue({ count: 1 });
+    mocks.userFindFirst.mockResolvedValueOnce(DEMO_USER);
+
+    const { palavraPasseInicial } = await userAdminService.criarUtilizador(
+      {
+        nome: 'Alice',
+        email: 'alice@demo.mz',
+        roleIds: ['role-1'],
+        ativo: true,
+        metodoAcesso: 'palavra-passe',
+      },
+      CTX,
+    );
+
+    // Com VERIFY_EMAIL pendente o direct grant recusaria à mesma: a conta
+    // nasce com o e-mail dado por bom e só a mudança de palavra-passe pendente.
+    expect(kc.garantirUtilizador).toHaveBeenCalledWith({
+      email: 'alice@demo.mz',
+      nome: 'Alice',
+      accoes: ['UPDATE_PASSWORD'],
+      emailVerificado: true,
+    });
+    expect(palavraPasseInicial).toMatch(/^[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}$/);
+    expect(kc.definirPalavraPasse).toHaveBeenCalledWith('kc-sub-novo', palavraPasseInicial, {
+      temporaria: true,
+    });
+    expect(kc.dispararEmailAccoes).not.toHaveBeenCalled();
+  });
+});
+
+describe('userAdminService.reporPalavraPasse', () => {
+  it('devolve uma temporária nova e deixa a mudança pendente', async () => {
+    mocks.userFindFirst.mockResolvedValue(DEMO_USER);
+
+    const nova = await userAdminService.reporPalavraPasse(DEMO_USER.id, CTX);
+
+    expect(nova).toMatch(/^[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}$/);
+    expect(kc.definirPalavraPasse).toHaveBeenCalledWith(DEMO_USER.keycloakSub, nova, {
+      temporaria: true,
+    });
+  });
+
+  it('não repõe a de um utilizador de outro tenant', async () => {
+    mocks.userFindFirst.mockResolvedValue(null);
+    await expect(userAdminService.reporPalavraPasse('outro', CTX)).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+    expect(kc.definirPalavraPasse).not.toHaveBeenCalled();
   });
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,18 +27,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
-import { criarContaPGC } from '@/server/actions/contabilidade.actions';
+import { criarContaPGC, atualizarContaPGC } from '@/server/actions/contabilidade.actions';
 import { CriarContaPGCSchema, type CriarContaPGCInput } from '@/lib/validations/contabilidade';
 
-export type ContaPaiOption = { id: string; label: string };
-
-// Tipo inline — evita importar server-only num Client Component.
-type FormState =
-  | { ok: true; data: unknown }
-  | { ok: false; error: { code: string; message: string; details?: unknown } }
-  | null;
+export type ContaMaeOption = { id: string; label: string };
 
 const SEM_PAI = '__none__';
+const LISTA = '/contabilidade/plano-contas';
 
 const CLASSE_LABEL: Record<CriarContaPGCInput['classe'], string> = {
   CLASSE_1: 'Classe 1 — Meios financeiros',
@@ -67,55 +62,72 @@ const DEFAULT_VALUES: CriarContaPGCInput = {
   tipo: 'ATIVO',
   natureza: 'DEVEDORA',
   nivel: 1,
-  contaPaiId: undefined,
+  contaMaeId: undefined,
   aceitaLancamento: false,
   descricao: '',
 };
 
-export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
+export function ContaForm({
+  contasMae,
+  contaId,
+  valoresIniciais,
+  trancado = false,
+}: {
+  contasMae: ContaMaeOption[];
+  /** Presente em modo edição. */
+  contaId?: string;
+  valoresIniciais?: Partial<CriarContaPGCInput>;
+  /**
+   * A conta já tem lançamentos: código, classe, tipo, natureza, nível e conta
+   * mãe passam a só-leitura. Renumerar ou reclassificar uma conta com histórico
+   * reescreve o significado de documentos já emitidos. O servidor recusa à
+   * mesma — isto é o aviso, não a defesa.
+   */
+  trancado?: boolean;
+}) {
   const router = useRouter();
-  const [state, dispatch, isPending] = useActionState<FormState, CriarContaPGCInput>(
-    (_prev, data) => criarContaPGC(data),
-    null
-  );
+  const [isPending, startTransition] = useTransition();
+  const emEdicao = Boolean(contaId);
 
   const form = useForm<CriarContaPGCInput>({
     resolver: zodResolver(CriarContaPGCSchema),
-    defaultValues: DEFAULT_VALUES,
+    defaultValues: { ...DEFAULT_VALUES, ...valoresIniciais },
     mode: 'onBlur',
   });
 
-  useEffect(() => {
-    if (!state) return;
+  const onSubmit = form.handleSubmit((data) => {
+    startTransition(async () => {
+      const res = contaId
+        ? await atualizarContaPGC({ id: contaId, ...data })
+        : await criarContaPGC(data);
 
-    if (!state.ok) {
-      const details = state.error.details as
-        | { fieldErrors?: Record<string, string[]> }
-        | undefined;
-
-      if (details?.fieldErrors) {
-        Object.entries(details.fieldErrors).forEach(([field, messages]) => {
-          form.setError(field as keyof CriarContaPGCInput, {
-            type: 'server',
-            message: messages[0],
+      if (!res.ok) {
+        const details = res.error.details as { fieldErrors?: Record<string, string[]> } | undefined;
+        if (details?.fieldErrors) {
+          Object.entries(details.fieldErrors).forEach(([field, messages]) => {
+            form.setError(field as keyof CriarContaPGCInput, {
+              type: 'server',
+              message: messages[0],
+            });
           });
-        });
-      } else {
-        toast.error(state.error.message ?? 'Ocorreu um erro ao criar a conta.');
+        } else {
+          toast.error(res.error.message ?? 'Ocorreu um erro ao guardar a conta.');
+        }
+        return;
       }
-    } else {
-      toast.success('Conta criada com sucesso!');
-      form.reset(DEFAULT_VALUES);
-      router.push('/contabilidade/plano-contas');
-    }
-  }, [state, form, router]);
 
-  const onSubmit = form.handleSubmit((data) => dispatch(data));
+      toast.success(emEdicao ? 'Conta actualizada.' : 'Conta criada.');
+      form.reset(data);
+      router.push(contaId ? `${LISTA}/${contaId}` : LISTA);
+      router.refresh();
+    });
+  });
+
   const isDirty = form.formState.isDirty;
 
   const handleCancel = () => {
     if (isDirty && !window.confirm('Tem alterações não guardadas. Pretende sair?')) return;
-    router.push('/contabilidade/plano-contas');
+    router.push(contaId ? `${LISTA}/${contaId}` : LISTA);
   };
 
   return (
@@ -137,11 +149,19 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
             </Button>
             <Button type="submit" size="sm" disabled={isPending} onClick={onSubmit}>
               <Save className="h-4 w-4 mr-1.5" />
-              {isPending ? 'A guardar...' : 'Guardar Conta'}
+              {isPending ? 'A guardar…' : 'Guardar Conta'}
             </Button>
           </>
         }
       >
+        {trancado && (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+            Esta conta já tem lançamentos registados. O código, a classe, o tipo, a natureza, o
+            nível e a conta mãe ficam bloqueados — alterá-los mudaria o significado de documentos
+            já emitidos. Para reclassificar, crie uma conta nova e desactive esta.
+          </div>
+        )}
+
         <FormSection title="Identificação" description="Código e designação da conta">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField
@@ -151,7 +171,7 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
                 <FormItem>
                   <FormLabel>Código</FormLabel>
                   <FormControl>
-                    <Input placeholder="ex.: 1.1.1" maxLength={20} {...field} />
+                    <Input placeholder="ex.: 1.1.1" maxLength={20} disabled={trancado} {...field} />
                   </FormControl>
                   <FormDescription>Formato PGC (ex.: 1.1.1)</FormDescription>
                   <FormMessage />
@@ -171,6 +191,7 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
                       min={1}
                       max={4}
                       className="tabular-nums"
+                      disabled={trancado}
                       {...field}
                       onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 1)}
                     />
@@ -205,7 +226,7 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Classe</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={trancado}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar classe" />
@@ -230,7 +251,7 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={trancado}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar tipo" />
@@ -255,7 +276,7 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Natureza</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={trancado}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar natureza" />
@@ -273,13 +294,14 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
 
             <FormField
               control={form.control}
-              name="contaPaiId"
+              name="contaMaeId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Conta Pai</FormLabel>
+                  <FormLabel>Conta Mãe</FormLabel>
                   <Select
                     onValueChange={(v) => field.onChange(v === SEM_PAI ? undefined : v)}
                     value={field.value ?? SEM_PAI}
+                    disabled={trancado}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -288,7 +310,7 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value={SEM_PAI}>Nenhuma (conta raiz)</SelectItem>
-                      {contasPai.map((c) => (
+                      {contasMae.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.label}
                         </SelectItem>
@@ -339,12 +361,6 @@ export function NovaContaForm({ contasPai }: { contasPai: ContaPaiOption[] }) {
             )}
           />
         </FormSection>
-
-        {state && !state.ok && !state.error.details && (
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-            {state.error.message}
-          </div>
-        )}
       </FormPage>
     </Form>
   );

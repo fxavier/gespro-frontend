@@ -76,6 +76,8 @@ export function NovaProformaForm({ series }: Props) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'linhas' });
   const linhas = useWatch({ control, name: 'linhas' }) ?? [];
+  const serieId = useWatch({ control, name: 'serieDocumentoId' });
+  const serieEscolhida = series.find((s) => s.id === serieId);
 
   const totais = linhas.reduce(
     (acc, l) => {
@@ -142,21 +144,28 @@ export function NovaProformaForm({ series }: Props) {
             <div className="space-y-2">
               <Label htmlFor="serie-proforma">Série de Documento *</Label>
               <Select
-                defaultValue={series[0]?.id ?? ''}
-                onValueChange={(v) => setValue('serieDocumentoId', v)}
+                value={serieId}
+                disabled={series.length === 0}
+                onValueChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
               >
                 <SelectTrigger id="serie-proforma" aria-label="Série de Documento">
-                  <SelectValue placeholder="Seleccione a série" />
+                  {/* O texto vem daqui e não do item: o Radix só resolve o
+                      rótulo do item depois de abrir a lista. */}
+                  <SelectValue placeholder="Seleccione a série">
+                    {serieEscolhida?.nome}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {series.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nome}</SelectItem>
+                    <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
                   ))}
-                  {series.length === 0 && (
-                    <SelectItem value="" disabled>Sem séries configuradas</SelectItem>
-                  )}
                 </SelectContent>
               </Select>
+              {series.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Sem séries activas deste tipo — configure uma antes de emitir.
+                </p>
+              )}
               {errors.serieDocumentoId && (
                 <p className="text-sm text-destructive">{errors.serieDocumentoId.message}</p>
               )}

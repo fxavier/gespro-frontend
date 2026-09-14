@@ -69,6 +69,14 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   CONCLUIDO_SERV: 'success',
   NAO_COMPARECEU: 'destructive',
 
+  // Lançamento contabilístico (StatusLancamento) — faltavam os dois, e a
+  // consequência era um «LANCADO» em bruto, com a variante por omissão, em
+  // todas as listagens e detalhes da contabilidade.
+  LANCADO: 'success',
+  // Estornado não é erro: é a forma correcta de corrigir um documento
+  // append-only. Fica neutro, como CANCELADA, e não a vermelho.
+  ESTORNADO: 'secondary',
+
   // Faturação
   EMITIDA: 'info',
   LIQUIDADA: 'success',
@@ -285,6 +293,8 @@ const badgeVariants = cva(
 
 export const STATUS_LABELS: Record<string, string> = {
   RASCUNHO: 'Rascunho',
+  LANCADO: 'Lançado',
+  ESTORNADO: 'Estornado',
   PENDENTE: 'Pendente',
   EM_APROVACAO: 'Em Aprovação',
   APROVADA: 'Aprovada',

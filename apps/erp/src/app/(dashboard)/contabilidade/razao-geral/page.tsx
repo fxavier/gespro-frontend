@@ -9,6 +9,7 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { FiltroRazaoSchema } from '@/lib/validations/contabilidade';
+import { SeletorConta } from './_components/seletor-conta';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -38,6 +39,12 @@ const FiltroUrlSchema = FiltroRazaoSchema.extend({
 type FiltroUrl = z.infer<typeof FiltroUrlSchema>;
 
 const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
+
+/** Exercício corrente — o período em que um contabilista pensa por omissão. */
+const anoCorrente = new Date().getFullYear();
+const inicioPorOmissao = new Date(Date.UTC(anoCorrente, 0, 1));
+const fimPorOmissao = new Date(Date.UTC(anoCorrente, 11, 31));
+const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
  * Sem `try/catch`: um erro propaga para `app/error.tsx` e a resposta é ≠ 200.
@@ -125,15 +132,33 @@ export default async function RazaoGeralPage({ searchParams }: PageProps) {
   // que escondeu o D2.
   const parseResult = FiltroUrlSchema.safeParse(flat);
 
+  // `arvoreContas` e não `listarContas`: o plano tem 434 contas de movimento e
+  // a listagem pagina a 200 — as restantes ficavam inalcançáveis na caixa de
+  // escolha, incluindo a que estivesse a ser consultada. Só as folhas: as de
+  // agregação não têm razão.
+  const todas = await runWithTenantContext({ tenantId, userId }, () =>
+    contabilidadeService.arvoreContas({ tenantId, userId })
+  );
+  const contas = todas
+    .filter((c) => c.aceitaLancamento)
+    .map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }));
+
   return (
     <div className="p-6 space-y-6">
       <PageHeader
         title="Razão Geral"
-        description="Movimentação detalhada por conta — filtre via URL: ?contaId=xxx&dataInicio=aaaa-mm-dd&dataFim=aaaa-mm-dd"
+        description="Movimentação detalhada por conta, com saldo acumulado"
         breadcrumbs={[
           { label: 'Contabilidade', href: '/contabilidade' },
           { label: 'Razão Geral' },
         ]}
+      />
+
+      <SeletorConta
+        contas={contas}
+        contaId={parseResult.success ? parseResult.data.contaId : undefined}
+        dataInicio={typeof flat.dataInicio === 'string' ? flat.dataInicio : iso(inicioPorOmissao)}
+        dataFim={typeof flat.dataFim === 'string' ? flat.dataFim : iso(fimPorOmissao)}
       />
 
       {parseResult.success ? (
@@ -142,7 +167,7 @@ export default async function RazaoGeralPage({ searchParams }: PageProps) {
         </Suspense>
       ) : (
         <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
-          Adicione <code>?contaId=&lt;id&gt;</code> à URL para consultar o razão de uma conta.
+          Escolha uma conta acima para ver o respectivo razão.
         </div>
       )}
     </div>

@@ -58,3 +58,25 @@ export const PROVINCIAS_MZ = _provincias as [string, ...string[]];
  * Valida contra a lista oficial de 11 províncias + Maputo Cidade.
  */
 export const provinciaSchema = z.enum(PROVINCIAS_MZ);
+
+// ---------------------------------------------------------------------------
+// Identificadores de entidade
+// ---------------------------------------------------------------------------
+
+/**
+ * Id de entidade: aceita **cuid ou uuid**.
+ *
+ * O Prisma gera cuid por omissão, mas o bootstrap do plano de contas
+ * (`tenant-bootstrap.ts`) tem de atribuir os ids à mão — o `createMany` insere
+ * por níveis e o filho precisa de saber o id do pai antes de existir — e usa
+ * `crypto.randomUUID()`. Resultado: TODAS as contas PGC de TODOS os tenants,
+ * em produção inclusive, têm uuid. Um `z.string().cuid()` num campo que
+ * carregue um id de conta rejeita-as a todas.
+ */
+export const idEntidade = (mensagem = 'ID inválido') =>
+  z.string().refine(
+    (v) =>
+      /^c[a-z0-9]{20,}$/i.test(v) ||
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
+    { message: mensagem },
+  );

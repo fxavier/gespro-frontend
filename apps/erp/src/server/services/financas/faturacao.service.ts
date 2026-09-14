@@ -578,7 +578,9 @@ export async function listarNotasCredito(filtro: FiltroNotaCreditoInput, ctx: Ct
         },
         include: {
           linhas: { orderBy: { ordemLinha: 'asc' } },
-          faturaOriginal: { select: { id: true, numero: true, total: true } },
+          // `clienteId`: a nota de crédito não tem cliente próprio — herda o da
+          // factura que corrige, e a listagem precisa dele para mostrar o nome.
+          faturaOriginal: { select: { id: true, numero: true, total: true, clienteId: true } },
         },
         orderBy: { dataEmissao: 'desc' },
       }),

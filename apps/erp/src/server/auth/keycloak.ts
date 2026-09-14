@@ -254,7 +254,19 @@ export async function procurarPorEmail(email: string): Promise<UtilizadorKeycloa
  * à frente. Criado sem palavra-passe, com `VERIFY_EMAIL` + `UPDATE_PASSWORD`
  * pendentes — é o e-mail de acções que dá entrada no produto (§5).
  */
-export async function garantirUtilizador(input: { email: string; nome: string }): Promise<string> {
+export async function garantirUtilizador(input: {
+  email: string;
+  nome: string;
+  /**
+   * Acções obrigatórias da conta nova. Por omissão as do convite por e-mail
+   * (ADR-0013 §5-bis). Quem atribui a palavra-passe passa só `UPDATE_PASSWORD`
+   * — com `VERIFY_EMAIL` pendente o *direct grant* recusaria à mesma e a conta
+   * ficaria trancada (ADR-0030 §3).
+   */
+  accoes?: string[];
+  /** `true` quando é o administrador a responder pelo endereço (ADR-0030 §3). */
+  emailVerificado?: boolean;
+}): Promise<string> {
   const existente = await procurarPorEmail(input.email);
   if (existente) return existente.id;
 
@@ -265,10 +277,10 @@ export async function garantirUtilizador(input: { email: string; nome: string })
       username: input.email,
       email: input.email,
       enabled: true,
-      emailVerified: false,
+      emailVerified: input.emailVerificado ?? false,
       firstName: primeiro ?? input.nome,
       lastName: resto.join(' ') || undefined,
-      requiredActions: ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
+      requiredActions: input.accoes ?? ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
     }),
   });
   if (res.status === 409) {
@@ -322,6 +334,34 @@ export async function dispararEmailAccoes(sub: string): Promise<boolean> {
  * desactivação (ADR-0013): falhe o lado que falhar, o resultado é acesso
  * fechado, nunca aberto.
  */
+/**
+ * Escreve a palavra-passe de uma identidade (ADR-0030).
+ *
+ * `temporaria: true` acrescenta `UPDATE_PASSWORD` às acções obrigatórias — a
+ * pessoa entra uma vez e é obrigada a mudar. `temporaria: false` **remove**
+ * essa acção e devolve a conta ao normal: é assim que a mudança se conclui.
+ * Ambos os comportamentos são do Keycloak, verificados contra o 26.7.
+ *
+ * A palavra-passe nunca é registada: nem aqui, nem em quem chama.
+ */
+export async function definirPalavraPasse(
+  sub: string,
+  palavraPasse: string,
+  opcoes: { temporaria: boolean },
+): Promise<void> {
+  const res = await adminFetch(`/users/${encodeURIComponent(sub)}/reset-password`, {
+    method: 'PUT',
+    body: JSON.stringify({ type: 'password', value: palavraPasse, temporary: opcoes.temporaria }),
+  });
+  if (!res.ok) {
+    logger.error(
+      { status: res.status, sub, temporaria: opcoes.temporaria },
+      '[keycloak] reset-password falhou',
+    );
+    throw new Error(`[keycloak] definição de palavra-passe falhou (HTTP ${res.status})`);
+  }
+}
+
 export async function definirActivo(sub: string, ativo: boolean): Promise<void> {
   const res = await adminFetch(`/users/${encodeURIComponent(sub)}`, {
     method: 'PUT',

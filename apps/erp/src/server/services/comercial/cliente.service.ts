@@ -12,7 +12,7 @@
 import 'server-only';
 
 import { Prisma } from '@prisma/client';
-import { prisma } from '@/server/db/client';
+import { prisma, prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx, TxClient } from '@/server/services/types';
@@ -20,6 +20,7 @@ import type {
   IClienteService,
   ClienteRow,
   ClienteSummary,
+  NomeCliente,
   PaginatedClientes,
   EnderecoClienteRow,
   ContactoClienteRow,
@@ -253,6 +254,32 @@ export class ClienteService implements IClienteService {
     }
 
     return mapClienteRow(cliente);
+  }
+
+  /**
+   * Nome e código de vários clientes numa só consulta.
+   *
+   * As listagens de facturação guardam `clienteId` como escalar (FK
+   * cross-domínio, sem @relation — regra do CLAUDE.md), por isso não há
+   * `include` que traga o nome: quem o quiser mostrar pede-o aqui, de uma vez,
+   * em vez de uma consulta por linha.
+   *
+   * Inclui clientes arquivados: uma factura antiga continua a ter de mostrar
+   * a quem foi emitida.
+   */
+  async nomesPorIds(ids: string[], ctx: Ctx): Promise<Record<string, NomeCliente>> {
+    const unicos = [...new Set(ids.filter(Boolean))];
+    if (unicos.length === 0) return {};
+
+    // `prismaBase` de propósito: a extensão injecta `deletedAt: null` no
+    // findMany, e aqui queremos também os arquivados. O tenantId vai explícito,
+    // como manda a regra para o cliente cru.
+    const clientes = await prismaBase.cliente.findMany({
+      where: { id: { in: unicos }, tenantId: ctx.tenantId },
+      select: { id: true, codigo: true, nome: true },
+    });
+
+    return Object.fromEntries(clientes.map((c) => [c.id, { codigo: c.codigo, nome: c.nome }]));
   }
 
   async listar(filtros: FilterClienteInput, ctx: Ctx): Promise<PaginatedClientes> {

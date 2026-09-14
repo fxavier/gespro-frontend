@@ -32,6 +32,7 @@ import {
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
 import { confirmarLancamento } from '@/server/actions/contabilidade.actions';
+import { formatarData } from '@/lib/format-date';
 
 export interface LancamentoResumo {
   id: string;
@@ -110,13 +111,7 @@ const columns: TableColumn<LancamentoResumo>[] = [
     label: 'Data',
     sortKey: 'data',
     render: (row) => (
-      <span className="tabular-nums text-muted-foreground">
-        {new Date(row.data).toLocaleDateString('pt-MZ', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })}
-      </span>
+      <span className="tabular-nums text-muted-foreground">{formatarData(row.data)}</span>
     ),
   },
   {
