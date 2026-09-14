@@ -55,6 +55,16 @@ o problema em vez de o proteger.
    palavra-passe é escrita com `temporaria: false` **antes** da transacção em Postgres. Com
    `VERIFY_EMAIL` pendente o *direct grant* recusaria a sessão e o registo não daria entrada
    nenhuma — que é exactamente o defeito que este ADR existe para corrigir.
+2-bis. **Só se escreve credencial em identidade que o próprio pedido criou.** A ordem do ponto
+   anterior, lida à letra, abre duas tomadas de conta: `garantirUtilizador` é idempotente por
+   e-mail e as recusas `EMAIL_JA_REGISTADO` e `NUIT_JA_REGISTADO` só chegam **dentro** da
+   transacção, depois da credencial já estar escrita. Registar com o e-mail de um cliente
+   existente trocar-lhe-ia a palavra-passe; registar o e-mail de uma vítima com um NUIT já
+   registado deixaria uma identidade com a credencial do atacante, à espera de ser reaproveitada
+   quando a vítima se registasse a sério. Portanto: verificação de existência da identidade
+   **antes** da escrita, e remoção da identidade que este pedido criou quando a recusa é
+   determinística. Numa falha **inesperada** a identidade fica — regra do ADR-0013 §3, e é
+   deliberado: apagar por engano a identidade de um cliente real é pior do que deixar uma órfã.
 3. A lógica pública — captcha, limitação, Zod, idempotência, Keycloak, transacção — vive numa
    **única** função partilhada (`registarTenant`). O Route Handler `POST /api/publico/registo`
    passa a adaptador HTTP, com os códigos de erro publicados inalterados. Isto não é arrumação:
