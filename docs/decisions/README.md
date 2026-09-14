@@ -10,7 +10,7 @@ o histórico).
 - **Ficheiro**: `ADR-<NNNN>-<slug>.md` (quatro dígitos, zero-padded). Os ADRs 0001–0004 usam o
   prefixo curto `<NNNN>-<slug>.md` por razões históricas; do 0006 em diante a convenção é
   `ADR-<NNNN>-<slug>.md`.
-- **Numeração**: sequencial e **única**. O próximo número livre é **0031**.
+- **Numeração**: sequencial e **única**. O próximo número livre é **0032**.
 - **Estado**: `Proposto` → `Aceite` → (`Substituído por ADR-XXXX` | `Descontinuado`).
 - **Citação**: use sempre o identificador canónico da coluna «ADR» deste índice. Para os três
   documentos que colidem no número 0005, o identificador canónico é `ADR-0005-a`, `-b` ou `-c`
@@ -48,7 +48,7 @@ o histórico).
 | [0010](./ADR-0010-keycloak-fornecedor-identidade.md) | Keycloak como fornecedor de identidade | Proposto | — |
 | [0011](./ADR-0011-fronteira-autorizacao.md) | Fronteira de autorização: Keycloak autentica, a BD autoriza | Proposto | 0010 |
 | [0012](./ADR-0012-alojamento-keycloak.md) | Alojamento e operação do Keycloak | Proposto³ ⁴ | 0010 |
-| [0013](./ADR-0013-migracao-identidade.md) | Migração da identidade e provisionamento de tenants | Proposto | 0010, 0011, 0012 |
+| [0013](./ADR-0013-migracao-identidade.md) | Migração da identidade e provisionamento de tenants | Proposto⁷ | 0010, 0011, 0012 |
 
 **Bloqueadores comerciais e de segurança**
 
@@ -62,6 +62,7 @@ o histórico).
 | [0028](./ADR-0028-ecra-de-entrada-templates-do-tema.md) | O ecrã de entrada: templates próprios no tema do Keycloak | Proposto⁵ | substitui 0012 §8 (tecto) |
 | [0029](./ADR-0029-login-no-erp-direct-grant.md) | **O início de sessão volta ao ERP (Direct Access Grant)** | Proposto⁶ | substitui 0012 §8 e 0028 §2 |
 | [0030](./ADR-0030-palavra-passe-inicial-atribuida.md) | **A palavra-passe inicial é atribuída pelo ERP** | Proposto | substitui 0029 §5; revê 0013 §5-bis |
+| [0031](./ADR-0031-entrada-imediata-registo-publico.md) | **Entrada imediata: o registo público volta a ter palavra-passe** | Proposto | substitui 0013 §4 e §5; 0027, 0029, 0030 |
 
 **Operação e capacidade**
 
@@ -98,6 +99,8 @@ o histórico).
 ⁵ O §2 — que reconfirmava a rejeição do *Direct Access Grant* — foi substituído pelo [ADR-0029](./ADR-0029-login-no-erp-direct-grant.md). O resto do ADR-0028 mantém-se, mas encolhido pelo [ADR-0030](./ADR-0030-palavra-passe-inicial-atribuida.md): o tema já não serve o primeiro acesso, só a recuperação por auto-serviço.
 
 ⁶ O §5 — que deixava o primeiro acesso e a reposição no ecrã do Keycloak — foi substituído pelo [ADR-0030](./ADR-0030-palavra-passe-inicial-atribuida.md). O resto do ADR-0029 mantém-se.
+
+⁷ O §4 (verificação de e-mail delegada ao Keycloak) e o §5 (registo público sem palavra-passe, entrada pelo e-mail de acções) foram substituídos pelo [ADR-0031](./ADR-0031-entrada-imediata-registo-publico.md). O §2 — Keycloak como fonte de verdade da identidade — mantém-se e é pressuposto do 0031.
 
 ## O que **não** tem ADR, e porquê
 
