@@ -7,6 +7,7 @@ import { AppError, ForbiddenError, UnauthorizedError, ValidationError } from '@/
 import { logger } from '@/server/observability/logger';
 import { runWithRequestContext, newRequestId } from '@/server/observability/context';
 import { recordRequest } from '@/server/observability/metrics';
+import { serializarDecimais, type Serializado } from '@/server/serializar';
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -30,6 +31,10 @@ interface SafeActionOptions<S extends z.ZodType | undefined, T> {
  * valida input com Zod, corre o handler dentro do contexto de tenant e
  * devolve sempre `ActionResult<T>` — nunca lança para o cliente.
  *
+ * O resultado passa por `serializarDecimais`: o retorno de uma action
+ * atravessa a fronteira para um Client Component, e um `Prisma.Decimal` aí
+ * rebenta a serialização — depois de a mutação já ter commitado.
+ *
  * Instrumentação transversal (sem alterar contratos/assinaturas):
  *   - Gera `requestId` por invocação; propaga via AsyncLocalStorage.
  *   - Loga início/fim com tenantId, userId, duração e permissão.
@@ -40,7 +45,7 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
   opts: SafeActionOptions<S, T>,
 ) {
   type Input = S extends z.ZodType ? z.input<S> : void;
-  return async (raw: Input): Promise<ActionResult<T>> => {
+  return async (raw: Input): Promise<ActionResult<Serializado<T>>> => {
     const requestId = newRequestId();
     const startTime = Date.now();
 
@@ -80,7 +85,7 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
       log.info({ duration }, 'action end');
       recordRequest(duration, false);
 
-      return { ok: true, data };
+      return { ok: true, data: serializarDecimais(data) };
     } catch (e) {
       const duration = Date.now() - startTime;
       const log = logger.child({ requestId, action: opts.permission ?? 'action' });
