@@ -24,6 +24,21 @@ sistema, não apenas dentro do Tenant.
 > várias adesões — foi rejeitada em 2026-08-29 por não valer a complexidade que
 > arrasta para o modelo de autorização. Ver [[Utilizador]].
 
+### Primeiro acesso
+Como uma Identidade nova entra pela primeira vez. Há **dois caminhos**, e é o
+administrador que escolhe ao criar o [[Utilizador]]: o **convite por e-mail**
+(o Keycloak envia a mensagem onde a pessoa confirma o endereço e escolhe a
+palavra-passe) ou a **palavra-passe atribuída** (o sistema gera uma provisória,
+mostra-a ao administrador uma única vez, e a pessoa é obrigada a trocá-la ao
+entrar).
+
+> **Porquê dois:** o convite pressupõe e-mail a funcionar e a chegar. Há
+> empresas onde não há — e enquanto a única porta fosse um link enviado por
+> e-mail, ninguém entrava. Decidido em 2026-09-14 (ADR-0030).
+
+A palavra-passe provisória **não é guardada em lado nenhum**: quem a perder
+repõe-na na ficha do Utilizador, o que gera outra e volta a exigir a troca.
+
 ### Acesso de suporte
 O pessoal da GestPro **não tem Identidade nos Tenants dos clientes**. Quando um incidente exige ver os
 dados de dentro, cria-se para esse incidente uma Identidade própria e temporária nesse Tenant, que é

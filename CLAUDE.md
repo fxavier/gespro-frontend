@@ -14,15 +14,17 @@ o site de marketing virá em `apps/site/`; config partilhada em `packages/tsconf
 
 ```bash
 # Base + identidade (necessárias para dev, seed e testes de integração/E2E).
-# Desde o ADR-0013 §7 o perfil por omissão inclui o KEYCLOAK: o login é OIDC
-# (realm `gespro` importado de infra/keycloak/, consola em http://localhost:8081)
-# e sem ele não há sessão. O arranque local fica mais lento — custo aceite.
+# O KEYCLOAK faz parte do perfil por omissão (ADR-0013 §7): realm `gespro`
+# importado de infra/keycloak/, consola em http://localhost:8081. Sem ele não
+# há sessão nenhuma — mas o ECRÃ de login é NOSSO desde o ADR-0029: o
+# formulário vive em /auth/login e fala com o Keycloak por Direct Access Grant.
+# Não há salto de domínio; quem autentica continua a ser o Keycloak.
 docker compose up -d          # Postgres 17 (gespro-db, porta 5432, WAL arquivado) + Keycloak 26.7
 pnpm db:migrate:dev           # aplica migrations
 pnpm db:seed                  # tenant demo + utilizadores + PGC + dados dos 7 domínios
 pnpm db:studio
 
-pnpm dev                      # http://localhost:3000  (login: admin@demo.mz / demo1234, via ecrã Keycloak)
+pnpm dev                      # http://localhost:3000  (login: admin@demo.mz / demo1234, no nosso ecrã)
 
 # Pilha local de referência COMPLETA (ADR-0026): Keycloak + Valkey + MinIO +
 # otel-lgtm + Mailpit + 2× ERP (imagem de produção) atrás de proxy. Segredos por
@@ -47,7 +49,9 @@ npx playwright test e2e/03-caixa.spec.ts
 pnpm test:integration
 ```
 
-`pnpm check` **não** apanha: (1) erros de runtime RSC (ver "Fronteira Servidor↔Cliente"); (2) erros que **só o build de produção** revela. Para UI, confirma sempre com um **smoke autenticado** (`pnpm dev` + login) ou `pnpm e2e`; antes de entregar algo que toque em build/deploy, corre também `pnpm build` (ver "Build de produção" nas regras invioláveis).
+`pnpm check` **não** apanha: (1) erros de runtime RSC (ver "Fronteira Servidor↔Cliente"); (2) erros que **só o build de produção** revela; (3) formulários que se recusam a submeter — o `zodResolver` rejeita e, se o campo não renderizar o seu erro, não acontece nada visível. Para UI, confirma sempre com um **smoke autenticado** (`pnpm dev` + login) ou `pnpm e2e`; antes de entregar algo que toque em build/deploy, corre também `pnpm build` (ver "Build de produção" nas regras invioláveis).
+
+Na suite E2E completa (`workers: 1`, `timeout: 30_000`) cai quase sempre **um** teste por corrida, e nem sempre o mesmo: com o `pnpm dev` a compilar rotas à medida, uma rota fria estoura o tecto. Antes de culpar uma alteração, corre o ficheiro sozinho. Falha conhecida e alheia ao código: `e2e/07-sessao.spec.ts:60` precisa de `AUTH_SESSION_MAX_AGE=8`, que só se aplica quando é o Playwright a arrancar o servidor (`reuseExistingServer`).
 
 ### Migrations — só o orquestrador, e **não-interativas**
 `pnpm db:migrate:dev` (`prisma migrate dev`) exige TTY e **rebenta em ambiente não-interactivo**. Para gerar uma migration a partir do delta schema↔DB sem prompts:
@@ -56,7 +60,9 @@ mig="prisma/migrations/$(date +%Y%m%d%H%M%S)_<nome>"; mkdir -p "$mig"
 npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --script > "$mig/migration.sql"
 npx prisma migrate deploy
 ```
-Rename de valor de enum: o `migrate diff` gera **drop+recreate** (perde dados) — escreve à mão `ALTER TYPE "X" RENAME VALUE 'A' TO 'B';` e marca com `prisma migrate resolve --applied <migration>`. Em produção usa **sempre** `migrate deploy`, nunca `migrate dev`.
+Renomear (valor de enum **ou coluna**): o `migrate diff` gera **drop+create** e perde os dados — escreve à mão `ALTER TYPE "X" RENAME VALUE 'A' TO 'B';` ou `ALTER TABLE "T" RENAME COLUMN "a" TO "b";` (renomeia também a constraint: `ALTER TABLE "T" RENAME CONSTRAINT …`, senão o próximo `migrate diff` vê deriva) e marca com `prisma migrate resolve --applied <migration>`. Confirma no fim que `migrate diff --from-config-datasource --to-schema prisma/schema --script` devolve *empty migration*. Em produção usa **sempre** `migrate deploy`, nunca `migrate dev`.
+
+Depois de `prisma generate`, **reinicia o `pnpm dev`** (`touch apps/erp/next.config.ts` chega): o processo em memória continua com o cliente antigo e as páginas afectadas passam a devolver o cartão de erro do `catch` — parece bug de código e é só o processo desactualizado.
 
 Utilizadores demo (senha `demo1234`): `admin@demo.mz`, `gestor@`, `financeiro@`, `operador@`, `leitura@` — tenant slug `demo`. As identidades vivem no **realm Keycloak** (`infra/keycloak/realm-gespro.json`, `sub` fixos) e o seed grava exactamente esses `sub` em `User.keycloakSub` — um teste no `pnpm check` garante a concordância (ADR-0013 §7).
 
@@ -92,7 +98,10 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 ### UI
 - **Golden standard**: `src/app/(dashboard)/compras/requisicoes/**` — o molde a replicar (lista SC + `@panel`/`(.)[id]` + detalhe com tabs + `novo`/`[id]/editar`). **Nota:** o interceptor `@panel/(.)[id]` captura o segmento literal `novo` (é um valor válido para `[id]`) — em build de produção isto mostra a listagem em vez do formulário na navegação client-side. Bug conhecido do molde (ver `docs/status.md`); ao replicar, garante que o painel devolve `null` em vez de `notFound()`.
 - `src/components/patterns/*` — biblioteca única (PageHeader, DataTable, FilterBar, StatusBadge, KpiCard, DetailShell, FormPage, Stepper, UnsavedChangesGuard…). Compor a partir daqui, não dos primitivos `ui/`.
-- `StatusBadge` usa um **mapa único** status→variante (`patterns/status-badge.tsx`); proibido mapa local.
+- `StatusBadge` usa um **mapa único** status→variante (`patterns/status-badge.tsx`); proibido mapa local. Estado sem entrada no mapa aparece **em bruto** (`LANCADO`) — ao introduzir um estado novo, regista-o lá.
+- Escolher uma entidade: `Combobox` (filtro local) ou `ComboboxRemoto` (pesquisa no servidor, com atraso e sem corridas) — nunca um campo de texto para colar um id. Acima de uma página de registos é `ComboboxRemoto`, senão os registos fora da primeira página ficam inalcançáveis.
+- `TableSkeleton` (patterns) é uma **tabela completa**, para `<Suspense fallback>`; dentro de um `<tbody>` usa-se `LinhasSkeleton`. Linhas `<tr>` soltas dentro de uma `<div>` são HTML inválido e dão erro de hidratação.
+- `Select` com valor inicial: passa o rótulo como filho — `<SelectValue placeholder="…">{opcaoEscolhida?.label}</SelectValue>`. O Radix só resolve o texto do item **depois** de a lista abrir; sem isto o campo aparece vazio apesar de haver valor escolhido.
 - Formulários: `react-hook-form` + `zodResolver` com o **mesmo** schema de `src/lib/validations/<modulo>.ts`, submit via Server Action com `useActionState`.
 
 ## Regras invioláveis (não-óbvias — causaram crashes/fugas reais)
@@ -105,9 +114,15 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 
 **Multi-tenancy** — `tenantId` **nunca** vem do cliente; vem do contexto. A extensão injecta em `create`/`findMany`/etc., mas **`findUnique`/`update`/`delete`/`upsert` NÃO são scoped** → os serviços filtram por `tenantId` explicitamente; cross-tenant devolve `NotFoundError` (404), nunca 403. Dentro de `prismaBase.$transaction` (client cru) inclui sempre `tenantId` nas escritas.
 
-**Dinheiro e documentos** — dinheiro sempre `Prisma.Decimal` (nunca `Float`); serializa `Decimal`→`string` ao passar SC→CC. Documentos transaccionais (facturas emitidas, lançamentos) são **append-only** — correcções por estorno/nota de crédito, nunca UPDATE de valores.
+**Dinheiro e documentos** — dinheiro sempre `Prisma.Decimal` (nunca `Float`); serializa `Decimal`→`string` ao passar SC→CC (`.toString()`, que é a convenção da casa — perde zeros à direita, não perde valor). O **retorno das Server Actions já vai serializado**: o `createSafeAction` passa tudo por `serializarDecimais` e o tipo é `ActionResult<Serializado<T>>` — sem isso, uma mutação que devolva a entidade gravada rebenta no cliente **depois** do commit, e o utilizador vê um erro sobre um registo que existe. Documentos transaccionais (facturas emitidas, lançamentos) são **append-only** — correcções por estorno/nota de crédito, nunca UPDATE de valores.
 
-**UI** — **sem modais**: criar/editar/detalhar são rotas dedicadas; única excepção é `AlertDialog` para confirmação destrutiva. Zero cores hardcoded (só tokens `@theme`); dark mode obrigatório.
+**Datas na UI** — formata **sempre** por `src/lib/format-date.ts` (fuso fixo `Africa/Maputo`), nunca `toLocaleString`/`toLocaleDateString` directos. O servidor corre em UTC e o browser no fuso do utilizador: horas diferentes dos dois lados ⇒ falha de hidratação ⇒ o React descarta a árvore e leva com ela os handlers — tipicamente o clique nas linhas da tabela deixa de navegar, **sem erro visível**. Mesmo princípio de `formatMZN` em `format-currency.ts`.
+
+**Identificadores em Zod** — usa `idEntidade()` de `src/lib/validations/common.ts`, não `z.string().cuid()`. O Prisma gera cuid, mas o `tenant-bootstrap` atribui **uuid** às contas PGC (o `createMany` insere por níveis e o filho precisa do id da mãe antes de ela existir). Um `.cuid()` num campo que carregue id de conta rejeita todas as contas reais, em produção inclusive.
+
+**Séries de documento** — ao estender o enum `TipoSerieDocumento`, acrescenta a série a `SERIES_INICIAIS` (`src/server/provisioning/tenant-bootstrap.ts`). O número é atribuído dentro da transacção: sem série, a operação inteira falha com «série activa não encontrada» em **todos** os tenants. Aconteceu a encomendas, devoluções e contagens de stock.
+
+**UI** — **sem modais**: criar/editar/detalhar são rotas dedicadas; única excepção é `AlertDialog` para confirmação destrutiva (confirmar, não recolher dados: um campo de texto é formulário, logo é rota). Zero cores hardcoded (só tokens `@theme`); dark mode obrigatório.
 
 **Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`.
 
