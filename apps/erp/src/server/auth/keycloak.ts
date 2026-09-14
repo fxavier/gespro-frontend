@@ -400,3 +400,77 @@ export async function eliminarUtilizador(sub: string): Promise<void> {
     throw new Error(`[keycloak] eliminação de utilizador falhou (HTTP ${res.status})`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Verificação de e-mail — ADR-0031 §5 (inverte o ADR-0013 §4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Marca o endereço como verificado no Keycloak, que continua a ser a fonte de
+ * verdade da identidade (ADR-0013 §2 — intacto). Não há coluna local: o
+ * estado viaja no *access token* para a sessão (ADR-0031 §6).
+ *
+ * Mesmo molde de `definirActivo`: um `PUT /users/{id}` parcial. O Keycloak
+ * funde o corpo com o utilizador existente, portanto isto NÃO apaga nome,
+ * e-mail nem acções pendentes.
+ *
+ * Idempotente por natureza — pôr `true` num booleano que já é `true` é um
+ * 204 igual ao primeiro. É essa propriedade que dispensa `jti` e consumo
+ * atómico na ligação (ver o cabeçalho da rota).
+ */
+export async function marcarEmailVerificado(sub: string): Promise<void> {
+  const res = await adminFetch(`/users/${encodeURIComponent(sub)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ emailVerified: true }),
+  });
+  if (!res.ok) {
+    logger.error({ status: res.status, sub }, '[keycloak] marcação de e-mail verificado falhou');
+    throw new Error(`[keycloak] marcação de e-mail verificado falhou (HTTP ${res.status})`);
+  }
+}
+
+/**
+ * Envia o e-mail com a ligação de confirmação de endereço.
+ *
+ * Substitui o `execute-actions-email` do ADR-0013 §4 NESTE caminho: quem se
+ * regista pelo ADR-0031 já tem palavra-passe e já tem sessão, logo um e-mail
+ * de acções obrigatórias trancaria a conta em vez de a abrir.
+ *
+ * Devolve `false` em falha e **nunca lança**: como no registo público, o
+ * tenant existe e a pessoa está lá dentro — tratar o SMTP como fatal desfaria
+ * um provisionamento válido. O reenvio está no aviso do painel.
+ *
+ * O `import()` do transporte é tardio de propósito: `@/server/email` resolve o
+ * provider (e carrega o nodemailer) no momento em que é importado, e este
+ * módulo é importado por `src/lib/auth.ts`, ou seja por quase todos os Server
+ * Components. Um import estático punha o cliente de SMTP no grafo de arranque
+ * de toda a aplicação para servir um caminho que corre uma vez por conta.
+ */
+export async function enviarEmailVerificacao(sub: string, email: string): Promise<boolean> {
+  try {
+    const { assinarTokenVerificacao, urlVerificacao } = await import('./ligacao-verificacao');
+    const { verificacaoEmailTemplate } = await import('@/server/email/templates/verificacao-email');
+    const { emailProvider } = await import('@/server/email');
+
+    const url = urlVerificacao(assinarTokenVerificacao(sub, email));
+    const { html, texto } = verificacaoEmailTemplate({ email, url });
+
+    await emailProvider.enviar({
+      para: email,
+      assunto: 'GestPro — confirme o seu endereço de e-mail',
+      html,
+      texto,
+    });
+
+    // Sem PII: o `sub` é opaco e já é a chave de correlação do trilho de
+    // autenticação. O endereço, nunca — nem sequer aqui.
+    logger.info({ evento: 'verificacao.enviada', sub }, '[verificacao] ligação enviada');
+    return true;
+  } catch (e) {
+    logger.error(
+      { evento: 'verificacao.enviada', sub, err: (e as Error)?.message },
+      '[verificacao] envio da ligação falhou',
+    );
+    return false;
+  }
+}

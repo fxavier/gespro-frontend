@@ -16,7 +16,17 @@ import { kcConfig } from './keycloak';
  */
 
 export type ResultadoAutenticacao =
-  | { ok: true; sub: string; refreshToken: string }
+  | {
+      ok: true;
+      sub: string;
+      refreshToken: string;
+      /**
+       * Claim `email_verified` do *access token* (ADR-0031 §6). Viaja daqui
+       * para o JWT e para a sessão — sem coluna local e sem uma chamada ao
+       * Keycloak por pedido.
+       */
+      emailVerificado: boolean;
+    }
   /**
    * `credenciais` — o Keycloak disse que não. É a única que se pode mostrar
    * ao utilizador como «dados errados».
@@ -34,21 +44,39 @@ export type ResultadoAutenticacao =
   | { ok: false; motivo: 'credenciais' | 'conta-por-activar' | 'conta-desactivada' | 'indisponivel' };
 
 /**
- * Lê o `sub` da payload do access token, sem verificar assinatura: o token
- * acabou de chegar do endpoint de token por canal de confiança, servidor a
- * servidor. Verificá-lo aqui seria verificar a nossa própria chamada.
+ * Lê a payload do access token, sem verificar assinatura: o token acabou de
+ * chegar do endpoint de token por canal de confiança, servidor a servidor.
+ * Verificá-lo aqui seria verificar a nossa própria chamada.
  */
-function subDoToken(accessToken: string): string | null {
+function payloadDoToken(accessToken: string): Record<string, unknown> | null {
   const partes = accessToken.split('.');
   if (partes.length < 2) return null;
   try {
-    const payload = JSON.parse(Buffer.from(partes[1], 'base64url').toString('utf8')) as {
-      sub?: unknown;
-    };
-    return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
+    return JSON.parse(Buffer.from(partes[1], 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >;
   } catch {
     return null;
   }
+}
+
+function subDoToken(accessToken: string): string | null {
+  const sub = payloadDoToken(accessToken)?.sub;
+  return typeof sub === 'string' && sub.length > 0 ? sub : null;
+}
+
+/**
+ * Lê `email_verified` de um access token do Keycloak (ADR-0031 §6). O claim
+ * vem do âmbito `email`, pedido tanto no *direct grant* como na renovação.
+ *
+ * **Ausente conta como `false`** — fail-closed. Os travões do ADR-0031 §5
+ * (emitir documento fiscal, criar utilizadores) recusam sem verificação, e a
+ * recusa é reversível por um clique numa ligação; deixar passar por causa de
+ * um *mapper* mal configurado não é.
+ */
+export function emailVerificadoDoToken(accessToken: string): boolean {
+  return payloadDoToken(accessToken)?.email_verified === true;
 }
 
 /** Mapeia a descrição de erro do Keycloak para um motivo nosso. */
@@ -116,8 +144,9 @@ export async function autenticarPorPalavraPasse(
     return { ok: false, motivo: 'indisponivel' };
   }
 
-  const sub = corpo.access_token ? subDoToken(corpo.access_token) : null;
-  if (!sub || !corpo.refresh_token) {
+  const accessToken = corpo.access_token;
+  const sub = accessToken ? subDoToken(accessToken) : null;
+  if (!accessToken || !sub || !corpo.refresh_token) {
     // 200 sem o que precisamos é avaria nossa, não erro do utilizador.
     logger.error(
       { temAccess: !!corpo.access_token, temRefresh: !!corpo.refresh_token, temSub: !!sub },
@@ -126,5 +155,10 @@ export async function autenticarPorPalavraPasse(
     return { ok: false, motivo: 'indisponivel' };
   }
 
-  return { ok: true, sub, refreshToken: corpo.refresh_token };
+  return {
+    ok: true,
+    sub,
+    refreshToken: corpo.refresh_token,
+    emailVerificado: emailVerificadoDoToken(accessToken),
+  };
 }
