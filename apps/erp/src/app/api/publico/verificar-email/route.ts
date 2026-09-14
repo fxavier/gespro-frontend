@@ -104,7 +104,7 @@ export const GET = withApi(
         return redireccionar(req, 'expirada');
       }
       logger.warn(
-        { evento: 'verificacao.expirada', motivo: validacao.motivo },
+        { evento: 'verificacao.recusada', motivo: validacao.motivo },
         '[verificacao] ligação recusada',
       );
       return redireccionar(req, 'invalida');

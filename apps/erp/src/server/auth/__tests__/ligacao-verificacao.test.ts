@@ -64,14 +64,20 @@ describe('recusas', () => {
     });
   });
 
-  it('um `exp` forjado é recusado por assinatura, não aceite por prazo', () => {
-    // Ordem das verificações: se o prazo fosse lido antes da assinatura, uma
-    // carga com `exp` no ano 3000 decidia a resposta sozinha.
+  it('a assinatura é verificada ANTES do prazo', () => {
+    // Este teste existe para fixar a ORDEM, e só falha se ela for trocada.
+    // Por isso a carga tem de estar expirada E mal assinada: as duas ordens
+    // devolvem `ok: false`, e o que as distingue é o `motivo`. Com um `exp` no
+    // futuro o teste seria vacuoso — a ordem invertida chegaria à assinatura na
+    // mesma e devolveria `ok: false` a passar por bom.
     const carga = Buffer.from(
-      JSON.stringify({ sub: SUB, email: EMAIL, exp: 32_503_680_000 }),
+      JSON.stringify({ sub: SUB, email: EMAIL, exp: AGORA - 1 }),
       'utf8',
     ).toString('base64url');
-    expect(validarTokenVerificacao(`${carga}.assinatura-inventada`, AGORA).ok).toBe(false);
+    expect(validarTokenVerificacao(`${carga}.assinatura-inventada`, AGORA)).toEqual({
+      ok: false,
+      motivo: 'assinatura',
+    });
   });
 
   it('assinada com outro segredo não passa', () => {
