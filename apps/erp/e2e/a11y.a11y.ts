@@ -90,6 +90,24 @@ test.describe('A11y: Página de Login (ecrã do GestPro)', () => {
     await checkA11y(page, 'login GestPro (escuro)');
   });
 
+  // O ecrã de mudança de palavra-passe (ADR-0030) é público como o login e é
+  // onde a pessoa entra pela primeira vez: fica sujeito ao mesmo gate.
+  test('sem violações AA no ecrã de mudança de palavra-passe — tema claro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto('/auth/mudar-palavra-passe?identificador=alguem%40demo.mz');
+    await expect(page.locator('#actual')).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'mudar palavra-passe (claro)');
+  });
+
+  test('sem violações AA no ecrã de mudança de palavra-passe — tema escuro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/auth/mudar-palavra-passe?identificador=alguem%40demo.mz');
+    await expect(page.locator('#actual')).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'mudar palavra-passe (escuro)');
+  });
+
   test('foco visível nos campos do formulário de login', async ({ page }) => {
     await page.goto('/auth/login');
     await esperarFormularioLogin(page);

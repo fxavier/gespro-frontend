@@ -131,8 +131,39 @@ export const CreateUserSchema = z.object({
     .array(z.string().cuid('ID de papel inválido'))
     .min(1, 'Atribua pelo menos um papel ao utilizador'),
   ativo: z.boolean().default(true),
+  /**
+   * Como a pessoa entra pela primeira vez (ADR-0030 §1). `convite` é o de
+   * sempre: e-mail de acções do Keycloak. `palavra-passe` gera uma temporária
+   * e mostra-a ao administrador — para quem não pode contar com o e-mail.
+   */
+  metodoAcesso: z.enum(['convite', 'palavra-passe']).default('convite'),
 });
 export type CreateUserInput = z.infer<typeof CreateUserSchema>;
+
+/**
+ * Mudança de palavra-passe no primeiro acesso (ADR-0030 §4/§5). Sem sessão: a
+ * prova de identidade é a palavra-passe actual, revalidada no Keycloak.
+ */
+export const MudarPalavraPasseSchema = z
+  .object({
+    identificador: z.string().min(1, 'Indique o e-mail'),
+    actual: z.string().min(1, 'Indique a palavra-passe actual'),
+    nova: z
+      .string()
+      .min(10, 'A nova palavra-passe tem de ter pelo menos 10 caracteres')
+      .max(200),
+    confirmacao: z.string().min(1, 'Confirme a nova palavra-passe'),
+  })
+  .refine((v) => v.nova === v.confirmacao, {
+    path: ['confirmacao'],
+    message: 'As palavras-passe não coincidem',
+  })
+  .refine((v) => v.nova !== v.actual, {
+    path: ['nova'],
+    message: 'A nova palavra-passe tem de ser diferente da actual',
+  });
+
+export type MudarPalavraPasseInput = z.infer<typeof MudarPalavraPasseSchema>;
 
 /**
  * O e-mail deixou de ser editável aqui: é o identificador da Identidade e

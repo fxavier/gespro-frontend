@@ -4,7 +4,9 @@ import {
   garantirUtilizador,
   dispararEmailAccoes,
   definirActivo,
+  definirPalavraPasse,
 } from '@/server/auth/keycloak';
+import { gerarPalavraPasseInicial } from '@/server/auth/palavra-passe';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
 import { inviteLimiter } from '@/server/security/rate-limiter';
 import { paginate } from '@/server/db/paginate';
@@ -246,9 +248,29 @@ export const userAdminService: IUserAdminService = {
       throw new NotFoundError('Um ou mais papéis não existem neste tenant');
     }
 
+    // Dois modos de entrada (ADR-0030 §1). Por palavra-passe, a conta nasce com
+    // o e-mail já dado por bom e só `UPDATE_PASSWORD` pendente: com
+    // `VERIFY_EMAIL` também pendente o direct grant recusaria à mesma e a
+    // pessoa ficava trancada do lado de fora.
+    const porPalavraPasse = input.metodoAcesso === 'palavra-passe';
+
     // 1. Keycloak primeiro — o lado sem transacção (ADR-0013 §2). Se falhar,
     //    nada foi escrito em Postgres e o pedido é simplesmente repetível.
-    const keycloakSub = await garantirUtilizador({ email, nome: input.nome });
+    const keycloakSub = await garantirUtilizador({
+      email,
+      nome: input.nome,
+      ...(porPalavraPasse
+        ? { accoes: ['UPDATE_PASSWORD'], emailVerificado: true }
+        : {}),
+    });
+
+    // Temporária: o Keycloak acrescenta `UPDATE_PASSWORD` e obriga a mudar ao
+    // primeiro acesso. Fica em memória até ser mostrada — nunca em Postgres,
+    // nunca num log.
+    const palavraPasseInicial = porPalavraPasse ? gerarPalavraPasseInicial() : null;
+    if (palavraPasseInicial) {
+      await definirPalavraPasse(keycloakSub, palavraPasseInicial, { temporaria: true });
+    }
 
     // 2. Postgres numa transacção.
     const user = await prismaBase.$transaction(async (tx) => {
@@ -267,12 +289,40 @@ export const userAdminService: IUserAdminService = {
       return u;
     });
 
-    // 3. E-mail de acções (verificar e-mail + definir palavra-passe) — é ELE
-    //    que dá entrada no produto. Falha não é fatal: o convite reenviar-se-á
-    //    voltando a submeter (idempotente por e-mail).
-    await dispararEmailAccoes(keycloakSub);
+    // 3. No modo convite, o e-mail de acções é o que dá entrada no produto.
+    //    Falha não é fatal: reenvia-se voltando a submeter (idempotente por
+    //    e-mail). No modo palavra-passe não há e-mail nenhum a depender.
+    if (!porPalavraPasse) await dispararEmailAccoes(keycloakSub);
 
-    return mapUser(await findUser(user.id, ctx));
+    // A palavra-passe sai daqui UMA vez, ao lado do utilizador e fora dele:
+    // não faz parte do modelo, não volta em nenhuma leitura (ADR-0030 §2).
+    return {
+      utilizador: mapUser(await findUser(user.id, ctx)),
+      palavraPasseInicial,
+    };
+  },
+
+  /**
+   * Repõe a palavra-passe de um utilizador (ADR-0030 §6).
+   *
+   * Gera uma temporária, devolve-a UMA vez ao administrador e deixa o Keycloak
+   * a exigir a mudança no acesso seguinte — o mesmo caminho do primeiro acesso.
+   * É o caso real de quem se esquece, e não depende de e-mail nenhum.
+   */
+  async reporPalavraPasse(userId: string, ctx: Ctx): Promise<string> {
+    const user = await findUser(userId, ctx); // garante que existe e é do tenant
+
+    const rl = await inviteLimiter.consume(`${ctx.tenantId}::reposicao`);
+    if (rl.limited) {
+      throw new BusinessRuleError(
+        'DEMASIADAS_REPOSICOES',
+        `Demasiadas reposições seguidas. Tente novamente dentro de ${Math.ceil(rl.retryAfterSec / 60)} minutos.`,
+      );
+    }
+
+    const nova = gerarPalavraPasseInicial();
+    await definirPalavraPasse(user.keycloakSub, nova, { temporaria: true });
+    return nova;
   },
 
   async actualizarUtilizador(userId: string, input: UpdateUserInput, ctx: Ctx) {

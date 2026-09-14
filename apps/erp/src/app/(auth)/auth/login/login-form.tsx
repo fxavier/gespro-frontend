@@ -20,8 +20,8 @@ import { Label } from '@/components/ui/label';
 /** Motivos devolvidos pelo `authorize` (ver `MotivoRecusaLogin` em lib/auth). */
 const MENSAGENS: Record<string, string> = {
   credenciais: 'E-mail ou palavra-passe incorrectos.',
-  'conta-por-activar':
-    'A sua conta ainda não foi activada. Procure no e-mail a mensagem de activação do GestPro para definir a palavra-passe.',
+  // 'conta-por-activar' não aparece aqui: essa recusa leva ao ecrã de mudança
+  // de palavra-passe (ADR-0030 §4), que é onde ela se resolve.
   'conta-desactivada': 'Esta conta está desactivada. Contacte o administrador da sua empresa.',
   'nao-provisionado':
     'A sua identidade foi reconhecida, mas ainda não existe um utilizador associado numa empresa GestPro. Contacte o administrador da sua empresa.',
@@ -55,6 +55,20 @@ export function LoginForm() {
     if (!res || res.error) {
       // `code` chega no erro do Auth.js; o `error` genérico é o resto.
       const codigo = (res as { code?: string } | undefined)?.code;
+
+      // Conta com mudança de palavra-passe pendente: o Keycloak recusa o
+      // token, mas a recusa só acontece com a palavra-passe CERTA. É primeiro
+      // acesso, não é erro — segue para o ecrã onde se resolve (ADR-0030).
+      if (codigo === 'conta-por-activar') {
+        const identificador = String(dados.get('identificador') ?? '');
+        iniciarTransicao(() => {
+          router.push(
+            `/auth/mudar-palavra-passe?identificador=${encodeURIComponent(identificador)}`,
+          );
+        });
+        return;
+      }
+
       setErro(MENSAGENS[codigo ?? ''] ?? OMISSAO);
       return;
     }

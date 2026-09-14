@@ -91,6 +91,18 @@ export const criarUtilizador = createSafeAction({
   handler: async (input, ctx) => userAdminService.criarUtilizador(input, ctx),
 });
 
+/**
+ * Repõe a palavra-passe (ADR-0030 §6). A temporária vem no resultado — é
+ * mostrada uma vez ao administrador e não fica em lado nenhum.
+ */
+export const reporPalavraPasse = createSafeAction({
+  schema: z.object({ id: z.string().cuid('ID de utilizador inválido') }),
+  permission: 'admin:gerir_utilizadores',
+  handler: async ({ id }, ctx) => ({
+    palavraPasse: await userAdminService.reporPalavraPasse(id, ctx),
+  }),
+});
+
 export const actualizarUtilizador = createSafeAction({
   schema: z.object({
     id: z.string().cuid('ID de utilizador inválido'),
