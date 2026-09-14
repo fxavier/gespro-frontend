@@ -210,7 +210,7 @@ function CartaoPlano({
               >
                 <dt className="text-texto-suave">{rotularLimite(chave)}</dt>
                 <dd className="font-medium text-foreground tabular-nums">
-                  {valor === null || valor === "" ? "∞" : String(valor)}
+                  {ilimitado(valor) ? "∞" : String(valor)}
                 </dd>
               </div>
             ))}
@@ -225,14 +225,25 @@ function CartaoPlano({
  * Rótulo legível de uma chave de limite. As chaves são definidas pelo spec 19;
  * as conhecidas ganham nome PT-PT, as futuras degradam para a chave separada
  * em palavras — nunca desaparecem da UI.
+ *
+ * A lista segue o catálogo do ADR-0027 §2 e só isso: rotular aqui um limite que
+ * o produto não verifica (`documentosMes`, `produtos`, `empresas`) seria dar
+ * nome de contrato a uma promessa.
  */
 const ROTULOS_LIMITE: Record<string, string> = {
   utilizadores: "Utilizadores",
   armazens: "Armazéns",
-  empresas: "Empresas",
-  documentosPorMes: "Documentos por mês",
-  armazenamentoGb: "Armazenamento (GB)",
+  suporte: "Apoio",
 };
+
+/**
+ * O catálogo do ERP escreve ilimitado como `-1` (`LimitesPlano`), o catálogo de
+ * demonstração como `null`. Ambos são o mesmo facto — e mostrar «-1» a quem
+ * está a escolher um plano é pior do que não mostrar nada.
+ */
+function ilimitado(valor: string | number | boolean | null): boolean {
+  return valor === null || valor === "" || valor === -1 || valor === "-1";
+}
 
 function rotularLimite(chave: string): string {
   return (

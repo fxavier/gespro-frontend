@@ -63,6 +63,12 @@ export interface Catalogo {
  * que a origem dos valores seja sempre explícita na UI. Ver ADR-0009: a
  * subscrição é cobrada em USD porque o processador não liquida em MZN.
  *
+ * Só entram aqui limites que o produto VERIFICA (ADR-0027 §2) — hoje
+ * `utilizadores` e `armazens`. `empresas` saiu com o spec 21: nada no ERP conta
+ * empresas por tenant, e um número publicado que ninguém aplica não é um
+ * limite, é uma promessa. Mesma razão por que `documentosMes` e `produtos`
+ * nunca chegaram a este ficheiro.
+ *
  * TODO(spec 19): remover quando `GET /api/publico/planos` estiver disponível
  * em todos os ambientes.
  */
@@ -74,7 +80,6 @@ export const PLANOS_DEMONSTRACAO: Plano[] = [
     limites: {
       utilizadores: 3,
       armazens: 1,
-      empresas: 1,
     },
     funcionalidades: [
       "Vendas e facturação",
@@ -93,7 +98,6 @@ export const PLANOS_DEMONSTRACAO: Plano[] = [
     limites: {
       utilizadores: 15,
       armazens: 5,
-      empresas: 1,
     },
     funcionalidades: [
       "Tudo o do plano Básico",
@@ -113,11 +117,10 @@ export const PLANOS_DEMONSTRACAO: Plano[] = [
     limites: {
       utilizadores: null,
       armazens: null,
-      empresas: null,
     },
     funcionalidades: [
       "Tudo o do plano Profissional",
-      "Empresas ilimitadas no mesmo grupo",
+      "Utilizadores e armazéns sem limite",
       "Projectos, obras e produção",
       "Relatórios e exportações avançadas",
       "Apoio prioritário",

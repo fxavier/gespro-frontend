@@ -1,14 +1,17 @@
 import { z } from "zod";
-import { PROVINCIAS } from "./provincias";
-import { IDS_PLANO } from "./planos";
 
 /**
  * Schemas partilhados cliente↔servidor.
  *
  * O MESMO schema valida no formulário e no handler/action — nunca há duas
  * definições de "válido". As mensagens são chaves de tradução resolvidas na UI
- * (`contacto.erros.*` / `comecar.erros.*`), para o conteúdo ficar em
- * `messages/pt.json` (Requisito 6.2).
+ * (`contacto.erros.*`), para o conteúdo ficar em `messages/pt.json`
+ * (Requisito 6.2).
+ *
+ * O registo saiu daqui com o ADR-0031 §4: o formulário passou a ser do ERP,
+ * e com ele o schema, o NUIT e a tradução para o payload público. Um schema de
+ * registo que sobrevivesse neste lado seria uma segunda definição de «válido»
+ * — exactamente o que este ficheiro existe para não haver.
  */
 
 export const ASSUNTOS_CONTACTO = [
@@ -40,50 +43,3 @@ export const contactoSchema = z.object({
 });
 
 export type DadosContacto = z.infer<typeof contactoSchema>;
-
-/** NUIT moçambicano: exactamente 9 dígitos. */
-export const nuitSchema = z
-  .string()
-  .trim()
-  .regex(/^\d{9}$/, "nuitInvalido");
-
-/**
- * Schema do formulário de registo.
- *
- * SEM campo `adminSenha` desde o ADR-0013 §5 + ADR-0016: a palavra-passe é
- * definida no Keycloak através do e-mail de activação — o site nunca a recolhe.
- * `captchaToken` é obrigatório (ADR-0016 Camada 3): o widget Turnstile preenche
- * o campo antes da submissão; uma string vazia é recusada aqui e no ERP.
- */
-export const registoSchema = z.object({
-  empresaNome: z.string().trim().min(2, "nomeCurto").max(160),
-  empresaNuit: nuitSchema,
-  provincia: z.enum(PROVINCIAS, { message: "provinciaInvalida" }),
-  adminNome: z.string().trim().min(2, "nomeCurto").max(120),
-  adminEmail: z.string().trim().email("emailInvalido").max(200),
-  planoId: z.enum(IDS_PLANO, { message: "planoInvalido" }),
-  captchaToken: z.string().min(1, "captchaObrigatorio"),
-  website: z.string().max(0).optional().or(z.literal("")),
-});
-
-export type DadosRegisto = z.infer<typeof registoSchema>;
-
-/**
- * Payload exacto de `POST /api/publico/registo` (contrato do spec 19, ADR-0013).
- * SEM `senha`: a palavra-passe é definida no Keycloak. `captchaToken` é
- * obrigatório — o widget preenche-o antes da submissão.
- * A tradução acontece aqui, num só sítio, para que uma mudança do contrato
- * seja um edit local e não uma caça pelo formulário.
- */
-export function paraPayloadRegisto(dados: DadosRegisto) {
-  return {
-    empresa: { nome: dados.empresaNome, nuit: dados.empresaNuit },
-    admin: {
-      nome: dados.adminNome,
-      email: dados.adminEmail,
-    },
-    planoId: dados.planoId,
-    provincia: dados.provincia,
-    captchaToken: dados.captchaToken,
-  };
-}

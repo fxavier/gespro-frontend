@@ -15,7 +15,6 @@ const ROTAS = [
   { caminho: "/funcionalidades", nome: "Funcionalidades" },
   { caminho: "/funcionalidades/financas", nome: "Módulo Finanças" },
   { caminho: "/precos", nome: "Preços" },
-  { caminho: "/comecar", nome: "Começar" },
   { caminho: "/sobre", nome: "Sobre" },
   { caminho: "/contacto", nome: "Contacto" },
   { caminho: "/recursos", nome: "Recursos" },
