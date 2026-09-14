@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
+import { TIPO_DIARIO_LABEL } from './tipos';
 
 export interface DiarioResumo {
   id: string;
@@ -19,18 +20,6 @@ export interface DiarioResumo {
   tipo: string;
   ativo: boolean;
 }
-
-const TIPO_LABELS: Record<string, string> = {
-  VENDAS: 'Vendas',
-  COMPRAS: 'Compras',
-  CAIXA: 'Caixa',
-  BANCO: 'Banco',
-  OPERACOES: 'Operações',
-  SALARIOS: 'Salários',
-  ABERTURA: 'Abertura',
-  ENCERRAMENTO: 'Encerramento',
-  OUTROS: 'Outros',
-};
 
 const columns: TableColumn<DiarioResumo>[] = [
   {
@@ -49,7 +38,7 @@ const columns: TableColumn<DiarioResumo>[] = [
     key: 'tipo',
     label: 'Tipo',
     render: (row) => (
-      <span className="text-sm text-muted-foreground">{TIPO_LABELS[row.tipo] ?? row.tipo}</span>
+      <span className="text-sm text-muted-foreground">{TIPO_DIARIO_LABEL[row.tipo as keyof typeof TIPO_DIARIO_LABEL] ?? row.tipo}</span>
     ),
   },
   {

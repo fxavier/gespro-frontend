@@ -25,6 +25,7 @@ import {
 } from '@/lib/validations/contabilidade';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import { z } from 'zod';
+import { idEntidade } from '@/lib/validations/common';
 
 // --- Plano de contas ---
 
@@ -43,7 +44,8 @@ export const atualizarContaPGC = createSafeAction({
 });
 
 export const desativarContaPGC = createSafeAction({
-  schema: z.object({ id: z.string().cuid() }),
+  // `idEntidade` e não `cuid`: as contas PGC nascem com uuid (ver common.ts).
+  schema: z.object({ id: idEntidade('ID de conta inválido') }),
   permission: 'financas:plano-contas:escrita',
   revalidate: { tags: ['contabilidade', 'contas-pgc'] },
   handler: (input, ctx) => contabilidade.desativarConta(input.id, ctx),

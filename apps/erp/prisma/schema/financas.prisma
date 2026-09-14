@@ -252,14 +252,14 @@ model ContaPGC {
   tipo            TipoConta
   natureza        NaturezaConta
   nivel           Int           // 1=classe, 2=grupo, 3=subgrupo, 4=conta analítica
-  contaPaiId      String?       // auto-referência (escalar; relação abaixo)
+  contaMaeId      String?       // auto-referência (escalar; relação abaixo)
   aceitaLancamento Boolean      @default(false) // só contas folha aceitam lançamentos
   ativo           Boolean       @default(true)
   descricao       String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  contaPai    ContaPGC?         @relation("ContaPGCHierarquia", fields: [contaPaiId], references: [id])
+  contaMae    ContaPGC?         @relation("ContaPGCHierarquia", fields: [contaMaeId], references: [id])
   subContas   ContaPGC[]        @relation("ContaPGCHierarquia")
   partidas    PartidaLancamento[]
   contasBancarias ContaBancaria[]
@@ -322,7 +322,9 @@ model Lancamento {
   historico           String
   valorTotal          Decimal          @db.Decimal(18, 2) // soma dos débitos = soma dos créditos
   status              StatusLancamento @default(RASCUNHO)
-  lancamentoEstornoId String?          // ID do lançamento que estorna este (se ESTORNADO)
+  // ATENÇÃO ao sentido: é o ESTORNO que guarda aqui o id do lançamento original.
+  // O original não guarda nada — «quem estornou este?» é procura inversa.
+  lancamentoEstornoId String?
   periodoFiscal       String           // ex.: "2024-01" (YYYY-MM) para agrupamento
   observacoes         String?
   criadoPorId         String           // FK User (escalar)

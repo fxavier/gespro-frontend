@@ -7,7 +7,7 @@ export interface PlanoContas {
   tipo: 'ativo' | 'passivo' | 'patrimonio_liquido' | 'receita' | 'despesa';
   natureza: 'devedora' | 'credora';
   nivel: number;
-  contaPaiId?: string;
+  contaMaeId?: string;
   aceitaLancamento: boolean;
   ativo: boolean;
   saldo: number;

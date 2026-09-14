@@ -1,14 +1,14 @@
 /**
  * Novo Diário Contabilístico — Server Component.
  *
- * A página não tem estado; o formulário interactivo vive em NovoDiarioForm
+ * A página não tem estado; o formulário interactivo vive em DiarioForm
  * (Client Component). Padrão golden standard: page.tsx = Server Component.
  */
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { PageHeader } from '@/components/patterns';
-import { NovoDiarioForm } from './_components/novo-diario-form';
+import { DiarioForm } from '../_components/diario-form';
 
 export default async function NovoDiarioPage() {
   const session = await auth();
@@ -26,7 +26,7 @@ export default async function NovoDiarioPage() {
         ]}
       />
 
-      <NovoDiarioForm />
+      <DiarioForm />
     </div>
   );
 }

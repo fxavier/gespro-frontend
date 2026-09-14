@@ -5,7 +5,7 @@
     "nome": "Classe 1 — Meios financeiros",
     "classe": 1,
     "nivel": 1,
-    "contaPaiCodigo": null,
+    "contaMaeCodigo": null,
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -15,7 +15,7 @@
     "nome": "Caixa",
     "classe": 1,
     "nivel": 2,
-    "contaPaiCodigo": "1",
+    "contaMaeCodigo": "1",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -25,7 +25,7 @@
     "nome": "Bancos",
     "classe": 1,
     "nivel": 2,
-    "contaPaiCodigo": "1",
+    "contaMaeCodigo": "1",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -35,7 +35,7 @@
     "nome": "Depósitos à ordem",
     "classe": 1,
     "nivel": 3,
-    "contaPaiCodigo": "12",
+    "contaMaeCodigo": "12",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -45,7 +45,7 @@
     "nome": "Depósitos com pré-aviso",
     "classe": 1,
     "nivel": 3,
-    "contaPaiCodigo": "12",
+    "contaMaeCodigo": "12",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -55,7 +55,7 @@
     "nome": "Depósitos à prazo",
     "classe": 1,
     "nivel": 3,
-    "contaPaiCodigo": "12",
+    "contaMaeCodigo": "12",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -65,7 +65,7 @@
     "nome": "Outros instrumentos financeiros",
     "classe": 1,
     "nivel": 2,
-    "contaPaiCodigo": "1",
+    "contaMaeCodigo": "1",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -75,7 +75,7 @@
     "nome": "Derivados",
     "classe": 1,
     "nivel": 3,
-    "contaPaiCodigo": "13",
+    "contaMaeCodigo": "13",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -85,7 +85,7 @@
     "nome": "Detidos para negociação",
     "classe": 1,
     "nivel": 3,
-    "contaPaiCodigo": "13",
+    "contaMaeCodigo": "13",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -95,7 +95,7 @@
     "nome": "Outros instrumentos financeiros ao justo valor através dos resultados",
     "classe": 1,
     "nivel": 3,
-    "contaPaiCodigo": "13",
+    "contaMaeCodigo": "13",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -105,7 +105,7 @@
     "nome": "Classe 2 — Inventários e activos biológicos",
     "classe": 2,
     "nivel": 1,
-    "contaPaiCodigo": null,
+    "contaMaeCodigo": null,
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -115,7 +115,7 @@
     "nome": "Compras",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -125,7 +125,7 @@
     "nome": "Mercadorias",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "21",
+    "contaMaeCodigo": "21",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -135,7 +135,7 @@
     "nome": "Matérias primas, auxiliares e materiais",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "21",
+    "contaMaeCodigo": "21",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -145,7 +145,7 @@
     "nome": "Matérias primas",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "212",
+    "contaMaeCodigo": "212",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -155,7 +155,7 @@
     "nome": "Matérias auxiliares",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "212",
+    "contaMaeCodigo": "212",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -165,7 +165,7 @@
     "nome": "Materiais",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "212",
+    "contaMaeCodigo": "212",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -175,7 +175,7 @@
     "nome": "Combustíveis e lubrificantes",
     "classe": 2,
     "nivel": 5,
-    "contaPaiCodigo": "2123",
+    "contaMaeCodigo": "2123",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -185,7 +185,7 @@
     "nome": "Embalagens comerciais",
     "classe": 2,
     "nivel": 5,
-    "contaPaiCodigo": "2123",
+    "contaMaeCodigo": "2123",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -195,7 +195,7 @@
     "nome": "Peças e sobressalentes",
     "classe": 2,
     "nivel": 5,
-    "contaPaiCodigo": "2123",
+    "contaMaeCodigo": "2123",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -205,7 +205,7 @@
     "nome": "Materiais diversos",
     "classe": 2,
     "nivel": 5,
-    "contaPaiCodigo": "2123",
+    "contaMaeCodigo": "2123",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -215,7 +215,7 @@
     "nome": "Devoluções de compras",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "21",
+    "contaMaeCodigo": "21",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -225,7 +225,7 @@
     "nome": "Descontos e abatimentos em compras",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "21",
+    "contaMaeCodigo": "21",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -235,7 +235,7 @@
     "nome": "Mercadorias",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -245,7 +245,7 @@
     "nome": "Mercadorias em trânsito",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "22",
+    "contaMaeCodigo": "22",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -255,7 +255,7 @@
     "nome": "Mercadorias em poder de terceiros",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "22",
+    "contaMaeCodigo": "22",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -265,7 +265,7 @@
     "nome": "Produtos acabados e intermédios",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -275,7 +275,7 @@
     "nome": "Produtos acabados em poder de terceiros",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "23",
+    "contaMaeCodigo": "23",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -285,7 +285,7 @@
     "nome": "Subprodutos, desperdícios, resíduos e refugos",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -295,7 +295,7 @@
     "nome": "Subprodutos",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "24",
+    "contaMaeCodigo": "24",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -305,7 +305,7 @@
     "nome": "Desperdícios, resíduos e refugos",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "24",
+    "contaMaeCodigo": "24",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -315,7 +315,7 @@
     "nome": "Produtos ou serviços em curso",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -325,7 +325,7 @@
     "nome": "Matérias primas, auxiliares e materiais",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -335,7 +335,7 @@
     "nome": "Matérias primas",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "26",
+    "contaMaeCodigo": "26",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -345,7 +345,7 @@
     "nome": "Matérias auxiliares",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "26",
+    "contaMaeCodigo": "26",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -355,7 +355,7 @@
     "nome": "Materiais",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "26",
+    "contaMaeCodigo": "26",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -365,7 +365,7 @@
     "nome": "Combustíveis e lubrificantes",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "263",
+    "contaMaeCodigo": "263",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -375,7 +375,7 @@
     "nome": "Embalagens comerciais",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "263",
+    "contaMaeCodigo": "263",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -385,7 +385,7 @@
     "nome": "Peças e sobressalentes",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "263",
+    "contaMaeCodigo": "263",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -395,7 +395,7 @@
     "nome": "Materiais diversos",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "263",
+    "contaMaeCodigo": "263",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -405,7 +405,7 @@
     "nome": "Matérias primas, auxiliares e materiais em trânsito",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "26",
+    "contaMaeCodigo": "26",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -415,7 +415,7 @@
     "nome": "Activos biológicos",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -425,7 +425,7 @@
     "nome": "De produção",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "27",
+    "contaMaeCodigo": "27",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -435,7 +435,7 @@
     "nome": "Animais",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "271",
+    "contaMaeCodigo": "271",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -445,7 +445,7 @@
     "nome": "Plantas",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "271",
+    "contaMaeCodigo": "271",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -455,7 +455,7 @@
     "nome": "Consumíveis",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "27",
+    "contaMaeCodigo": "27",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -465,7 +465,7 @@
     "nome": "Animais",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "272",
+    "contaMaeCodigo": "272",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -475,7 +475,7 @@
     "nome": "Plantas",
     "classe": 2,
     "nivel": 4,
-    "contaPaiCodigo": "272",
+    "contaMaeCodigo": "272",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -485,7 +485,7 @@
     "nome": "Regularização de inventários",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -495,7 +495,7 @@
     "nome": "Mercadorias",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "28",
+    "contaMaeCodigo": "28",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -505,7 +505,7 @@
     "nome": "Produtos acabados e intermédios",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "28",
+    "contaMaeCodigo": "28",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -515,7 +515,7 @@
     "nome": "Subprodutos, desperdícios, resíduos e refugos",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "28",
+    "contaMaeCodigo": "28",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -525,7 +525,7 @@
     "nome": "Produtos ou serviços em curso",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "28",
+    "contaMaeCodigo": "28",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -535,7 +535,7 @@
     "nome": "Matérias primas, auxiliares e materiais",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "28",
+    "contaMaeCodigo": "28",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -545,7 +545,7 @@
     "nome": "Activos biológicos",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "28",
+    "contaMaeCodigo": "28",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -555,7 +555,7 @@
     "nome": "Ajustamentos para o valor realizável líquido",
     "classe": 2,
     "nivel": 2,
-    "contaPaiCodigo": "2",
+    "contaMaeCodigo": "2",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -565,7 +565,7 @@
     "nome": "Mercadorias",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "29",
+    "contaMaeCodigo": "29",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -575,7 +575,7 @@
     "nome": "Produtos acabados e intermédios",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "29",
+    "contaMaeCodigo": "29",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -585,7 +585,7 @@
     "nome": "Subprodutos, desperdícios, resíduos ou refugos",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "29",
+    "contaMaeCodigo": "29",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -595,7 +595,7 @@
     "nome": "Produtos ou serviços em curso",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "29",
+    "contaMaeCodigo": "29",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -605,7 +605,7 @@
     "nome": "Matérias primas, auxiliares e materiais",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "29",
+    "contaMaeCodigo": "29",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -615,7 +615,7 @@
     "nome": "Activos biológicos",
     "classe": 2,
     "nivel": 3,
-    "contaPaiCodigo": "29",
+    "contaMaeCodigo": "29",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -625,7 +625,7 @@
     "nome": "Classe 3 — Investimentos de capital",
     "classe": 3,
     "nivel": 1,
-    "contaPaiCodigo": null,
+    "contaMaeCodigo": null,
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -635,7 +635,7 @@
     "nome": "Investimentos financeiros",
     "classe": 3,
     "nivel": 2,
-    "contaPaiCodigo": "3",
+    "contaMaeCodigo": "3",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -645,7 +645,7 @@
     "nome": "Investimentos em subsidiárias",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "31",
+    "contaMaeCodigo": "31",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -655,7 +655,7 @@
     "nome": "Investimentos em associadas",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "31",
+    "contaMaeCodigo": "31",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -665,7 +665,7 @@
     "nome": "Investimentos em entidades conjuntamente controladas",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "31",
+    "contaMaeCodigo": "31",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -675,7 +675,7 @@
     "nome": "Outros investimentos financeiros",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "31",
+    "contaMaeCodigo": "31",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -685,7 +685,7 @@
     "nome": "Investimentos detidos até à maturidade",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "31",
+    "contaMaeCodigo": "31",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -695,7 +695,7 @@
     "nome": "Outros investimentos disponíveis para venda",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "31",
+    "contaMaeCodigo": "31",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -705,7 +705,7 @@
     "nome": "Activos tangíveis",
     "classe": 3,
     "nivel": 2,
-    "contaPaiCodigo": "3",
+    "contaMaeCodigo": "3",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -715,7 +715,7 @@
     "nome": "Construções",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "32",
+    "contaMaeCodigo": "32",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -725,7 +725,7 @@
     "nome": "Edifícios industriais",
     "classe": 3,
     "nivel": 4,
-    "contaPaiCodigo": "321",
+    "contaMaeCodigo": "321",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -735,7 +735,7 @@
     "nome": "Edifícios administrativos e comerciais",
     "classe": 3,
     "nivel": 4,
-    "contaPaiCodigo": "321",
+    "contaMaeCodigo": "321",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -745,7 +745,7 @@
     "nome": "Edifícios para habitação e outros fins sociais",
     "classe": 3,
     "nivel": 4,
-    "contaPaiCodigo": "321",
+    "contaMaeCodigo": "321",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -755,7 +755,7 @@
     "nome": "Vias de comunicação e construções afins",
     "classe": 3,
     "nivel": 4,
-    "contaPaiCodigo": "321",
+    "contaMaeCodigo": "321",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -765,7 +765,7 @@
     "nome": "Equipamento básico",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "32",
+    "contaMaeCodigo": "32",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -775,7 +775,7 @@
     "nome": "Mobiliário e equipamento administrativo social",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "32",
+    "contaMaeCodigo": "32",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -785,7 +785,7 @@
     "nome": "Equipamento de transporte",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "32",
+    "contaMaeCodigo": "32",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -795,7 +795,7 @@
     "nome": "Taras e vasilhame",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "32",
+    "contaMaeCodigo": "32",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -805,7 +805,7 @@
     "nome": "Ferramentas e utensílios",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "32",
+    "contaMaeCodigo": "32",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -815,7 +815,7 @@
     "nome": "Activos de exploração e avaliação de recursos minerais",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "32",
+    "contaMaeCodigo": "32",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -825,7 +825,7 @@
     "nome": "Outros activos tangíveis",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "32",
+    "contaMaeCodigo": "32",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -835,7 +835,7 @@
     "nome": "Activos intangíveis",
     "classe": 3,
     "nivel": 2,
-    "contaPaiCodigo": "3",
+    "contaMaeCodigo": "3",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -845,7 +845,7 @@
     "nome": "Despesas de desenvolvimento",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "33",
+    "contaMaeCodigo": "33",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -855,7 +855,7 @@
     "nome": "Propriedade industrial e outros direitos",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "33",
+    "contaMaeCodigo": "33",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -865,7 +865,7 @@
     "nome": "Goodwill",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "33",
+    "contaMaeCodigo": "33",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -875,7 +875,7 @@
     "nome": "Activos de exploração e avaliação de recursos minerais",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "33",
+    "contaMaeCodigo": "33",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -885,7 +885,7 @@
     "nome": "Investimentos em curso",
     "classe": 3,
     "nivel": 2,
-    "contaPaiCodigo": "3",
+    "contaMaeCodigo": "3",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -895,7 +895,7 @@
     "nome": "Activos tangíveis",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "34",
+    "contaMaeCodigo": "34",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -905,7 +905,7 @@
     "nome": "Activos intangíveis",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "34",
+    "contaMaeCodigo": "34",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -915,7 +915,7 @@
     "nome": "Activos não correntes detidos para venda",
     "classe": 3,
     "nivel": 2,
-    "contaPaiCodigo": "3",
+    "contaMaeCodigo": "3",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -925,7 +925,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 3,
     "nivel": 2,
-    "contaPaiCodigo": "3",
+    "contaMaeCodigo": "3",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -935,7 +935,7 @@
     "nome": "Amortizações acumuladas",
     "classe": 3,
     "nivel": 2,
-    "contaPaiCodigo": "3",
+    "contaMaeCodigo": "3",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -945,7 +945,7 @@
     "nome": "Activos tangíveis",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "38",
+    "contaMaeCodigo": "38",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -955,7 +955,7 @@
     "nome": "Activos intangíveis",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "38",
+    "contaMaeCodigo": "38",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -965,7 +965,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "38",
+    "contaMaeCodigo": "38",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -975,7 +975,7 @@
     "nome": "Activos de exploração e avaliação de recursos minerais",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "38",
+    "contaMaeCodigo": "38",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -985,7 +985,7 @@
     "nome": "Imparidade acumulada de investimentos de capital",
     "classe": 3,
     "nivel": 2,
-    "contaPaiCodigo": "3",
+    "contaMaeCodigo": "3",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -995,7 +995,7 @@
     "nome": "Investimentos financeiros",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "39",
+    "contaMaeCodigo": "39",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1005,7 +1005,7 @@
     "nome": "Activos tangíveis",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "39",
+    "contaMaeCodigo": "39",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1015,7 +1015,7 @@
     "nome": "Activos intangíveis",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "39",
+    "contaMaeCodigo": "39",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1025,7 +1025,7 @@
     "nome": "Activos não correntes detidos para venda",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "39",
+    "contaMaeCodigo": "39",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1035,7 +1035,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "39",
+    "contaMaeCodigo": "39",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1045,7 +1045,7 @@
     "nome": "Activos de exploração e avaliação de recursos minerais",
     "classe": 3,
     "nivel": 3,
-    "contaPaiCodigo": "39",
+    "contaMaeCodigo": "39",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1055,7 +1055,7 @@
     "nome": "Classe 4 — Contas a receber, contas a pagar, acréscimos e diferimentos",
     "classe": 4,
     "nivel": 1,
-    "contaPaiCodigo": null,
+    "contaMaeCodigo": null,
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -1065,7 +1065,7 @@
     "nome": "Clientes",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -1075,7 +1075,7 @@
     "nome": "Clientes c/c",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "41",
+    "contaMaeCodigo": "41",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1085,7 +1085,7 @@
     "nome": "Clientes - títulos a receber",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "41",
+    "contaMaeCodigo": "41",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1095,7 +1095,7 @@
     "nome": "Clientes de cobrança duvidosa",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "41",
+    "contaMaeCodigo": "41",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1105,7 +1105,7 @@
     "nome": "Adiantamentos de clientes",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "41",
+    "contaMaeCodigo": "41",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1115,7 +1115,7 @@
     "nome": "Fornecedores",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -1125,7 +1125,7 @@
     "nome": "Fornecedores c/c",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "42",
+    "contaMaeCodigo": "42",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1135,7 +1135,7 @@
     "nome": "Fornecedores - Títulos a pagar",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "42",
+    "contaMaeCodigo": "42",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1145,7 +1145,7 @@
     "nome": "Adiantamentos a fornecedores",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "42",
+    "contaMaeCodigo": "42",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1155,7 +1155,7 @@
     "nome": "Empréstimos obtidos",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -1165,7 +1165,7 @@
     "nome": "Empréstimos bancários",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "43",
+    "contaMaeCodigo": "43",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1175,7 +1175,7 @@
     "nome": "de curto prazo",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "431",
+    "contaMaeCodigo": "431",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1185,7 +1185,7 @@
     "nome": "de médio e longo prazo",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "431",
+    "contaMaeCodigo": "431",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1195,7 +1195,7 @@
     "nome": "Empréstimos por obrigações",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "43",
+    "contaMaeCodigo": "43",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1205,7 +1205,7 @@
     "nome": "Convertíveis",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "432",
+    "contaMaeCodigo": "432",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1215,7 +1215,7 @@
     "nome": "Não convertíveis",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "432",
+    "contaMaeCodigo": "432",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1225,7 +1225,7 @@
     "nome": "Empréstimos por títulos de participação",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "43",
+    "contaMaeCodigo": "43",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1235,7 +1235,7 @@
     "nome": "Outros empréstimos obtidos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "43",
+    "contaMaeCodigo": "43",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1245,7 +1245,7 @@
     "nome": "Estado",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -1255,7 +1255,7 @@
     "nome": "Imposto sobre o rendimento",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "44",
+    "contaMaeCodigo": "44",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1265,7 +1265,7 @@
     "nome": "Estimativa de imposto",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "441",
+    "contaMaeCodigo": "441",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1275,7 +1275,7 @@
     "nome": "Pagamentos por conta",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "441",
+    "contaMaeCodigo": "441",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1285,7 +1285,7 @@
     "nome": "Pagamento especial por conta",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "441",
+    "contaMaeCodigo": "441",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1295,7 +1295,7 @@
     "nome": "Impostos retidos na fonte",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "44",
+    "contaMaeCodigo": "44",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1305,7 +1305,7 @@
     "nome": "Rendimentos de trabalho dependente",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "442",
+    "contaMaeCodigo": "442",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1315,7 +1315,7 @@
     "nome": "Rendimentos profissionais",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "442",
+    "contaMaeCodigo": "442",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1325,7 +1325,7 @@
     "nome": "Rendimentos de capitais",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "442",
+    "contaMaeCodigo": "442",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1335,7 +1335,7 @@
     "nome": "Rendimentos prediais",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "442",
+    "contaMaeCodigo": "442",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1345,7 +1345,7 @@
     "nome": "Outros rendimentos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "442",
+    "contaMaeCodigo": "442",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1355,7 +1355,7 @@
     "nome": "Imposto sobre o valor acrescentado",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "44",
+    "contaMaeCodigo": "44",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1365,7 +1365,7 @@
     "nome": "IVA suportado",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1375,7 +1375,7 @@
     "nome": "Inventários",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4431",
+    "contaMaeCodigo": "4431",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1385,7 +1385,7 @@
     "nome": "Activos tangíveis e intangíveis",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4431",
+    "contaMaeCodigo": "4431",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1395,7 +1395,7 @@
     "nome": "Outros bens e serviços",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4431",
+    "contaMaeCodigo": "4431",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1405,7 +1405,7 @@
     "nome": "IVA dedutível",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1415,7 +1415,7 @@
     "nome": "Inventários",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4432",
+    "contaMaeCodigo": "4432",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1425,7 +1425,7 @@
     "nome": "Activos tangíveis e intangíveis",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4432",
+    "contaMaeCodigo": "4432",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1435,7 +1435,7 @@
     "nome": "Outros bens e serviços",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4432",
+    "contaMaeCodigo": "4432",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1445,7 +1445,7 @@
     "nome": "IVA liquidado",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1455,7 +1455,7 @@
     "nome": "Operações gerais",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4433",
+    "contaMaeCodigo": "4433",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1465,7 +1465,7 @@
     "nome": "Autoconsumos e operações gratuitas",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4433",
+    "contaMaeCodigo": "4433",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1475,7 +1475,7 @@
     "nome": "Operações especiais",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4433",
+    "contaMaeCodigo": "4433",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1485,7 +1485,7 @@
     "nome": "IVA regularizações",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1495,7 +1495,7 @@
     "nome": "Mensais a favor do sujeito passivo",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4434",
+    "contaMaeCodigo": "4434",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1505,7 +1505,7 @@
     "nome": "Mensais a favor do Estado",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4434",
+    "contaMaeCodigo": "4434",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1515,7 +1515,7 @@
     "nome": "Anuais por cálculo do pro rata definitivo",
     "classe": 4,
     "nivel": 5,
-    "contaPaiCodigo": "4434",
+    "contaMaeCodigo": "4434",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1525,7 +1525,7 @@
     "nome": "IVA apuramento",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1535,7 +1535,7 @@
     "nome": "IVA liquidações oficiosas",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1545,7 +1545,7 @@
     "nome": "IVA a pagar",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1555,7 +1555,7 @@
     "nome": "IVA a recuperar",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1565,7 +1565,7 @@
     "nome": "IVA reembolsos pedidos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "443",
+    "contaMaeCodigo": "443",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1575,7 +1575,7 @@
     "nome": "Restantes impostos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "44",
+    "contaMaeCodigo": "44",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1585,7 +1585,7 @@
     "nome": "Imposto de selo",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "444",
+    "contaMaeCodigo": "444",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1595,7 +1595,7 @@
     "nome": "Impostos autárquicos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "444",
+    "contaMaeCodigo": "444",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1605,7 +1605,7 @@
     "nome": "Rectificações de impostos, contribuições e outros tributos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "44",
+    "contaMaeCodigo": "44",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1615,7 +1615,7 @@
     "nome": "Impostos diferidos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "44",
+    "contaMaeCodigo": "44",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1625,7 +1625,7 @@
     "nome": "Activos por impostos diferidos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "446",
+    "contaMaeCodigo": "446",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1635,7 +1635,7 @@
     "nome": "Passivos por impostos diferidos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "446",
+    "contaMaeCodigo": "446",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1645,7 +1645,7 @@
     "nome": "Contribuições para o INSS",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "44",
+    "contaMaeCodigo": "44",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1655,7 +1655,7 @@
     "nome": "Outros devedores",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -1665,7 +1665,7 @@
     "nome": "Pessoal",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "45",
+    "contaMaeCodigo": "45",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1675,7 +1675,7 @@
     "nome": "Adiantamentos aos órgãos sociais",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "451",
+    "contaMaeCodigo": "451",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1685,7 +1685,7 @@
     "nome": "Adiantamentos aos trabalhadores",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "451",
+    "contaMaeCodigo": "451",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1695,7 +1695,7 @@
     "nome": "Benefícios pós-emprego",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "451",
+    "contaMaeCodigo": "451",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1705,7 +1705,7 @@
     "nome": "Outras operações com órgãos sociais",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "451",
+    "contaMaeCodigo": "451",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1715,7 +1715,7 @@
     "nome": "Outras operações com trabalhadores",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "451",
+    "contaMaeCodigo": "451",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1725,7 +1725,7 @@
     "nome": "Subscritores de capital",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "45",
+    "contaMaeCodigo": "45",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1735,7 +1735,7 @@
     "nome": "Estado e outros organismos públicos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "452",
+    "contaMaeCodigo": "452",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1745,7 +1745,7 @@
     "nome": "Entidades privadas",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "452",
+    "contaMaeCodigo": "452",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1755,7 +1755,7 @@
     "nome": "Outras entidades",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "452",
+    "contaMaeCodigo": "452",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1765,7 +1765,7 @@
     "nome": "Obrigacionistas",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "45",
+    "contaMaeCodigo": "45",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1775,7 +1775,7 @@
     "nome": "Devedores - sócios, accionistas ou proprietários",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "45",
+    "contaMaeCodigo": "45",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1785,7 +1785,7 @@
     "nome": "Empréstimos concedidos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "454",
+    "contaMaeCodigo": "454",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1795,7 +1795,7 @@
     "nome": "Adiantamento por conta de lucros",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "454",
+    "contaMaeCodigo": "454",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1805,7 +1805,7 @@
     "nome": "Resultados atribuídos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "454",
+    "contaMaeCodigo": "454",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1815,7 +1815,7 @@
     "nome": "Lucros disponíveis",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "454",
+    "contaMaeCodigo": "454",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1825,7 +1825,7 @@
     "nome": "Outras operações",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "454",
+    "contaMaeCodigo": "454",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1835,7 +1835,7 @@
     "nome": "Subsídios a receber",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "45",
+    "contaMaeCodigo": "45",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1845,7 +1845,7 @@
     "nome": "Estado e outros organismos públicos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "455",
+    "contaMaeCodigo": "455",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1855,7 +1855,7 @@
     "nome": "Entidades privadas",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "455",
+    "contaMaeCodigo": "455",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1865,7 +1865,7 @@
     "nome": "Devedores diversos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "45",
+    "contaMaeCodigo": "45",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1875,7 +1875,7 @@
     "nome": "Outros credores",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -1885,7 +1885,7 @@
     "nome": "Fornecedores de investimentos de capital",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "46",
+    "contaMaeCodigo": "46",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1895,7 +1895,7 @@
     "nome": "Fornecedores de investimentos de capital c/c",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "461",
+    "contaMaeCodigo": "461",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1905,7 +1905,7 @@
     "nome": "Fornecedores de investimentos de capital - Títulos a pagar",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "461",
+    "contaMaeCodigo": "461",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1915,7 +1915,7 @@
     "nome": "Fornecedores de investimentos de capital - Adiantamentos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "461",
+    "contaMaeCodigo": "461",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1925,7 +1925,7 @@
     "nome": "Fornecedores de investimentos de capital - Locação Financeira",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "461",
+    "contaMaeCodigo": "461",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1935,7 +1935,7 @@
     "nome": "Outras operações",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "461",
+    "contaMaeCodigo": "461",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1945,7 +1945,7 @@
     "nome": "Pessoal",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "46",
+    "contaMaeCodigo": "46",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1955,7 +1955,7 @@
     "nome": "Remunerações a pagar aos órgãos sociais",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "462",
+    "contaMaeCodigo": "462",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1965,7 +1965,7 @@
     "nome": "Remunerações a pagar aos trabalhadores",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "462",
+    "contaMaeCodigo": "462",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1975,7 +1975,7 @@
     "nome": "Benefícios pós-emprego",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "462",
+    "contaMaeCodigo": "462",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1985,7 +1985,7 @@
     "nome": "Outras operações com os órgãos sociais",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "462",
+    "contaMaeCodigo": "462",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -1995,7 +1995,7 @@
     "nome": "Outras operações com os trabalhadores",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "462",
+    "contaMaeCodigo": "462",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2005,7 +2005,7 @@
     "nome": "Sindicatos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "46",
+    "contaMaeCodigo": "46",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2015,7 +2015,7 @@
     "nome": "Credores por subscrições não liberadas",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "46",
+    "contaMaeCodigo": "46",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2025,7 +2025,7 @@
     "nome": "Obrigacionistas",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "46",
+    "contaMaeCodigo": "46",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2035,7 +2035,7 @@
     "nome": "Consultores, assessores e intermediários",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "46",
+    "contaMaeCodigo": "46",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2045,7 +2045,7 @@
     "nome": "Credores - sócios, accionistas ou proprietários",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "46",
+    "contaMaeCodigo": "46",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2055,7 +2055,7 @@
     "nome": "Empréstimos obtidos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "467",
+    "contaMaeCodigo": "467",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2065,7 +2065,7 @@
     "nome": "Resultados atribuídos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "467",
+    "contaMaeCodigo": "467",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2075,7 +2075,7 @@
     "nome": "Lucros disponíveis",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "467",
+    "contaMaeCodigo": "467",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2085,7 +2085,7 @@
     "nome": "Credores diversos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "46",
+    "contaMaeCodigo": "46",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2095,7 +2095,7 @@
     "nome": "Perdas por imparidade acumuladas de contas a receber",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -2105,7 +2105,7 @@
     "nome": "Clientes",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "47",
+    "contaMaeCodigo": "47",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2115,7 +2115,7 @@
     "nome": "Outros devedores",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "47",
+    "contaMaeCodigo": "47",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2125,7 +2125,7 @@
     "nome": "Provisões",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -2135,7 +2135,7 @@
     "nome": "Processos judiciais em curso",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "48",
+    "contaMaeCodigo": "48",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2145,7 +2145,7 @@
     "nome": "Acidentes no trabalho e doenças profissionais",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "48",
+    "contaMaeCodigo": "48",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2155,7 +2155,7 @@
     "nome": "Impostos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "48",
+    "contaMaeCodigo": "48",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2165,7 +2165,7 @@
     "nome": "Reestruturação de negócios",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "48",
+    "contaMaeCodigo": "48",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2175,7 +2175,7 @@
     "nome": "Contratos onerosos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "48",
+    "contaMaeCodigo": "48",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2185,7 +2185,7 @@
     "nome": "Garantias a clientes",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "48",
+    "contaMaeCodigo": "48",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2195,7 +2195,7 @@
     "nome": "Perdas em contratos de construção",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "48",
+    "contaMaeCodigo": "48",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2205,7 +2205,7 @@
     "nome": "Outras provisões",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "48",
+    "contaMaeCodigo": "48",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2215,7 +2215,7 @@
     "nome": "Acréscimos e diferimentos",
     "classe": 4,
     "nivel": 2,
-    "contaPaiCodigo": "4",
+    "contaMaeCodigo": "4",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -2225,7 +2225,7 @@
     "nome": "Acréscimos de gastos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "49",
+    "contaMaeCodigo": "49",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2235,7 +2235,7 @@
     "nome": "Juros a pagar",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "491",
+    "contaMaeCodigo": "491",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2245,7 +2245,7 @@
     "nome": "Remunerações a pagar",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "491",
+    "contaMaeCodigo": "491",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2255,7 +2255,7 @@
     "nome": "Outros acréscimos de gastos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "491",
+    "contaMaeCodigo": "491",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2265,7 +2265,7 @@
     "nome": "Rendimentos diferidos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "49",
+    "contaMaeCodigo": "49",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2275,7 +2275,7 @@
     "nome": "Prémios de emissão de obrigações",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "492",
+    "contaMaeCodigo": "492",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2285,7 +2285,7 @@
     "nome": "Prémios de emissão de títulos de participação",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "492",
+    "contaMaeCodigo": "492",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2295,7 +2295,7 @@
     "nome": "Réditos de contratos de construção",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "492",
+    "contaMaeCodigo": "492",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2305,7 +2305,7 @@
     "nome": "Subsídios para investimentos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "492",
+    "contaMaeCodigo": "492",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2315,7 +2315,7 @@
     "nome": "Outros rendimentos diferidos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "492",
+    "contaMaeCodigo": "492",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2325,7 +2325,7 @@
     "nome": "Acréscimos de rendimentos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "49",
+    "contaMaeCodigo": "49",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2335,7 +2335,7 @@
     "nome": "Juros a receber",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "493",
+    "contaMaeCodigo": "493",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2345,7 +2345,7 @@
     "nome": "Réditos de contratos de construção",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "493",
+    "contaMaeCodigo": "493",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2355,7 +2355,7 @@
     "nome": "Outros acréscimos de rendimentos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "493",
+    "contaMaeCodigo": "493",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2365,7 +2365,7 @@
     "nome": "Gastos diferidos",
     "classe": 4,
     "nivel": 3,
-    "contaPaiCodigo": "49",
+    "contaMaeCodigo": "49",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2375,7 +2375,7 @@
     "nome": "Desconto de emissão de obrigações",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "494",
+    "contaMaeCodigo": "494",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2385,7 +2385,7 @@
     "nome": "Desconto de emissão de títulos de participação",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "494",
+    "contaMaeCodigo": "494",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2395,7 +2395,7 @@
     "nome": "Outros gastos diferidos",
     "classe": 4,
     "nivel": 4,
-    "contaPaiCodigo": "494",
+    "contaMaeCodigo": "494",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -2405,7 +2405,7 @@
     "nome": "Classe 5 — Capital próprio",
     "classe": 5,
     "nivel": 1,
-    "contaPaiCodigo": null,
+    "contaMaeCodigo": null,
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2415,7 +2415,7 @@
     "nome": "Capital",
     "classe": 5,
     "nivel": 2,
-    "contaPaiCodigo": "5",
+    "contaMaeCodigo": "5",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2425,7 +2425,7 @@
     "nome": "Acções ou quotas próprias",
     "classe": 5,
     "nivel": 2,
-    "contaPaiCodigo": "5",
+    "contaMaeCodigo": "5",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2435,7 +2435,7 @@
     "nome": "Valor nominal",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "52",
+    "contaMaeCodigo": "52",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2445,7 +2445,7 @@
     "nome": "Descontos e prémios",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "52",
+    "contaMaeCodigo": "52",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2455,7 +2455,7 @@
     "nome": "Prestações suplementares",
     "classe": 5,
     "nivel": 2,
-    "contaPaiCodigo": "5",
+    "contaMaeCodigo": "5",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2465,7 +2465,7 @@
     "nome": "Prémios de emissão de acções ou quotas",
     "classe": 5,
     "nivel": 2,
-    "contaPaiCodigo": "5",
+    "contaMaeCodigo": "5",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2475,7 +2475,7 @@
     "nome": "Reservas",
     "classe": 5,
     "nivel": 2,
-    "contaPaiCodigo": "5",
+    "contaMaeCodigo": "5",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2485,7 +2485,7 @@
     "nome": "Reservas legais",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "55",
+    "contaMaeCodigo": "55",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2495,7 +2495,7 @@
     "nome": "Reservas estatutárias",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "55",
+    "contaMaeCodigo": "55",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2505,7 +2505,7 @@
     "nome": "Reservas livres",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "55",
+    "contaMaeCodigo": "55",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2515,7 +2515,7 @@
     "nome": "Excedentes de revalorização de activos tangíveis e intangíveis",
     "classe": 5,
     "nivel": 2,
-    "contaPaiCodigo": "5",
+    "contaMaeCodigo": "5",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2525,7 +2525,7 @@
     "nome": "Revalorizações legais",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "56",
+    "contaMaeCodigo": "56",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2535,7 +2535,7 @@
     "nome": "Antes de impostos diferidos",
     "classe": 5,
     "nivel": 4,
-    "contaPaiCodigo": "561",
+    "contaMaeCodigo": "561",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2545,7 +2545,7 @@
     "nome": "Antes de impostos diferidos",
     "classe": 5,
     "nivel": 4,
-    "contaPaiCodigo": "561",
+    "contaMaeCodigo": "561",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2555,7 +2555,7 @@
     "nome": "Impostos diferidos",
     "classe": 5,
     "nivel": 4,
-    "contaPaiCodigo": "561",
+    "contaMaeCodigo": "561",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2565,7 +2565,7 @@
     "nome": "Impostos diferidos",
     "classe": 5,
     "nivel": 4,
-    "contaPaiCodigo": "561",
+    "contaMaeCodigo": "561",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2575,7 +2575,7 @@
     "nome": "Outros excessos",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "56",
+    "contaMaeCodigo": "56",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2585,7 +2585,7 @@
     "nome": "Outras variações no capital próprio",
     "classe": 5,
     "nivel": 2,
-    "contaPaiCodigo": "5",
+    "contaMaeCodigo": "5",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2595,7 +2595,7 @@
     "nome": "Variações no justo valor de instrumentos financeiros disponíveis para venda",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "58",
+    "contaMaeCodigo": "58",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2605,7 +2605,7 @@
     "nome": "Ajustamentos por impostos diferidos",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "58",
+    "contaMaeCodigo": "58",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2615,7 +2615,7 @@
     "nome": "Outras variações",
     "classe": 5,
     "nivel": 3,
-    "contaPaiCodigo": "58",
+    "contaMaeCodigo": "58",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2625,7 +2625,7 @@
     "nome": "Resultados transitados",
     "classe": 5,
     "nivel": 2,
-    "contaPaiCodigo": "5",
+    "contaMaeCodigo": "5",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2635,7 +2635,7 @@
     "nome": "Classe 6 — Gastos e perdas",
     "classe": 6,
     "nivel": 1,
-    "contaPaiCodigo": null,
+    "contaMaeCodigo": null,
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2645,7 +2645,7 @@
     "nome": "Custo dos inventários",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2655,7 +2655,7 @@
     "nome": "Custo dos inventários vendidos ou consumidos",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "61",
+    "contaMaeCodigo": "61",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2665,7 +2665,7 @@
     "nome": "De mercadorias",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "611",
+    "contaMaeCodigo": "611",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2675,7 +2675,7 @@
     "nome": "De matérias primas, auxiliares e materiais",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "611",
+    "contaMaeCodigo": "611",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2685,7 +2685,7 @@
     "nome": "Matérias primas",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6116",
+    "contaMaeCodigo": "6116",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2695,7 +2695,7 @@
     "nome": "Matérias auxiliares",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6116",
+    "contaMaeCodigo": "6116",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2705,7 +2705,7 @@
     "nome": "Materiais",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6116",
+    "contaMaeCodigo": "6116",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2715,7 +2715,7 @@
     "nome": "Activos biológicos",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "611",
+    "contaMaeCodigo": "611",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2725,7 +2725,7 @@
     "nome": "Variação da produção",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "61",
+    "contaMaeCodigo": "61",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2735,7 +2735,7 @@
     "nome": "Produtos acabados e intermédios",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "612",
+    "contaMaeCodigo": "612",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2745,7 +2745,7 @@
     "nome": "Subprodutos, desperdícios, resíduos e refugos",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "612",
+    "contaMaeCodigo": "612",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2755,7 +2755,7 @@
     "nome": "Produtos e serviços em curso",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "612",
+    "contaMaeCodigo": "612",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2765,7 +2765,7 @@
     "nome": "Gastos com o pessoal",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2775,7 +2775,7 @@
     "nome": "Remunerações dos órgãos sociais",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2785,7 +2785,7 @@
     "nome": "Remunerações dos trabalhadores",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2795,7 +2795,7 @@
     "nome": "Encargos sobre remunerações",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2805,7 +2805,7 @@
     "nome": "Benefícios pós-emprego",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2815,7 +2815,7 @@
     "nome": "Ajudas de custo",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2825,7 +2825,7 @@
     "nome": "Ajudas de custo tributáveis",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "625",
+    "contaMaeCodigo": "625",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2835,7 +2835,7 @@
     "nome": "Ajudas de custo não tributáveis",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "625",
+    "contaMaeCodigo": "625",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2845,7 +2845,7 @@
     "nome": "Indemnizações",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2855,7 +2855,7 @@
     "nome": "Indemnizações – Risco segurável",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "626",
+    "contaMaeCodigo": "626",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2865,7 +2865,7 @@
     "nome": "Indemnizações - Outras",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "626",
+    "contaMaeCodigo": "626",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2875,7 +2875,7 @@
     "nome": "Seguros de acidentes no trabalho e doenças profissionais",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2885,7 +2885,7 @@
     "nome": "Gastos de acção social",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2895,7 +2895,7 @@
     "nome": "Outros gastos com pessoal",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "62",
+    "contaMaeCodigo": "62",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2905,7 +2905,7 @@
     "nome": "Fornecimentos e serviços de terceiros",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -2915,7 +2915,7 @@
     "nome": "Subcontratos",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "63",
+    "contaMaeCodigo": "63",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2925,7 +2925,7 @@
     "nome": "Fornecimentos e serviços",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "63",
+    "contaMaeCodigo": "63",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2935,7 +2935,7 @@
     "nome": "Água",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6321",
+    "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2945,7 +2945,7 @@
     "nome": "Electricidade",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6321",
+    "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2955,7 +2955,7 @@
     "nome": "Combustíveis",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6321",
+    "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2965,7 +2965,7 @@
     "nome": "Gasóleo",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63213",
+    "contaMaeCodigo": "63213",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2975,7 +2975,7 @@
     "nome": "Gasóleo – Viaturas ligeiras de passageiros",
     "classe": 6,
     "nivel": 7,
-    "contaPaiCodigo": "632131",
+    "contaMaeCodigo": "632131",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2985,7 +2985,7 @@
     "nome": "Gasóleo - Outros",
     "classe": 6,
     "nivel": 7,
-    "contaPaiCodigo": "632131",
+    "contaMaeCodigo": "632131",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -2995,7 +2995,7 @@
     "nome": "Restantes combustíveis",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63213",
+    "contaMaeCodigo": "63213",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3005,7 +3005,7 @@
     "nome": "Restantes combustíveis – Viaturas ligeiras de passageiros",
     "classe": 6,
     "nivel": 7,
-    "contaPaiCodigo": "632132",
+    "contaMaeCodigo": "632132",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3015,7 +3015,7 @@
     "nome": "Restantes combustíveis - Outros",
     "classe": 6,
     "nivel": 7,
-    "contaPaiCodigo": "632132",
+    "contaMaeCodigo": "632132",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3025,7 +3025,7 @@
     "nome": "Lubrificantes",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63213",
+    "contaMaeCodigo": "63213",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3035,7 +3035,7 @@
     "nome": "Lubrificantes - Viaturas ligeiras de passageiros",
     "classe": 6,
     "nivel": 7,
-    "contaPaiCodigo": "632133",
+    "contaMaeCodigo": "632133",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3045,7 +3045,7 @@
     "nome": "Lubrificantes - Outros",
     "classe": 6,
     "nivel": 7,
-    "contaPaiCodigo": "632133",
+    "contaMaeCodigo": "632133",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3055,7 +3055,7 @@
     "nome": "Ferramentas e utensílios de desgaste rápido",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6321",
+    "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3065,7 +3065,7 @@
     "nome": "Material de manutenção e reparação",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6321",
+    "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3075,7 +3075,7 @@
     "nome": "Material de manutenção e reparação - Viaturas ligeiras de passageiros",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63215",
+    "contaMaeCodigo": "63215",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3085,7 +3085,7 @@
     "nome": "Material de manutenção e reparação - Outros",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63215",
+    "contaMaeCodigo": "63215",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3095,7 +3095,7 @@
     "nome": "Material de escritório",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6321",
+    "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3105,7 +3105,7 @@
     "nome": "Livros e documentação técnica",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6321",
+    "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3115,7 +3115,7 @@
     "nome": "Artigos para oferta",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6321",
+    "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3125,7 +3125,7 @@
     "nome": "Manutenção e reparação",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3135,7 +3135,7 @@
     "nome": "Transportes de carga",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3145,7 +3145,7 @@
     "nome": "Transportes de pessoal",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3155,7 +3155,7 @@
     "nome": "Comunicações",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3165,7 +3165,7 @@
     "nome": "Honorários",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3175,7 +3175,7 @@
     "nome": "Comissões a intermediários",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3185,7 +3185,7 @@
     "nome": "Publicidade e propaganda",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3195,7 +3195,7 @@
     "nome": "Publicidade e propaganda – Campanhas publicitárias",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63227",
+    "contaMaeCodigo": "63227",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3205,7 +3205,7 @@
     "nome": "Publicidade e propaganda - Outros",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63227",
+    "contaMaeCodigo": "63227",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3215,7 +3215,7 @@
     "nome": "Deslocações e estadias",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3225,7 +3225,7 @@
     "nome": "Deslocações e estadias – Em serviço",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63228",
+    "contaMaeCodigo": "63228",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3235,7 +3235,7 @@
     "nome": "Deslocações e estadias – Outras deslocações",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63228",
+    "contaMaeCodigo": "63228",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3245,7 +3245,7 @@
     "nome": "Despesas de representação",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6322",
+    "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3255,7 +3255,7 @@
     "nome": "Contencioso e notariado",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6323",
+    "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3265,7 +3265,7 @@
     "nome": "Rendas e alugueres",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6323",
+    "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3275,7 +3275,7 @@
     "nome": "Rendas e alugueres – Locação financeira",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63232",
+    "contaMaeCodigo": "63232",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3285,7 +3285,7 @@
     "nome": "Seguros",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6323",
+    "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3295,7 +3295,7 @@
     "nome": "Seguro de vida, acidentes pessoais e doença",
     "classe": 6,
     "nivel": 6,
-    "contaPaiCodigo": "63233",
+    "contaMaeCodigo": "63233",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3305,7 +3305,7 @@
     "nome": "Royalties",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6323",
+    "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3315,7 +3315,7 @@
     "nome": "Limpeza, higiene e conforto",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6323",
+    "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3325,7 +3325,7 @@
     "nome": "Vigilância e segurança",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6323",
+    "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3335,7 +3335,7 @@
     "nome": "Trabalhos especializados",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6323",
+    "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3345,7 +3345,7 @@
     "nome": "Outros fornecimentos e serviços",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6329",
+    "contaMaeCodigo": "6329",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3355,7 +3355,7 @@
     "nome": "Perdas por imparidade do período",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -3365,7 +3365,7 @@
     "nome": "Ajustamentos de inventários para o valor realizável líquido",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "64",
+    "contaMaeCodigo": "64",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3375,7 +3375,7 @@
     "nome": "Investimentos financeiros",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "64",
+    "contaMaeCodigo": "64",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3385,7 +3385,7 @@
     "nome": "Activos tangíveis",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "64",
+    "contaMaeCodigo": "64",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3395,7 +3395,7 @@
     "nome": "Activos intangíveis",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "64",
+    "contaMaeCodigo": "64",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3405,7 +3405,7 @@
     "nome": "Activos não correntes detidos para venda",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "64",
+    "contaMaeCodigo": "64",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3415,7 +3415,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "64",
+    "contaMaeCodigo": "64",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3425,7 +3425,7 @@
     "nome": "Activos de exploração e avaliação de recursos minerais",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "64",
+    "contaMaeCodigo": "64",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3435,7 +3435,7 @@
     "nome": "Contas a receber",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "64",
+    "contaMaeCodigo": "64",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3445,7 +3445,7 @@
     "nome": "Contas a receber – ajustamentos dentro dos limites fiscais",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "648",
+    "contaMaeCodigo": "648",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3455,7 +3455,7 @@
     "nome": "Contas a receber – ajustamentos para além dos limites fiscais",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "648",
+    "contaMaeCodigo": "648",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3465,7 +3465,7 @@
     "nome": "Amortizações do período",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -3475,7 +3475,7 @@
     "nome": "Activos tangíveis",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "65",
+    "contaMaeCodigo": "65",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3485,7 +3485,7 @@
     "nome": "Activos intangíveis",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "65",
+    "contaMaeCodigo": "65",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3495,7 +3495,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "65",
+    "contaMaeCodigo": "65",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3505,7 +3505,7 @@
     "nome": "Activos de exploração e avaliação de recursos minerais",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "65",
+    "contaMaeCodigo": "65",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3515,7 +3515,7 @@
     "nome": "Provisões do período",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -3525,7 +3525,7 @@
     "nome": "Processos judiciais em curso",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "66",
+    "contaMaeCodigo": "66",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3535,7 +3535,7 @@
     "nome": "Acidentes no trabalho e doenças profissionais",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "66",
+    "contaMaeCodigo": "66",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3545,7 +3545,7 @@
     "nome": "Impostos",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "66",
+    "contaMaeCodigo": "66",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3555,7 +3555,7 @@
     "nome": "Reestruturação de negócios",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "66",
+    "contaMaeCodigo": "66",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3565,7 +3565,7 @@
     "nome": "Contratos onerosos",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "66",
+    "contaMaeCodigo": "66",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3575,7 +3575,7 @@
     "nome": "Garantias a clientes",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "66",
+    "contaMaeCodigo": "66",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3585,7 +3585,7 @@
     "nome": "Perdas em contratos de construção",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "66",
+    "contaMaeCodigo": "66",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3595,7 +3595,7 @@
     "nome": "Outras provisões",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "66",
+    "contaMaeCodigo": "66",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3605,7 +3605,7 @@
     "nome": "Perdas por redução do justo valor",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -3615,7 +3615,7 @@
     "nome": "Instrumentos financeiros",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "67",
+    "contaMaeCodigo": "67",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3625,7 +3625,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "67",
+    "contaMaeCodigo": "67",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3635,7 +3635,7 @@
     "nome": "Activos biológicos",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "67",
+    "contaMaeCodigo": "67",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3645,7 +3645,7 @@
     "nome": "Outros gastos e perdas operacionais",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -3655,7 +3655,7 @@
     "nome": "Despesas de investigação e pesquisa",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "68",
+    "contaMaeCodigo": "68",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3665,7 +3665,7 @@
     "nome": "Impostos e taxas",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "68",
+    "contaMaeCodigo": "68",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3675,7 +3675,7 @@
     "nome": "Direitos aduaneiros",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "682",
+    "contaMaeCodigo": "682",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3685,7 +3685,7 @@
     "nome": "Imposto sobre o Valor Acrescentado",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "682",
+    "contaMaeCodigo": "682",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3695,7 +3695,7 @@
     "nome": "Imposto de selo",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "682",
+    "contaMaeCodigo": "682",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3705,7 +3705,7 @@
     "nome": "Impostos sobre veículos",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "682",
+    "contaMaeCodigo": "682",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3715,7 +3715,7 @@
     "nome": "Impostos autárquicos",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "682",
+    "contaMaeCodigo": "682",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3725,7 +3725,7 @@
     "nome": "Perdas em Investimentos de capital",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "68",
+    "contaMaeCodigo": "68",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3735,7 +3735,7 @@
     "nome": "Alienação",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "683",
+    "contaMaeCodigo": "683",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3745,7 +3745,7 @@
     "nome": "Abates",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "683",
+    "contaMaeCodigo": "683",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3755,7 +3755,7 @@
     "nome": "Sinistros",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "683",
+    "contaMaeCodigo": "683",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3765,7 +3765,7 @@
     "nome": "Perdas em inventários e activos biológicos",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "68",
+    "contaMaeCodigo": "68",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3775,7 +3775,7 @@
     "nome": "Sinistros",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "684",
+    "contaMaeCodigo": "684",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3785,7 +3785,7 @@
     "nome": "Quebras",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "684",
+    "contaMaeCodigo": "684",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3795,7 +3795,7 @@
     "nome": "Outras",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "684",
+    "contaMaeCodigo": "684",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3805,7 +3805,7 @@
     "nome": "Outros gastos operacionais",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "68",
+    "contaMaeCodigo": "68",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3815,7 +3815,7 @@
     "nome": "Quotizações",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "689",
+    "contaMaeCodigo": "689",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3825,7 +3825,7 @@
     "nome": "Despesas confidenciais",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "689",
+    "contaMaeCodigo": "689",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3835,7 +3835,7 @@
     "nome": "Ofertas e amostras de inventários",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "689",
+    "contaMaeCodigo": "689",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3845,7 +3845,7 @@
     "nome": "Programas de responsabilidade social",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "689",
+    "contaMaeCodigo": "689",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3855,7 +3855,7 @@
     "nome": "Donativos",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "689",
+    "contaMaeCodigo": "689",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3865,7 +3865,7 @@
     "nome": "Donativos ao Estado",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6895",
+    "contaMaeCodigo": "6895",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3875,7 +3875,7 @@
     "nome": "Outros donativos no âmbito do Mecenato",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6895",
+    "contaMaeCodigo": "6895",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3885,7 +3885,7 @@
     "nome": "Multas e penalidades",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "689",
+    "contaMaeCodigo": "689",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3895,7 +3895,7 @@
     "nome": "Outros",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "689",
+    "contaMaeCodigo": "689",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3905,7 +3905,7 @@
     "nome": "Gastos e perdas financeiros",
     "classe": 6,
     "nivel": 2,
-    "contaPaiCodigo": "6",
+    "contaMaeCodigo": "6",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -3915,7 +3915,7 @@
     "nome": "Juros suportados",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "69",
+    "contaMaeCodigo": "69",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3925,7 +3925,7 @@
     "nome": "Empréstimos bancários",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "691",
+    "contaMaeCodigo": "691",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3935,7 +3935,7 @@
     "nome": "Empréstimos obrigacionistas e títulos de participação",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "691",
+    "contaMaeCodigo": "691",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3945,7 +3945,7 @@
     "nome": "Empréstimos de sócios, accionistas ou proprietários",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "691",
+    "contaMaeCodigo": "691",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3955,7 +3955,7 @@
     "nome": "Outros empréstimos",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "691",
+    "contaMaeCodigo": "691",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3965,7 +3965,7 @@
     "nome": "Desconto de títulos",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "691",
+    "contaMaeCodigo": "691",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3975,7 +3975,7 @@
     "nome": "Juros de mora e compensatórios",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "691",
+    "contaMaeCodigo": "691",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3985,7 +3985,7 @@
     "nome": "Juros de mora",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6916",
+    "contaMaeCodigo": "6916",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -3995,7 +3995,7 @@
     "nome": "Juros compensatórios",
     "classe": 6,
     "nivel": 5,
-    "contaPaiCodigo": "6916",
+    "contaMaeCodigo": "6916",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4005,7 +4005,7 @@
     "nome": "Outros juros",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "691",
+    "contaMaeCodigo": "691",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4015,7 +4015,7 @@
     "nome": "Diferenças de câmbio desfavoráveis",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "69",
+    "contaMaeCodigo": "69",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4025,7 +4025,7 @@
     "nome": "Realizadas",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "694",
+    "contaMaeCodigo": "694",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4035,7 +4035,7 @@
     "nome": "Não realizadas",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "694",
+    "contaMaeCodigo": "694",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4045,7 +4045,7 @@
     "nome": "Descontos de pronto pagamento concedidos",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "69",
+    "contaMaeCodigo": "69",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4055,7 +4055,7 @@
     "nome": "Outros gastos e perdas financeiros",
     "classe": 6,
     "nivel": 3,
-    "contaPaiCodigo": "69",
+    "contaMaeCodigo": "69",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4065,7 +4065,7 @@
     "nome": "Serviços bancários",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "698",
+    "contaMaeCodigo": "698",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4075,7 +4075,7 @@
     "nome": "Diversos não especificados",
     "classe": 6,
     "nivel": 4,
-    "contaPaiCodigo": "698",
+    "contaMaeCodigo": "698",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -4085,7 +4085,7 @@
     "nome": "Classe 7 — Rendimentos e ganhos",
     "classe": 7,
     "nivel": 1,
-    "contaPaiCodigo": null,
+    "contaMaeCodigo": null,
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4095,7 +4095,7 @@
     "nome": "Vendas",
     "classe": 7,
     "nivel": 2,
-    "contaPaiCodigo": "7",
+    "contaMaeCodigo": "7",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4105,7 +4105,7 @@
     "nome": "Mercadorias",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "71",
+    "contaMaeCodigo": "71",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4115,7 +4115,7 @@
     "nome": "Produtos acabados e intermédios",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "71",
+    "contaMaeCodigo": "71",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4125,7 +4125,7 @@
     "nome": "Subprodutos, desperdícios, resíduos e refugos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "71",
+    "contaMaeCodigo": "71",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4135,7 +4135,7 @@
     "nome": "Activos biológicos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "71",
+    "contaMaeCodigo": "71",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4145,7 +4145,7 @@
     "nome": "IVA das vendas com imposto incluído",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "71",
+    "contaMaeCodigo": "71",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4155,7 +4155,7 @@
     "nome": "Devolução de vendas",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "71",
+    "contaMaeCodigo": "71",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4165,7 +4165,7 @@
     "nome": "Descontos e abatimentos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "71",
+    "contaMaeCodigo": "71",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4175,7 +4175,7 @@
     "nome": "Prestação de serviços",
     "classe": 7,
     "nivel": 2,
-    "contaPaiCodigo": "7",
+    "contaMaeCodigo": "7",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4185,7 +4185,7 @@
     "nome": "IVA da prestação de serviços com imposto incluído",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "72",
+    "contaMaeCodigo": "72",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4195,7 +4195,7 @@
     "nome": "Descontos e abatimentos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "72",
+    "contaMaeCodigo": "72",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4205,7 +4205,7 @@
     "nome": "Investimentos realizados pela própria empresa",
     "classe": 7,
     "nivel": 2,
-    "contaPaiCodigo": "7",
+    "contaMaeCodigo": "7",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4215,7 +4215,7 @@
     "nome": "Investimentos financeiros",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "73",
+    "contaMaeCodigo": "73",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4225,7 +4225,7 @@
     "nome": "Activos tangíveis",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "73",
+    "contaMaeCodigo": "73",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4235,7 +4235,7 @@
     "nome": "Activos intangíveis",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "73",
+    "contaMaeCodigo": "73",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4245,7 +4245,7 @@
     "nome": "Investimentos em curso",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "73",
+    "contaMaeCodigo": "73",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4255,7 +4255,7 @@
     "nome": "Reversões do período",
     "classe": 7,
     "nivel": 2,
-    "contaPaiCodigo": "7",
+    "contaMaeCodigo": "7",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4265,7 +4265,7 @@
     "nome": "De perdas por imparidade",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "74",
+    "contaMaeCodigo": "74",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4275,7 +4275,7 @@
     "nome": "Ajustamentos de inventários para o valor realizável líquido",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "741",
+    "contaMaeCodigo": "741",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4285,7 +4285,7 @@
     "nome": "Investimentos financeiros",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "741",
+    "contaMaeCodigo": "741",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4295,7 +4295,7 @@
     "nome": "Activos tangíveis",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "741",
+    "contaMaeCodigo": "741",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4305,7 +4305,7 @@
     "nome": "Activos intangíveis",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "741",
+    "contaMaeCodigo": "741",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4315,7 +4315,7 @@
     "nome": "Activos não correntes detidos para venda",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "741",
+    "contaMaeCodigo": "741",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4325,7 +4325,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "741",
+    "contaMaeCodigo": "741",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4335,7 +4335,7 @@
     "nome": "Activos de exploração e avaliação de recursos minerais",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "741",
+    "contaMaeCodigo": "741",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4345,7 +4345,7 @@
     "nome": "Contas a receber",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "741",
+    "contaMaeCodigo": "741",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4355,7 +4355,7 @@
     "nome": "De amortizações",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "74",
+    "contaMaeCodigo": "74",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4365,7 +4365,7 @@
     "nome": "Activos tangíveis",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "742",
+    "contaMaeCodigo": "742",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4375,7 +4375,7 @@
     "nome": "Activos intangíveis",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "742",
+    "contaMaeCodigo": "742",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4385,7 +4385,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "742",
+    "contaMaeCodigo": "742",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4395,7 +4395,7 @@
     "nome": "Activos de exploração e avaliação de recursos minerais",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "742",
+    "contaMaeCodigo": "742",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4405,7 +4405,7 @@
     "nome": "De provisões",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "74",
+    "contaMaeCodigo": "74",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4415,7 +4415,7 @@
     "nome": "Processos judiciais em curso",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "743",
+    "contaMaeCodigo": "743",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4425,7 +4425,7 @@
     "nome": "Acidentes no trabalho e doenças profissionais",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "743",
+    "contaMaeCodigo": "743",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4435,7 +4435,7 @@
     "nome": "Impostos",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "743",
+    "contaMaeCodigo": "743",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4445,7 +4445,7 @@
     "nome": "Reestruturação de negócios",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "743",
+    "contaMaeCodigo": "743",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4455,7 +4455,7 @@
     "nome": "Contratos onerosos",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "743",
+    "contaMaeCodigo": "743",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4465,7 +4465,7 @@
     "nome": "Garantias a clientes",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "743",
+    "contaMaeCodigo": "743",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4475,7 +4475,7 @@
     "nome": "Perdas em contratos de construção",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "743",
+    "contaMaeCodigo": "743",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4485,7 +4485,7 @@
     "nome": "Outras provisões",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "743",
+    "contaMaeCodigo": "743",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4495,7 +4495,7 @@
     "nome": "Rendimentos suplementares",
     "classe": 7,
     "nivel": 2,
-    "contaPaiCodigo": "7",
+    "contaMaeCodigo": "7",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4505,7 +4505,7 @@
     "nome": "Serviços sociais",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "75",
+    "contaMaeCodigo": "75",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4515,7 +4515,7 @@
     "nome": "Aluguer de equipamento",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "75",
+    "contaMaeCodigo": "75",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4525,7 +4525,7 @@
     "nome": "Venda de energia",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "75",
+    "contaMaeCodigo": "75",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4535,7 +4535,7 @@
     "nome": "Estudos, projectos pesquisas e investigações",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "75",
+    "contaMaeCodigo": "75",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4545,7 +4545,7 @@
     "nome": "Assistência técnica",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "75",
+    "contaMaeCodigo": "75",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4555,7 +4555,7 @@
     "nome": "Royalties",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "75",
+    "contaMaeCodigo": "75",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4565,7 +4565,7 @@
     "nome": "Cargos sociais exercidos noutras empresas",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "75",
+    "contaMaeCodigo": "75",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4575,7 +4575,7 @@
     "nome": "Outros rendimentos suplementares inerentes ao valor acrescentado",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "75",
+    "contaMaeCodigo": "75",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4585,7 +4585,7 @@
     "nome": "Outros rendimentos e ganhos operacionais",
     "classe": 7,
     "nivel": 2,
-    "contaPaiCodigo": "7",
+    "contaMaeCodigo": "7",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4595,7 +4595,7 @@
     "nome": "Subsídios para investimentos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "76",
+    "contaMaeCodigo": "76",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4605,7 +4605,7 @@
     "nome": "Do Estado e outros organismos públicos",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "761",
+    "contaMaeCodigo": "761",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4615,7 +4615,7 @@
     "nome": "De outras entidades",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "761",
+    "contaMaeCodigo": "761",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4625,7 +4625,7 @@
     "nome": "Subsídios à exploração",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "76",
+    "contaMaeCodigo": "76",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4635,7 +4635,7 @@
     "nome": "Do Estado e outros organismos públicos",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "762",
+    "contaMaeCodigo": "762",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4645,7 +4645,7 @@
     "nome": "De outras entidades",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "762",
+    "contaMaeCodigo": "762",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4655,7 +4655,7 @@
     "nome": "Ganhos em investimentos de capital",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "76",
+    "contaMaeCodigo": "76",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4665,7 +4665,7 @@
     "nome": "Alienação",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "763",
+    "contaMaeCodigo": "763",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4675,7 +4675,7 @@
     "nome": "Sinistros",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "763",
+    "contaMaeCodigo": "763",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4685,7 +4685,7 @@
     "nome": "Ganhos em inventários e activos biológicos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "76",
+    "contaMaeCodigo": "76",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4695,7 +4695,7 @@
     "nome": "Sinistros",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "764",
+    "contaMaeCodigo": "764",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4705,7 +4705,7 @@
     "nome": "Sobras",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "764",
+    "contaMaeCodigo": "764",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4715,7 +4715,7 @@
     "nome": "Outros",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "764",
+    "contaMaeCodigo": "764",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4725,7 +4725,7 @@
     "nome": "Outros rendimentos alheios ao valor acrescentado",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "76",
+    "contaMaeCodigo": "76",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4735,7 +4735,7 @@
     "nome": "Restituição de impostos",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "769",
+    "contaMaeCodigo": "769",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4745,7 +4745,7 @@
     "nome": "Benefícios de penalidades contratuais",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "769",
+    "contaMaeCodigo": "769",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4755,7 +4755,7 @@
     "nome": "Excesso de estimativa para impostos",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "769",
+    "contaMaeCodigo": "769",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4765,7 +4765,7 @@
     "nome": "Outros",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "769",
+    "contaMaeCodigo": "769",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4775,7 +4775,7 @@
     "nome": "Rendimentos e ganhos financeiros",
     "classe": 7,
     "nivel": 2,
-    "contaPaiCodigo": "7",
+    "contaMaeCodigo": "7",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4785,7 +4785,7 @@
     "nome": "Juros obtidos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "78",
+    "contaMaeCodigo": "78",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4795,7 +4795,7 @@
     "nome": "Depósitos bancários",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "781",
+    "contaMaeCodigo": "781",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4805,7 +4805,7 @@
     "nome": "Empréstimos",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "781",
+    "contaMaeCodigo": "781",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4815,7 +4815,7 @@
     "nome": "Obrigações e títulos de participação",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "781",
+    "contaMaeCodigo": "781",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4825,7 +4825,7 @@
     "nome": "Outras aplicações de tesouraria",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "781",
+    "contaMaeCodigo": "781",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4835,7 +4835,7 @@
     "nome": "Outros juros",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "781",
+    "contaMaeCodigo": "781",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4845,7 +4845,7 @@
     "nome": "Rendimentos de activos tangíveis de investimento",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "78",
+    "contaMaeCodigo": "78",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4855,7 +4855,7 @@
     "nome": "Rendimentos de instrumentos financeiros",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "78",
+    "contaMaeCodigo": "78",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4865,7 +4865,7 @@
     "nome": "Diferenças de câmbio favoráveis",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "78",
+    "contaMaeCodigo": "78",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4875,7 +4875,7 @@
     "nome": "Realizadas",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "784",
+    "contaMaeCodigo": "784",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4885,7 +4885,7 @@
     "nome": "Não realizadas",
     "classe": 7,
     "nivel": 4,
-    "contaPaiCodigo": "784",
+    "contaMaeCodigo": "784",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4895,7 +4895,7 @@
     "nome": "Descontos de pronto pagamento obtidos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "78",
+    "contaMaeCodigo": "78",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4905,7 +4905,7 @@
     "nome": "Outros rendimentos e ganhos financeiros",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "78",
+    "contaMaeCodigo": "78",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4915,7 +4915,7 @@
     "nome": "Ganhos por aumento do justo valor",
     "classe": 7,
     "nivel": 2,
-    "contaPaiCodigo": "7",
+    "contaMaeCodigo": "7",
     "aceitaLancamento": false,
     "natureza": "DEVEDORA"
   },
@@ -4925,7 +4925,7 @@
     "nome": "Instrumentos financeiros",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "79",
+    "contaMaeCodigo": "79",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4935,7 +4935,7 @@
     "nome": "Activos tangíveis de investimento",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "79",
+    "contaMaeCodigo": "79",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4945,7 +4945,7 @@
     "nome": "Activos biológicos",
     "classe": 7,
     "nivel": 3,
-    "contaPaiCodigo": "79",
+    "contaMaeCodigo": "79",
     "aceitaLancamento": true,
     "natureza": "DEVEDORA"
   },
@@ -4955,7 +4955,7 @@
     "nome": "Classe 8 — Resultados",
     "classe": 8,
     "nivel": 1,
-    "contaPaiCodigo": null,
+    "contaMaeCodigo": null,
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -4965,7 +4965,7 @@
     "nome": "Resultados operacionais",
     "classe": 8,
     "nivel": 2,
-    "contaPaiCodigo": "8",
+    "contaMaeCodigo": "8",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -4975,7 +4975,7 @@
     "nome": "Resultados financeiros",
     "classe": 8,
     "nivel": 2,
-    "contaPaiCodigo": "8",
+    "contaMaeCodigo": "8",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -4985,7 +4985,7 @@
     "nome": "Resultados correntes",
     "classe": 8,
     "nivel": 2,
-    "contaPaiCodigo": "8",
+    "contaMaeCodigo": "8",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -4995,7 +4995,7 @@
     "nome": "Imposto sobre o rendimento",
     "classe": 8,
     "nivel": 2,
-    "contaPaiCodigo": "8",
+    "contaMaeCodigo": "8",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -5005,7 +5005,7 @@
     "nome": "Imposto corrente",
     "classe": 8,
     "nivel": 3,
-    "contaPaiCodigo": "85",
+    "contaMaeCodigo": "85",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -5015,7 +5015,7 @@
     "nome": "Imposto diferido",
     "classe": 8,
     "nivel": 3,
-    "contaPaiCodigo": "85",
+    "contaMaeCodigo": "85",
     "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
@@ -5025,7 +5025,7 @@
     "nome": "Resultado líquido do período",
     "classe": 8,
     "nivel": 2,
-    "contaPaiCodigo": "8",
+    "contaMaeCodigo": "8",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   },
@@ -5035,7 +5035,7 @@
     "nome": "Dividendos antecipados",
     "classe": 8,
     "nivel": 2,
-    "contaPaiCodigo": "8",
+    "contaMaeCodigo": "8",
     "aceitaLancamento": false,
     "natureza": "CREDORA"
   }
