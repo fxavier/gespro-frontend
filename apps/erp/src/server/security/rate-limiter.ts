@@ -23,10 +23,12 @@ import { createValkeyRateLimiter } from './rate-limiter-valkey';
  *     - Convites de utilizador (20/h por tenant)         → inviteLimiter
  *     - Exportações CSV/XLSX/PDF (10/min por utilizador) → exportLimiter
  *     - Assinatura de URL de armazenamento (30/min/user) → presignLimiter
+ *     - Ligação de verificação de e-mail (20/15 min por IP)  → verificacaoEmailLimiter
+ *     - Reenvio da verificação (3/h por sub, ADR-0031 §5)     → reenvioVerificacaoLimiter
  *   Protegidos pelo Keycloak (force bruta nativa):
- *     - Login, recuperação de palavra-passe, verificação de e-mail.
+ *     - Recuperação de palavra-passe.
  *   Compatibilidade (serão removidos por w8-identidade ao fundir ADR-0010):
- *     - passwordResetLimiter, handoffLimiter, verificacaoEmailLimiter
+ *     - passwordResetLimiter, handoffLimiter
  *
  * Uso:
  *   const rl = await registoLimiter.consume(`${ip}::registo`);
@@ -250,6 +252,39 @@ export const presignLimiter = createRateLimiterFromEnv({
   failClosed: false,
 });
 
+/**
+ * Ligação de verificação de e-mail: 20 visitas/15 min por IP.
+ *
+ * Deixou de ser um limitador de compatibilidade: o ADR-0031 §5 devolveu-nos a
+ * verificação de e-mail (o ADR-0013 §4 tinha-a dado ao Keycloak), portanto
+ * `GET /api/publico/verificar-email` é outra vez superfície pública nossa e a
+ * detecção de força bruta do Keycloak não a cobre.
+ *
+ * Falha ABERTA, ao contrário do registo: a ligação não concede sessão nenhuma
+ * e o seu efeito é idempotente. Quem a protege é a assinatura HMAC-SHA256;
+ * este limite só trava o ruído de quem a tenta adivinhar. Bloquear
+ * confirmações legítimas durante uma avaria do Valkey custaria mais.
+ */
+export const verificacaoEmailLimiter = createRateLimiterFromEnv({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  failClosed: false,
+});
+
+/**
+ * Reenvio da ligação de verificação: 3 pedidos/hora **por `sub`** (ADR-0031 §5).
+ *
+ * A chave é o `sub` e não o IP de propósito: quem carrega no botão está
+ * autenticado, e o que se limita aqui é o nosso servidor a mandar correio
+ * para um endereço — amplificação, o mesmo risco que pôs o captcha antes do
+ * Keycloak no registo público.
+ */
+export const reenvioVerificacaoLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  failClosed: false,
+});
+
 // ---------------------------------------------------------------------------
 // Compatibilidade — serão removidos por w8-identidade (ADR-0010)
 // ---------------------------------------------------------------------------
@@ -266,9 +301,6 @@ export const passwordResetLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000
 
 /** @deprecated TokenHandoff é removido pelo ADR-0013 §5. Remover com w8-identidade. */
 export const handoffLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
-
-/** @deprecated Keycloak trata verificação de e-mail. Remover com w8-identidade. */
-export const verificacaoEmailLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20 });
 
 /** Webhooks de entrada: 100 pedidos/minuto por IP. Mantido — não é Keycloak. */
 export const webhookLimiter = createRateLimiterFromEnv({

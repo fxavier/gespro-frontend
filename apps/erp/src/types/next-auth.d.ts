@@ -6,6 +6,12 @@ declare module 'next-auth' {
       id: string;
       tenantId: string;
       permissions: string[];
+      /**
+       * Claim `email_verified` do Keycloak (ADR-0031 §6). Sem coluna local e
+       * sem chamada ao Keycloak por pedido: viaja no access token e é
+       * reavaliado na re-resolução de 15 min (ADR-0011).
+       */
+      emailVerificado: boolean;
     } & DefaultSession['user'];
   }
 }
@@ -23,5 +29,11 @@ declare module 'next-auth/jwt' {
     kcRefreshToken?: string;
     /** Epoch (s) da próxima re-resolução obrigatória contra o Postgres. */
     resolverEm?: number;
+    /**
+     * `email_verified` do access token do Keycloak (ADR-0031 §6). Opcional
+     * porque tokens emitidos antes deste ADR não o têm — ausente conta como
+     * não verificado.
+     */
+    emailVerificado?: boolean;
   }
 }

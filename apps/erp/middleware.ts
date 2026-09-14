@@ -22,12 +22,19 @@ const PUBLIC_PATHS = [
   // Fronteiras públicas do onboarding self-service (spec 19). Sem estes, o site
   // de marketing e o Stripe recebem 307 → /auth/login em vez de 2xx.
   // A protecção destes endpoints é própria: rate-limit + captcha no registo,
-  // verificação da assinatura HMAC no webhook.
-  // (O ADR-0013 removeu /api/publico/verificar-email e /auth/registo-callback:
-  // verificação de e-mail e definição de palavra-passe são do Keycloak.)
+  // verificação da assinatura HMAC no webhook e na ligação de verificação.
+  //
+  // O ADR-0013 §4 tinha removido /api/publico/verificar-email (a verificação
+  // era do Keycloak); o ADR-0031 §5 inverteu-o — a ligação volta a ser nossa,
+  // assinada com EMAIL_VERIFY_SECRET e sem estado. /auth/registo-callback
+  // continua removido: o handoff não voltou (ADR-0031, alternativas).
   '/api/publico/registo',
   '/api/publico/planos',
+  '/api/publico/verificar-email',
   '/api/webhooks/stripe',
+  // Ecrã de registo servido pelo ERP (ADR-0031): é o formulário público que
+  // emite o cookie na origem que lhe pertence. Sem sessão, por definição.
+  '/registo',
   // Crons: cada rota impõe `Authorization: Bearer <CRON_SECRET>` e devolve 401
   // sem ele. Sem esta entrada, o agendador recebia 307 → /auth/login antes de
   // a credencial própria ser sequer lida (defeito latente que afectava também

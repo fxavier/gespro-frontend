@@ -9,7 +9,7 @@ import {
   intervaloResolucaoSegundos,
   tectoSessaoSegundos,
 } from '@/server/auth/keycloak';
-import { autenticarPorPalavraPasse } from '@/server/auth/direct-grant';
+import { autenticarPorPalavraPasse, emailVerificadoDoToken } from '@/server/auth/direct-grant';
 import { loginLimiter } from '@/server/security/rate-limiter';
 
 /**
@@ -229,7 +229,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         // Só o que o `jwt` precisa na emissão inicial. Nunca a palavra-passe.
-        return { id: res.userId, keycloakSub: kc.sub, kcRefreshToken: kc.refreshToken };
+        return {
+          id: res.userId,
+          keycloakSub: kc.sub,
+          kcRefreshToken: kc.refreshToken,
+          emailVerificado: kc.emailVerificado,
+        };
       },
     }),
   ],
@@ -259,6 +264,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.permissions = res.permissions;
         token.keycloakSub = sub;
         token.kcRefreshToken = refresh;
+        // ADR-0031 §6: o estado de verificação NÃO tem coluna local — entra
+        // aqui, vindo do claim `email_verified` do access token, e é
+        // reavaliado a cada re-resolução (abaixo).
+        token.emailVerificado = (user as { emailVerificado?: unknown }).emailVerificado === true;
         token.resolverEm = agora + intervaloResolucaoSegundos();
         return token;
       }
@@ -283,6 +292,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (renovado.ok && renovado.refreshToken) {
         token.kcRefreshToken = renovado.refreshToken;
       }
+      if (renovado.ok) {
+        // ADR-0031 §6: confirmar o e-mail escreve um booleano no Keycloak e
+        // não toca em Postgres, portanto é AQUI — e só aqui — que a sessão
+        // dá por isso. O atraso máximo é o intervalo do ADR-0011 (15 min),
+        // que é o mesmo preço já pago por retirar um papel ou desactivar
+        // alguém. Em `indisponivel` mantém-se o valor anterior: uma avaria do
+        // Keycloak não deve levantar nem impor travões.
+        token.emailVerificado = emailVerificadoDoToken(renovado.accessToken);
+      }
       // `indisponivel`: mantém-se o token de renovação actual e segue-se para
       // a re-resolução em Postgres — é ela que impõe a revogação (ADR-0011).
 
@@ -306,6 +324,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.id = token.uid;
       session.user.tenantId = token.tenantId;
       session.user.permissions = token.permissions;
+      // Ausente conta como NÃO verificado (fail-closed): um token emitido
+      // antes do ADR-0031 não tem o campo, e os travões do §5 recusam até à
+      // re-resolução seguinte, que é reversível por um clique.
+      session.user.emailVerificado = token.emailVerificado === true;
       return session;
     },
   },

@@ -28,8 +28,10 @@ function resposta(status: number, corpo: unknown = {}) {
 }
 
 /** Access token com um `sub` — só a payload interessa; não se verifica assinatura. */
-function tokenCom(sub: string): string {
-  const payload = Buffer.from(JSON.stringify({ sub })).toString('base64url');
+function tokenCom(sub: string, emailVerificado?: boolean): string {
+  const payload = Buffer.from(
+    JSON.stringify(emailVerificado === undefined ? { sub } : { sub, email_verified: emailVerificado }),
+  ).toString('base64url');
   return `cabecalho.${payload}.assinatura`;
 }
 
@@ -56,7 +58,26 @@ describe('autenticarPorPalavraPasse — caminho feliz', () => {
 
     const r = await autenticarPorPalavraPasse('admin@demo.mz', SEGREDO);
 
-    expect(r).toEqual({ ok: true, sub: 'sub-abc-123', refreshToken: 'refresh-xyz' });
+    expect(r).toEqual({
+      ok: true,
+      sub: 'sub-abc-123',
+      refreshToken: 'refresh-xyz',
+      // ADR-0031 §6: sem o claim, conta como NÃO verificado (fail-closed).
+      emailVerificado: false,
+    });
+  });
+
+  it('propaga `email_verified` do access token (ADR-0031 §6)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      resposta(200, {
+        access_token: tokenCom('sub-abc-123', true),
+        refresh_token: 'refresh-xyz',
+      }),
+    );
+
+    const r = await autenticarPorPalavraPasse('admin@demo.mz', SEGREDO);
+
+    expect(r).toMatchObject({ ok: true, emailVerificado: true });
   });
 
   it('envia grant_type=password para o endpoint de token, com o segredo do cliente', async () => {
