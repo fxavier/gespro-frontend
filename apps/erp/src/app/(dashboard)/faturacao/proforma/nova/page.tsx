@@ -7,8 +7,8 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import * as faturacaoService from '@/server/services/financas/faturacao.service';
 import { PageHeader } from '@/components/patterns';
+import { listarSeriesParaSelecao, type SerieOpcao } from '../../_lib/series';
 import { NovaProformaForm } from './_components/nova-proforma-form';
 
 export default async function NovaProformaPage() {
@@ -16,16 +16,11 @@ export default async function NovaProformaPage() {
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId } = session.user;
 
-  let series: Array<{ id: string; codigo: string; nome: string }> = [];
+  let series: SerieOpcao[] = [];
   try {
-    const rawSeries = await runWithTenantContext({ tenantId, userId }, () =>
-      faturacaoService.listarSeries({ tenantId, userId }),
+    series = await runWithTenantContext({ tenantId, userId }, () =>
+      listarSeriesParaSelecao('PROFORMA', { tenantId, userId }),
     );
-    series = rawSeries.map((s: any) => ({
-      id: s.id,
-      codigo: s.codigo,
-      nome: s.nome ?? s.codigo,
-    }));
   } catch {
     // O formulário mostra lista de séries vazia.
   }

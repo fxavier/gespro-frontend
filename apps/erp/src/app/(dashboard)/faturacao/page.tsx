@@ -10,6 +10,7 @@ import { Plus, TrendingUp, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
+import { clienteService } from '@/server/services/comercial/cliente.service';
 import { FiltroFaturaSchema } from '@/lib/validations/faturacao';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, KpiCard, TableSkeleton } from '@/components/patterns';
@@ -61,14 +62,21 @@ async function KpisSection({ tenantId, userId }: { tenantId: string; userId: str
 
 async function FaturasSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
   try {
-    const result = await runWithTenantContext({ tenantId, userId }, () =>
-      faturacaoService.listarFaturas(filtros as any, { tenantId, userId })
+    const ctx = { tenantId, userId };
+    const result = await runWithTenantContext(ctx, () =>
+      faturacaoService.listarFaturas(filtros as any, ctx)
+    );
+
+    // `clienteId` é escalar (FK cross-domínio): o nome pede-se ao WS C, de uma
+    // vez para toda a página, e não uma consulta por linha.
+    const nomes = await runWithTenantContext(ctx, () =>
+      clienteService.nomesPorIds(result.items.map((f: any) => f.clienteId), ctx)
     );
 
     const items: FaturaResumo[] = result.items.map((f: any) => ({
       id: f.id,
-      numero: f.serie?.numero ?? f.id,
-      clienteNome: f.cliente?.nome ?? '—',
+      numero: f.numero,
+      clienteNome: nomes[f.clienteId]?.nome ?? '—',
       dataEmissao: f.dataEmissao,
       dataVencimento: f.dataVencimento,
       subtotal: n(f.subtotal).toFixed(2),
@@ -89,7 +97,9 @@ async function FaturasSection({ filtros, tenantId, userId }: { filtros: FiltroUr
 
 const FILTER_CONFIGS: FilterConfig[] = [
   {
-    key: 'statusFatura',
+    // A chave é a do FiltroFaturaSchema: com outro nome o zod descarta-a e o
+    // filtro de Estado não filtrava nada.
+    key: 'status',
     label: 'Estado',
     placeholder: 'Todos',
     options: [

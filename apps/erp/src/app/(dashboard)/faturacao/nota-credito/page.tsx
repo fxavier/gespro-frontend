@@ -11,6 +11,7 @@ import { Plus } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
+import { clienteService } from '@/server/services/comercial/cliente.service';
 import { FiltroNotaCreditoSchema } from '@/lib/validations/faturacao';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
@@ -27,15 +28,24 @@ const FILTROS_DEFAULT: FiltroUrl = { take: 25 };
 
 async function NotasCreditoSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
   try {
-    const result = await runWithTenantContext({ tenantId, userId }, () =>
-      faturacaoService.listarNotasCredito(filtros as any, { tenantId, userId })
+    const ctx = { tenantId, userId };
+    const result = await runWithTenantContext(ctx, () =>
+      faturacaoService.listarNotasCredito(filtros as any, ctx)
+    );
+
+    // O cliente da nota é o da factura que ela corrige.
+    const nomes = await runWithTenantContext(ctx, () =>
+      clienteService.nomesPorIds(
+        result.items.map((nc: any) => nc.faturaOriginal?.clienteId).filter(Boolean),
+        ctx,
+      )
     );
 
     const items: NotaCreditoResumo[] = result.items.map((nc: any) => ({
       id: nc.id,
-      numero: nc.serie?.numero ?? nc.id,
-      clienteNome: nc.cliente?.nome ?? '—',
-      faturaOriginalNumero: nc.faturaOriginal?.serie?.numero ?? nc.faturaOriginalId ?? '—',
+      numero: nc.numero,
+      clienteNome: nomes[nc.faturaOriginal?.clienteId]?.nome ?? '—',
+      faturaOriginalNumero: nc.faturaOriginal?.numero ?? '—',
       dataEmissao: nc.dataEmissao,
       total: parseFloat(nc.total?.toString() ?? '0').toFixed(2),
       status: nc.status,
