@@ -62,14 +62,16 @@ Headers: Content-Type: application/json
 Body:
 {
   "empresa": { "nome": "string", "nuit": "string" },
-  "admin":   { "nome": "string", "email": "string" },   # SEM senha (ADR-0013 §5)
+  "admin":   { "nome": "string", "email": "string" },
+  "senha": "string",                        # mín. 10 caracteres (ADR-0031)
+  "confirmacao": "string",                  # tem de coincidir com `senha`
   "planoId": "BASICO" | "PROFISSIONAL" | "EMPRESARIAL",
   "provincia": "string",                    # lista MZ validada server-side
   "captchaToken": "string"                  # hCaptcha/Turnstile
 }
 
 201 Created
-{ "tenantSlug": "string", "mensagem": "string" }   # mensagem de «verifique o e-mail»
+{ "tenantSlug": "string", "mensagem": "string" }   # mensagem de «confirme o e-mail»
 
 4xx
 { "traceId": "string", "erro": "string",
@@ -96,9 +98,20 @@ Códigos de erro estáveis (`error.code`), para o site mapear em copy própria:
 - Repetir a chave com o **mesmo** corpo devolve **201 com a mesma resposta**. A repetição não
   reenvia o e-mail de activação nem toca no fornecedor de identidade.
 - `provincia` é validada contra a lista de províncias de Moçambique (`getProvincias()`).
-- O campo `senha` **deixou de existir** (ADR-0013 §5): a palavra-passe é definida no Keycloak,
-  através do e-mail de activação. Um `senha` residual enviado pelo site é descartado pelo Zod e
-  nunca lido — mas o site **deve remover o campo** do formulário.
+- O campo `senha` **voltou** (ADR-0031, que inverte o ADR-0013 §5), agora **de topo** e
+  acompanhado de `confirmacao`: mínimo de 10 caracteres, mesma regra de
+  `/auth/mudar-palavra-passe` (ADR-0030). É escrita no Keycloak com `temporaria: false` **antes**
+  de haver tenant em Postgres — com `VERIFY_EMAIL` pendente o Direct Access Grant recusaria a
+  sessão e o registo não daria entrada nenhuma. O ERP continua a **nunca** guardar nem verificar
+  palavras-passe: ela vive um salto só, do corpo do pedido para a Admin API.
+- Um `admin.senha` residual (o sítio onde o campo vivia antes do ADR-0013) continua a ser
+  descartado pelo Zod e nunca é lido.
+- **A entrada de referência deixou de ser este endpoint**: quem se regista fá-lo em
+  `app.gestpro.co.mz/registo`, servido pelo ERP, que chama a mesma função partilhada
+  (`src/server/provisioning/registo-publico.ts`) e abre a sessão na mesma submissão. Este
+  endpoint mantém-se como contrato público, com os mesmos códigos de erro.
+- O e-mail de verificação **não** é disparado por esta função: quem a chama é que o envia,
+  depois de dar a sessão (ADR-0031). `sub` e `email` viajam no resultado para esse efeito.
 
 Comportamento do lado do site:
 1. Submete o formulário para este endpoint (do servidor do site, nunca do cliente, para não
@@ -151,7 +164,7 @@ qualquer alteração no site.
 | Item | Onde |
 |---|---|
 | Catálogo | `apps/erp/src/lib/planos.ts` · `src/app/api/publico/planos/route.ts` |
-| Registo | `src/app/api/publico/registo/route.ts` · `src/server/services/plataforma/tenant-provisioning.service.ts` |
+| Registo | `src/server/provisioning/registo-publico.ts` (fronteira partilhada) · `src/app/api/publico/registo/route.ts` (adaptador HTTP) · `src/server/services/plataforma/tenant-provisioning.service.ts` |
 | Provisionamento no Keycloak | `src/server/auth/keycloak.ts` (Admin API, `execute-actions-email`) |
 | CORS/allowlist | `src/lib/api/cors.ts` (lê `ALLOWED_ORIGINS` em runtime) |
 
@@ -163,3 +176,10 @@ Testes que fixam o contrato: `src/lib/__tests__/assinatura-state-machine.test.ts
 > `handoffToken`, novo `EMAIL_JA_REGISTADO`. O site (spec 18) tem de: remover o campo de
 > palavra-passe, substituir o redirect pós-registo pela página «verifique o e-mail», e mapear o
 > novo código de erro. Pedido registado no handoff `docs/handoff/w8-identidade.md`.
+
+> **Revisão de 2026-09-15 (spec 21, ADR-0031):** o corpo ganha `senha` + `confirmacao` (topo,
+> mín. 10 caracteres) e a lógica pública passou a viver numa função partilhada,
+> `registarTenant()` — o Route Handler é agora só o adaptador HTTP e **todos os códigos de erro
+> publicados se mantêm**. O 429 continua sem `error.code`, com `Retry-After`. O site (spec 18)
+> deixa de submeter este endpoint: `/comecar` encaminha para `app.gestpro.co.mz/registo`
+> (lane L2 do spec 21).

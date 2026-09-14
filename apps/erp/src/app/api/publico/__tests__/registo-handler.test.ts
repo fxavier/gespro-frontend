@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   concluirChave: vi.fn(),
   falharChave: vi.fn(),
   consumir: vi.fn(),
-  dispararEmailAccoes: vi.fn(),
+  procurarPorEmail: vi.fn(),
+  garantirUtilizador: vi.fn(),
+  definirPalavraPasse: vi.fn(),
+  eliminarUtilizador: vi.fn(),
 }));
 
 // `withApi` importa `@/lib/auth` (next-auth), que não resolve fora do runtime
@@ -44,10 +47,14 @@ vi.mock('@/server/provisioning/idempotencia', async () => {
 vi.mock('@/server/security/rate-limiter', () => ({
   registoLimiter: { consume: mocks.consumir },
 }));
-// Keycloak dublado — o e-mail de acções (a porta de entrada) é disparado pelo
-// handler como efeito externo; o caminho real é provado no E2E.
+// Keycloak dublado — desde o ADR-0031 a porta de entrada é a palavra-passe
+// escrita na Admin API antes da transacção, não o e-mail de acções; o caminho
+// real é provado no E2E.
 vi.mock('@/server/auth/keycloak', () => ({
-  dispararEmailAccoes: mocks.dispararEmailAccoes,
+  procurarPorEmail: mocks.procurarPorEmail,
+  garantirUtilizador: mocks.garantirUtilizador,
+  definirPalavraPasse: mocks.definirPalavraPasse,
+  eliminarUtilizador: mocks.eliminarUtilizador,
 }));
 
 import { NextRequest } from 'next/server';
@@ -57,6 +64,8 @@ import { BusinessRuleError } from '@/lib/errors';
 const CORPO_VALIDO = {
   empresa: { nome: 'Padaria Ana, Lda', nuit: '400123456' },
   admin: { nome: 'Ana Sitoe', email: 'ana@padaria.mz' },
+  senha: 'padaria-ana-2026',
+  confirmacao: 'padaria-ana-2026',
   planoId: 'PROFISSIONAL',
   provincia: 'Maputo Cidade',
   captchaToken: 'ok',
@@ -91,7 +100,10 @@ beforeEach(() => {
     adminNome: 'Ana Sitoe',
     notificacaoBoasVindasId: 'notif-1',
   });
-  mocks.dispararEmailAccoes.mockResolvedValue(true);
+  mocks.procurarPorEmail.mockResolvedValue(null);
+  mocks.garantirUtilizador.mockResolvedValue('kc-sub-ana');
+  mocks.definirPalavraPasse.mockResolvedValue(undefined);
+  mocks.eliminarUtilizador.mockResolvedValue(undefined);
   mocks.criarSubscricaoTrial.mockResolvedValue({ criada: true });
 });
 
@@ -119,15 +131,21 @@ describe('201 — contrato de sucesso', () => {
     );
   });
 
-  it('dispara o e-mail de acções do Keycloak FORA da transacção — a porta de entrada', async () => {
+  it('ADR-0031: escreve a palavra-passe ANTES da transacção e não manda e-mail de acções', async () => {
     await POST(pedido(CORPO_VALIDO, COM_CHAVE));
-    expect(mocks.dispararEmailAccoes).toHaveBeenCalledWith('kc-sub-ana');
+    expect(mocks.definirPalavraPasse).toHaveBeenCalledWith('kc-sub-ana', 'padaria-ana-2026', {
+      temporaria: false,
+    });
+    const ordem = mocks.definirPalavraPasse.mock.invocationCallOrder[0];
+    expect(ordem).toBeLessThan(mocks.provisionarTenant.mock.invocationCallOrder[0]);
   });
 
-  it('uma falha no e-mail de acções não invalida o registo (tenant reparável)', async () => {
-    mocks.dispararEmailAccoes.mockResolvedValue(false);
+  it('a palavra-passe não aparece na resposta nem chega ao provisionamento', async () => {
     const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
-    expect(res.status).toBe(201);
+    expect(JSON.stringify(await res.json())).not.toContain('padaria-ana-2026');
+    expect(JSON.stringify(mocks.provisionarTenant.mock.calls[0][0])).not.toContain(
+      'padaria-ana-2026',
+    );
   });
 });
 
@@ -268,8 +286,9 @@ describe('idempotência no handler', () => {
       mensagem: 'corpo-original',
     });
     expect(mocks.provisionarTenant).not.toHaveBeenCalled();
-    // A reentrega não repete o e-mail de acções nem toca no Keycloak.
-    expect(mocks.dispararEmailAccoes).not.toHaveBeenCalled();
+    // A reentrega não toca no Keycloak: nem cria identidade nem reescreve credencial.
+    expect(mocks.garantirUtilizador).not.toHaveBeenCalled();
+    expect(mocks.definirPalavraPasse).not.toHaveBeenCalled();
   });
 });
 
