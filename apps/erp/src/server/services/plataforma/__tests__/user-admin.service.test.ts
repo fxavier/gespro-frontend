@@ -30,6 +30,19 @@ const kc = vi.hoisted(() => ({
 }));
 vi.mock('@/server/auth/keycloak', () => kc);
 
+// Sessão — o travão do ADR-0031 (criar/reactivar exige e-mail confirmado) lê
+// `session.user.emailVerificado`. `@/lib/auth` não carrega fora do runtime do
+// Next, portanto é dublada. Por omissão CONFIRMADO, para que os testes que já
+// existiam continuem a exercitar o que exercitavam; o travão tem os seus.
+const sessao = vi.hoisted(() => ({ auth: vi.fn() }));
+vi.mock('@/lib/auth', () => sessao);
+
+function comEmail(emailVerificado: boolean | undefined) {
+  sessao.auth.mockResolvedValue({
+    user: { id: 'caller-id', tenantId: 'tenant-1', permissions: [], emailVerificado },
+  });
+}
+
 vi.mock('@/server/db/client', () => ({
   prismaBase: {
     user: {
@@ -87,6 +100,7 @@ const DEMO_USER = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  comEmail(true);
   mocks.userFindFirst.mockResolvedValue(DEMO_USER);
   mocks.roleFindFirst.mockResolvedValue(DEMO_ROLE);
   mocks.permFindMany.mockResolvedValue([PERM_VER, PERM_CRIAR]);
@@ -362,5 +376,186 @@ describe('userAdminService.listarPermissoes', () => {
     mocks.permFindMany.mockResolvedValue([PERM_VER]);
     const perms = await userAdminService.listarPermissoes();
     expect(perms[0].code).toBe('vendas:ver');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Travão do ADR-0031 — criar ou reactivar `User` exige e-mail confirmado
+// (spec 21, tarefas 5.2 e 5.4). Transição nos DOIS sentidos.
+// ---------------------------------------------------------------------------
+
+const CODIGO_TRAVAO = 'EMAIL_POR_CONFIRMAR_UTILIZADORES';
+
+const NOVO_UTILIZADOR = {
+  nome: 'Bruno',
+  email: 'bruno@demo.mz',
+  roleIds: ['role-1'],
+  ativo: true,
+  metodoAcesso: 'convite' as const,
+};
+
+/**
+ * Estado de partida para criar: sem duplicado, papel válido, tx a responder.
+ *
+ * Sem `mockResolvedValueOnce`: quando o travão recusa, as respostas enfileiradas
+ * não chegam a ser consumidas e `vi.clearAllMocks()` não esvazia a fila — o
+ * resto do ficheiro herdaria-as. Um contador local não deixa resíduo.
+ */
+function prepararCriacao() {
+  let leitura = 0;
+  // 1.ª leitura: verificação de e-mail duplicado (tem de ser nula).
+  // 2.ª leitura: releitura do utilizador acabado de criar.
+  mocks.userFindFirst.mockImplementation(async () => (leitura++ === 0 ? null : DEMO_USER));
+  mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
+  mocks.mockTx.user.create.mockResolvedValue(DEMO_USER);
+  mocks.mockTx.userRole.createMany.mockResolvedValue({ count: 1 });
+}
+
+describe('travão ADR-0031 — criar utilizador com o endereço POR CONFIRMAR', () => {
+  it('é recusado com o código estável, e antes de tocar no Keycloak ou em Postgres', async () => {
+    comEmail(false);
+    prepararCriacao();
+
+    await expect(userAdminService.criarUtilizador(NOVO_UTILIZADOR, CTX)).rejects.toMatchObject({
+      code: CODIGO_TRAVAO,
+      status: 409,
+    });
+    // Nada avançou: nem identidade no realm, nem transacção local, nem e-mail.
+    expect(kc.garantirUtilizador).not.toHaveBeenCalled();
+    expect(mocks.$transaction).not.toHaveBeenCalled();
+    expect(kc.dispararEmailAccoes).not.toHaveBeenCalled();
+  });
+
+  it('recusa também no modo palavra-passe — o vector é o convite, não o transporte', async () => {
+    comEmail(false);
+    prepararCriacao();
+    await expect(
+      userAdminService.criarUtilizador(
+        { ...NOVO_UTILIZADOR, metodoAcesso: 'palavra-passe' },
+        CTX,
+      ),
+    ).rejects.toMatchObject({ code: CODIGO_TRAVAO });
+    expect(kc.definirPalavraPasse).not.toHaveBeenCalled();
+  });
+
+  it('sessão inexistente conta como por confirmar (fail-closed)', async () => {
+    sessao.auth.mockResolvedValue(null);
+    prepararCriacao();
+    await expect(userAdminService.criarUtilizador(NOVO_UTILIZADOR, CTX)).rejects.toMatchObject({
+      code: CODIGO_TRAVAO,
+    });
+  });
+
+  it('claim ausente conta como por confirmar (fail-closed) — JWT anterior ao ADR-0031', async () => {
+    comEmail(undefined);
+    prepararCriacao();
+    await expect(userAdminService.criarUtilizador(NOVO_UTILIZADOR, CTX)).rejects.toMatchObject({
+      code: CODIGO_TRAVAO,
+    });
+  });
+
+  it('a mensagem nomeia a causa, o caminho, e a janela de 15 minutos do ADR-0011', async () => {
+    comEmail(false);
+    prepararCriacao();
+    const erro = (await userAdminService
+      .criarUtilizador(NOVO_UTILIZADOR, CTX)
+      .catch((e: Error) => e)) as Error;
+    expect(erro.message).toMatch(/criar utilizadores/i);
+    expect(erro.message).toMatch(/confirmar o endereço de e-mail/i);
+    expect(erro.message).toMatch(/liga(ção|cao) de confirma/i);
+    expect(erro.message).toMatch(/reenvia/i);
+    // Quem confirmou há pouco continua a bater no travão até à re-resolução:
+    // a mensagem tem de o dizer, senão está a afirmar-lhe uma coisa falsa.
+    expect(erro.message).toMatch(/15/);
+    expect(erro.message).toMatch(/iniciar sess(ã|a)o outra vez/i);
+  });
+});
+
+describe('travão ADR-0031 — criar utilizador com o endereço CONFIRMADO', () => {
+  it('passa: identidade criada e transacção local aberta', async () => {
+    comEmail(true);
+    prepararCriacao();
+    const { utilizador } = await userAdminService.criarUtilizador(NOVO_UTILIZADOR, CTX);
+    expect(utilizador.email).toBe('alice@demo.mz');
+    expect(kc.garantirUtilizador).toHaveBeenCalledOnce();
+    expect(mocks.$transaction).toHaveBeenCalledOnce();
+  });
+});
+
+describe('travão ADR-0031 — reactivar utilizador', () => {
+  const INACTIVO = { ...DEMO_USER, ativo: false };
+
+  it('reactivar é recusado com o endereço por confirmar — reactivar conta como criar', async () => {
+    comEmail(false);
+    mocks.userFindFirst.mockResolvedValue(INACTIVO);
+    await expect(
+      userAdminService.actualizarUtilizador('user-42', { ativo: true }, CTX),
+    ).rejects.toMatchObject({ code: CODIGO_TRAVAO, status: 409 });
+    // Nem no realm nem em Postgres: o caminho desactivar→reactivar não pode ser
+    // a porta das traseiras do travão da criação.
+    expect(kc.definirActivo).not.toHaveBeenCalled();
+    expect(mocks.userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('a mensagem fala de REACTIVAR, não de criar', async () => {
+    comEmail(false);
+    mocks.userFindFirst.mockResolvedValue(INACTIVO);
+    const erro = (await userAdminService
+      .actualizarUtilizador('user-42', { ativo: true }, CTX)
+      .catch((e: Error) => e)) as Error;
+    expect(erro.message).toMatch(/reactivar utilizadores/i);
+  });
+
+  it('reactivar passa com o endereço confirmado', async () => {
+    comEmail(true);
+    mocks.userFindFirst.mockResolvedValue(INACTIVO);
+    mocks.userUpdate.mockResolvedValue(DEMO_USER);
+    await expect(
+      userAdminService.actualizarUtilizador('user-42', { ativo: true }, CTX),
+    ).resolves.toBeTruthy();
+    expect(kc.definirActivo).toHaveBeenCalledWith('kc-sub-42', true);
+  });
+});
+
+describe('travão ADR-0031 — o que NÃO é criar nem reactivar continua a passar', () => {
+  it('DESACTIVAR passa com o endereço por confirmar — um estado sem saída é uma armadilha', async () => {
+    comEmail(false);
+    mocks.userFindFirst.mockResolvedValue(DEMO_USER);
+    mocks.userUpdate.mockResolvedValue({ ...DEMO_USER, ativo: false });
+    await expect(
+      userAdminService.actualizarUtilizador('user-42', { ativo: false }, CTX),
+    ).resolves.toBeTruthy();
+    expect(kc.definirActivo).toHaveBeenCalledWith('kc-sub-42', false);
+  });
+
+  it('desactivar pela via dedicada passa com o endereço por confirmar', async () => {
+    comEmail(false);
+    mocks.userFindFirst.mockResolvedValue({ ...DEMO_USER, roles: [] });
+    mocks.userUpdate.mockResolvedValue(DEMO_USER);
+    await expect(userAdminService.desactivarUtilizador('user-42', CTX)).resolves.toBeUndefined();
+  });
+
+  it('mudar o nome passa com o endereço por confirmar', async () => {
+    comEmail(false);
+    mocks.userFindFirst.mockResolvedValue(DEMO_USER);
+    mocks.userUpdate.mockResolvedValue(DEMO_USER);
+    await expect(
+      userAdminService.actualizarUtilizador('user-42', { nome: 'Alice Silva' }, CTX),
+    ).resolves.toBeTruthy();
+  });
+
+  it('atribuir papéis a quem já existe passa com o endereço por confirmar', async () => {
+    comEmail(false);
+    mocks.userFindFirst.mockResolvedValue(DEMO_USER);
+    mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
+    await expect(
+      userAdminService.atribuirRoles({ userId: 'user-42', roleIds: ['role-1'] }, CTX),
+    ).resolves.toBeTruthy();
+  });
+
+  it('repor a palavra-passe de quem já existe passa com o endereço por confirmar', async () => {
+    comEmail(false);
+    mocks.userFindFirst.mockResolvedValue(DEMO_USER);
+    await expect(userAdminService.reporPalavraPasse('user-42', CTX)).resolves.toBeTruthy();
   });
 });

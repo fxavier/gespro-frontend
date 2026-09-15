@@ -138,6 +138,74 @@ async function contarAdminsAtivos(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Travão de gestão de utilizadores sem e-mail confirmado (ADR-0031, «O que a
+// verificação pendente trava»)
+// ---------------------------------------------------------------------------
+
+/**
+ * Recusa criar ou reactivar um `User` enquanto o endereço de e-mail da conta
+ * não estiver confirmado.
+ *
+ * Convidar terceiros a partir de uma conta por confirmar é o vector de abuso
+ * que a verificação existe para fechar: quem se registou com o e-mail de outra
+ * pessoa passaria a mandar convites em nome dela, com o cabeçalho e o domínio
+ * do GestPro por trás. **Reactivar conta tanto como criar** — uma identidade
+ * desligada que volta a ligar-se é uma entrada nova no produto, e o caminho
+ * `desactivar → reactivar` seria a maneira óbvia de contornar um travão que só
+ * olhasse para a criação.
+ *
+ * Vive neste serviço, com a sua própria leitura, e não numa abstracção
+ * partilhada com o travão da emissão fiscal: são dois sítios, e dois sítios não
+ * justificam um mecanismo (ADR-0027 §3, ADR-0031 §Decisão). Vive no serviço, e
+ * não no formulário, porque a Server Action aceita o que lhe mandarem — um
+ * botão desactivado não é defesa.
+ *
+ * Esta função vai conviver, mais tarde, com um segundo travão independente na
+ * mesma operação (o limite de Utilizadores do plano, #37 do ADR-0027). Os dois
+ * ficam lado a lado, sem abstracção comum — é decisão tomada.
+ *
+ * A leitura é a sessão (ADR-0031 §6): o claim `email_verified` do *access
+ * token* já viaja para o JWT e para a sessão na emissão e na re-resolução de 15
+ * minutos do ADR-0011. Sem coluna local e sem chamada ao Keycloak por operação.
+ * **Fail-closed**: sessão, utilizador ou campo ausentes contam como não
+ * confirmado.
+ *
+ * A mensagem trata a janela dos 15 minutos sem chamar o Keycloak — ver o
+ * comentário gémeo em `financas/faturacao.service.ts`.
+ *
+ * `acto` entra na mensagem para que quem leva com a recusa ao reactivar não
+ * receba um texto que só fala de criar.
+ *
+ * **Se estás aqui a construir um provisionamento automático, uma importação em
+ * lote de colaboradores ou qualquer chamador SEM sessão: pára.** Este travão é
+ * fail-closed e essa chamada será recusada. A correcção não é abrir excepção ao
+ * travão — é decidir o que significa «e-mail confirmado» para um processo sem
+ * pessoa. Hoje ninguém está nessa situação: o provisionamento do tenant cria o
+ * primeiro `User` directamente em Postgres, não por este serviço.
+ */
+async function exigirEmailConfirmadoParaGerirUtilizadores(
+  acto: 'criar' | 'reactivar',
+): Promise<void> {
+  // `await import` e não import estático — ver o comentário gémeo em
+  // `financas/faturacao.service.ts`: `@/lib/auth` arrasta o next-auth inteiro e
+  // este serviço é importado por todas as páginas de core-tenancy, incluindo as
+  // de leitura.
+  const { auth } = await import('@/lib/auth');
+  const sessao = await auth();
+  if (sessao?.user?.emailVerificado === true) return;
+
+  const verbo = acto === 'criar' ? 'criar utilizadores' : 'reactivar utilizadores';
+  throw new BusinessRuleError(
+    'EMAIL_POR_CONFIRMAR_UTILIZADORES',
+    `Para ${verbo} é preciso confirmar o endereço de e-mail da conta — é o que impede ` +
+      'que se convidem terceiros a partir de uma conta por confirmar. Abra a ligação de ' +
+      'confirmação que lhe enviámos; o aviso no painel reenvia-a se precisar de outra. ' +
+      'Se já confirmou há pouco, a sessão só o reflecte na actualização seguinte (até 15 ' +
+      'minutos) — terminar e iniciar sessão outra vez aplica a confirmação de imediato.',
+  );
+}
+
 async function findUser(userId: string, ctx: Ctx): Promise<PrismaUserWithRoles> {
   const user = await prismaBase.user.findFirst({
     where: { id: userId, tenantId: ctx.tenantId, deletedAt: null },
@@ -206,6 +274,10 @@ export const userAdminService: IUserAdminService = {
    * O papel é atribuído à partida — nada viaja dentro de um convite.
    */
   async criarUtilizador(input: CreateUserInput, ctx: Ctx) {
+    // ADR-0031: antes de tudo o resto — não se gasta quota do limitador de
+    // convites num pedido que nunca vai passar.
+    await exigirEmailConfirmadoParaGerirUtilizadores('criar');
+
     // Limitação de tráfego por tenant (ADR-0014). Vive aqui, e não na action,
     // por duas razões: o `createSafeAction` não tem gancho de limitação, e é
     // este o caminho que dispara efectivamente o e-mail de acções do Keycloak.
@@ -340,6 +412,10 @@ export const userAdminService: IUserAdminService = {
     // falhar, o acesso fica fechado); na reactivação a ordem Keycloak-primeiro
     // evita um User local activo cuja identidade continua desligada.
     if (input.ativo !== undefined && input.ativo !== actual.ativo) {
+      // Reactivar é dar entrada nova no produto e conta como criar (ADR-0031).
+      // Desactivar NÃO é travado: um estado de onde o cliente não pode sair é
+      // uma armadilha, e fechar uma conta nunca pode depender de um e-mail.
+      if (input.ativo) await exigirEmailConfirmadoParaGerirUtilizadores('reactivar');
       await definirActivo(actual.keycloakSub, input.ativo);
     }
 
