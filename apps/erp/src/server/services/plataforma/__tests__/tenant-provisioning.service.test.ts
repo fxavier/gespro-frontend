@@ -86,7 +86,7 @@ beforeEach(() => {
   ]);
   mocks.bootstrapContabilidade.mockResolvedValue({ contas: 502, diarios: 9, series: 18 });
   mocks.garantirCatalogoPermissoes.mockResolvedValue(undefined);
-  mocks.garantirUtilizador.mockResolvedValue('kc-sub-ana');
+  mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-ana', criado: true });
   mocks.dispararEmailAccoes.mockResolvedValue(true);
 });
 

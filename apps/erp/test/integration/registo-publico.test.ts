@@ -39,10 +39,10 @@ const kc = vi.hoisted(() => {
     garantirUtilizador: vi.fn(
       async (input: { email: string; nome: string; accoes?: string[]; emailVerificado?: boolean }) => {
         const existente = identidades.get(input.email);
-        if (existente) return existente.sub;
+        if (existente) return { sub: existente.sub, criado: false };
         const sub = `kc-${identidades.size + 1}-${Date.now()}`;
         identidades.set(input.email, { sub, accoes: input.accoes });
-        return sub;
+        return { sub, criado: true };
       },
     ),
     definirPalavraPasse: vi.fn(async (sub: string, senha: string) => {
@@ -149,6 +149,28 @@ describe.skipIf(skip)('Registo público com palavra-passe — Postgres real', ()
     // A identidade nasce sem acções pendentes — com VERIFY_EMAIL o direct
     // grant recusaria a sessão e o registo não daria entrada nenhuma.
     expect(kc.identidades.get(email)?.accoes).toEqual([]);
+  });
+
+  it('órfã comprovada: identidade sem User local recebe a credencial de quem completa o registo', async () => {
+    const nuit = nuitNovo();
+    const email = `ana+${nuit}@padaria.mz`;
+
+    // Órfã de uma tentativa anterior: existe no realm, com a credencial de
+    // quem a semeou, e nenhum `User` local a referencia.
+    kc.identidades.set(email, { sub: `kc-orfa-${nuit}`, senha: 'credencial-de-outrem', accoes: [] });
+
+    const r = await registarTenant(corpo(nuit, email), {
+      ip: `41.2.0.${(contador % 200) + 1}`,
+      idempotencyKey: `chave-orfa-${nuit}`,
+    });
+
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error('esperava sucesso');
+    // O tenant nasce com a credencial de quem se registou, não com a de quem
+    // semeou a órfã — e a prova de que a identidade não tinha dono é o commit.
+    expect(await db.tenant.count({ where: { nuit } })).toBe(1);
+    expect(kc.identidades.get(email)?.senha).toBe(SENHA);
+    expect(kc.garantirUtilizador.mock.results.length).toBeGreaterThan(0);
   });
 
   it('idempotência: a mesma chave não cria segundo tenant nem segunda identidade', async () => {

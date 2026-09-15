@@ -16,10 +16,10 @@ const mocks = vi.hoisted(() => ({
   concluirChave: vi.fn(),
   falharChave: vi.fn(),
   consumir: vi.fn(),
-  procurarPorEmail: vi.fn(),
   garantirUtilizador: vi.fn(),
   definirPalavraPasse: vi.fn(),
   eliminarUtilizador: vi.fn(),
+  userFindFirst: vi.fn(),
 }));
 
 // `withApi` importa `@/lib/auth` (next-auth), que não resolve fora do runtime
@@ -50,8 +50,12 @@ vi.mock('@/server/security/rate-limiter', () => ({
 // Keycloak dublado — desde o ADR-0031 a porta de entrada é a palavra-passe
 // escrita na Admin API antes da transacção, não o e-mail de acções; o caminho
 // real é provado no E2E.
+// `prismaBase` só é tocado pelo guarda-costas que impede o apagamento de uma
+// identidade já referenciada por um `User` (ADR-0031 §2-bis).
+vi.mock('@/server/db/client', () => ({
+  prismaBase: { user: { findFirst: mocks.userFindFirst } },
+}));
 vi.mock('@/server/auth/keycloak', () => ({
-  procurarPorEmail: mocks.procurarPorEmail,
   garantirUtilizador: mocks.garantirUtilizador,
   definirPalavraPasse: mocks.definirPalavraPasse,
   eliminarUtilizador: mocks.eliminarUtilizador,
@@ -100,8 +104,8 @@ beforeEach(() => {
     adminNome: 'Ana Sitoe',
     notificacaoBoasVindasId: 'notif-1',
   });
-  mocks.procurarPorEmail.mockResolvedValue(null);
-  mocks.garantirUtilizador.mockResolvedValue('kc-sub-ana');
+  mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-ana', criado: true });
+  mocks.userFindFirst.mockResolvedValue(null);
   mocks.definirPalavraPasse.mockResolvedValue(undefined);
   mocks.eliminarUtilizador.mockResolvedValue(undefined);
   mocks.criarSubscricaoTrial.mockResolvedValue({ criada: true });

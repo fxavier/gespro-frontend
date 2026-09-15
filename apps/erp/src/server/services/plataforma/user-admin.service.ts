@@ -256,7 +256,7 @@ export const userAdminService: IUserAdminService = {
 
     // 1. Keycloak primeiro — o lado sem transacção (ADR-0013 §2). Se falhar,
     //    nada foi escrito em Postgres e o pedido é simplesmente repetível.
-    const keycloakSub = await garantirUtilizador({
+    const { sub: keycloakSub } = await garantirUtilizador({
       email,
       nome: input.nome,
       ...(porPalavraPasse

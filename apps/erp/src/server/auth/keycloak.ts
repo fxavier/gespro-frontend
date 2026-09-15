@@ -247,12 +247,31 @@ export async function procurarPorEmail(email: string): Promise<UtilizadorKeycloa
   return lista[0] ?? null;
 }
 
+/** O que `garantirUtilizador` devolve: o `sub` e **quem** o criou. */
+export interface IdentidadeGarantida {
+  /** `sub` da identidade no realm. */
+  sub: string;
+  /**
+   * `true` **só** quando foi esta chamada a criar a identidade — isto é, quando
+   * o Keycloak respondeu 201 ao nosso POST. Uma identidade que já existia, ou
+   * que outro pedido criou primeiro (409 na corrida), devolve `false`.
+   *
+   * Esta é a única resposta fiável à pergunta «fui eu que criei isto?». Quem a
+   * responder com um `procurarPorEmail` prévio está a fazer TOCTOU: dois
+   * pedidos com o mesmo e-mail lêem ambos `null`, partilham o `sub` que o
+   * Keycloak deduplica, e ambos se julgam criadores — com isso, o que perde a
+   * corrida apaga ou reescreve a identidade do que a ganhou (ADR-0031 §2-bis).
+   */
+  criado: boolean;
+}
+
 /**
- * Garante o utilizador no Keycloak e devolve o seu `sub`.
+ * Garante o utilizador no Keycloak e devolve o seu `sub` e se foi criado agora.
  *
  * Keycloak PRIMEIRO, Postgres depois (ADR-0013 §2): o lado sem transacção vai
- * à frente. Criado sem palavra-passe, com `VERIFY_EMAIL` + `UPDATE_PASSWORD`
- * pendentes — é o e-mail de acções que dá entrada no produto (§5).
+ * à frente. Por omissão é criado sem palavra-passe e com `VERIFY_EMAIL` +
+ * `UPDATE_PASSWORD` pendentes — é o caso do convite. O registo público passa
+ * `accoes: []` e escreve a credencial a seguir (ADR-0031).
  */
 export async function garantirUtilizador(input: {
   email: string;
@@ -266,9 +285,9 @@ export async function garantirUtilizador(input: {
   accoes?: string[];
   /** `true` quando é o administrador a responder pelo endereço (ADR-0030 §3). */
   emailVerificado?: boolean;
-}): Promise<string> {
+}): Promise<IdentidadeGarantida> {
   const existente = await procurarPorEmail(input.email);
-  if (existente) return existente.id;
+  if (existente) return { sub: existente.id, criado: false };
 
   const [primeiro, ...resto] = input.nome.trim().split(/\s+/);
   const res = await adminFetch('/users', {
@@ -284,9 +303,10 @@ export async function garantirUtilizador(input: {
     }),
   });
   if (res.status === 409) {
-    // Corrida entre dois pedidos com o mesmo e-mail: o outro ganhou — reutiliza.
+    // Corrida entre dois pedidos com o mesmo e-mail: o outro ganhou — reutiliza
+    // o `sub` dele e assume-se como NÃO criador. É este 409 que desempata.
     const corrida = await procurarPorEmail(input.email);
-    if (corrida) return corrida.id;
+    if (corrida) return { sub: corrida.id, criado: false };
   }
   if (!res.ok && res.status !== 201) {
     throw new Error(`[keycloak] criação de utilizador falhou (HTTP ${res.status})`);
@@ -295,7 +315,7 @@ export async function garantirUtilizador(input: {
   if (!criado) {
     throw new Error('[keycloak] utilizador criado mas não encontrado na releitura');
   }
-  return criado.id;
+  return { sub: criado.id, criado: true };
 }
 
 /**

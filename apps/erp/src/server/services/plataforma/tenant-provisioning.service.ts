@@ -159,7 +159,7 @@ export async function provisionarTenant(
 
   // KEYCLOAK PRIMEIRO (ADR-0013 §2): identidade sem palavra-passe, acções
   // pendentes. Idempotente por e-mail — repetir o pedido reutiliza o `sub`.
-  const keycloakSub = await garantirUtilizador({ email, nome: input.admin.nome });
+  const { sub: keycloakSub } = await garantirUtilizador({ email, nome: input.admin.nome });
 
   let ultimoErro: unknown;
   for (let tentativa = 0; tentativa < MAX_TENTATIVAS_SLUG; tentativa++) {

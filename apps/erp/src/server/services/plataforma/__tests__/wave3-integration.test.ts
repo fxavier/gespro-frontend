@@ -21,7 +21,7 @@ vi.mock('next/cache', () => ({
 // no Keycloak REAL partilhado e só restaurava a linha local — deixando o
 // utilizador de demonstração sem login (aconteceu; não repetir).
 vi.mock('@/server/auth/keycloak', () => ({
-  garantirUtilizador: vi.fn(async () => 'kc-sub-wave3'),
+  garantirUtilizador: vi.fn(async () => ({ sub: 'kc-sub-wave3', criado: true })),
   dispararEmailAccoes: vi.fn(async () => true),
   definirActivo: vi.fn(async () => undefined),
 }));

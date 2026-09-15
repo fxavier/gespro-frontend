@@ -113,7 +113,10 @@ describe('garantirUtilizador — idempotência por e-mail (ADR-0013 §5-bis)', (
   it('reutiliza o sub quando o e-mail já existe no realm', async () => {
     aceitaAdminToken();
     fetchMock.mockResolvedValueOnce(resposta(200, [{ id: 'sub-existente' }]));
-    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana' })).toBe('sub-existente');
+    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana' })).toEqual({
+      sub: 'sub-existente',
+      criado: false,
+    });
     // Nenhum POST de criação.
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -123,7 +126,12 @@ describe('garantirUtilizador — idempotência por e-mail (ADR-0013 §5-bis)', (
     fetchMock.mockResolvedValueOnce(resposta(200, [])); // procura: vazio
     fetchMock.mockResolvedValueOnce(resposta(201)); // criação
     fetchMock.mockResolvedValueOnce(resposta(200, [{ id: 'sub-novo' }])); // releitura
-    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana Sitoe' })).toBe('sub-novo');
+    // `criado: true` só com o 201 do Keycloak — é o que desempata corridas
+    // (ADR-0031 §2-bis); uma leitura prévia diria `true` aos dois pedidos.
+    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana Sitoe' })).toEqual({
+      sub: 'sub-novo',
+      criado: true,
+    });
 
     const corpo = JSON.parse(String(fetchMock.mock.calls[2][1].body));
     expect(corpo.requiredActions).toEqual(['VERIFY_EMAIL', 'UPDATE_PASSWORD']);
@@ -136,7 +144,12 @@ describe('garantirUtilizador — idempotência por e-mail (ADR-0013 §5-bis)', (
     fetchMock.mockResolvedValueOnce(resposta(200, [])); // procura: vazio
     fetchMock.mockResolvedValueOnce(resposta(409)); // criação: já existe
     fetchMock.mockResolvedValueOnce(resposta(200, [{ id: 'sub-do-outro' }])); // reprocura
-    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana' })).toBe('sub-do-outro');
+    // Quem apanha o 409 NÃO é o criador — e é isso que o impede de apagar ou
+    // reescrever a identidade de quem ganhou a corrida.
+    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana' })).toEqual({
+      sub: 'sub-do-outro',
+      criado: false,
+    });
   });
 });
 

@@ -11,9 +11,9 @@ import {
   definirPalavraPasse,
   eliminarUtilizador,
   garantirUtilizador,
-  procurarPorEmail,
 } from '@/server/auth/keycloak';
 import { concluirChave, falharChave, fingerprintDe, reservarChave } from '@/server/provisioning/idempotencia';
+import { prismaBase } from '@/server/db/client';
 
 /**
  * Fronteira pública do registo self-service — ADR-0031, tarefa 1 do spec 21.
@@ -106,6 +106,40 @@ function falha(
   extra?: { detalhes?: unknown; retryAfterSec?: number },
 ): ResultadoRegisto {
   return { ok: false, code, mensagem, estado, ...extra };
+}
+
+/**
+ * Apaga a identidade **que este pedido criou**, e só essa.
+ *
+ * `criouAqui` vem do 201 do Keycloak, logo já exclui a corrida em que dois
+ * pedidos partilham o `sub`. O guarda-costas em Postgres cobre o que sobra
+ * dela: o pedido que PERDEU a corrida pode cometer o tenant primeiro, e o que
+ * a ganhou apanhar `EMAIL_JA_REGISTADO` a seguir — apagar aí deixava um
+ * cliente real com tenant cometido e sem identidade, que o ADR-0031 §2-bis
+ * declara pior do que o problema original. Se alguém já referencia o `sub`, a
+ * identidade tem dono: não se toca.
+ */
+async function apagarIdentidadeSeForNossa(sub: string, criouAqui: boolean): Promise<void> {
+  if (!criouAqui || !sub) return;
+  try {
+    const dono = await prismaBase.user.findFirst({
+      where: { keycloakSub: sub },
+      select: { id: true },
+    });
+    if (dono) {
+      logger.warn(
+        { sub },
+        '[registo] identidade criada por este pedido já tem User local — corrida; não se apaga',
+      );
+      return;
+    }
+    await eliminarUtilizador(sub);
+  } catch (err) {
+    logger.error(
+      { err: (err as Error)?.message, sub },
+      '[registo] identidade não pôde ser removida — órfã para reconciliação (ADR-0013 §3)',
+    );
+  }
 }
 
 export async function registarTenant(
@@ -234,25 +268,25 @@ export async function registarTenant(
   //    para corrigir. `temporaria: false` remove `UPDATE_PASSWORD` e devolve a
   //    conta ao normal (ADR-0030).
   //
-  //    A palavra-passe só é escrita numa identidade que ESTE pedido criou. Se
-  //    já existia, não se toca na credencial: sobrescrevê-la seria tomada de
-  //    conta — bastava registar-se com o e-mail de um cliente para lhe trocar
-  //    a palavra-passe, e o `EMAIL_JA_REGISTADO` só chega mais abaixo, depois
-  //    do estrago. Nesse caso o pedido segue e é o `provisionarTenant` que
-  //    decide: com `User` local recusa (`EMAIL_JA_REGISTADO`); sem ele, a
-  //    identidade é órfã de uma tentativa anterior e reaproveita-se com a
-  //    credencial que essa tentativa escreveu.
+  //    A credencial só se escreve aqui numa identidade que ESTE pedido criou,
+  //    e quem o diz é o 201 do Keycloak (`criado`), não uma leitura prévia: o
+  //    `procurarPorEmail`-antes-de-criar é TOCTOU, dois pedidos simultâneos
+  //    lêem ambos `null`, partilham o `sub` deduplicado e julgam-se ambos
+  //    criadores (ADR-0031 §2-bis). Numa identidade preexistente não se toca
+  //    na credencial: sobrescrevê-la seria tomada de conta — bastava
+  //    registar-se com o e-mail de um cliente para lha trocar, e o
+  //    `EMAIL_JA_REGISTADO` só chega depois do estrago.
   let sub = '';
   let identidadeCriadaAqui = false;
   try {
-    const existente = await procurarPorEmail(dados.admin.email);
-    identidadeCriadaAqui = !existente;
-    sub = await garantirUtilizador({
+    const identidade = await garantirUtilizador({
       email: dados.admin.email,
       nome: dados.admin.nome,
       accoes: [],
       emailVerificado: false,
     });
+    sub = identidade.sub;
+    identidadeCriadaAqui = identidade.criado;
     if (identidadeCriadaAqui) {
       await definirPalavraPasse(sub, dados.senha, { temporaria: false });
     }
@@ -260,15 +294,8 @@ export async function registarTenant(
     // Falhou antes de tocar em Postgres: não há nada para desfazer do lado da
     // base de dados. Do lado do Keycloak pode ter ficado uma identidade sem
     // credencial — apaga-se, para o pedido ser repetível sem lixo meio-criado
-    // (tarefa 2.3). Nunca se apaga uma identidade que já existia.
-    if (identidadeCriadaAqui && sub) {
-      await eliminarUtilizador(sub).catch((err) =>
-        logger.error(
-          { err: (err as Error)?.message, sub },
-          '[registo] identidade meio-criada não pôde ser removida — órfã para reconciliação (ADR-0013 §3)',
-        ),
-      );
-    }
+    // (tarefa 2.3).
+    await apagarIdentidadeSeForNossa(sub, identidadeCriadaAqui);
     await falharChave(chave);
     logger.error(
       { err: (e as Error)?.message, identidadeCriadaAqui },
@@ -298,14 +325,7 @@ export async function registarTenant(
       // sem dono. Apagá-la fecha o caminho de quem semeia identidades com
       // palavra-passe própria para e-mails alheios, forçando de propósito uma
       // destas recusas e esperando que a vítima se registe a seguir.
-      if (identidadeCriadaAqui && sub) {
-        await eliminarUtilizador(sub).catch((err) =>
-          logger.error(
-            { err: (err as Error)?.message, sub },
-            '[registo] identidade por semear não pôde ser removida — órfã para reconciliação',
-          ),
-        );
-      }
+      await apagarIdentidadeSeForNossa(sub, identidadeCriadaAqui);
       return falha(e.status, e.code, e.message);
     }
     // Falha inesperada: não se sabe se a transacção chegou a comprometer-se.
@@ -316,6 +336,33 @@ export async function registarTenant(
       '[registo] falha inesperada no provisionamento',
     );
     return falha(500, 'ERRO_INTERNO', 'Não foi possível concluir o registo.');
+  }
+
+  // 9. Órfã comprovada: a identidade já existia e a transacção acabou de lhe
+  //    dar dono — este tenant. Provada pelo commit, e não por uma leitura que
+  //    podia estar a olhar para um pedido concorrente ainda a meio: se a
+  //    identidade pertencesse a outra conta, o `provisionarTenant` teria
+  //    recusado com `EMAIL_JA_REGISTADO` e nunca se chegava aqui. Só agora é
+  //    seguro sobrepor a credencial — antes da transacção seria a mesma tomada
+  //    de conta por outra porta (quem corre contra um registo em curso escreve
+  //    depois dele e ganha o tenant que o outro cometeu).
+  //
+  //    Sem isto, quem se registasse depois de uma falha inesperada ficava com
+  //    o tenant preso à credencial de quem semeou a órfã — benigno quando é a
+  //    própria pessoa a repetir, tomada de conta quando não é.
+  if (!identidadeCriadaAqui) {
+    try {
+      await definirPalavraPasse(sub, dados.senha, { temporaria: false });
+    } catch (e) {
+      // O tenant existe: não se desfaz nem se mente a dizer que falhou. A
+      // pessoa não entrará nesta submissão (o `signIn` recusa) e o ecrã
+      // encaminha-a para `/auth/login`; a recuperação de palavra-passe do
+      // Keycloak fecha o caso. Fica gritado, que é anomalia a vigiar.
+      logger.error(
+        { err: (e as Error)?.message, tenantId: resultado.tenantId, sub },
+        '[registo] tenant criado sobre identidade órfã, mas a credencial não foi escrita — entrada imediata falha',
+      );
+    }
   }
 
   const resposta = {

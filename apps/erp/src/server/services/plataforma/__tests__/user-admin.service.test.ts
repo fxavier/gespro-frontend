@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => {
 
 // Keycloak Admin API — dublada: os unitários não tocam em rede (ADR-0013 §6).
 const kc = vi.hoisted(() => ({
-  garantirUtilizador: vi.fn(async () => 'kc-sub-novo'),
+  garantirUtilizador: vi.fn(async () => ({ sub: 'kc-sub-novo', criado: true })),
   dispararEmailAccoes: vi.fn(async () => true),
   definirActivo: vi.fn(async () => undefined),
   definirPalavraPasse: vi.fn(async () => undefined),

@@ -19,10 +19,10 @@ const kc = vi.hoisted(() => ({
   subs: new Map<string, string>(),
   garantirUtilizador: vi.fn(async ({ email }: { email: string }) => {
     const existente = kc.subs.get(email);
-    if (existente) return existente;
+    if (existente) return { sub: existente, criado: false };
     const sub = `kc-integ-${kc.subs.size}-${Date.now()}`;
     kc.subs.set(email, sub);
-    return sub;
+    return { sub, criado: true };
   }),
   dispararEmailAccoes: vi.fn(async () => true),
   definirActivo: vi.fn(async () => undefined),
