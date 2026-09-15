@@ -82,25 +82,40 @@ meu. Fica registado para não parecer descoberto depois.
    duplicar um nosso. A URL do evento é `https://<SITE_URL>/comecar?utm_…` — o domínio do site,
    e a mesma morada do canónico. As duas decisões lêem-se uma à outra.
 
-8. **O emissor recusa PII por construção**, não por promessa: chaves reservadas (`email`,
-   `nome`, `nuit`, `sub`, `tenantId`…) e qualquer valor com `@` são descartados com aviso no log.
-   Quem acrescentar uma propriedade daqui a um ano tem o objecto do registo à mão, e o caminho
-   mais curto é passá-lo inteiro.
+8. **O emissor recusa PII por construção — nos DOIS canais de saída.** A primeira versão deste
+   ficheiro guardava só as `props`; a **URL do evento**, onde viajam os `utm_*`, não passava pelo
+   filtro. `utm_content=<endereço do destinatário>` é prática corrente numa campanha de e-mail e
+   chegaria ao fornecedor como `ana%40padaria.mz`. Estava tapado só porque `PLAUSIBLE_DOMINIO`
+   ainda não está definido — ou seja, o defeito acordava no dia em que alguém ligasse a medição,
+   que é o dia em que ninguém está a olhar. Fechado por uma função só (`pareceEndereco`), usada
+   pelas `props` **e** pela URL, mais a re-normalização na action (ponto 9).
 
-9. **A medição não conta a reentrega idempotente.** Repetir a mesma chave é o mesmo registo;
+   Ao fechá-lo apareceu uma **segunda porta, pior**: um `utm` em **array**
+   (`utm_content: ['ana@x.mz']`) furava tudo — `['ana@x.mz'].includes('@')` é `false`, porque o
+   `includes` de um array compara elementos e não subcadeias, e o `URLSearchParams` escrevia-o na
+   mesma. O `Utm` diz que são strings, mas isto atravessa a fronteira de uma Server Action, onde
+   o tipo não vale nada em tempo de execução — e `string[]` é a forma **normal** de um parâmetro
+   repetido numa query string. `urlEventoRegisto` passou a recusar o que não é texto; quem desfaz
+   arrays é o `normalizarUtm`.
+
+9. **O `utm` é re-normalizado na action**, e não só na página: chega no corpo da Server Action,
+   logo é entrada de cliente como qualquer outra. Sem isto, um valor de 5000 caracteres ou um
+   array entravam sem tecto nem forma.
+
+10. **A medição não conta a reentrega idempotente.** Repetir a mesma chave é o mesmo registo;
    contá-lo duas vezes inflacionava a conversão.
 
-10. **O e-mail de verificação sai DEPOIS da sessão e não a trava** (ADR-0031): SMTP em baixo
+11. **O e-mail de verificação sai DEPOIS da sessão e não a trava** (ADR-0031): SMTP em baixo
     já não tranca ninguém. Sai também no caminho em que o `signIn` falhou — a conta existe e tem
     de ser confirmável.
 
-11. **`?verificacao=` renderizado no cliente, não no servidor.** Fazer `page.tsx` ler
+12. **`?verificacao=` renderizado no cliente, não no servidor.** Fazer `page.tsx` ler
     `searchParams` tornaria `/auth/login` dinâmico; hoje é estático. O aviso exige JavaScript —
     o que não é regressão nenhuma, porque o formulário de login já submete por JavaScript
     (`signIn` do cliente): um ecrã sem JS não iniciava sessão de qualquer maneira. Confirmado em
     browser: o aviso aparece e o e-mail vem preenchido.
 
-12. **O `sem-sessao` substitui o formulário, não o acompanha.** Mostrar outra vez os campos
+13. **O `sem-sessao` substitui o formulário, não o acompanha.** Mostrar outra vez os campos
     convidava a submeter uma segunda vez uma empresa que já existe.
 
 ## 3. Ficheiros
@@ -113,11 +128,12 @@ meu. Fica registado para não parecer descoberto depois.
   incluído; sem modais.
 - `apps/erp/src/app/registo/actions.ts` — `registarTenantPublico`.
 - `apps/erp/src/app/registo/captcha.ts` — a regra da #44 num sítio testável.
+- `apps/erp/src/app/registo/erros-campo.ts` — para onde vai cada chave de um `fieldErrors`.
 - `apps/erp/src/app/registo/csp.ts` — a política CSP da rota (**por aplicar**, §5.1).
 - `apps/erp/src/components/seguranca/turnstile.tsx` — widget do ERP, com a #43 fechada.
 - `apps/erp/src/server/analytics/plausible.ts` — emissor servidor→Plausible.
 - `apps/erp/src/app/(auth)/auth/login/aviso-verificacao.tsx` — órfão A.
-- Testes: `src/app/registo/__tests__/{actions,captcha}.test.ts`,
+- Testes: `src/app/registo/__tests__/{actions,captcha,erros-campo}.test.ts`,
   `src/server/analytics/__tests__/plausible.test.ts`,
   `src/server/security/__tests__/csp-registo.test.ts`,
   `src/components/seguranca/__tests__/turnstile-ciclo-vida.test.ts`,
@@ -190,14 +206,22 @@ Não a fiz porque `middleware.ts` está expressamente fora desta lane (`execucao
 o ficheiro tem um dono por fase, e é a L4). **É o único ponto em que o design não foi cumprido à
 letra**, e é por o design estar errado quanto ao mecanismo, não quanto à intenção.
 
-### 5.2 A CSP não tem nonce nos scripts do Next — defeito herdado, agora com uma segunda vítima
+### 5.2 Com `CSP_ENFORCE=true`, o ecrã de login parte — e sem login não há aplicação
 
-O `middleware.ts` gera um nonce por pedido e põe-no na política, mas propaga-o em `x-nonce` nos
-cabeçalhos do **pedido**, e não como `content-security-policy` — que é o que o Next lê para
-assinar os seus próprios scripts inline. Resultado: os scripts do Next não têm nonce e, com
-`CSP_ENFORCE=true`, **a aplicação inteira** parte, não só `/registo`. Está visível no mesmo
-*smoke* («Executing inline script violates…»). Não é deste spec e não lhe toquei; fica dito
-porque quem aplicar a §5.1 vai bater nisto no mesmo dia.
+Defeito herdado, não deste spec, mas quem aplicar a §5.1 bate nele no mesmo dia. **Medido pelo
+revisor**, e a minha primeira redacção deste parágrafo estava errada quanto ao mecanismo — vale
+a versão medida:
+
+- **rotas dinâmicas** (quase todo o ERP, `/registo` incluída): o nonce **chega**. Os inline e os
+  chunks trazem `nonce=` igual ao do cabeçalho;
+- **rotas estáticas** (`/auth/login`, `/auth/mudar-palavra-passe`, `/contactos`, `/` — as do
+  `prerender-manifest.json`): 22 scripts, **zero** com nonce. HTML prerendered não pode levar um
+  nonce por pedido, por construção;
+- e há **um** inline sem nonce mesmo nas rotas dinâmicas: o do **next-themes**.
+
+Ou seja: `CSP_ENFORCE=true` parte o **ecrã de login**, e sem login a aplicação fica inutilizada.
+Não é «o nonce nunca chega»; é «não chega onde o HTML é prerendered», que dá no mesmo para quem
+tenta entrar. Fica dito com o mecanismo certo porque há um ticket a abrir com base nisto.
 
 ### 5.3 O canónico e o `noindex` são contraditórios por ordem do Requisito 2.4
 
@@ -258,6 +282,21 @@ Cada regra guardada foi **desfeita** e o teste correspondente **acendeu**:
 | `X-Forwarded-For` no evento do Plausible | `plausible.test.ts` — «sem o IP de quem se regista» |
 | reentrega idempotente a contar conversão | `actions.test.ts` — «NÃO volta a contar» |
 | propriedade com `@` a passar | `plausible.test.ts` — «recusa … pareça um endereço» |
+| `utm_*` com `@` a passar no `normalizarUtm` | `plausible.test.ts` — «descarta um utm com forma de endereço» |
+| `utm_*` com `@` a passar na URL do evento | `plausible.test.ts` — «NÃO deixa um endereço entrar na URL» |
+| `utm_*` em array aceite na URL | `plausible.test.ts` — «o array era a porta de trás» |
+| a action não re-normalizar o `utm` | `actions.test.ts` — «re-normaliza os `utm_*` do cliente» |
+| `plano` do cliente logado sem validar | `actions.test.ts` — «é uma das três constantes» |
+| `sessaoOk` por subcadeia | `actions.test.ts` — «um `error=` dentro do callbackUrl NÃO é falha» |
+| chave de grupo sem destino no formulário | `erros-campo.test.ts` — «cobre todas as chaves do `flatten()`» |
+
+**Uma nota de método, porque me mordeu.** A primeira verificação por mutação correu as sete de
+seguida num só script; duas deram «acendeu» e era **falso** — um `timeout` matou o lote a meio e
+deixou um ficheiro mutado, que a mutação seguinte então usou como base «boa». Refeitas **uma a
+uma**, com estado confirmado limpo entre cada, duas não acendiam de facto: o teste do
+`callbackUrl` estava com o `error=` codificado (logo a procura por subcadeia também não o via) e
+o do array não existia. Ambos corrigidos; foi a correcção do segundo que descobriu a porta dos
+arrays. Uma verificação por mutação em lote não é verificação nenhuma.
 
 O teste do ciclo de vida do widget é **estrutural sobre a fonte**, e não de render: este projecto
 corre em `environment: node`, sem DOM nem testing-library, e acrescentar jsdom era mexer numa

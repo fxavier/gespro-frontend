@@ -138,6 +138,55 @@ describe('caminho feliz — entrada imediata', () => {
     await correr();
     expect(registarEventoPlausible).not.toHaveBeenCalled();
   });
+
+  it('re-normaliza os `utm_*` do cliente — a página não é prova de nada', async () => {
+    // O `utm` chega no CORPO da Server Action. Quem a chamar directamente não
+    // passou pela normalização da página, e a URL do evento é um canal de
+    // saída para um fornecedor externo.
+    await correr({
+      dados: DADOS,
+      idempotencyKey: 'k1234567',
+      utm: {
+        // Forma normal de um parâmetro repetido numa query string. E a porta
+        // por onde a PII passava: `['ana@x.mz'].includes('@')` é `false`, e o
+        // `URLSearchParams` escrevia o array na mesma. Só o `normalizarUtm`
+        // desfaz arrays — a URL, sozinha, só sabe recusá-los.
+        utm_source: ['newsletter', 'outro'],
+        utm_content: ['ana@padaria.mz'],
+        utm_campaign: 'z'.repeat(5000),
+        inventado: 'x',
+      },
+    } as never);
+
+    const [, opcoes] = registarEventoPlausible.mock.calls[0] as [string, { url: string }];
+    const params = new URL(opcoes.url).searchParams;
+
+    expect(opcoes.url).not.toContain('ana');
+    expect(opcoes.url).not.toContain('%40');
+    expect(opcoes.url).not.toContain('inventado');
+    // Sem a re-normalização na action, isto desaparece da URL: o
+    // `urlEventoRegisto` recusa o que não é texto, mas não desfaz o array.
+    expect(params.get('utm_source')).toBe('newsletter');
+    expect(params.get('utm_campaign')?.length).toBe(120);
+  });
+
+  it('o `plano` que entra no log e no evento é uma das três constantes', async () => {
+    // Vem do cliente e é lido ANTES do Zod da fronteira partilhada: sem
+    // saneamento, quem chamasse a action escrevia o que quisesse no nosso log
+    // estruturado e no fornecedor de analítica.
+    await correr({
+      dados: { ...DADOS, planoId: '<script>alert(1)</script>' },
+      idempotencyKey: 'k1234567',
+    } as never);
+
+    const iniciado = linhasLog.find(
+      (l) => (l.dados as { evento?: string })?.evento === 'registo.iniciado',
+    );
+    expect((iniciado?.dados as { plano?: string })?.plano).toBe('');
+
+    const [, opcoes] = registarEventoPlausible.mock.calls[0] as [string, { props: Record<string, string> }];
+    expect(opcoes.props).toEqual({ plano: '' });
+  });
 });
 
 describe('o signIn falha depois de o provisionamento ter concluído (design §7/§8)', () => {
@@ -161,6 +210,19 @@ describe('o signIn falha depois de o provisionamento ter concluído (design §7/
     const r = await correr();
 
     expect(r.estado).toMatchObject({ fase: 'sem-sessao' });
+  });
+
+  it('um `error=` dentro do callbackUrl NÃO é uma falha de sessão', async () => {
+    // A leitura por substring dava aqui um falso negativo: mandava para o ecrã
+    // de «inicie sessão» quem tinha acabado de entrar. Lê-se o parâmetro.
+    // `error=` aparece na cadeia — dentro do `callbackUrl`, que o Auth.js monta
+    // a partir do Referer. A procura por subcadeia dizia «falhou»; o parâmetro
+    // de topo chama-se `callbackUrl` e não há `error` nenhum.
+    signIn.mockResolvedValue('/dashboard?callbackUrl=/vendas?error=algo');
+
+    const r = await correr();
+
+    expect(r.redireccionou).toBe('/dashboard?onboarding=1');
   });
 
   it('regista o alerta `entrada.imediata.falhou`, que é o que se vigia', async () => {

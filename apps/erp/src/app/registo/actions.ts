@@ -30,11 +30,13 @@ import { logger } from '@/server/observability/logger';
 import { newRequestId, runWithRequestContext } from '@/server/observability/context';
 import {
   EVENTOS_PLAUSIBLE,
+  normalizarUtm,
   registarEventoPlausible,
   urlEventoRegisto,
   type Utm,
 } from '@/server/analytics/plausible';
 import type { RegistoTenantInput } from '@/lib/validations/onboarding';
+import { PLANO_IDS } from '@/lib/planos';
 
 export interface EntradaRegistoPublico {
   dados: RegistoTenantInput;
@@ -45,7 +47,11 @@ export interface EntradaRegistoPublico {
    * publicado — `IDEMPOTENCY_KEY_REUTILIZADA`.
    */
   idempotencyKey: string;
-  /** `utm_*` que vieram do site na *query string*. Sem PII, por construção. */
+  /**
+   * `utm_*` que vieram do site na *query string*. **Vêm do cliente**, portanto
+   * são re-normalizados aqui antes de saírem para o fornecedor de medição —
+   * o que a página normalizou não é prova de nada sobre o que a action recebe.
+   */
   utm?: Utm;
 }
 
@@ -74,6 +80,37 @@ function ipDosCabecalhos(h: Headers): string {
   return encaminhado || h.get('x-real-ip')?.trim() || 'unknown';
 }
 
+/**
+ * O plano, reduzido a uma das três constantes do catálogo — ou a string vazia.
+ *
+ * Entra no log e na propriedade do evento de medição ANTES de o Zod da
+ * fronteira partilhada correr, e vem do cliente: sem isto, quem chamasse a
+ * action directamente escrevia o que quisesse no nosso log estruturado e no
+ * fornecedor de analítica.
+ */
+function planoSeguro(valor: unknown): string {
+  return typeof valor === 'string' && (PLANO_IDS as readonly string[]).includes(valor)
+    ? valor
+    : '';
+}
+
+/**
+ * O `signIn` recusou?
+ *
+ * Lido do parâmetro `error`, não por procura de substring: um `callbackUrl`
+ * que traga `error=` na sua própria *query string* dava um falso negativo e
+ * mandava para o ecrã de «inicie sessão» quem tinha acabado de entrar.
+ * A base falsa serve só para aceitar destinos relativos (`/dashboard`).
+ */
+function destinoTemErro(destino: string): boolean {
+  try {
+    return new URL(destino, 'http://gespro.invalid').searchParams.has('error');
+  } catch {
+    // Destino ilegível não é prova de sessão. Fail-closed.
+    return true;
+  }
+}
+
 export async function registarTenantPublico(
   entrada: EntradaRegistoPublico,
 ): Promise<EstadoRegisto> {
@@ -85,8 +122,12 @@ async function executar(
   entrada: EntradaRegistoPublico,
   traceId: string,
 ): Promise<EstadoRegisto> {
-  const { dados, utm } = entrada;
-  const plano = dados?.planoId ?? '';
+  const { dados } = entrada;
+  const plano = planoSeguro(dados?.planoId);
+  // Re-normalizado aqui, e não só na página: o `utm` chega no corpo da Server
+  // Action, logo é entrada de cliente como qualquer outra. Descarta o que não
+  // é chave conhecida, o que é comprido de mais e o que tem forma de endereço.
+  const utm = normalizarUtm(entrada.utm ?? {});
 
   const h = await headers();
   const ip = ipDosCabecalhos(h);
@@ -135,7 +176,7 @@ async function executar(
       palavraPasse: dados.senha,
       redirect: false,
     });
-    sessaoOk = typeof destino === 'string' && !destino.includes('error=');
+    sessaoOk = typeof destino === 'string' && !destinoTemErro(destino);
   } catch (e) {
     logger.error({ err: (e as Error)?.message }, '[registo] signIn lançou');
   }
@@ -154,7 +195,7 @@ async function executar(
   // duas vezes inflacionava a conversão.
   if (!resultado.repetido) {
     void registarEventoPlausible(EVENTOS_PLAUSIBLE.registoConcluido, {
-      url: urlEventoRegisto(utm ?? {}),
+      url: urlEventoRegisto(utm),
       props: { plano },
     });
   }

@@ -19,7 +19,7 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useForm, useWatch, type Path } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,7 @@ import { RegistoTenantSchema, type RegistoTenantInput } from '@/lib/validations/
 import type { PlanoId, Preco } from '@/lib/planos';
 import { registarTenantPublico, type EstadoRegisto } from './actions';
 import { captchaConfigurado, valorInicialCaptcha } from './captcha';
+import { CAMPO_POR_CODIGO, DESTINO_DO_ERRO } from './erros-campo';
 
 export interface PlanoResumo {
   id: PlanoId;
@@ -63,25 +64,6 @@ export interface RegistoFormProps {
   utm: Record<string, string>;
   turnstileSiteKey: string;
 }
-
-/** Campos-folha do schema que o servidor pode nomear num `fieldErrors`. */
-const CAMPOS_CONHECIDOS = new Set([
-  'empresa.nome',
-  'empresa.nuit',
-  'admin.nome',
-  'admin.email',
-  'senha',
-  'confirmacao',
-  'planoId',
-  'provincia',
-  'captchaToken',
-]);
-
-/** Códigos de recusa do provisionamento que têm um campo culpado nomeável. */
-const CAMPO_POR_CODIGO: Record<string, 'admin.email' | 'empresa.nuit'> = {
-  EMAIL_JA_REGISTADO: 'admin.email',
-  NUIT_JA_REGISTADO: 'empresa.nuit',
-};
 
 function novaChave(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -144,19 +126,14 @@ export function RegistoForm({
     }
 
     for (const [campo, mensagens] of Object.entries(estado.fieldErrors ?? {})) {
-      if (!CAMPOS_CONHECIDOS.has(campo)) continue;
-      form.setError(campo as Path<RegistoTenantInput>, {
-        type: 'server',
-        message: mensagens[0],
-      });
+      const destino = DESTINO_DO_ERRO[campo];
+      if (!destino || !mensagens?.[0]) continue;
+      form.setError(destino, { type: 'server', message: mensagens[0] });
     }
 
     const culpado = estado.code ? CAMPO_POR_CODIGO[estado.code] : undefined;
     if (culpado) {
-      form.setError(culpado as Path<RegistoTenantInput>, {
-        type: 'server',
-        message: estado.mensagem,
-      });
+      form.setError(culpado, { type: 'server', message: estado.mensagem });
     }
   }, [estado, form, temCaptcha]);
 

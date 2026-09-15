@@ -19,7 +19,11 @@ import { logger } from '@/server/observability/logger';
  * segredo no repositório, e o dev/CI corre sem rede externa.
  *
  * ZERO PII (Requisito 7.2): nunca e-mail, nome, NUIT, nem o IP de quem se
- * regista. Ver `PROIBIDO_EM_PROPS` e a nota sobre o `X-Forwarded-For`.
+ * regista. São **dois** canais de saída, e ambos têm de ser guardados — as
+ * `props` e a **URL do evento**, onde viajam os `utm_*`. Guardar só o primeiro
+ * foi o defeito da primeira versão deste ficheiro: `utm_content=<endereço>` é
+ * prática corrente numa campanha de e-mail e passava intacto. Ver
+ * `PROIBIDO_EM_PROPS`, `pareceEndereco` e a nota sobre o `X-Forwarded-For`.
  */
 
 /** Parâmetros de campanha que sobrevivem ao salto site → ERP. */
@@ -84,9 +88,24 @@ export function urlSite(): string {
 }
 
 /**
- * Normaliza `utm_*` vindos da *query string*: só as chaves conhecidas, só
- * strings, aparadas e truncadas. Tudo o resto desaparece aqui — é este o
- * ponto onde um parâmetro inventado por quem construir o link deixa de viajar.
+ * Um endereço de e-mail não chega aqui por acidente sem o arroba. Recusar por
+ * FORMA, e não só por nome de chave, é o que cobre o campo criativo — e o
+ * campo criativo existe: `utm_content=<endereço do destinatário>` é prática
+ * corrente numa campanha de e-mail, e chegaria ao fornecedor como PII.
+ *
+ * A mesma regra vale para as `props` e para os `utm_*`. É deliberadamente uma
+ * função só: foram dois caminhos com regras diferentes que deixaram a URL do
+ * evento a passar o que as `props` recusavam.
+ */
+function pareceEndereco(valor: string): boolean {
+  return valor.includes('@');
+}
+
+/**
+ * Normaliza `utm_*` vindos da *query string*: só as cinco chaves conhecidas,
+ * só strings, aparadas, truncadas, e **sem nada com forma de endereço**. Tudo
+ * o resto desaparece aqui — é este o ponto onde um parâmetro inventado por
+ * quem construir o link deixa de viajar.
  */
 export function normalizarUtm(entrada: Record<string, string | string[] | undefined>): Utm {
   const saida: Utm = {};
@@ -95,7 +114,12 @@ export function normalizarUtm(entrada: Record<string, string | string[] | undefi
     const valor = Array.isArray(bruto) ? bruto[0] : bruto;
     if (typeof valor !== 'string') continue;
     const limpo = valor.trim().slice(0, MAX_UTM);
-    if (limpo) saida[chave] = limpo;
+    if (!limpo) continue;
+    if (pareceEndereco(limpo)) {
+      logger.warn({ chave }, '[plausible] utm recusado — parece um endereço');
+      continue;
+    }
+    saida[chave] = limpo;
   }
   return saida;
 }
@@ -118,7 +142,28 @@ export function urlEventoRegisto(utm: Utm): string {
   const qs = new URLSearchParams();
   for (const chave of UTM_CHAVES) {
     const valor = utm[chave];
-    if (valor) qs.set(chave, valor);
+    if (!valor) continue;
+
+    // Só strings. O `Utm` diz que são, mas isto atravessa a fronteira de uma
+    // Server Action, onde o tipo não é aplicado em tempo de execução — e um
+    // valor em array furava tudo o que vem a seguir: `['ana@x.mz'].includes('@')`
+    // é `false` (o `includes` de um array compara ELEMENTOS, não subcadeias), e
+    // o `URLSearchParams` escrevia-o na mesma, codificado. O endereço saía
+    // inteiro para o fornecedor. Quem tem de desfazer arrays é o
+    // `normalizarUtm`; aqui recusa-se o que não é string.
+    if (typeof valor !== 'string') {
+      logger.warn({ chave }, '[plausible] utm recusado na URL — não é texto');
+      continue;
+    }
+
+    // A MESMA regra das `props`, aplicada aqui também — e não por desconfiança
+    // de quem chama: a URL é um canal de saída tão real como as propriedades, e
+    // durante uma versão foi o canal por onde a PII passava.
+    if (pareceEndereco(valor)) {
+      logger.warn({ chave }, '[plausible] utm recusado na URL — parece um endereço');
+      continue;
+    }
+    qs.set(chave, valor.slice(0, MAX_UTM));
   }
   const cauda = qs.toString();
   return `${urlSite()}/comecar${cauda ? `?${cauda}` : ''}`;
@@ -131,9 +176,7 @@ function propsSeguras(props: Record<string, string>): Record<string, string> {
       logger.warn({ chave }, '[plausible] propriedade recusada — nome reservado a PII');
       continue;
     }
-    // Um endereço de e-mail não tem forma de chegar aqui por acidente sem o
-    // arroba. Recusar por forma, e não só por nome, cobre a chave criativa.
-    if (valor.includes('@')) {
+    if (pareceEndereco(valor)) {
       logger.warn({ chave }, '[plausible] propriedade recusada — parece um endereço');
       continue;
     }

@@ -71,6 +71,20 @@ describe('normalizarUtm', () => {
   it('descarta valores vazios', () => {
     expect(normalizarUtm({ utm_source: '   ' })).toEqual({});
   });
+
+  it('descarta um utm com forma de endereço — é o canal por onde a PII fugia', () => {
+    // `utm_content=<endereço do destinatário>` é prática corrente numa campanha
+    // de e-mail. Sem isto, o endereço entrava na URL do evento e chegava ao
+    // fornecedor — o filtro das `props` não guarda a URL.
+    expect(
+      normalizarUtm({ utm_source: 'newsletter', utm_content: 'ana@padaria.mz' }),
+    ).toEqual({ utm_source: 'newsletter' });
+  });
+
+  it('trunca valores compridos de mais', () => {
+    const { utm_campaign: valor } = normalizarUtm({ utm_campaign: 'x'.repeat(5000) });
+    expect(valor?.length).toBe(120);
+  });
 });
 
 describe('urlEventoRegisto', () => {
@@ -84,6 +98,42 @@ describe('urlEventoRegisto', () => {
 
   it('sem utm_*, é a entrada do funil e mais nada', () => {
     expect(urlEventoRegisto({})).toBe('https://gestpro.co.mz/comecar');
+  });
+
+  it('NÃO deixa um endereço entrar na URL, mesmo que lhe seja entregue à mão', () => {
+    // A URL é um canal de saída tão real como as `props`, e durante uma versão
+    // foi o canal por onde a PII passava. Quem chame esta função com um `Utm`
+    // que não veio do `normalizarUtm` não a consegue furar.
+    const url = urlEventoRegisto({
+      utm_source: 'newsletter',
+      utm_content: 'ana@padaria.mz',
+    } as Parameters<typeof urlEventoRegisto>[0]);
+
+    expect(url).not.toContain('ana');
+    expect(url).not.toContain('%40');
+    expect(url).toBe('https://gestpro.co.mz/comecar?utm_source=newsletter');
+  });
+
+  it('recusa na URL um utm que não seja texto — o array era a porta de trás', () => {
+    // `['ana@x.mz'].includes('@')` é `false`: o `includes` de um array compara
+    // ELEMENTOS, não subcadeias. Sem o guarda de tipo, o filtro do endereço
+    // não via nada e o `URLSearchParams` escrevia o array na mesma,
+    // codificado — o endereço saía inteiro para o fornecedor. O `Utm` diz que
+    // são strings, mas isto atravessa a fronteira de uma Server Action, onde o
+    // tipo não é aplicado em tempo de execução.
+    const url = urlEventoRegisto({
+      utm_source: 'newsletter',
+      utm_content: ['ana@padaria.mz'],
+    } as unknown as Parameters<typeof urlEventoRegisto>[0]);
+
+    expect(url).not.toContain('ana');
+    expect(url).not.toContain('%40');
+    expect(url).toBe('https://gestpro.co.mz/comecar?utm_source=newsletter');
+  });
+
+  it('trunca na URL o que lhe chegue comprido de mais', () => {
+    const url = urlEventoRegisto({ utm_campaign: 'y'.repeat(5000) });
+    expect(new URL(url).searchParams.get('utm_campaign')?.length).toBe(120);
   });
 });
 
