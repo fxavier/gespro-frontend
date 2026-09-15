@@ -93,6 +93,20 @@ o problema em vez de o proteger.
 Cada travão é verificado **no seu próprio serviço**, com a sua leitura, sem abstracção
 partilhada — mesma escolha e mesmo racional do ADR-0027 §3 para os limites de plano.
 
+**A fronteira de «documento fiscal» são a factura, a nota de crédito e a nota de débito** — e
+todas as portas que lá dão, incluindo a conversão de proforma em factura, que emite sem passar
+pelo emissor de facturas. Proformas, cotações e a **venda POS** ficam **deliberadamente de
+fora**: uma proforma não tem efeito para terceiros, e travar o balcão violava «configurar,
+importar, explorar passa» e o ADR-0027 §6. Fica escrito porque uma omissão não registada
+lê-se como esquecimento, e o próximo leitor «corrige-a».
+
+A leitura designada é a **sessão** (§6 acima), o que obriga os dois serviços a lê-la
+directamente — desvio à convenção de o serviço receber todo o contexto de quem o chama. É o
+mal menor enquanto alargar o `Ctx` implicar tocar no pipeline de escrita, que pertence ao
+ADR-0027. Consequência a assumir: estes dois caminhos deixam de servir chamadores **sem
+sessão**. Hoje não existe nenhum; uma facturação recorrente de sistema não pode passar por
+aqui sem que se decida antes o que é «e-mail confirmado» para um processo sem pessoa.
+
 ## Consequências
 
 **Aceites:**
