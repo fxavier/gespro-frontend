@@ -73,10 +73,6 @@
       "titulo": "Recursos",
       "descricao": "Guias práticos sobre gestão, fiscalidade e operações em Moçambique."
     },
-    "comecar": {
-      "titulo": "Começar teste grátis",
-      "descricao": "Crie a sua conta GestPro em menos de dois minutos. 14 dias grátis, sem cartão."
-    },
     "termos": {
       "titulo": "Termos de Serviço",
       "descricao": "Condições de utilização do serviço GestPro."
@@ -327,36 +323,8 @@
   "comecar": {
     "titulo": "Criar a sua conta GestPro",
     "subtitulo": "14 dias grátis, sem cartão. Fica com a empresa criada e pronta a usar.",
-    "seccaoEmpresa": "A empresa",
-    "seccaoAdmin": "O administrador da conta",
-    "seccaoPlano": "Plano",
-    "campos": {
-      "empresaNome": "Nome da empresa",
-      "empresaNuit": "NUIT da empresa",
-      "empresaNuitAjuda": "9 dígitos, sem espaços",
-      "provincia": "Província",
-      "provinciaPlaceholder": "Seleccione a província",
-      "adminNome": "O seu nome",
-      "adminEmail": "E-mail profissional",
-      "plano": "Plano a experimentar"
-    },
-    "submeter": "Criar conta e começar",
-    "aSubmeter": "A criar a conta…",
-    "aceitacao": "Ao criar a conta aceita os <termos>Termos de Serviço</termos> e a <privacidade>Política de Privacidade</privacidade>.",
-    "sucesso": "Conta criada! Enviámos um e-mail de activação para o endereço indicado.",
-    "sucessoDetalhe": "Clique no link do e-mail para confirmar o endereço e definir a palavra-passe — só depois estará com acesso ao GestPro. Não vê o e-mail? Verifique a pasta de spam.",
-    "erros": {
-      "generico": "Não foi possível criar a conta. Tente novamente dentro de instantes.",
-      "indisponivel": "O serviço de registo está temporariamente indisponível. Deixe-nos o contacto e criamos a conta consigo.",
-      "emailJaRegistado": "Este endereço de e-mail já está associado a uma conta GestPro. Quem gere duas empresas precisa de dois endereços de e-mail distintos.",
-      "captchaObrigatorio": "Por favor complete a verificação anti-robô.",
-      "obrigatorio": "Campo obrigatório",
-      "emailInvalido": "Introduza um e-mail válido",
-      "nuitInvalido": "O NUIT deve ter exactamente 9 dígitos",
-      "nomeCurto": "Introduza pelo menos 2 caracteres",
-      "planoInvalido": "Seleccione um plano válido",
-      "provinciaInvalida": "Seleccione uma província"
-    }
+    "aEncaminhar": "A encaminhar para a criação da conta…",
+    "reserva": "Não foi encaminhado? Continuar para a criação da conta"
   },
   "sobre": {
     "etiqueta": "Sobre",

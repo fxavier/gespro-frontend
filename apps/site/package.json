@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e:a11y": "playwright test --project=a11y-site",
+    "e2e:funil": "playwright test --project=funil",
     "gate:cores": "node scripts/gate-cores-hardcoded.mjs"
   },
   "dependencies": {
