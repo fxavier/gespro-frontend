@@ -25,14 +25,28 @@ sistema, não apenas dentro do Tenant.
 > arrasta para o modelo de autorização. Ver [[Utilizador]].
 
 ### Primeiro acesso
-Como uma Identidade nova entra pela primeira vez. Há **dois caminhos**, e é o
-administrador que escolhe ao criar o [[Utilizador]]: o **convite por e-mail**
+Como uma Identidade nova entra pela primeira vez. Há **três caminhos**.
+
+O primeiro não passa por administrador nenhum: quem se **regista no site**
+escolhe ali a sua palavra-passe e **entra no produto na mesma submissão**, sem
+esperar por e-mail. O endereço fica por confirmar, e é isso que distingue este
+caminho — a pessoa explora, configura e importa à vontade, mas **não emite
+documentos fiscais nem convida colegas** enquanto não confirmar. A confirmação
+chega por uma ligação nossa, válida 24 h, que se pode reenviar do painel.
+
+> **Porquê sem esperar:** quem experimenta um ERP não vai abrir o webmail da
+> empresa para procurar na pasta de spam; fecha o separador. A exigência de
+> e-mail confirmado não desaparece — muda de sítio, do login para os dois actos
+> que fazem estrago. Decidido em 2026-09-15 (ADR-0031).
+
+Os outros dois são para quem é **criado por um administrador**, que escolhe
+entre eles: o **convite por e-mail**
 (o Keycloak envia a mensagem onde a pessoa confirma o endereço e escolhe a
 palavra-passe) ou a **palavra-passe atribuída** (o sistema gera uma provisória,
 mostra-a ao administrador uma única vez, e a pessoa é obrigada a trocá-la ao
 entrar).
 
-> **Porquê dois:** o convite pressupõe e-mail a funcionar e a chegar. Há
+> **Porquê dois destes:** o convite pressupõe e-mail a funcionar e a chegar. Há
 > empresas onde não há — e enquanto a única porta fosse um link enviado por
 > e-mail, ninguém entrava. Decidido em 2026-09-14 (ADR-0030).
 
