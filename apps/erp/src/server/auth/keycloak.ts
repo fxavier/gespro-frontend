@@ -226,6 +226,25 @@ async function adminFetch(caminho: string, init?: RequestInit): Promise<Response
   });
 }
 
+/**
+ * Erro da Admin API com o **estado HTTP** preservado.
+ *
+ * Existe porque há um chamador que precisa de distinguir um estado dos outros:
+ * um 404 no `reset-password` de uma identidade que acabámos de usar não é uma
+ * indisponibilidade — é a prova de que ela foi apagada debaixo dos pés, e quem
+ * já tem o tenant cometido pode recriá-la (ADR-0031 §2-bis). Enfiar o estado
+ * na mensagem obrigava a lê-lo com uma expressão regular.
+ */
+export class ErroKeycloak extends Error {
+  constructor(
+    readonly status: number,
+    mensagem: string,
+  ) {
+    super(mensagem);
+    this.name = 'ErroKeycloak';
+  }
+}
+
 export interface UtilizadorKeycloak {
   id: string;
   email?: string;
@@ -247,28 +266,56 @@ export async function procurarPorEmail(email: string): Promise<UtilizadorKeycloa
   return lista[0] ?? null;
 }
 
+/** O que `garantirUtilizador` devolve: o `sub` e **quem** o criou. */
+export interface IdentidadeGarantida {
+  /** `sub` da identidade no realm. */
+  sub: string;
+  /**
+   * `true` **só** quando foi esta chamada a criar a identidade — isto é, quando
+   * o Keycloak respondeu 201 ao nosso POST. Uma identidade que já existia, ou
+   * que outro pedido criou primeiro (409 na corrida), devolve `false`.
+   *
+   * Esta é a única resposta fiável à pergunta «fui eu que criei isto?». Quem a
+   * responder com um `procurarPorEmail` prévio está a fazer TOCTOU: dois
+   * pedidos com o mesmo e-mail lêem ambos `null`, partilham o `sub` que o
+   * Keycloak deduplica, e ambos se julgam criadores — com isso, o que perde a
+   * corrida apaga ou reescreve a identidade do que a ganhou (ADR-0031 §2-bis).
+   */
+  criado: boolean;
+}
+
 /**
- * Garante o utilizador no Keycloak e devolve o seu `sub`.
+ * Garante o utilizador no Keycloak e devolve o seu `sub` e se foi criado agora.
  *
  * Keycloak PRIMEIRO, Postgres depois (ADR-0013 §2): o lado sem transacção vai
- * à frente. Criado sem palavra-passe, com `VERIFY_EMAIL` + `UPDATE_PASSWORD`
- * pendentes — é o e-mail de acções que dá entrada no produto (§5).
+ * à frente. Por omissão é criado sem palavra-passe e com `VERIFY_EMAIL` +
+ * `UPDATE_PASSWORD` pendentes — é o caso do convite. O registo público passa
+ * `accoes: []` e escreve a credencial a seguir (ADR-0031).
  */
 export async function garantirUtilizador(input: {
   email: string;
   nome: string;
   /**
-   * Acções obrigatórias da conta nova. Por omissão as do convite por e-mail
-   * (ADR-0013 §5-bis). Quem atribui a palavra-passe passa só `UPDATE_PASSWORD`
-   * — com `VERIFY_EMAIL` pendente o *direct grant* recusaria à mesma e a conta
-   * ficaria trancada (ADR-0030 §3).
+   * Acções obrigatórias da conta nova. **Obrigatório, sem valor por omissão**,
+   * e é decisão de quem chama:
+   *   - convite por e-mail → `['VERIFY_EMAIL', 'UPDATE_PASSWORD']` (ADR-0013 §5-bis);
+   *   - palavra-passe atribuída pelo administrador → `['UPDATE_PASSWORD']` (ADR-0030 §3);
+   *   - registo público → `[]` (ADR-0031 §2).
+   *
+   * Não tem omissão de propósito. Tinha — a do convite — e isso fazia com que
+   * qualquer chamador distraído criasse contas com `VERIFY_EMAIL` pendente,
+   * que é precisamente o estado em que o *direct grant* recusa a sessão e a
+   * pessoa fica trancada do lado de fora. Um valor por omissão que tranca o
+   * acesso não é conveniência: é uma armadilha à espera do próximo chamador,
+   * e já apanhou dois caminhos deste repositório. Quem acrescentar um chamador
+   * é obrigado a escolher, e a escolha fica à vista na chamada.
    */
-  accoes?: string[];
+  accoes: string[];
   /** `true` quando é o administrador a responder pelo endereço (ADR-0030 §3). */
   emailVerificado?: boolean;
-}): Promise<string> {
+}): Promise<IdentidadeGarantida> {
   const existente = await procurarPorEmail(input.email);
-  if (existente) return existente.id;
+  if (existente) return { sub: existente.id, criado: false };
 
   const [primeiro, ...resto] = input.nome.trim().split(/\s+/);
   const res = await adminFetch('/users', {
@@ -280,13 +327,14 @@ export async function garantirUtilizador(input: {
       emailVerified: input.emailVerificado ?? false,
       firstName: primeiro ?? input.nome,
       lastName: resto.join(' ') || undefined,
-      requiredActions: input.accoes ?? ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
+      requiredActions: input.accoes,
     }),
   });
   if (res.status === 409) {
-    // Corrida entre dois pedidos com o mesmo e-mail: o outro ganhou — reutiliza.
+    // Corrida entre dois pedidos com o mesmo e-mail: o outro ganhou — reutiliza
+    // o `sub` dele e assume-se como NÃO criador. É este 409 que desempata.
     const corrida = await procurarPorEmail(input.email);
-    if (corrida) return corrida.id;
+    if (corrida) return { sub: corrida.id, criado: false };
   }
   if (!res.ok && res.status !== 201) {
     throw new Error(`[keycloak] criação de utilizador falhou (HTTP ${res.status})`);
@@ -295,7 +343,7 @@ export async function garantirUtilizador(input: {
   if (!criado) {
     throw new Error('[keycloak] utilizador criado mas não encontrado na releitura');
   }
-  return criado.id;
+  return { sub: criado.id, criado: true };
 }
 
 /**
@@ -358,7 +406,10 @@ export async function definirPalavraPasse(
       { status: res.status, sub, temporaria: opcoes.temporaria },
       '[keycloak] reset-password falhou',
     );
-    throw new Error(`[keycloak] definição de palavra-passe falhou (HTTP ${res.status})`);
+    throw new ErroKeycloak(
+      res.status,
+      `[keycloak] definição de palavra-passe falhou (HTTP ${res.status})`,
+    );
   }
 }
 

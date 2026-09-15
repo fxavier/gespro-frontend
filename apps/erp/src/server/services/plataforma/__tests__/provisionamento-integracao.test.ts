@@ -19,10 +19,10 @@ const kc = vi.hoisted(() => ({
   subs: new Map<string, string>(),
   garantirUtilizador: vi.fn(async ({ email }: { email: string }) => {
     const existente = kc.subs.get(email);
-    if (existente) return existente;
+    if (existente) return { sub: existente, criado: false };
     const sub = `kc-integ-${kc.subs.size}-${Date.now()}`;
     kc.subs.set(email, sub);
-    return sub;
+    return { sub, criado: true };
   }),
   dispararEmailAccoes: vi.fn(async () => true),
   definirActivo: vi.fn(async () => undefined),
@@ -80,7 +80,12 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
     criados.push(r.tenantId);
 
     expect(r.tenantSlug).toMatch(/^teste-spec19-/);
-    expect(kc.garantirUtilizador).toHaveBeenCalledWith({ email: EMAIL, nome: 'Ana Teste' });
+    expect(kc.garantirUtilizador).toHaveBeenCalledWith({
+      email: EMAIL,
+      nome: 'Ana Teste',
+      accoes: [],
+      emailVerificado: false,
+    });
 
     const [cfg, assinatura, user, contas, series, diarios, notif] = await Promise.all([
       prismaBase.configuracaoFiscal.findUnique({ where: { tenantId: r.tenantId } }),

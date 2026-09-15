@@ -113,17 +113,28 @@ describe('garantirUtilizador — idempotência por e-mail (ADR-0013 §5-bis)', (
   it('reutiliza o sub quando o e-mail já existe no realm', async () => {
     aceitaAdminToken();
     fetchMock.mockResolvedValueOnce(resposta(200, [{ id: 'sub-existente' }]));
-    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana' })).toBe('sub-existente');
+    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana', accoes: [] })).toEqual({
+      sub: 'sub-existente',
+      criado: false,
+    });
     // Nenhum POST de criação.
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('cria com VERIFY_EMAIL + UPDATE_PASSWORD pendentes e SEM credencial', async () => {
+  it('cria com as acções que lhe pedirem — convite: VERIFY_EMAIL + UPDATE_PASSWORD, sem credencial', async () => {
     aceitaAdminToken();
     fetchMock.mockResolvedValueOnce(resposta(200, [])); // procura: vazio
     fetchMock.mockResolvedValueOnce(resposta(201)); // criação
     fetchMock.mockResolvedValueOnce(resposta(200, [{ id: 'sub-novo' }])); // releitura
-    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana Sitoe' })).toBe('sub-novo');
+    // `criado: true` só com o 201 do Keycloak — é o que desempata corridas
+    // (ADR-0031 §2-bis); uma leitura prévia diria `true` aos dois pedidos.
+    expect(
+      await garantirUtilizador({
+        email: 'a@b.mz',
+        nome: 'Ana Sitoe',
+        accoes: ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
+      }),
+    ).toEqual({ sub: 'sub-novo', criado: true });
 
     const corpo = JSON.parse(String(fetchMock.mock.calls[2][1].body));
     expect(corpo.requiredActions).toEqual(['VERIFY_EMAIL', 'UPDATE_PASSWORD']);
@@ -131,12 +142,51 @@ describe('garantirUtilizador — idempotência por e-mail (ADR-0013 §5-bis)', (
     expect(corpo).not.toHaveProperty('credentials');
   });
 
+  /**
+   * O registo público precisa de uma conta SEM acções pendentes: com
+   * `VERIFY_EMAIL` o direct grant recusa a sessão e o registo não dá entrada
+   * nenhuma (ADR-0031 §2). Este teste acende se alguém repuser uma omissão em
+   * `accoes` que volte a impor as acções do convite a quem não as pediu.
+   */
+  it('registo público: `accoes: []` chega ao Keycloak como lista vazia, sem substituição', async () => {
+    aceitaAdminToken();
+    fetchMock.mockResolvedValueOnce(resposta(200, []));
+    fetchMock.mockResolvedValueOnce(resposta(201));
+    fetchMock.mockResolvedValueOnce(resposta(200, [{ id: 'sub-publico' }]));
+
+    await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana', accoes: [], emailVerificado: false });
+
+    const corpo = JSON.parse(String(fetchMock.mock.calls[2][1].body));
+    expect(corpo.requiredActions).toEqual([]);
+    expect(corpo.emailVerified).toBe(false);
+  });
+
+  /**
+   * `accoes` NÃO tem valor por omissão, e isto é o alarme que o mantém assim:
+   * se alguém lho repuser, o `@ts-expect-error` deixa de ter erro para
+   * suprimir e o `tsc --noEmit` do `pnpm check` falha com «unused
+   * @ts-expect-error». Um valor por omissão que tranca o direct grant é uma
+   * armadilha à espera do próximo chamador — já apanhou dois caminhos deste
+   * repositório (ADR-0031 §2-bis).
+   */
+  it('omitir `accoes` não compila — a escolha é obrigatória', async () => {
+    aceitaAdminToken();
+    fetchMock.mockResolvedValueOnce(resposta(200, [{ id: 'sub-existente' }]));
+    // @ts-expect-error — `accoes` é obrigatório: quem chama tem de escolher.
+    await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana' });
+  });
+
   it('numa corrida (409), reutiliza o sub de quem ganhou', async () => {
     aceitaAdminToken();
     fetchMock.mockResolvedValueOnce(resposta(200, [])); // procura: vazio
     fetchMock.mockResolvedValueOnce(resposta(409)); // criação: já existe
     fetchMock.mockResolvedValueOnce(resposta(200, [{ id: 'sub-do-outro' }])); // reprocura
-    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana' })).toBe('sub-do-outro');
+    // Quem apanha o 409 NÃO é o criador — e é isso que o impede de apagar ou
+    // reescrever a identidade de quem ganhou a corrida.
+    expect(await garantirUtilizador({ email: 'a@b.mz', nome: 'Ana', accoes: [] })).toEqual({
+      sub: 'sub-do-outro',
+      criado: false,
+    });
   });
 });
 
