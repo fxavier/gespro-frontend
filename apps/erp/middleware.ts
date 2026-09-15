@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { buildSecurityHeaders } from '@/lib/security/headers';
+import { cspRegisto } from '@/app/registo/csp';
 
 // ---------------------------------------------------------------------------
 // Rotas públicas — não exigem autenticação.
@@ -83,6 +84,20 @@ export async function middleware(req: NextRequest) {
 
   // Construir todos os cabeçalhos de segurança (mesma lógica que nos testes)
   const securityHeaders = buildSecurityHeaders({ nonce, isDev, enforceCSP });
+
+  // `/registo` é a única rota que carrega o Turnstile, e o widget precisa do
+  // script e do <iframe> da Cloudflare que a política geral proíbe. A excepção
+  // é DA ROTA: abrir `challenges.cloudflare.com` nas rotas autenticadas para
+  // servir um ecrã anónimo seria pagar em toda a aplicação o preço de uma
+  // página. Tem de ser aqui e não no `next.config.ts` — o middleware escreve o
+  // mesmo nome de cabeçalho por último e um CSP substitui-se, não se acrescenta
+  // (medido; ver o cabeçalho de `src/app/registo/csp.ts`).
+  if (pathname === '/registo') {
+    const nome = enforceCSP
+      ? 'Content-Security-Policy'
+      : 'Content-Security-Policy-Report-Only';
+    securityHeaders[nome] = cspRegisto(nonce, isDev);
+  }
 
   // --- Autenticação (rotas privadas) ----------------------------------------
   if (!isPublic(pathname)) {

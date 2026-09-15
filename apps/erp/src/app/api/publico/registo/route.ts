@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { withApi } from '@/lib/api/with-api';
 import { buildCorsHeaders } from '@/lib/api/cors';
 import { getRequestContext } from '@/server/observability/context';
+import { enviarEmailVerificacao } from '@/server/auth/keycloak';
 import {
   CORPO_ILEGIVEL,
   registarTenant,
@@ -89,6 +90,19 @@ export const POST = withApi(
     });
 
     if (!resultado.ok) return respostaDeFalha(resultado, cors);
+
+    // Confirmação de e-mail: quem entra por aqui NÃO passa pelo ecrã `/registo`,
+    // que é onde a Server Action a envia. Sem esta linha, um registo feito pela
+    // API nasce funcional mas permanentemente travado — sem e-mail confirmado
+    // não emite documento fiscal nem cria utilizadores (ADR-0031 §5), e não
+    // recebe nunca a ligação que levantaria o travão.
+    //
+    // Efeito colateral deliberado, fora do caminho da resposta: o provisionamento
+    // já concluiu e o SMTP em baixo não é motivo para devolver erro sobre um
+    // tenant que existe. Quem repetir com a mesma `Idempotency-Key` recebe a
+    // resposta gravada e um segundo e-mail — que é o comportamento útil, porque
+    // o motivo normal para repetir é o primeiro não ter chegado.
+    void enviarEmailVerificacao(resultado.sub, resultado.email);
 
     // Corpo montado campo a campo: `sub` e `email` viajam no resultado (e na
     // chave de idempotência) para quem provisiona a partir do ERP, e **não**

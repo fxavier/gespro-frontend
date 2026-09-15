@@ -18,7 +18,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { caminho: "/", prioridade: 1, frequencia: "weekly" },
     { caminho: "/funcionalidades", prioridade: 0.9, frequencia: "monthly" },
     { caminho: "/precos", prioridade: 0.9, frequencia: "weekly" },
-    { caminho: "/comecar", prioridade: 0.8, frequencia: "monthly" },
     { caminho: "/recursos", prioridade: 0.7, frequencia: "weekly" },
     { caminho: "/sobre", prioridade: 0.6, frequencia: "yearly" },
     { caminho: "/contacto", prioridade: 0.6, frequencia: "yearly" },

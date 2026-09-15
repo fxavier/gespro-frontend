@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   definirPalavraPasse: vi.fn(),
   eliminarUtilizador: vi.fn(),
   userFindFirst: vi.fn(),
+  enviarEmailVerificacao: vi.fn(),
 }));
 
 // `withApi` importa `@/lib/auth` (next-auth), que não resolve fora do runtime
@@ -65,6 +66,7 @@ vi.mock('@/server/auth/keycloak', async () => {
     garantirUtilizador: mocks.garantirUtilizador,
     definirPalavraPasse: mocks.definirPalavraPasse,
     eliminarUtilizador: mocks.eliminarUtilizador,
+    enviarEmailVerificacao: mocks.enviarEmailVerificacao,
   };
 });
 
@@ -115,6 +117,7 @@ beforeEach(() => {
   mocks.userFindFirst.mockResolvedValue(null);
   mocks.definirPalavraPasse.mockResolvedValue(undefined);
   mocks.eliminarUtilizador.mockResolvedValue(undefined);
+  mocks.enviarEmailVerificacao.mockResolvedValue(true);
   mocks.criarSubscricaoTrial.mockResolvedValue({ criada: true });
 });
 
@@ -324,5 +327,29 @@ describe('preflight CORS', () => {
     });
     const res = OPTIONS(req);
     expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
+
+describe('confirmação de e-mail para quem entra pela API', () => {
+  // Quem se regista por aqui NÃO passa pelo ecrã /registo, que é onde a Server
+  // Action envia a ligação. Sem isto, um registo pela API nasce funcional e
+  // permanentemente travado: sem e-mail confirmado não emite documento fiscal
+  // nem cria utilizadores (ADR-0031 §5), e nunca recebe a ligação que o
+  // levantaria.
+  it('o e-mail sai com o sub e o endereço do registo', async () => {
+    const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
+    expect(res.status).toBe(201);
+    expect(mocks.enviarEmailVerificacao).toHaveBeenCalledWith('kc-sub-ana', 'ana@padaria.mz');
+  });
+
+  it('SMTP em baixo não estraga uma resposta sobre um tenant que existe', async () => {
+    mocks.enviarEmailVerificacao.mockRejectedValue(new Error('smtp indisponivel'));
+    const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
+    expect(res.status).toBe(201);
+  });
+
+  it('o endereço não entra na resposta pública', async () => {
+    const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
+    expect(JSON.stringify(await res.json())).not.toContain('ana@padaria.mz');
   });
 });

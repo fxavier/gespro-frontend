@@ -25,8 +25,9 @@ const linhasLog = vi.hoisted(() => [] as { nivel: string; dados: unknown; msg: s
 vi.mock('@/server/provisioning/registo-publico', () => ({ registarTenant }));
 vi.mock('@/lib/auth', () => ({ signIn }));
 vi.mock('@/server/auth/keycloak', () => ({ enviarEmailVerificacao }));
+const cabecalhos = vi.hoisted(() => ({ valor: {} as Record<string, string> }));
 vi.mock('next/headers', () => ({
-  headers: async () => new Headers({ 'x-forwarded-for': '41.220.0.9, 10.0.0.1' }),
+  headers: async () => new Headers(cabecalhos.valor),
 }));
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
@@ -88,6 +89,7 @@ async function correr(entrada = { dados: DADOS, idempotencyKey: 'chave-de-teste-
 beforeEach(() => {
   vi.clearAllMocks();
   linhasLog.length = 0;
+  cabecalhos.valor = { 'x-forwarded-for': '41.220.0.9, 10.0.0.1' };
   signIn.mockResolvedValue('/dashboard');
   enviarEmailVerificacao.mockResolvedValue(true);
   registarEventoPlausible.mockResolvedValue(true);
@@ -243,6 +245,53 @@ describe('o signIn falha depois de o provisionamento ter concluído (design §7/
     await correr();
     expect(enviarEmailVerificacao).toHaveBeenCalled();
   });
+});
+
+describe('o IP que chega ao limitador', () => {
+  // A chave do limitador da superfície pública É este valor
+  // (`registo-publico.ts`: `registoLimiter.consume(`${ip}::registo`)`), e uma
+  // gralha no nome do cabeçalho não parte nada de visível: devolve 'unknown'
+  // para toda a gente, que é uma chave partilhada — recusas legítimas em
+  // cadeia, sem um único erro no ecrã. Já lá esteve um `x-real-ix`.
+  beforeEach(() => registarTenant.mockResolvedValue(sucesso()));
+
+  const ipUsado = () =>
+    (registarTenant.mock.calls[0]?.[1] as { ip: string } | undefined)?.ip;
+
+  it('sem x-forwarded-for, cai no x-real-ip', async () => {
+    cabecalhos.valor = { 'x-real-ip': '197.218.4.7' };
+    await correr();
+    expect(ipUsado()).toBe('197.218.4.7');
+  });
+
+  it('o x-forwarded-for ganha ao x-real-ip quando existem os dois', async () => {
+    cabecalhos.valor = { 'x-forwarded-for': '41.220.0.9', 'x-real-ip': '197.218.4.7' };
+    await correr();
+    expect(ipUsado()).toBe('41.220.0.9');
+  });
+
+  it('sem cabeçalho nenhum, nunca fica vazio', async () => {
+    cabecalhos.valor = {};
+    await correr();
+    expect(ipUsado()).toBe('unknown');
+  });
+});
+
+describe('um destino ilegível não conta como sessão', () => {
+  // Fail-closed: o `catch` do `destinoTemErro` devolve `true`. Sem este teste,
+  // alguém «simplifica» o catch para `return false` e passa a mandar para o
+  // painel, sem sessão, quem o signIn devolveu numa URL que não se lê.
+  beforeEach(() => registarTenant.mockResolvedValue(sucesso()));
+
+  it.each(['http://[invalido', 'http://exemplo .mz/x', 'http://%'])(
+    'destino %s ⇒ sem-sessao',
+    async (destino) => {
+      signIn.mockResolvedValue(destino);
+      const r = await correr();
+      expect(r.estado?.fase).toBe('sem-sessao');
+      expect(r.redireccionou).toBeUndefined();
+    },
+  );
 });
 
 describe('recusa da fronteira partilhada', () => {
