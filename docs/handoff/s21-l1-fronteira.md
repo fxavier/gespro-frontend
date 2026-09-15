@@ -133,14 +133,38 @@ desfecho: se a identidade for apagada entre a escrita da credencial e a transac�
 identidade que ele criasse nesse caminho nascia com `VERIFY_EMAIL` pendente, que é o defeito do
 ADR-0031 de volta pela porta das traseiras (era o *gap* 2 deste handoff, agora fechado).
 
+### `accoes` deixou de ter valor por omissão
+
+`garantirUtilizador` tinha `['VERIFY_EMAIL','UPDATE_PASSWORD']` por omissão — as acções do
+convite. Um valor por omissão que **tranca o direct grant** não é conveniência, é armadilha: já
+apanhou dois caminhos nesta lane (o `provisionarTenant` e o ramo da identidade substituída a
+meio), ambos a funcionar por acidente de ordem. O parâmetro passa a ser **obrigatório** e os
+três chamadores escolhem à vista:
+
+| Chamador | Escolha | Porquê |
+|---|---|---|
+| `registarTenant` (registo público) | `[]` | A sessão tem de abrir na submissão seguinte; com `VERIFY_EMAIL` o direct grant recusa (ADR-0031 §2) |
+| `provisionarTenant` | `[]` | Mesmo caminho, mesma razão — só serve o registo público |
+| `user-admin.service` · convite por e-mail | `['VERIFY_EMAIL','UPDATE_PASSWORD']` | É o clique no e-mail que prova o endereço de quem foi convidado (ADR-0013 §5-bis) |
+| `user-admin.service` · palavra-passe atribuída | `['UPDATE_PASSWORD']` + `emailVerificado: true` | Quem atribui responde pelo endereço; com `VERIFY_EMAIL` a pessoa não entrava com a palavra-passe que recebeu (ADR-0030 §3) |
+
+Confirmei cada escolha contra o que o caminho precisa, não contra o que faz o teste passar: o
+convite **quer** a verificação pendente e fica com ela; só deixou de a ter por omissão.
+
+**O alarme é de compilação, não de execução**: `keycloak.test.ts` chama `garantirUtilizador`
+sem `accoes` debaixo de um `@ts-expect-error`. Se alguém repuser a omissão, o directiva fica
+sem erro para suprimir e o `tsc --noEmit` do `pnpm check` falha com «unused @ts-expect-error».
+Verificado a acender (mutação H). Há também o teste de execução que fixa `accoes: []` a chegar
+ao Keycloak como lista vazia, sem substituição pelo caminho.
+
 ## Ficheiros tocados
 
 | Ficheiro | O quê |
 |---|---|
 | `apps/erp/src/server/provisioning/registo-publico.ts` | **Novo.** `registarTenant()` — tudo o que era corpo do Route Handler, mais a identidade com palavra-passe e as regras do §2-bis. Sem `NextResponse` |
-| `apps/erp/src/server/auth/keycloak.ts` | `garantirUtilizador` devolve `{ sub, criado }` (`IdentidadeGarantida`): `criado` é o 201 do POST, a única resposta fiável a «fui eu que criei isto?». Nova `ErroKeycloak` com o estado HTTP, para o 404 poder ser distinguido sem ler mensagens |
+| `apps/erp/src/server/auth/keycloak.ts` | `garantirUtilizador` devolve `{ sub, criado }` (`IdentidadeGarantida`): `criado` é o 201 do POST, a única resposta fiável a «fui eu que criei isto?». `accoes` passa a **obrigatório**, sem omissão. Nova `ErroKeycloak` com o estado HTTP, para o 404 poder ser distinguido sem ler mensagens |
 | `apps/erp/src/server/services/plataforma/tenant-provisioning.service.ts` | Desestruturação do novo retorno, e `accoes: []` explícito na sua chamada — só serve o registo público, onde `VERIFY_EMAIL` tranca o direct grant |
-| `apps/erp/src/server/services/plataforma/user-admin.service.ts` | Só a desestruturação do novo retorno |
+| `apps/erp/src/server/services/plataforma/user-admin.service.ts` | Desestruturação do novo retorno e escolha explícita das acções nos dois modos de convite |
 | Dublês de `garantirUtilizador` em 5 ficheiros de teste de outros domínios | Passam a devolver `{ sub, criado }`; `keycloak.test.ts` ganha a asserção de `criado` nos três caminhos (existente, 201, 409) |
 | `apps/erp/src/app/api/publico/registo/route.ts` | Passa a adaptador HTTP: lê o corpo, delega, mapeia 201/4xx/5xx. Códigos publicados inalterados; 429 continua sem `error.code`, com `Retry-After` |
 | `apps/erp/src/lib/validations/onboarding.ts` | `RegistoTenantSchema` ganha `senha` + `confirmacao`; comentário reescrito (dizia «SEM campo senha desde o ADR-0013 §5») |
@@ -151,7 +175,7 @@ ADR-0031 de volta pela porta das traseiras (era o *gap* 2 deste handoff, agora f
 
 ## Verificação
 
-- `pnpm check` — **verde** (1324 testes, 0 erros de tsc/eslint; os 129 avisos são a linha de
+- `pnpm check` — **verde** (1326 testes, 0 erros de tsc/eslint; os 129 avisos são a linha de
   base do repositório, e são **menos 2** do que antes desta lane).
 - `pnpm gates` — **verde**.
 - `pnpm test:integration` — os **quatro** testes novos passam com Docker; saltam sem ele. A suite
@@ -192,12 +216,9 @@ publicado mudou.
    público sem consumidor conhecido depois de a L2 apagar o formulário do site) e não uma
    omissão técnica. Hoje, quem se registe por ele fica com a conta a funcionar e sem ligação de
    confirmação.
-2. **Fechado nesta ronda**: `tenant-provisioning.service.ts` passa `accoes: []` explícito. Fica
-   a recomendação mais larga, essa por fazer: `garantirUtilizador` continua a ter
-   `['VERIFY_EMAIL','UPDATE_PASSWORD']` como valor por omissão, e um valor por omissão que
-   tranca o direct grant é uma armadilha para o próximo chamador. Tirar-lhe a omissão obriga os
-   três chamadores a escolher, e é mudança de assinatura — não a fiz porque a L3 já arrancou
-   sobre este ramo.
+2. **Fechado por inteiro**: `tenant-provisioning.service.ts` passa `accoes: []` explícito e
+   `garantirUtilizador` deixou de ter omissão nesse parâmetro. A assinatura de `registarTenant`
+   não mexeu, e a L3 não chama `garantirUtilizador` — não há colisão.
 3. **Fica um resto de corrida sem fecho possível sem bloqueio distribuído.** Quem perde uma
    corrida pelo mesmo e-mail escreve a sua credencial depois do commit do vencedor se o seu
    próprio `provisionarTenant` também tiver passado — o que só acontece se o e-mail ainda não

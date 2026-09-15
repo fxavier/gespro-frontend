@@ -296,12 +296,21 @@ export async function garantirUtilizador(input: {
   email: string;
   nome: string;
   /**
-   * Acções obrigatórias da conta nova. Por omissão as do convite por e-mail
-   * (ADR-0013 §5-bis). Quem atribui a palavra-passe passa só `UPDATE_PASSWORD`
-   * — com `VERIFY_EMAIL` pendente o *direct grant* recusaria à mesma e a conta
-   * ficaria trancada (ADR-0030 §3).
+   * Acções obrigatórias da conta nova. **Obrigatório, sem valor por omissão**,
+   * e é decisão de quem chama:
+   *   - convite por e-mail → `['VERIFY_EMAIL', 'UPDATE_PASSWORD']` (ADR-0013 §5-bis);
+   *   - palavra-passe atribuída pelo administrador → `['UPDATE_PASSWORD']` (ADR-0030 §3);
+   *   - registo público → `[]` (ADR-0031 §2).
+   *
+   * Não tem omissão de propósito. Tinha — a do convite — e isso fazia com que
+   * qualquer chamador distraído criasse contas com `VERIFY_EMAIL` pendente,
+   * que é precisamente o estado em que o *direct grant* recusa a sessão e a
+   * pessoa fica trancada do lado de fora. Um valor por omissão que tranca o
+   * acesso não é conveniência: é uma armadilha à espera do próximo chamador,
+   * e já apanhou dois caminhos deste repositório. Quem acrescentar um chamador
+   * é obrigado a escolher, e a escolha fica à vista na chamada.
    */
-  accoes?: string[];
+  accoes: string[];
   /** `true` quando é o administrador a responder pelo endereço (ADR-0030 §3). */
   emailVerificado?: boolean;
 }): Promise<IdentidadeGarantida> {
@@ -318,7 +327,7 @@ export async function garantirUtilizador(input: {
       emailVerified: input.emailVerificado ?? false,
       firstName: primeiro ?? input.nome,
       lastName: resto.join(' ') || undefined,
-      requiredActions: input.accoes ?? ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
+      requiredActions: input.accoes,
     }),
   });
   if (res.status === 409) {

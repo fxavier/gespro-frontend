@@ -121,7 +121,15 @@ describe('userAdminService.criarUtilizador', () => {
       { nome: 'Alice', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true, metodoAcesso: 'convite' },
       CTX,
     );
-    expect(kc.garantirUtilizador).toHaveBeenCalledWith({ email: 'alice@demo.mz', nome: 'Alice' });
+    // Convite por e-mail: as acções são escolha explícita (sem omissão), e
+    // aqui a verificação PENDENTE é a certa — é o clique no e-mail que prova
+    // o endereço de quem foi convidado.
+    expect(kc.garantirUtilizador).toHaveBeenCalledWith({
+      email: 'alice@demo.mz',
+      nome: 'Alice',
+      accoes: ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
+      emailVerificado: false,
+    });
     expect(mocks.$transaction).toHaveBeenCalledOnce();
     // O user local nasce com o sub devolvido pelo Keycloak
     expect(mocks.mockTx.user.create).toHaveBeenCalledWith(

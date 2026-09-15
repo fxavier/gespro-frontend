@@ -256,12 +256,19 @@ export const userAdminService: IUserAdminService = {
 
     // 1. Keycloak primeiro — o lado sem transacção (ADR-0013 §2). Se falhar,
     //    nada foi escrito em Postgres e o pedido é simplesmente repetível.
+    // As acções são escolha explícita de quem chama (sem omissão em
+    // `garantirUtilizador`), e aqui os dois modos querem coisas diferentes:
+    // o convite por e-mail quer a verificação pendente, porque é o clique no
+    // e-mail que prova o endereço; a palavra-passe atribuída não a pode
+    // querer, porque com `VERIFY_EMAIL` pendente o direct grant recusa e quem
+    // recebeu a palavra-passe não entrava com ela.
     const { sub: keycloakSub } = await garantirUtilizador({
       email,
       nome: input.nome,
-      ...(porPalavraPasse
-        ? { accoes: ['UPDATE_PASSWORD'], emailVerificado: true }
-        : {}),
+      accoes: porPalavraPasse ? ['UPDATE_PASSWORD'] : ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
+      // Quem atribui a palavra-passe responde pelo endereço (ADR-0030 §3); no
+      // convite é o clique no e-mail que o prova.
+      emailVerificado: porPalavraPasse,
     });
 
     // Temporária: o Keycloak acrescenta `UPDATE_PASSWORD` e obriga a mudar ao
