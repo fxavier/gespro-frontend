@@ -226,6 +226,25 @@ async function adminFetch(caminho: string, init?: RequestInit): Promise<Response
   });
 }
 
+/**
+ * Erro da Admin API com o **estado HTTP** preservado.
+ *
+ * Existe porque há um chamador que precisa de distinguir um estado dos outros:
+ * um 404 no `reset-password` de uma identidade que acabámos de usar não é uma
+ * indisponibilidade — é a prova de que ela foi apagada debaixo dos pés, e quem
+ * já tem o tenant cometido pode recriá-la (ADR-0031 §2-bis). Enfiar o estado
+ * na mensagem obrigava a lê-lo com uma expressão regular.
+ */
+export class ErroKeycloak extends Error {
+  constructor(
+    readonly status: number,
+    mensagem: string,
+  ) {
+    super(mensagem);
+    this.name = 'ErroKeycloak';
+  }
+}
+
 export interface UtilizadorKeycloak {
   id: string;
   email?: string;
@@ -378,7 +397,10 @@ export async function definirPalavraPasse(
       { status: res.status, sub, temporaria: opcoes.temporaria },
       '[keycloak] reset-password falhou',
     );
-    throw new Error(`[keycloak] definição de palavra-passe falhou (HTTP ${res.status})`);
+    throw new ErroKeycloak(
+      res.status,
+      `[keycloak] definição de palavra-passe falhou (HTTP ${res.status})`,
+    );
   }
 }
 

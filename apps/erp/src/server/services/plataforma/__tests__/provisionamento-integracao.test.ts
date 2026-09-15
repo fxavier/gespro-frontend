@@ -80,7 +80,12 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
     criados.push(r.tenantId);
 
     expect(r.tenantSlug).toMatch(/^teste-spec19-/);
-    expect(kc.garantirUtilizador).toHaveBeenCalledWith({ email: EMAIL, nome: 'Ana Teste' });
+    expect(kc.garantirUtilizador).toHaveBeenCalledWith({
+      email: EMAIL,
+      nome: 'Ana Teste',
+      accoes: [],
+      emailVerificado: false,
+    });
 
     const [cfg, assinatura, user, contas, series, diarios, notif] = await Promise.all([
       prismaBase.configuracaoFiscal.findUnique({ where: { tenantId: r.tenantId } }),

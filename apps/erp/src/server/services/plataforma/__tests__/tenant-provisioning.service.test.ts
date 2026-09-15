@@ -160,9 +160,12 @@ describe('provisionamento atómico', () => {
 
   it('ADR-0013 §2: Keycloak PRIMEIRO, Postgres depois — e o sub fica no User', async () => {
     await provisionarTenant(INPUT);
+    // `accoes: []` — nunca `VERIFY_EMAIL` neste caminho (ADR-0031 §2).
     expect(mocks.garantirUtilizador).toHaveBeenCalledWith({
       email: 'ana@padaria.mz',
       nome: 'Ana Sitoe',
+      accoes: [],
+      emailVerificado: false,
     });
     // A ordem inversa deixaria «um cliente pago sem forma de entrar».
     expect(mocks.garantirUtilizador.mock.invocationCallOrder[0]).toBeLessThan(

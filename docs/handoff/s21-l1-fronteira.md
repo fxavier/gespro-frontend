@@ -91,6 +91,7 @@ transacção acabou de lhe dar dono.
 | **Sementeira** | Registar `vitima@x` com um NUIT já registado deixava uma identidade com a **minha** credencial, à espera de a vítima se registar | Recusa determinística apaga a identidade que este pedido criou |
 | **Corrida (BLOCKER do parecer)** | `procurarPorEmail`-antes-de-criar é TOCTOU: dois pedidos lêem `null`, partilham o `sub` que o Keycloak deduplica e **ambos se julgam criadores**. O que perdia apagava ou reescrevia a identidade do que ganhou | `garantirUtilizador` devolve `{ sub, criado }`, e `criado` é o **201** do próprio POST. Na corrida só um o recebe |
 | **Corrida, segunda volta** | Mesmo com `criado`, quem perde pode cometer o tenant primeiro e quem ganha apanha `EMAIL_JA_REGISTADO` — apagar aí deixava um cliente real com tenant e sem identidade | Guarda-costas antes de apagar: se algum `User` local referencia o `sub`, não se apaga e regista-se a corrida |
+| **Apagamento cruzado** | Outro pedido com o mesmo e-mail e um NUIT duplicado é recusado em dezenas de milissegundos, não vê `User` nenhum (a transacção da vítima ainda não cometeu) e apaga o `sub` partilhado. A vítima cometia a seguir — o `keycloakSub` é escalar, sem FK — e ficava com tenant e sem identidade | Auto-cura: um **404** na escrita pós-commit prova que a identidade foi apagada, e ela é recriada com a credencial **de quem se registou**, com o `User` a apontar-lhe |
 | **Órfã com credencial alheia** | Uma falha inesperada deixa a identidade para trás com a credencial de quem a semeou. Quem se registasse a seguir herdava o tenant preso a essa credencial — benigno quando é a própria pessoa a repetir, **tomada de conta quando não é** | Depois do commit, e só então, a credencial do pedido corrente sobrepõe-se |
 
 **Porque é que a órfã é tratada depois da transacção, e não antes.** «Sem `User` local» lido
@@ -98,10 +99,12 @@ antes do commit não distingue uma órfã de um registo concorrente ainda a meio
 contra um registo em curso escrevia depois dele e ficava com o tenant que o outro cometeu — a
 mesma tomada de conta por outra porta. Depois do commit a pergunta já não precisa de ser feita:
 se a identidade tivesse outro dono, o `provisionarTenant` teria recusado com
-`EMAIL_JA_REGISTADO` e não se chegava ali. O preço é que, **nesse** caminho, a credencial é
-escrita depois do tenant; se a escrita falhar, o tenant fica criado e a entrada imediata não
-acontece — fica gritado no log, o `signIn` recusa e o ecrã encaminha para `/auth/login`
-(risco já previsto no design §8). O caminho normal — identidade criada por este pedido — mantém
+`EMAIL_JA_REGISTADO` e não se chegava ali. O preço é que, **nesse** caminho, a credencial é escrita depois do tenant. Se a escrita falhar
+por algo que não seja apagamento (503, rede), o que fica **não** é «um tenant sem credencial
+utilizável»: a identidade mantém a credencial **anterior** e, quando a órfã foi semeada por
+outra pessoa, essa credencial é dela, está viva e serve agora um tenant cometido — até o dono
+recuperar a palavra-passe. Exige empilhar duas falhas raras, e por isso é **alerta, não
+desfecho aceite**: o log correspondente é para ser tratado como incidente, não como ruído. O caminho normal — identidade criada por este pedido — mantém
 a ordem que o ADR exige.
 
 Cada um destes casos tem teste, e **cada teste foi verificado a falhar** com a correcção
@@ -109,27 +112,49 @@ desfeita (quatro mutações: `criado` sempre verdadeiro, guarda-costas removido,
 pós-commit removida, 409 a fingir-se criador). Um teste que passa nos dois sentidos não prova
 nada.
 
+### Auto-cura depois do commit
+
+A escrita da credencial pós-commit deixou de ser a última palavra. Se falhar com **404**, a
+identidade foi apagada debaixo dos pés — e o tenant já está cometido, o que é a prova de posse
+que autoriza recriá-la: `garantirUtilizador({ accoes: [] })` → `definirPalavraPasse` →
+`User.keycloakSub` actualizado (`updateMany` com `tenantId` explícito, que `prismaBase` é o
+cliente cru). Renasce com a palavra-passe **de quem se registou**, nunca com a de quem a apagou,
+e o `sub` devolvido no resultado passa a ser o novo — é o que a verificação de e-mail vai usar.
+
+A condição de entrada ficou explícita no código e não é alcançável de mais lado nenhum: sem o
+commit à frente, isto seria escrita de credencial em identidade alheia. O teste
+«a auto-cura só existe depois do commit» fixa-o — um 404 **antes** da transacção não recria nada.
+
+Fechei junto um irmão do mesmo entrelaçamento, que o parecer não nomeia mas tem o mesmo
+desfecho: se a identidade for apagada entre a escrita da credencial e a transacção, é o
+`provisionarTenant` que cria outra ao reencontrá-la em falta, e o tenant compromete-se a um
+`sub` diferente do nosso, sem credencial. A condição do bloco pós-commit passou a incluir
+`subCometido !== sub`, e o `provisionarTenant` passa agora `accoes: []` explícito — sem isso, a
+identidade que ele criasse nesse caminho nascia com `VERIFY_EMAIL` pendente, que é o defeito do
+ADR-0031 de volta pela porta das traseiras (era o *gap* 2 deste handoff, agora fechado).
+
 ## Ficheiros tocados
 
 | Ficheiro | O quê |
 |---|---|
 | `apps/erp/src/server/provisioning/registo-publico.ts` | **Novo.** `registarTenant()` — tudo o que era corpo do Route Handler, mais a identidade com palavra-passe e as regras do §2-bis. Sem `NextResponse` |
-| `apps/erp/src/server/auth/keycloak.ts` | `garantirUtilizador` devolve `{ sub, criado }` (`IdentidadeGarantida`): `criado` é o 201 do POST, a única resposta fiável a «fui eu que criei isto?» |
-| `apps/erp/src/server/services/plataforma/tenant-provisioning.service.ts`, `user-admin.service.ts` | Só a desestruturação do novo retorno (`const { sub: keycloakSub } = …`) |
+| `apps/erp/src/server/auth/keycloak.ts` | `garantirUtilizador` devolve `{ sub, criado }` (`IdentidadeGarantida`): `criado` é o 201 do POST, a única resposta fiável a «fui eu que criei isto?». Nova `ErroKeycloak` com o estado HTTP, para o 404 poder ser distinguido sem ler mensagens |
+| `apps/erp/src/server/services/plataforma/tenant-provisioning.service.ts` | Desestruturação do novo retorno, e `accoes: []` explícito na sua chamada — só serve o registo público, onde `VERIFY_EMAIL` tranca o direct grant |
+| `apps/erp/src/server/services/plataforma/user-admin.service.ts` | Só a desestruturação do novo retorno |
 | Dublês de `garantirUtilizador` em 5 ficheiros de teste de outros domínios | Passam a devolver `{ sub, criado }`; `keycloak.test.ts` ganha a asserção de `criado` nos três caminhos (existente, 201, 409) |
 | `apps/erp/src/app/api/publico/registo/route.ts` | Passa a adaptador HTTP: lê o corpo, delega, mapeia 201/4xx/5xx. Códigos publicados inalterados; 429 continua sem `error.code`, com `Retry-After` |
 | `apps/erp/src/lib/validations/onboarding.ts` | `RegistoTenantSchema` ganha `senha` + `confirmacao`; comentário reescrito (dizia «SEM campo senha desde o ADR-0013 §5») |
-| `apps/erp/src/server/provisioning/__tests__/registo-publico.test.ts` | **Novo.** 23 testes: resultado discriminado, ordem das defesas, regra da palavra-passe, regressão do `VERIFY_EMAIL`, e as quatro falhas acima |
+| `apps/erp/src/server/provisioning/__tests__/registo-publico.test.ts` | **Novo.** 26 testes: resultado discriminado, ordem das defesas, regra da palavra-passe, regressão do `VERIFY_EMAIL`, e as quatro falhas acima |
 | `apps/erp/src/app/api/publico/__tests__/registo-handler.test.ts` | Corpos ganham `senha`/`confirmacao`; dublê do Keycloak passa a ter as funções da identidade; o teste do `execute-actions-email` passa a fixar a escrita da palavra-passe antes da transacção (ver *desvios*) |
 | `apps/erp/test/integration/registo-publico.test.ts` | **Novo.** Tarefa 9.1 — Postgres real (Testcontainers), Keycloak dublado |
 | `docs/handoff/site-provisionamento.md` | Corpo com `senha`/`confirmacao`, nota de revisão de 2026-09-15, `/registo` como entrada de referência |
 
 ## Verificação
 
-- `pnpm check` — **verde** (1321 testes, 0 erros de tsc/eslint; os 129 avisos são a linha de
+- `pnpm check` — **verde** (1324 testes, 0 erros de tsc/eslint; os 129 avisos são a linha de
   base do repositório, e são **menos 2** do que antes desta lane).
 - `pnpm gates` — **verde**.
-- `pnpm test:integration` — os **três** testes novos passam com Docker; saltam sem ele. A suite
+- `pnpm test:integration` — os **quatro** testes novos passam com Docker; saltam sem ele. A suite
   **já estava vermelha** antes desta lane, por `test/integration/tenant-isolation.test.ts`, que
   falha sozinha e por duas razões alheias ao spec 21: os dois NUITs que gera são o mesmo
   (`String(now)` e `String(now + 1)` partilham os primeiros 9 dígitos, e o campo é único) e o
@@ -167,13 +192,12 @@ publicado mudou.
    público sem consumidor conhecido depois de a L2 apagar o formulário do site) e não uma
    omissão técnica. Hoje, quem se registe por ele fica com a conta a funcionar e sem ligação de
    confirmação.
-2. **`tenant-provisioning.service.ts` continua a chamar `garantirUtilizador` sem `accoes`**, ou
-   seja, com o valor por omissão `['VERIFY_EMAIL','UPDATE_PASSWORD']`. Hoje é inofensivo — a
-   identidade já existe quando lá chega, e o `garantirUtilizador` devolve-a sem tocar nas
-   acções —, mas é o defeito do ADR-0031 a um `if` de distância, e o serviço não é meu.
-   Recomendo que a lane dona do serviço lhe passe `accoes: []` explicitamente, ou que o parâmetro
-   deixe de ter valor por omissão. O teste de regressão que deixei (`accoes: []`, nunca
-   `VERIFY_EMAIL`) cobre `registarTenant`, **não** cobre esta chamada.
+2. **Fechado nesta ronda**: `tenant-provisioning.service.ts` passa `accoes: []` explícito. Fica
+   a recomendação mais larga, essa por fazer: `garantirUtilizador` continua a ter
+   `['VERIFY_EMAIL','UPDATE_PASSWORD']` como valor por omissão, e um valor por omissão que
+   tranca o direct grant é uma armadilha para o próximo chamador. Tirar-lhe a omissão obriga os
+   três chamadores a escolher, e é mudança de assinatura — não a fiz porque a L3 já arrancou
+   sobre este ramo.
 3. **Fica um resto de corrida sem fecho possível sem bloqueio distribuído.** Quem perde uma
    corrida pelo mesmo e-mail escreve a sua credencial depois do commit do vencedor se o seu
    próprio `provisionarTenant` também tiver passado — o que só acontece se o e-mail ainda não

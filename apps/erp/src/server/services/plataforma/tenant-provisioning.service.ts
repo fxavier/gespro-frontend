@@ -157,9 +157,22 @@ export async function provisionarTenant(
   // disputar o mesmo índice único (deadlock possível num endpoint público).
   await garantirCatalogoPermissoes(prismaBase);
 
-  // KEYCLOAK PRIMEIRO (ADR-0013 §2): identidade sem palavra-passe, acções
-  // pendentes. Idempotente por e-mail — repetir o pedido reutiliza o `sub`.
-  const { sub: keycloakSub } = await garantirUtilizador({ email, nome: input.admin.nome });
+  // KEYCLOAK PRIMEIRO (ADR-0013 §2). Idempotente por e-mail — repetir o pedido
+  // reutiliza o `sub`, e no caminho normal a identidade já vem criada de
+  // `registarTenant`, com credencial escrita.
+  //
+  // `accoes: []` explícito (ADR-0031 §2): esta função só serve o registo
+  // público, onde o Direct Access Grant tem de abrir a sessão na submissão
+  // seguinte. Se a omissão valesse, a identidade que esta chamada criasse —
+  // caso a anterior tenha sido apagada a meio — nascia com `VERIFY_EMAIL`
+  // pendente, e com ela o direct grant recusa: o defeito que o ADR-0031
+  // existe para corrigir, de volta pela porta das traseiras.
+  const { sub: keycloakSub } = await garantirUtilizador({
+    email,
+    nome: input.admin.nome,
+    accoes: [],
+    emailVerificado: false,
+  });
 
   let ultimoErro: unknown;
   for (let tentativa = 0; tentativa < MAX_TENTATIVAS_SLUG; tentativa++) {

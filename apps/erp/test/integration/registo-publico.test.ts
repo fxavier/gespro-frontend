@@ -26,12 +26,31 @@ if (process.env.INTEGRATION_DB_URL) {
   process.env.DIRECT_URL = process.env.INTEGRATION_DB_URL;
 }
 
+/**
+ * `ErroKeycloak` real — replicada aqui porque o `vi.hoisted` corre antes de
+ * qualquer import, e o `instanceof` da auto-cura tem de ver esta mesma classe.
+ */
+const ErroKeycloakReal = vi.hoisted(
+  () =>
+    class ErroKeycloak extends Error {
+      constructor(
+        readonly status: number,
+        mensagem: string,
+      ) {
+        super(mensagem);
+        this.name = 'ErroKeycloak';
+      }
+    },
+);
+
 /** Keycloak em memória: guarda identidades por e-mail e a credencial escrita. */
 const kc = vi.hoisted(() => {
   const identidades = new Map<string, { sub: string; senha?: string; accoes?: string[] }>();
   return {
     identidades,
     falharPalavraPasse: { valor: false },
+    /** Nº de escritas de credencial a recusar com 404 (identidade apagada). */
+    recusar404: { restantes: 0 },
     procurarPorEmail: vi.fn(async (email: string) => {
       const u = identidades.get(email);
       return u ? { id: u.sub, email } : null;
@@ -47,6 +66,12 @@ const kc = vi.hoisted(() => {
     ),
     definirPalavraPasse: vi.fn(async (sub: string, senha: string) => {
       if (kc.falharPalavraPasse.valor) throw new Error('[keycloak] reset-password falhou (HTTP 503)');
+      if (kc.recusar404.restantes > 0) {
+        kc.recusar404.restantes -= 1;
+        // Identidade apagada por outro pedido entre a criação e esta escrita.
+        for (const [email, u] of identidades) if (u.sub === sub) identidades.delete(email);
+        throw new ErroKeycloakReal(404, '[keycloak] não existe');
+      }
       for (const [, u] of identidades) if (u.sub === sub) u.senha = senha;
     }),
     eliminarUtilizador: vi.fn(async (sub: string) => {
@@ -56,6 +81,7 @@ const kc = vi.hoisted(() => {
 });
 
 vi.mock('@/server/auth/keycloak', () => ({
+  ErroKeycloak: ErroKeycloakReal,
   procurarPorEmail: kc.procurarPorEmail,
   garantirUtilizador: kc.garantirUtilizador,
   definirPalavraPasse: kc.definirPalavraPasse,
@@ -104,6 +130,7 @@ describe.skipIf(skip)('Registo público com palavra-passe — Postgres real', ()
 
   beforeEach(() => {
     kc.falharPalavraPasse.valor = false;
+    kc.recusar404.restantes = 0;
     kc.identidades.clear();
     vi.clearAllMocks();
   });
@@ -171,6 +198,37 @@ describe.skipIf(skip)('Registo público com palavra-passe — Postgres real', ()
     expect(await db.tenant.count({ where: { nuit } })).toBe(1);
     expect(kc.identidades.get(email)?.senha).toBe(SENHA);
     expect(kc.garantirUtilizador.mock.results.length).toBeGreaterThan(0);
+  });
+
+  it('auto-cura: identidade apagada a meio é recriada e o User cometido passa a apontar-lhe', async () => {
+    const nuit = nuitNovo();
+    const email = `ana+${nuit}@padaria.mz`;
+
+    // Órfã (para a escrita da credencial cair depois do commit) e apagamento
+    // na primeira escrita — é o que o pedido concorrente com NUIT duplicado faz.
+    kc.identidades.set(email, { sub: `kc-vitima-${nuit}`, accoes: [] });
+    kc.recusar404.restantes = 1;
+
+    const r = await registarTenant(corpo(nuit, email), {
+      ip: `41.3.0.${(contador % 200) + 1}`,
+      idempotencyKey: `chave-autocura-${nuit}`,
+    });
+
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error('esperava sucesso');
+
+    // Identidade renascida, com a credencial de quem se registou.
+    const renascida = kc.identidades.get(email);
+    expect(renascida).toBeTruthy();
+    expect(renascida?.sub).not.toBe(`kc-vitima-${nuit}`);
+    expect(renascida?.senha).toBe(SENHA);
+    expect(renascida?.accoes).toEqual([]);
+
+    // E o `User` cometido em Postgres aponta-lhe — senão o tenant ficava
+    // ligado a um `sub` que já não existe.
+    const user = await db.user.findFirst({ where: { email }, select: { keycloakSub: true } });
+    expect(user?.keycloakSub).toBe(renascida?.sub);
+    expect(r.sub).toBe(renascida?.sub);
   });
 
   it('idempotência: a mesma chave não cria segundo tenant nem segunda identidade', async () => {

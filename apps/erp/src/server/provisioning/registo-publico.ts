@@ -11,6 +11,7 @@ import {
   definirPalavraPasse,
   eliminarUtilizador,
   garantirUtilizador,
+  ErroKeycloak,
 } from '@/server/auth/keycloak';
 import { concluirChave, falharChave, fingerprintDe, reservarChave } from '@/server/provisioning/idempotencia';
 import { prismaBase } from '@/server/db/client';
@@ -139,6 +140,78 @@ async function apagarIdentidadeSeForNossa(sub: string, criouAqui: boolean): Prom
       { err: (err as Error)?.message, sub },
       '[registo] identidade não pôde ser removida — órfã para reconciliação (ADR-0013 §3)',
     );
+  }
+}
+
+/**
+ * Escreve a credencial do registante numa identidade **já provada como sua**
+ * pelo commit deste pedido, e recria-a se entretanto tiver sido apagada.
+ *
+ * SÓ se chega aqui depois de `provisionarTenant` ter cometido o tenant: é essa
+ * a prova de posse, e é ela que autoriza a escrita. Se a identidade
+ * pertencesse a outra conta, a transacção teria recusado com
+ * `EMAIL_JA_REGISTADO`. Não tornar esta função alcançável de mais lado nenhum:
+ * sem o commit à frente, é escrita de credencial em identidade alheia.
+ *
+ * O 404 é o entrelaçamento que o parecer apanhou: outro pedido, com o mesmo
+ * e-mail e um NUIT duplicado, é recusado em dezenas de milissegundos, não vê
+ * `User` nenhum (a transacção deste ainda não cometeu) e apaga o `sub` que os
+ * dois partilhavam. A identidade renasce aqui com a palavra-passe de QUEM SE
+ * REGISTOU — não a de quem a apagou —, e o `User` passa a apontar-lhe.
+ *
+ * Devolve o `sub` que ficou a valer.
+ */
+async function credencialDepoisDoCommit(
+  subCometido: string,
+  dados: { admin: { nome: string; email: string }; senha: string },
+  tenant: { tenantId: string; userId: string },
+): Promise<string> {
+  try {
+    await definirPalavraPasse(subCometido, dados.senha, { temporaria: false });
+    return subCometido;
+  } catch (e) {
+    const apagada = e instanceof ErroKeycloak && e.status === 404;
+    if (apagada) {
+      try {
+        const { sub: novoSub } = await garantirUtilizador({
+          email: dados.admin.email,
+          nome: dados.admin.nome,
+          accoes: [],
+          emailVerificado: false,
+        });
+        await definirPalavraPasse(novoSub, dados.senha, { temporaria: false });
+        // `updateMany` com `tenantId` explícito: `prismaBase` é o cliente cru,
+        // sem a extensão multi-tenant (CLAUDE.md).
+        await prismaBase.user.updateMany({
+          where: { id: tenant.userId, tenantId: tenant.tenantId },
+          data: { keycloakSub: novoSub },
+        });
+        logger.warn(
+          { tenantId: tenant.tenantId, subAntigo: subCometido, sub: novoSub },
+          '[registo] identidade apagada por outro pedido durante o registo — recriada com a credencial de quem se registou',
+        );
+        return novoSub;
+      } catch (err) {
+        logger.error(
+          { err: (err as Error)?.message, tenantId: tenant.tenantId, sub: subCometido },
+          '[registo] identidade apagada e NÃO recuperada — tenant cometido sem identidade, precisa de intervenção',
+        );
+        return subCometido;
+      }
+    }
+    // Falha que não é apagamento (503, rede). O tenant existe: não se desfaz
+    // nem se mente a dizer que falhou.
+    //
+    // A verdade adversarial do que fica: a identidade mantém a credencial
+    // ANTERIOR. Quando a órfã foi semeada por outra pessoa, essa credencial é
+    // dela, está viva, e serve agora um tenant cometido — até o dono recuperar
+    // a palavra-passe. Exige empilhar duas falhas raras, e por isso é alerta,
+    // não desfecho aceite: quem o vir no painel trata-o como incidente.
+    logger.error(
+      { err: (e as Error)?.message, tenantId: tenant.tenantId, sub: subCometido },
+      '[registo] tenant cometido e credencial NÃO escrita — a identidade pode ter ficado com a credencial de quem a semeou',
+    );
+    return subCometido;
   }
 }
 
@@ -338,37 +411,41 @@ export async function registarTenant(
     return falha(500, 'ERRO_INTERNO', 'Não foi possível concluir o registo.');
   }
 
-  // 9. Órfã comprovada: a identidade já existia e a transacção acabou de lhe
-  //    dar dono — este tenant. Provada pelo commit, e não por uma leitura que
-  //    podia estar a olhar para um pedido concorrente ainda a meio: se a
-  //    identidade pertencesse a outra conta, o `provisionarTenant` teria
-  //    recusado com `EMAIL_JA_REGISTADO` e nunca se chegava aqui. Só agora é
-  //    seguro sobrepor a credencial — antes da transacção seria a mesma tomada
-  //    de conta por outra porta (quem corre contra um registo em curso escreve
-  //    depois dele e ganha o tenant que o outro cometeu).
+  // 9. Depois do commit, e só depois: garantir que a identidade que o tenant
+  //    acabou de referenciar tem a credencial de quem se registou.
   //
-  //    Sem isto, quem se registasse depois de uma falha inesperada ficava com
-  //    o tenant preso à credencial de quem semeou a órfã — benigno quando é a
-  //    própria pessoa a repetir, tomada de conta quando não é.
-  if (!identidadeCriadaAqui) {
-    try {
-      await definirPalavraPasse(sub, dados.senha, { temporaria: false });
-    } catch (e) {
-      // O tenant existe: não se desfaz nem se mente a dizer que falhou. A
-      // pessoa não entrará nesta submissão (o `signIn` recusa) e o ecrã
-      // encaminha-a para `/auth/login`; a recuperação de palavra-passe do
-      // Keycloak fecha o caso. Fica gritado, que é anomalia a vigiar.
-      logger.error(
-        { err: (e as Error)?.message, tenantId: resultado.tenantId, sub },
-        '[registo] tenant criado sobre identidade órfã, mas a credencial não foi escrita — entrada imediata falha',
-      );
-    }
+  //    Dois casos chegam aqui, e o commit é a prova de posse em ambos — se a
+  //    identidade pertencesse a outra conta, o `provisionarTenant` teria
+  //    recusado com `EMAIL_JA_REGISTADO`:
+  //
+  //    a) **Órfã**: a identidade já existia (`criado: false`), sobrou de uma
+  //       tentativa anterior e guardava a credencial de quem a semeou. Sem
+  //       isto, o tenant nascia preso a essa credencial — benigno quando é a
+  //       própria pessoa a repetir, tomada de conta quando não é.
+  //    b) **Substituída a meio**: a identidade que este pedido criou foi
+  //       apagada entre a escrita da credencial e a transacção, e o
+  //       `provisionarTenant` criou outra ao reencontrá-la em falta. O `sub`
+  //       cometido não é o nosso, e essa identidade ainda não tem credencial.
+  //
+  //    A escrita ANTES da transacção continua a ser a do caso normal (ADR-0031
+  //    §2); aqui não podia ser, porque «sem `User` local» lido antes do commit
+  //    não distingue uma órfã de um registo concorrente ainda a meio.
+  const subCometido = resultado.keycloakSub;
+  if (!identidadeCriadaAqui || subCometido !== sub) {
+    sub = await credencialDepoisDoCommit(subCometido, dados, {
+      tenantId: resultado.tenantId,
+      userId: resultado.userId,
+    });
+  } else {
+    sub = subCometido;
   }
 
   const resposta = {
     tenantSlug: resultado.tenantSlug,
     mensagem: MENSAGEM_SUCESSO,
-    sub: resultado.keycloakSub,
+    // O `sub` que ficou a valer — que não é o cometido se a identidade teve de
+    // ser recriada. É este que a verificação de e-mail vai usar.
+    sub,
     email: resultado.adminEmail,
   };
   await concluirChave(chave, resposta, resultado.tenantId);
@@ -386,7 +463,7 @@ export async function registarTenant(
     ok: true,
     repetido: false,
     tenantSlug: resultado.tenantSlug,
-    sub: resultado.keycloakSub,
+    sub,
     email: resultado.adminEmail,
     mensagem: MENSAGEM_SUCESSO,
   };
