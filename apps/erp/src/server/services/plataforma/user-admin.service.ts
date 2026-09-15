@@ -176,6 +176,13 @@ async function contarAdminsAtivos(
  *
  * `acto` entra na mensagem para que quem leva com a recusa ao reactivar não
  * receba um texto que só fala de criar.
+ *
+ * **Se estás aqui a construir um provisionamento automático, uma importação em
+ * lote de colaboradores ou qualquer chamador SEM sessão: pára.** Este travão é
+ * fail-closed e essa chamada será recusada. A correcção não é abrir excepção ao
+ * travão — é decidir o que significa «e-mail confirmado» para um processo sem
+ * pessoa. Hoje ninguém está nessa situação: o provisionamento do tenant cria o
+ * primeiro `User` directamente em Postgres, não por este serviço.
  */
 async function exigirEmailConfirmadoParaGerirUtilizadores(
   acto: 'criar' | 'reactivar',

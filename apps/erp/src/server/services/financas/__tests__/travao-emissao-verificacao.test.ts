@@ -38,12 +38,14 @@ import {
   emitirNotaDebito,
   converterProformaEmFatura,
   criarProforma,
+  criarCotacaoComercial,
 } from '../faturacao.service';
 import {
   EmitirFaturaSchema,
   EmitirNotaCreditoSchema,
   EmitirNotaDebitoSchema,
   CriarProformaSchema,
+  CriarCotacaoComercialSchema,
 } from '@/lib/validations/faturacao';
 
 const CTX = { tenantId: 'tenant-1', userId: 'user-1' };
@@ -98,6 +100,8 @@ function novaTx() {
       update: vi.fn(async () => ({ id: 'pf-1' })),
     },
     linhaProforma: { create: vi.fn(async () => ({ id: 'lpf-1' })) },
+    cotacaoComercial: { create: vi.fn(doc('cc-1')), findFirst: vi.fn(doc('cc-1')) },
+    linhaCotacaoComercial: { create: vi.fn(async () => ({ id: 'lcc-1' })) },
   };
 }
 
@@ -133,6 +137,13 @@ const NOTA_DEBITO = EmitirNotaDebitoSchema.parse({
   linhas: [LINHA],
 });
 const PROFORMA = CriarProformaSchema.parse({
+  serieDocumentoId: ID,
+  clienteId: 'cli-1',
+  dataEmissao: new Date('2026-09-01'),
+  dataValidade: new Date('2026-09-30'),
+  linhas: [LINHA],
+});
+const COTACAO = CriarCotacaoComercialSchema.parse({
   serieDocumentoId: ID,
   clienteId: 'cli-1',
   dataEmissao: new Date('2026-09-01'),
@@ -226,6 +237,16 @@ describe('o travão não alastra ao que não é documento fiscal', () => {
   it('criar proforma passa com o endereço por confirmar', async () => {
     comSessao(false);
     await expect(criarProforma(PROFORMA, CTX)).resolves.toBeTruthy();
+    expect(mocks.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  // Sentinela, não redundância: a direcção do erro é que importa. Um travão a
+  // mais numa cotação prende alguém a meio de uma venda, por um documento que
+  // não tem efeito fiscal nenhum — e é o tipo de coisa que uma refactorização
+  // futura acrescenta sem ninguém reparar.
+  it('criar cotação comercial passa com o endereço por confirmar', async () => {
+    comSessao(false);
+    await expect(criarCotacaoComercial(COTACAO, CTX)).resolves.toBeTruthy();
     expect(mocks.$transaction).toHaveBeenCalledTimes(1);
   });
 });

@@ -326,6 +326,13 @@ export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {
  * uma mensagem que dissesse apenas «o seu e-mail não está confirmado» estaria a
  * afirmar-lhe uma coisa falsa. Diz o que é verdade nos dois casos e dá a saída
  * imediata (reiniciar a sessão).
+ *
+ * **Se estás aqui a construir facturação recorrente, um cron ou qualquer outro
+ * chamador SEM sessão: pára.** Este travão é fail-closed, portanto essa
+ * chamada será recusada — e a correcção NÃO é abrir excepção ao travão. É
+ * decidir primeiro o que significa «e-mail confirmado» para um processo sem
+ * pessoa, e registá-lo. Hoje não existe nenhum chamador nessa situação: as
+ * rotas de cron não emitem, e os seeds só mencionam esta função num comentário.
  */
 async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
   // `await import` e não import estático: `@/lib/auth` arrasta o next-auth

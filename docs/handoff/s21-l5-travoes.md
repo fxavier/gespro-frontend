@@ -15,7 +15,7 @@ Governa: **ADR-0031**, secção «O que a verificação pendente trava»; ADR-00
 | 5.3 Checkout, Portal e exportação passam — com teste explícito | feito |
 | 5.4 Transição nos dois sentidos para 5.1 e 5.2 | feito |
 
-`pnpm check` verde (93 ficheiros, 1362 testes — eram 91/1326), `pnpm gates` verde.
+`pnpm check` verde (93 ficheiros, 1363 testes — eram 91/1326), `pnpm gates` verde.
 
 ## 2. Onde está cada travão, e porquê ali
 
@@ -32,7 +32,30 @@ Governa: **ADR-0031**, secção «O que a verificação pendente trava»; ADR-00
 | `converterProformaEmFatura` | **não é óbvia**: cria uma `Fatura` já `EMITIDA` sem passar por `emitirFatura`. Um travão que só olhasse para as três primeiras deixava esta porta aberta |
 
 Proformas e cotações comerciais **não** são travadas: não são documentos fiscais e cabem no
-«configurar, importar, explorar» que o ADR-0031 existe para libertar. Há teste a fixá-lo.
+«configurar, importar, explorar» que o ADR-0031 existe para libertar. Há uma **sentinela para
+cada uma** — `criarProforma` e `criarCotacaoComercial` — e são sentinelas, não redundância: o
+que importa aqui é a direcção do erro. Um travão a mais numa cotação prende alguém a meio de
+uma venda por um documento sem efeito fiscal nenhum, e é o tipo de coisa que uma refactorização
+futura acrescenta sem ninguém reparar.
+
+### A venda POS — exclusão deliberada, não esquecimento
+
+`comercial/venda.service.ts` (`criar`) puxa um número da série `VENDA` e grava uma `Venda` com
+talão a dinheiro **sem passar por nenhuma das quatro portas acima**. Foi visto e **decidiu-se
+não travar**:
+
+- travar o POS partia «configurar, importar, explorar passa», que é o ponto inteiro do
+  ADR-0031: quem acaba de se registar e quer ver o produto a funcionar começa justamente por
+  bater uma venda de balcão;
+- o talão do POS não é o acto irreversível e com efeito para terceiros que o ADR-0031 nomeia —
+  é o registo interno de uma venda. Quando essa venda vira **factura**, passa por
+  `emitirFatura`, e aí o travão morde;
+- travar o POS por causa da série seria travar pela numeração e não pelo efeito, e a série
+  `VENDA` convive no mesmo enum com as fiscais por razões de implementação, não de fiscalidade.
+
+Fica escrito porque uma omissão não registada lê-se como esquecimento, e alguém a «corrigiria».
+A fronteira do conceito «documento fiscal» é matéria do ADR-0031 — o orquestrador regista-a lá,
+não esta lane.
 
 O travão corre **antes** de `prismaBase.$transaction` — nunca se abre transacção para um pedido
 que vai ser recusado, e a recusa nunca acontece depois de gravar. Há teste a fixá-lo.
@@ -93,6 +116,15 @@ produto a passar.
 O travão vive no **serviço**, não no formulário: um botão desactivado não é defesa, porque a
 Server Action aceita o que lhe mandarem.
 
+**Desvio de convenção, nomeado:** `await auth()` dentro de um serviço de domínio quebra a regra
+da casa de que «o serviço recebe `Ctx` e não vai buscar contexto sozinho». Foi deliberado e não
+tinha alternativa dentro desta lane: o ADR-0031 manda verificar no próprio serviço com a sua
+leitura, e a alternativa limpa — pôr `emailVerificado` no `Ctx` — obrigava a tocar no
+`safe-action.ts`, que é do #33 do ADR-0027 e está fora da lane. O sítio certo para isto
+regressar à convenção é quando o #33 reescrever o pipeline: aí o `emailVerificado` entra pelo
+`Ctx` e as duas funções de travão passam a lê-lo do parâmetro em vez da sessão, sem mudar nem o
+sítio do travão nem os códigos de erro.
+
 ## 5. A janela dos 15 minutos — como foi tratada
 
 Confirmar o e-mail só chega à sessão na re-resolução seguinte (ADR-0031 §6, ADR-0011): há uma
@@ -121,12 +153,17 @@ campo ausente (JWT emitido antes da L4), valor que não seja o booleano `true` �
 confirmado**. É o que a L4 já faz com o claim em falta, e é o lado seguro para um acto
 irreversível e com efeito para terceiros. Há teste para cada uma destas variantes.
 
-**Consequência a assumir:** estes dois caminhos deixaram de funcionar sem sessão. Hoje não há
-nenhum chamador nessa situação (as quatro rotas de cron não emitem nem criam utilizadores; o
-provisionamento cria o primeiro `User` directamente em Postgres, não pelo serviço; os seeds só
-mencionam `emitirFatura` num comentário). Se alguma vez existir um chamador de sistema — uma
-facturação recorrente, por exemplo — não pode passar por aqui sem decidir primeiro o que
-significa «e-mail confirmado» para um processo sem pessoa.
+**Consequência a assumir: estes dois caminhos deixaram de servir chamadores sem sessão.** Hoje
+não há nenhum (as quatro rotas de cron não emitem nem criam utilizadores; o provisionamento cria
+o primeiro `User` directamente em Postgres, não pelo serviço; os seeds só mencionam
+`emitirFatura` num comentário). Quem vier a construir **facturação recorrente**, um cron de
+emissão ou uma importação em lote de colaboradores vai bater nisto.
+
+Para que essa pessoa tropece **antes** e não depois, o aviso não fica só aqui: está no
+**docblock de cada travão**, em negrito, na primeira coisa que se lê ao abrir a função —
+incluindo o que **não** fazer, que é abrir uma excepção ao travão. A decisão que falta tomar
+nesse dia é o que significa «e-mail confirmado» para um processo sem pessoa, e essa decisão é de
+ADR, não de quem estiver a escrever o cron.
 
 ## 7. `await import('@/lib/auth')` — porquê, e o que evitou
 
@@ -160,26 +197,42 @@ produção, todas com a suite a falhar:
 - **travões a mais**: verificação posta em `criarProforma`, na desactivação de `User`, no
   Checkout, no Portal e na rota de exportação.
 
-Nenhuma mutação passou silenciosa. O guião está em `/tmp` e não foi comprometido ao repositório
-— é ferramenta de verificação, não código de produto.
+Nenhuma mutação passou silenciosa. Acrescentou-se depois uma décima oitava (travão a mais em
+`criarCotacaoComercial`), que também acende.
+
+**O guião não sobreviveu.** As mutações foram aplicadas e revertidas em `/tmp`, e nada disso
+está no repositório — portanto **esta secção é testemunho, não é reproduzível por quem a lê**.
+Foi escolha e não descuido: os guiões casam com o código-fonte por correspondência literal de
+texto (a linha exacta da chamada, o cabeçalho exacto da função). Comprometidos, deixariam de
+encontrar as âncoras ao primeiro `rename` e passariam a «não encontrei nada, portanto está
+tudo bem» — uma ferramenta de verificação que apodrece em silêncio é pior do que nenhuma. Quem
+quiser reproduzir: apagar cada `await exigirEmailConfirmado*` e cada linha marcada nas famílias
+acima, e correr os três ficheiros de teste.
 
 ## 9. Ficheiros
 
 **Novos**
-- `apps/erp/src/server/services/financas/__tests__/travao-emissao-verificacao.test.ts` (18 testes)
+- `apps/erp/src/server/services/financas/__tests__/travao-emissao-verificacao.test.ts` (19 testes)
 - `apps/erp/src/server/services/plataforma/__tests__/travao-verificacao-nao-trava.test.ts` (4 testes)
 
 **Alterados (dentro do que a lane possui)**
 - `apps/erp/src/server/services/financas/faturacao.service.ts` — **só acrescentado**: a função
-  do travão e quatro chamadas. Nada do que lá estava mudou de comportamento.
+  do travão, quatro chamadas, e o aviso da §6 no docblock. Nada do que lá estava mudou de
+  comportamento.
 - `apps/erp/src/server/services/plataforma/user-admin.service.ts` — idem: a função do travão e
   duas chamadas.
 - `apps/erp/src/server/services/plataforma/__tests__/user-admin.service.test.ts` — dublagem de
   `@/lib/auth` (por omissão **confirmado**, para os testes que já existiam continuarem a
-  exercitar o que exercitavam) + 14 testes do travão. O `prepararCriacao()` deixou de usar
-  `mockResolvedValueOnce`: quando o travão recusa, as respostas enfileiradas não são consumidas
-  e `vi.clearAllMocks()` não esvazia a fila — o resto do ficheiro herdava-as. Um contador local
-  não deixa resíduo. Isto já era uma armadilha latente do ficheiro; passou a não ser.
+  exercitar o que exercitavam) + 14 testes do travão. O diff do ficheiro é só adição.
+
+  Nota de padrão, para quem escrever os próximos testes deste ficheiro: o `prepararCriacao()`
+  que escrevi **não** usa `mockResolvedValueOnce`, e é de propósito. Quando um travão recusa
+  cedo, as respostas enfileiradas não chegam a ser consumidas e o `vi.clearAllMocks()` do
+  `beforeEach` **não** esvazia a fila — o teste seguinte herda-as e falha por um motivo que não
+  tem nada que ver com ele. Apanhei-o na primeira corrida destes testes; a saída é um contador
+  local, que não deixa resíduo. Os testes que já existiam no ficheiro usam `…Once` e estão
+  correctos, porque consomem sempre o que enfileiram — o padrão só se parte quando há uma recusa
+  antecipada pelo meio.
 
 **Nada mais foi tocado.** `safe-action.ts`, `with-api.ts`, `lib/auth.ts`, `keycloak.ts`,
 `middleware.ts`, `next.config.ts`, `provisioning/**`, `app/registo/**`, `api/publico/**`,
@@ -203,9 +256,12 @@ Nenhuma mutação passou silenciosa. O guião está em `/tmp` e não foi comprom
    não teve terreno preparado**, como pedido. Quando entrar, fica lado a lado com este, sem
    abstracção comum — e a ordem natural é o limite **depois** deste, porque este é mais barato
    (não conta nada).
-5. **`converterCotacaoEmProforma` não é travada** — produz uma proforma, não um documento
-   fiscal. Fica registado por ser a função vizinha daquela que **é** travada, para que ninguém
-   leia a omissão como esquecimento.
+5. **Exclusões deliberadas, todas nomeadas para ninguém as ler como esquecimento:**
+   `converterCotacaoEmProforma` (produz uma proforma, e é a função vizinha de uma que **é**
+   travada), `criarProforma` e `criarCotacaoComercial` (têm sentinela a fixá-lo) e a **venda
+   POS** de `comercial/venda.service.ts`, com o porquê por extenso na §2. A fronteira do
+   conceito «documento fiscal» é matéria de ADR e fica para o orquestrador registar no
+   ADR-0031.
 
 ## 11. Contra o design — nada
 
