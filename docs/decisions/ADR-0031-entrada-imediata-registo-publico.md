@@ -65,6 +65,17 @@ o problema em vez de o proteger.
    **antes** da escrita, e remoção da identidade que este pedido criou quando a recusa é
    determinística. Numa falha **inesperada** a identidade fica — regra do ADR-0013 §3, e é
    deliberado: apagar por engano a identidade de um cliente real é pior do que deixar uma órfã.
+2-ter. **O realm tem de ter `verifyEmail: false`**, e não é detalhe de configuração — é
+   condição de a decisão funcionar. Com `verifyEmail: true`, o Keycloak recusa o *direct grant*
+   a qualquer conta por verificar **mesmo sem acções obrigatórias pendentes**, e o §2 não
+   produz entrada nenhuma. Pior: a recusa **não é passiva** — a primeira tentativa de
+   autenticação carimba `VERIFY_EMAIL` na conta, que fica trancada mesmo depois de o
+   interruptor ser desligado. Só o *smoke* contra um Keycloak real apanha isto; com o
+   fornecedor dublado, os testes passam todos.
+   Desligá-lo **não** enfraquece o convite por e-mail (ADR-0013 §5-bis), que assenta em
+   `requiredActions` e não neste interruptor. O que muda é o sítio da regra: a exigência de
+   e-mail confirmado sai do **login** — onde este ADR a recusa — e passa para os travões do §5,
+   onde ela morde nos actos que importam.
 3. A lógica pública — captcha, limitação, Zod, idempotência, Keycloak, transacção — vive numa
    **única** função partilhada (`registarTenant`). O Route Handler `POST /api/publico/registo`
    passa a adaptador HTTP, com os códigos de erro publicados inalterados. Isto não é arrumação:

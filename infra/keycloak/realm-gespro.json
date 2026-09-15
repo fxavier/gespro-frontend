@@ -7,7 +7,7 @@
   "resetPasswordAllowed": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "verifyEmail": true,
+  "verifyEmail": false,
   "bruteForceProtected": true,
   "loginTheme": "gespro",
   "internationalizationEnabled": true,
