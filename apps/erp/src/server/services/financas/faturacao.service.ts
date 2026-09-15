@@ -290,10 +290,69 @@ export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Travão de emissão sem e-mail confirmado (ADR-0031, «O que a verificação
+// pendente trava»)
+// ---------------------------------------------------------------------------
+
+/**
+ * Recusa emitir um documento fiscal enquanto o endereço de e-mail da conta não
+ * estiver confirmado.
+ *
+ * Porque vive AQUI, e não no pipeline nem no formulário:
+ *
+ *  - **No serviço, não no formulário.** Um botão desactivado não é defesa — a
+ *    Server Action aceita o que lhe mandarem, venha de onde vier. É a mesma
+ *    regra já aplicada às contas com lançamentos.
+ *  - **Neste serviço, não numa abstracção partilhada.** São dois travões em
+ *    todo o produto (este e o de criar/reactivar `User`); dois sítios não
+ *    justificam um mecanismo. Mesma escolha e mesmo racional do ADR-0027 §3
+ *    para os limites de plano. Se um dia forem seis, aí discute-se.
+ *  - **Não em `safe-action.ts`/`with-api.ts`.** Um travão global no pipeline é
+ *    precisamente o que este spec NÃO faz: só dois actos são recusados, e o
+ *    resto do produto — configurar, importar, explorar, pagar, exportar — tem
+ *    de continuar a passar.
+ *
+ * A leitura é a sessão (ADR-0031 §6): o claim `email_verified` do *access
+ * token* já viaja para o JWT e para a sessão na emissão e na re-resolução de
+ * 15 minutos do ADR-0011. Sem coluna local e sem uma chamada ao Keycloak por
+ * operação.
+ *
+ * **Fail-closed**: sessão ausente, utilizador ausente ou campo ausente contam
+ * como não confirmado. É o que a propagação da L4 já faz com o claim em falta,
+ * e é o lado seguro para o acto irreversível e com efeito para terceiros.
+ *
+ * A mensagem trata a janela dos 15 minutos sem chamar o Keycloak: quem
+ * confirmou há pouco continua a bater no travão até à re-resolução seguinte, e
+ * uma mensagem que dissesse apenas «o seu e-mail não está confirmado» estaria a
+ * afirmar-lhe uma coisa falsa. Diz o que é verdade nos dois casos e dá a saída
+ * imediata (reiniciar a sessão).
+ */
+async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
+  // `await import` e não import estático: `@/lib/auth` arrasta o next-auth
+  // inteiro, e este ficheiro é importado por todo o lado onde se lê facturação
+  // — inclusive por caminhos que nunca emitem nada. Assim o custo só existe
+  // quando se emite. (Mesmo motivo por que a L4 importa o transporte de e-mail
+  // desta maneira em `keycloak.ts`.)
+  const { auth } = await import('@/lib/auth');
+  const sessao = await auth();
+  if (sessao?.user?.emailVerificado === true) return;
+
+  throw new BusinessRuleError(
+    'EMAIL_POR_CONFIRMAR_EMISSAO',
+    'Para emitir documentos fiscais é preciso confirmar o endereço de e-mail da conta — ' +
+      'um documento fiscal é irreversível e tem efeito para terceiros. Abra a ligação de ' +
+      'confirmação que lhe enviámos; o aviso no painel reenvia-a se precisar de outra. ' +
+      'Se já confirmou há pouco, a sessão só o reflecte na actualização seguinte (até 15 ' +
+      'minutos) — terminar e iniciar sessão outra vez aplica a confirmação de imediato.',
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Facturas
 // ---------------------------------------------------------------------------
 
 export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta> {
+  await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
     const serie = await tx.serieDocumento.findFirst({
       where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
@@ -466,6 +525,7 @@ export async function marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura>
 // ---------------------------------------------------------------------------
 
 export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx): Promise<NotaCreditoCompleta> {
+  await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
     const faturaOriginal = await tx.fatura.findFirst({
       where: { id: input.faturaOriginalId, tenantId: ctx.tenantId },
@@ -607,6 +667,7 @@ export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx):
 // ---------------------------------------------------------------------------
 
 export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): Promise<NotaDebitoCompleta> {
+  await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
     const serie = await tx.serieDocumento.findFirst({
       where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
@@ -811,6 +872,9 @@ export async function converterProformaEmFatura(
   serieDocumentoId: string,
   ctx: Ctx,
 ): Promise<FaturaCompleta> {
+  // Converter uma proforma cria uma Factura já EMITIDA — é emissão de
+  // documento fiscal por outra porta, e o travão tem de a cobrir também.
+  await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
     const proforma = await tx.proforma.findFirst({
       where: { id, tenantId: ctx.tenantId },
