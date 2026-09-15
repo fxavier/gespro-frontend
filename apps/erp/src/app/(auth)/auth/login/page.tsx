@@ -12,6 +12,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { LoginForm } from './login-form';
+import { AvisoVerificacao } from './aviso-verificacao';
 
 export const metadata = {
   title: 'Iniciar sessão · GestPro',
@@ -25,6 +26,15 @@ export default function LoginPage() {
           <p className="font-display text-3xl font-medium tracking-tight">GestPro</p>
           <p className="text-sm text-muted-foreground">Sistema de gestão empresarial</p>
         </div>
+
+        {/* Desfecho da ligação de confirmação de e-mail (ADR-0031 §5). A
+            rota pública redirige para aqui quem confirma SEM sessão — abrir a
+            ligação noutro dispositivo é o caso normal —, e sem isto o ecrã não
+            dizia se tinha resultado. Suspense próprio: o componente lê
+            `useSearchParams` e sem fronteira o prerender do build parte. */}
+        <Suspense fallback={null}>
+          <AvisoVerificacao />
+        </Suspense>
 
         <div className="rounded-lg border border-border bg-card p-6 shadow-none">
           <h1 className="mb-6 text-xl font-semibold tracking-tight">Iniciar sessão</h1>

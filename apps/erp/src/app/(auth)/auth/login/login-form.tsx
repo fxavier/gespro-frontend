@@ -38,6 +38,11 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard';
+  // Preenchido por quem nos manda para cá a saber quem é: hoje, o ecrã de
+  // registo quando o provisionamento conclui e o `signIn` não (ADR-0031,
+  // design §8). Poupa à pessoa reescrever o endereço que acabou de dar — e é
+  // só o endereço: a palavra-passe nunca viaja num URL.
+  const identificadorInicial = searchParams.get('identificador') ?? '';
   const [erro, setErro] = useState<string | null>(null);
   const [aSubmeter, iniciarTransicao] = useTransition();
 
@@ -99,7 +104,8 @@ export function LoginForm() {
           type="email"
           autoComplete="username"
           required
-          autoFocus
+          autoFocus={!identificadorInicial}
+          defaultValue={identificadorInicial}
           placeholder="nome@empresa.mz"
         />
       </div>
@@ -112,6 +118,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
+          autoFocus={Boolean(identificadorInicial)}
         />
       </div>
 
