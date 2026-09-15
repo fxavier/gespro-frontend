@@ -108,6 +108,26 @@ test.describe('A11y: Página de Login (ecrã do GestPro)', () => {
     await checkA11y(page, 'mudar palavra-passe (escuro)');
   });
 
+  // `/registo` (ADR-0031) é a primeira coisa que um potencial cliente vê, e é
+  // pública como o login. O formulário tem nove campos, um select e um widget
+  // de terceiros — mais superfície de acessibilidade do que qualquer outro
+  // ecrã anónimo do produto. Fica sujeito ao mesmo gate, nos dois temas.
+  test('sem violações AA no ecrã de registo — tema claro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto('/registo?plano=PROFISSIONAL');
+    await expect(page.locator('[name="empresa.nome"]')).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'registo (claro)');
+  });
+
+  test('sem violações AA no ecrã de registo — tema escuro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/registo?plano=PROFISSIONAL');
+    await expect(page.locator('[name="empresa.nome"]')).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'registo (escuro)');
+  });
+
   test('foco visível nos campos do formulário de login', async ({ page }) => {
     await page.goto('/auth/login');
     await esperarFormularioLogin(page);
