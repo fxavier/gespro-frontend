@@ -52,10 +52,10 @@ export function EntrevistaFormInline({ candidaturaId }: EntrevistaFormInlineProp
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-w-lg">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <input type="hidden" {...register('candidaturaId')} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="space-y-1">
           <Label htmlFor="tipo">Tipo <span className="text-destructive">*</span></Label>
           <Select
@@ -105,7 +105,7 @@ export function EntrevistaFormInline({ candidaturaId }: EntrevistaFormInlineProp
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="space-y-1">
           <Label htmlFor="avaliacao">Avaliação (0-10)</Label>
           <Input id="avaliacao" type="number" min={0} max={10} step={0.5} {...register('avaliacao')} />

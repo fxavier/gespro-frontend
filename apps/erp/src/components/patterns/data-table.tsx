@@ -76,7 +76,7 @@ function LinhasSkeleton({ cols, rows = 8 }: { cols: number; rows?: number }) {
  */
 function TableSkeleton({ cols, rows = 8 }: { cols: number; rows?: number }) {
   return (
-    <div className="rounded-lg border bg-card overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
       <Table>
         <TableBody>
           <LinhasSkeleton cols={cols} rows={rows} />
@@ -136,7 +136,7 @@ export function DataTable<T extends { id: string }>({
 
   return (
     <div className={cn('space-y-3', className)}>
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">

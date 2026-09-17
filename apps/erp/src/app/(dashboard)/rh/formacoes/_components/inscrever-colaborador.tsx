@@ -10,13 +10,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from '@/components/patterns';
 import { inscreverColaboradorFormacaoAction } from '@/server/actions/rh.actions';
 
 interface Colaborador {
@@ -64,18 +58,12 @@ export function InscreverColaborador({ formacaoId, colaboradores }: Props) {
     <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 border rounded-lg p-3 bg-muted/20">
       <div className="flex-1 space-y-1.5">
         <label className="text-xs font-medium text-muted-foreground">Inscrever colaborador</label>
-        <Select value={colaboradorId} onValueChange={setColaboradorId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccionar colaborador" />
-          </SelectTrigger>
-          <SelectContent>
-            {colaboradores.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.codigo} — {c.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          value={colaboradorId}
+          onChange={setColaboradorId}
+          placeholder="Seleccionar colaborador"
+          options={colaboradores.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+        />
       </div>
       <Button type="button" size="sm" onClick={inscrever} disabled={isPending}>
         <UserPlus className="h-4 w-4 mr-1.5" />

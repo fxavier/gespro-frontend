@@ -36,7 +36,7 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarLancamento } from '@/server/actions/contabilidade.actions';
 import {
   CriarLancamentoSchema,
@@ -201,20 +201,14 @@ export function NovoLancamentoForm({ contas, diarios }: NovoLancamentoFormProps)
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Diário *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar diário" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {diarios.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.codigo} — {d.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      defaultValue={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar diário"
+                      options={diarios.map((d) => ({ value: d.id, label: `${d.codigo} — ${d.nome}` }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -286,21 +280,15 @@ export function NovoLancamentoForm({ contas, diarios }: NovoLancamentoFormProps)
                   render={({ field }) => (
                     <FormItem className="space-y-1">
                       <FormLabel className="text-xs sm:sr-only">Conta</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="h-8 text-sm">
-                            <SelectValue placeholder="Seleccionar conta…" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-60">
-                          {contas.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              <span className="font-mono text-xs text-muted-foreground mr-2">{c.codigo}</span>
-                              {c.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <Combobox
+                          className="h-8 text-sm"
+                          defaultValue={field.value}
+                          onChange={field.onChange}
+                          placeholder="Seleccionar conta…"
+                          options={contas.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

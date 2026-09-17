@@ -84,46 +84,63 @@
   },
   "home": {
     "hero": {
-      "etiqueta": "Novo: facturação conforme PGC-NIRF",
-      "titulo": "A gestão da sua empresa,",
-      "tituloDestaque": "finalmente num só sítio",
-      "subtitulo": "O GestPro junta vendas, stock, compras, finanças, recursos humanos e ponto de venda num ERP desenhado para a realidade moçambicana — em meticais, com NUIT validado e contabilidade PGC-NIRF.",
-      "ctaPrimario": "Começar teste grátis",
-      "ctaSecundario": "Ver funcionalidades",
-      "notaCta": "14 dias grátis · sem cartão de crédito · cancela quando quiser",
-      "legendaVisual": "Painel de gestão do GestPro com indicadores de tesouraria, vendas e stock"
+      "etiqueta": "Novo · Plataforma unificada de gestão",
+      "titulo": "Todo o seu negócio.",
+      "tituloDestaque": "Num só lugar.",
+      "subtitulo": "Controle stock, compras, vendas, finanças, pessoas, projectos e operações numa única plataforma — em meticais, com NUIT validado e contabilidade PGC-NIRF. Diga adeus às folhas de cálculo dispersas.",
+      "ctaPrimario": "Começar agora",
+      "ctaSecundario": "Ver como funciona",
+      "notaCta": "Criado para empresas que querem crescer com mais controlo. Sem cartão de crédito.",
+      "legendaVisual": "Painel de gestão do GestPro com facturação mensal, alertas de stock, encomendas pendentes e evolução de receitas"
     },
-    "provaSocial": {
-      "titulo": "Empresas que operam melhor com o GestPro",
-      "subtitulo": "De retalho a construção civil, em Maputo, Beira e Nampula.",
-      "metricas": [
-        { "valor": "7", "rotulo": "módulos integrados" },
-        { "valor": "100%", "rotulo": "em meticais e PGC-NIRF" },
-        { "valor": "14 dias", "rotulo": "de teste sem cartão" },
-        { "valor": "< 2 min", "rotulo": "para criar a conta" }
-      ],
-      "testemunhos": [
-        {
-          "citacao": "Deixámos de reconciliar caixa em folhas de cálculo. Fecha-se o dia no GestPro e a contabilidade já está lançada.",
-          "autor": "Direcção Financeira",
-          "papel": "Distribuição alimentar, Maputo"
-        },
-        {
-          "citacao": "O stock por armazém com reserva de mercadoria acabou com as vendas de artigos que já não existiam.",
-          "autor": "Gestão de Operações",
-          "papel": "Retalho de materiais, Beira"
-        },
-        {
-          "citacao": "O processamento salarial com INSS e IRPS já calculados poupa-nos dois dias por mês.",
-          "autor": "Recursos Humanos",
-          "papel": "Serviços, Nampula"
-        }
+    "confianca": {
+      "titulo": "Uma visão completa do seu negócio.",
+      "itens": [
+        "Gestão centralizada",
+        "Dados em tempo real",
+        "Multi-empresa",
+        "Controlo de acessos",
+        "Auditoria total",
+        "Em meticais"
       ]
     },
+    "problemas": {
+      "etiqueta": "Desafios operacionais",
+      "titulo": "Menos ferramentas. Menos complexidade.",
+      "subtitulo": "Quando a informação está espalhada por folhas de cálculo, e-mails e aplicações diferentes, gerir o negócio torna-se mais difícil.",
+      "itens": [
+        {
+          "titulo": "Informação dispersa",
+          "descricao": "Dados espalhados por ferramentas diferentes dificultam uma visão global em tempo real e atrasam decisões urgentes.",
+          "nota": "Desconexão"
+        },
+        {
+          "titulo": "Processos manuais",
+          "descricao": "Tarefas repetitivas consomem o tempo da equipa e multiplicam o risco de erro humano — na factura, no stock, no salário.",
+          "nota": "Ineficiência"
+        },
+        {
+          "titulo": "Pouca visibilidade",
+          "descricao": "Sem informação centralizada e relatórios actualizados, decidir torna-se um jogo de adivinhação.",
+          "nota": "Incerteza"
+        },
+        {
+          "titulo": "Falta de controlo",
+          "descricao": "Equipas, operações e dinheiro precisam de estar alinhados para garantir a rentabilidade e os prazos.",
+          "nota": "Risco"
+        }
+      ],
+      "transicao": {
+        "titulo": "É aqui que entra o GestPro.",
+        "descricao": "Unificamos todas as etapas numa estrutura única de dados e processos fiáveis.",
+        "ligacao": "Explorar os módulos integrados"
+      }
+    },
     "modulos": {
-      "etiqueta": "Um ERP, sete domínios",
-      "titulo": "Tudo o que a empresa faz, ligado de ponta a ponta",
-      "subtitulo": "Cada módulo funciona sozinho e todos falam entre si: uma venda baixa stock e lança caixa; uma recepção cria a conta a pagar; uma factura escreve na contabilidade."
+      "etiqueta": "Ecossistema modular",
+      "titulo": "Uma plataforma. Todas as áreas essenciais.",
+      "subtitulo": "Cada módulo funciona sozinho e todos falam entre si: uma venda baixa stock e lança caixa; uma recepção cria a conta a pagar; uma factura escreve na contabilidade.",
+      "modulo": "Módulo {letra}"
     },
     "conformidade": {
       "etiqueta": "Conformidade moçambicana",
@@ -148,11 +165,145 @@
         }
       ]
     },
+    "fluxo": {
+      "etiqueta": "Fluxo contínuo de dados",
+      "titulo": "Tudo ligado. Tudo sob controlo.",
+      "subtitulo": "Quando os processos trabalham em conjunto, a empresa ganha uma visão mais clara, reduz trabalho manual e decide com mais informação.",
+      "nucleo": "Motor central",
+      "nota": "Cada operação registada numa área actualiza, na mesma transacção, as restantes dependências contabilísticas e operacionais."
+    },
+    "montra": {
+      "etiqueta": "Painel GestPro",
+      "titulo": "Veja o seu negócio de uma nova perspectiva.",
+      "subtitulo": "Indicadores actualizados ao segundo, com navegação rápida para a direcção, as operações e a equipa financeira."
+    },
+    "seguranca": {
+      "etiqueta": "Fiabilidade empresarial",
+      "titulo": "Segurança e controlo desde a base.",
+      "subtitulo": "Proteja o coração do negócio com permissões integradas, separação de dados entre empresas e registo transparente de tudo o que acontece.",
+      "itens": [
+        {
+          "titulo": "Controlo de acessos por perfil",
+          "descricao": "Cada utilizador vê e faz apenas o que a sua função permite: permissões por módulo e por acção, verificadas no servidor e não só no ecrã."
+        },
+        {
+          "titulo": "Perfis prontos a usar",
+          "descricao": "Administrador, gestor, financeiro, operador e leitura já vêm configurados — ajuste-os à estrutura da sua empresa em minutos."
+        },
+        {
+          "titulo": "Auditoria contínua",
+          "descricao": "Registo imutável de quem fez o quê e quando: documentos fiscais, lançamentos, tesouraria e processamento salarial incluídos."
+        },
+        {
+          "titulo": "Isolamento entre empresas",
+          "descricao": "Os dados de cada empresa ficam separados na origem — nenhuma consulta atravessa a fronteira de outra, nem por engano."
+        },
+        {
+          "titulo": "Dados protegidos",
+          "descricao": "Cifra em trânsito e em repouso, cópias de segurança diárias e arquivo contínuo do registo de transacções da base de dados."
+        },
+        {
+          "titulo": "Operação vigiada",
+          "descricao": "Monitorização de saúde, métricas e alertas em permanência, para que a plataforma esteja lá quando a empresa precisa dela."
+        }
+      ]
+    },
+    "crescimento": {
+      "etiqueta": "Escalabilidade",
+      "titulo": "Cresça sem perder o controlo.",
+      "subtitulo": "Uma arquitectura preparada para várias empresas, equipas e níveis de acesso numa única conta.",
+      "itens": [
+        "Várias empresas na mesma conta, cada uma com os seus dados, as suas séries e os seus documentos.",
+        "Utilizadores com perfis diferentes em cada empresa — a mesma pessoa pode ser gestora numa e leitora noutra.",
+        "Planos que crescem com a operação: mais utilizadores e mais armazéns quando precisar, sem migração."
+      ]
+    },
+    "passos": {
+      "etiqueta": "Implementação sem fricção",
+      "titulo": "Comece em poucos passos.",
+      "subtitulo": "Uma transição suave das folhas de cálculo para uma gestão com controlo — sem instalação e sem consultores.",
+      "itens": [
+        {
+          "titulo": "Configure",
+          "descricao": "Crie a conta, defina a empresa, as séries de documentos e os perfis de utilizador. O plano de contas PGC-NIRF já vem semeado.",
+          "nota": "Registo em menos de dois minutos"
+        },
+        {
+          "titulo": "Centralize",
+          "descricao": "Traga clientes, fornecedores e artigos, e comece a emitir documentos numerados sem lacunas — a contabilidade escreve-se sozinha.",
+          "nota": "Primeira factura no mesmo dia"
+        },
+        {
+          "titulo": "Controle",
+          "descricao": "Acompanhe tesouraria, vendas e stock em tempo real, no computador ou no telemóvel, com indicadores por empresa.",
+          "nota": "Painéis sempre actualizados"
+        }
+      ]
+    },
+    "indicadores": {
+      "etiqueta": "Inteligência operacional",
+      "titulo": "Transforme dados em decisões.",
+      "subtitulo": "Tenha uma visão clara dos principais indicadores da empresa e acompanhe a evolução do negócio sem atrasos.",
+      "itens": [
+        {
+          "rotulo": "Progressão de receita",
+          "descricao": "Crescimento constante registado no último trimestre.",
+          "esquerda": "Jan 2026",
+          "direita": "Previsão em alta"
+        },
+        {
+          "rotulo": "Margem bruta média",
+          "descricao": "Optimização contínua dos custos de fornecedores directos.",
+          "esquerda": "T1 · T2 · T3",
+          "direita": "T4 (meta)"
+        },
+        {
+          "rotulo": "Rotação de stock",
+          "descricao": "Redução expressiva de capital parado em armazém.",
+          "esquerda": "Dias médios em armazém",
+          "direita": "22 dias"
+        }
+      ]
+    },
+    "provaSocial": {
+      "etiqueta": "Confiança",
+      "titulo": "Quem já opera com o GestPro",
+      "subtitulo": "Resultados de empresas que trocaram folhas de cálculo por um sistema único — de Maputo a Nampula.",
+      "testemunhos": [
+        {
+          "citacao": "Deixámos de reconciliar caixa em folhas de cálculo. Fecha-se o dia no GestPro e a contabilidade já está lançada.",
+          "autor": "Direcção Financeira",
+          "papel": "Distribuição alimentar, Maputo"
+        },
+        {
+          "citacao": "O stock por armazém com reserva de mercadoria acabou com as vendas de artigos que já não existiam.",
+          "autor": "Gestão de Operações",
+          "papel": "Retalho de materiais, Beira"
+        },
+        {
+          "citacao": "O processamento salarial com INSS e IRPS já calculados poupa-nos dois dias por mês.",
+          "autor": "Recursos Humanos",
+          "papel": "Serviços, Nampula"
+        }
+      ]
+    },
+    "precos": {
+      "etiqueta": "Planos transparentes",
+      "titulo": "Escolha o plano certo para a sua empresa.",
+      "subtitulo": "Planos que acompanham o ritmo de crescimento do negócio. Catorze dias grátis, sem cartão de crédito.",
+      "verTodos": "Ver todos os planos e perguntas frequentes"
+    },
     "ctaFinal": {
-      "titulo": "Comece hoje. Sem cartão, sem instalação.",
-      "subtitulo": "Crie a sua conta, importe os seus dados e emita a primeira factura no mesmo dia.",
-      "ctaPrimario": "Começar teste grátis",
-      "ctaSecundario": "Falar com a equipa"
+      "etiqueta": "Comece hoje",
+      "titulo": "Está pronto para ter mais controlo sobre o seu negócio?",
+      "subtitulo": "Centralize a gestão da sua empresa com o GestPro e aumente a produtividade da equipa desde o primeiro dia.",
+      "ctaPrimario": "Começar agora",
+      "ctaSecundario": "Falar com a equipa",
+      "garantias": [
+        "Sem compromisso inicial",
+        "Catorze dias grátis, sem cartão",
+        "Apoio em português"
+      ]
     }
   },
   "modulos": {
@@ -258,10 +409,26 @@
       "titulo": "Como os módulos se ligam",
       "subtitulo": "Não há sincronizações nocturnas nem importações manuais: as operações que atravessam domínios acontecem dentro da mesma transacção.",
       "fluxos": [
-        { "origem": "Venda / POS", "destino": "Stock + Caixa", "descricao": "A venda baixa existências e regista o movimento de caixa em conjunto — ou nenhuma das duas acontece." },
-        { "origem": "Recepção de compra", "destino": "Stock + Conta a pagar", "descricao": "A mercadoria entra em armazém e a dívida ao fornecedor é reconhecida no mesmo instante." },
-        { "origem": "Factura emitida", "destino": "Contabilidade", "descricao": "O lançamento por partida dobrada é escrito a partir do documento, no plano PGC-NIRF." },
-        { "origem": "Ordem de produção", "destino": "Consumo + Entrada de stock", "descricao": "Os materiais saem e o produto acabado entra, com o custo real apurado." }
+        {
+          "origem": "Venda / POS",
+          "destino": "Stock + Caixa",
+          "descricao": "A venda baixa existências e regista o movimento de caixa em conjunto — ou nenhuma das duas acontece."
+        },
+        {
+          "origem": "Recepção de compra",
+          "destino": "Stock + Conta a pagar",
+          "descricao": "A mercadoria entra em armazém e a dívida ao fornecedor é reconhecida no mesmo instante."
+        },
+        {
+          "origem": "Factura emitida",
+          "destino": "Contabilidade",
+          "descricao": "O lançamento por partida dobrada é escrito a partir do documento, no plano PGC-NIRF."
+        },
+        {
+          "origem": "Ordem de produção",
+          "destino": "Consumo + Entrada de stock",
+          "descricao": "Os materiais saem e o produto acabado entra, com o custo real apurado."
+        }
       ]
     },
     "listaFuncionalidades": "Funcionalidades do módulo",
@@ -295,7 +462,7 @@
       "itens": [
         {
           "pergunta": "O teste grátis exige cartão de crédito?",
-          "resposta": "Não. Os 14 dias de teste são activados sem qualquer meio de pagamento. No fim do período escolhe um plano; se não escolher, a conta fica em leitura e os dados permanecem disponíveis."
+          "resposta": "Não. Os 14 dias de teste são activados sem qualquer meio de pagamento. No fim do período escolhe um plano; se não escolher, a conta fica em modo de leitura durante 30 dias — continua a entrar, a consultar e a exportar tudo o que é seu, sem poder gravar. Passado esse prazo o acesso fecha, e os dados não se apagam: subscreva quando quiser e encontra tudo como estava."
         },
         {
           "pergunta": "Em que moeda é feita a cobrança?",
@@ -351,10 +518,22 @@
     "valores": {
       "titulo": "O que nos guia",
       "itens": [
-        { "titulo": "Correcção antes de rapidez", "descricao": "Um número errado depressa não vale nada. Preferimos um ecrã a mais a um saldo que não fecha." },
-        { "titulo": "Conformidade de origem", "descricao": "A lei moçambicana é o ponto de partida do modelo de dados, não uma camada de tradução por cima." },
-        { "titulo": "Os dados são seus", "descricao": "Exportação completa, em formatos abertos, sempre disponível." },
-        { "titulo": "Português em todo o lado", "descricao": "Interface, documentação, mensagens de erro e apoio — sem excepções." }
+        {
+          "titulo": "Correcção antes de rapidez",
+          "descricao": "Um número errado depressa não vale nada. Preferimos um ecrã a mais a um saldo que não fecha."
+        },
+        {
+          "titulo": "Conformidade de origem",
+          "descricao": "A lei moçambicana é o ponto de partida do modelo de dados, não uma camada de tradução por cima."
+        },
+        {
+          "titulo": "Os dados são seus",
+          "descricao": "Exportação completa, em formatos abertos, sempre disponível."
+        },
+        {
+          "titulo": "Português em todo o lado",
+          "descricao": "Interface, documentação, mensagens de erro e apoio — sem excepções."
+        }
       ]
     }
   },

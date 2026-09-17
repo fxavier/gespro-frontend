@@ -23,8 +23,7 @@ import {
   FormPage,
   FormSection,
   UnsavedChangesGuard,
-  type ComboboxOption,
-} from '@/components/patterns';
+  type ComboboxOption, Combobox } from '@/components/patterns';
 import { emitirFatura } from '@/server/actions/faturacao.actions';
 import { procurarClientes } from '@/server/actions/clientes.actions';
 
@@ -168,25 +167,15 @@ export function NovaFaturaForm({ series, clientesIniciais }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serie-faturacao">Série de Faturação *</Label>
-              <Select
+              <Combobox
+                id="serie-faturacao"
+                aria-label="Série de Faturação"
                 value={serieId}
                 disabled={series.length === 0}
-                onValueChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
-              >
-                <SelectTrigger id="serie-faturacao" aria-label="Série de Faturação">
-                  {/* O texto vem daqui e não do item: o Radix só resolve o
-                      rótulo do item depois de abrir a lista, e até lá o campo
-                      ficava em branco apesar de haver série escolhida. */}
-                  <SelectValue placeholder="Seleccione a série">
-                    {serieEscolhida?.nome}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {series.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
+                placeholder="Seleccione a série"
+                options={series.map((s) => ({ value: s.id, label: s.nome }))}
+              />
               {series.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   Sem séries de factura activas — configure uma antes de emitir.

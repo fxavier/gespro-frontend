@@ -148,6 +148,7 @@ export const retomarSessaoPOS = createSafeAction({
 export const procurarVendedores = createSafeAction({
   schema: z.object({ q: z.string().max(200).optional() }),
   permission: 'vendas:vendedores:ver',
+  permiteEmLeitura: true,
   handler: async ({ q }, ctx) => {
     const pagina = await vendedorService.listar(
       { q, status: 'ATIVO', take: 20, orderBy: 'nome', order: 'asc' },
@@ -160,6 +161,7 @@ export const procurarVendedores = createSafeAction({
 export const procurarProdutos = createSafeAction({
   schema: z.object({ q: z.string().max(200).optional() }),
   permission: 'produtos:ver',
+  permiteEmLeitura: true,
   handler: async ({ q }, ctx) => {
     const pagina = await listarProdutos(
       { search: q, ativo: true, take: 20, orderBy: 'nome', orderDir: 'asc' },

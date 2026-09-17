@@ -26,7 +26,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarContaPGC, atualizarContaPGC } from '@/server/actions/contabilidade.actions';
 import { CriarContaPGCSchema, type CriarContaPGCInput } from '@/lib/validations/contabilidade';
 
@@ -298,25 +298,15 @@ export function ContaForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Conta Mãe</FormLabel>
-                  <Select
-                    onValueChange={(v) => field.onChange(v === SEM_PAI ? undefined : v)}
-                    value={field.value ?? SEM_PAI}
-                    disabled={trancado}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Nenhuma (conta raiz)" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={SEM_PAI}>Nenhuma (conta raiz)</SelectItem>
-                      {contasMae.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value ?? SEM_PAI}
+                      disabled={trancado}
+                      onChange={(v) => field.onChange(v === SEM_PAI ? undefined : v)}
+                      placeholder="Nenhuma (conta raiz)"
+                      options={[{ value: SEM_PAI, label: 'Nenhuma (conta raiz)' }, ...contasMae.map((c) => ({ value: c.id, label: c.label }))]}
+                    />
+                  </FormControl>
                   <FormDescription>Opcional — para contas de detalhe</FormDescription>
                   <FormMessage />
                 </FormItem>

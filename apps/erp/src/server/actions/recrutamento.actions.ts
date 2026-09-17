@@ -51,6 +51,7 @@ export const transitarStatusVagaAction = createSafeAction({
 export const listarVagasAction = createSafeAction({
   schema: FilterVagaSchema,
   permission: 'rh:recrutamento:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => VagaService.listar(filter, ctx),
 });
 
@@ -77,6 +78,7 @@ export const actualizarCandidatoAction = createSafeAction({
 export const listarCandidatosAction = createSafeAction({
   schema: FilterCandidatoSchema,
   permission: 'rh:recrutamento:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => CandidatoService.listar(filter, ctx),
 });
 

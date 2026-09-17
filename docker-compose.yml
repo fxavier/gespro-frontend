@@ -45,6 +45,9 @@ x-erp-ambiente: &erp-ambiente
   APP_VERSION: local
   ALLOWED_ORIGINS: http://localhost:8080,http://localhost:3001
   METRICS_SECRET: ${METRICS_SECRET:-dev-metrics-secret}
+  # Credencial do agendador (serviço `cron` abaixo). As rotas /api/cron/* não
+  # estão em PUBLIC_PATHS: entram com esta, e não com sessão.
+  CRON_SECRET: ${CRON_SECRET:-dev-cron-secret}
   # Armazenamento: driver local até o cliente S3 ganhar `endpoint` configurável
   # (ADR-0026 §3.2 — trabalho do w8-armazenamento, fase 3). O MinIO já está de
   # pé e o bucket criado; mudar para s3 será só trocar estas variáveis.
@@ -305,6 +308,39 @@ services:
   # eco de cada pedido recebido para o stdout/logs. A configuração de destino
   # dos alertas é do w8-observabilidade; aqui só existe o serviço.
   # ----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Agendador — chama as rotas /api/cron/* pelo proxy (ADR-0032)
+  #
+  # Existe porque não há produção onde agendar (ADR-0026 §5) e porque, sem
+  # alguém a chamar, o ciclo de vida das subscrições simplesmente não acontece:
+  # o trial nunca acaba, a Leitura nunca começa e nunca fecha. O ADR-0026 §2 faz
+  # deste compose «a encarnação executável da topologia de produção», e um
+  # mecanismo que nunca correu não se sabe se funciona.
+  #
+  # Deliberadamente burro: `crond` do BusyBox e `wget`. Quem provisionar
+  # produção substitui isto pelo agendador do fornecedor — o contrato são as
+  # rotas, os horários e o segredo, e está no runbook.
+  # ---------------------------------------------------------------------------
+  cron:
+    image: alpine:3.22
+    container_name: gespro-cron
+    profiles: [full]
+    depends_on:
+      proxy:
+        condition: service_started
+    environment:
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret}
+      # Pelo proxy, para exercitar o mesmo caminho que um agendador externo faria.
+      BASE_ERP: http://proxy:8080
+    volumes:
+      - ./infra/local/cron/crontab:/etc/crontabs/root:ro
+      - ./infra/local/cron/chamar.sh:/usr/local/bin/chamar:ro
+    command: ["crond", "-f", "-l", "8", "-L", "/dev/stdout"]
+    deploy:
+      resources:
+        limits:
+          memory: 32m
+
   webhook-receptor:
     image: mendhak/http-https-echo:41
     container_name: gespro-webhook-receptor

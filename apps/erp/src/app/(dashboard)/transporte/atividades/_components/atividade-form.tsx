@@ -10,10 +10,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { FormPage, FormSection, Combobox } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -118,12 +118,22 @@ export function AtividadeForm({ viaturas, motoristas, atividade }: AtividadeForm
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Atividade</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 sm:col-span-2">
+    <form onSubmit={handleSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button type="button" variant="outline" asChild disabled={pending}>
+              <Link href={edicao ? `/transporte/atividades/${atividade!.id}` : '/transporte/atividades'}>Cancelar</Link>
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'A guardar…' : edicao ? 'Guardar Alterações' : 'Criar Atividade'}
+            </Button>
+          </>
+        }
+      >
+      <FormSection title="Atividade">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
               <Label htmlFor="titulo">Título *</Label>
               <Input id="titulo" name="titulo" required minLength={3} maxLength={300} defaultValue={atividade?.titulo} />
             </div>
@@ -149,18 +159,15 @@ export function AtividadeForm({ viaturas, motoristas, atividade }: AtividadeForm
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
               <Label htmlFor="localActividade">Local *</Label>
               <Input id="localActividade" name="localActividade" required maxLength={300} defaultValue={atividade?.localActividade} />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Agendamento e Recursos</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <FormSection title="Agendamento e Recursos">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="dataInicioPrevista">Início Previsto *</Label>
               <Input id="dataInicioPrevista" name="dataInicioPrevista" type="datetime-local" required defaultValue={atividade?.dataInicioPrevista} />
@@ -171,34 +178,28 @@ export function AtividadeForm({ viaturas, motoristas, atividade }: AtividadeForm
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="viaturaId">Viatura</Label>
-              <Select name="viaturaId" defaultValue={atividade?.viaturaId ?? SEM}>
-                <SelectTrigger id="viaturaId"><SelectValue placeholder="Sem viatura" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SEM}>Sem viatura</SelectItem>
-                  {viaturas.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="viaturaId"
+                name="viaturaId"
+                defaultValue={atividade?.viaturaId ?? SEM}
+                placeholder="Sem viatura"
+                options={[{ value: SEM, label: 'Sem viatura' }, ...viaturas.map((v) => ({ value: v.id, label: v.label }))]}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="motoristaResponsavelId">Motorista Responsável</Label>
-              <Select name="motoristaResponsavelId" defaultValue={atividade?.motoristaResponsavelId ?? SEM}>
-                <SelectTrigger id="motoristaResponsavelId"><SelectValue placeholder="Sem motorista" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SEM}>Sem motorista</SelectItem>
-                  {motoristas.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="motoristaResponsavelId"
+                name="motoristaResponsavelId"
+                defaultValue={atividade?.motoristaResponsavelId ?? SEM}
+                placeholder="Sem motorista"
+                options={[{ value: SEM, label: 'Sem motorista' }, ...motoristas.map((m) => ({ value: m.id, label: m.label }))]}
+              />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
+      <FormSection>
           <div className="space-y-1.5">
             <Label htmlFor="descricao">Descrição</Label>
             <Textarea id="descricao" name="descricao" maxLength={2000} rows={3} defaultValue={atividade?.descricao ?? ''} />
@@ -207,17 +208,9 @@ export function AtividadeForm({ viaturas, motoristas, atividade }: AtividadeForm
             <Label htmlFor="observacoes">Observações</Label>
             <Textarea id="observacoes" name="observacoes" maxLength={2000} rows={2} defaultValue={atividade?.observacoes ?? ''} />
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'A guardar…' : edicao ? 'Guardar Alterações' : 'Criar Atividade'}
-        </Button>
-        <Button type="button" variant="outline" asChild disabled={pending}>
-          <Link href={edicao ? `/transporte/atividades/${atividade!.id}` : '/transporte/atividades'}>Cancelar</Link>
-        </Button>
-      </div>
+      </FormPage>
     </form>
   );
 }

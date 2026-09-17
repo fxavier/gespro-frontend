@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { criarBeneficioAction } from '@/server/actions/beneficios.actions';
 import { Button } from '@/components/ui/button';
+import { FormPage, FormSection } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -100,7 +101,20 @@ export function NovoBeneficioForm() {
   });
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6 max-w-2xl">
+    <form onSubmit={onSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button type="button" variant="outline" onClick={() => router.push('/rh/beneficios')}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'A guardar…' : 'Guardar'}
+            </Button>
+          </>
+        }
+      >
+      <FormSection title="Benefício">
       {/* Nome */}
       <div className="space-y-2">
         <Label htmlFor="nome">Nome *</Label>
@@ -109,7 +123,7 @@ export function NovoBeneficioForm() {
       </div>
 
       {/* Tipo + Periodicidade */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="tipo">Tipo *</Label>
           <Select onValueChange={(v) => setValue('tipo', v as never)}>
@@ -156,7 +170,7 @@ export function NovoBeneficioForm() {
       </div>
 
       {/* Valores */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="custoTotal">Custo Total (MZN) *</Label>
           <Input
@@ -228,15 +242,8 @@ export function NovoBeneficioForm() {
         />
       </div>
 
-      {/* Footer sticky */}
-      <div className="sticky bottom-0 bg-background border-t pt-4 pb-2 flex items-center gap-3">
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'A guardar…' : 'Guardar'}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => router.push('/rh/beneficios')}>
-          Cancelar
-        </Button>
-      </div>
+      </FormSection>
+      </FormPage>
     </form>
   );
 }

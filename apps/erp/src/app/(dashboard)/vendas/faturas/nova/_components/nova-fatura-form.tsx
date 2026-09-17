@@ -5,7 +5,7 @@
  * RHF + zodResolver + useActionState + useFieldArray; zero Dialog.
  */
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -29,7 +29,15 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import {
+  Combobox,
+  ComboboxRemoto,
+  FormPage,
+  FormSection,
+  UnsavedChangesGuard,
+  type ComboboxOption,
+} from '@/components/patterns';
+import { procurarClientes } from '@/server/actions/clientes.actions';
 import { emitirFatura } from '@/server/actions/faturacao.actions';
 import { EmitirFaturaSchema, type EmitirFaturaInput } from '@/lib/validations/faturacao';
 
@@ -37,7 +45,7 @@ import { EmitirFaturaSchema, type EmitirFaturaInput } from '@/lib/validations/fa
 type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
 
 interface SerieOption { id: string; label: string }
-interface ClienteOption { id: string; nome: string }
+interface ClienteOption { id: string; codigo: string; nome: string }
 
 interface NovaFaturaFormProps {
   series: SerieOption[];
@@ -65,7 +73,16 @@ const DEFAULT_VALUES: Partial<EmitirFaturaInput> = {
   linhas: [linhaVazia()],
 };
 
+const rotuloCliente = (c: { codigo: string; nome: string }) => `${c.codigo} — ${c.nome}`;
+
 export function NovaFaturaForm({ series, clientes }: NovaFaturaFormProps) {
+  // A pesquisa de clientes vai ao servidor: há mais do que cabe numa lista.
+  const opcoesClientes: ComboboxOption[] = clientes.map((c) => ({ value: c.id, label: rotuloCliente(c) }));
+  const buscarClientes = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
+    const res = await procurarClientes({ q });
+    return res.ok ? res.data.map((c) => ({ value: c.id, label: rotuloCliente(c) })) : null;
+  }, []);
+
   const router = useRouter();
   const [state, dispatch, isPending] = useActionState<FormState, EmitirFaturaInput>(
     (_prev, data) => emitirFatura(data),
@@ -137,18 +154,16 @@ export function NovaFaturaForm({ series, clientes }: NovaFaturaFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Série de documento *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar série…" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {series.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccione a série"
+                      searchPlaceholder="Pesquisar série…"
+                      emptyText="Nenhuma série encontrada."
+                      options={series.map((s) => ({ value: s.id, label: s.label }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -160,18 +175,17 @@ export function NovaFaturaForm({ series, clientes }: NovaFaturaFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Cliente *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar cliente…" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {clientes.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <ComboboxRemoto
+                      opcoesIniciais={opcoesClientes}
+                      procurar={buscarClientes}
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccione o cliente"
+                      searchPlaceholder="Pesquisar por código, nome ou NUIT…"
+                      emptyText="Nenhum cliente encontrado."
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

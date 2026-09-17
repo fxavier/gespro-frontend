@@ -179,6 +179,9 @@ export const TRANSICOES_ENTREGA: Record<string, string[]> = {
 export const ESTADOS_ASSINATURA = [
   'TRIAL',
   'ATIVA',
+  'LEITURA',
+  'FECHADA',
+  // Legados (ADR-0032 §1): já não se escrevem, mas existem em linhas antigas.
   'SUSPENSA',
   'CANCELADA',
   'EXPIRADO',
@@ -187,19 +190,27 @@ export const ESTADOS_ASSINATURA = [
 export type EstadoAssinatura = (typeof ESTADOS_ASSINATURA)[number];
 
 /**
- * Ciclo de vida da subscrição (espelha o estado do Stripe).
+ * Ciclo de vida da subscrição.
  *
- * `CANCELADA` é terminal para a subscrição corrente: reactivar é uma nova
- * Checkout Session que, por convenção, actualiza o MESMO registo `Assinatura`
- * com um novo `stripeSubscriptionId` — daí `CANCELADA → ATIVA` ser permitida.
+ * As TRÊS saídas de uma subscrição viva — fim de Trial, cancelamento voluntário
+ * e dunning esgotado — convergem todas em `LEITURA` (ADR-0027 §6): uma regra,
+ * um prazo, um estado. Ao fim dos trinta dias, `FECHADA`; nada se apaga.
+ *
+ * Reactivar é uma nova Checkout Session que, por convenção, actualiza o MESMO
+ * registo `Assinatura` com um novo `stripeSubscriptionId` — daí todos os
+ * estados sem acesso terem saída para `ATIVA`. Nunca se prende quem quer pagar.
+ *
  * O Stripe não garante ordem de entrega de webhooks: quem transita valida
  * sempre contra o estado actual e ignora (sem erro fatal) o que não encaixa.
  */
 export const TRANSICOES_ASSINATURA: Record<EstadoAssinatura, EstadoAssinatura[]> = {
-  TRIAL: ['ATIVA', 'EXPIRADO', 'CANCELADA'],
-  ATIVA: ['SUSPENSA', 'CANCELADA'],
-  SUSPENSA: ['ATIVA', 'CANCELADA'],
-  EXPIRADO: ['ATIVA', 'CANCELADA'],
+  TRIAL: ['ATIVA', 'LEITURA'],
+  ATIVA: ['LEITURA'],
+  LEITURA: ['ATIVA', 'FECHADA'],
+  FECHADA: ['ATIVA'],
+  // Legados: ficam com a única saída que interessa — pagar (ADR-0032 §1).
+  SUSPENSA: ['ATIVA'],
+  EXPIRADO: ['ATIVA'],
   CANCELADA: ['ATIVA'],
 };
 
@@ -213,14 +224,43 @@ export function transicaoAssinaturaValida(
 }
 
 /**
- * Mapa único estado → bloqueio de acesso (Requisito 6.1).
- * `TRIAL`/`ATIVA` dão acesso; tudo o resto bloqueia.
- * `ConfiguracaoFiscal.statusAtivo = !bloqueiaAcesso(estado)`, escrito na MESMA
- * transacção que regista a transição.
+ * Os três níveis de acesso de um Tenant (ADR-0027 §6, ADR-0032 §4).
+ *
+ * - `aberto`  — vê e escreve.
+ * - `leitura` — vê e exporta tudo o que é seu, não escreve nada, e pode pagar
+ *               para sair de lá. Pagar e exportar NUNCA se travam: um estado de
+ *               onde o cliente não pudesse sair seria uma armadilha.
+ * - `fechado` — não entra. Os dados ficam.
  */
-export function bloqueiaAcesso(estado: EstadoAssinatura): boolean {
-  return estado !== 'TRIAL' && estado !== 'ATIVA';
+export type EstadoAcesso = 'aberto' | 'leitura' | 'fechado';
+
+/**
+ * Arbitra os DOIS donos do acesso, e é a única a fazê-lo (ADR-0032 §4).
+ *
+ * O estado comercial vive na `Assinatura` e mais nada lhe toca; a decisão da
+ * GestPro vive no `Tenant` (hoje `deletedAt`) e só a administração a escreve.
+ * Antes havia um booleano partilhado (`ConfiguracaoFiscal.statusAtivo`) que os
+ * dois escreviam, e quem escrevesse por último ganhava — na prática, um tenant
+ * suspenso por abuso era reactivado pelo pagamento seguinte.
+ *
+ * A decisão da GestPro ganha SEMPRE: quem foi fechado por nós não reabre por
+ * ter pago.
+ *
+ * Pura e client-safe de propósito — testa-se como tabela de estados completa,
+ * sem base de dados.
+ */
+export function estadoDeAcesso(
+  estado: EstadoAssinatura,
+  fechadoPelaGestPro: boolean,
+): EstadoAcesso {
+  if (fechadoPelaGestPro) return 'fechado';
+  if (estado === 'TRIAL' || estado === 'ATIVA') return 'aberto';
+  if (estado === 'LEITURA') return 'leitura';
+  return 'fechado';
 }
+
+/** Dias de Leitura antes de o acesso fechar (ADR-0027 §6). */
+export const LEITURA_DIAS = 30;
 
 /**
  * Calcula a posição fraccional entre duas posições (formato string decimal).

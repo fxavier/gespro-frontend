@@ -11,14 +11,7 @@
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { UploadDocumento } from '@/components/patterns';
+import { UploadDocumento, Combobox } from '@/components/patterns';
 import type { UploadDocumentoMeta, RegistoResultado } from '@/components/patterns';
 import {
   adicionarDocumentoViaturaAction,
@@ -76,12 +69,13 @@ export function DocumentoUploadForm({ recurso, recursoId, tipos }: DocumentoUplo
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="doc-tipo">Tipo de Documento *</Label>
-          <Select value={tipo} onValueChange={setTipo}>
-            <SelectTrigger id="doc-tipo"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {tipos.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Combobox
+            id="doc-tipo"
+            value={tipo}
+            onChange={setTipo}
+            placeholder="Seleccione…"
+            options={tipos.map((t) => ({ value: t.value, label: t.label }))}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="doc-numero">Número *</Label>

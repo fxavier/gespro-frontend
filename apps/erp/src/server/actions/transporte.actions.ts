@@ -95,6 +95,7 @@ export const registarChecklistAction = createSafeAction({
 export const listarViaturasAction = createSafeAction({
   schema: FiltrarViaturasSchema,
   permission: 'transporte:viatura:listar',
+  permiteEmLeitura: true,
   handler: async (input, ctx) => viaturaService.listarViaturas(input, ctx),
 });
 
@@ -133,6 +134,7 @@ export const adicionarDocumentoMotoristaAction = createSafeAction({
 export const listarMotoristasAction = createSafeAction({
   schema: FiltrarMotoristasSchema,
   permission: 'transporte:motorista:listar',
+  permiteEmLeitura: true,
   handler: async (input, ctx) => motoristaService.listarMotoristas(input, ctx),
 });
 
@@ -165,6 +167,7 @@ export const transitarAtividadeAction = createSafeAction({
 export const listarAtividadesAction = createSafeAction({
   schema: FiltrarAtividadesSchema,
   permission: 'transporte:atividade:listar',
+  permiteEmLeitura: true,
   handler: async (input, ctx) => atividadeService.listarAtividades(input, ctx),
 });
 
@@ -209,6 +212,7 @@ export const atribuirRecursosRotaAction = createSafeAction({
 export const listarRotasAction = createSafeAction({
   schema: FiltrarRotasSchema,
   permission: 'transporte:rota:listar',
+  permiteEmLeitura: true,
   handler: async (input, ctx) => rotaService.listarRotas(input, ctx),
 });
 
@@ -260,6 +264,7 @@ export const atribuirRecursosEntregaAction = createSafeAction({
 export const listarEntregasAction = createSafeAction({
   schema: FiltrarEntregasSchema,
   permission: 'transporte:entrega:listar',
+  permiteEmLeitura: true,
   handler: async (input, ctx) => entregaService.listarEntregas(input, ctx),
 });
 
@@ -277,5 +282,6 @@ export const registarAbastecimentoAction = createSafeAction({
 export const listarAbastecimentosAction = createSafeAction({
   schema: FiltrarAbastecimentosSchema,
   permission: 'transporte:abastecimento:listar',
+  permiteEmLeitura: true,
   handler: async (input, ctx) => abastecimentoService.listarAbastecimentos(input, ctx),
 });

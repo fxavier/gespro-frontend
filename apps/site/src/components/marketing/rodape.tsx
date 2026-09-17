@@ -24,7 +24,7 @@ export async function Rodape() {
   const ano = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-contorno-suave bg-superficie">
+    <footer className="border-t border-contorno-suave/60 bg-superficie-forte">
       <Container>
         <div className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
@@ -40,7 +40,7 @@ export async function Rodape() {
           <nav aria-labelledby="rodape-produto">
             <h2
               id="rodape-produto"
-              className="text-sm font-semibold text-foreground"
+              className="text-legenda font-semibold tracking-wider text-foreground uppercase"
             >
               {t("produto")}
             </h2>
@@ -69,7 +69,7 @@ export async function Rodape() {
           <nav aria-labelledby="rodape-modulos">
             <h2
               id="rodape-modulos"
-              className="text-sm font-semibold text-foreground"
+              className="text-legenda font-semibold tracking-wider text-foreground uppercase"
             >
               {tNav("funcionalidades")}
             </h2>
@@ -90,7 +90,7 @@ export async function Rodape() {
           <nav aria-labelledby="rodape-legal">
             <h2
               id="rodape-legal"
-              className="text-sm font-semibold text-foreground"
+              className="text-legenda font-semibold tracking-wider text-foreground uppercase"
             >
               {t("legal")}
             </h2>

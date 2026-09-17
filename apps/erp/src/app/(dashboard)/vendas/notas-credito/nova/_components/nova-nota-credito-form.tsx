@@ -29,7 +29,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { emitirNotaCredito } from '@/server/actions/faturacao.actions';
 import { EmitirNotaCreditoSchema, type EmitirNotaCreditoInput } from '@/lib/validations/faturacao';
 
@@ -122,16 +122,14 @@ export function NovaNotaCreditoForm({ series, faturas }: NovaNotaCreditoFormProp
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Série de documento *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar série…" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {series.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar série…"
+                      options={series.map((s) => ({ value: s.id, label: s.label }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -143,18 +141,14 @@ export function NovaNotaCreditoForm({ series, faturas }: NovaNotaCreditoFormProp
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Fatura original *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar fatura…" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {faturas.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.numero} — MT {parseFloat(f.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar fatura…"
+                      options={faturas.map((f) => ({ value: f.id, label: `${f.numero} — MT ${parseFloat(f.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2})}` }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

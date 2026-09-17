@@ -236,9 +236,21 @@ export const contaPagarService: IContaPagarService = {
 
       const novoValorPago = Number(conta.valorPago ?? 0) + input.valor;
       const novoValorRestante = Number(conta.valorOriginal) - novoValorPago;
-      const novoStatus: StatusContaPagar = novoValorRestante <= 0.001 ? 'PAGA' : 'PARCIALMENTE_PAGA';
+      // Um pagamento parcial numa conta VENCIDA não a «desvence»: continua por
+      // pagar e fora de prazo, e VENCIDA → PARCIALMENTE_PAGA nem é transição
+      // válida — rebentava com «Transição inválida» (500) no caso mais comum
+      // do mundo real, o fornecedor a receber por prestações depois do prazo.
+      // Só a liquidação total muda o estado.
+      const novoStatus: StatusContaPagar =
+        novoValorRestante <= 0.001
+          ? 'PAGA'
+          : conta.status === 'VENCIDA'
+            ? 'VENCIDA'
+            : 'PARCIALMENTE_PAGA';
 
-      transitarContaPagar(conta.status as StatusContaPagar, novoStatus);
+      if (novoStatus !== conta.status) {
+        transitarContaPagar(conta.status as StatusContaPagar, novoStatus);
+      }
 
       await tx.contaPagar.update({
         where: { id: conta.id },

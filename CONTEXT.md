@@ -136,6 +136,21 @@ sair seria uma armadilha, não uma cobrança.
 
 _Evitar_: suspenso, congelado, read-only.
 
+### Fechado
+O estado de uma Assinatura ao fim dos trinta dias de [[Leitura]]: ninguém do Tenant entra. Os
+dados ficam onde estão, indefinidamente — fechar não é apagar, e apagar é um acto pedido pelo
+cliente. Um Tenant Fechado volta a abrir pagando, sem perder nada.
+
+É um estado com nome próprio, e não um empréstimo a «cancelada» ou «expirada»: quem deixou o
+Trial acabar não cancelou coisa nenhuma, e um nome que mente na ficha do cliente é pior do que
+um valor a mais. O motivo de cada fecho fica registado à parte.
+
+> **Não confundir com** o Tenant que a GestPro fecha por decisão própria — abuso, por exemplo.
+> Esse é um interruptor **separado**, com outro dono, e um Tenant fechado por nós não reabre por
+> ter pago. Ver [[Tenant]].
+
+_Evitar_: expirado, cancelado, desactivado, inactivo.
+
 ### Excedido
 Um Tenant com mais do que um [[Limite do plano]] permite. Acontece quando desce de Plano sem
 desactivar ninguém, ou quando baixamos um Limite do catálogo sobre Tenants antigos. Continua a

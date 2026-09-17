@@ -22,6 +22,7 @@ import { PLANOS, PLANO_IDS, TRIAL_DIAS, type PlanoId } from '@/lib/planos';
 import { getProvincias } from '@/lib/provincias-mocambique';
 import { normalizarUtm, urlSite } from '@/server/analytics/plausible';
 import { RegistoForm } from './registo-form';
+import { Logotipo } from '@/components/layout/Logotipo';
 
 type Parametros = Record<string, string | string[] | undefined>;
 
@@ -72,27 +73,9 @@ export default async function RegistoPage({
             href={urlSite()}
             className="inline-flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
           >
-            <svg viewBox="0 0 48 48" className="size-7 text-primary" aria-hidden="true" focusable="false">
-              <rect
-                x="1.5"
-                y="1.5"
-                width="45"
-                height="45"
-                rx="12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                opacity="0.9"
-              />
-              <rect x="12" y="27" width="6" height="10" rx="2" fill="currentColor" opacity="0.55" />
-              <rect x="21" y="20" width="6" height="17" rx="2" fill="currentColor" opacity="0.78" />
-              <rect x="30" y="11" width="6" height="26" rx="2" fill="currentColor" />
-            </svg>
-            <span className="font-display text-2xl font-medium tracking-tight">
-              Gest<span className="text-primary">Pro</span>
-            </span>
+            <Logotipo className="[&>svg]:size-9 [&>span]:text-2xl" />
           </Link>
-          <h1 className="font-display text-3xl font-medium tracking-tight">
+          <h1 className="text-3xl font-semibold tracking-tight">
             Criar a conta da sua empresa
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -100,7 +83,7 @@ export default async function RegistoPage({
           </p>
         </header>
 
-        <div className="rounded-lg border border-border bg-card p-6 shadow-none">
+        <div className="rounded-xl border border-transparent bg-card p-6 shadow-md dark:border-border">
           <RegistoForm
             planos={planos}
             planoInicial={plano}

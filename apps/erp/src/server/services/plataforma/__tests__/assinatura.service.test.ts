@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => {
     configuracaoFiscal: { updateMany: vi.fn() },
     eventoWebhookStripe: { create: vi.fn() },
     user: { findMany: vi.fn() },
-    notificacao: { createMany: vi.fn() },
+    notificacao: { createManyAndReturn: vi.fn() },
   };
   return {
     tx,
@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => {
     assinaturaFindMany: vi.fn(),
     assinaturaUpdateMany: vi.fn(),
     eventoFindUnique: vi.fn(),
+    notificacaoFindMany: vi.fn(),
+    notificacaoUpdate: vi.fn(),
+    userFindMany: vi.fn(),
     tenantFindFirst: vi.fn(),
     cfgFindFirst: vi.fn(),
     $transaction: vi.fn(),
@@ -27,6 +30,12 @@ const mocks = vi.hoisted(() => {
   };
 });
 
+// O despacho pós-commit importa `notificacao.service`, que constrói o provider
+// de e-mail ao ser carregado. Aqui não há pilha de e-mail nenhuma.
+vi.mock('@/server/email', () => ({
+  emailProvider: { enviar: vi.fn().mockResolvedValue(undefined) },
+}));
+
 vi.mock('@/server/db/client', () => ({
   prismaBase: {
     assinatura: {
@@ -35,6 +44,9 @@ vi.mock('@/server/db/client', () => ({
       updateMany: mocks.assinaturaUpdateMany,
     },
     eventoWebhookStripe: { findUnique: mocks.eventoFindUnique },
+    // Usados pelo despacho pós-commit das notificações.
+    notificacao: { findMany: mocks.notificacaoFindMany, update: mocks.notificacaoUpdate },
+    user: { findMany: mocks.userFindMany },
     tenant: { findFirst: mocks.tenantFindFirst },
     configuracaoFiscal: { findFirst: mocks.cfgFindFirst },
     $transaction: mocks.$transaction,
@@ -65,12 +77,11 @@ import {
   abrirPortalCliente,
   cancelarSubscricao,
   criarSubscricaoTrial,
-  expirarTrialsVencidos,
+  processarCicloDeVida,
   iniciarCheckout,
   obter,
   obterOuNulo,
   processarEventoWebhook,
-  sincronizarStatusAtivo,
   verificarAssinaturaWebhook,
 } from '../assinatura.service';
 import { prismaBase } from '@/server/db/client';
@@ -110,9 +121,12 @@ beforeEach(() => {
   mocks.tx.configuracaoFiscal.updateMany.mockResolvedValue({ count: 1 });
   mocks.tx.eventoWebhookStripe.create.mockResolvedValue({});
   mocks.tx.user.findMany.mockResolvedValue([{ id: 'user-1' }]);
-  mocks.tx.notificacao.createMany.mockResolvedValue({ count: 1 });
+  mocks.tx.notificacao.createManyAndReturn.mockResolvedValue([{ id: 'notif-1' }]);
   mocks.tx.assinatura.findFirst.mockResolvedValue({ tentativasFalhadas: 0 });
   mocks.eventoFindUnique.mockResolvedValue(null);
+  mocks.notificacaoFindMany.mockResolvedValue([]);
+  mocks.notificacaoUpdate.mockResolvedValue({});
+  mocks.userFindMany.mockResolvedValue([]);
   mocks.assinaturaUpdateMany.mockResolvedValue({ count: 1 });
 });
 
@@ -124,7 +138,7 @@ describe('leitura', () => {
     const r = await obter(CTX);
     expect(mocks.assinaturaFindFirst).toHaveBeenCalledWith({ where: { tenantId: 'tenant-1' } });
     expect(r.estado).toBe('TRIAL');
-    expect(r.bloqueado).toBe(false);
+    expect(r.acesso).toBe('aberto');
   });
 
   it('cross-tenant devolve NotFound (404), nunca 403', async () => {
@@ -137,39 +151,47 @@ describe('leitura', () => {
     expect(await obterOuNulo(CTX)).toBeNull();
   });
 
-  it('marca bloqueado nos estados que bloqueiam o acesso', async () => {
-    mocks.assinaturaFindFirst.mockResolvedValue(assinaturaDb({ estado: 'SUSPENSA' }));
-    expect((await obter(CTX)).bloqueado).toBe(true);
+  it('distingue os três níveis de acesso', async () => {
+    mocks.assinaturaFindFirst.mockResolvedValue(assinaturaDb({ estado: 'LEITURA' }));
+    expect((await obter(CTX)).acesso).toBe('leitura');
+
+    mocks.assinaturaFindFirst.mockResolvedValue(assinaturaDb({ estado: 'FECHADA' }));
+    expect((await obter(CTX)).acesso).toBe('fechado');
+  });
+
+  it('conta os dias que faltam para o acesso fechar', async () => {
+    const daquiA10Dias = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    mocks.assinaturaFindFirst.mockResolvedValue(
+      assinaturaDb({ estado: 'LEITURA', leituraFim: daquiA10Dias }),
+    );
+    expect((await obter(CTX)).diasRestantesLeitura).toBe(10);
+  });
+
+  it('fora da Leitura não há prazo nenhum a mostrar', async () => {
+    mocks.assinaturaFindFirst.mockResolvedValue(assinaturaDb({ estado: 'ATIVA' }));
+    expect((await obter(CTX)).diasRestantesLeitura).toBe(0);
   });
 });
 
-describe('sincronização statusAtivo ↔ estado', () => {
-  it('activa para TRIAL e ATIVA', async () => {
-    for (const estado of ['TRIAL', 'ATIVA'] as const) {
-      mocks.tx.configuracaoFiscal.updateMany.mockClear();
-      await sincronizarStatusAtivo(mocks.tx as never, 'tenant-1', estado);
-      expect(mocks.tx.configuracaoFiscal.updateMany).toHaveBeenCalledWith({
-        where: { tenantId: 'tenant-1' },
-        data: { statusAtivo: true },
-      });
-    }
-  });
-
-  it('bloqueia para EXPIRADO, SUSPENSA e CANCELADA', async () => {
-    for (const estado of ['EXPIRADO', 'SUSPENSA', 'CANCELADA'] as const) {
-      mocks.tx.configuracaoFiscal.updateMany.mockClear();
-      await sincronizarStatusAtivo(mocks.tx as never, 'tenant-1', estado);
-      expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data).toEqual({
-        statusAtivo: false,
-      });
-    }
+describe('statusAtivo deixou de ter dono (ADR-0032 §4)', () => {
+  it('nenhuma transição escreve no interruptor partilhado', async () => {
+    // Era aqui que nascia o defeito do #35: o webhook e a administração
+    // escreviam o mesmo booleano, e quem escrevesse por último ganhava — na
+    // prática, um tenant suspenso por abuso era reactivado pelo pagamento
+    // seguinte. Agora o estado comercial vive só na Assinatura.
+    await aplicarTransicao(
+      mocks.tx as never,
+      { id: 'ass-1', tenantId: 'tenant-1', estado: 'TRIAL' },
+      'LEITURA',
+      { leituraFim: new Date('2026-09-01') },
+    );
   });
 });
 
 describe('aplicarTransicao', () => {
   const alvo = { id: 'ass-1', tenantId: 'tenant-1', estado: 'TRIAL' };
 
-  it('aplica transição válida e sincroniza o bloqueio na mesma transacção', async () => {
+  it('aplica transição válida por compare-and-set', async () => {
     const ok = await aplicarTransicao(mocks.tx as never, alvo, 'ATIVA', { dataAtivacao: new Date() });
     expect(ok).toBe(true);
     // Compare-and-set: o estado lido entra no `where`, não só o id.
@@ -178,15 +200,12 @@ describe('aplicarTransicao', () => {
       tenantId: 'tenant-1',
       estado: 'TRIAL',
     });
-    expect(mocks.tx.configuracaoFiscal.updateMany).toHaveBeenCalled();
   });
 
   it('declara a transição perdida se o estado mudou entretanto (0 linhas)', async () => {
     mocks.tx.assinatura.updateMany.mockResolvedValueOnce({ count: 0 });
     const ok = await aplicarTransicao(mocks.tx as never, alvo, 'ATIVA');
     expect(ok).toBe(false);
-    // Não sincroniza statusAtivo: isso sobrescreveria a decisão de quem ganhou.
-    expect(mocks.tx.configuracaoFiscal.updateMany).not.toHaveBeenCalled();
   });
 
   it('BLOCKER-1: duas transições concorrentes do mesmo estado — só uma escreve', async () => {
@@ -199,12 +218,10 @@ describe('aplicarTransicao', () => {
     const partida = { id: 'ass-1', tenantId: 'tenant-1', estado: 'ATIVA' };
     const [pago, falhado] = await Promise.all([
       aplicarTransicao(mocks.tx as never, partida, 'ATIVA'),
-      aplicarTransicao(mocks.tx as never, partida, 'SUSPENSA'),
+      aplicarTransicao(mocks.tx as never, partida, 'LEITURA'),
     ]);
 
     expect([pago, falhado].filter(Boolean)).toHaveLength(1);
-    // Só o vencedor sincroniza o bloqueio de acesso.
-    expect(mocks.tx.configuracaoFiscal.updateMany).toHaveBeenCalledTimes(1);
   });
 
   it('ignora (sem erro) transições fora de ordem — o Stripe não garante ordem', async () => {
@@ -373,13 +390,12 @@ describe('webhook — mapeamento de eventos para estados', () => {
     expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('TRIAL');
   });
 
-  it('subscription.updated status=past_due suspende', async () => {
+  it('subscription.updated status=past_due abre a Leitura', async () => {
     comAssinatura('ATIVA');
     await processarEventoWebhook(
       evento('customer.subscription.updated', { id: 'sub_1', customer: 'c', status: 'past_due' }),
     );
-    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('SUSPENSA');
-    expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data.statusAtivo).toBe(false);
+    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('LEITURA');
   });
 
   it('subscription.updated com status desconhecido não transita', async () => {
@@ -395,28 +411,29 @@ describe('webhook — mapeamento de eventos para estados', () => {
     expect(mocks.tx.assinatura.updateMany).not.toHaveBeenCalled();
   });
 
-  it('subscription.deleted cancela, bloqueia e notifica os administradores', async () => {
+  it('subscription.deleted abre a Leitura e notifica os administradores', async () => {
     comAssinatura('ATIVA');
     await processarEventoWebhook(
       evento('customer.subscription.deleted', { id: 'sub_1', customer: 'c', status: 'canceled' }),
     );
     const data = mocks.tx.assinatura.updateMany.mock.calls[0][0].data;
-    expect(data.estado).toBe('CANCELADA');
+    expect(data.estado).toBe('LEITURA');
     expect(data.dataCancelamento).toBeInstanceOf(Date);
-    expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data.statusAtivo).toBe(false);
-    expect(mocks.tx.notificacao.createMany).toHaveBeenCalled();
-    const notif = mocks.tx.notificacao.createMany.mock.calls[0][0].data[0];
+    expect(data.leituraFim).toBeInstanceOf(Date);
+    expect(mocks.tx.notificacao.createManyAndReturn).toHaveBeenCalled();
+    const notif = mocks.tx.notificacao.createManyAndReturn.mock.calls[0][0].data[0];
     expect(notif.tenantId).toBe('tenant-1');
     expect(notif.estadoEnvio).toBe('PENDENTE');
   });
 
-  it('invoice.paid reactiva um tenant suspenso e zera as tentativas', async () => {
+  it('invoice.paid reactiva um tenant em Leitura e zera as tentativas', async () => {
     comAssinatura('SUSPENSA');
     await processarEventoWebhook(evento('invoice.paid', { customer: 'cus_1' }));
     const data = mocks.tx.assinatura.updateMany.mock.calls[0][0].data;
     expect(data.estado).toBe('ATIVA');
     expect(data.tentativasFalhadas).toBe(0);
-    expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data.statusAtivo).toBe(true);
+    // Pagar limpa o relógio: quem volta não fica com um fecho agendado.
+    expect(data.leituraFim).toBeNull();
   });
 
   it('invoice.payment_failed com retry pendente só conta a tentativa', async () => {
@@ -427,12 +444,11 @@ describe('webhook — mapeamento de eventos para estados', () => {
     );
     expect(r.transitou).toBe(false);
     expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data).toEqual({ tentativasFalhadas: 2 });
-    expect(mocks.tx.notificacao.createMany).toHaveBeenCalled();
+    expect(mocks.tx.notificacao.createManyAndReturn).toHaveBeenCalled();
     // Nenhuma transição de estado foi tentada — só o contador.
-    expect(mocks.tx.configuracaoFiscal.updateMany).not.toHaveBeenCalled();
   });
 
-  it('invoice.payment_failed no fim do dunning suspende e bloqueia o login', async () => {
+  it('invoice.payment_failed no fim do dunning abre a Leitura', async () => {
     comAssinatura('ATIVA');
     mocks.tx.assinatura.findFirst.mockResolvedValue({ tentativasFalhadas: 3 });
     await processarEventoWebhook(
@@ -440,8 +456,7 @@ describe('webhook — mapeamento de eventos para estados', () => {
     );
     // 1.º update: contador; 2.º update: transição.
     expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.tentativasFalhadas).toBe(4);
-    expect(mocks.tx.assinatura.updateMany.mock.calls[1][0].data.estado).toBe('SUSPENSA');
-    expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data.statusAtivo).toBe(false);
+    expect(mocks.tx.assinatura.updateMany.mock.calls[1][0].data.estado).toBe('LEITURA');
   });
 
   it('trial_will_end apenas notifica, sem transitar', async () => {
@@ -451,7 +466,7 @@ describe('webhook — mapeamento de eventos para estados', () => {
     );
     expect(r.transitou).toBe(false);
     expect(mocks.tx.assinatura.updateMany).not.toHaveBeenCalled();
-    expect(mocks.tx.notificacao.createMany).toHaveBeenCalled();
+    expect(mocks.tx.notificacao.createManyAndReturn).toHaveBeenCalled();
   });
 
   it('evento não tratado de um tenant conhecido é registado sem efeitos', async () => {
@@ -502,12 +517,12 @@ describe('webhook — mapeamento de eventos para estados', () => {
     expect(r.transitou).toBe(true);
   });
 
-  it('MAJOR-2: status=paused suspende (não fica ATIVA para sempre)', async () => {
+  it('MAJOR-2: status=paused vai para Leitura (não fica ATIVA para sempre)', async () => {
     comAssinatura('ATIVA');
     await processarEventoWebhook(
       evento('customer.subscription.updated', { id: 'sub_1', customer: 'c', status: 'paused' }),
     );
-    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('SUSPENSA');
+    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('LEITURA');
   });
 
   it('MAJOR-2: status=incomplete não transita (3-D Secure a decorrer)', async () => {
@@ -520,9 +535,10 @@ describe('webhook — mapeamento de eventos para estados', () => {
   });
 
   it('MAJOR-3: tentativasFalhadas é gravado mesmo quando a transição é inválida', async () => {
-    // Em TRIAL, TRIAL → SUSPENSA é inválida; o contador não pode perder-se,
-    // senão o dunning reinicia do zero a cada falha e nunca suspende.
-    comAssinatura('TRIAL');
+    // De FECHADA só se sai pagando: FECHADA → LEITURA é inválida. O contador
+    // não pode perder-se na mesma, senão o dunning reinicia do zero a cada
+    // falha e nunca chega ao fim.
+    comAssinatura('FECHADA');
     mocks.tx.assinatura.findFirst.mockResolvedValue({ tentativasFalhadas: 2 });
     const r = await processarEventoWebhook(
       evento('invoice.payment_failed', { customer: 'cus_1', next_payment_attempt: null }),
@@ -614,12 +630,11 @@ describe('cancelamento', () => {
     expect(mocks.$transaction).not.toHaveBeenCalled();
   });
 
-  it('em trial sem subscrição Stripe cancela localmente', async () => {
+  it('em trial sem subscrição Stripe abre a Leitura localmente', async () => {
     mocks.assinaturaFindFirst.mockResolvedValue(assinaturaDb({ estado: 'TRIAL' }));
     const r = await cancelarSubscricao({}, CTX);
     expect(r.fimDoPeriodo).toBe(false);
-    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('CANCELADA');
-    expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data.statusAtivo).toBe(false);
+    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('LEITURA');
   });
 });
 
@@ -674,39 +689,116 @@ describe('subscrição de trial em background', () => {
   });
 });
 
-describe('cron de fallback — expiração de trials', () => {
-  it('expira apenas trials vencidos e é idempotente', async () => {
-    mocks.assinaturaFindMany.mockResolvedValue([
-      { id: 'a1', tenantId: 't1', estado: 'TRIAL' },
-      { id: 'a2', tenantId: 't2', estado: 'TRIAL' },
-    ]);
+describe('ciclo de vida — as duas pontas da Leitura (ADR-0032)', () => {
+  it('o fim do Trial abre a Leitura e arranca o relógio dos 30 dias', async () => {
+    const agora = new Date('2026-08-01T03:00:00Z');
+    mocks.assinaturaFindMany
+      .mockResolvedValueOnce([
+        { id: 'a1', tenantId: 't1', estado: 'TRIAL' },
+        { id: 'a2', tenantId: 't2', estado: 'TRIAL' },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
 
-    const r = await expirarTrialsVencidos(new Date('2026-08-01'));
+    const r = await processarCicloDeVida(agora);
 
     expect(mocks.assinaturaFindMany.mock.calls[0][0].where).toEqual({
       estado: 'TRIAL',
-      trialFim: { lt: new Date('2026-08-01') },
+      trialFim: { lt: agora },
     });
-    expect(r).toEqual({ avaliadas: 2, expiradas: 2 });
-    expect(mocks.tx.configuracaoFiscal.updateMany.mock.calls[0][0].data.statusAtivo).toBe(false);
+    expect(r.trialsEmLeitura).toBe(2);
+    // Nunca vai direito a um estado sem acesso: passa pela Leitura.
+    const dados = mocks.tx.assinatura.updateMany.mock.calls[0][0].data;
+    expect(dados.estado).toBe('LEITURA');
+    expect(dados.leituraFim).toEqual(new Date('2026-08-31T03:00:00Z'));
   });
 
-  it('não expira um trial que foi activado entre a leitura e a escrita', async () => {
-    // O cron lê candidatos, mas quem decide é o compare-and-set: se um webhook
-    // activou o tenant entretanto, o UPDATE não encontra `estado: TRIAL`.
-    mocks.assinaturaFindMany.mockResolvedValue([{ id: 'a1', tenantId: 't1', estado: 'TRIAL' }]);
+  it('a fronteira dos 30 dias: um dia antes mantém-se, um dia depois fecha', async () => {
+    const agora = new Date('2026-09-01T03:00:00Z');
+    mocks.assinaturaFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'a1', tenantId: 't1', estado: 'LEITURA' }]);
+
+    const r = await processarCicloDeVida(agora);
+
+    // Quem decide é a consulta: `leituraFim < agora`. Um prazo que ainda não
+    // passou nem sequer é candidato.
+    expect(mocks.assinaturaFindMany.mock.calls[2][0].where).toEqual({
+      estado: 'LEITURA',
+      leituraFim: { lt: agora },
+    });
+    expect(r.fechadas).toBe(1);
+    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('FECHADA');
+  });
+
+  it('fechar não apaga nada — nem uma linha de dados do tenant', async () => {
+    mocks.assinaturaFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'a1', tenantId: 't1', estado: 'LEITURA' }]);
+
+    await processarCicloDeVida(new Date('2026-09-01'));
+
+    // A garantia do ADR-0027 §7. Se algum dia alguém acrescentar um
+    // `deleteMany` aqui, este teste é o que o apanha.
+    for (const modelo of Object.values(mocks.tx)) {
+      expect((modelo as Record<string, unknown>).deleteMany).toBeUndefined();
+    }
+  });
+
+  it('avisa uma única vez, a sete dias do fecho', async () => {
+    const agora = new Date('2026-09-01T03:00:00Z');
+    mocks.assinaturaFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'a1', tenantId: 't1', leituraFim: new Date('2026-09-06T03:00:00Z') },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const r = await processarCicloDeVida(agora);
+
+    expect(r.avisos).toBe(1);
+    // A trava é a mesma das transições: só avisa quem ainda não foi avisado.
+    expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].where).toEqual({
+      id: 'a1',
+      tenantId: 't1',
+      avisoPreFechoEm: null,
+    });
+  });
+
+  it('não avisa duas vezes se duas corridas se cruzarem', async () => {
+    mocks.assinaturaFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'a1', tenantId: 't1', leituraFim: new Date('2026-09-06') },
+      ])
+      .mockResolvedValueOnce([]);
     mocks.tx.assinatura.updateMany.mockResolvedValue({ count: 0 });
 
-    const r = await expirarTrialsVencidos(new Date('2026-08-01'));
+    const r = await processarCicloDeVida(new Date('2026-09-01'));
 
-    expect(r).toEqual({ avaliadas: 1, expiradas: 0 });
-    expect(mocks.tx.configuracaoFiscal.updateMany).not.toHaveBeenCalled();
-    expect(mocks.tx.notificacao.createMany).not.toHaveBeenCalled();
+    expect(r.avisos).toBe(0);
+    expect(mocks.tx.notificacao.createManyAndReturn).not.toHaveBeenCalled();
   });
 
-  it('sem trials vencidos não faz nada', async () => {
+  it('não fecha um trial que foi activado entre a leitura e a escrita', async () => {
+    mocks.assinaturaFindMany
+      .mockResolvedValueOnce([{ id: 'a1', tenantId: 't1', estado: 'TRIAL' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    mocks.tx.assinatura.updateMany.mockResolvedValue({ count: 0 });
+
+    const r = await processarCicloDeVida(new Date('2026-08-01'));
+
+    expect(r.trialsEmLeitura).toBe(0);
+    expect(mocks.tx.notificacao.createManyAndReturn).not.toHaveBeenCalled();
+  });
+
+  it('sem nada a fazer não abre transacção nenhuma', async () => {
     mocks.assinaturaFindMany.mockResolvedValue([]);
-    expect(await expirarTrialsVencidos()).toEqual({ avaliadas: 0, expiradas: 0 });
+    const r = await processarCicloDeVida();
+    expect(r).toEqual({ trialsEmLeitura: 0, fechadas: 0, avisos: 0, avaliadas: 0 });
     expect(mocks.$transaction).not.toHaveBeenCalled();
   });
 });

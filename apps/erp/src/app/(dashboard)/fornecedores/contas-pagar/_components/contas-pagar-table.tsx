@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MoreHorizontal, Eye } from 'lucide-react';
+import { MoreHorizontal, Eye, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -102,6 +102,14 @@ const columns: TableColumn<ContaPagarResumo>[] = [
               Ver detalhe
             </Link>
           </DropdownMenuItem>
+          {(row.status === 'ABERTA' || row.status === 'PARCIALMENTE_PAGA' || row.status === 'VENCIDA') && (
+            <DropdownMenuItem asChild>
+              <Link href={`/fornecedores/contas-pagar/${row.id}/pagar`}>
+                <Wallet className="mr-2 h-4 w-4" />
+                Registar pagamento
+              </Link>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     ),

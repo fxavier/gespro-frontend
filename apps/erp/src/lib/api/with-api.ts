@@ -2,7 +2,7 @@ import 'server-only';
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { AppError, ForbiddenError, UnauthorizedError } from '@/lib/errors';
+import { AcessoLeituraError, AppError, ForbiddenError, UnauthorizedError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import { runWithRequestContext, newRequestId } from '@/server/observability/context';
 import { recordRequest } from '@/server/observability/metrics';
@@ -20,6 +20,9 @@ interface ApiCtx {
 
 type Handler = (req: NextRequest, ctx: ApiCtx) => Promise<Response>;
 
+/** Métodos que escrevem. Um `GET` nunca é uma mutação; o resto é, por omissão. */
+const METODOS_DE_ESCRITA = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 interface WithApiOptions {
   permission?: string;
   /**
@@ -27,6 +30,16 @@ interface WithApiOptions {
    * (health, ready). Não usar para dados de negócio.
    */
   public?: boolean;
+  /**
+   * Deixa esta rota escrever com o tenant em **Leitura** (ADR-0032 §2).
+   *
+   * Só é preciso em rotas de método de escrita: as exportações e os PDF são
+   * `GET`, logo passam sem declarar nada — «as exportações são leituras,
+   * portanto não precisam de excepção» (ticket #33). E uma rota `public` não
+   * tem sessão, logo não há estado de acesso a verificar: o webhook do Stripe
+   * e os crons continuam a poder escrever, que é como o cliente sai da Leitura.
+   */
+  permiteEmLeitura?: boolean;
 }
 
 /** Adiciona o header `x-request-id` a qualquer Response sem alterar o body. */
@@ -89,6 +102,15 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
         userId = uid;
         perms = new Set(permissions);
         if (opts?.permission && !perms.has(opts.permission)) throw new ForbiddenError();
+
+        // Leitura: vê e exporta tudo, não grava nada (ADR-0027 §6).
+        if (
+          session.user.acesso === 'leitura' &&
+          !opts?.permiteEmLeitura &&
+          METODOS_DE_ESCRITA.has(method)
+        ) {
+          throw new AcessoLeituraError();
+        }
       }
 
       const log = logger.child({ requestId, method, url: route, tenantId, userId });

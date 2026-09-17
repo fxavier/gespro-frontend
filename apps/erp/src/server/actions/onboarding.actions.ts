@@ -25,6 +25,8 @@ export const iniciarCheckout = createSafeAction({
   schema: CheckoutSchema,
   permission: 'assinatura:gerir',
   revalidate: { paths: ['/definicoes/faturacao'] },
+  // Sair da Leitura tem de ser possível: pagar nunca se trava (ADR-0027 §6).
+  permiteEmLeitura: true,
   handler: async (input, ctx) =>
     assinaturaService.iniciarCheckout(
       { planoId: input.planoId as PlanoId, ciclo: input.ciclo as CicloId },
@@ -35,6 +37,8 @@ export const iniciarCheckout = createSafeAction({
 /** URL do Billing Portal do Stripe (mudar plano/cartão, facturas, cancelar). */
 export const abrirPortalCliente = createSafeAction({
   permission: 'assinatura:gerir',
+  // Sair da Leitura tem de ser possível: pagar nunca se trava (ADR-0027 §6).
+  permiteEmLeitura: true,
   handler: async (_input, ctx) => assinaturaService.abrirPortalCliente(ctx),
 });
 
@@ -46,5 +50,7 @@ export const cancelarSubscricao = createSafeAction({
   schema: CancelarSubscricaoSchema,
   permission: 'assinatura:gerir',
   revalidate: { paths: ['/definicoes/faturacao'] },
+  // Sair da Leitura tem de ser possível: pagar nunca se trava (ADR-0027 §6).
+  permiteEmLeitura: true,
   handler: async (input, ctx) => assinaturaService.cancelarSubscricao(input, ctx),
 });

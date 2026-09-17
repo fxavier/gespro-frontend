@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, BadgeCheck, PlayCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { motion, useVariantesEntrada, Gesto, Paralaxe } from "./movimento";
-import { Container, BotaoLink, Etiqueta } from "./primitivos";
+import { motion, useVariantesEntrada, Gesto } from "./movimento";
+import { Container, BotaoLink } from "./primitivos";
 import { PainelProduto } from "./painel-produto";
 
 /**
@@ -22,11 +22,7 @@ export function Hero() {
     <section className="relative overflow-hidden">
       <div
         aria-hidden="true"
-        className="aurora pointer-events-none absolute inset-x-0 top-0 h-[42rem]"
-      />
-      <div
-        aria-hidden="true"
-        className="grelha-suave pointer-events-none absolute inset-x-0 top-0 h-[42rem] opacity-40"
+        className="aurora pointer-events-none absolute inset-x-0 top-0 h-[40rem] opacity-70"
       />
 
       <Container className="relative">
@@ -37,13 +33,17 @@ export function Hero() {
             escondido: {},
             visivel: { transition: { staggerChildren: 0.09 } },
           }}
-          className="mx-auto flex max-w-3xl flex-col items-center pt-20 pb-14 text-center sm:pt-28"
+          className="mx-auto flex max-w-4xl flex-col items-center pt-20 text-center lg:pt-28"
         >
           <motion.div variants={variantes}>
-            <Etiqueta className="bg-background/70">
-              <Sparkles className="size-3.5 text-destaque" aria-hidden="true" />
+            <span className="inline-flex items-center gap-2 rounded-full bg-card px-4 py-1 text-xs font-semibold tracking-wider text-primary uppercase shadow-sm">
+              <span
+                aria-hidden="true"
+                className="size-2 animate-pulse rounded-full bg-azul"
+              />
               {t("etiqueta")}
-            </Etiqueta>
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </span>
           </motion.div>
 
           <motion.h1
@@ -51,32 +51,35 @@ export function Hero() {
             className="mt-6 text-display text-foreground"
           >
             {t("titulo")}{" "}
+            <br className="hidden sm:inline" />
             <span className="texto-gradiente">{t("tituloDestaque")}</span>
           </motion.h1>
 
           <motion.p
             variants={variantes}
-            className="mt-6 max-w-2xl text-lead text-texto-suave"
+            className="mt-4 max-w-2xl text-lead text-texto-suave"
           >
             {t("subtitulo")}
           </motion.p>
 
           <motion.div
             variants={variantes}
-            className="mt-9 flex flex-col items-center gap-3 sm:flex-row"
+            className="mt-10 flex w-full flex-col items-center gap-4 sm:w-auto sm:flex-row"
           >
-            <Gesto>
-              <BotaoLink href="/comecar" tamanho="lg">
+            <Gesto className="w-full sm:w-auto">
+              <BotaoLink href="/comecar" tamanho="lg" className="w-full">
                 {t("ctaPrimario")}
                 <ArrowRight className="size-4" aria-hidden="true" />
               </BotaoLink>
             </Gesto>
-            <Gesto>
+            <Gesto className="w-full sm:w-auto">
               <BotaoLink
-                href="/funcionalidades"
+                href="#como-funciona"
                 variante="secundario"
                 tamanho="lg"
+                className="w-full"
               >
+                <PlayCircle className="size-4 text-primary" aria-hidden="true" />
                 {t("ctaSecundario")}
               </BotaoLink>
             </Gesto>
@@ -84,8 +87,9 @@ export function Hero() {
 
           <motion.p
             variants={variantes}
-            className="mt-5 text-sm text-texto-suave"
+            className="mt-4 flex items-center justify-center gap-1.5 text-sm text-texto-suave"
           >
+            <BadgeCheck className="size-4 shrink-0 text-primary" aria-hidden="true" />
             {t("notaCta")}
           </motion.p>
         </motion.div>
@@ -95,16 +99,12 @@ export function Hero() {
           animate="visivel"
           variants={variantes}
           transition={{ delay: 0.35 }}
-          className="pb-20 sm:pb-28"
+          className="pt-14 pb-20 lg:pb-28"
         >
-          <Paralaxe amplitude={18} className="mx-auto max-w-5xl">
-            <figure className="m-0">
-              <PainelProduto />
-              <figcaption className="sr-only">
-                {t("legendaVisual")}
-              </figcaption>
-            </figure>
-          </Paralaxe>
+          <figure className="m-0">
+            <PainelProduto />
+            <figcaption className="sr-only">{t("legendaVisual")}</figcaption>
+          </figure>
         </motion.div>
       </Container>
     </section>

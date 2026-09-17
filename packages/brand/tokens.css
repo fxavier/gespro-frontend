@@ -10,11 +10,20 @@
  *   apps/site/src/app/globals.css  →  @import "@gespro/brand/tokens.css";
  *
  * Cada app faz depois o seu mapeamento Tailwind v4 (`@theme inline`) e pode
- * ACRESCENTAR tokens próprios (o site estende com gradientes e paleta de
- * destaque em `apps/site/src/app/theme.css`) — nunca redefinir os de baixo.
+ * ACRESCENTAR tokens próprios (o site estende com a faixa final e o acento
+ * frio do gradiente em `apps/site/src/app/theme.css`) — nunca redefinir os
+ * de baixo. As duas apps têm de parecer o MESMO produto: o que aqui está é
+ * a paleta do site de marketing, promovida a marca.
+ *
+ * A direcção: tela azulada (nunca branca), cartões brancos que levantam por
+ * sombra tingida de marinho, tinta azul-marinho no texto, um azul vivo como
+ * cor de acção E de ligação. No escuro o azul clareia e o texto por cima
+ * passa a tinta escura — um token a servir os dois papéis (fundo de botão e
+ * cor de texto sobre o cartão) só funciona assim.
  *
  * Espaço de cor: oklch (uniformidade perceptual → contraste AA previsível
- * nos dois temas).
+ * nos dois temas). Contrastes indicados contra a superfície onde a cor
+ * aparece; os gates `e2e:a11y` das duas apps são quem manda.
  */
 
 :root {
@@ -28,45 +37,55 @@
     monospace;
 
   /* ── Superfícies ───────────────────────────────────────────────────── */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Tela (#f8f9ff) e tinta (#0b1c30): 16:1. */
+  --background: oklch(0.985 0.008 265);
+  --foreground: oklch(0.21 0.04 255);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.21 0.04 255);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.21 0.04 255);
 
   /* ── Marca ─────────────────────────────────────────────────────────── */
-  /* Primary: índigo escuro (AA-safe em fundos brancos e bg-primary/10) */
-  --primary: oklch(0.45 0.15 250);
+  /* Azul de acção e de ligação (#2257d8): 6.7:1 com branco por cima, 6.4:1
+     como texto sobre branco, 4.8:1 sobre a chapa `--accent`. */
+  --primary: oklch(0.47 0.21 263);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Banda alternada (#eff4ff) — secções, cabeçalhos de tabela, hovers. */
+  --secondary: oklch(0.968 0.014 262);
+  --secondary-foreground: oklch(0.21 0.04 255);
+  --muted: oklch(0.955 0.014 262);
+  /* Texto secundário (#4a5066): 7:1 sobre branco, 6:1 sobre `--muted`. */
+  --muted-foreground: oklch(0.42 0.022 268);
+  /* Chapa azul-clara (#e5eeff) dos ícones e do item activo da navegação. */
+  --accent: oklch(0.945 0.024 262);
+  --accent-foreground: oklch(0.21 0.04 255);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.45 0.15 250);
+  --border: oklch(0.89 0.014 265);
+  --input: oklch(0.86 0.015 265);
+  --ring: oklch(0.47 0.21 263);
 
   /* ── Séries de gráficos ────────────────────────────────────────────── */
-  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-1: oklch(0.47 0.21 263);
   --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-3: oklch(0.646 0.222 41.116);
+  --chart-4: oklch(0.55 0.18 300);
   --chart-5: oklch(0.769 0.188 70.08);
 
-  /* ── Sidebar (usada pelo ERP; disponível a ambos) ──────────────────── */
-  --sidebar: oklch(0.985 0.002 250);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.45 0.15 250);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.45 0.15 250);
+  /* ── Barra lateral (usada pelo ERP; disponível a ambos) ─────────────── */
+  /* Azul de marca a toda a altura, FIXA NOS DOIS TEMAS — é chrome do
+     produto, não muda com o modo (por isso não é redefinida em `.dark`).
+     Texto quase-branco por cima a 5.1:1; o activo é a inversão: chapa branca
+     com o azul por cima (6.7:1). Uma chapa translúcida com texto branco não
+     chegava aos 4.5:1 a 14px — foi medido antes de se escolher a inversão. */
+  --sidebar: oklch(0.47 0.21 263);
+  --sidebar-foreground: oklch(0.96 0.01 262);
+  --sidebar-primary: oklch(1 0 0);
+  --sidebar-primary-foreground: oklch(0.47 0.21 263);
+  --sidebar-accent: oklch(1 0 0);
+  --sidebar-accent-foreground: oklch(0.47 0.21 263);
+  --sidebar-border: oklch(1 0 0 / 15%);
+  --sidebar-ring: oklch(1 0 0);
 
   /* ── Estados semânticos ────────────────────────────────────────────── */
   /* success escurecido: text-success e bg-success passam AA em fundos claros */
@@ -78,51 +97,43 @@
   --info: oklch(0.45 0.15 235); /* azul médio-escuro — lê bem sobre branco */
   --info-foreground: oklch(1 0 0); /* branco — para fundos sólidos bg-info */
 
-  /* ── Sombras — subtis, compatíveis com dark mode ───────────────────── */
-  --shadow-sm-val: 0 1px 2px oklch(0 0 0 / 0.05);
-  --shadow-md-val: 0 4px 6px -1px oklch(0 0 0 / 0.08),
-    0 2px 4px -2px oklch(0 0 0 / 0.05);
+  /* ── Sombras — tingidas de marinho: é o que faz o cartão levantar da tela ── */
+  --shadow-sm-val: 0 1px 2px oklch(0.25 0.05 262 / 0.06),
+    0 1px 1px oklch(0.25 0.05 262 / 0.04);
+  --shadow-md-val: 0 6px 16px -6px oklch(0.25 0.05 262 / 0.14),
+    0 2px 4px -2px oklch(0.25 0.05 262 / 0.07);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* 0.62 dava 3.63:1 com `--primary-foreground` branco — falha o AA (4.5:1)
-     em qualquer botão primário do tema escuro. Apanhado pelo axe no ecrã de
-     login (ADR-0029), mas o defeito era de token e valia para o produto todo:
-     até então nenhuma página com botão primário passava pelo gate no escuro.
-     0.55 dá 4.85:1. O matiz e a saturação não mudam. */
-  --primary: oklch(0.55 0.15 250);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.17 0.012 262);
+  --foreground: oklch(0.95 0.01 260);
+  --card: oklch(0.215 0.02 262);
+  --card-foreground: oklch(0.95 0.01 260);
+  --popover: oklch(0.215 0.02 262);
+  --popover-foreground: oklch(0.95 0.01 260);
+  /* Clareia para ler como texto sobre o cartão (7:1); por cima leva tinta
+     escura (5.5:1). A 0.55 com branco passava no botão mas era ilegível como
+     cor de ligação — o mesmo token não pode servir os dois papéis de outra
+     forma. */
+  --primary: oklch(0.72 0.13 258);
+  --primary-foreground: oklch(0.15 0.02 250);
+  --secondary: oklch(0.25 0.02 262);
+  --secondary-foreground: oklch(0.95 0.01 260);
+  --muted: oklch(0.25 0.02 262);
+  --muted-foreground: oklch(0.74 0.016 262);
+  --accent: oklch(0.28 0.035 262);
+  --accent-foreground: oklch(0.95 0.01 260);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.62 0.15 250);
-  --chart-1: oklch(0.488 0.243 264.376);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.72 0.13 258);
+  --chart-1: oklch(0.72 0.13 258);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.19 0.002 250);
-  --sidebar-foreground: oklch(0.985 0 0);
-  /* Mesma razão do `--primary` acima: texto branco por cima. */
-  --sidebar-primary: oklch(0.55 0.15 250);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.62 0.15 250);
+  /* `--sidebar-*` NÃO é redefinido aqui: a barra é azul nos dois temas. */
   /* Estados semânticos — dark */
   --success: oklch(0.72 0.13 150);
   --success-foreground: oklch(0.1 0 0);
@@ -132,7 +143,7 @@
   --info: oklch(0.67 0.12 230); /* azul claro — lê bem sobre fundo escuro */
   --info-foreground: oklch(0.15 0 0); /* quase-preto — para fundos sólidos */
   /* Sombras */
-  --shadow-sm-val: 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-md-val: 0 4px 6px -1px oklch(0 0 0 / 0.4),
+  --shadow-sm-val: 0 1px 2px oklch(0 0 0 / 0.35);
+  --shadow-md-val: 0 8px 20px -8px oklch(0 0 0 / 0.55),
     0 2px 4px -2px oklch(0 0 0 / 0.3);
 }

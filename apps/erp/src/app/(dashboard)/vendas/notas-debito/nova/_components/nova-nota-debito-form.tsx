@@ -29,7 +29,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { emitirNotaDebito } from '@/server/actions/faturacao.actions';
 import { EmitirNotaDebitoSchema, type EmitirNotaDebitoInput } from '@/lib/validations/faturacao';
 
@@ -121,16 +121,14 @@ export function NovaNotaDebitoForm({ series, clientes }: NovaNotaDebitoFormProps
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Série de documento *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar série…" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {series.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar série…"
+                      options={series.map((s) => ({ value: s.id, label: s.label }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -142,16 +140,14 @@ export function NovaNotaDebitoForm({ series, clientes }: NovaNotaDebitoFormProps
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Cliente *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar cliente…" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {clientes.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar cliente…"
+                      options={clientes.map((c) => ({ value: c.id, label: c.nome }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

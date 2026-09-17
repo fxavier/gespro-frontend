@@ -1,0 +1,18 @@
+# Agendador local do GestPro (ADR-0032). Horas em UTC — o contentor corre em UTC.
+#
+# Estes horários são o contrato com quem provisionar produção; ver
+# docs/runbooks/agendador.md. Espaçados de propósito: o de identidades corre
+# depois do de subscrições, que é quem pode fechar acessos.
+
+# Ciclo de vida das subscrições: fim do Trial → Leitura, aviso de pré-fecho,
+# fim da Leitura → Fechada. Sem isto o trial nunca acaba.
+0 3 * * * chamar /api/cron/expirar-trials
+
+# Expurgo de registos públicos que nunca confirmaram o e-mail (> 7 dias).
+10 3 * * * chamar /api/cron/expirar-registos-nao-verificados
+
+# Reconciliação Identidade ↔ Utilizador (ADR-0013): reporta, não apaga.
+15 3 * * * chamar /api/cron/reconciliar-identidades
+
+# Alertas de transporte: documentos a expirar e manutenções pendentes.
+30 3 * * * chamar /api/cron/transporte-alertas

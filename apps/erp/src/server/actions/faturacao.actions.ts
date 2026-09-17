@@ -28,6 +28,7 @@ export const criarSerieDocumento = createSafeAction({
 
 export const listarSeriesDocumento = createSafeAction({
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (_, ctx) => faturacao.listarSeries(ctx),
 });
 
@@ -43,12 +44,14 @@ export const emitirFatura = createSafeAction({
 export const listarFaturas = createSafeAction({
   schema: FiltroFaturaSchema,
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => faturacao.listarFaturas(input, ctx),
 });
 
 export const obterFatura = createSafeAction({
   schema: z.object({ id: z.string().cuid() }),
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => faturacao.obterFatura(input.id, ctx),
 });
 
@@ -78,12 +81,14 @@ export const emitirNotaCredito = createSafeAction({
 export const listarNotasCredito = createSafeAction({
   schema: FiltroNotaCreditoSchema,
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => faturacao.listarNotasCredito(input, ctx),
 });
 
 export const obterNotaCredito = createSafeAction({
   schema: z.object({ id: z.string().cuid() }),
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => faturacao.obterNotaCredito(input.id, ctx),
 });
 
@@ -113,12 +118,14 @@ export const emitirNotaDebito = createSafeAction({
 export const listarNotasDebito = createSafeAction({
   schema: FiltroNotaDebitoSchema,
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => faturacao.listarNotasDebito(input, ctx),
 });
 
 export const obterNotaDebito = createSafeAction({
   schema: z.object({ id: z.string().cuid() }),
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => faturacao.obterNotaDebito(input.id, ctx),
 });
 
@@ -176,6 +183,7 @@ export const cancelarProforma = createSafeAction({
 export const listarProformas = createSafeAction({
   schema: FiltroProformaSchema,
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => faturacao.listarProformas(input, ctx),
 });
 
@@ -219,5 +227,6 @@ export const converterCotacaoEmProforma = createSafeAction({
 export const listarCotacoesComerciais = createSafeAction({
   schema: FiltroCotacaoComercialSchema,
   permission: 'faturacao:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => faturacao.listarCotacoesComerciais(input, ctx),
 });

@@ -12,14 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { FormPage } from '@/components/patterns';
+import { FormPage, Combobox } from '@/components/patterns';
 import { criarRoteiroAction } from '@/server/actions/producao.actions';
 
 const OperacaoSchema = z.object({
@@ -179,21 +172,12 @@ export default function NovoRoteiroForm({ estruturas, centrosTrabalho }: Props) 
             </div>
             <div className="space-y-2">
               <Label>Estrutura do Produto</Label>
-              <Select
+              <Combobox
                 value={form.watch('estruturaProdutoId') ?? ''}
-                onValueChange={(v) => form.setValue('estruturaProdutoId', v || undefined)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {estruturas.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.codigo} — {e.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) => form.setValue('estruturaProdutoId', v || undefined)}
+                placeholder="Seleccione (opcional)"
+                options={estruturas.map((e) => ({ value: e.id, label: `${e.codigo} — ${e.nome}` }))}
+              />
             </div>
           </div>
           <div className="space-y-2">
@@ -250,21 +234,12 @@ export default function NovoRoteiroForm({ estruturas, centrosTrabalho }: Props) 
                 </div>
                 <div className="space-y-2">
                   <Label>Centro de Trabalho</Label>
-                  <Select
+                  <Combobox
                     value={novaOp.centroTrabalhoId ?? ''}
-                    onValueChange={(v) => setNovaOp((p) => ({ ...p, centroTrabalhoId: v || undefined }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione (opcional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {centrosTrabalho.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.codigo} — {c.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(v) => setNovaOp((p) => ({ ...p, centroTrabalhoId: v || undefined }))}
+                    placeholder="Seleccione (opcional)"
+                    options={centrosTrabalho.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Sequência</Label>

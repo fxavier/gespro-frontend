@@ -2,7 +2,7 @@
 
 import { BadgeCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Container, Seccao, TituloSeccao } from "./primitivos";
+import { Container, Seccao, TituloSeccao, Cartao, ChapaIcone } from "./primitivos";
 import { Cascata, ItemCascata, Revelar } from "./movimento";
 
 interface Item {
@@ -21,6 +21,7 @@ export function Conformidade() {
         <Revelar>
           <TituloSeccao
             id="titulo-conformidade"
+            alinhamento="esquerda"
             etiqueta={t("etiqueta")}
             titulo={t("titulo")}
             subtitulo={t("subtitulo")}
@@ -29,24 +30,17 @@ export function Conformidade() {
 
         <Cascata
           como="ul"
-          className="mt-14 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2"
+          className="mt-10 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 lg:grid-cols-4"
         >
           {itens.map((item) => (
             <ItemCascata como="li" key={item.titulo}>
-              <div className="flex h-full gap-4 rounded-2xl border border-contorno-suave bg-card p-6">
-                <BadgeCheck
-                  className="mt-0.5 size-5 shrink-0 text-success"
-                  aria-hidden="true"
-                />
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">
-                    {item.titulo}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-texto-suave">
-                    {item.descricao}
-                  </p>
-                </div>
-              </div>
+              <Cartao className="flex h-full flex-col gap-3">
+                <ChapaIcone>
+                  <BadgeCheck className="size-[22px]" aria-hidden="true" />
+                </ChapaIcone>
+                <h3 className="text-lg font-semibold text-foreground">{item.titulo}</h3>
+                <p className="text-sm leading-relaxed text-texto-suave">{item.descricao}</p>
+              </Cartao>
             </ItemCascata>
           ))}
         </Cascata>

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { atribuirBeneficioAction } from '@/server/actions/beneficios.actions';
 import { Button } from '@/components/ui/button';
+import { FormPage, FormSection } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -87,7 +88,26 @@ export function AtribuirBeneficioForm({
   });
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6 max-w-2xl">
+    <form onSubmit={onSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                router.push(beneficioIdPreenchido ? `/rh/beneficios/${beneficioIdPreenchido}` : '/rh/beneficios')
+              }
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'A atribuir…' : 'Atribuir Benefício'}
+            </Button>
+          </>
+        }
+      >
+      <FormSection title="Atribuição">
       {/* Benefício */}
       <div className="space-y-2">
         <Label htmlFor="beneficioId">Benefício *</Label>
@@ -130,7 +150,7 @@ export function AtribuirBeneficioForm({
       </div>
 
       {/* Datas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="dataInicio">Data de Início *</Label>
           <Input id="dataInicio" type="date" {...register('dataInicio')} />
@@ -146,7 +166,7 @@ export function AtribuirBeneficioForm({
       </div>
 
       {/* Valores personalizados */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="comparticipacaoEmpresa">Comparticipação Empresa (MZN)</Label>
           <Input
@@ -185,21 +205,8 @@ export function AtribuirBeneficioForm({
         />
       </div>
 
-      {/* Footer */}
-      <div className="sticky bottom-0 bg-background border-t pt-4 pb-2 flex items-center gap-3">
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'A atribuir…' : 'Atribuir Benefício'}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() =>
-            router.push(beneficioIdPreenchido ? `/rh/beneficios/${beneficioIdPreenchido}` : '/rh/beneficios')
-          }
-        >
-          Cancelar
-        </Button>
-      </div>
+      </FormSection>
+      </FormPage>
     </form>
   );
 }

@@ -6,8 +6,10 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import type { Ctx } from '@/server/services/types';
 import {
-  bloqueiaAcesso,
+  LEITURA_DIAS,
+  estadoDeAcesso,
   transicaoAssinaturaValida,
+  type EstadoAcesso,
   type EstadoAssinatura,
 } from '@/lib/state-machines';
 import { TRIAL_DIAS, type CicloId, type PlanoId } from '@/lib/planos';
@@ -47,13 +49,22 @@ export interface AssinaturaRow {
   stripeSubscriptionId: string | null;
   trialInicio: Date;
   trialFim: Date;
+  /** Instante em que o acesso fecha. Nulo fora de `LEITURA`. */
+  leituraFim: Date | null;
   dataAtivacao: Date | null;
   dataCancelamento: Date | null;
   motivoCancelamento: string | null;
   tentativasFalhadas: number;
   /** Dias que faltam para o fim do trial (0 se já passou ou não está em trial). */
   diasRestantesTrial: number;
-  bloqueado: boolean;
+  /** Dias até o acesso fechar. Zero fora de `LEITURA`. */
+  diasRestantesLeitura: number;
+  /**
+   * Nível de acesso do tenant (ADR-0032 §4). Quem vê este DTO está dentro do
+   * produto, logo não foi fechado pela GestPro — daí o segundo argumento ser
+   * sempre `false` aqui. A arbitragem completa vive no `auth.ts`.
+   */
+  acesso: EstadoAcesso;
 }
 
 type PrismaAssinatura = NonNullable<
@@ -81,8 +92,11 @@ export function mapAssinatura(a: PrismaAssinatura): AssinaturaRow {
     dataCancelamento: a.dataCancelamento,
     motivoCancelamento: a.motivoCancelamento,
     tentativasFalhadas: a.tentativasFalhadas,
+    leituraFim: a.leituraFim,
     diasRestantesTrial: estado === 'TRIAL' ? diasRestantes(a.trialFim) : 0,
-    bloqueado: bloqueiaAcesso(estado),
+    diasRestantesLeitura:
+      estado === 'LEITURA' && a.leituraFim ? diasRestantes(a.leituraFim) : 0,
+    acesso: estadoDeAcesso(estado, false),
   };
 }
 
@@ -99,25 +113,33 @@ export async function obterOuNulo(ctx: Ctx): Promise<AssinaturaRow | null> {
   return a ? mapAssinatura(a) : null;
 }
 
+/**
+ * Despacha, depois do commit, as notificações escritas dentro da transacção.
+ *
+ * O import é **tardio de propósito**: `notificacao.service` escolhe e constrói
+ * o provider de e-mail no momento em que é carregado (singleton por variável de
+ * ambiente), e o ciclo de vida das subscrições tem de poder ser carregado sem
+ * pilha de e-mail nenhuma — é o que acontece no webhook e nos testes. O custo é
+ * zero: isto só corre quando há mesmo alguma coisa para enviar.
+ */
+async function despacharNotificacoes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { despacharNotificacoes: despachar } = await import('./notificacao.service');
+  await despachar(ids);
+}
+
 // ---------------------------------------------------------------------------
-// Transições de estado + sincronização do bloqueio de acesso
+// Transições de estado
 // ---------------------------------------------------------------------------
 
 /**
- * Mantém `ConfiguracaoFiscal.statusAtivo` em sintonia com o estado da
- * assinatura (Requisito 6.1). Chamada SEMPRE dentro da mesma transacção da
- * transição: se ficassem separadas, uma falha entre as duas deixaria um tenant
- * pago e bloqueado (ou cancelado e a usar o produto).
+ * Instante em que o acesso fecha, a contar de agora (ADR-0027 §6).
+ * Um prazo só para as três saídas: fim de Trial, cancelamento e falta de
+ * pagamento. Três prazos diferentes é o que ninguém acerta a implementar nem
+ * consegue explicar ao cliente.
  */
-export async function sincronizarStatusAtivo(
-  tx: Prisma.TransactionClient,
-  tenantId: string,
-  estado: EstadoAssinatura,
-): Promise<void> {
-  await tx.configuracaoFiscal.updateMany({
-    where: { tenantId },
-    data: { statusAtivo: !bloqueiaAcesso(estado) },
-  });
+export function fimDaLeitura(agora: Date = new Date()): Date {
+  return new Date(agora.getTime() + LEITURA_DIAS * 24 * 60 * 60 * 1000);
 }
 
 export interface PatchAssinatura {
@@ -131,6 +153,7 @@ export interface PatchAssinatura {
   motivoCancelamento?: string | null;
   tentativasFalhadas?: number;
   trialFim?: Date;
+  leituraFim?: Date | null;
 }
 
 /**
@@ -199,12 +222,14 @@ export async function aplicarTransicao(
         ? { tentativasFalhadas: patch.tentativasFalhadas }
         : {}),
       ...(patch.trialFim !== undefined ? { trialFim: patch.trialFim } : {}),
+      ...(patch.leituraFim !== undefined ? { leituraFim: patch.leituraFim } : {}),
     },
   });
 
   if (count !== 1) {
-    // Outro evento chegou primeiro e mudou o estado sob os nossos pés. Não
-    // sincronizamos `statusAtivo`: isso sobrescreveria a decisão de quem ganhou.
+    // Outro evento chegou primeiro e mudou o estado sob os nossos pés: a
+    // transição é declarada perdida, e não se escreve mais nada — sobrescrever
+    // seria desfazer a decisão de quem ganhou.
     logger.warn(
       { tenantId: assinatura.tenantId, de: actual, para: novoEstado },
       '[assinatura] transição perdida por corrida — estado mudou entretanto',
@@ -212,7 +237,6 @@ export async function aplicarTransicao(
     return false;
   }
 
-  await sincronizarStatusAtivo(tx, assinatura.tenantId, novoEstado);
   return true;
 }
 
@@ -221,15 +245,20 @@ export async function aplicarTransicao(
 // ---------------------------------------------------------------------------
 
 /**
- * Persiste uma notificação PENDENTE para todos os administradores do tenant.
- * O envio de email é efeito colateral fora da transacção (o job/rota que chama
- * este serviço trata do despacho) — nunca I/O externo dentro da tx.
+ * Persiste uma notificação PENDENTE para todos os administradores do tenant e
+ * devolve os ids criados.
+ *
+ * **Os ids não são decoração: são a metade que faltava.** O padrão da casa é
+ * «persistir-depois-enviar», e esta função só fazia a primeira metade — nada
+ * varria as PENDENTE, e nenhum e-mail de subscrição alguma vez saiu. Quem
+ * chama guarda os ids e chama `despacharNotificacoes()` **depois do commit**;
+ * I/O externo dentro de uma transacção continua proibido (ADR-0032).
  */
 export async function notificarAdministradores(
   tx: Prisma.TransactionClient,
   tenantId: string,
   dados: { titulo: string; mensagem: string },
-): Promise<number> {
+): Promise<string[]> {
   const admins = await tx.user.findMany({
     where: {
       tenantId,
@@ -240,9 +269,9 @@ export async function notificarAdministradores(
     select: { id: true },
   });
 
-  if (admins.length === 0) return 0;
+  if (admins.length === 0) return [];
 
-  await tx.notificacao.createMany({
+  const criadas = await tx.notificacao.createManyAndReturn({
     data: admins.map((u) => ({
       tenantId,
       userId: u.id,
@@ -254,9 +283,10 @@ export async function notificarAdministradores(
       entidadeId: tenantId,
       estadoEnvio: 'PENDENTE' as never,
     })),
+    select: { id: true },
   });
 
-  return admins.length;
+  return criadas.map((n) => n.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -370,11 +400,16 @@ export async function cancelarSubscricao(
   if (!assinatura.stripeSubscriptionId) {
     // Trial sem subscrição Stripe: cancela localmente (nada a cobrar).
     await prismaBase.$transaction(async (tx) => {
+      const agora = new Date();
       await aplicarTransicao(
         tx,
         { id: assinatura.id, tenantId: ctx.tenantId, estado: assinatura.estado },
-        'CANCELADA',
-        { dataCancelamento: new Date(), motivoCancelamento: input.motivo ?? null },
+        'LEITURA',
+        {
+          dataCancelamento: agora,
+          motivoCancelamento: input.motivo ?? null,
+          leituraFim: fimDaLeitura(agora),
+        },
         { estrito: true },
       );
     });
@@ -557,17 +592,19 @@ function estadoDeStatusStripe(status: string): EstadoAssinatura | null {
       return 'TRIAL';
     case 'active':
       return 'ATIVA';
+    // As três saídas convergem em LEITURA (ADR-0027 §6): o cliente vê e
+    // exporta o que é seu durante trinta dias, e pode pagar para voltar.
     case 'past_due':
     case 'unpaid':
-      return 'SUSPENSA';
+      return 'LEITURA';
     // Subscrição em pausa (`pause_collection`): o Stripe deixa de cobrar. Sem
     // este ramo a assinatura ficava `ATIVA` para sempre — acesso gratuito
     // indefinido, sem nenhum evento posterior a corrigi-lo.
     case 'paused':
-      return 'SUSPENSA';
+      return 'LEITURA';
     case 'canceled':
     case 'incomplete_expired':
-      return 'CANCELADA';
+      return 'LEITURA';
     // `incomplete`: a primeira factura ainda não foi paga (ex.: 3-D Secure
     // pendente). Deliberadamente não transita — o desfecho chega a seguir como
     // `active` ou `incomplete_expired`, e bloquear aqui tiraria o acesso a quem
@@ -658,8 +695,13 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
     };
   }
 
+  // Ids das notificações escritas dentro da transacção. O envio é depois do
+  // commit: I/O externo lá dentro prenderia a ligação e, se falhasse, desfazia
+  // uma transição de estado por causa de um e-mail.
+  const pendentes: string[] = [];
+
   try {
-    return await prismaBase.$transaction(async (tx) => {
+    const resultado = await prismaBase.$transaction(async (tx) => {
       // Trava de idempotência — falha por P2002 se outra entrega ganhou a corrida.
       await tx.eventoWebhookStripe.create({
         data: {
@@ -673,6 +715,7 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
         customerId,
         subscriptionId,
         objecto,
+        pendentes,
       });
 
       return {
@@ -683,6 +726,9 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
         naoResolvido: false,
       };
     });
+
+    await despacharNotificacoes(pendentes);
+    return resultado;
   } catch (e) {
     // Corrida entre duas entregas do MESMO evento: a perdedora vê P2002.
     if ((e as { code?: string })?.code === 'P2002') {
@@ -706,6 +752,8 @@ async function aplicarEvento(
     customerId: string | null;
     subscriptionId: string | null;
     objecto: Record<string, unknown>;
+    /** Acumulador de notificações a despachar DEPOIS do commit. */
+    pendentes: string[];
   },
 ): Promise<boolean> {
   const { objecto } = ctx;
@@ -757,22 +805,29 @@ async function aplicarEvento(
         stripeSubscriptionId: ctx.subscriptionId ?? undefined,
         stripeCustomerId: ctx.customerId ?? undefined,
         ...(priceId ? { stripePriceId: priceId } : {}),
-        ...(novoEstado === 'ATIVA' ? { dataAtivacao: agora, tentativasFalhadas: 0 } : {}),
-        ...(novoEstado === 'CANCELADA' ? { dataCancelamento: agora } : {}),
+        ...(novoEstado === 'ATIVA'
+          ? { dataAtivacao: agora, tentativasFalhadas: 0, leituraFim: null }
+          : {}),
+        ...(novoEstado === 'LEITURA' ? { leituraFim: fimDaLeitura(agora) } : {}),
       };
       return aplicarTransicao(tx, alvo, novoEstado, patch);
     }
 
     case 'customer.subscription.deleted': {
-      const transitou = await aplicarTransicao(tx, alvo, 'CANCELADA', {
+      const transitou = await aplicarTransicao(tx, alvo, 'LEITURA', {
         dataCancelamento: agora,
+        leituraFim: fimDaLeitura(agora),
       });
       if (transitou) {
-        await notificarAdministradores(tx, alvo.tenantId, {
-          titulo: 'Subscrição cancelada',
-          mensagem:
-            'A subscrição do GestPro foi cancelada. O acesso à aplicação fica suspenso até nova subscrição.',
-        });
+        ctx.pendentes.push(
+          ...(await notificarAdministradores(tx, alvo.tenantId, {
+            titulo: 'Subscrição cancelada',
+            mensagem:
+              `A subscrição do GestPro foi cancelada. Durante ${LEITURA_DIAS} dias continua a poder ` +
+              'entrar, consultar e exportar tudo o que é seu; deixa de poder gravar. Subscreva um ' +
+              'plano quando quiser — nada se perde.',
+          })),
+        );
       }
       return transitou;
     }
@@ -781,12 +836,15 @@ async function aplicarEvento(
       const transitou = await aplicarTransicao(tx, alvo, 'ATIVA', {
         dataAtivacao: alvo.estado === 'ATIVA' ? undefined : agora,
         tentativasFalhadas: 0,
+        leituraFim: null,
       });
-      if (transitou && alvo.estado === 'SUSPENSA') {
-        await notificarAdministradores(tx, alvo.tenantId, {
-          titulo: 'Subscrição reactivada',
-          mensagem: 'O pagamento foi recebido e o acesso ao GestPro foi reposto.',
-        });
+      if (transitou && alvo.estado !== 'ATIVA' && alvo.estado !== 'TRIAL') {
+        ctx.pendentes.push(
+          ...(await notificarAdministradores(tx, alvo.tenantId, {
+            titulo: 'Subscrição reactivada',
+            mensagem: 'O pagamento foi recebido e o acesso ao GestPro foi reposto.',
+          })),
+        );
       }
       return transitou;
     }
@@ -815,30 +873,41 @@ async function aplicarEvento(
         proximaTentativa === null || status === 'uncollectible' || tentativas >= 4;
 
       if (dunningEsgotado) {
-        const transitou = await aplicarTransicao(tx, alvo, 'SUSPENSA');
-        await notificarAdministradores(tx, alvo.tenantId, {
-          titulo: 'Subscrição suspensa por falta de pagamento',
-          mensagem:
-            'Não conseguimos cobrar a subscrição do GestPro. Actualize o método de pagamento para repor o acesso.',
+        const transitou = await aplicarTransicao(tx, alvo, 'LEITURA', {
+          leituraFim: fimDaLeitura(agora),
         });
+        ctx.pendentes.push(
+          ...(await notificarAdministradores(tx, alvo.tenantId, {
+            titulo: 'Subscrição em modo de leitura por falta de pagamento',
+            mensagem:
+              'Não conseguimos cobrar a subscrição do GestPro. Continua a poder entrar, consultar e ' +
+              `exportar tudo o que é seu durante ${LEITURA_DIAS} dias; deixa de poder gravar. ` +
+              'Actualize o método de pagamento para repor o acesso completo.',
+          })),
+        );
         return transitou;
       }
 
-      await notificarAdministradores(tx, alvo.tenantId, {
-        titulo: 'Pagamento da subscrição falhou',
-        mensagem:
-          'A cobrança da subscrição do GestPro não foi concluída. Vamos tentar novamente; verifique o método de pagamento.',
-      });
+      ctx.pendentes.push(
+          ...(await notificarAdministradores(tx, alvo.tenantId, {
+            titulo: 'Pagamento da subscrição falhou',
+            mensagem:
+            'A cobrança da subscrição do GestPro não foi concluída. Vamos tentar novamente; verifique o método de pagamento.',
+          })),
+
+      );
       return false;
     }
 
     case 'customer.subscription.trial_will_end': {
       // Não transita estado — apenas avisa (3 dias antes, pelo Stripe).
-      await notificarAdministradores(tx, alvo.tenantId, {
-        titulo: 'O período de teste termina em breve',
-        mensagem:
-          'O teste gratuito do GestPro está a terminar. Subscreva um plano para manter o acesso.',
-      });
+      ctx.pendentes.push(
+          ...(await notificarAdministradores(tx, alvo.tenantId, {
+            titulo: 'O período de teste termina em breve',
+            mensagem:
+            'O teste gratuito do GestPro está a terminar. Subscreva um plano para manter o acesso.',
+          })),
+      );
       return false;
     }
 
@@ -854,46 +923,146 @@ function extrairPriceId(objecto: Record<string, unknown>): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Cron de fallback — expiração local de trials
+// Processo agendado — as duas pontas da Leitura
 // ---------------------------------------------------------------------------
 
-export interface ResultadoExpiracao {
+export interface ResultadoCicloVida {
+  /** Trials cujo prazo passou e que entraram em Leitura. */
+  trialsEmLeitura: number;
+  /** Assinaturas em Leitura cujo prazo passou e que fecharam. */
+  fechadas: number;
+  /** Avisos de pré-fecho enviados nesta corrida. */
+  avisos: number;
+  /** Total de candidatas lidas (as três pernas somadas). */
   avaliadas: number;
-  expiradas: number;
 }
 
+/** Dias de antecedência do aviso de que o acesso vai fechar. */
+export const AVISO_PRE_FECHO_DIAS = 7;
+
 /**
- * Belt-and-suspenders do trial: expira localmente qualquer tenant em `TRIAL`
- * cujo `trialFim` já passou e cujo evento Stripe não chegou (falha de entrega
- * de webhook). Idempotente — pode correr as vezes que forem precisas.
+ * Faz avançar o ciclo de vida das subscrições. Três pernas, uma só corrida
+ * diária (ADR-0032; ticket #36 — «natural estender o que já expira os Trials,
+ * em vez de criar um quarto»):
  *
- * O `findMany` é só um candidato: a decisão real é o compare-and-set dentro de
- * `aplicarTransicao` (`where` inclui `estado: 'TRIAL'`). Se um
- * `checkout.session.completed` activar o tenant entre a leitura e a escrita, o
- * update afecta zero linhas e o cron não lhe tira o acesso.
+ *   1. `TRIAL` com `trialFim` passado  → `LEITURA`, e o relógio dos 30 dias
+ *      começa a contar.
+ *   2. `LEITURA` a sete dias do fim    → aviso, uma única vez.
+ *   3. `LEITURA` com `leituraFim` passado → `FECHADA`. **Nada se apaga**
+ *      (ADR-0027 §7): os dados ficam indefinidamente, e apagar é um acto
+ *      pedido pelo cliente.
+ *
+ * **Idempotente.** O `findMany` só produz candidatas; quem decide é o
+ * compare-and-set dentro de `aplicarTransicao` (o `where` inclui o estado
+ * lido). Se um `checkout.session.completed` activar o tenant entre a leitura e
+ * a escrita, o update afecta zero linhas e o processo não lhe tira nada. O
+ * aviso protege-se com `avisoPreFechoEm`, pela mesma razão.
+ *
+ * Os e-mails saem **depois** de cada commit — nunca dentro da transacção.
  */
-export async function expirarTrialsVencidos(agora: Date = new Date()): Promise<ResultadoExpiracao> {
-  const candidatas = await prismaBase.assinatura.findMany({
+export async function processarCicloDeVida(
+  agora: Date = new Date(),
+): Promise<ResultadoCicloVida> {
+  const resultado: ResultadoCicloVida = {
+    trialsEmLeitura: 0,
+    fechadas: 0,
+    avisos: 0,
+    avaliadas: 0,
+  };
+
+  // 1. Fim do Trial → Leitura
+  const trials = await prismaBase.assinatura.findMany({
     where: { estado: 'TRIAL', trialFim: { lt: agora } },
     select: { id: true, tenantId: true, estado: true },
   });
+  resultado.avaliadas += trials.length;
 
-  let expiradas = 0;
-  for (const a of candidatas) {
+  for (const a of trials) {
+    const pendentes: string[] = [];
     await prismaBase.$transaction(async (tx) => {
-      const transitou = await aplicarTransicao(tx, a, 'EXPIRADO', {});
-      if (transitou) {
-        expiradas++;
-        await notificarAdministradores(tx, a.tenantId, {
-          titulo: 'Período de teste terminado',
+      const transitou = await aplicarTransicao(tx, a, 'LEITURA', {
+        leituraFim: fimDaLeitura(agora),
+      });
+      if (!transitou) return;
+      resultado.trialsEmLeitura++;
+      pendentes.push(
+        ...(await notificarAdministradores(tx, a.tenantId, {
+          titulo: 'O período de teste terminou',
           mensagem:
-            'O teste gratuito do GestPro terminou. Subscreva um plano para repor o acesso à aplicação.',
-        });
-      }
+            `O teste gratuito do GestPro terminou. Durante ${LEITURA_DIAS} dias continua a entrar, ` +
+            'a consultar e a exportar tudo o que é seu — deixa de poder gravar. Subscreva um plano ' +
+            'para repor o acesso completo; nada se perde.',
+        })),
+      );
     });
+    await despacharNotificacoes(pendentes);
   }
 
-  return { avaliadas: candidatas.length, expiradas };
+  // 2. Aviso de pré-fecho, uma única vez por passagem pela Leitura
+  const limiteAviso = new Date(agora.getTime() + AVISO_PRE_FECHO_DIAS * 24 * 60 * 60 * 1000);
+  const aAvisar = await prismaBase.assinatura.findMany({
+    where: {
+      estado: 'LEITURA',
+      avisoPreFechoEm: null,
+      leituraFim: { gte: agora, lte: limiteAviso },
+    },
+    select: { id: true, tenantId: true, leituraFim: true },
+  });
+  resultado.avaliadas += aAvisar.length;
+
+  for (const a of aAvisar) {
+    const pendentes: string[] = [];
+    await prismaBase.$transaction(async (tx) => {
+      // Trava por compare-and-set, como as transições: duas corridas em
+      // paralelo não mandam dois avisos.
+      const { count } = await tx.assinatura.updateMany({
+        where: { id: a.id, tenantId: a.tenantId, avisoPreFechoEm: null },
+        data: { avisoPreFechoEm: agora },
+      });
+      if (count !== 1) return;
+      resultado.avisos++;
+      const dias = a.leituraFim ? Math.max(0, diasRestantes(a.leituraFim)) : AVISO_PRE_FECHO_DIAS;
+      pendentes.push(
+        ...(await notificarAdministradores(tx, a.tenantId, {
+          titulo: 'O acesso ao GestPro fecha dentro de dias',
+          mensagem:
+            `Faltam ${dias} dias para o acesso à sua conta fechar. Os dados ficam onde estão e não ` +
+            'se apagam — mas deixa de poder entrar. Subscreva um plano, ou exporte o que precisar, ' +
+            'enquanto tem acesso.',
+        })),
+      );
+    });
+    await despacharNotificacoes(pendentes);
+  }
+
+  // 3. Fim da Leitura → Fechada. Nada se apaga.
+  const aFechar = await prismaBase.assinatura.findMany({
+    where: { estado: 'LEITURA', leituraFim: { lt: agora } },
+    select: { id: true, tenantId: true, estado: true },
+  });
+  resultado.avaliadas += aFechar.length;
+
+  for (const a of aFechar) {
+    const pendentes: string[] = [];
+    await prismaBase.$transaction(async (tx) => {
+      const transitou = await aplicarTransicao(tx, a, 'FECHADA', {});
+      if (!transitou) return;
+      resultado.fechadas++;
+      pendentes.push(
+        ...(await notificarAdministradores(tx, a.tenantId, {
+          titulo: 'O acesso ao GestPro foi fechado',
+          mensagem:
+            'O prazo de leitura terminou e o acesso à aplicação foi fechado. **Os seus dados não ' +
+            'foram apagados** e continuam guardados: subscreva um plano quando quiser e volta a ' +
+            'encontrar tudo como estava.',
+        })),
+      );
+    });
+    await despacharNotificacoes(pendentes);
+  }
+
+  logger.info({ ...resultado }, '[assinatura] ciclo de vida processado');
+  return resultado;
 }
 
 export const assinaturaService = {
@@ -905,7 +1074,7 @@ export const assinaturaService = {
   criarSubscricaoTrial,
   verificarAssinaturaWebhook,
   processarEventoWebhook,
-  sincronizarStatusAtivo,
   aplicarTransicao,
-  expirarTrialsVencidos,
+  fimDaLeitura,
+  processarCicloDeVida,
 };

@@ -21,7 +21,9 @@ export default async function NovaFaturaPage() {
   const [todasSeries, paginaClientes] = await Promise.all([
     runWithTenantContext(ctx, () => listarSeries(ctx)),
     runWithTenantContext(ctx, () =>
-      clienteService.listar({ status: 'ATIVO', take: 200, orderBy: 'nome', order: 'asc' }, ctx)
+      // Só a primeira página: a partir daí a combobox pesquisa no servidor
+      // (`procurarClientes`) — o molde de /servicos/agendamentos/novo.
+      clienteService.listar({ status: 'ATIVO', take: 20, orderBy: 'nome', order: 'asc' }, ctx)
     ),
   ]);
 
@@ -30,7 +32,7 @@ export default async function NovaFaturaPage() {
     .filter((s) => s.tipo === 'FATURA' && s.ativo)
     .map((s) => ({ id: s.id, label: `${s.prefixo}/${s.ano} — ${s.tipo}` }));
 
-  const clientes = paginaClientes.items.map((c) => ({ id: c.id, nome: c.nome }));
+  const clientes = paginaClientes.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
 
   return (
     <div className="p-6 space-y-6">

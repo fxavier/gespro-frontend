@@ -94,6 +94,7 @@ export const transitarStatusProjetoAction = createSafeAction({
 export const listarProjetosAction = createSafeAction({
   schema: FilterProjetoSchema,
   permission: 'projetos:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => ProjetoService.listar(filter, ctx),
 });
 
@@ -133,6 +134,7 @@ export const reordenarTarefaAction = createSafeAction({
 export const listarTarefasAction = createSafeAction({
   schema: FilterTarefaSchema,
   permission: 'projetos:tarefas:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => TarefaService.listar(filter, ctx),
 });
 
@@ -157,6 +159,7 @@ export const aprovarTimesheetAction = createSafeAction({
 export const listarTimesheetsAction = createSafeAction({
   schema: FilterTimesheetSchema,
   permission: 'projetos:timesheets:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => TimesheetService.listar(filter, ctx),
 });
 
@@ -224,6 +227,7 @@ export const transitarStatusRiscoAction = createSafeAction({
 export const listarRiscosAction = createSafeAction({
   schema: FilterRiscoSchema,
   permission: 'projetos:riscos:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => RiscoService.listar(filter, ctx),
 });
 
@@ -255,6 +259,7 @@ export const transitarStatusQualidadeAction = createSafeAction({
 export const listarQualidadeAction = createSafeAction({
   schema: FilterQualidadeSchema,
   permission: 'projetos:qualidade:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => QualidadeService.listar(filter, ctx),
 });
 
@@ -272,6 +277,7 @@ export const registarComunicacaoAction = createSafeAction({
 export const listarComunicacoesAction = createSafeAction({
   schema: FilterComunicacaoSchema,
   permission: 'projetos:comunicacoes:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => ComunicacaoService.listar(filter, ctx),
 });
 

@@ -9,6 +9,11 @@ import {
   intervaloResolucaoSegundos,
   tectoSessaoSegundos,
 } from '@/server/auth/keycloak';
+import {
+  estadoDeAcesso,
+  type EstadoAcesso,
+  type EstadoAssinatura,
+} from '@/lib/state-machines';
 import { autenticarPorPalavraPasse, emailVerificadoDoToken } from '@/server/auth/direct-grant';
 import { loginLimiter } from '@/server/security/rate-limiter';
 
@@ -66,21 +71,33 @@ type Resolucao =
       userId: string;
       tenantId: string;
       permissions: string[];
+      acesso: EstadoAcesso;
     }
   | { ok: false; motivo: 'nao-provisionado' | 'inactivo' | 'subscricao' };
 
 /**
- * Spec 19 — o acesso do tenant é bloqueado quando a subscrição não permite
- * (`ConfiguracaoFiscal.statusAtivo = false`). Regra de NEGÓCIO: fica no ERP,
- * não migra para o Keycloak (ADR-0010) — o utilizador autentica-se com
- * sucesso e é o ERP que recusa a sessão, com mensagem própria.
+ * Arbitra os dois donos do acesso do tenant (ADR-0032 §4).
+ *
+ * O estado comercial vem da `Assinatura` — a fonte de verdade única — e a
+ * decisão da GestPro vem do `Tenant`. Deixou de haver um booleano partilhado
+ * (`ConfiguracaoFiscal.statusAtivo`) que os dois escreviam: quem escrevesse
+ * por último ganhava, e na prática um tenant suspenso por abuso era
+ * reactivado pelo pagamento seguinte.
+ *
+ * Regra de NEGÓCIO: fica no ERP, não migra para o Keycloak (ADR-0010) — o
+ * utilizador autentica-se com sucesso e é o ERP que decide o que ele pode.
+ *
+ * Um tenant sem `Assinatura` (anteriores à spec 19) conta como aberto: a
+ * ausência de subscrição não é uma decisão comercial, é uma lacuna de dados, e
+ * fechar por lacuna seria pior do que abrir.
  */
-async function tenantBloqueado(tenantId: string): Promise<boolean> {
-  const cfg = await prismaBase.configuracaoFiscal.findFirst({
+async function acessoDoTenant(tenantId: string, tenantApagado: boolean): Promise<EstadoAcesso> {
+  const assinatura = await prismaBase.assinatura.findFirst({
     where: { tenantId },
-    select: { statusAtivo: true },
+    select: { estado: true },
   });
-  return cfg ? !cfg.statusAtivo : false;
+  if (!assinatura) return tenantApagado ? 'fechado' : 'aberto';
+  return estadoDeAcesso(assinatura.estado as EstadoAssinatura, tenantApagado);
 }
 
 /**
@@ -95,6 +112,7 @@ async function resolverUtilizadorLocal(keycloakSub: string): Promise<Resolucao> 
   const user = await prismaBase.user.findUnique({
     where: { keycloakSub },
     include: {
+      tenant: { select: { deletedAt: true } },
       roles: {
         include: { role: { include: { permissions: { include: { permission: true } } } } },
       },
@@ -103,13 +121,19 @@ async function resolverUtilizadorLocal(keycloakSub: string): Promise<Resolucao> 
 
   if (!user) return { ok: false, motivo: 'nao-provisionado' };
   if (!user.ativo || user.deletedAt) return { ok: false, motivo: 'inactivo' };
-  if (await tenantBloqueado(user.tenantId)) return { ok: false, motivo: 'subscricao' };
+
+  // A Leitura ABRE a sessão — é o ponto inteiro do ADR-0027 §6. Quem saiu de
+  // uma subscrição activa continua a entrar para ver, exportar e pagar; o que
+  // não passa é a escrita, e isso decide-se nos pipelines, não aqui. Só o
+  // `fechado` recusa.
+  const acesso = await acessoDoTenant(user.tenantId, user.tenant?.deletedAt != null);
+  if (acesso === 'fechado') return { ok: false, motivo: 'subscricao' };
 
   const permissions = [
     ...new Set(user.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.code))),
   ];
 
-  return { ok: true, userId: user.id, tenantId: user.tenantId, permissions };
+  return { ok: true, userId: user.id, tenantId: user.tenantId, permissions, acesso };
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +286,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.uid = res.userId;
         token.tenantId = res.tenantId;
         token.permissions = res.permissions;
+        token.acesso = res.acesso;
         token.keycloakSub = sub;
         token.kcRefreshToken = refresh;
         // ADR-0031 §6: o estado de verificação NÃO tem coluna local — entra
@@ -316,6 +341,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       token.uid = res.userId;
       token.tenantId = res.tenantId;
       token.permissions = res.permissions;
+      token.acesso = res.acesso;
       token.resolverEm = agora + intervaloResolucaoSegundos();
       return token;
     },
@@ -328,6 +354,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // antes do ADR-0031 não tem o campo, e os travões do §5 recusam até à
       // re-resolução seguinte, que é reversível por um clique.
       session.user.emailVerificado = token.emailVerificado === true;
+      // Ausente conta como ABERTO, ao contrário do `emailVerificado` acima — e
+      // não é incoerência. Um token emitido antes desta mudança pertence a
+      // alguém que o código anterior deixou entrar, logo a um tenant com
+      // acesso; fechar por ausência do campo tirava a escrita a toda a gente
+      // que tivesse sessão no momento do deploy. O erro corrige-se sozinho na
+      // re-resolução seguinte (≤15 min, ADR-0011).
+      session.user.acesso = token.acesso ?? 'aberto';
       return session;
     },
   },

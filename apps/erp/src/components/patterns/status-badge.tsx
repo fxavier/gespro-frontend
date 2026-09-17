@@ -262,6 +262,10 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   // Assinatura SaaS — Spec 19 (EstadoAssinatura + CicloFaturacao)
   // ATIVA / SUSPENSA / CANCELADA já mapeados acima — mesmo significado visual.
   TRIAL: 'info',
+  // Leitura é um aviso, não um erro: o cliente ainda tem tudo e ainda pode
+  // voltar. Fechada é que é o fim da linha (ADR-0032 §1).
+  LEITURA: 'warning',
+  FECHADA: 'destructive',
   EXPIRADO: 'destructive',
   MENSAL: 'secondary',
   ANUAL: 'secondary',
@@ -461,6 +465,8 @@ export const STATUS_LABELS: Record<string, string> = {
   IN_APP: 'In-App',
   // Assinatura SaaS — Spec 19
   TRIAL: 'Período de Teste',
+  LEITURA: 'Modo de Leitura',
+  FECHADA: 'Acesso Fechado',
   EXPIRADO: 'Expirado',
   MENSAL: 'Mensal',
   ANUAL: 'Anual',

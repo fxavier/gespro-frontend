@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { emitirNotaCredito } from '@/server/actions/faturacao.actions';
 
 // Mesmo bloco de linhas da fatura (LinhaDocumentoSchema)
@@ -138,24 +138,15 @@ export function NovaNotaCreditoForm({ series }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serie-nc">Série de Documento *</Label>
-              <Select
+              <Combobox
+                id="serie-nc"
+                aria-label="Série de Documento"
                 value={serieId}
                 disabled={series.length === 0}
-                onValueChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
-              >
-                <SelectTrigger id="serie-nc" aria-label="Série de Documento">
-                  {/* O texto vem daqui e não do item: o Radix só resolve o
-                      rótulo do item depois de abrir a lista. */}
-                  <SelectValue placeholder="Seleccione a série">
-                    {serieEscolhida?.nome}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {series.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
+                placeholder="Seleccione a série"
+                options={series.map((s) => ({ value: s.id, label: s.nome }))}
+              />
               {series.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   Sem séries activas deste tipo — configure uma antes de emitir.

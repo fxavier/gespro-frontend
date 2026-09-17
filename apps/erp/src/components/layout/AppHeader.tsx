@@ -69,7 +69,7 @@ export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderP
   const user = session?.user;
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/75">
       {/* Breadcrumbs — ocupam o espaço disponível */}
       <div className="flex-1 min-w-0">
         <Breadcrumbs />
@@ -79,18 +79,18 @@ export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderP
       <div className="flex items-center gap-1 flex-shrink-0">
         {/* Botão Cmd+K */}
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           className={cn(
-            'hidden md:flex items-center gap-2 h-8 px-3 text-muted-foreground',
-            'hover:text-foreground transition-colors'
+            'hidden md:flex items-center gap-2 h-9 w-64 justify-start rounded-md border border-border bg-background px-3 text-muted-foreground shadow-none',
+            'hover:bg-secondary hover:text-foreground transition-colors'
           )}
           onClick={onCommandPaletteOpen}
           aria-label="Abrir paleta de comandos"
         >
           <Search className="h-3.5 w-3.5" />
-          <span className="text-xs">Pesquisar</span>
-          <kbd className="pointer-events-none hidden select-none items-center gap-0.5 rounded border bg-muted px-1.5 text-[10px] font-medium sm:flex">
+          <span className="flex-1 text-left text-xs">Procurar módulos, documentos…</span>
+          <kbd className="pointer-events-none hidden select-none items-center gap-0.5 rounded border bg-card px-1.5 text-[10px] font-medium sm:flex">
             <span>⌘</span>K
           </kbd>
         </Button>

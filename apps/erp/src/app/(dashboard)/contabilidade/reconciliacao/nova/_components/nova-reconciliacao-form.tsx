@@ -9,13 +9,6 @@ import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Form,
   FormControl,
   FormDescription,
@@ -24,7 +17,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { iniciarReconciliacao } from '@/server/actions/contabilidade.actions';
 import {
   IniciarReconciliacaoSchema,
@@ -134,20 +127,14 @@ export function NovaReconciliacaoForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Conta Bancária</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || undefined}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar conta bancária" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {contas.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Combobox
+                    value={field.value || undefined}
+                    onChange={field.onChange}
+                    placeholder="Seleccionar conta bancária"
+                    options={contas.map((c) => ({ value: c.id, label: c.label }))}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

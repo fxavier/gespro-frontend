@@ -11,10 +11,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { FormPage, FormSection, Combobox } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -118,11 +118,21 @@ export function ViaturaForm({ motoristas, viatura }: ViaturaFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Identificação</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button type="button" variant="outline" asChild disabled={pending}>
+              <Link href={edicao ? `/transporte/veiculos/${viatura!.id}` : '/transporte/veiculos'}>Cancelar</Link>
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'A guardar…' : edicao ? 'Guardar Alterações' : 'Registar Viatura'}
+            </Button>
+          </>
+        }
+      >
+      <FormSection title="Identificação">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="matricula">Matrícula *</Label>
               <Input id="matricula" name="matricula" required minLength={3} maxLength={20} defaultValue={viatura?.matricula} placeholder="AAA-000-MC" />
@@ -147,13 +157,10 @@ export function ViaturaForm({ motoristas, viatura }: ViaturaFormProps) {
               <Input id="modelo" name="modelo" required maxLength={100} defaultValue={viatura?.modelo} placeholder="Hilux" />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Capacidade e Operação</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <FormSection title="Capacidade e Operação">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="capacidade">Capacidade *</Label>
               <Input id="capacidade" name="capacidade" type="number" required min={0.01} step="0.01" defaultValue={viatura?.capacidade} placeholder="1000" />
@@ -177,39 +184,27 @@ export function ViaturaForm({ motoristas, viatura }: ViaturaFormProps) {
               <Label htmlFor="dataInicioActividade">Início de Actividade *</Label>
               <Input id="dataInicioActividade" name="dataInicioActividade" type="date" required defaultValue={viatura?.dataInicioActividade} />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
               <Label htmlFor="motoristaResponsavelId">Motorista Responsável</Label>
-              <Select name="motoristaResponsavelId" defaultValue={viatura?.motoristaResponsavelId ?? SEM_MOTORISTA}>
-                <SelectTrigger id="motoristaResponsavelId"><SelectValue placeholder="Sem motorista" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SEM_MOTORISTA}>Sem motorista</SelectItem>
-                  {motoristas.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.nomeCompleto}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="motoristaResponsavelId"
+                name="motoristaResponsavelId"
+                defaultValue={viatura?.motoristaResponsavelId ?? SEM_MOTORISTA}
+                placeholder="Sem motorista"
+                options={[{ value: SEM_MOTORISTA, label: 'Sem motorista' }, ...motoristas.map((m) => ({ value: m.id, label: m.nomeCompleto }))]}
+              />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
+      <FormSection>
           <div className="space-y-1.5">
             <Label htmlFor="observacoes">Observações</Label>
             <Textarea id="observacoes" name="observacoes" maxLength={1000} rows={3} defaultValue={viatura?.observacoes ?? ''} />
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'A guardar…' : edicao ? 'Guardar Alterações' : 'Registar Viatura'}
-        </Button>
-        <Button type="button" variant="outline" asChild disabled={pending}>
-          <Link href={edicao ? `/transporte/veiculos/${viatura!.id}` : '/transporte/veiculos'}>Cancelar</Link>
-        </Button>
-      </div>
+      </FormPage>
     </form>
   );
 }

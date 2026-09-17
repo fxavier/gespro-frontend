@@ -9,12 +9,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { ModuloSlug } from "@/lib/modulos";
-import { cn } from "@/lib/cn";
+import { ChapaIcone } from "./primitivos";
 
 /**
  * Mapa slug→ícone. Fica separado de `lib/modulos.ts` (que é dados puros e é
  * importado por código de servidor) para que o grafo de servidor não arraste
  * componentes React de ícones.
+ *
+ * Um só azul para todos os módulos, como no mockup — a paleta por módulo que
+ * existia saiu com ela.
  */
 const ICONES: Record<ModuloSlug, LucideIcon> = {
   vendas: Receipt,
@@ -26,16 +29,6 @@ const ICONES: Record<ModuloSlug, LucideIcon> = {
   pos: ScanBarcode,
 };
 
-const CORES: Record<ModuloSlug, string> = {
-  vendas: "text-modulo-vendas",
-  stock: "text-modulo-stock",
-  compras: "text-modulo-compras",
-  financas: "text-modulo-financas",
-  rh: "text-modulo-rh",
-  operacoes: "text-modulo-operacoes",
-  pos: "text-modulo-pos",
-};
-
 export function IconeModulo({
   modulo,
   className,
@@ -45,14 +38,8 @@ export function IconeModulo({
 }) {
   const Icone = ICONES[modulo];
   return (
-    <span
-      className={cn(
-        "grid size-11 place-items-center rounded-xl border border-contorno-suave bg-superficie",
-        CORES[modulo],
-        className
-      )}
-    >
+    <ChapaIcone className={className}>
       <Icone className="size-5" aria-hidden="true" />
-    </span>
+    </ChapaIcone>
   );
 }

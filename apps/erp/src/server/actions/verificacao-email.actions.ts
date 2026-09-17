@@ -26,6 +26,7 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
  * com captcha.
  */
 export const reenviarVerificacaoEmail = createSafeAction({
+  permiteEmLeitura: true,
   handler: async (_input, ctx) => {
     const utilizador = await prismaBase.user.findFirst({
       where: { id: ctx.userId, tenantId: ctx.tenantId, deletedAt: null },

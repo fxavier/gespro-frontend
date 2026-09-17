@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import cores from "@gespro/brand/cores.json";
 
 import { SITE_URL } from "@/lib/env";
@@ -23,8 +23,10 @@ import "./globals.css";
  * (Requisito 6.1) e é o valor correcto para todas as rotas indexadas; os
  * locales adicionais corrigem `lang` em `app/[locale]/layout.tsx`.
  */
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Inter em toda a superfície do site (mockup). O ERP continua em Geist — o
+// tipo de letra é do site, não da marca partilhada.
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
 });
@@ -66,7 +68,7 @@ export default function LayoutRaiz({ children }: { children: ReactNode }) {
     <html
       lang="pt-MZ"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${inter.variable} ${geistMono.variable}`}
     >
       <head>
         {/* Sem JavaScript, o Motion nunca corre e os blocos animados ficariam

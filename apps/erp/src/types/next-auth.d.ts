@@ -1,4 +1,5 @@
 import type { DefaultSession } from 'next-auth';
+import type { EstadoAcesso } from '@/lib/state-machines';
 
 declare module 'next-auth' {
   interface Session {
@@ -12,6 +13,13 @@ declare module 'next-auth' {
        * reavaliado na re-resolução de 15 min (ADR-0011).
        */
       emailVerificado: boolean;
+      /**
+       * Os três níveis de acesso do tenant (ADR-0032 §4): `aberto`, `leitura`
+       * ou `fechado` — arbitrados a partir da `Assinatura` e da decisão da
+       * GestPro. Um `fechado` nunca chega aqui: recusa a sessão. É o que os
+       * dois pipelines de mutação lêem para bloquear a escrita em Leitura.
+       */
+      acesso: EstadoAcesso;
     } & DefaultSession['user'];
   }
 }
@@ -35,5 +43,11 @@ declare module 'next-auth/jwt' {
      * não verificado.
      */
     emailVerificado?: boolean;
+    /**
+     * Estado de acesso do tenant (ADR-0032 §4). Opcional porque tokens
+     * emitidos antes deste ADR não o têm — ausente conta como `aberto`, e a
+     * razão está no `callbacks.session`.
+     */
+    acesso?: EstadoAcesso;
   }
 }

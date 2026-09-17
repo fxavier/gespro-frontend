@@ -104,12 +104,14 @@ export const transitarStatusBOMAction = createSafeAction({
 export const listarEstruturasProdutoAction = createSafeAction({
   schema: FilterEstruturaProdutoSchema,
   permission: 'producao:bom:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => EstruturaProdutoService.listar(filter, ctx),
 });
 
 export const explodirBOMAction = createSafeAction({
   schema: ExplodirBOMSchema,
   permission: 'producao:bom:read',
+  permiteEmLeitura: true,
   handler: (input, ctx) => EstruturaProdutoService.explodir(input, ctx),
 });
 
@@ -141,6 +143,7 @@ export const transitarStatusRoteiroAction = createSafeAction({
 export const listarRoteirosAction = createSafeAction({
   schema: FilterRoteiroSchema,
   permission: 'producao:roteiros:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => RoteiroService.listar(filter, ctx),
 });
 
@@ -195,5 +198,6 @@ export const transitarOperacaoOrdemAction = createSafeAction({
 export const listarOrdensProducaoAction = createSafeAction({
   schema: FilterOrdemProducaoSchema,
   permission: 'producao:ordens:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => OrdemProducaoService.listar(filter, ctx),
 });

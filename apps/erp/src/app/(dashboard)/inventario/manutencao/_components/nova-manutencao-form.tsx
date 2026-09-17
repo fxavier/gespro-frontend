@@ -24,7 +24,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarManutencaoAction } from '@/server/actions/inventario.actions';
 import { ManutencaoAtivoCreateSchema, type ManutencaoAtivoCreate } from '@/lib/validations/inventario-ativos';
 import type { AtivoDto } from '@/server/services/inventario/ativos.interface';
@@ -108,20 +108,14 @@ export function NovaManutencaoForm({ ativos }: NovaManutencaoFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Ativo *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar ativo" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {ativos.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.codigoInterno} — {a.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar ativo"
+                      options={ativos.map((a) => ({ value: a.id, label: `${a.codigoInterno} — ${a.nome}` }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

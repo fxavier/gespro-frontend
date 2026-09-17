@@ -10,6 +10,7 @@
  */
 
 import { Suspense } from 'react';
+import { Logotipo } from '@/components/layout/Logotipo';
 import Link from 'next/link';
 import { LoginForm } from './login-form';
 import { AvisoVerificacao } from './aviso-verificacao';
@@ -22,8 +23,8 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-6 py-12">
       <div className="w-full max-w-sm space-y-8">
-        <div className="space-y-2 text-center">
-          <p className="font-display text-3xl font-medium tracking-tight">GestPro</p>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <Logotipo className="[&>svg]:size-10 [&>span]:text-2xl" />
           <p className="text-sm text-muted-foreground">Sistema de gestão empresarial</p>
         </div>
 
@@ -36,7 +37,7 @@ export default function LoginPage() {
           <AvisoVerificacao />
         </Suspense>
 
-        <div className="rounded-lg border border-border bg-card p-6 shadow-none">
+        <div className="rounded-xl border border-transparent bg-card p-6 shadow-md dark:border-border">
           <h1 className="mb-6 text-xl font-semibold tracking-tight">Iniciar sessão</h1>
           <Suspense fallback={null}>
             <LoginForm />

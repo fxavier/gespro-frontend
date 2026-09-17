@@ -25,7 +25,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { registarEntradaStockAction } from '@/server/actions/inventario.actions';
 import { EntradaStockSchema, type EntradaStockInput } from '@/lib/validations/stock';
 import type { ProdutoOpcao, LocalizacaoOpcao } from '../_data';
@@ -163,24 +163,14 @@ export function EntradaStockForm({ produtos, localizacoes }: Props) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Variante</FormLabel>
-                    <Select
-                      onValueChange={(v) => field.onChange(v === 'NENHUMA' ? undefined : v)}
-                      value={field.value ?? 'NENHUMA'}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sem variante" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="NENHUMA">Sem variante</SelectItem>
-                        {produtoSel.variantes.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {v.nome}: {v.valor}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        value={field.value ?? 'NENHUMA'}
+                        onChange={(v) => field.onChange(v === 'NENHUMA' ? undefined : v)}
+                        placeholder="Sem variante"
+                        options={[{ value: 'NENHUMA', label: 'Sem variante' }, ...produtoSel.variantes.map((v) => ({ value: v.id, label: `${v.nome}: ${v.valor}` }))]}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

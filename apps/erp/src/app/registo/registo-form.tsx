@@ -17,20 +17,14 @@
  * Sem modais: o ecrã inteiro é a rota (ui-conventions).
  */
 
-import { useActionState, useEffect, useRef } from 'react';
+import { startTransition, useActionState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Form,
   FormControl,
@@ -157,7 +151,22 @@ export function RegistoForm({
     );
   }
 
-  const aoSubmeter = form.handleSubmit((dados) => submeter(dados));
+  // `startTransition` à volta do `submeter` — e não é cosmético.
+  //
+  // O `handleSubmit` do react-hook-form é preciso para a validação do cliente
+  // correr primeiro, mas chama o callback FORA de uma transição. Um `redirect()`
+  // dentro de uma Server Action chamada assim não chega a ser aplicado pelo
+  // router: o servidor devolve `x-action-redirect: /dashboard?onboarding=1`, o
+  // router até vai buscar o destino, e nunca fixa a navegação. Neste ecrã o
+  // resultado é o pior possível — a conta É criada, a sessão É emitida, e a
+  // pessoa fica a olhar para o formulário outra vez, sem saber que já entrou.
+  //
+  // O React avisa («An async function with useActionState was called outside of
+  // a transition»), mas só na consola do browser: nenhum teste o vê, e foi
+  // preciso um smoke com consola para o apanhar.
+  const aoSubmeter = form.handleSubmit((dados) =>
+    startTransition(() => submeter(dados)),
+  );
 
   return (
     <Form {...form}>
@@ -216,25 +225,15 @@ export function RegistoForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Província</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        {/* O Radix só resolve o texto do item depois de a lista
-                            abrir: sem o filho, o campo aparece vazio apesar de
-                            haver valor escolhido (CLAUDE.md). */}
-                        <SelectValue placeholder="Seleccionar província">
-                          {field.value}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {provincias.map((nome) => (
-                        <SelectItem key={nome} value={nome}>
-                          {nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      className="w-full"
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar província"
+                      options={provincias.map((nome) => ({ value: nome, label: nome }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -321,22 +320,15 @@ export function RegistoForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Plano</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar plano">
-                        {planoActual?.nome}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {planos.map((plano) => (
-                      <SelectItem key={plano.id} value={plano.id}>
-                        {plano.nome} — {plano.preco.valor} {plano.preco.moeda}/mês
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Combobox
+                    className="w-full"
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Seleccionar plano"
+                    options={planos.map((plano) => ({ value: plano.id, label: `${plano.nome} — ${plano.preco.valor} ${plano.preco.moeda}/mês` }))}
+                  />
+                </FormControl>
                 {planoActual && <FormDescription>{planoActual.descricao}</FormDescription>}
                 <FormMessage />
               </FormItem>

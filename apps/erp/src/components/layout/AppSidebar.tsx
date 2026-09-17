@@ -1,18 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Building, Building2,
   FileText, Receipt, BarChart3, ChevronDown, ChevronRight, DollarSign,
-  ArrowRightLeft, Cog, Store, Archive, UserCheck, Truck, Wrench, Briefcase,
-  ClipboardList, FileCheck, BookOpen, PieChart, Landmark, FileMinus,
-  BookMarked, Layers, Tag, MapPin, Fuel, User, FolderKanban, CheckSquare,
-  Clock, Wallet, FileSpreadsheet, Ticket, BookText, UserCog, Calendar,
-  Award, GraduationCap, Heart, Target, Factory, Route, Gauge, ShieldCheck,
-  FileBarChart2, PackageSearch, History, LineChart, RotateCcw, AlertCircle,
-  Menu, X, Component, BookMarked as JournalIcon, CreditCard,
+  ArrowRightLeft, Store, Archive, Truck, Wrench, Briefcase,
+  ClipboardList, FileCheck, BookOpen, Landmark,
+  BookText, Tag, MapPin, Fuel, User, FolderKanban, CheckSquare,
+  Clock, Wallet, Ticket, UserCog, Calendar,
+  Award, GraduationCap, Factory, FileBarChart2, PackageSearch, LineChart,
+  RotateCcw, AlertCircle, BookMarked as JournalIcon, CreditCard,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -24,7 +24,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Logotipo, Simbolo } from './Logotipo';
+import { COOKIE_BARRA_LATERAL, VALOR_RECOLHIDA } from '@/lib/barra-lateral';
 
 interface MenuItem {
   title: string;
@@ -173,6 +182,7 @@ const menuItems: MenuItem[] = [
   },
 ];
 
+
 /** Filtra items por permissões — recursivo para grupos com filhos. */
 function filtrarPorPermissoes(items: MenuItem[], permissions: string[]): MenuItem[] {
   return items
@@ -187,7 +197,21 @@ function filtrarPorPermissoes(items: MenuItem[], permissions: string[]): MenuIte
     .filter(Boolean) as MenuItem[];
 }
 
-function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean; userPermissions: string[] }) {
+const CLASSES_ITEM =
+  'w-full justify-start h-9 px-2.5 rounded-lg font-normal hover:bg-sidebar-foreground/10 hover:text-sidebar-primary transition-colors group';
+const CLASSES_ITEM_CARRIL =
+  'w-full justify-center h-10 px-0 rounded-lg hover:bg-sidebar-foreground/10 hover:text-sidebar-primary transition-colors';
+const CLASSES_ACTIVO = 'bg-sidebar-accent text-sidebar-accent-foreground font-medium';
+
+function SidebarContent({
+  isCollapsed,
+  userPermissions,
+  onToggle,
+}: {
+  isCollapsed: boolean;
+  userPermissions: string[];
+  onToggle: () => void;
+}) {
   const pathname = usePathname();
   const items = filtrarPorPermissoes(menuItems, userPermissions);
 
@@ -205,7 +229,6 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
   );
 
   const toggleExpanded = (title: string) => {
-    if (isCollapsed) return;
     setExpandedItems((prev) => {
       const next = new Set(prev);
       if (next.has(title)) {
@@ -235,35 +258,36 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
 
     if (hasChildren) {
       if (isCollapsed) {
+        // Menu flutuante ao clicar: funciona com rato, toque e teclado — o
+        // tooltip com ligações que aqui estava só respondia ao rato.
         return (
-          <TooltipProvider key={item.title} delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    'w-full justify-center h-10 px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors',
-                    isParentItemActive && 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  )}
+          <DropdownMenu key={item.title}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className={cn(CLASSES_ITEM_CARRIL, isParentItemActive && CLASSES_ACTIVO)}
+                aria-label={item.title}
+              >
+                <item.icon className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-56">
+              <DropdownMenuLabel>{item.title}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {item.children!.map((child) => (
+                <DropdownMenuItem
+                  key={child.title}
+                  asChild
+                  className={cn(child.href && isActive(child.href) && 'bg-accent text-primary')}
                 >
-                  <item.icon className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">{item.title}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="flex flex-col gap-1 p-3">
-                <p className="font-semibold text-sm">{item.title}</p>
-                {item.children!.map((child) => (
-                  <Link
-                    key={child.title}
-                    href={child.href!}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
+                  <Link href={child.href!}>
+                    <child.icon className="mr-2 h-4 w-4" aria-hidden="true" />
                     {child.title}
                   </Link>
-                ))}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         );
       }
 
@@ -272,9 +296,9 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
           <Button
             variant="ghost"
             className={cn(
-              'w-full justify-start h-9 px-3 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group',
+              CLASSES_ITEM,
               level > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
-              (isParentItemActive || isExpanded) && 'bg-sidebar-accent/60 text-sidebar-accent-foreground'
+              (isParentItemActive || isExpanded) && 'text-sidebar-primary font-medium'
             )}
             onClick={() => toggleExpanded(item.title)}
             aria-expanded={isExpanded}
@@ -309,10 +333,7 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                className={cn(
-                  'w-full justify-center h-10 px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors',
-                  isItemActive && 'bg-sidebar-primary text-sidebar-primary-foreground font-medium'
-                )}
+                className={cn(CLASSES_ITEM_CARRIL, isItemActive && CLASSES_ACTIVO)}
                 asChild
               >
                 <Link href={item.href!}>
@@ -334,9 +355,9 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
         key={item.title}
         variant="ghost"
         className={cn(
-          'w-full justify-start h-9 px-3 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors group',
+          CLASSES_ITEM,
           level > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
-          isItemActive && 'bg-sidebar-primary text-sidebar-primary-foreground font-medium'
+          isItemActive && CLASSES_ACTIVO
         )}
         asChild
       >
@@ -348,34 +369,46 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
               {item.badge}
             </Badge>
           )}
+          {isItemActive && (
+            <span className="ml-auto size-1.5 rounded-full bg-sidebar-accent-foreground" aria-hidden="true" />
+          )}
         </Link>
       </Button>
     );
   };
 
+  const rotuloToggle = isCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral';
+
   return (
     <>
-      {/* Logo */}
+      {/* Logótipo + botão de recolher, no topo — onde toda a gente o procura */}
       <div
         className={cn(
-          'flex h-14 items-center border-b px-3 flex-shrink-0',
-          isCollapsed ? 'justify-center' : 'justify-between'
+          'flex flex-shrink-0 items-center border-b border-sidebar-border',
+          isCollapsed ? 'h-auto flex-col gap-1 px-2 py-2' : 'h-14 justify-between px-3'
         )}
       >
-        {!isCollapsed && (
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 font-semibold text-sidebar-foreground hover:opacity-80 transition-opacity"
-          >
-            <Store className="h-5 w-5 text-sidebar-primary" aria-hidden="true" />
-            <span className="font-display text-lg tracking-tight">GestPro</span>
-          </Link>
-        )}
-        {isCollapsed && (
-          <Link href="/dashboard" aria-label="GestPro ERP — Início">
-            <Store className="h-5 w-5 text-sidebar-primary" />
-          </Link>
-        )}
+        <Link
+          href="/dashboard"
+          className="rounded-md hover:opacity-80 transition-opacity"
+          aria-label="GestPro ERP — Início"
+        >
+          {isCollapsed ? <Simbolo invertido /> : <Logotipo invertido />}
+        </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 rounded-lg text-sidebar-foreground hover:bg-sidebar-foreground/10 hover:text-sidebar-primary transition-colors"
+          onClick={onToggle}
+          aria-label={rotuloToggle}
+          title={`${rotuloToggle} (⌘B)`}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+          )}
+        </Button>
       </div>
 
       {/* Navegação */}
@@ -384,91 +417,140 @@ function SidebarContent({ isCollapsed, userPermissions }: { isCollapsed: boolean
           className="px-2 py-3 space-y-0.5"
           aria-label="Navegação principal"
         >
+          {!isCollapsed && (
+            <p className="px-2.5 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground">
+              Módulos
+            </p>
+          )}
           {items.map((item) => renderMenuItem(item))}
         </nav>
       </ScrollArea>
 
       {/* Rodapé */}
       {!isCollapsed && (
-        <div className="border-t px-3 py-3 flex-shrink-0">
-          <p className="text-xs text-sidebar-foreground/55 text-center">
-            GestPro ERP v1.0
-          </p>
+        <div className="px-3 py-3 flex-shrink-0">
+          <div className="flex items-center justify-between rounded-xl bg-sidebar-foreground/10 px-3 py-2">
+            <span className="flex items-center gap-2 text-[11px] text-sidebar-foreground">
+              <span className="size-2 rounded-full bg-sidebar-primary" aria-hidden="true" />
+              Ligado ao GestPro
+            </span>
+            <span className="text-[11px] font-semibold text-sidebar-primary">v1.0</span>
+          </div>
         </div>
       )}
     </>
   );
 }
 
+function escreverCookie(recolhida: boolean) {
+  document.cookie = `${COOKIE_BARRA_LATERAL}=${recolhida ? VALOR_RECOLHIDA : 'expandida'}; path=/; max-age=31536000; SameSite=Lax`;
+}
+
 /**
- * Sidebar principal da aplicação.
- * Desktop: sidebar colapsável. Mobile: off-canvas via Sheet.
+ * Sidebar principal da aplicação — nunca desaparece por completo.
+ *
+ * Dois estados, em qualquer largura de ecrã: expandida (256px) ou recolhida
+ * num carril de ícones (56px). Em ecrãs estreitos (< md) a barra expandida
+ * abre POR CIMA do conteúdo, com um véu que a recolhe ao toque; o carril
+ * continua no fluxo, por isso o conteúdo nunca fica sem os 56px. O painel
+ * deslizante e o hambúrguer que existiam para o telemóvel saíram.
+ *
+ * O estado persiste num cookie lido pelos layouts (Server Components), que
+ * passam `defaultCollapsed` — a página já nasce no estado certo, sem salto.
  *
  * @param userPermissions Lista de permissões do utilizador (session.user.permissions).
  *   Itens sem campo `permission` são sempre visíveis (ex.: Dashboard).
  */
-export function AppSidebar({ userPermissions = [] }: { userPermissions?: string[] }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+const CONSULTA_ESTREITO = '(max-width: 767px)';
+
+function subscreverEstreito(aoMudar: () => void) {
+  const consulta = window.matchMedia(CONSULTA_ESTREITO);
+  consulta.addEventListener('change', aoMudar);
+  return () => consulta.removeEventListener('change', aoMudar);
+}
+
+/** `true` abaixo de md; `false` no servidor e na hidratação (sem salto). */
+function useEstreito(): boolean {
+  return useSyncExternalStore(
+    subscreverEstreito,
+    () => window.matchMedia(CONSULTA_ESTREITO).matches,
+    () => false
+  );
+}
+
+export function AppSidebar({
+  userPermissions = [],
+  defaultCollapsed = false,
+}: {
+  userPermissions?: string[];
+  defaultCollapsed?: boolean;
+}) {
+  const estreito = useEstreito();
+  // Preferência do desktop (persistida) e abertura temporária no ecrã estreito
+  // (nunca persistida): em estreito a barra começa sempre recolhida, senão a
+  // preferência «expandida» abria o véu logo ao carregar.
+  const [preferenciaRecolhida, setPreferenciaRecolhida] = useState(defaultCollapsed);
+  const [abertaEmEstreito, setAbertaEmEstreito] = useState(false);
+  const isCollapsed = estreito ? !abertaEmEstreito : preferenciaRecolhida;
+
+  const toggle = () => {
+    if (estreito) {
+      setAbertaEmEstreito((v) => !v);
+      return;
+    }
+    setPreferenciaRecolhida((v) => {
+      escreverCookie(!v);
+      return !v;
+    });
+  };
+
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        if (estreito) {
+          setAbertaEmEstreito((v) => !v);
+        } else {
+          setPreferenciaRecolhida((v) => {
+            escreverCookie(!v);
+            return !v;
+          });
+        }
+      }
+    };
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, [estreito]);
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside
         className={cn(
-          'hidden md:flex flex-col h-screen border-r bg-sidebar text-sidebar-foreground transition-all duration-200 ease-in-out flex-shrink-0',
-          isCollapsed ? 'w-14' : 'w-64'
+          'flex h-screen flex-shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-in-out',
+          isCollapsed ? 'w-14' : 'w-64',
+          // Ecrã estreito: a barra expandida sobrepõe-se ao conteúdo.
+          !isCollapsed && 'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:shadow-xl'
         )}
       >
-        <SidebarContent isCollapsed={isCollapsed} userPermissions={userPermissions} />
-
-        {/* Botão colapsar */}
-        <div className={cn('border-t p-2', isCollapsed && 'flex justify-center')}>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            aria-label={isCollapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4 rotate-90" />
-            )}
-          </Button>
-        </div>
+        <SidebarContent
+          isCollapsed={isCollapsed}
+          userPermissions={userPermissions}
+          onToggle={toggle}
+        />
       </aside>
 
-      {/* Mobile: botão hambúrguer (incluído no header) e Sheet */}
-      <div className="md:hidden fixed top-0 left-0 z-40 flex items-center h-14 px-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Abrir menu"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-      </div>
-
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-72 p-0 flex flex-col bg-sidebar text-sidebar-foreground">
-          <div className="absolute right-3 top-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setMobileOpen(false)}
-              aria-label="Fechar menu"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <SidebarContent isCollapsed={false} userPermissions={userPermissions} />
-        </SheetContent>
-      </Sheet>
+      {!isCollapsed && (
+        <>
+          {/* Mantém os 56px do carril no fluxo enquanto a barra flutua por cima. */}
+          <div className="w-14 flex-shrink-0 md:hidden" aria-hidden="true" />
+          <button
+            type="button"
+            className="fixed inset-0 z-30 bg-foreground/30 md:hidden"
+            aria-label="Recolher barra lateral"
+            onClick={toggle}
+          />
+        </>
+      )}
     </>
   );
 }
