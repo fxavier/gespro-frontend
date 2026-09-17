@@ -12,6 +12,8 @@ import * as contabilidadeService from '@/server/services/financas/contabilidade.
 import { FiltroBalanceteSchema } from '@/lib/validations/contabilidade';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
+import { SeletorPeriodo } from '../_components/seletor-periodo';
+import { periodoPorOmissao } from '@/lib/periodo-fiscal';
 import type { FilterConfig } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -147,9 +149,19 @@ export default async function BalancetePage({ searchParams }: PageProps) {
   const flat = Object.fromEntries(
     Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
   );
-  // Sem fallback silencioso: filtros inválidos mostram a instrução, nunca um
-  // balancete de um período que o utilizador não pediu (defeito D1).
-  const parseResult = FiltroUrlSchema.safeParse(flat);
+  // Período: ausente → exercício corrente; presente → é o que o utilizador
+  // pediu. A ligação da barra lateral não leva datas, e sem isto o balancete
+  // abria sempre vazio a pedir que se editasse a URL à mão.
+  //
+  // O default cobre a AUSÊNCIA, não o erro: uma data mal formada continua a
+  // falhar o `safeParse` e a mostrar a instrução, que é o que o defeito D1
+  // exige — nunca um balancete de um período que ninguém pediu.
+  const omissao = periodoPorOmissao();
+  const periodo = {
+    dataInicio: typeof flat.dataInicio === 'string' ? flat.dataInicio : omissao.dataInicio,
+    dataFim: typeof flat.dataFim === 'string' ? flat.dataFim : omissao.dataFim,
+  };
+  const parseResult = FiltroUrlSchema.safeParse({ ...flat, ...periodo });
 
   return (
     <div className="p-6 space-y-6">
@@ -167,15 +179,11 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         }
       />
 
-      <div className="flex gap-4">
-        <div className="flex gap-2 items-center">
-          <label className="text-sm font-medium">Data Início</label>
-          {/* ponytail: date inputs handled via plain HTML; FilterBar only supports select options */}
-          <a href={`?${new URLSearchParams({ ...flat, dataInicio: flat.dataInicio ?? '' })}`}
-            className="text-sm text-muted-foreground underline hidden">
-          </a>
-        </div>
-      </div>
+      <SeletorPeriodo
+        rota="/contabilidade/balancete"
+        dataInicio={periodo.dataInicio}
+        dataFim={periodo.dataFim}
+      />
 
       <FilterBar
         searchPlaceholder="Pesquisar por conta…"
@@ -189,7 +197,7 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         </Suspense>
       ) : (
         <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
-          Adicione <code>?dataInicio=aaaa-mm-dd&amp;dataFim=aaaa-mm-dd</code> à URL para gerar o balancete.
+          Período inválido. Escolha as datas acima para gerar o balancete.
         </div>
       )}
     </div>

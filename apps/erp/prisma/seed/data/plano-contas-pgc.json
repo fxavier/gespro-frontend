@@ -2637,7 +2637,7 @@
     "nivel": 1,
     "contaMaeCodigo": null,
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "61",
@@ -2647,7 +2647,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "611",
@@ -2657,7 +2657,7 @@
     "nivel": 3,
     "contaMaeCodigo": "61",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6112",
@@ -2667,7 +2667,7 @@
     "nivel": 4,
     "contaMaeCodigo": "611",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6116",
@@ -2677,7 +2677,7 @@
     "nivel": 4,
     "contaMaeCodigo": "611",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "61161",
@@ -2687,7 +2687,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6116",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "61162",
@@ -2697,7 +2697,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6116",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "61163",
@@ -2707,7 +2707,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6116",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6117",
@@ -2717,7 +2717,7 @@
     "nivel": 4,
     "contaMaeCodigo": "611",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "612",
@@ -2727,7 +2727,7 @@
     "nivel": 3,
     "contaMaeCodigo": "61",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6121",
@@ -2737,7 +2737,7 @@
     "nivel": 4,
     "contaMaeCodigo": "612",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6122",
@@ -2747,7 +2747,7 @@
     "nivel": 4,
     "contaMaeCodigo": "612",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6123",
@@ -2757,7 +2757,7 @@
     "nivel": 4,
     "contaMaeCodigo": "612",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "62",
@@ -2767,7 +2767,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "621",
@@ -2777,7 +2777,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "622",
@@ -2787,7 +2787,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "623",
@@ -2797,7 +2797,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "624",
@@ -2807,7 +2807,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "625",
@@ -2817,7 +2817,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6251",
@@ -2827,7 +2827,7 @@
     "nivel": 4,
     "contaMaeCodigo": "625",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6252",
@@ -2837,7 +2837,7 @@
     "nivel": 4,
     "contaMaeCodigo": "625",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "626",
@@ -2847,7 +2847,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6261",
@@ -2857,7 +2857,7 @@
     "nivel": 4,
     "contaMaeCodigo": "626",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6262",
@@ -2867,7 +2867,7 @@
     "nivel": 4,
     "contaMaeCodigo": "626",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "627",
@@ -2877,7 +2877,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "628",
@@ -2887,7 +2887,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "629",
@@ -2897,7 +2897,7 @@
     "nivel": 3,
     "contaMaeCodigo": "62",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63",
@@ -2907,7 +2907,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "631",
@@ -2917,7 +2917,7 @@
     "nivel": 3,
     "contaMaeCodigo": "63",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632",
@@ -2927,7 +2927,7 @@
     "nivel": 3,
     "contaMaeCodigo": "63",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63211",
@@ -2937,7 +2937,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63212",
@@ -2947,7 +2947,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63213",
@@ -2957,7 +2957,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632131",
@@ -2967,7 +2967,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63213",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6321311",
@@ -2977,7 +2977,7 @@
     "nivel": 7,
     "contaMaeCodigo": "632131",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6321312",
@@ -2987,7 +2987,7 @@
     "nivel": 7,
     "contaMaeCodigo": "632131",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632132",
@@ -2997,7 +2997,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63213",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6321321",
@@ -3007,7 +3007,7 @@
     "nivel": 7,
     "contaMaeCodigo": "632132",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6321322",
@@ -3017,7 +3017,7 @@
     "nivel": 7,
     "contaMaeCodigo": "632132",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632133",
@@ -3027,7 +3027,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63213",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6321331",
@@ -3037,7 +3037,7 @@
     "nivel": 7,
     "contaMaeCodigo": "632133",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6321332",
@@ -3047,7 +3047,7 @@
     "nivel": 7,
     "contaMaeCodigo": "632133",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63214",
@@ -3057,7 +3057,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63215",
@@ -3067,7 +3067,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632151",
@@ -3077,7 +3077,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63215",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632152",
@@ -3087,7 +3087,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63215",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63216",
@@ -3097,7 +3097,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63217",
@@ -3107,7 +3107,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63218",
@@ -3117,7 +3117,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6321",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63221",
@@ -3127,7 +3127,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63222",
@@ -3137,7 +3137,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63223",
@@ -3147,7 +3147,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63224",
@@ -3157,7 +3157,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63225",
@@ -3167,7 +3167,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63226",
@@ -3177,7 +3177,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63227",
@@ -3187,7 +3187,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632271",
@@ -3197,7 +3197,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63227",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632272",
@@ -3207,7 +3207,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63227",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63228",
@@ -3217,7 +3217,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632281",
@@ -3227,7 +3227,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63228",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632282",
@@ -3237,7 +3237,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63228",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63229",
@@ -3247,7 +3247,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6322",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63231",
@@ -3257,7 +3257,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63232",
@@ -3267,7 +3267,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632321",
@@ -3277,7 +3277,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63232",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63233",
@@ -3287,7 +3287,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "632331",
@@ -3297,7 +3297,7 @@
     "nivel": 6,
     "contaMaeCodigo": "63233",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63234",
@@ -3307,7 +3307,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63235",
@@ -3317,7 +3317,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63236",
@@ -3327,7 +3327,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63237",
@@ -3337,7 +3337,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6323",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "63299",
@@ -3347,7 +3347,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6329",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "64",
@@ -3357,7 +3357,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "641",
@@ -3367,7 +3367,7 @@
     "nivel": 3,
     "contaMaeCodigo": "64",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "642",
@@ -3377,7 +3377,7 @@
     "nivel": 3,
     "contaMaeCodigo": "64",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "643",
@@ -3387,7 +3387,7 @@
     "nivel": 3,
     "contaMaeCodigo": "64",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "644",
@@ -3397,7 +3397,7 @@
     "nivel": 3,
     "contaMaeCodigo": "64",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "645",
@@ -3407,7 +3407,7 @@
     "nivel": 3,
     "contaMaeCodigo": "64",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "646",
@@ -3417,7 +3417,7 @@
     "nivel": 3,
     "contaMaeCodigo": "64",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "647",
@@ -3427,7 +3427,7 @@
     "nivel": 3,
     "contaMaeCodigo": "64",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "648",
@@ -3437,7 +3437,7 @@
     "nivel": 3,
     "contaMaeCodigo": "64",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6481",
@@ -3447,7 +3447,7 @@
     "nivel": 4,
     "contaMaeCodigo": "648",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6482",
@@ -3457,7 +3457,7 @@
     "nivel": 4,
     "contaMaeCodigo": "648",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "65",
@@ -3467,7 +3467,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "651",
@@ -3477,7 +3477,7 @@
     "nivel": 3,
     "contaMaeCodigo": "65",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "652",
@@ -3487,7 +3487,7 @@
     "nivel": 3,
     "contaMaeCodigo": "65",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "653",
@@ -3497,7 +3497,7 @@
     "nivel": 3,
     "contaMaeCodigo": "65",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "654",
@@ -3507,7 +3507,7 @@
     "nivel": 3,
     "contaMaeCodigo": "65",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "66",
@@ -3517,7 +3517,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "661",
@@ -3527,7 +3527,7 @@
     "nivel": 3,
     "contaMaeCodigo": "66",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "662",
@@ -3537,7 +3537,7 @@
     "nivel": 3,
     "contaMaeCodigo": "66",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "663",
@@ -3547,7 +3547,7 @@
     "nivel": 3,
     "contaMaeCodigo": "66",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "664",
@@ -3557,7 +3557,7 @@
     "nivel": 3,
     "contaMaeCodigo": "66",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "665",
@@ -3567,7 +3567,7 @@
     "nivel": 3,
     "contaMaeCodigo": "66",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "666",
@@ -3577,7 +3577,7 @@
     "nivel": 3,
     "contaMaeCodigo": "66",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "667",
@@ -3587,7 +3587,7 @@
     "nivel": 3,
     "contaMaeCodigo": "66",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "669",
@@ -3597,7 +3597,7 @@
     "nivel": 3,
     "contaMaeCodigo": "66",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "67",
@@ -3607,7 +3607,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "671",
@@ -3617,7 +3617,7 @@
     "nivel": 3,
     "contaMaeCodigo": "67",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "672",
@@ -3627,7 +3627,7 @@
     "nivel": 3,
     "contaMaeCodigo": "67",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "673",
@@ -3637,7 +3637,7 @@
     "nivel": 3,
     "contaMaeCodigo": "67",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "68",
@@ -3647,7 +3647,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "681",
@@ -3657,7 +3657,7 @@
     "nivel": 3,
     "contaMaeCodigo": "68",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "682",
@@ -3667,7 +3667,7 @@
     "nivel": 3,
     "contaMaeCodigo": "68",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6821",
@@ -3677,7 +3677,7 @@
     "nivel": 4,
     "contaMaeCodigo": "682",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6822",
@@ -3687,7 +3687,7 @@
     "nivel": 4,
     "contaMaeCodigo": "682",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6823",
@@ -3697,7 +3697,7 @@
     "nivel": 4,
     "contaMaeCodigo": "682",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6824",
@@ -3707,7 +3707,7 @@
     "nivel": 4,
     "contaMaeCodigo": "682",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6825",
@@ -3717,7 +3717,7 @@
     "nivel": 4,
     "contaMaeCodigo": "682",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "683",
@@ -3727,7 +3727,7 @@
     "nivel": 3,
     "contaMaeCodigo": "68",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6831",
@@ -3737,7 +3737,7 @@
     "nivel": 4,
     "contaMaeCodigo": "683",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6832",
@@ -3747,7 +3747,7 @@
     "nivel": 4,
     "contaMaeCodigo": "683",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6833",
@@ -3757,7 +3757,7 @@
     "nivel": 4,
     "contaMaeCodigo": "683",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "684",
@@ -3767,7 +3767,7 @@
     "nivel": 3,
     "contaMaeCodigo": "68",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6841",
@@ -3777,7 +3777,7 @@
     "nivel": 4,
     "contaMaeCodigo": "684",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6842",
@@ -3787,7 +3787,7 @@
     "nivel": 4,
     "contaMaeCodigo": "684",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6849",
@@ -3797,7 +3797,7 @@
     "nivel": 4,
     "contaMaeCodigo": "684",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "689",
@@ -3807,7 +3807,7 @@
     "nivel": 3,
     "contaMaeCodigo": "68",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6891",
@@ -3817,7 +3817,7 @@
     "nivel": 4,
     "contaMaeCodigo": "689",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6892",
@@ -3827,7 +3827,7 @@
     "nivel": 4,
     "contaMaeCodigo": "689",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6893",
@@ -3837,7 +3837,7 @@
     "nivel": 4,
     "contaMaeCodigo": "689",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6894",
@@ -3847,7 +3847,7 @@
     "nivel": 4,
     "contaMaeCodigo": "689",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6895",
@@ -3857,7 +3857,7 @@
     "nivel": 4,
     "contaMaeCodigo": "689",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "68951",
@@ -3867,7 +3867,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6895",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "68952",
@@ -3877,7 +3877,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6895",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6896",
@@ -3887,7 +3887,7 @@
     "nivel": 4,
     "contaMaeCodigo": "689",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6899",
@@ -3897,7 +3897,7 @@
     "nivel": 4,
     "contaMaeCodigo": "689",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "69",
@@ -3907,7 +3907,7 @@
     "nivel": 2,
     "contaMaeCodigo": "6",
     "aceitaLancamento": false,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "691",
@@ -3917,7 +3917,7 @@
     "nivel": 3,
     "contaMaeCodigo": "69",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6911",
@@ -3927,7 +3927,7 @@
     "nivel": 4,
     "contaMaeCodigo": "691",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6912",
@@ -3937,7 +3937,7 @@
     "nivel": 4,
     "contaMaeCodigo": "691",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6913",
@@ -3947,7 +3947,7 @@
     "nivel": 4,
     "contaMaeCodigo": "691",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6914",
@@ -3957,7 +3957,7 @@
     "nivel": 4,
     "contaMaeCodigo": "691",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6915",
@@ -3967,7 +3967,7 @@
     "nivel": 4,
     "contaMaeCodigo": "691",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6916",
@@ -3977,7 +3977,7 @@
     "nivel": 4,
     "contaMaeCodigo": "691",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "69161",
@@ -3987,7 +3987,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6916",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "69162",
@@ -3997,7 +3997,7 @@
     "nivel": 5,
     "contaMaeCodigo": "6916",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6919",
@@ -4007,7 +4007,7 @@
     "nivel": 4,
     "contaMaeCodigo": "691",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "694",
@@ -4017,7 +4017,7 @@
     "nivel": 3,
     "contaMaeCodigo": "69",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6941",
@@ -4027,7 +4027,7 @@
     "nivel": 4,
     "contaMaeCodigo": "694",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6942",
@@ -4037,7 +4037,7 @@
     "nivel": 4,
     "contaMaeCodigo": "694",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "695",
@@ -4047,7 +4047,7 @@
     "nivel": 3,
     "contaMaeCodigo": "69",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "698",
@@ -4057,7 +4057,7 @@
     "nivel": 3,
     "contaMaeCodigo": "69",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6981",
@@ -4067,7 +4067,7 @@
     "nivel": 4,
     "contaMaeCodigo": "698",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "6989",
@@ -4077,7 +4077,7 @@
     "nivel": 4,
     "contaMaeCodigo": "698",
     "aceitaLancamento": true,
-    "natureza": "CREDORA"
+    "natureza": "DEVEDORA"
   },
   {
     "codigo": "7",
@@ -4087,7 +4087,7 @@
     "nivel": 1,
     "contaMaeCodigo": null,
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "71",
@@ -4097,7 +4097,7 @@
     "nivel": 2,
     "contaMaeCodigo": "7",
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "711",
@@ -4107,7 +4107,7 @@
     "nivel": 3,
     "contaMaeCodigo": "71",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "712",
@@ -4117,7 +4117,7 @@
     "nivel": 3,
     "contaMaeCodigo": "71",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "713",
@@ -4127,7 +4127,7 @@
     "nivel": 3,
     "contaMaeCodigo": "71",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "714",
@@ -4137,7 +4137,7 @@
     "nivel": 3,
     "contaMaeCodigo": "71",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "715",
@@ -4147,7 +4147,7 @@
     "nivel": 3,
     "contaMaeCodigo": "71",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "716",
@@ -4157,7 +4157,7 @@
     "nivel": 3,
     "contaMaeCodigo": "71",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "717",
@@ -4167,7 +4167,7 @@
     "nivel": 3,
     "contaMaeCodigo": "71",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "72",
@@ -4177,7 +4177,7 @@
     "nivel": 2,
     "contaMaeCodigo": "7",
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "721",
@@ -4187,7 +4187,7 @@
     "nivel": 3,
     "contaMaeCodigo": "72",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "726",
@@ -4197,7 +4197,7 @@
     "nivel": 3,
     "contaMaeCodigo": "72",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "73",
@@ -4207,7 +4207,7 @@
     "nivel": 2,
     "contaMaeCodigo": "7",
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "731",
@@ -4217,7 +4217,7 @@
     "nivel": 3,
     "contaMaeCodigo": "73",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "732",
@@ -4227,7 +4227,7 @@
     "nivel": 3,
     "contaMaeCodigo": "73",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "733",
@@ -4237,7 +4237,7 @@
     "nivel": 3,
     "contaMaeCodigo": "73",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "734",
@@ -4247,7 +4247,7 @@
     "nivel": 3,
     "contaMaeCodigo": "73",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "74",
@@ -4257,7 +4257,7 @@
     "nivel": 2,
     "contaMaeCodigo": "7",
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "741",
@@ -4267,7 +4267,7 @@
     "nivel": 3,
     "contaMaeCodigo": "74",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7411",
@@ -4277,7 +4277,7 @@
     "nivel": 4,
     "contaMaeCodigo": "741",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7412",
@@ -4287,7 +4287,7 @@
     "nivel": 4,
     "contaMaeCodigo": "741",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7413",
@@ -4297,7 +4297,7 @@
     "nivel": 4,
     "contaMaeCodigo": "741",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7414",
@@ -4307,7 +4307,7 @@
     "nivel": 4,
     "contaMaeCodigo": "741",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7415",
@@ -4317,7 +4317,7 @@
     "nivel": 4,
     "contaMaeCodigo": "741",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7416",
@@ -4327,7 +4327,7 @@
     "nivel": 4,
     "contaMaeCodigo": "741",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7417",
@@ -4337,7 +4337,7 @@
     "nivel": 4,
     "contaMaeCodigo": "741",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7418",
@@ -4347,7 +4347,7 @@
     "nivel": 4,
     "contaMaeCodigo": "741",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "742",
@@ -4357,7 +4357,7 @@
     "nivel": 3,
     "contaMaeCodigo": "74",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7421",
@@ -4367,7 +4367,7 @@
     "nivel": 4,
     "contaMaeCodigo": "742",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7422",
@@ -4377,7 +4377,7 @@
     "nivel": 4,
     "contaMaeCodigo": "742",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7423",
@@ -4387,7 +4387,7 @@
     "nivel": 4,
     "contaMaeCodigo": "742",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7424",
@@ -4397,7 +4397,7 @@
     "nivel": 4,
     "contaMaeCodigo": "742",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "743",
@@ -4407,7 +4407,7 @@
     "nivel": 3,
     "contaMaeCodigo": "74",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7431",
@@ -4417,7 +4417,7 @@
     "nivel": 4,
     "contaMaeCodigo": "743",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7432",
@@ -4427,7 +4427,7 @@
     "nivel": 4,
     "contaMaeCodigo": "743",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7433",
@@ -4437,7 +4437,7 @@
     "nivel": 4,
     "contaMaeCodigo": "743",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7434",
@@ -4447,7 +4447,7 @@
     "nivel": 4,
     "contaMaeCodigo": "743",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7435",
@@ -4457,7 +4457,7 @@
     "nivel": 4,
     "contaMaeCodigo": "743",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7436",
@@ -4467,7 +4467,7 @@
     "nivel": 4,
     "contaMaeCodigo": "743",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7437",
@@ -4477,7 +4477,7 @@
     "nivel": 4,
     "contaMaeCodigo": "743",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7439",
@@ -4487,7 +4487,7 @@
     "nivel": 4,
     "contaMaeCodigo": "743",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "75",
@@ -4497,7 +4497,7 @@
     "nivel": 2,
     "contaMaeCodigo": "7",
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "751",
@@ -4507,7 +4507,7 @@
     "nivel": 3,
     "contaMaeCodigo": "75",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "752",
@@ -4517,7 +4517,7 @@
     "nivel": 3,
     "contaMaeCodigo": "75",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "753",
@@ -4527,7 +4527,7 @@
     "nivel": 3,
     "contaMaeCodigo": "75",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "754",
@@ -4537,7 +4537,7 @@
     "nivel": 3,
     "contaMaeCodigo": "75",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "755",
@@ -4547,7 +4547,7 @@
     "nivel": 3,
     "contaMaeCodigo": "75",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "756",
@@ -4557,7 +4557,7 @@
     "nivel": 3,
     "contaMaeCodigo": "75",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "757",
@@ -4567,7 +4567,7 @@
     "nivel": 3,
     "contaMaeCodigo": "75",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "759",
@@ -4577,7 +4577,7 @@
     "nivel": 3,
     "contaMaeCodigo": "75",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "76",
@@ -4587,7 +4587,7 @@
     "nivel": 2,
     "contaMaeCodigo": "7",
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "761",
@@ -4597,7 +4597,7 @@
     "nivel": 3,
     "contaMaeCodigo": "76",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7611",
@@ -4607,7 +4607,7 @@
     "nivel": 4,
     "contaMaeCodigo": "761",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7619",
@@ -4617,7 +4617,7 @@
     "nivel": 4,
     "contaMaeCodigo": "761",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "762",
@@ -4627,7 +4627,7 @@
     "nivel": 3,
     "contaMaeCodigo": "76",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7621",
@@ -4637,7 +4637,7 @@
     "nivel": 4,
     "contaMaeCodigo": "762",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7629",
@@ -4647,7 +4647,7 @@
     "nivel": 4,
     "contaMaeCodigo": "762",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "763",
@@ -4657,7 +4657,7 @@
     "nivel": 3,
     "contaMaeCodigo": "76",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7631",
@@ -4667,7 +4667,7 @@
     "nivel": 4,
     "contaMaeCodigo": "763",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7632",
@@ -4677,7 +4677,7 @@
     "nivel": 4,
     "contaMaeCodigo": "763",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "764",
@@ -4687,7 +4687,7 @@
     "nivel": 3,
     "contaMaeCodigo": "76",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7641",
@@ -4697,7 +4697,7 @@
     "nivel": 4,
     "contaMaeCodigo": "764",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7642",
@@ -4707,7 +4707,7 @@
     "nivel": 4,
     "contaMaeCodigo": "764",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7649",
@@ -4717,7 +4717,7 @@
     "nivel": 4,
     "contaMaeCodigo": "764",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "769",
@@ -4727,7 +4727,7 @@
     "nivel": 3,
     "contaMaeCodigo": "76",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7691",
@@ -4737,7 +4737,7 @@
     "nivel": 4,
     "contaMaeCodigo": "769",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7692",
@@ -4747,7 +4747,7 @@
     "nivel": 4,
     "contaMaeCodigo": "769",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7693",
@@ -4757,7 +4757,7 @@
     "nivel": 4,
     "contaMaeCodigo": "769",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7699",
@@ -4767,7 +4767,7 @@
     "nivel": 4,
     "contaMaeCodigo": "769",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "78",
@@ -4777,7 +4777,7 @@
     "nivel": 2,
     "contaMaeCodigo": "7",
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "781",
@@ -4787,7 +4787,7 @@
     "nivel": 3,
     "contaMaeCodigo": "78",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7811",
@@ -4797,7 +4797,7 @@
     "nivel": 4,
     "contaMaeCodigo": "781",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7812",
@@ -4807,7 +4807,7 @@
     "nivel": 4,
     "contaMaeCodigo": "781",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7813",
@@ -4817,7 +4817,7 @@
     "nivel": 4,
     "contaMaeCodigo": "781",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7814",
@@ -4827,7 +4827,7 @@
     "nivel": 4,
     "contaMaeCodigo": "781",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7819",
@@ -4837,7 +4837,7 @@
     "nivel": 4,
     "contaMaeCodigo": "781",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "782",
@@ -4847,7 +4847,7 @@
     "nivel": 3,
     "contaMaeCodigo": "78",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "783",
@@ -4857,7 +4857,7 @@
     "nivel": 3,
     "contaMaeCodigo": "78",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "784",
@@ -4867,7 +4867,7 @@
     "nivel": 3,
     "contaMaeCodigo": "78",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7841",
@@ -4877,7 +4877,7 @@
     "nivel": 4,
     "contaMaeCodigo": "784",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "7842",
@@ -4887,7 +4887,7 @@
     "nivel": 4,
     "contaMaeCodigo": "784",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "785",
@@ -4897,7 +4897,7 @@
     "nivel": 3,
     "contaMaeCodigo": "78",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "789",
@@ -4907,7 +4907,7 @@
     "nivel": 3,
     "contaMaeCodigo": "78",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "79",
@@ -4917,7 +4917,7 @@
     "nivel": 2,
     "contaMaeCodigo": "7",
     "aceitaLancamento": false,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "791",
@@ -4927,7 +4927,7 @@
     "nivel": 3,
     "contaMaeCodigo": "79",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "792",
@@ -4937,7 +4937,7 @@
     "nivel": 3,
     "contaMaeCodigo": "79",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "793",
@@ -4947,7 +4947,7 @@
     "nivel": 3,
     "contaMaeCodigo": "79",
     "aceitaLancamento": true,
-    "natureza": "DEVEDORA"
+    "natureza": "CREDORA"
   },
   {
     "codigo": "8",

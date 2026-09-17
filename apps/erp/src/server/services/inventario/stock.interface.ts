@@ -37,6 +37,11 @@ export interface MovimentoStockDto {
   id: string;
   tenantId: string;
   produtoId: string;
+  /** Nome e SKU do produto, para listar sem obrigar quem lê a colar cuids.
+   *  Opcionais: quem constrói o DTO fora do `mapMov` (testes, contratos
+   *  antigos) não é obrigado a conhecê-los. */
+  produtoNome?: string | null;
+  produtoSku?: string | null;
   varianteProdutoId: string | null;
   tipo: string;
   quantidade: string; // Decimal serializado

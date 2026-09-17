@@ -199,3 +199,28 @@ describe('bootstrapRbac', () => {
     expect(ligacoes.every((l) => l.permissionId === 'p1')).toBe(true);
   });
 });
+
+describe('plano-contas-pgc.json — natureza das classes', () => {
+  // O ficheiro tinha as classes 6 e 7 trocadas: 145 contas de gasto marcadas
+  // `CREDORA` e 87 de rendimento `DEVEDORA`. O `montarLinhasBalancete` usa a
+  // natureza para dar sinal ao saldo, por isso o balancete mostrava a receita
+  // em negativo e a DRE herdava o erro. Isto tranca a correcção: o ficheiro é
+  // gerado, e uma regeneração podia voltar a invertê-las em silêncio.
+  const contas: Array<{ codigo: string; classe: number; natureza: string }> =
+    require('../../../../prisma/seed/data/plano-contas-pgc.json');
+
+  it('gasta-se a débito: toda a classe 6 é DEVEDORA', () => {
+    const erradas = contas.filter((c) => c.classe === 6 && c.natureza !== 'DEVEDORA');
+    expect(erradas.map((c) => c.codigo)).toEqual([]);
+  });
+
+  it('ganha-se a crédito: toda a classe 7 é CREDORA', () => {
+    const erradas = contas.filter((c) => c.classe === 7 && c.natureza !== 'CREDORA');
+    expect(erradas.map((c) => c.codigo)).toEqual([]);
+  });
+
+  it('a natureza não altera o tipo das classes 5–8 — só o sinal do saldo', () => {
+    expect(derivarTipoConta(6, 'DEVEDORA')).toBe('GASTO');
+    expect(derivarTipoConta(7, 'CREDORA')).toBe('RENDIMENTO');
+  });
+});
