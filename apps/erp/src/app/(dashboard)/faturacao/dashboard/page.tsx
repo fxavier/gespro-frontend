@@ -5,7 +5,17 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Receipt, FileText, TrendingUp, Clock, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
+import {
+  Receipt,
+  FileText,
+  FileCheck,
+  RotateCcw,
+  TrendingUp,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  Plus,
+} from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
@@ -150,11 +160,27 @@ export default async function FaturacaoDashboardPage() {
           { label: 'Dashboard' },
         ]}
         actions={
-          <div className="flex gap-2">
+          // Este cabeçalho é a única porta para os documentos de faturação: a
+          // barra lateral tem uma entrada só, e aponta para aqui. Proformas e
+          // notas de crédito tinham lista a funcionar e zero ligações — só lá
+          // chegava quem escrevesse o URL à mão.
+          <div className="flex flex-wrap gap-2">
             <Button asChild size="sm" variant="outline">
               <Link href="/faturacao/cotacoes">
                 <FileText className="h-4 w-4 mr-2" />
                 Cotações
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/faturacao/proforma">
+                <FileCheck className="h-4 w-4 mr-2" />
+                Proformas
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/faturacao/nota-credito">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Notas de Crédito
               </Link>
             </Button>
             <Button asChild size="sm">

@@ -535,6 +535,7 @@ export interface IFaturacaoService {
   aceitarProforma(id: string, ctx: Ctx): Promise<Proforma>;
   converterProformaEmFatura(id: string, serieDocumentoId: string, ctx: Ctx): Promise<FaturaCompleta>;
   cancelarProforma(id: string, motivo: string, ctx: Ctx): Promise<Proforma>;
+  obterProforma(id: string, ctx: Ctx): Promise<ProformaCompleta | null>;
   listarProformas(
     filtro: FiltroProformaInput,
     ctx: Ctx,
@@ -553,6 +554,7 @@ export interface IFaturacaoService {
     serieProformaId: string,
     ctx: Ctx,
   ): Promise<ProformaCompleta>;
+  obterCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercialCompleta | null>;
   listarCotacoesComerciais(
     filtro: FiltroCotacaoComercialInput,
     ctx: Ctx,

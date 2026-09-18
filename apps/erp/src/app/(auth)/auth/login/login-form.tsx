@@ -12,7 +12,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
-import { AlertCircle, LogIn } from 'lucide-react';
+import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +44,7 @@ export function LoginForm() {
   // só o endereço: a palavra-passe nunca viaja num URL.
   const identificadorInicial = searchParams.get('identificador') ?? '';
   const [erro, setErro] = useState<string | null>(null);
+  const [palavraVisivel, setPalavraVisivel] = useState(false);
   const [aSubmeter, iniciarTransicao] = useTransition();
 
   async function aoSubmeter(evento: React.FormEvent<HTMLFormElement>) {
@@ -97,34 +98,63 @@ export function LoginForm() {
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="identificador">E-mail</Label>
-        <Input
-          id="identificador"
-          name="identificador"
-          type="email"
-          autoComplete="username"
-          required
-          autoFocus={!identificadorInicial}
-          defaultValue={identificadorInicial}
-          placeholder="nome@empresa.mz"
-        />
+        <Label htmlFor="identificador">E-mail profissional</Label>
+        <div className="relative">
+          <Mail
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            id="identificador"
+            name="identificador"
+            type="email"
+            autoComplete="username"
+            required
+            autoFocus={!identificadorInicial}
+            defaultValue={identificadorInicial}
+            placeholder="nome@empresa.mz"
+            className="pl-9"
+          />
+        </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="palavraPasse">Palavra-passe</Label>
-        <Input
-          id="palavraPasse"
-          name="palavraPasse"
-          type="password"
-          autoComplete="current-password"
-          required
-          autoFocus={Boolean(identificadorInicial)}
-        />
+        <div className="relative">
+          <Lock
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            id="palavraPasse"
+            name="palavraPasse"
+            // Alternar visibilidade troca o `type` do campo, e mais nada: o
+            // valor continua a viver só no DOM até ao submit.
+            type={palavraVisivel ? 'text' : 'password'}
+            autoComplete="current-password"
+            required
+            autoFocus={Boolean(identificadorInicial)}
+            className="pr-10 pl-9"
+          />
+          <button
+            type="button"
+            onClick={() => setPalavraVisivel((v) => !v)}
+            aria-label={palavraVisivel ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'}
+            aria-pressed={palavraVisivel}
+            className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            {palavraVisivel ? (
+              <EyeOff className="size-4" aria-hidden="true" />
+            ) : (
+              <Eye className="size-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
 
       <Button type="submit" className="w-full" disabled={aSubmeter}>
-        <LogIn className="h-4 w-4" aria-hidden="true" />
-        {aSubmeter ? 'A entrar…' : 'Iniciar sessão'}
+        {aSubmeter ? 'A entrar…' : 'Entrar na plataforma'}
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Button>
     </form>
   );

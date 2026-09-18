@@ -49,22 +49,20 @@ export default async function ErroAutenticacaoPage({
   const msg = (motivo && MENSAGENS[motivo]) || OMISSAO;
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background text-foreground px-6">
-      <div className="w-full max-w-md space-y-6 text-center">
-        <div className="mx-auto w-fit p-3 rounded-full bg-destructive/10 text-destructive">
-          <AlertCircle className="h-6 w-6" aria-hidden="true" />
-        </div>
-        <h1 className="text-2xl font-semibold">{msg.titulo}</h1>
-        <p className="text-muted-foreground">{msg.corpo}</p>
-        <div className="flex items-center justify-center gap-3">
-          <Button asChild>
-            <Link href="/auth/login">Tentar de novo</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/contactos">Contactar suporte</Link>
-          </Button>
-        </div>
+    <div className="space-y-6 text-center">
+      <div className="mx-auto w-fit rounded-full bg-destructive/10 p-3 text-destructive">
+        <AlertCircle className="h-6 w-6" aria-hidden="true" />
       </div>
-    </main>
+      <h1 className="text-2xl font-semibold tracking-tight">{msg.titulo}</h1>
+      <p className="text-sm text-muted-foreground">{msg.corpo}</p>
+      <div className="flex items-center justify-center gap-3">
+        <Button asChild>
+          <Link href="/auth/login">Tentar de novo</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/contactos">Contactar suporte</Link>
+        </Button>
+      </div>
+    </div>
   );
 }
