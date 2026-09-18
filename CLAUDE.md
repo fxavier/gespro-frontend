@@ -13,6 +13,14 @@ a marca partilhada em `packages/brand` (tokens, logótipos, `cores.json`); confi
 `packages/tsconfig` e `packages/eslint-config`. Os scripts abaixo correm **da raiz** e delegam via `pnpm --filter erp` /
 `turbo run`; nomes inalterados.
 
+**`wt/` são 30 worktrees, e a maioria é PRÉ-monorepo** — cada uma tem o ERP em `<worktree>/src/`, não em
+`apps/erp/src/`. Estão no `.gitignore`, por isso `git grep` e o `rg` por omissão não lhes tocam; **`grep -r`,
+`find` e `ls` a partir da raiz tocam**, e devolvem o ficheiro certo no sítio errado: as Server Actions reais
+são **22** em `apps/erp/src/server/actions/`, e um `find` da raiz por `*/src/server/actions/*.ts` devolve
+**629** — quase todas fantasmas de um layout que já não existe. Editar um deles não dá erro
+nenhum: dá uma alteração que nunca chega ao produto. Prefere `git grep`/`rg`, ou arranca a busca de
+`apps/erp/`. (`src/` na raiz é só `.DS_Store` e é ignorado.)
+
 ```bash
 # Base + identidade (necessárias para dev, seed e testes de integração/E2E).
 # O KEYCLOAK faz parte do perfil por omissão (ADR-0013 §7): realm `gespro`
@@ -23,6 +31,10 @@ a marca partilhada em `packages/brand` (tokens, logótipos, `cores.json`); confi
 docker compose up -d          # Postgres 17 (gespro-db, porta 5432, WAL arquivado) + Keycloak 26.7
 pnpm db:migrate:dev           # aplica migrations
 pnpm db:seed                  # tenant demo + utilizadores + PGC + dados dos 7 domínios
+                              # ...e um exercício comercial inteiro: 64 produtos, 24 cotações,
+                              # 20 encomendas, 176 vendas, 104 facturas e os lançamentos delas
+pnpm db:seed:volume           # dados sintéticos de ESCALA (ADR-0018) em tenants `perf-*`;
+                              # escreve perf/.generated/seed-manifest.json para os cenários k6
 pnpm db:studio
 
 pnpm dev                      # http://localhost:3000  (login: admin@demo.mz / demo1234, no nosso ecrã)
@@ -54,6 +66,12 @@ Os E2E do ERP (`e2e`, `a11y`) correm um projecto `setup` que **reescreve `apps/e
 com uma sessão fresca; depois de qualquer corrida, `git checkout -- apps/erp/playwright/.auth/admin.json`.
 O ficheiro versionado tem uma sessão expirada — um script ad-hoc com esse `storageState` cai no login;
 corre `npx playwright test --project=setup` primeiro.
+
+```bash
+# Desempenho (ADR-0018) — cenários k6, planos de execução e a linha de base
+ls perf/k6 perf/sql perf/explain     # os cenários e as consultas medidas
+cat perf/README.md                   # como correr e como ler os resultados
+```
 
 ```bash
 # Site de marketing (apps/site) — estático, sem DB nem Keycloak; só /comecar depende do ERP
@@ -162,6 +180,10 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 
 **Séries de documento** — ao estender o enum `TipoSerieDocumento`, acrescenta a série a `SERIES_INICIAIS` (`src/server/provisioning/tenant-bootstrap.ts`). O número é atribuído dentro da transacção: sem série, a operação inteira falha com «série activa não encontrada» em **todos** os tenants. Aconteceu a encomendas, devoluções e contagens de stock.
 
+O **número** nunca se inventa, nem em seeds nem em testes: sai de `SerieDocumento.proximoNumero` e a série
+fica avançada. Escrever `FAT/2026/000007` à mão porque «é o próximo» põe o primeiro documento criado pela UI
+a colidir no `@@unique([tenantId, numero])` — e o erro aparece ao utilizador, não a quem semeou.
+
 **UI** — **sem modais**: criar/editar/detalhar são rotas dedicadas; única excepção é `AlertDialog` para confirmação destrutiva (confirmar, não recolher dados: um campo de texto é formulário, logo é rota). Zero cores hardcoded (só tokens `@theme`); dark mode obrigatório.
 
 **Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`.
@@ -187,6 +209,13 @@ acontece e o utilizador fica no formulário a achar que falhou. Envolve sempre e
 («…called outside of a transition») e mais em lado nenhum: `pnpm check` e os E2E que não leem a
 consola passam na mesma. Aconteceu em `/registo` e passou despercebido a uma spec inteira.
 
+**Natureza das contas PGC** — em `prisma/seed/data/plano-contas-pgc.json`, classe 6 (gastos) é
+`DEVEDORA` e classe 7 (rendimentos) é `CREDORA`. Estiveram trocadas e o balancete mostrava a receita **em
+negativo**: o `montarLinhasBalancete` calcula `saldoAtual` a partir da `natureza`, e o `balancete.test.ts` já
+assumia o correcto — era o ficheiro de dados que discordava do código. Há teste a trancar as duas regras; se
+falhar, o defeito está no JSON, não no teste. (A classe 4 continua toda `DEVEDORA` — `44331 IVA liquidado` e
+`421 Fornecedores c/c` aparecem com o sinal ao contrário. Não há regra única: é conta a conta.)
+
 **Datas de `<input type="date">`** — `new Date('aaaa-mm-dd')` lê como UTC e, a leste de Greenwich, cai no dia
 anterior — muda o período fiscal. Parte a string e constrói `new Date(ano, mes - 1, dia, 12)`.
 
@@ -202,9 +231,15 @@ vazio e o seed pode escrever pelos serviços (numeração em série, lançamento
 `prisma/seed/contas-pagar.ts`), dentro de `runWithTenantContext`. Os outros seeds continuam a usar o
 `PrismaClient` próprio. Idempotência por contagem quando não há chave natural.
 
+**O seed de demonstração é idempotente em DUAS metades** (`prisma/seed/demo-vendas.ts`,
+`demo-contabilidade.ts`) — o catálogo é sempre `upsert`; o funil transaccional (cotações, encomendas,
+vendas, facturas, lançamentos) só corre **se ainda não houver vendas**, porque re-executá-lo duplicaria
+documentos numerados. Consequência prática: mexer no gerador e voltar a correr `pnpm db:seed` **não faz
+nada** e não avisa. Para o exercitar a sério é preciso limpar primeiro o funil do tenant `demo`.
+
 **Realm Keycloak** — `infra/keycloak/realm-gespro.json` tem `verifyEmail: false` e assim tem de ficar (ADR-0031
 §2-ter): com `true`, a primeira tentativa de login de uma conta acabada de registar carimba `VERIFY_EMAIL` e o
-registo público deixa de abrir sessão — os 1426 testes passam à mesma, porque o Keycloak é sempre dobrado.
+registo público deixa de abrir sessão — a suite passa à mesma, porque o Keycloak é sempre dobrado.
 
 **Barra lateral** — nunca desaparece: recolhe para um carril de 56px em qualquer largura (em < md a expandida
 sobrepõe-se ao conteúdo com véu); estado no cookie `gespro-barra-lateral`, lido pelos layouts. Grupos no carril
@@ -245,6 +280,7 @@ As skills em `.claude/skills/` são a fonte de verdade e devem ser lidas antes d
 - `prisma-conventions` — modelação (tenantId, Decimal, enums SCREAMING_SNAKE, índices, soft delete, seeds, migrations).
 - `api-conventions` — Server Actions, serviços, `withApi`, validação Zod, hierarquia `AppError`.
 - `ui-conventions` — padrão sem-modais, patterns, tokens, Server Components, formulários.
+- `fiscalidade-mz` — INSS, IRPS, tabelas versionadas por vigência e integração contabilística do payroll.
 
 ## Deploy (spec 16)
 
