@@ -21,8 +21,11 @@ export function formatMZN(value: number | string): string {
       maximumFractionDigits: 2,
     })
       .format(n)
-      // Substitui símbolo "MZN" por "MT" (notação local comum em Moçambique)
-      .replace('MZN', 'MT')
+      // Normaliza o símbolo para "MT", a notação corrente em Moçambique.
+      // O ICU do runtime decide o que emite para MZN em pt-MZ: já foi "MZN"
+      // e hoje é "MTn" (o símbolo do metical novo de 2006). Só com "MZN" na
+      // substituição, o "MTn" passava incólume e chegava ao ecrã.
+      .replace(/\bMZN\b|\bMTn\b/, 'MT')
       .trim()
   );
 }
