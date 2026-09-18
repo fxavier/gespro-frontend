@@ -960,6 +960,13 @@ export async function cancelarProforma(id: string, motivo: string, ctx: Ctx): Pr
   return prisma.proforma.update({ where: { id }, data: { status: 'CANCELADA', observacoes: motivo } }) as unknown as Proforma;
 }
 
+export async function obterProforma(id: string, ctx: Ctx): Promise<ProformaCompleta | null> {
+  return prisma.proforma.findFirst({
+    where: { id, tenantId: ctx.tenantId },
+    include: { linhas: { orderBy: { ordemLinha: 'asc' } } },
+  }) as unknown as Promise<ProformaCompleta | null>;
+}
+
 export async function listarProformas(filtro: FiltroProformaInput, ctx: Ctx): Promise<PaginacaoFaturacao<ProformaCompleta>> {
   return paginate(
     (a) =>
@@ -1141,6 +1148,16 @@ export async function converterCotacaoEmProforma(
   });
 }
 
+export async function obterCotacaoComercial(
+  id: string,
+  ctx: Ctx,
+): Promise<CotacaoComercialCompleta | null> {
+  return prisma.cotacaoComercial.findFirst({
+    where: { id, tenantId: ctx.tenantId },
+    include: { linhas: { orderBy: { ordemLinha: 'asc' } } },
+  }) as unknown as Promise<CotacaoComercialCompleta | null>;
+}
+
 export async function listarCotacoesComerciais(filtro: FiltroCotacaoComercialInput, ctx: Ctx): Promise<PaginacaoFaturacao<CotacaoComercialCompleta>> {
   return paginate(
     (a) =>
@@ -1185,6 +1202,7 @@ export const faturacaoService = {
   enviarProforma,
   aceitarProforma,
   converterProformaEmFatura,
+  obterProforma,
   cancelarProforma,
   listarProformas,
   criarCotacaoComercial,
@@ -1192,5 +1210,6 @@ export const faturacaoService = {
   aceitarCotacaoComercial,
   rejeitarCotacaoComercial,
   converterCotacaoEmProforma,
+  obterCotacaoComercial,
   listarCotacoesComerciais,
 } satisfies IFaturacaoService;

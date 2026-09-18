@@ -25,6 +25,8 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   ENVIADA: 'info',
   RESPONDIDA: 'warning',
   ADJUDICADA: 'success',
+  ACEITE: 'success',      // proforma/cotação aceites pelo cliente
+  EXPIRADA: 'destructive', // validade ultrapassada = vencido
   VENCIDA: 'destructive',  // expirado/vencido = destructive em qualquer domínio
 
   // Pedido de Compra
@@ -308,6 +310,8 @@ export const STATUS_LABELS: Record<string, string> = {
   ENVIADA: 'Enviada',
   RESPONDIDA: 'Respondida',
   ADJUDICADA: 'Adjudicada',
+  ACEITE: 'Aceite',
+  EXPIRADA: 'Expirada',
   VENCIDA: 'Vencida',
   ENVIADO: 'Enviado',
   CONFIRMADO: 'Confirmado',
