@@ -120,4 +120,60 @@ test.describe('Faturação', () => {
       }
     }
   });
+  /**
+   * A série mostrava um «—» solitário: as páginas liam `codigo`/`nome`, campos
+   * que o modelo SerieDocumento não tem. E mesmo com o rótulo certo o campo
+   * ficava em branco até alguém abrir a lista — o Radix só resolve o texto do
+   * item depois de montar o conteúdo.
+   */
+  test('a série de facturação aparece preenchida sem abrir a lista', async ({ page }) => {
+    await page.goto('/faturacao/nova');
+    await expect(page.getByRole('heading', { name: 'Nova Fatura' })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const serie = page.getByLabel('Série de Faturação');
+    await expect(serie).toHaveText(/^[A-Z]+\/\d{4}$/);
+  });
+
+  test('o cliente escolhe-se por combobox, com código e nome', async ({ page }) => {
+    await page.goto('/faturacao/nova');
+    await expect(page.getByRole('heading', { name: 'Nova Fatura' })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const campo = page.getByRole('combobox', { name: /Cliente/ });
+    await expect(campo).toHaveText(/Seleccione o cliente/);
+    await campo.click();
+
+    // A pesquisa é feita no servidor: há mais clientes do que cabe na lista.
+    await page.getByPlaceholder(/Pesquisar por código/).fill('Maria');
+    const opcao = page.getByRole('option').first();
+    await expect(opcao).toHaveText(/^CLI-\d+ — /, { timeout: 15_000 });
+
+    const escolhido = await opcao.textContent();
+    await opcao.click();
+    await expect(campo).toHaveText(escolhido!.trim());
+  });
+});
+
+/**
+ * A listagem mostrava o CUID em vez do número e «—» em vez do cliente: lia
+ * `f.serie?.numero` e `f.cliente?.nome`, campos que não existem — o número
+ * está na própria factura e o `clienteId` é escalar (FK cross-domínio), por
+ * isso o nome tem de ser pedido ao WS C.
+ */
+test('a listagem mostra o número da factura e o nome do cliente', async ({ page }) => {
+  await page.goto('/faturacao');
+  await expect(page.getByRole('heading', { name: 'Faturação' })).toBeVisible({ timeout: 15_000 });
+
+  const primeira = page.locator('tbody tr').first();
+  await expect(primeira).toBeVisible({ timeout: 15_000 });
+
+  const numero = primeira.locator('td').nth(0);
+  await expect(numero).toHaveText(/^[A-Z]+\/\d{4}\/\d+$/);
+
+  const cliente = primeira.locator('td').nth(1);
+  await expect(cliente).not.toHaveText('—');
+  await expect(cliente).not.toHaveText(/^c[a-z0-9]{20,}$/);
 });

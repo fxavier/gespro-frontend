@@ -1,0 +1,14 @@
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.41..8.43 rows=1 width=417) (actual time=0.761..0.762 rows=1 loops=1)
+   Buffers: shared hit=4
+   ->  Index Scan using "Fatura_pkey" on "Fatura"  (cost=0.41..8.43 rows=1 width=417) (actual time=0.760..0.760 rows=1 loops=1)
+         Index Cond: (id = 'cf5c35cf24c5fbcbf0bcf9ea2'::text)
+         Filter: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+         Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=274
+ Planning Time: 3.956 ms
+ Execution Time: 0.900 ms
+(10 rows)
+

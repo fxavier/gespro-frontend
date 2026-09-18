@@ -46,7 +46,7 @@ const LISTA_VERIFICACAO = [
   'Identifico-me como responsável do turno',
 ];
 
-export function AberturaWizard() {
+export function AberturaWizard({ destino = '/caixa' }: { destino?: string }) {
   const router = useRouter();
   const [passo, setPasso] = useState<'preparacao' | 'dados'>('preparacao');
   const [verificados, setVerificados] = useState<Set<number>>(new Set());
@@ -81,7 +81,7 @@ export function AberturaWizard() {
       const result = await abrirSessaoCaixa(data);
       if (result.ok) {
         toast.success('Caixa aberto com sucesso!');
-        router.push('/caixa');
+        router.push(destino);
         router.refresh();
       } else {
         toast.error(result.error.message ?? 'Erro ao abrir caixa.');

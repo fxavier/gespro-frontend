@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { FormPage, FormSection } from '@/components/patterns';
 import { atualizarTicketAction } from '@/server/actions/tickets.actions';
 import type { TicketDetalhe } from '@/server/services/operacoes/ticket.interface';
 
@@ -55,72 +56,82 @@ export function EditarTicketForm({ ticket }: EditarTicketFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 max-w-2xl">
-      <div className="space-y-1.5">
-        <Label htmlFor="titulo">Título</Label>
-        <Input
-          id="titulo"
-          name="titulo"
-          defaultValue={ticket.titulo}
-          required
-          maxLength={300}
-          placeholder="Título do ticket…"
-        />
-      </div>
+    <form onSubmit={handleSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={pending}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'A guardar…' : 'Guardar Alterações'}
+            </Button>
+          </>
+        }
+      >
+        <FormSection title="Ticket">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-2">
+              <Label htmlFor="titulo">Título</Label>
+              <Input
+                id="titulo"
+                name="titulo"
+                defaultValue={ticket.titulo}
+                required
+                maxLength={300}
+                placeholder="Título do ticket…"
+              />
+            </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="prioridade">Prioridade</Label>
-        <Select name="prioridade" defaultValue={ticket.prioridade}>
-          <SelectTrigger id="prioridade">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="BAIXA">Baixa</SelectItem>
-            <SelectItem value="NORMAL">Normal</SelectItem>
-            <SelectItem value="ALTA">Alta</SelectItem>
-            <SelectItem value="URGENTE">Urgente</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="prioridade">Prioridade</Label>
+              <Select name="prioridade" defaultValue={ticket.prioridade}>
+                <SelectTrigger id="prioridade">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BAIXA">Baixa</SelectItem>
+                  <SelectItem value="NORMAL">Normal</SelectItem>
+                  <SelectItem value="ALTA">Alta</SelectItem>
+                  <SelectItem value="URGENTE">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </FormSection>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="descricao">Descrição</Label>
-        <Textarea
-          id="descricao"
-          name="descricao"
-          defaultValue={ticket.descricao}
-          required
-          rows={6}
-          maxLength={5000}
-          placeholder="Descrição detalhada do ticket…"
-        />
-      </div>
+        <FormSection title="Descrição">
+          <div className="space-y-1.5">
+            <Label htmlFor="descricao">Descrição</Label>
+            <Textarea
+              id="descricao"
+              name="descricao"
+              defaultValue={ticket.descricao}
+              required
+              rows={6}
+              maxLength={5000}
+              placeholder="Descrição detalhada do ticket…"
+            />
+          </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="observacoes">Observações</Label>
-        <Textarea
-          id="observacoes"
-          name="observacoes"
-          defaultValue={ticket.observacoes ?? ''}
-          rows={3}
-          maxLength={1000}
-          placeholder="Observações adicionais (opcional)…"
-        />
-      </div>
-
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'A guardar…' : 'Guardar Alterações'}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={pending}
-        >
-          Cancelar
-        </Button>
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="observacoes">Observações</Label>
+            <Textarea
+              id="observacoes"
+              name="observacoes"
+              defaultValue={ticket.observacoes ?? ''}
+              rows={3}
+              maxLength={1000}
+              placeholder="Observações adicionais (opcional)…"
+            />
+          </div>
+        </FormSection>
+      </FormPage>
     </form>
   );
 }

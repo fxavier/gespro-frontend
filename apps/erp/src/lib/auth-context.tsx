@@ -82,16 +82,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     : null;
 
+  // Desde o ADR-0010 o login é OIDC (Keycloak): não há credenciais a validar
+  // aqui — o par (email, senha) é ignorado e o browser é reencaminhado para o
+  // fornecedor de identidade. Assinatura mantida por compatibilidade do shim.
   const login = async (email: string, senha: string): Promise<boolean> => {
-    const result = await signIn('credentials', {
-      email,
-      password: senha,
+    // ADR-0029: o provider passou a ser `credentials` e o par (email, senha)
+    // voltou a ter significado — deixou de ser ignorado como no tempo do salto.
+    const res = await signIn('credentials', {
+      identificador: email,
+      palavraPasse: senha,
       redirect: false,
     });
-    return !!result?.ok && !result?.error;
+    return !!res && !res.error;
   };
 
   const logout = () => {
+    // ADR-0029: sem sessão SSO, terminar é limpar o cookie local — a revogação
+    // do token de renovação acontece no `events.signOut`, no servidor.
     void signOut({ callbackUrl: '/auth/login' });
   };
 

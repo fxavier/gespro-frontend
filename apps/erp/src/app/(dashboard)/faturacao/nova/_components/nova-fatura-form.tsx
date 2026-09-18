@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,8 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import {
+  ComboboxRemoto,
+  FormPage,
+  FormSection,
+  UnsavedChangesGuard,
+  type ComboboxOption, Combobox } from '@/components/patterns';
 import { emitirFatura } from '@/server/actions/faturacao.actions';
+import { procurarClientes } from '@/server/actions/clientes.actions';
 
 // ponytail: simplified schema for the form
 const LinhaFormSchema = z.object({
@@ -41,15 +47,36 @@ const FormSchema = z.object({
 
 type FormValues = z.infer<typeof FormSchema>;
 
+export interface ClienteOpcao {
+  id: string;
+  codigo: string;
+  nome: string;
+}
+
 interface Props {
   series: Array<{ id: string; codigo: string; nome: string }>;
+  /** Primeira página de clientes; a partir daí a combobox pesquisa no servidor. */
+  clientesIniciais: ClienteOpcao[];
 }
 
 const today = new Date().toISOString().split('T')[0];
 
-export function NovaFaturaForm({ series }: Props) {
+export function NovaFaturaForm({ series, clientesIniciais }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  // A pesquisa vai ao servidor: há mais clientes do que cabe numa lista.
+  const opcoesClientes = clientesIniciais.map((c) => ({
+    value: c.id,
+    label: `${c.codigo} — ${c.nome}`,
+  }));
+
+  const buscarClientes = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
+    const res = await procurarClientes({ q });
+    return res.ok
+      ? res.data.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))
+      : null;
+  }, []);
 
   const {
     register,
@@ -71,6 +98,9 @@ export function NovaFaturaForm({ series }: Props) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'linhas' });
   const linhas = useWatch({ control, name: 'linhas' }) ?? [];
+  const clienteId = useWatch({ control, name: 'clienteId' });
+  const serieId = useWatch({ control, name: 'serieDocumentoId' });
+  const serieEscolhida = series.find((s) => s.id === serieId);
 
   // Live totals
   const totais = linhas.reduce(
@@ -137,31 +167,37 @@ export function NovaFaturaForm({ series }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serie-faturacao">Série de Faturação *</Label>
-              <Select
-                defaultValue={series[0]?.id ?? ''}
-                onValueChange={(v) => setValue('serieDocumentoId', v)}
-              >
-                <SelectTrigger id="serie-faturacao" aria-label="Série de Faturação">
-                  <SelectValue placeholder="Seleccione a série" />
-                </SelectTrigger>
-                <SelectContent>
-                  {series.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nome}</SelectItem>
-                  ))}
-                  {series.length === 0 && (
-                    <SelectItem value="" disabled>Sem séries configuradas</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="serie-faturacao"
+                aria-label="Série de Faturação"
+                value={serieId}
+                disabled={series.length === 0}
+                onChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
+                placeholder="Seleccione a série"
+                options={series.map((s) => ({ value: s.id, label: s.nome }))}
+              />
+              {series.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Sem séries de factura activas — configure uma antes de emitir.
+                </p>
+              )}
               {errors.serieDocumentoId && (
                 <p className="text-sm text-destructive">{errors.serieDocumentoId.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cliente-id">ID do Cliente *</Label>
-              <Input id="cliente-id" {...register('clienteId')} placeholder="ID do cliente (CUID)" />
-              <p className="text-xs text-muted-foreground">Pesquisa de clientes disponível após integração comercial.</p>
+              <Label htmlFor="cliente-id">Cliente *</Label>
+              <ComboboxRemoto
+                id="cliente-id"
+                opcoesIniciais={opcoesClientes}
+                procurar={buscarClientes}
+                value={clienteId}
+                onChange={(v) => setValue('clienteId', v, { shouldDirty: true, shouldValidate: true })}
+                placeholder="Seleccione o cliente"
+                searchPlaceholder="Pesquisar por código, nome ou NUIT…"
+                emptyText="Nenhum cliente encontrado."
+              />
               {errors.clienteId && (
                 <p className="text-sm text-destructive">{errors.clienteId.message}</p>
               )}

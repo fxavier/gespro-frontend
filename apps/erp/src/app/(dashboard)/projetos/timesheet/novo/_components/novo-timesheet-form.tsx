@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FormPage } from '@/components/patterns';
+import { FormPage, Combobox } from '@/components/patterns';
 import { registarTimesheetAction } from '@/server/actions/projetos.actions';
 
 const Schema = z.object({
@@ -118,18 +118,11 @@ export default function NovoTimesheetForm({ projetos, colaboradores }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label>Projecto *</Label>
-          <Select onValueChange={(v) => form.setValue('projetoId', v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccione projecto" />
-            </SelectTrigger>
-            <SelectContent>
-              {projetos.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.codigo} — {p.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            onChange={(v) => form.setValue('projetoId', v)}
+            placeholder="Seleccione projecto"
+            options={projetos.map((p) => ({ value: p.id, label: `${p.codigo} — ${p.nome}` }))}
+          />
           {form.formState.errors.projetoId && (
             <p className="text-xs text-destructive">{form.formState.errors.projetoId.message}</p>
           )}
@@ -137,18 +130,11 @@ export default function NovoTimesheetForm({ projetos, colaboradores }: Props) {
 
         <div className="space-y-2">
           <Label>Colaborador *</Label>
-          <Select onValueChange={(v) => form.setValue('colaboradorId', v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccione colaborador" />
-            </SelectTrigger>
-            <SelectContent>
-              {colaboradores.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.codigo} — {c.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            onChange={(v) => form.setValue('colaboradorId', v)}
+            placeholder="Seleccione colaborador"
+            options={colaboradores.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+          />
           {form.formState.errors.colaboradorId && (
             <p className="text-xs text-destructive">{form.formState.errors.colaboradorId.message}</p>
           )}

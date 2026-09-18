@@ -327,3 +327,77 @@ describe('relatorioAging()', () => {
     expect(relatorio.totalAberto).toBe(0);
   });
 });
+
+// =====================================================================
+// registarPagamento() — pagamento parcial numa conta VENCIDA
+// =====================================================================
+
+describe('registarPagamento() — conta VENCIDA', () => {
+  it('pagamento parcial mantém VENCIDA (não há transição para PARCIALMENTE_PAGA)', async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+
+    // VENCIDA → PARCIALMENTE_PAGA não é transição válida; antes da correcção o
+    // serviço tentava-a e rebentava com «Transição inválida» (500) no caso
+    // mais comum: o fornecedor a receber por prestações depois do prazo.
+    const contaMock = {
+      id: 'cp-v', tenantId: 'tenant-test', status: 'VENCIDA',
+      valorOriginal: 500, valorPago: 0, valorRestante: 500,
+      descricao: 'Factura em atraso', pagamentos: [],
+    };
+    const pagamentoMock = {
+      id: 'pag-v', numero: 'PAG-2026-V', dataPagamento: new Date(),
+      valor: 200, formaPagamento: 'TRF', referencia: null, status: 'CONCLUIDO', lancamentoId: null,
+    };
+    const mockContaPagarUpdate = vi.fn().mockResolvedValue({ ...contaMock });
+    db.$transaction.mockImplementation(async (fn: any) =>
+      fn({
+        contaPagar: { findUnique: vi.fn().mockResolvedValue(contaMock), update: mockContaPagarUpdate },
+        pagamento: { create: vi.fn().mockResolvedValue(pagamentoMock), update: vi.fn().mockResolvedValue(pagamentoMock) },
+      }),
+    );
+
+    const { contaPagarService } = await import('../conta-pagar.service');
+    await expect(
+      contaPagarService.registarPagamento(
+        { contaPagarId: 'cp-v', dataPagamento: new Date(), valor: 200, formaPagamento: 'TRF' },
+        ctx,
+      ),
+    ).resolves.toBeDefined();
+
+    expect(mockContaPagarUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'VENCIDA', valorPago: 200, valorRestante: 300 }),
+      }),
+    );
+  });
+
+  it('liquidação total de uma VENCIDA passa a PAGA', async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+    const contaMock = {
+      id: 'cp-v2', tenantId: 'tenant-test', status: 'VENCIDA',
+      valorOriginal: 500, valorPago: 200, valorRestante: 300,
+      descricao: 'Factura em atraso', pagamentos: [],
+    };
+    const mockContaPagarUpdate = vi.fn().mockResolvedValue({ ...contaMock, status: 'PAGA' });
+    db.$transaction.mockImplementation(async (fn: any) =>
+      fn({
+        contaPagar: { findUnique: vi.fn().mockResolvedValue(contaMock), update: mockContaPagarUpdate },
+        pagamento: {
+          create: vi.fn().mockResolvedValue({ id: 'pag-v2', numero: 'PAG-2026-V2', dataPagamento: new Date(), valor: 300, formaPagamento: 'TRF', referencia: null, status: 'CONCLUIDO', lancamentoId: null }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+      }),
+    );
+
+    const { contaPagarService } = await import('../conta-pagar.service');
+    await contaPagarService.registarPagamento(
+      { contaPagarId: 'cp-v2', dataPagamento: new Date(), valor: 300, formaPagamento: 'TRF' },
+      ctx,
+    );
+    expect(mockContaPagarUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'PAGA' }) }),
+    );
+  });
+});

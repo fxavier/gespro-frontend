@@ -10,10 +10,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { FormPage, FormSection } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   criarMotoristaAction,
   atualizarMotoristaAction,
@@ -93,11 +93,21 @@ export function MotoristaForm({ motorista }: MotoristaFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Dados Pessoais</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button type="button" variant="outline" asChild disabled={pending}>
+              <Link href={edicao ? `/transporte/motoristas/${motorista!.id}` : '/transporte/motoristas'}>Cancelar</Link>
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'A guardar…' : edicao ? 'Guardar Alterações' : 'Registar Motorista'}
+            </Button>
+          </>
+        }
+      >
+      <FormSection title="Dados Pessoais">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="nomeCompleto">Nome Completo *</Label>
               <Input id="nomeCompleto" name="nomeCompleto" required minLength={2} maxLength={200} defaultValue={motorista?.nomeCompleto} />
@@ -114,18 +124,15 @@ export function MotoristaForm({ motorista }: MotoristaFormProps) {
               <Label htmlFor="localActividade">Local de Actividade</Label>
               <Input id="localActividade" name="localActividade" maxLength={200} defaultValue={motorista?.localActividade ?? ''} />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
               <Label htmlFor="morada">Morada</Label>
               <Input id="morada" name="morada" maxLength={500} defaultValue={motorista?.morada ?? ''} />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Carta de Condução</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <FormSection title="Carta de Condução">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="numeroCarta">Número da Carta *</Label>
               <Input id="numeroCarta" name="numeroCarta" required maxLength={50} defaultValue={motorista?.numeroCarta} />
@@ -143,26 +150,16 @@ export function MotoristaForm({ motorista }: MotoristaFormProps) {
               <Input id="validadeCarta" name="validadeCarta" type="date" required defaultValue={motorista?.validadeCarta} />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
+      <FormSection>
           <div className="space-y-1.5">
             <Label htmlFor="observacoes">Observações</Label>
             <Textarea id="observacoes" name="observacoes" maxLength={1000} rows={3} defaultValue={motorista?.observacoes ?? ''} />
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'A guardar…' : edicao ? 'Guardar Alterações' : 'Registar Motorista'}
-        </Button>
-        <Button type="button" variant="outline" asChild disabled={pending}>
-          <Link href={edicao ? `/transporte/motoristas/${motorista!.id}` : '/transporte/motoristas'}>Cancelar</Link>
-        </Button>
-      </div>
+      </FormPage>
     </form>
   );
 }

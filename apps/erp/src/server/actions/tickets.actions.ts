@@ -115,6 +115,7 @@ export const avaliarTicketAction = createSafeAction({
 export const listarTicketsAction = createSafeAction({
   schema: FiltrarTicketsSchema,
   permission: 'tickets:listar',
+  permiteEmLeitura: true,
   handler: async (input, ctx) => ticketService.listarTickets(input, ctx),
 });
 
@@ -179,5 +180,6 @@ export const atualizarArtigoBaseConhecimentoAction = createSafeAction({
 export const listarArtigosBaseConhecimentoAction = createSafeAction({
   schema: FiltrarBaseConhecimentoSchema,
   permission: 'tickets:base-conhecimento:listar',
+  permiteEmLeitura: true,
   handler: async (input, ctx) => baseConhecimentoService.listarArtigos(input, ctx),
 });

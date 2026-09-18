@@ -68,6 +68,7 @@ export const ajustarLinhaManualAction = createSafeAction({
 export const listarPayrollsAction = createSafeAction({
   schema: FilterPayrollSchema,
   permission: 'rh:payroll:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => PayrollService.listarPayrolls(filter, ctx),
 });
 
@@ -91,10 +92,12 @@ export const criarEscaloesIRPSAction = createSafeAction({
 
 export const listarTabelasINSSAction = createSafeAction({
   permission: 'rh:payroll:tabelas',
+  permiteEmLeitura: true,
   handler: (_input, ctx) => PayrollService.listarTabelasINSS(ctx),
 });
 
 export const listarEscaloesIRPSAction = createSafeAction({
   permission: 'rh:payroll:tabelas',
+  permiteEmLeitura: true,
   handler: (_input, ctx) => PayrollService.listarEscaloesIRPS(ctx),
 });

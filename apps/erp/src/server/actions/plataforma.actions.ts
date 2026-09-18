@@ -91,6 +91,23 @@ export const criarUtilizador = createSafeAction({
   handler: async (input, ctx) => userAdminService.criarUtilizador(input, ctx),
 });
 
+/**
+ * Repõe a palavra-passe (ADR-0030 §6). A temporária vem no resultado — é
+ * mostrada uma vez ao administrador e não fica em lado nenhum.
+ */
+export const reporPalavraPasse = createSafeAction({
+  schema: z.object({ id: z.string().cuid('ID de utilizador inválido') }),
+  permission: 'admin:gerir_utilizadores',
+  // Escreve — mas só no Keycloak, e por isso não há nada em Postgres para
+  // revalidar. É a única action da casa em que o `revalidate` não serve de
+  // sinal, daí a declaração explícita: em Leitura não se repõem palavras-passe.
+  // Quem estiver em Leitura e precisar disto começa por subscrever um plano.
+  permiteEmLeitura: false,
+  handler: async ({ id }, ctx) => ({
+    palavraPasse: await userAdminService.reporPalavraPasse(id, ctx),
+  }),
+});
+
 export const actualizarUtilizador = createSafeAction({
   schema: z.object({
     id: z.string().cuid('ID de utilizador inválido'),

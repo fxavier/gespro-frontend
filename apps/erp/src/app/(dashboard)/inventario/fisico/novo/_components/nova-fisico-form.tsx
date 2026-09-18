@@ -16,7 +16,7 @@ import { InventarioFisicoCreateSchema } from '@/lib/validations/inventario-ativo
 import { criarInventarioFisicoAction } from '@/server/actions/inventario.actions';
 import type { LocalizacaoDto } from '@/server/services/inventario/stock.interface';
 import type { CategoriaAtivoDto } from '@/server/services/inventario/ativos.interface';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,13 +28,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 type FormValues = z.infer<typeof InventarioFisicoCreateSchema>;
 type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
@@ -177,20 +170,14 @@ export function NovaFisicoForm({ userId, localizacoes }: NovaFisicoFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Localização Principal</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar localização…" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {localizacoes.map((loc) => (
-                          <SelectItem key={loc.id} value={loc.id}>
-                            {loc.codigo} — {loc.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        defaultValue={field.value}
+                        onChange={field.onChange}
+                        placeholder="Seleccionar localização…"
+                        options={localizacoes.map((loc) => ({ value: loc.id, label: `${loc.codigo} — ${loc.nome}` }))}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

@@ -159,6 +159,57 @@ async function enviarEmailNotificacao(
   }
 }
 
+/**
+ * Despacha notificações já persistidas (ADR-0032 §«O que isto custa»).
+ *
+ * Existe porque há um caminho que não passa pelo `criar()`: quem escreve
+ * notificações DENTRO de uma transacção de negócio — o ciclo de vida da
+ * subscrição — não pode fazer I/O externo lá dentro. Persiste na transacção e
+ * chama isto **depois do commit**, que é o «depois enviar» do padrão da casa.
+ *
+ * Até haver isto, as notificações de subscrição ficavam PENDENTE para sempre:
+ * ninguém as varria, e nenhum desses e-mails alguma vez saiu.
+ *
+ * Não lança: uma falha de envio regista-se na própria notificação.
+ */
+export async function despacharNotificacoes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+
+  const pendentes = await prismaBase.notificacao.findMany({
+    where: { id: { in: ids }, estadoEnvio: 'PENDENTE', canal: 'EMAIL' },
+    select: { id: true, tenantId: true, userId: true, titulo: true, mensagem: true },
+  });
+  if (pendentes.length === 0) return;
+
+  // `Notificacao.userId` é FK escalar (sem @relation, como manda o CLAUDE.md
+  // para fronteiras entre domínios), daí a segunda consulta — com `tenantId`
+  // no filtro, que é o que impede um id de outro tenant de trazer um e-mail.
+  const utilizadores = await prismaBase.user.findMany({
+    where: {
+      id: { in: [...new Set(pendentes.map((n) => n.userId))] },
+      tenantId: { in: [...new Set(pendentes.map((n) => n.tenantId))] },
+    },
+    select: { id: true, tenantId: true, email: true },
+  });
+  const emailDe = new Map(utilizadores.map((u) => [`${u.tenantId}:${u.id}`, u.email]));
+
+  await Promise.all(
+    pendentes.map(async (n) => {
+      const email = emailDe.get(`${n.tenantId}:${n.userId}`);
+      if (!email) {
+        await prismaBase.notificacao
+          .update({
+            where: { id: n.id },
+            data: { estadoEnvio: 'FALHA', erroEnvio: 'Utilizador sem email configurado' },
+          })
+          .catch(() => undefined);
+        return;
+      }
+      await enviarEmailNotificacao(n.id, n.titulo, n.mensagem, email);
+    }),
+  );
+}
+
 async function listar(
   filtro: FiltroNotificacoes,
   ctx: Ctx,

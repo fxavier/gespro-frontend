@@ -17,22 +17,29 @@ function limpar(valor: string | undefined): string | undefined {
 export const SITE_URL =
   limpar(process.env.NEXT_PUBLIC_SITE_URL) ?? "http://localhost:3100";
 
-/** URL da aplicação ERP (destino dos CTAs de login e do handoff de registo). */
+/**
+ * URL da aplicação ERP — destino dos CTAs de login **e** do encaminhamento de
+ * `/comecar` para `/registo` (ADR-0031 §4). Nunca escrito no código: em
+ * desenvolvimento cai aqui, em produção vem do ambiente.
+ */
 export const APP_URL =
   limpar(process.env.NEXT_PUBLIC_APP_URL) ?? "http://localhost:3000";
 
 /**
  * Base da API pública de onboarding (spec 19). Por omissão a própria app ERP.
  * Separada de `APP_URL` para permitir apontar o site a um ambiente de testes do
- * provisionamento sem mudar o destino dos links de login.
+ * catálogo sem mudar o destino dos links de login.
  */
 export const API_PUBLICA_URL =
   limpar(process.env.PLATAFORMA_API_URL) ?? APP_URL;
 
-/** Endpoints consumidos do spec 19 — ver docs/handoff/site-provisionamento-consumo.md. */
+/**
+ * Endpoint consumido do spec 19 — ver docs/handoff/site-provisionamento.md.
+ *
+ * `POST /api/publico/registo` deixou de ser consumido pelo site: o formulário
+ * vive no ERP (ADR-0031 §4) e chama a mesma fronteira pública do outro lado.
+ */
 export const ENDPOINT_PLANOS = `${API_PUBLICA_URL}/api/publico/planos`;
-export const ENDPOINT_REGISTO = `${API_PUBLICA_URL}/api/publico/registo`;
-export const URL_CALLBACK_REGISTO = `${APP_URL}/auth/registo-callback`;
 export const URL_LOGIN = `${APP_URL}/auth/login`;
 
 /** Domínio configurado no Plausible; ausente = analytics desligado (ADR-0008). */

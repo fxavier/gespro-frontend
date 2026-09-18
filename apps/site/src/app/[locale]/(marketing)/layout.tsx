@@ -23,7 +23,7 @@ export default async function LayoutMarketing({
   const t = await getTranslations("nav");
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col bg-superficie">
       <a href="#conteudo" className="salto-conteudo">
         {t("saltarParaConteudo")}
       </a>

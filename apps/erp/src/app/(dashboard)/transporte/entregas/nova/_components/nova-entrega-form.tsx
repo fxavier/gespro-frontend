@@ -11,9 +11,9 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FormPage, FormSection, Combobox } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -126,12 +126,22 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
+    <form onSubmit={handleSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button type="button" variant="outline" asChild disabled={pending}>
+              <Link href="/transporte/entregas">Cancelar</Link>
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'A criar…' : 'Criar Entrega'}
+            </Button>
+          </>
+        }
+      >
       {/* Cliente */}
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Dados do Cliente</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <FormSection title="Dados do Cliente">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="clienteId">Código do Cliente *</Label>
               <Input id="clienteId" name="clienteId" required placeholder="CL-001" />
@@ -145,15 +155,12 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
               <Input id="clienteTelefone" name="clienteTelefone" required minLength={9} maxLength={30} placeholder="+258 84 000 0000" />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
       {/* Morada */}
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Morada de Entrega</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 sm:col-span-2">
+      <FormSection title="Morada de Entrega">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
               <Label htmlFor="enderecoEntrega">Endereço *</Label>
               <Input id="enderecoEntrega" name="enderecoEntrega" required maxLength={500} placeholder="Rua, número, bairro…" />
             </div>
@@ -162,14 +169,11 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
               <Input id="cidade" name="cidade" required maxLength={200} placeholder="Maputo" />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
       {/* Agendamento */}
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Agendamento</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <FormSection title="Agendamento">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="dataAgendada">Data Agendada *</Label>
               <Input id="dataAgendada" name="dataAgendada" type="date" required />
@@ -193,68 +197,44 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
               <Input id="taxaEntrega" name="taxaEntrega" type="number" min={0} step="0.01" defaultValue={0} />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
       {/* Recursos (opcional) */}
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Recursos (opcional)</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <FormSection title="Recursos (opcional)">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="viaturaId">Viatura</Label>
-              <Select name="viaturaId">
-                <SelectTrigger id="viaturaId">
-                  <SelectValue placeholder="Sem viatura" />
-                </SelectTrigger>
-                <SelectContent>
-                  {viaturas.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.matricula} — {v.marca} {v.modelo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="viaturaId"
+                name="viaturaId"
+                placeholder="Sem viatura"
+                options={viaturas.map((v) => ({ value: v.id, label: `${v.matricula} — ${v.marca} ${v.modelo}` }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="motoristaId">Motorista</Label>
-              <Select name="motoristaId">
-                <SelectTrigger id="motoristaId">
-                  <SelectValue placeholder="Sem motorista" />
-                </SelectTrigger>
-                <SelectContent>
-                  {motoristas.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.nomeCompleto}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="motoristaId"
+                name="motoristaId"
+                placeholder="Sem motorista"
+                options={motoristas.map((m) => ({ value: m.id, label: m.nomeCompleto }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rotaId">Rota</Label>
-              <Select name="rotaId">
-                <SelectTrigger id="rotaId">
-                  <SelectValue placeholder="Sem rota" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rotas.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.codigo} — {r.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="rotaId"
+                name="rotaId"
+                placeholder="Sem rota"
+                options={rotas.map((r) => ({ value: r.id, label: `${r.codigo} — ${r.nome}` }))}
+              />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
       {/* Itens */}
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="font-medium text-sm">Itens da Carga *</p>
+      <FormSection title="Itens da Carga *">
+          <div className="flex items-center justify-end">
             <Button type="button" variant="outline" size="sm" onClick={adicionarItem}>
               <Plus className="h-3.5 w-3.5 mr-1" />
               Adicionar Item
@@ -276,19 +256,21 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
                   </Button>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
                 <div className="space-y-1.5">
-                  <Label>Código *</Label>
+                  <Label htmlFor={`item-${idx}-codigo`}>Código *</Label>
                   <Input
+                    id={`item-${idx}-codigo`}
                     value={item.produtoId}
                     onChange={(e) => updateItem(idx, 'produtoId', e.target.value)}
                     required
                     placeholder="PRD-001"
                   />
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Nome *</Label>
+                <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
+                  <Label htmlFor={`item-${idx}-nome`}>Nome *</Label>
                   <Input
+                    id={`item-${idx}-nome`}
                     value={item.produtoNome}
                     onChange={(e) => updateItem(idx, 'produtoNome', e.target.value)}
                     required
@@ -296,8 +278,9 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Quantidade *</Label>
+                  <Label htmlFor={`item-${idx}-quantidade`}>Quantidade *</Label>
                   <Input
+                    id={`item-${idx}-quantidade`}
                     type="number"
                     min={1}
                     value={item.quantidade}
@@ -306,8 +289,9 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Peso (kg)</Label>
+                  <Label htmlFor={`item-${idx}-peso`}>Peso (kg)</Label>
                   <Input
+                    id={`item-${idx}-peso`}
                     type="number"
                     min={0}
                     step="0.1"
@@ -316,8 +300,9 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Valor (MZN)</Label>
+                  <Label htmlFor={`item-${idx}-valor`}>Valor (MZN)</Label>
                   <Input
+                    id={`item-${idx}-valor`}
                     type="number"
                     min={0}
                     step="0.01"
@@ -333,17 +318,9 @@ export function NovaEntregaForm({ viaturas, motoristas, rotas }: NovaEntregaForm
             <span>Peso Total: <span className="font-medium tabular-nums">{pesoTotal.toFixed(1)} kg</span></span>
             <span>Valor Total: <span className="font-medium tabular-nums">MZN {valorCarga.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}</span></span>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'A criar…' : 'Criar Entrega'}
-        </Button>
-        <Button type="button" variant="outline" asChild disabled={pending}>
-          <Link href="/transporte/entregas">Cancelar</Link>
-        </Button>
-      </div>
+      </FormPage>
     </form>
   );
 }

@@ -11,10 +11,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { FormPage, FormSection, Combobox } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -101,41 +101,44 @@ export function AbastecimentoForm({ viaturas, motoristas }: AbastecimentoFormPro
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Viatura e Motorista</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button type="button" variant="outline" asChild disabled={pending}>
+              <Link href="/transporte/combustivel">Cancelar</Link>
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'A registar…' : 'Registar Abastecimento'}
+            </Button>
+          </>
+        }
+      >
+      <FormSection title="Viatura e Motorista">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="viaturaId">Viatura *</Label>
-              <Select name="viaturaId">
-                <SelectTrigger id="viaturaId"><SelectValue placeholder="Seleccione a viatura" /></SelectTrigger>
-                <SelectContent>
-                  {viaturas.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="viaturaId"
+                name="viaturaId"
+                placeholder="Seleccione a viatura"
+                options={viaturas.map((v) => ({ value: v.id, label: v.label }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="motoristaId">Motorista *</Label>
-              <Select name="motoristaId">
-                <SelectTrigger id="motoristaId"><SelectValue placeholder="Seleccione o motorista" /></SelectTrigger>
-                <SelectContent>
-                  {motoristas.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="motoristaId"
+                name="motoristaId"
+                placeholder="Seleccione o motorista"
+                options={motoristas.map((m) => ({ value: m.id, label: m.label }))}
+              />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Abastecimento</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <FormSection title="Abastecimento">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="data">Data *</Label>
               <Input id="data" name="data" type="date" required />
@@ -164,8 +167,8 @@ export function AbastecimentoForm({ viaturas, motoristas }: AbastecimentoFormPro
               <Input id="valorLitro" name="valorLitro" type="number" min={0.01} step="0.01" required value={valorLitro || ''} onChange={(e) => setValorLitro(Number(e.target.value))} />
             </div>
             <div className="space-y-1.5">
-              <Label>Valor Total (MZN)</Label>
-              <Input value={valorTotal.toFixed(2)} readOnly tabIndex={-1} className="bg-muted/40" />
+              <Label htmlFor="valorTotal">Valor Total (MZN)</Label>
+              <Input id="valorTotal" value={valorTotal.toFixed(2)} readOnly tabIndex={-1} className="bg-muted/40" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="kmPercorrido">KM Percorridos (desde o último)</Label>
@@ -184,17 +187,9 @@ export function AbastecimentoForm({ viaturas, motoristas }: AbastecimentoFormPro
             <Label htmlFor="observacoes">Observações</Label>
             <Textarea id="observacoes" name="observacoes" maxLength={1000} rows={2} />
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'A registar…' : 'Registar Abastecimento'}
-        </Button>
-        <Button type="button" variant="outline" asChild disabled={pending}>
-          <Link href="/transporte/combustivel">Cancelar</Link>
-        </Button>
-      </div>
+      </FormPage>
     </form>
   );
 }

@@ -53,7 +53,7 @@ export function KpiCard({
       <CardContent className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 space-y-1">
-            <p className="text-sm font-medium text-muted-foreground truncate">{title}</p>
+            <p className="text-xs font-medium text-muted-foreground truncate">{title}</p>
             <p
               className="text-2xl font-bold tracking-tight"
               style={{ fontVariantNumeric: 'tabular-nums' }}
@@ -91,7 +91,7 @@ export function KpiCard({
           </div>
 
           {icon && (
-            <div className="flex-shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary">
+            <div className="flex-shrink-0 rounded-lg bg-accent p-2.5 text-primary">
               {icon}
             </div>
           )}

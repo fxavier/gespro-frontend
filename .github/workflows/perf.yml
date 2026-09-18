@@ -1,0 +1,114 @@
+# Perf — gate de regressão de desempenho (ADR-0018 §6)
+#
+# Cenário reduzido: 10 utilizadores virtuais, 2 minutos, contra um subconjunto
+# do volume (VOLUME_PROFILE=ci). NÃO é uma medição de capacidade — é um
+# detector de regressões grosseiras, que é o que um runner partilhado consegue
+# medir com honestidade. A medição é LOCAL/CI (ADR-0026): grandeza relativa.
+#
+# MODO PERMISSIVO: enquanto perf/baseline.json não existir (nasce na
+# re-medição pós-Keycloak, fase 2), o compare-baseline.mjs sai com 0 e o job
+# nunca falha o merge. Quando baseline.json for versionado, o job passa a
+# falhar se o p95 degradar mais de 20 % (PERF_DEGRADACAO_MAX).
+#
+# Ficheiro novo e auto-contido — não altera ci.yml (propriedade: w8-desempenho).
+
+name: Perf
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  perf:
+    name: Perf (regressão k6)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: gespro
+          POSTGRES_PASSWORD: gespro
+          POSTGRES_DB: gespro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gespro -d gespro"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+      DIRECT_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'ci-perf-secret-at-least-32-chars-long-x' }}
+      NEXTAUTH_URL: http://localhost:3000
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate + migrate deploy
+        working-directory: apps/erp
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+
+      - name: Seed de volume (perfil ci — subconjunto)
+        working-directory: apps/erp
+        run: VOLUME_PROFILE=ci npx tsx prisma/seed/volume/index.ts
+
+      - name: Build de produção
+        working-directory: apps/erp
+        run: pnpm build
+
+      - name: Arrancar app (standalone) e esperar readiness
+        working-directory: apps/erp
+        run: |
+          cp -r .next/static .next/standalone/apps/erp/.next/static
+          mkdir -p public && cp -r public .next/standalone/apps/erp/ || true
+          (cd .next/standalone && PORT=3000 HOSTNAME=127.0.0.1 node apps/erp/server.js &)
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000/api/ready && exit 0
+            sleep 2
+          done
+          echo "App não ficou pronta" && exit 1
+
+      - name: Cenário reduzido k6 (10 VUs, 2 min)
+        run: |
+          PROFILE=ci BASE_URL=http://localhost:3000 \
+            k6 run --summary-export perf/results/ci-smoke.summary.json perf/k6/ci-smoke.js
+
+      - name: Comparar com a linha de base (20 %)
+        run: node perf/scripts/compare-baseline.mjs perf/results/ci-smoke.summary.json
+
+      - name: Guardar summary como artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-summary
+          path: perf/results/
+          retention-days: 30

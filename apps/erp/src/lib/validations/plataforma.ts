@@ -104,8 +104,13 @@ export const ConfiguracaoFiscalSchema = z.object({
     .optional()
     .or(z.literal('')),
   assinaturaDigital: z.string().max(500).optional(),
-  planoAssinatura: planoAssinaturaEnum.optional(),
-  statusAtivo: z.boolean().optional(),
+  // `planoAssinatura` e `statusAtivo` NÃO entram aqui, e não é omissão (#31).
+  // Este schema é editado pelo ADMIN do próprio Tenant; aqueles dois campos
+  // governam o acesso e a facturação da empresa e pertencem a outras duas
+  // autoridades — o webhook de facturação e a administração da GestPro.
+  // Aceitá-los deixava um Tenant suspenso desbloquear-se e promover-se de
+  // Plano. O Zod remove chaves desconhecidas, logo ausentá-los basta: nunca
+  // chegam ao serviço. Ver ADR-0027 §5/§6.
 });
 export type ConfiguracaoFiscalInput = z.infer<typeof ConfiguracaoFiscalSchema>;
 
@@ -113,24 +118,60 @@ export type ConfiguracaoFiscalInput = z.infer<typeof ConfiguracaoFiscalSchema>;
 // Gestão de Utilizadores — admin do tenant (permissão: utilizadores:gerir)
 // ---------------------------------------------------------------------------
 
+/**
+ * Convidar um colaborador é o mesmo mecanismo do registo (ADR-0013 §5-bis):
+ * cria a identidade no Keycloak com VERIFY_EMAIL + UPDATE_PASSWORD pendentes
+ * e dispara o e-mail de acções. SEM palavra-passe — o ERP deixou de a ver,
+ * transportar ou guardar em qualquer ponto, público ou administrativo.
+ */
 export const CreateUserSchema = z.object({
   nome: z.string().min(2, 'Nome obrigatório').max(200),
   email: z.string().email('Email inválido'),
-  password: z
-    .string()
-    .min(8, 'A palavra-passe deve ter pelo menos 8 caracteres')
-    .max(128),
   roleIds: z
     .array(z.string().cuid('ID de papel inválido'))
     .min(1, 'Atribua pelo menos um papel ao utilizador'),
   ativo: z.boolean().default(true),
+  /**
+   * Como a pessoa entra pela primeira vez (ADR-0030 §1). `convite` é o de
+   * sempre: e-mail de acções do Keycloak. `palavra-passe` gera uma temporária
+   * e mostra-a ao administrador — para quem não pode contar com o e-mail.
+   */
+  metodoAcesso: z.enum(['convite', 'palavra-passe']).default('convite'),
 });
 export type CreateUserInput = z.infer<typeof CreateUserSchema>;
 
+/**
+ * Mudança de palavra-passe no primeiro acesso (ADR-0030 §4/§5). Sem sessão: a
+ * prova de identidade é a palavra-passe actual, revalidada no Keycloak.
+ */
+export const MudarPalavraPasseSchema = z
+  .object({
+    identificador: z.string().min(1, 'Indique o e-mail'),
+    actual: z.string().min(1, 'Indique a palavra-passe actual'),
+    nova: z
+      .string()
+      .min(10, 'A nova palavra-passe tem de ter pelo menos 10 caracteres')
+      .max(200),
+    confirmacao: z.string().min(1, 'Confirme a nova palavra-passe'),
+  })
+  .refine((v) => v.nova === v.confirmacao, {
+    path: ['confirmacao'],
+    message: 'As palavras-passe não coincidem',
+  })
+  .refine((v) => v.nova !== v.actual, {
+    path: ['nova'],
+    message: 'A nova palavra-passe tem de ser diferente da actual',
+  });
+
+export type MudarPalavraPasseInput = z.infer<typeof MudarPalavraPasseSchema>;
+
+/**
+ * O e-mail deixou de ser editável aqui: é o identificador da Identidade e
+ * pertence ao Keycloak (CONTEXT.md). Corrigir um e-mail errado é desactivar
+ * este utilizador e convidar o endereço certo.
+ */
 export const UpdateUserSchema = z.object({
   nome: z.string().min(2).max(200).optional(),
-  email: z.string().email().optional(),
-  password: z.string().min(8).max(128).optional(),
   ativo: z.boolean().optional(),
 });
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;

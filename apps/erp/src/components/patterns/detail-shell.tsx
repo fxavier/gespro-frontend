@@ -88,17 +88,22 @@ export function DetailShell({
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Informações
               </h3>
-              <div className="space-y-3">
+              {/* `<dl>` e não `<div>`: `dt`/`dd` fora de uma lista de definições é HTML
+                  inválido e o axe assinala-o (`dlitem`). O `<div>` por item é
+                  permitido dentro de `<dl>` e mantém o separador entre pares. */}
+              <dl className="divide-y divide-border">
                 {metadata.map((item, index) => (
-                  <div key={index}>
-                    {index > 0 && <Separator className="mb-3" />}
+                  // Sem `<Separator>` aqui dentro: um `<dl>` só pode conter grupos
+                  // dt/dd (o axe recusa qualquer outro filho); a linha entre pares
+                  // é o `divide-y` da lista.
+                  <div key={index} className="py-3 first:pt-0 last:pb-0">
                     <dt className="text-xs font-medium text-muted-foreground mb-0.5">
                       {item.label}
                     </dt>
                     <dd className="text-sm text-foreground">{item.value}</dd>
                   </div>
                 ))}
-              </div>
+              </dl>
             </CardContent>
           </Card>
         )}

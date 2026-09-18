@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage } from '@/components/patterns';
+import { FormPage, Combobox } from '@/components/patterns';
 import { solicitarFeriasAction } from '@/server/actions/rh.actions';
 
 const Schema = z
@@ -103,18 +103,12 @@ export default function NovaSolicitacaoFeriasForm({ periodos }: Props) {
         <div className="space-y-6">
           <div className="space-y-2">
             <Label>Período aquisitivo *</Label>
-            <Select value={feriasId ?? ''} onValueChange={(v) => form.setValue('feriasId', v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione o período" />
-              </SelectTrigger>
-              <SelectContent>
-                {periodos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.colaboradorCodigo} — {p.colaboradorNome} ({p.inicio} a {p.fim}) · saldo {p.saldo}d
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={feriasId ?? ''}
+              onChange={(v) => form.setValue('feriasId', v)}
+              placeholder="Seleccione o período"
+              options={periodos.map((p) => ({ value: p.id, label: `${p.colaboradorCodigo} — ${p.colaboradorNome} (${p.inicio} a ${p.fim}) · saldo ${p.saldo}d` }))}
+            />
             {errors.feriasId && <p className="text-xs text-destructive">{errors.feriasId.message}</p>}
             {periodoSel && (
               <p className="text-xs text-muted-foreground">

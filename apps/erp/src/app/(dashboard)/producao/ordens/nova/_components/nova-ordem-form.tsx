@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage } from '@/components/patterns';
+import { FormPage, Combobox } from '@/components/patterns';
 import { criarOrdemProducaoAction } from '@/server/actions/producao.actions';
 
 const Schema = z.object({
@@ -157,21 +157,12 @@ export default function NovaOrdemForm({ roteiros }: Props) {
             </div>
             <div className="space-y-2">
               <Label>Roteiro (opcional)</Label>
-              <Select
+              <Combobox
                 value={form.watch('roteiroId') ?? ''}
-                onValueChange={(v) => form.setValue('roteiroId', v || undefined)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione roteiro" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roteiros.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.codigo} — {r.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) => form.setValue('roteiroId', v || undefined)}
+                placeholder="Seleccione roteiro"
+                options={roteiros.map((r) => ({ value: r.id, label: `${r.codigo} — ${r.nome}` }))}
+              />
             </div>
           </div>
 

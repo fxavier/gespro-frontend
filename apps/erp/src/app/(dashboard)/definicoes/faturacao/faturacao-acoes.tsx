@@ -136,12 +136,6 @@ export function FaturacaoAcoes({
                   <li>
                     Armazéns: {plano.limites.armazens === -1 ? 'ilimitados' : plano.limites.armazens}
                   </li>
-                  <li>
-                    Documentos/mês:{' '}
-                    {plano.limites.documentosMes === -1
-                      ? 'ilimitados'
-                      : plano.limites.documentosMes}
-                  </li>
                   <li>Suporte: {plano.limites.suporte}</li>
                 </ul>
                 <Button

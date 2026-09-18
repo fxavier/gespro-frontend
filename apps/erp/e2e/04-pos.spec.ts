@@ -1,62 +1,54 @@
 /**
  * E2E: Venda POS — Fluxo Completo
  *
- * Fluxos cobertos:
- * 1. POS sem sessão activa mostra setup
- * 2. Terminal POS carrega com produtos (se sessão activa)
- * 3. Pesquisa de produto no terminal
+ * Regra do /pos: caixa aberto = POS pronto.
+ *   - Sem sessão de caixa do utilizador → redirecção para /caixa/abertura
+ *     com `voltar=/pos`, para regressar ao terminal depois de abrir.
+ *   - Com caixa aberto e sem sessão POS → a sessão POS abre sozinha (sem
+ *     pedir o cuid da sessão de caixa) e o terminal aparece.
+ *   - Com sessão POS aberta → terminal.
  *
- * Nota: Para testar a venda completa (produto → carrinho → finalizar),
- * o DB precisa de ter: sessão de caixa aberta → sessão POS activa.
- * O teste verifica o fluxo de setup quando necessário.
+ * Os testes aceitam qualquer um dos estados iniciais — o que a base tem no
+ * momento — e verificam o contrato de cada ramo.
  *
  * Determinístico: sem sleeps; usa expect auto-retry.
  */
 
 import { test, expect } from '@playwright/test';
 
+const pesquisa = (page: import('@playwright/test').Page) =>
+  page.getByRole('textbox', { name: /Pesquisar produto/i });
+
 test.describe('POS — Terminal de Venda', () => {
-  test('página POS carrega sem erros', async ({ page }) => {
+  test('/pos nunca pede o ID da sessão de caixa', async ({ page }) => {
     await page.goto('/pos');
     await page.waitForLoadState('domcontentloaded');
 
-    // POS pode mostrar setup ou terminal
-    const setup = page.getByText('Nenhuma sessão POS activa');
-    const terminal = page.getByRole('textbox', { name: /Pesquisar produto/i });
-
-    const hasSetup = await setup.isVisible({ timeout: 10_000 }).catch(() => false);
-    const hasTerminal = await terminal.isVisible({ timeout: 10_000 }).catch(() => false);
-
-    expect(hasSetup || hasTerminal).toBeTruthy();
+    await expect(page.getByLabel('ID da Sessão de Caixa')).toHaveCount(0);
+    await expect(page.getByText('Nenhuma sessão POS activa')).toHaveCount(0);
   });
 
-  test('POS setup: formulário de iniciar sessão está acessível', async ({ page }) => {
+  test('sem caixa aberto, /pos vai para a abertura e guarda o caminho de volta', async ({ page }) => {
     await page.goto('/pos');
     await page.waitForLoadState('domcontentloaded');
 
-    const setup = page.getByText('Nenhuma sessão POS activa');
-    const hasSetup = await setup.isVisible({ timeout: 10_000 }).catch(() => false);
-
-    if (hasSetup) {
-      // Verifica o formulário de setup
-      await expect(page.getByLabel('ID da Sessão de Caixa')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Iniciar Sessão POS' })).toBeVisible();
+    if (/\/caixa\/abertura/.test(page.url())) {
+      expect(new URL(page.url()).searchParams.get('voltar')).toBe('/pos');
+      await expect(page.getByRole('heading', { name: 'Abertura de Caixa' })).toBeVisible();
+    } else {
+      // Caixa aberto: o outro ramo é verificado no teste seguinte.
+      await expect(page).toHaveURL(/\/pos/);
     }
   });
 
-  test('POS setup: campo obrigatório impede submissão vazia', async ({ page }) => {
+  test('com caixa aberto, o terminal aparece sem interacção', async ({ page }) => {
     await page.goto('/pos');
     await page.waitForLoadState('domcontentloaded');
 
-    const setup = page.getByText('Nenhuma sessão POS activa');
-    const hasSetup = await setup.isVisible({ timeout: 10_000 }).catch(() => false);
-
-    if (hasSetup) {
-      // Tenta submeter sem preencher
-      await page.getByRole('button', { name: 'Iniciar Sessão POS' }).click();
-
-      // Deve mostrar validação ou permanecer na mesma página
-      await expect(page).toHaveURL(/\/pos/);
+    if (/\/pos$/.test(new URL(page.url()).pathname)) {
+      // Ou já havia sessão POS, ou o ecrã «A iniciar o POS…» abre uma e
+      // recarrega — em qualquer caso o terminal tem de chegar sozinho.
+      await expect(pesquisa(page)).toBeVisible({ timeout: 20_000 });
     }
   });
 

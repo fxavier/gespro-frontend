@@ -1,78 +1,12 @@
 import { describe, expect, it } from "vitest";
-import {
-  contactoSchema,
-  registoSchema,
-  paraPayloadRegisto,
-} from "../validations";
+import { contactoSchema } from "../validations";
 
-const registoValido = {
-  empresaNome: "Comercial Zambeze, Lda.",
-  empresaNuit: "400123456",
-  provincia: "Maputo Cidade",
-  adminNome: "Ana Macuácua",
-  adminEmail: "ana@zambeze.co.mz",
-  adminSenha: "senha-muito-segura",
-  planoId: "PROFISSIONAL",
-};
-
-describe("registoSchema", () => {
-  it("aceita um registo completo e válido", () => {
-    expect(registoSchema.safeParse(registoValido).success).toBe(true);
-  });
-
-  it("rejeita NUIT que não tenha exactamente nove dígitos", () => {
-    for (const nuit of ["12345678", "1234567890", "40012345a", "400 123 456"]) {
-      const resultado = registoSchema.safeParse({
-        ...registoValido,
-        empresaNuit: nuit,
-      });
-      expect(resultado.success, nuit).toBe(false);
-    }
-  });
-
-  it("rejeita províncias que não são de Moçambique", () => {
-    expect(
-      registoSchema.safeParse({ ...registoValido, provincia: "Lisboa" }).success
-    ).toBe(false);
-  });
-
-  it("rejeita senhas com menos de dez caracteres", () => {
-    expect(
-      registoSchema.safeParse({ ...registoValido, adminSenha: "curta123" })
-        .success
-    ).toBe(false);
-  });
-
-  it("rejeita planos fora do catálogo do spec 19", () => {
-    expect(
-      registoSchema.safeParse({ ...registoValido, planoId: "OURO" }).success
-    ).toBe(false);
-  });
-});
-
-describe("paraPayloadRegisto", () => {
-  it("produz exactamente a forma do contrato de POST /api/publico/registo", () => {
-    const dados = registoSchema.parse(registoValido);
-    const payload = paraPayloadRegisto(dados);
-
-    expect(payload).toEqual({
-      empresa: { nome: "Comercial Zambeze, Lda.", nuit: "400123456" },
-      admin: {
-        nome: "Ana Macuácua",
-        email: "ana@zambeze.co.mz",
-        senha: "senha-muito-segura",
-      },
-      planoId: "PROFISSIONAL",
-      provincia: "Maputo Cidade",
-      captchaToken: "",
-    });
-  });
-
-  it("relaia o token de captcha quando existe", () => {
-    const dados = registoSchema.parse(registoValido);
-    expect(paraPayloadRegisto(dados, "tok-123").captchaToken).toBe("tok-123");
-  });
-});
+/**
+ * Só o contacto: o registo saiu do site com o ADR-0031 §4 e os seus testes
+ * foram com ele. O que substitui esta cobertura vive em `apps/erp` — no schema
+ * e na fronteira pública partilhada —, que é onde o registo passou a ser
+ * validado.
+ */
 
 describe("contactoSchema", () => {
   const valido = {

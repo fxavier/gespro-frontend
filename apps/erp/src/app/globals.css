@@ -2,7 +2,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 /* Tokens de marca — fonte única partilhada com apps/site (spec 18 §2, Requisito 2.2).
-   Declara :root e .dark com os valores literais; aqui só se faz o mapeamento Tailwind. */
+   Declara :root e .dark com os valores literais; aqui só se faz o mapeamento Tailwind.
+   A paleta (tela azulada, tinta marinho, azul de acção, barra lateral branca)
+   é a do site de marketing, promovida a marca: o ERP não sobrepõe cor nenhuma. */
 @import "@gespro/brand/tokens.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -10,8 +12,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), var(--font-sans-fallback);
+  --font-mono: var(--font-geist-mono), var(--font-mono-fallback);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,21 +51,18 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
-  /* Radius scale */
+  /* Radius scale — 6 / 8 / 10 / 14 / 20: botões a 8, cartões a 14. */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px);
   /* Sidebar */
   --sidebar-width: 280px;
   /* Shadows */
   --shadow-sm: var(--shadow-sm-val);
   --shadow-md: var(--shadow-md-val);
 }
-
-/* Os tokens :root/.dark vivem em packages/brand/tokens.css (importado no topo).
-   Não redeclarar aqui — a marca é partilhada com apps/site. */
-
 
 @layer base {
   * {
@@ -73,16 +72,18 @@
     @apply bg-background text-foreground;
     font-size: 14px;
     line-height: 1.5;
+    /* Num ERP quase tudo é número em coluna: tabular por omissão, não por opt-in. */
+    font-variant-numeric: tabular-nums;
   }
-  /* Números tabulares em tabelas e elementos financeiros */
   td,
   .font-tabular,
   [data-tabular-nums] {
     font-variant-numeric: tabular-nums;
   }
-  /* Escala tipográfica */
-  h1 { @apply text-3xl font-semibold tracking-tight; }
-  h2 { @apply text-2xl font-semibold tracking-tight; }
-  h3 { @apply text-xl font-semibold; }
+  /* Escala tipográfica — Inter em tudo, como no site. Peso 600 nos títulos,
+     espacejamento fechado nos grandes. */
+  h1 { @apply text-2xl font-semibold tracking-tight; }
+  h2 { @apply text-xl font-semibold tracking-tight; }
+  h3 { @apply text-lg font-semibold; }
   h4 { @apply text-base font-semibold; }
 }

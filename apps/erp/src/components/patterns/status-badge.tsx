@@ -69,6 +69,14 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   CONCLUIDO_SERV: 'success',
   NAO_COMPARECEU: 'destructive',
 
+  // Lançamento contabilístico (StatusLancamento) — faltavam os dois, e a
+  // consequência era um «LANCADO» em bruto, com a variante por omissão, em
+  // todas as listagens e detalhes da contabilidade.
+  LANCADO: 'success',
+  // Estornado não é erro: é a forma correcta de corrigir um documento
+  // append-only. Fica neutro, como CANCELADA, e não a vermelho.
+  ESTORNADO: 'secondary',
+
   // Faturação
   EMITIDA: 'info',
   LIQUIDADA: 'success',
@@ -254,6 +262,10 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   // Assinatura SaaS — Spec 19 (EstadoAssinatura + CicloFaturacao)
   // ATIVA / SUSPENSA / CANCELADA já mapeados acima — mesmo significado visual.
   TRIAL: 'info',
+  // Leitura é um aviso, não um erro: o cliente ainda tem tudo e ainda pode
+  // voltar. Fechada é que é o fim da linha (ADR-0032 §1).
+  LEITURA: 'warning',
+  FECHADA: 'destructive',
   EXPIRADO: 'destructive',
   MENSAL: 'secondary',
   ANUAL: 'secondary',
@@ -285,6 +297,8 @@ const badgeVariants = cva(
 
 export const STATUS_LABELS: Record<string, string> = {
   RASCUNHO: 'Rascunho',
+  LANCADO: 'Lançado',
+  ESTORNADO: 'Estornado',
   PENDENTE: 'Pendente',
   EM_APROVACAO: 'Em Aprovação',
   APROVADA: 'Aprovada',
@@ -451,6 +465,8 @@ export const STATUS_LABELS: Record<string, string> = {
   IN_APP: 'In-App',
   // Assinatura SaaS — Spec 19
   TRIAL: 'Período de Teste',
+  LEITURA: 'Modo de Leitura',
+  FECHADA: 'Acesso Fechado',
   EXPIRADO: 'Expirado',
   MENSAL: 'Mensal',
   ANUAL: 'Anual',

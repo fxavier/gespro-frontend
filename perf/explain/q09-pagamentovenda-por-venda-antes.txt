@@ -1,0 +1,12 @@
+                                                   QUERY PLAN                                                    
+-----------------------------------------------------------------------------------------------------------------
+ Seq Scan on "PagamentoVenda"  (cost=0.00..3540.25 rows=1 width=148) (actual time=0.550..443.121 rows=1 loops=1)
+   Filter: ("vendaId" = 'caf529c305738629b8ecbd4cb'::text)
+   Rows Removed by Filter: 122045
+   Buffers: shared hit=2009 dirtied=1
+ Planning:
+   Buffers: shared hit=143
+ Planning Time: 2.879 ms
+ Execution Time: 443.257 ms
+(8 rows)
+

@@ -19,7 +19,7 @@ export function Container({
   className?: string;
 }) {
   return (
-    <div className={cn("mx-auto w-full max-w-conteudo px-5 sm:px-8", className)}>
+    <div className={cn("mx-auto w-full max-w-conteudo px-4 md:px-8", className)}>
       {children}
     </div>
   );
@@ -40,13 +40,14 @@ export function Seccao({
     <section
       id={id}
       aria-labelledby={ariaLabelledby}
-      className={cn("py-20 sm:py-28", className)}
+      className={cn("py-20 lg:py-28", className)}
     >
       {children}
     </section>
   );
 }
 
+/** Etiqueta de secção: legenda em maiúsculas pequenas, a azul, sem caixa. */
 export function Etiqueta({
   children,
   className,
@@ -57,8 +58,7 @@ export function Etiqueta({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border border-contorno-suave bg-superficie px-3.5 py-1.5",
-        "text-xs font-medium tracking-wide text-texto-suave uppercase",
+        "inline-flex items-center gap-2 text-legenda font-bold tracking-wider text-primary uppercase",
         className
       )}
     >
@@ -94,7 +94,7 @@ export function TituloSeccao({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4",
+        "flex flex-col gap-3",
         alinhamento === "centro"
           ? "mx-auto max-w-texto items-center text-center"
           : "max-w-texto items-start text-left",
@@ -117,26 +117,35 @@ export function TituloSeccao({
 
 // ─── Botões ────────────────────────────────────────────────────────────────
 
-type Variante = "primario" | "secundario" | "fantasma";
+type Variante = "primario" | "secundario" | "fantasma" | "faixa";
 type Tamanho = "md" | "lg";
 
+/*
+ * Botões rectangulares (8px) como no mockup: o primário é o azul de acção com
+ * sombra, o secundário é um cartão branco com sombra leve. `active:scale`
+ * é a única micro-interacção — o resto vive em `Gesto` (movimento.tsx).
+ */
 const BASE =
-  "inline-flex items-center justify-center gap-2 rounded-full font-medium " +
-  "transition-colors duration-[var(--duracao-rapida)] " +
-  "disabled:pointer-events-none disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-lg font-medium " +
+  "transition-[background-color,color,transform] duration-[var(--duracao-rapida)] " +
+  "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60";
 
 const VARIANTES: Record<Variante, string> = {
-  // `text-accao-texto` e não `text-primary-foreground`: no tema escuro o
-  // primário clareia e o branco deixaria de passar AA. Ver theme.css.
-  primario: "bg-primary text-accao-texto hover:bg-primary/90 shadow-sm",
+  // `text-accao-texto` e não `text-primary-foreground`: no tema escuro o azul
+  // clareia e o branco deixaria de passar AA. Ver theme.css.
+  primario: "bg-azul text-accao-texto shadow-md hover:bg-primary",
   secundario:
-    "border border-contorno-suave bg-background text-foreground hover:bg-superficie",
-  fantasma: "text-foreground hover:bg-superficie",
+    "border border-contorno-suave bg-card text-foreground shadow-sm hover:bg-superficie-forte",
+  fantasma: "text-texto-suave hover:text-foreground",
+  // Translúcido sobre a faixa final. É uma VARIANTE e não `className` extra
+  // porque `cn` é um join: dois `text-` na mesma classe deixavam o resultado
+  // à mercê da ordem do CSS gerado — e no tema claro ganhava o cinzento.
+  faixa: "bg-faixa-texto/10 text-faixa-texto hover:bg-faixa-texto/20",
 };
 
 const TAMANHOS: Record<Tamanho, string> = {
-  md: "h-11 px-5 text-sm",
-  lg: "h-13 px-7 text-base",
+  md: "h-10 px-4 text-sm",
+  lg: "h-12 px-6 text-sm",
 };
 
 export function classesBotao(
@@ -165,7 +174,8 @@ export function BotaoLink({
 } & Omit<ComponentProps<"a">, "href" | "className" | "children">) {
   const classes = classesBotao(variante, tamanho, className);
 
-  if (externo) {
+  // Âncoras na própria página (`#seccao`) não passam pelo router de locale.
+  if (externo || href.startsWith("#")) {
     return (
       <a href={href} className={classes} {...resto}>
         {children}
@@ -198,6 +208,10 @@ export function Botao({
   );
 }
 
+/**
+ * Cartão branco com sombra leve — o contentor por omissão do mockup. No tema
+ * escuro a sombra desaparece no fundo, por isso ganha um contorno de fio.
+ */
 export function Cartao({
   children,
   className,
@@ -208,11 +222,31 @@ export function Cartao({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-contorno-suave bg-card p-6 shadow-sm",
+        "rounded-2xl border border-transparent bg-card p-6 shadow-sm dark:border-contorno-suave",
         className
       )}
     >
       {children}
     </div>
+  );
+}
+
+/** Chapa quadrada de ícone: azul sobre a chapa suave, 40px. */
+export function ChapaIcone({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "grid size-10 shrink-0 place-items-center rounded-lg bg-destaque-suave text-primary",
+        className
+      )}
+    >
+      {children}
+    </span>
   );
 }

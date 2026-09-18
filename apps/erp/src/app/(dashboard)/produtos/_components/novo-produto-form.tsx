@@ -24,7 +24,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarProdutoAction } from '@/server/actions/inventario.actions';
 import { ProdutoCreateSchema, type ProdutoCreate } from '@/lib/validations/produtos';
 import type { CategoriaProdutoDto } from '@/server/services/inventario/catalogo.interface';
@@ -138,18 +138,14 @@ export function NovoProdutoForm({ categorias }: NovoProdutoFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoria *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar categoria" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categorias.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar categoria"
+                      options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

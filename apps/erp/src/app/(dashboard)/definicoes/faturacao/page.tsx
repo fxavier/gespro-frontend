@@ -119,6 +119,30 @@ async function Subscricao({ tenantId, userId }: { tenantId: string; userId: stri
         />
       )}
 
+      {assinatura.estado === 'LEITURA' && (
+        <Aviso
+          tom="alerta"
+          titulo="A conta está em modo de leitura"
+          texto={
+            `Pode consultar e exportar tudo o que é seu; não pode gravar. ` +
+            (assinatura.leituraFim
+              ? `O acesso fecha a ${dataFmt.format(assinatura.leituraFim)} ` +
+                `(faltam ${assinatura.diasRestantesLeitura} dias). `
+              : '') +
+            'Subscreva um plano para repor o acesso completo — os dados não se apagam, nem depois de o acesso fechar.'
+          }
+        />
+      )}
+
+      {assinatura.estado === 'FECHADA' && (
+        <Aviso
+          tom="alerta"
+          titulo="O acesso foi fechado"
+          texto="Os seus dados continuam guardados e não foram apagados. Subscreva um plano e volta a encontrar tudo como estava."
+        />
+      )}
+
+      {/* Estados legados: já não se escrevem (ADR-0032 §1), mas há linhas com eles. */}
       {assinatura.estado === 'SUSPENSA' && (
         <Aviso
           tom="alerta"

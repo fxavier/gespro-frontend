@@ -1,6 +1,5 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { hash } from '@node-rs/argon2';
 import { Prisma } from '@prisma/client';
 import { prismaBase } from '@/server/db/client';
 import { BusinessRuleError } from '@/lib/errors';
@@ -11,27 +10,38 @@ import {
   bootstrapContabilidade,
   garantirCatalogoPermissoes,
 } from '@/server/provisioning/tenant-bootstrap';
-import { emitirToken } from './handoff.service';
+import { garantirUtilizador } from '@/server/auth/keycloak';
 
 /**
- * Provisionamento self-service de tenants — spec 19, Requisito 1.
+ * Provisionamento self-service de tenants — spec 19, Requisito 1, revisto
+ * pelo ADR-0013 (Keycloak).
  *
  * FRONTEIRA PÚBLICA: corre **sem sessão e sem contexto de tenant** (o tenant
  * ainda não existe). Por isso usa `prismaBase` (cliente cru, sem a extensão
  * multi-tenant) e escreve `tenantId` EXPLICITAMENTE em todas as linhas.
  *
- * Tudo o que constitui o tenant acontece numa única `$transaction`: falha em
- * qualquer passo reverte tudo. Nunca fica um tenant parcial (sem plano de
- * contas, sem admin ou sem séries) — um estado desses seria invisível e só
- * apareceria à primeira factura.
+ * Criar um tenant deixou de ser UMA transacção: são dois sistemas com estado.
+ * A ordem é deliberada (ADR-0013 §2) — **Keycloak primeiro, Postgres depois**,
+ * porque o lado sem transacção vai à frente:
+ *   1. Identidade no Keycloak, SEM palavra-passe, com VERIFY_EMAIL +
+ *      UPDATE_PASSWORD pendentes (idempotente por e-mail).
+ *   2. Tenant/User/RBAC/PGC numa `$transaction` — falha reverte tudo.
+ *   3. `execute-actions-email` (no route handler, fora da tx): é este e-mail
+ *      — e só ele — que dá entrada no produto.
+ * Se o passo 1 falhar, nada foi escrito e o pedido repete-se. Se o passo 2
+ * falhar, fica um utilizador Keycloak órfão — detectável, reparável e
+ * inofensivo (sem `User` local não há autorização nenhuma, ADR-0011). O
+ * contrário — tenant sem identidade — seria um cliente pago sem forma de
+ * entrar. A reconciliação diária (§3) reporta divergências.
  *
- * Efeitos externos (email, Stripe) ficam FORA da transacção: o padrão
- * "persistir-depois-enviar" da spec 13.
+ * Efeitos externos (e-mail de acções, Stripe) ficam FORA da transacção: o
+ * padrão "persistir-depois-enviar" da spec 13.
  */
 
 export interface ProvisionarTenantInput {
   empresa: { nome: string; nuit: string };
-  admin: { nome: string; email: string; senha: string };
+  /** SEM senha (ADR-0013 §5): a palavra-passe é definida no Keycloak. */
+  admin: { nome: string; email: string };
   planoId: PlanoId;
   provincia: string;
 }
@@ -40,10 +50,10 @@ export interface ResultadoProvisionamento {
   tenantId: string;
   tenantSlug: string;
   userId: string;
+  /** `sub` do admin no Keycloak — para o route handler disparar o e-mail de acções. */
+  keycloakSub: string;
   adminEmail: string;
   adminNome: string;
-  handoffToken: string;
-  tokenVerificacaoEmail: string;
   notificacaoBoasVindasId: string;
 }
 
@@ -104,17 +114,19 @@ function isUniqueViolation(e: unknown, campo?: string): boolean {
 }
 
 /**
- * Cria o tenant completo numa única transacção atómica.
- *
- * Ordem: Tenant → ConfiguracaoFiscal → Assinatura (TRIAL) → RBAC → User admin
- * + role ADMIN → plano de contas PGC-NIRF + diários + séries → token de
- * verificação de email → Notificacao de boas-vindas (PENDENTE) → token de
- * handoff. Nada disto é observável se um passo falhar.
+ * Provisiona o tenant: identidade no Keycloak primeiro (fora de qualquer
+ * transacção — ADR-0013 §2), depois a `$transaction` Postgres com
+ * Tenant → ConfiguracaoFiscal → Assinatura (TRIAL) → RBAC → User admin
+ * (com `keycloakSub`) + role ADMIN → plano de contas PGC-NIRF + diários +
+ * séries → Notificacao de boas-vindas (in-app). Nada do lado Postgres é
+ * observável se um passo falhar.
  */
 export async function provisionarTenant(
   input: ProvisionarTenantInput,
 ): Promise<ResultadoProvisionamento> {
-  // NUIT é único por Tenant — verificar antes de gastar CPU no hash de argon2.
+  const email = input.admin.email.toLowerCase().trim();
+
+  // NUIT é único por Tenant.
   const nuitExistente = await prismaBase.tenant.findFirst({
     where: { nuit: input.empresa.nuit },
     select: { id: true },
@@ -126,19 +138,47 @@ export async function provisionarTenant(
     );
   }
 
-  // Hash fora da transacção: argon2 demora ~100 ms e não deve segurar locks.
-  const passwordHash = await hash(input.admin.senha);
+  // O e-mail é único em TODO o sistema (CONTEXT.md): uma Identidade pertence a
+  // exactamente um Tenant. A mensagem tem de o dizer com estas palavras — não
+  // com «e-mail inválido» (ADR-0013, Consequências).
+  const emailExistente = await prismaBase.user.findFirst({
+    where: { email },
+    select: { id: true },
+  });
+  if (emailExistente) {
+    throw new BusinessRuleError(
+      'EMAIL_JA_REGISTADO',
+      'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos.',
+    );
+  }
 
-  // Catálogo global de permissões também fora: é partilhado por todos os
+  // Catálogo global de permissões fora da tx: é partilhado por todos os
   // tenants, e escrevê-lo dentro da tx punha dois registos concorrentes a
   // disputar o mesmo índice único (deadlock possível num endpoint público).
   await garantirCatalogoPermissoes(prismaBase);
+
+  // KEYCLOAK PRIMEIRO (ADR-0013 §2). Idempotente por e-mail — repetir o pedido
+  // reutiliza o `sub`, e no caminho normal a identidade já vem criada de
+  // `registarTenant`, com credencial escrita.
+  //
+  // `accoes: []` explícito (ADR-0031 §2): esta função só serve o registo
+  // público, onde o Direct Access Grant tem de abrir a sessão na submissão
+  // seguinte. Se a omissão valesse, a identidade que esta chamada criasse —
+  // caso a anterior tenha sido apagada a meio — nascia com `VERIFY_EMAIL`
+  // pendente, e com ela o direct grant recusa: o defeito que o ADR-0031
+  // existe para corrigir, de volta pela porta das traseiras.
+  const { sub: keycloakSub } = await garantirUtilizador({
+    email,
+    nome: input.admin.nome,
+    accoes: [],
+    emailVerificado: false,
+  });
 
   let ultimoErro: unknown;
   for (let tentativa = 0; tentativa < MAX_TENTATIVAS_SLUG; tentativa++) {
     const slug = await sugerirSlug(input.empresa.nome);
     try {
-      return await executarProvisionamento(input, slug, passwordHash);
+      return await executarProvisionamento({ ...input, admin: { ...input.admin, email } }, slug, keycloakSub);
     } catch (e) {
       // Corrida no slug: outro registo apanhou-o entre a sugestão e o commit.
       if (isUniqueViolation(e, 'slug')) {
@@ -165,12 +205,10 @@ export async function provisionarTenant(
 async function executarProvisionamento(
   input: ProvisionarTenantInput,
   slug: string,
-  passwordHash: string,
+  keycloakSub: string,
 ): Promise<ResultadoProvisionamento> {
   const agora = new Date();
   const trialFim = new Date(agora.getTime() + TRIAL_DIAS * 24 * 60 * 60 * 1000);
-  const tokenVerificacao = randomUUID();
-  const expiraVerificacao = new Date(agora.getTime() + 48 * 60 * 60 * 1000);
 
   return prismaBase.$transaction(
     async (tx) => {
@@ -216,16 +254,16 @@ async function executarProvisionamento(
         );
       }
 
-      // 5. Utilizador administrador — emailVerificado=false bloqueia o login
-      //    até o link de verificação ser usado (Requisito 1.6).
+      // 5. Utilizador administrador — espelho local da identidade Keycloak.
+      //    A verificação de e-mail e a definição de palavra-passe são acções
+      //    pendentes NO KEYCLOAK; o login só fecha depois de cumpridas.
       const user = await tx.user.create({
         data: {
           tenantId,
+          keycloakSub,
           nome: input.admin.nome,
           email: input.admin.email,
-          passwordHash,
           ativo: true,
-          emailVerificado: false,
         },
         select: { id: true },
       });
@@ -234,45 +272,30 @@ async function executarProvisionamento(
       // 6. Plano de contas PGC-NIRF, diários e séries de documento
       await bootstrapContabilidade(tx, tenantId);
 
-      // 7. Token de verificação de email (consumo atómico no endpoint público)
-      await tx.tokenVerificacaoEmail.create({
-        data: {
-          token: tokenVerificacao,
-          tenantId,
-          userId: user.id,
-          expiraEm: expiraVerificacao,
-        },
-      });
-
-      // 8. Notificação de boas-vindas — persistida PENDENTE; o email sai fora
-      //    da transacção (padrão persistir-depois-enviar, spec 13).
+      // 7. Notificação de boas-vindas — in-app (o único e-mail do registo é o
+      //    de acções do Keycloak, ADR-0013 §5; um segundo e-mail nosso seria
+      //    ruído a competir com o único clique que interessa).
       const notificacao = await tx.notificacao.create({
         data: {
           tenantId,
           userId: user.id,
           tipo: 'ALERTA_SISTEMA',
-          canal: 'EMAIL',
+          canal: 'IN_APP',
           titulo: 'Bem-vindo ao GestPro',
           mensagem: `A conta de ${input.empresa.nome} está pronta. Tem ${TRIAL_DIAS} dias de teste gratuito.`,
           entidadeTipo: 'ASSINATURA',
           entidadeId: tenantId,
-          estadoEnvio: 'PENDENTE',
         },
         select: { id: true },
       });
-
-      // 9. Token de handoff (uso único, TTL ~60s) — emitido dentro da tx para
-      //    que um rollback não deixe um `jti` órfão utilizável.
-      const handoffToken = await emitirToken({ tenantId, userId: user.id }, tx);
 
       return {
         tenantId,
         tenantSlug: tenant.slug,
         userId: user.id,
+        keycloakSub,
         adminEmail: input.admin.email,
         adminNome: input.admin.nome,
-        handoffToken,
-        tokenVerificacaoEmail: tokenVerificacao,
         notificacaoBoasVindasId: notificacao.id,
       };
     },
@@ -280,57 +303,8 @@ async function executarProvisionamento(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Verificação de email — consumo atómico
-// ---------------------------------------------------------------------------
-
-export interface ResultadoVerificacao {
-  tenantId: string;
-  userId: string;
-  tenantSlug: string;
-}
-
-/**
- * Consome o token de verificação e marca o email como verificado.
- *
- * `updateMany ... WHERE token = ? AND usadoEm IS NULL AND expiraEm > now()` é um
- * único statement: dois cliques no link não verificam duas vezes.
- * Devolve `null` em token inválido/expirado/já usado — sem revelar o motivo.
- */
-export async function verificarEmail(token: string): Promise<ResultadoVerificacao | null> {
-  const registo = await prismaBase.tokenVerificacaoEmail.findUnique({
-    where: { token },
-    select: { tenantId: true, userId: true },
-  });
-  if (!registo) return null;
-
-  const { count } = await prismaBase.tokenVerificacaoEmail.updateMany({
-    where: { token, usadoEm: null, expiraEm: { gt: new Date() } },
-    data: { usadoEm: new Date() },
-  });
-  if (count !== 1) return null;
-
-  const agora = new Date();
-  await prismaBase.user.updateMany({
-    where: { id: registo.userId, tenantId: registo.tenantId },
-    data: { emailVerificado: true, emailVerificadoEm: agora },
-  });
-
-  const tenant = await prismaBase.tenant.findFirst({
-    where: { id: registo.tenantId },
-    select: { slug: true },
-  });
-
-  return {
-    tenantId: registo.tenantId,
-    userId: registo.userId,
-    tenantSlug: tenant?.slug ?? '',
-  };
-}
-
 export const tenantProvisioningService = {
   provisionarTenant,
-  verificarEmail,
   slugificar,
   sugerirSlug,
 };

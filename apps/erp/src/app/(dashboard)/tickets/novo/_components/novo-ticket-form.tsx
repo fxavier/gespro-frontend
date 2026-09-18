@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { FormPage, FormSection, Combobox } from '@/components/patterns';
 import { criarTicketAction } from '@/server/actions/tickets.actions';
 import type { CategoriaTicketResumo } from '@/server/services/operacoes/ticket.interface';
 
@@ -59,102 +60,104 @@ export function NovoTicketForm({ categorias }: NovoTicketFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 max-w-2xl">
-      <div className="space-y-1.5">
-        <Label htmlFor="titulo">Título *</Label>
-        <Input
-          id="titulo"
-          name="titulo"
-          required
-          minLength={3}
-          maxLength={300}
-          placeholder="Descreva brevemente o problema…"
-        />
-      </div>
+    <form onSubmit={handleSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button type="button" variant="outline" asChild disabled={pending}>
+              <Link href="/tickets/lista">Cancelar</Link>
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'A criar…' : 'Criar Ticket'}
+            </Button>
+          </>
+        }
+      >
+        <FormSection title="Ticket" description="O que aconteceu, com que urgência e em que área">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
+              <Label htmlFor="titulo">Título *</Label>
+              <Input
+                id="titulo"
+                name="titulo"
+                required
+                minLength={3}
+                maxLength={300}
+                placeholder="Descreva brevemente o problema…"
+              />
+            </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="tipo">Tipo *</Label>
-          <Select name="tipo" defaultValue="INCIDENTE" required>
-            <SelectTrigger id="tipo">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="INCIDENTE">Incidente</SelectItem>
-              <SelectItem value="REQUISICAO">Requisição</SelectItem>
-              <SelectItem value="PROBLEMA">Problema</SelectItem>
-              <SelectItem value="MUDANCA">Mudança</SelectItem>
-              <SelectItem value="CONSULTA">Consulta</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tipo">Tipo *</Label>
+              <Select name="tipo" defaultValue="INCIDENTE" required>
+                <SelectTrigger id="tipo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="INCIDENTE">Incidente</SelectItem>
+                  <SelectItem value="REQUISICAO">Requisição</SelectItem>
+                  <SelectItem value="PROBLEMA">Problema</SelectItem>
+                  <SelectItem value="MUDANCA">Mudança</SelectItem>
+                  <SelectItem value="CONSULTA">Consulta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="prioridade">Prioridade *</Label>
-          <Select name="prioridade" defaultValue="NORMAL" required>
-            <SelectTrigger id="prioridade">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="BAIXA">Baixa</SelectItem>
-              <SelectItem value="NORMAL">Normal</SelectItem>
-              <SelectItem value="ALTA">Alta</SelectItem>
-              <SelectItem value="URGENTE">Urgente</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="prioridade">Prioridade *</Label>
+              <Select name="prioridade" defaultValue="NORMAL" required>
+                <SelectTrigger id="prioridade">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BAIXA">Baixa</SelectItem>
+                  <SelectItem value="NORMAL">Normal</SelectItem>
+                  <SelectItem value="ALTA">Alta</SelectItem>
+                  <SelectItem value="URGENTE">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-      {categorias.length > 0 && (
-        <div className="space-y-1.5">
-          <Label htmlFor="categoriaId">Categoria</Label>
-          <Select name="categoriaId">
-            <SelectTrigger id="categoriaId">
-              <SelectValue placeholder="Sem categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              {categorias.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>
-                  {cat.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+            {categorias.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="categoriaId">Categoria</Label>
+                <Combobox
+                  id="categoriaId"
+                  name="categoriaId"
+                  placeholder="Sem categoria"
+                  options={categorias.map((cat) => ({ value: cat.id, label: cat.nome }))}
+                />
+              </div>
+            )}
+          </div>
+        </FormSection>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="descricao">Descrição *</Label>
-        <Textarea
-          id="descricao"
-          name="descricao"
-          required
-          minLength={10}
-          maxLength={5000}
-          rows={6}
-          placeholder="Descreva o problema em detalhe…"
-        />
-      </div>
+        <FormSection title="Descrição">
+          <div className="space-y-1.5">
+            <Label htmlFor="descricao">Descrição *</Label>
+            <Textarea
+              id="descricao"
+              name="descricao"
+              required
+              minLength={10}
+              maxLength={5000}
+              rows={6}
+              placeholder="Descreva o problema em detalhe…"
+            />
+          </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="observacoes">Observações</Label>
-        <Textarea
-          id="observacoes"
-          name="observacoes"
-          rows={3}
-          maxLength={2000}
-          placeholder="Informações adicionais (opcional)…"
-        />
-      </div>
-
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'A criar…' : 'Criar Ticket'}
-        </Button>
-        <Button type="button" variant="outline" asChild disabled={pending}>
-          <Link href="/tickets/lista">Cancelar</Link>
-        </Button>
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="observacoes">Observações</Label>
+            <Textarea
+              id="observacoes"
+              name="observacoes"
+              rows={3}
+              maxLength={2000}
+              placeholder="Informações adicionais (opcional)…"
+            />
+          </div>
+        </FormSection>
+      </FormPage>
     </form>
   );
 }

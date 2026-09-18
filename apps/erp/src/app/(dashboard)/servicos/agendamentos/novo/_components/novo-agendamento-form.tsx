@@ -1,8 +1,8 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -11,13 +11,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+  Combobox,
+  ComboboxRemoto,
+  FormPage,
+  FormSection,
+  UnsavedChangesGuard,
+  type ComboboxOption,
+} from '@/components/patterns';
+import { procurarClientes } from '@/server/actions/clientes.actions';
 import { criarAgendamentoAction } from '@/server/actions/servicos.actions';
 import {
   CreateAgendamentoServicoSchema,
@@ -29,16 +30,49 @@ type FormState =
   | { ok: false; error: { code: string; message: string; details?: unknown } }
   | null;
 
+export interface ClienteOpcao {
+  id: string;
+  codigo: string;
+  nome: string;
+  email: string;
+  telefone: string;
+}
+
 interface Props {
   servicos: { id: string; nome: string; preco: number }[];
+  /** Primeira página de clientes; a partir daí a combobox pesquisa no servidor. */
+  clientesIniciais: ClienteOpcao[];
 }
+
+const rotulo = (c: { codigo: string; nome: string }) => `${c.codigo} — ${c.nome}`;
 
 function hojeISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function NovoAgendamentoForm({ servicos }: Props) {
+export function NovoAgendamentoForm({ servicos, clientesIniciais }: Props) {
   const router = useRouter();
+
+  // Os clientes conhecidos (iniciais + resultados de pesquisa) ficam num mapa
+  // para, ao escolher um, preencher nome, e-mail e telefone — o agendamento
+  // guarda esse instantâneo (schema), mas quem o cria não o dactilografa.
+  const [conhecidos, setConhecidos] = useState<Map<string, ClienteOpcao>>(
+    () => new Map(clientesIniciais.map((c) => [c.id, c])),
+  );
+  const opcoesClientes: ComboboxOption[] = clientesIniciais.map((c) => ({
+    value: c.id,
+    label: rotulo(c),
+  }));
+  const buscarClientes = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
+    const res = await procurarClientes({ q });
+    if (!res.ok) return null;
+    setConhecidos((prev) => {
+      const next = new Map(prev);
+      for (const c of res.data) next.set(c.id, c);
+      return next;
+    });
+    return res.data.map((c) => ({ value: c.id, label: rotulo(c) }));
+  }, []);
   const [state, dispatch, isPending] = useActionState<FormState, CreateAgendamentoServicoInput>(
     (_prev, data) => criarAgendamentoAction(data),
     null,
@@ -68,10 +102,22 @@ export function NovoAgendamentoForm({ servicos }: Props) {
   });
   const {
     register,
+    control,
     handleSubmit,
     setValue,
     formState: { errors, isDirty },
   } = form;
+  const clienteId = useWatch({ control, name: 'clienteId' });
+
+  const escolherCliente = (id: string) => {
+    const opcoes = { shouldDirty: true, shouldValidate: true } as const;
+    setValue('clienteId', id, opcoes);
+    const c = conhecidos.get(id);
+    if (!c) return;
+    setValue('clienteNome', c.nome, opcoes);
+    setValue('clienteEmail', c.email, opcoes);
+    setValue('clienteTelefone', c.telefone, opcoes);
+  };
 
   useEffect(() => {
     if (state?.ok) {
@@ -110,43 +156,42 @@ export function NovoAgendamentoForm({ servicos }: Props) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Serviço</Label>
-              <Select
-                onValueChange={(v) => {
+              <Combobox
+                aria-label="Serviço"
+                placeholder="Selecione um serviço"
+                options={servicos.map((s) => ({ value: s.id, label: s.nome }))}
+                onChange={(v) => {
                   setValue('servicoId', v, { shouldDirty: true, shouldValidate: true });
                   const s = servicos.find((x) => x.id === v);
                   if (s) setValue('precoServico', s.preco, { shouldDirty: true });
                 }}
-              >
-                <SelectTrigger aria-label="Serviço">
-                  <SelectValue placeholder="Selecione um serviço" />
-                </SelectTrigger>
-                <SelectContent>
-                  {servicos.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
               {err('servicoId')}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="clienteId">ID do cliente</Label>
-              <Input id="clienteId" {...register('clienteId')} placeholder="cmr…" />
+              <Label htmlFor="cliente-id">Cliente *</Label>
+              <ComboboxRemoto
+                id="cliente-id"
+                opcoesIniciais={opcoesClientes}
+                procurar={buscarClientes}
+                value={clienteId}
+                onChange={escolherCliente}
+                placeholder="Seleccione o cliente"
+                searchPlaceholder="Pesquisar por código, nome ou NUIT…"
+                emptyText="Nenhum cliente encontrado."
+              />
               {err('clienteId')}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="clienteNome">Nome do cliente</Label>
-              <Input id="clienteNome" {...register('clienteNome')} />
+              {/* O nome vai no instantâneo do agendamento; vem da ficha, não se escreve. */}
+              <input type="hidden" {...register('clienteNome')} />
               {err('clienteNome')}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="clienteEmail">Email</Label>
+              <Label htmlFor="clienteEmail">E-mail de contacto</Label>
               <Input id="clienteEmail" type="email" {...register('clienteEmail')} />
               {err('clienteEmail')}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="clienteTelefone">Telefone</Label>
+              <Label htmlFor="clienteTelefone">Telefone de contacto</Label>
               <Input id="clienteTelefone" {...register('clienteTelefone')} placeholder="+258 …" />
               {err('clienteTelefone')}
             </div>

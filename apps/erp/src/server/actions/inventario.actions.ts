@@ -266,6 +266,7 @@ export const transitarStatusManutencaoAction = createSafeAction({
 export const calcularPlanoAmortizacaoAction = createSafeAction({
   schema: GerarPlanoAmortizacaoSchema,
   permission: 'ativos:read',
+  permiteEmLeitura: true,
   handler: (data, ctx) => amortizacaoService.calcularPlano(data, ctx),
 });
 

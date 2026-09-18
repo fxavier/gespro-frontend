@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
+import { formatarDataHora } from '@/lib/format-date';
 
 // Tipo plain-object (serializável de SC para CC)
 export interface SessaoCaixaResumo {
@@ -51,35 +52,18 @@ const columns: TableColumn<SessaoCaixaResumo>[] = [
     label: 'Abertura',
     sortKey: 'dataAbertura',
     render: (row) => (
-      <span className="tabular-nums text-muted-foreground">
-        {new Date(row.dataAbertura).toLocaleString('pt-MZ', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })}
-      </span>
+      <span className="tabular-nums text-muted-foreground">{formatarDataHora(row.dataAbertura)}</span>
     ),
   },
   {
     key: 'dataFechamento',
     label: 'Fecho',
     mobileHidden: true,
-    render: (row) =>
-      row.dataFechamento ? (
-        <span className="tabular-nums text-muted-foreground">
-          {new Date(row.dataFechamento).toLocaleString('pt-MZ', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </span>
-      ) : (
-        <span className="text-muted-foreground">—</span>
-      ),
+    render: (row) => (
+      <span className="tabular-nums text-muted-foreground">
+        {formatarDataHora(row.dataFechamento)}
+      </span>
+    ),
   },
   {
     key: 'fundoInicial',

@@ -7,7 +7,7 @@
  */
 
 import Link from 'next/link';
-import { MoreHorizontal, Edit, UserX } from 'lucide-react';
+import { MoreHorizontal, Edit, Eye, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ import {
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
 import type { UserRow } from '@/server/services/plataforma/user-admin.interface';
+import { formatarData } from '@/lib/format-date';
 import { UtilizadorAcoes } from './utilizador-acoes';
 
 const columns: TableColumn<UserRow>[] = [
@@ -70,11 +71,7 @@ const columns: TableColumn<UserRow>[] = [
     mobileHidden: true,
     render: (row) => (
       <span className="text-xs text-muted-foreground tabular-nums">
-        {new Date(row.createdAt).toLocaleDateString('pt-MZ', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })}
+        {formatarData(row.createdAt)}
       </span>
     ),
   },
@@ -96,6 +93,12 @@ const columns: TableColumn<UserRow>[] = [
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href={`/core-tenancy/utilizadores/${row.id}`}>
+              <Eye className="mr-2 h-4 w-4" />
+              Ver detalhe
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href={`/core-tenancy/utilizadores/${row.id}/editar`}>
               <Edit className="mr-2 h-4 w-4" />
@@ -141,6 +144,7 @@ export function UtilizadoresTable({
     <DataTable
       data={tableData}
       columns={columns as TableColumn<typeof tableData[0]>[]}
+      rowHref={(row) => `/core-tenancy/utilizadores/${row.id}`}
       nextCursor={nextCursor}
       currentOrderBy={currentOrderBy}
       currentOrderDir={currentOrderDir as 'asc' | 'desc'}

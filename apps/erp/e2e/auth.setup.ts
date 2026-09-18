@@ -1,31 +1,25 @@
 /**
- * Setup de autenticação — cria e persiste o estado de sessão do utilizador admin.
+ * Setup de autenticação — cria e persiste o estado de sessão do utilizador
+ * admin, autenticando-se DE VERDADE contra o Keycloak (ADR-0013 §6: o E2E
+ * conduz o formulário do realm `gespro`, nunca um duplo).
  *
  * Executado antes de todos os testes E2E.
- * Guarda cookies/localStorage em playwright/.auth/admin.json.
- *
- * NOTA: "Iniciar Sessão" é um CardTitle (div), NÃO um heading semântico.
- * O heading real da página é o h2 "Autenticação Segura".
+ * Guarda cookies em playwright/.auth/admin.json e reutiliza-os nos restantes
+ * cenários — o mesmo padrão de sempre, agora com o login no Keycloak.
  */
 
 import { test as setup, expect } from '@playwright/test';
 import path from 'node:path';
+import { loginAs, USERS } from './helpers/auth';
 
 const AUTH_FILE = path.join(process.cwd(), 'playwright/.auth/admin.json');
 
-setup('autenticar como admin', async ({ page }) => {
-  await page.goto('/auth/login');
+setup('autenticar como admin (via Keycloak)', async ({ page }) => {
+  setup.setTimeout(120_000); // compilação fria do dev server + fluxo OIDC real
+  await loginAs(page, USERS.admin);
 
-  // Aguarda o campo de e-mail estar visível (mais robusto que esperar pelo heading)
-  await expect(page.getByLabel('E-mail Corporativo')).toBeVisible({ timeout: 15_000 });
+  // Confirma que a sessão fechou do lado do ERP (não ficou no Keycloak).
+  await expect(page).not.toHaveURL(/realms\/gespro/);
 
-  await page.getByLabel('E-mail Corporativo').fill('admin@demo.mz');
-  await page.getByLabel('Palavra-passe').fill('demo1234');
-  await page.getByRole('button', { name: 'Entrar no sistema' }).click();
-
-  // Aguarda redirecionamento para o dashboard
-  await page.waitForURL(/\/(dashboard|$)/, { timeout: 20_000 });
-
-  // Guardar estado de sessão autenticada
   await page.context().storageState({ path: AUTH_FILE });
 });

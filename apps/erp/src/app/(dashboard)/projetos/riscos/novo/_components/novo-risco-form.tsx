@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarRiscoAction } from '@/server/actions/projetos.actions';
 
 const Schema = z.object({
@@ -108,21 +108,14 @@ export function NovoRiscoForm({ projetos }: NovoRiscoFormProps) {
           {/* Projecto */}
           <div className="space-y-1.5">
             <Label htmlFor="projetoId">Projecto *</Label>
-            <Select
+            <Combobox
+              id="projetoId"
+              aria-invalid={!!errors.projetoId}
               value={projetoId}
-              onValueChange={(v) => setValue('projetoId', v, { shouldDirty: true })}
-            >
-              <SelectTrigger id="projetoId" aria-invalid={!!errors.projetoId}>
-                <SelectValue placeholder="Seleccione um projecto" />
-              </SelectTrigger>
-              <SelectContent>
-                {projetos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setValue('projetoId', v, { shouldDirty: true })}
+              placeholder="Seleccione um projecto"
+              options={projetos.map((p) => ({ value: p.id, label: p.label }))}
+            />
             {errors.projetoId && (
               <p className="text-xs text-destructive">{errors.projetoId.message}</p>
             )}

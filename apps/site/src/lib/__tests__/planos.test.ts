@@ -153,9 +153,12 @@ describe("REVALIDACAO_PLANOS", () => {
     const { REVALIDACAO_PLANOS } = await import("../planos");
     const { readFileSync } = await import("node:fs");
 
+    // `/comecar` saiu desta lista com o ADR-0031 §4: deixou de ler o catálogo
+    // e passou a responder 307, portanto não tem (nem pode ter) `revalidate`.
     for (const pagina of [
       "src/app/[locale]/(marketing)/precos/page.tsx",
-      "src/app/[locale]/(marketing)/comecar/page.tsx",
+      // A Home mostra o catálogo na secção de preços desde o redesenho.
+      "src/app/[locale]/(marketing)/page.tsx",
     ]) {
       const fonte = readFileSync(pagina, "utf8");
       const encontrado = /export const revalidate = (\d+);/.exec(fonte);

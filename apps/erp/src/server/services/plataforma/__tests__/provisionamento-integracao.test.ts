@@ -1,18 +1,36 @@
 /**
- * Teste de integração — provisionamento self-service (spec 19, task 9.1).
+ * Teste de integração — provisionamento self-service (spec 19, revisto pelo
+ * ADR-0013).
  *
  * Requer DB PostgreSQL activa (`DATABASE_URL` em `apps/erp/.env`) com o schema
- * do spec 19 aplicado. Salta automaticamente se não houver DB.
+ * aplicado. Salta automaticamente se não houver DB.
  *
  * Prova o que os testes com mocks não conseguem provar: que a `$transaction`
  * é mesmo atómica no Postgres e que uma falha a meio não deixa tenant parcial.
+ * O lado Keycloak é DUBLADO aqui de propósito — este teste é sobre o Postgres;
+ * o caminho real contra um Keycloak vivo é provado pela suite E2E (gate da
+ * fase 2) e pelo smoke do registo público.
  */
 import 'dotenv/config';
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, vi } from 'vitest';
+
+const kc = vi.hoisted(() => ({
+  subs: new Map<string, string>(),
+  garantirUtilizador: vi.fn(async ({ email }: { email: string }) => {
+    const existente = kc.subs.get(email);
+    if (existente) return { sub: existente, criado: false };
+    const sub = `kc-integ-${kc.subs.size}-${Date.now()}`;
+    kc.subs.set(email, sub);
+    return { sub, criado: true };
+  }),
+  dispararEmailAccoes: vi.fn(async () => true),
+  definirActivo: vi.fn(async () => undefined),
+}));
+vi.mock('@/server/auth/keycloak', () => kc);
+
 import { prismaBase } from '@/server/db/client';
-import { provisionarTenant, verificarEmail } from '../tenant-provisioning.service';
-import { consumirToken } from '../handoff.service';
+import { provisionarTenant } from '../tenant-provisioning.service';
 
 const temDB = Boolean(process.env.DATABASE_URL);
 const SUFIXO = String(Date.now()).slice(-9);
@@ -25,8 +43,6 @@ const criados: string[] = [];
 async function limpar(tenantId: string) {
   // Ordem inversa das FKs. `prismaBase` (sem contexto de tenant) é o cliente
   // certo: o tenant destes registos não existe em lado nenhum a não ser aqui.
-  await prismaBase.tokenHandoff.deleteMany({ where: { tenantId } });
-  await prismaBase.tokenVerificacaoEmail.deleteMany({ where: { tenantId } });
   await prismaBase.notificacao.deleteMany({ where: { tenantId } });
   await prismaBase.assinatura.deleteMany({ where: { tenantId } });
   await prismaBase.serieDocumento.deleteMany({ where: { tenantId } });
@@ -45,11 +61,6 @@ async function limpar(tenantId: string) {
   await prismaBase.tenant.deleteMany({ where: { id: tenantId } });
 }
 
-beforeAll(() => {
-  process.env.HANDOFF_SIGNING_SECRET =
-    process.env.HANDOFF_SIGNING_SECRET ?? 'segredo-de-teste-integracao-com-32-chars';
-});
-
 afterAll(async () => {
   for (const tenantId of criados) {
     await limpar(tenantId).catch(() => {});
@@ -57,18 +68,26 @@ afterAll(async () => {
 });
 
 describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
-  it('cria o tenant completo numa única transacção', async () => {
+  // O bootstrap do PGC (502 contas + diários + séries) demora mais do que os
+  // 5 s por omissão numa DB partilhada — timeout explícito, não sintoma.
+  it('cria o tenant completo numa única transacção, Keycloak primeiro', { timeout: 90_000 }, async () => {
     const r = await provisionarTenant({
       empresa: { nome: NOME_EMPRESA, nuit: NUIT },
-      admin: { nome: 'Ana Teste', email: EMAIL, senha: 'segredo123' },
+      admin: { nome: 'Ana Teste', email: EMAIL },
       planoId: 'PROFISSIONAL',
       provincia: 'Maputo Cidade',
     });
     criados.push(r.tenantId);
 
     expect(r.tenantSlug).toMatch(/^teste-spec19-/);
+    expect(kc.garantirUtilizador).toHaveBeenCalledWith({
+      email: EMAIL,
+      nome: 'Ana Teste',
+      accoes: [],
+      emailVerificado: false,
+    });
 
-    const [cfg, assinatura, user, contas, series, diarios, notif, tokenVerif] = await Promise.all([
+    const [cfg, assinatura, user, contas, series, diarios, notif] = await Promise.all([
       prismaBase.configuracaoFiscal.findUnique({ where: { tenantId: r.tenantId } }),
       prismaBase.assinatura.findUnique({ where: { tenantId: r.tenantId } }),
       prismaBase.user.findFirst({ where: { tenantId: r.tenantId } }),
@@ -76,19 +95,21 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
       prismaBase.serieDocumento.count({ where: { tenantId: r.tenantId } }),
       prismaBase.diario.count({ where: { tenantId: r.tenantId } }),
       prismaBase.notificacao.findFirst({ where: { tenantId: r.tenantId } }),
-      prismaBase.tokenVerificacaoEmail.findFirst({ where: { tenantId: r.tenantId } }),
     ]);
 
     expect(cfg?.moedaBase).toBe('MZN');
     expect(cfg?.timezone).toBe('Africa/Maputo');
     expect(cfg?.statusAtivo).toBe(true);
     expect(assinatura?.estado).toBe('TRIAL');
-    expect(user?.emailVerificado).toBe(false);
+    // Espelho da identidade: o sub do Keycloak fica gravado; «por activar»
+    // é primeiroAcessoEm null até ao primeiro login (ADR-0013 §5-bis).
+    expect(user?.keycloakSub).toBe(r.keycloakSub);
+    expect(user?.primeiroAcessoEm).toBeNull();
     expect(contas).toBe(502); // 504 entradas no JSON, 2 duplicadas
     expect(series).toBeGreaterThan(15);
     expect(diarios).toBe(9);
-    expect(notif?.estadoEnvio).toBe('PENDENTE');
-    expect(tokenVerif).not.toBeNull();
+    // Boas-vindas é in-app: o ÚNICO e-mail do registo é o de acções do Keycloak.
+    expect(notif?.canal).toBe('IN_APP');
 
     // Role ADMIN atribuído
     const roles = await prismaBase.userRole.findMany({
@@ -98,55 +119,32 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
     expect(roles.map((r2) => r2.role.nome)).toContain('ADMIN');
   });
 
-  it('o token de handoff funciona uma vez e falha na segunda', async () => {
-    const r = await provisionarTenant({
-      empresa: { nome: `${NOME_EMPRESA} B`, nuit: `4${String(Date.now()).slice(-8)}` },
-      admin: { nome: 'Beto Teste', email: `b+${Date.now()}@teste-spec19.mz`, senha: 'segredo123' },
-      planoId: 'BASICO',
-      provincia: 'Sofala',
-    });
-    criados.push(r.tenantId);
-
-    const primeira = await consumirToken(r.handoffToken);
-    expect(primeira).toEqual({
-      userId: r.userId,
-      tenantId: r.tenantId,
-      jti: expect.any(String),
-    });
-
-    const segunda = await consumirToken(r.handoffToken);
-    expect(segunda).toBeNull();
-  });
-
-  it('a verificação de email desbloqueia o login e não repete', async () => {
-    const r = await provisionarTenant({
-      empresa: { nome: `${NOME_EMPRESA} C`, nuit: `4${String(Date.now() + 1).slice(-8)}` },
-      admin: { nome: 'Carla Teste', email: `c+${Date.now()}@teste-spec19.mz`, senha: 'segredo123' },
-      planoId: 'BASICO',
-      provincia: 'Sofala',
-    });
-    criados.push(r.tenantId);
-
-    const ok = await verificarEmail(r.tokenVerificacaoEmail);
-    expect(ok?.tenantId).toBe(r.tenantId);
-
-    const user = await prismaBase.user.findUnique({ where: { id: r.userId } });
-    expect(user?.emailVerificado).toBe(true);
-
-    // Segundo clique no mesmo link: não verifica de novo.
-    expect(await verificarEmail(r.tokenVerificacaoEmail)).toBeNull();
-  });
-
   it('recusa NUIT duplicado sem criar um segundo tenant', async () => {
     const antes = await prismaBase.tenant.count();
     await expect(
       provisionarTenant({
         empresa: { nome: 'Outra Empresa', nuit: NUIT },
-        admin: { nome: 'X', email: `x+${Date.now()}@teste-spec19.mz`, senha: 'segredo123' },
+        admin: { nome: 'X', email: `x+${Date.now()}@teste-spec19.mz` },
         planoId: 'BASICO',
         provincia: 'Sofala',
       }),
     ).rejects.toMatchObject({ code: 'NUIT_JA_REGISTADO' });
     expect(await prismaBase.tenant.count()).toBe(antes);
+  });
+
+  it('recusa e-mail já usado em QUALQUER tenant — com a mensagem das duas empresas', async () => {
+    await expect(
+      provisionarTenant({
+        empresa: { nome: 'Empresa Nova', nuit: `4${String(Date.now() + 7).slice(-8)}` },
+        admin: { nome: 'Ana Outra Vez', email: EMAIL },
+        planoId: 'BASICO',
+        provincia: 'Sofala',
+      }),
+    ).rejects.toMatchObject({
+      code: 'EMAIL_JA_REGISTADO',
+      message: expect.stringContaining('dois endereços de e-mail distintos'),
+    });
+    // (A garantia «recusa antes de tocar no Keycloak» é provada nos testes
+    // unitários do serviço — aqui interessa a unicidade global no Postgres.)
   });
 });

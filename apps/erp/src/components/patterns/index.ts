@@ -17,6 +17,10 @@ export type { StatusVariant } from './status-badge';
 
 export { KpiCard } from './kpi-card';
 
+export { Combobox } from './combobox';
+export type { ComboboxOption } from './combobox';
+export { ComboboxRemoto } from './combobox-remoto';
+
 export { DetailShell } from './detail-shell';
 export type { DetailTab } from './detail-shell';
 

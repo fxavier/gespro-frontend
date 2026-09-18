@@ -10,17 +10,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { FormPage, FormSection, Combobox } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { criarRotaAction, atualizarRotaAction } from '@/server/actions/transporte.actions';
 import { CriarRotaSchema } from '@/lib/validations/transporte';
 
@@ -107,12 +100,22 @@ export function RotaForm({ viaturas, motoristas, rota }: RotaFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Rota</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 sm:col-span-2">
+    <form onSubmit={handleSubmit}>
+      <FormPage
+        actions={
+          <>
+            <Button type="button" variant="outline" asChild disabled={pending}>
+              <Link href={edicao ? `/transporte/rotas/${rota!.id}` : '/transporte/rotas'}>Cancelar</Link>
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'A guardar…' : edicao ? 'Guardar Alterações' : 'Criar Rota'}
+            </Button>
+          </>
+        }
+      >
+      <FormSection title="Rota">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
               <Label htmlFor="nome">Nome *</Label>
               <Input id="nome" name="nome" required maxLength={200} defaultValue={rota?.nome} placeholder="Distribuição Maputo Centro" />
             </div>
@@ -125,36 +128,29 @@ export function RotaForm({ viaturas, motoristas, rota }: RotaFormProps) {
               <Input id="destino" name="destino" required maxLength={300} defaultValue={rota?.destino} />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
-          <p className="font-medium text-sm">Recursos e Planeamento</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <FormSection title="Recursos e Planeamento">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="viaturaId">Viatura</Label>
-              <Select name="viaturaId" defaultValue={rota?.viaturaId ?? SEM}>
-                <SelectTrigger id="viaturaId"><SelectValue placeholder="Sem viatura" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SEM}>Sem viatura</SelectItem>
-                  {viaturas.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="viaturaId"
+                name="viaturaId"
+                defaultValue={rota?.viaturaId ?? SEM}
+                placeholder="Sem viatura"
+                options={[{ value: SEM, label: 'Sem viatura' }, ...viaturas.map((v) => ({ value: v.id, label: v.label }))]}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="motoristaId">Motorista</Label>
-              <Select name="motoristaId" defaultValue={rota?.motoristaId ?? SEM}>
-                <SelectTrigger id="motoristaId"><SelectValue placeholder="Sem motorista" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SEM}>Sem motorista</SelectItem>
-                  {motoristas.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="motoristaId"
+                name="motoristaId"
+                defaultValue={rota?.motoristaId ?? SEM}
+                placeholder="Sem motorista"
+                options={[{ value: SEM, label: 'Sem motorista' }, ...motoristas.map((m) => ({ value: m.id, label: m.label }))]}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="dataInicio">Data de Início *</Label>
@@ -177,11 +173,9 @@ export function RotaForm({ viaturas, motoristas, rota }: RotaFormProps) {
               <Input id="custoEstimado" name="custoEstimado" type="number" min={0} step="0.01" defaultValue={rota?.custoEstimado ?? ''} />
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <Card>
-        <CardContent className="p-5 space-y-4">
+      <FormSection>
           <div className="space-y-1.5">
             <Label htmlFor="descricao">Descrição</Label>
             <Textarea id="descricao" name="descricao" maxLength={1000} rows={2} defaultValue={rota?.descricao ?? ''} />
@@ -190,17 +184,9 @@ export function RotaForm({ viaturas, motoristas, rota }: RotaFormProps) {
             <Label htmlFor="observacoes">Observações</Label>
             <Textarea id="observacoes" name="observacoes" maxLength={1000} rows={2} defaultValue={rota?.observacoes ?? ''} />
           </div>
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'A guardar…' : edicao ? 'Guardar Alterações' : 'Criar Rota'}
-        </Button>
-        <Button type="button" variant="outline" asChild disabled={pending}>
-          <Link href={edicao ? `/transporte/rotas/${rota!.id}` : '/transporte/rotas'}>Cancelar</Link>
-        </Button>
-      </div>
+      </FormPage>
     </form>
   );
 }

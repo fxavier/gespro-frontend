@@ -1,0 +1,14 @@
+                                                                                        QUERY PLAN                                                                                        
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..6.64 rows=51 width=333) (actual time=0.605..0.626 rows=51 loops=1)
+   Buffers: shared hit=26
+   ->  Index Scan Backward using "MovimentoStock_tenantId_createdAt_id_idx" on "MovimentoStock" m  (cost=0.42..49231.54 rows=404089 width=333) (actual time=0.603..0.622 rows=51 loops=1)
+         Index Cond: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+         Buffers: shared hit=26
+ Planning:
+   Buffers: shared hit=300 read=1 dirtied=1
+   I/O Timings: shared read=0.027
+ Planning Time: 2.680 ms
+ Execution Time: 0.761 ms
+(10 rows)
+

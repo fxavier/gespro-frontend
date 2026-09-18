@@ -50,7 +50,12 @@ const columns: TableColumn<MovimentoStockDto>[] = [
     key: 'produtoId',
     label: 'Produto',
     render: (row) => (
-      <span className="text-sm font-medium tabular-nums">{row.produtoId.slice(0, 8)}…</span>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium">{row.produtoNome ?? row.produtoId}</p>
+        {row.produtoSku && (
+          <p className="text-xs text-muted-foreground tabular-nums">{row.produtoSku}</p>
+        )}
+      </div>
     ),
   },
   {

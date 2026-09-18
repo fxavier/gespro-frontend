@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TRANSICOES_ENTREGA } from '@/lib/state-machines';
-import { STATUS_LABELS } from '@/components/patterns';
+import { STATUS_LABELS, Combobox } from '@/components/patterns';
 import {
   atribuirRecursosEntregaAction,
   transitarEntregaAction,
@@ -179,33 +179,33 @@ export function EntregaComandos({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="cmd-viatura">Viatura</Label>
-                  <Select name="viaturaId" defaultValue={viaturaId ?? SEM}>
-                    <SelectTrigger id="cmd-viatura"><SelectValue placeholder="Sem viatura" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SEM}>Sem viatura</SelectItem>
-                      {viaturas.map((v) => <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    id="cmd-viatura"
+                    name="viaturaId"
+                    defaultValue={viaturaId ?? SEM}
+                    placeholder="Sem viatura"
+                    options={[{ value: SEM, label: 'Sem viatura' }, ...viaturas.map((v) => ({ value: v.id, label: v.label }))]}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="cmd-motorista">Motorista</Label>
-                  <Select name="motoristaId" defaultValue={motoristaId ?? SEM}>
-                    <SelectTrigger id="cmd-motorista"><SelectValue placeholder="Sem motorista" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SEM}>Sem motorista</SelectItem>
-                      {motoristas.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    id="cmd-motorista"
+                    name="motoristaId"
+                    defaultValue={motoristaId ?? SEM}
+                    placeholder="Sem motorista"
+                    options={[{ value: SEM, label: 'Sem motorista' }, ...motoristas.map((m) => ({ value: m.id, label: m.label }))]}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="cmd-rota">Rota</Label>
-                  <Select name="rotaId" defaultValue={rotaId ?? SEM}>
-                    <SelectTrigger id="cmd-rota"><SelectValue placeholder="Sem rota" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SEM}>Sem rota</SelectItem>
-                      {rotas.map((r) => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    id="cmd-rota"
+                    name="rotaId"
+                    defaultValue={rotaId ?? SEM}
+                    placeholder="Sem rota"
+                    options={[{ value: SEM, label: 'Sem rota' }, ...rotas.map((r) => ({ value: r.id, label: r.label }))]}
+                  />
                 </div>
               </div>
               <Button type="submit" size="sm" variant="outline" disabled={pending}>

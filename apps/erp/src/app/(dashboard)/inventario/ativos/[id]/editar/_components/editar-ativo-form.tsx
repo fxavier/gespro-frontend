@@ -10,13 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Form,
   FormControl,
   FormField,
@@ -24,7 +17,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { actualizarAtivoAction } from '@/server/actions/inventario.actions';
 import { AtivoUpdateSchema, type AtivoUpdate } from '@/lib/validations/inventario-ativos';
 import type { AtivoDto, CategoriaAtivoDto } from '@/server/services/inventario/ativos.interface';
@@ -122,18 +115,14 @@ export function EditarAtivoForm({ ativo, categorias, localizacoes }: EditarAtivo
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoria</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar categoria" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categorias.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar categoria"
+                      options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -249,18 +238,14 @@ export function EditarAtivoForm({ ativo, categorias, localizacoes }: EditarAtivo
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Localização</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar localização" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {localizacoes.map((l) => (
-                        <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar localização"
+                      options={localizacoes.map((l) => ({ value: l.id, label: l.nome }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

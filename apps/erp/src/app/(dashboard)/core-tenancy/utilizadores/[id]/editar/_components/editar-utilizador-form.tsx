@@ -64,9 +64,7 @@ export function EditarUtilizadorForm({ utilizador, roles }: EditarUtilizadorForm
       id: utilizador.id,
       data: {
         nome: utilizador.nome,
-        email: utilizador.email,
         ativo: utilizador.ativo,
-        password: '',
       },
     },
     mode: 'onBlur',
@@ -97,17 +95,7 @@ export function EditarUtilizadorForm({ utilizador, roles }: EditarUtilizadorForm
   }, [state, form, router]);
 
   const onSubmit = form.handleSubmit((formData) => {
-    // Não enviar password vazia
-    const payload: EditarUtilizadorInput = {
-      id: formData.id,
-      data: {
-        nome: formData.data.nome,
-        email: formData.data.email,
-        ativo: formData.data.ativo,
-        ...(formData.data.password ? { password: formData.data.password } : {}),
-      },
-    };
-    dispatch(payload);
+    dispatch(formData);
   });
 
   const isDirty = form.formState.isDirty;
@@ -153,35 +141,20 @@ export function EditarUtilizadorForm({ utilizador, roles }: EditarUtilizadorForm
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="data.email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="ex.: joao@empresa.co.mz" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* E-mail e palavra-passe são da Identidade (Keycloak — ADR-0013):
+                a palavra-passe gere-se lá; corrigir um e-mail é desactivar e
+                convidar o endereço certo. */}
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input type="email" value={utilizador.email} disabled readOnly />
+              </FormControl>
+              <FormDescription>
+                O e-mail identifica a conta e não é editável. A palavra-passe é gerida pelo próprio
+                utilizador no serviço de identidade.
+              </FormDescription>
+            </FormItem>
           </div>
-
-          <FormField
-            control={form.control}
-            name="data.password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nova Palavra-passe</FormLabel>
-                <FormControl>
-                  <Input type="password" placeholder="Deixar em branco para não alterar" {...field} />
-                </FormControl>
-                <FormDescription>Preencha apenas se pretender alterar a palavra-passe actual.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
 
           <FormField
             control={form.control}

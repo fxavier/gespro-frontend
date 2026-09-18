@@ -21,6 +21,7 @@ import { auth } from '@/lib/auth';
 import { dashboardService } from '@/server/services/plataforma/analytics.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
 import { ChecklistOnboarding } from '@/components/onboarding/checklist-onboarding';
+import { AvisoEmailPorConfirmar } from '@/components/onboarding/aviso-email-por-confirmar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -159,10 +160,13 @@ export default async function DashboardPage({
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
 
-  const { tenantId, id: userId } = session.user;
-  // Spec 19 — o handoff de registo redirecciona com ?onboarding=1.
+  const { tenantId, id: userId, emailVerificado } = session.user;
+  // Spec 19/ADR-0013 — o regresso do e-mail de acções do Keycloak traz ?onboarding=1.
+  // ADR-0031 — o registo público traz o mesmo, e a ligação de verificação
+  // traz ?verificacao=ok|expirada|invalida|erro|limitada.
   const params = (await searchParams) ?? {};
   const vemDoOnboarding = params.onboarding === '1';
+  const desfechoVerificacao = typeof params.verificacao === 'string' ? params.verificacao : undefined;
 
   return (
     <div className="p-6 space-y-6">
@@ -172,9 +176,19 @@ export default async function DashboardPage({
         breadcrumbs={[{ label: 'Dashboard' }]}
       />
 
+      {/* Endereço por confirmar (ADR-0031 §5) — persistente, não dispensável.
+          Fora do Suspense: o estado vem da sessão, já resolvida, e o aviso tem
+          de estar visível no primeiro pixel — é ele que explica os travões. */}
+      {!emailVerificado && <AvisoEmailPorConfirmar desfecho={desfechoVerificacao} />}
+
       {/* Checklist de primeiros passos (spec 19) — só em trial/pós-registo */}
       <Suspense fallback={null}>
-        <ChecklistOnboarding tenantId={tenantId} userId={userId} forcar={vemDoOnboarding} />
+        <ChecklistOnboarding
+          tenantId={tenantId}
+          userId={userId}
+          forcar={vemDoOnboarding}
+          emailVerificado={emailVerificado}
+        />
       </Suspense>
 
       {/* KPIs Principais — Suspense independente */}

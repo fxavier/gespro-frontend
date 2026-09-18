@@ -25,7 +25,7 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarAtivoAction } from '@/server/actions/inventario.actions';
 import { AtivoCreateSchema, type AtivoCreate } from '@/lib/validations/inventario-ativos';
 import type { CategoriaAtivoDto } from '@/server/services/inventario/ativos.interface';
@@ -133,18 +133,14 @@ export function NovoAtivoForm({ categorias, localizacoes }: NovoAtivoFormProps) 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoria <span className="text-destructive">*</span></FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar categoria" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categorias.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar categoria"
+                      options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -326,18 +322,14 @@ export function NovoAtivoForm({ categorias, localizacoes }: NovoAtivoFormProps) 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Localização <span className="text-destructive">*</span></FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar localização" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {localizacoes.map((l) => (
-                        <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Combobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar localização"
+                      options={localizacoes.map((l) => ({ value: l.id, label: l.nome }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

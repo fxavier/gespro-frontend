@@ -16,14 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { FormPage, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { actualizarProdutoAction } from '@/server/actions/inventario.actions';
 import type { CategoriaProdutoDto } from '@/server/services/inventario/catalogo.interface';
 
@@ -160,19 +153,12 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
 
           <div className="space-y-1.5">
             <Label>Categoria <span className="text-destructive">*</span></Label>
-            <Select
+            <Combobox
               value={form.watch('categoriaId')}
-              onValueChange={(v) => form.setValue('categoriaId', v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione uma categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categorias.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => form.setValue('categoriaId', v)}
+              placeholder="Seleccione uma categoria"
+              options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+            />
             {errors.categoriaId && <p className="text-xs text-destructive">{errors.categoriaId.message}</p>}
           </div>
 

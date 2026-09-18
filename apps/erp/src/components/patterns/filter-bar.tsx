@@ -136,7 +136,7 @@ export function FilterBar({
               value={currentValue}
               onChange={(e) => updateParam(filter.key, e.target.value || null)}
               className={cn(
-                'h-9 rounded-md border border-input bg-background px-3 py-1 text-sm',
+                'h-10 rounded-md border border-input bg-card px-3 py-1 text-sm',
                 'focus:outline-none focus:ring-1 focus:ring-ring',
                 'text-foreground',
                 'min-w-[140px]'

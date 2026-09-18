@@ -60,6 +60,7 @@ export const arquivarColaboradorAction = createSafeAction({
 export const listarColaboradoresAction = createSafeAction({
   schema: FilterColaboradorSchema,
   permission: 'rh:colaboradores:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => ColaboradorService.listar(filter, ctx),
 });
 
@@ -113,6 +114,7 @@ export const registarAssiduidadeAction = createSafeAction({
 export const listarAssiduidadeAction = createSafeAction({
   schema: FilterAssiduidadeSchema,
   permission: 'rh:assiduidade:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => AssiduidadeService.listar(filter, ctx),
 });
 // ponytail: z import retido para possível extensão de schemas inline

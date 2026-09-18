@@ -43,6 +43,7 @@ export const arquivarBeneficioAction = createSafeAction({
 export const listarBeneficiosAction = createSafeAction({
   schema: FilterBeneficioSchema,
   permission: 'rh:beneficios:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => BeneficioService.listar(filter, ctx),
 });
 
@@ -81,5 +82,6 @@ export const reactivarBeneficioAction = createSafeAction({
 export const listarAtribuicoesAction = createSafeAction({
   schema: FilterAtribuicaoSchema,
   permission: 'rh:beneficios:read',
+  permiteEmLeitura: true,
   handler: (filter, ctx) => BeneficioColaboradorService.listar(filter, ctx),
 });

@@ -48,29 +48,34 @@ export const registarReforco = createSafeAction({
 
 export const obterSessaoAtual = createSafeAction({
   permission: 'caixa:leitura',
+  permiteEmLeitura: true,
   handler: (_, ctx) => caixa.obterSessaoAtual(ctx),
 });
 
 export const obterSessaoCaixa = createSafeAction({
   schema: z.object({ id: z.string().cuid() }),
   permission: 'caixa:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => caixa.obterSessao(input.id, ctx),
 });
 
 export const listarSessoesCaixa = createSafeAction({
   schema: FiltroSessaoCaixaSchema,
   permission: 'caixa:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => caixa.listarSessoes(input, ctx),
 });
 
 export const listarMovimentosCaixa = createSafeAction({
   schema: FiltroMovimentoCaixaSchema,
   permission: 'caixa:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => caixa.listarMovimentos(input, ctx),
 });
 
 export const obterResumoCaixa = createSafeAction({
   schema: z.object({ sessaoCaixaId: z.string().cuid() }),
   permission: 'caixa:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => caixa.resumoSessao(input.sessaoCaixaId, ctx),
 });

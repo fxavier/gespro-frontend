@@ -38,6 +38,12 @@ export interface UserRow {
   nome: string;
   email: string;
   ativo: boolean;
+  /**
+   * Primeiro login bem sucedido (ADR-0013 §5-bis). «Por activar» é `null` —
+   * o convite foi enviado mas a pessoa nunca entrou. Substitui o
+   * `UserInvite.acceptedAt` sem chamada de rede por linha.
+   */
+  primeiroAcessoEm: Date | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -68,6 +74,12 @@ export interface Ctx {
  *
  * Implementação em Wave 2: `src/server/services/plataforma/user-admin.service.ts`
  */
+export interface CriacaoUtilizador {
+  utilizador: UserRow;
+  /** Só no modo `palavra-passe`; não volta em nenhuma leitura posterior. */
+  palavraPasseInicial: string | null;
+}
+
 export interface IUserAdminService {
   // -------------------------------------------------------------------------
   // Utilizadores
@@ -86,20 +98,29 @@ export interface IUserAdminService {
   obterUtilizador(userId: string, ctx: Ctx): Promise<UserRow>;
 
   /**
-   * Cria utilizador no tenant, faz hash da password com argon2 e associa roles.
-   * Operação atómica: User + UserRole em `$transaction`.
-   * Lança `BusinessRuleError('EMAIL_DUPLICADO')` se email já existir no tenant.
+   * Convida um colaborador: identidade no Keycloak (sem palavra-passe, acções
+   * pendentes), User local com papéis, e-mail de acções (ADR-0013 §5-bis).
+   * Operação atómica do lado Postgres: User + UserRole em `$transaction`.
+   * Lança `BusinessRuleError('EMAIL_JA_REGISTADO')` se o email já existir em
+   * QUALQUER tenant — o email é único em todo o sistema (CONTEXT.md).
    */
-  criarUtilizador(input: CreateUserInput, ctx: Ctx): Promise<UserRow>;
+  /**
+   * Devolve o utilizador e, no modo `palavra-passe`, a temporária gerada —
+   * UMA vez, fora do modelo persistido (ADR-0030 §2).
+   */
+  criarUtilizador(input: CreateUserInput, ctx: Ctx): Promise<CriacaoUtilizador>;
+  /** Nova palavra-passe temporária, devolvida uma vez (ADR-0030 §6). */
+  reporPalavraPasse(userId: string, ctx: Ctx): Promise<string>;
 
   /**
-   * Actualiza campos do utilizador. Se `password` for fornecida, gera novo hash.
-   * Não permite alterar o email para um já existente no tenant.
+   * Actualiza nome/estado. Email e palavra-passe são da Identidade (Keycloak)
+   * e não se editam aqui; mudanças de `ativo` sincronizam os dois lados.
    */
   actualizarUtilizador(userId: string, input: UpdateUserInput, ctx: Ctx): Promise<UserRow>;
 
   /**
-   * Soft-delete do utilizador: preenche deletedAt e ativo=false.
+   * Soft-delete do utilizador: desactiva no Keycloak (com logout de sessões)
+   * e localmente (deletedAt + ativo=false).
    * Não permite desactivar o próprio utilizador autenticado.
    * Lança `BusinessRuleError('ULTIMO_ADMIN')` se for o único admin do tenant.
    */

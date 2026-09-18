@@ -1,0 +1,22 @@
+                                                                                QUERY PLAN                                                                                 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=372.96..377.96 rows=1999 width=168) (actual time=3.022..3.405 rows=2999 loops=1)
+   Buffers: shared hit=156
+   InitPlan 1
+     ->  Index Scan using "HistoricoTransacao_pkey" on "HistoricoTransacao" i  (cost=0.28..8.30 rows=1 width=8) (actual time=0.561..0.562 rows=1 loops=1)
+           Index Cond: (id = 'c6b9fbe4b331dc59fced14b80'::text)
+           Buffers: shared hit=3
+   ->  Sort  (cost=364.66..369.66 rows=2000 width=168) (actual time=3.021..3.255 rows=3000 loops=1)
+         Sort Key: h."dataTransacao" DESC
+         Sort Method: quicksort  Memory: 659kB
+         Buffers: shared hit=156
+         ->  Seq Scan on "HistoricoTransacao" h  (cost=0.00..255.00 rows=2000 width=168) (actual time=0.590..1.755 rows=3000 loops=1)
+               Filter: (("dataTransacao" <= (InitPlan 1).col1) AND ("clienteId" = 'c980786d5e9bdd0563d1b51d6'::text) AND ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text))
+               Rows Removed by Filter: 3000
+               Buffers: shared hit=153
+ Planning:
+   Buffers: shared hit=205
+ Planning Time: 2.714 ms
+ Execution Time: 3.887 ms
+(18 rows)
+

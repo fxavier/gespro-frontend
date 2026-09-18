@@ -10,6 +10,7 @@ import { Plus } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
+import { clienteService } from '@/server/services/comercial/cliente.service';
 import { FiltroCotacaoComercialSchema } from '@/lib/validations/faturacao';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
@@ -26,14 +27,20 @@ const FILTROS_DEFAULT: FiltroUrl = { take: 25 };
 
 async function CotacoesSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
   try {
-    const result = await runWithTenantContext({ tenantId, userId }, () =>
-      faturacaoService.listarCotacoesComerciais(filtros as any, { tenantId, userId })
+    const ctx = { tenantId, userId };
+    const result = await runWithTenantContext(ctx, () =>
+      faturacaoService.listarCotacoesComerciais(filtros as any, ctx)
+    );
+
+    // `clienteId` é escalar (FK cross-domínio): o nome vem do WS C de uma vez.
+    const nomes = await runWithTenantContext(ctx, () =>
+      clienteService.nomesPorIds(result.items.map((c: any) => c.clienteId), ctx)
     );
 
     const items: CotacaoResumo[] = result.items.map((c: any) => ({
       id: c.id,
-      numero: c.serie?.numero ?? c.id,
-      clienteNome: c.cliente?.nome ?? '—',
+      numero: c.numero,
+      clienteNome: nomes[c.clienteId]?.nome ?? '—',
       dataEmissao: c.dataEmissao,
       dataValidade: c.dataValidade,
       total: parseFloat(c.total?.toString() ?? '0').toFixed(2),

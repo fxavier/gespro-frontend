@@ -1,23 +1,29 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { logger } from '@/server/observability/logger';
-import {
-  expirarTrialsVencidos,
-} from '@/server/services/plataforma/assinatura.service';
-import { purgarTokensExpirados } from '@/server/services/plataforma/handoff.service';
+import { processarCicloDeVida } from '@/server/services/plataforma/assinatura.service';
 
 /**
- * GET /api/cron/expirar-trials — fallback do ciclo de vida do trial (spec 19).
+ * GET /api/cron/expirar-trials — ciclo de vida das subscrições (ADR-0032).
  *
- * O motor primário é o Stripe (`trial_period_days` + webhooks). Este cron é o
- * belt-and-suspenders para a falha de entrega de webhook: sem ele, um tenant
- * cujo `customer.subscription.updated` se perdeu ficaria em trial para sempre.
+ * Faz as três pernas numa só corrida: fim do Trial → Leitura, aviso a sete dias
+ * do fecho, e fim da Leitura → Fechada. Nada se apaga em nenhuma delas.
  *
- * Idempotente: só transita `TRIAL → EXPIRADO` para `trialFim < now()`; correr
- * duas vezes não faz nada na segunda.
+ * Para o Trial, o motor primário continua a ser o Stripe (`trial_period_days` +
+ * webhooks) e isto é o belt-and-suspenders da falha de entrega: sem ele, um
+ * tenant cujo `customer.subscription.updated` se perdeu ficava em trial para
+ * sempre. Para o fecho da Leitura **não há motor primário nenhum** — o prazo é
+ * nosso e o Stripe não sabe dele. Aqui isto não é rede de segurança, é o
+ * mecanismo.
+ *
+ * Idempotente: quem decide é o compare-and-set dentro das transições, não o
+ * `findMany`. Correr duas vezes tem o mesmo efeito que correr uma.
  *
  * Protecção: `Authorization: Bearer <CRON_SECRET>` (mesmo padrão do cron de
  * transporte). NÃO está em `PUBLIC_PATHS` — é chamado com credencial própria.
- * Agendamento recomendado: diário, 03:00 UTC.
+ * Agendamento: diário, 03:00 UTC — ver `infra/local/cron/` e o runbook.
+ *
+ * O nome da rota mantém-se por ser contrato com o agendador: mudá-lo obrigaria
+ * a mexer no agendador de cada ambiente para não ganhar nada.
  */
 export const runtime = 'nodejs';
 
@@ -37,21 +43,17 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const resultado = await expirarTrialsVencidos();
-    const tokensPurgados = await purgarTokensExpirados();
+    const resultado = await processarCicloDeVida();
 
-    logger.info(
-      { ...resultado, tokensPurgados },
-      '[cron] expirar-trials-fallback concluído',
-    );
+    logger.info({ ...resultado }, '[cron] ciclo de vida das subscrições concluído');
 
     return NextResponse.json({
-      data: { ...resultado, tokensPurgados, timestamp: new Date().toISOString() },
+      data: { ...resultado, timestamp: new Date().toISOString() },
     });
   } catch (e) {
     logger.error(
       { err: { message: (e as Error)?.message, stack: (e as Error)?.stack } },
-      '[cron] expirar-trials-fallback falhou',
+      '[cron] ciclo de vida das subscrições falhou',
     );
     return NextResponse.json(
       { error: { code: 'ERRO_INTERNO', message: 'Erro no processamento do cron.' } },

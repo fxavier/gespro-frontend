@@ -25,7 +25,29 @@ const nextConfig: NextConfig = {
   // Headers de segurança do SITE. Deliberadamente distintos do ERP:
   // o `middleware.ts` do ERP (spec 17) é dono dos headers dessa app e não é
   // partilhado — é exactamente o isolamento que justifica o monorepo (ADR-0006).
+  //
+  // CSP do site (estática — sem nonce; o ERP tem nonce por pedido no middleware).
+  // A excepção para o Cloudflare Turnstile saiu com o ADR-0031 §4: o widget
+  // acompanhou o formulário de registo para o ERP, e a excepção é da rota
+  // `/registo` dessa app. Deixá-la aqui era alargar a política de um site que
+  // já não carrega script de terceiros nenhum — uma permissão sem beneficiário.
   async headers() {
+    // Política CSP do site. 'unsafe-inline' em script-src é necessário para os
+    // scripts de hidratação do Next.js (sem middleware de nonce no site).
+    const csp = [
+      "default-src 'self'",
+      // Scripts próprios + hidratação Next.js
+      "script-src 'self' 'unsafe-inline'",
+      "frame-src 'none'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+
     return [
       {
         source: "/:path*",
@@ -36,6 +58,10 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: csp,
           },
         ],
       },

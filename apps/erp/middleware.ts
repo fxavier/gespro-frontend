@@ -2,12 +2,17 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { buildSecurityHeaders } from '@/lib/security/headers';
+import { cspRegisto } from '@/app/registo/csp';
 
 // ---------------------------------------------------------------------------
 // Rotas públicas — não exigem autenticação.
 // ---------------------------------------------------------------------------
 const PUBLIC_PATHS = [
+  // '/auth/' cobre /auth/login (redireccionamento para o Keycloak — ADR-0012
+  // §8) e /auth/erro (recusas explícitas do callbacks.signIn — ADR-0011).
   '/auth/',
+  // Rotas do Auth.js (signin/callback/session/csrf). Sem isto, o regresso do
+  // Keycloak recebe 307 e o login nunca fecha.
   '/api/auth/',
   // Probes de saúde/observabilidade (spec 14): acessíveis sem sessão para o
   // HEALTHCHECK do Docker e o health check do App Runner. /api/metrics tem
@@ -18,14 +23,24 @@ const PUBLIC_PATHS = [
   // Fronteiras públicas do onboarding self-service (spec 19). Sem estes, o site
   // de marketing e o Stripe recebem 307 → /auth/login em vez de 2xx.
   // A protecção destes endpoints é própria: rate-limit + captcha no registo,
-  // verificação da assinatura HMAC no webhook, consumo atómico dos tokens.
+  // verificação da assinatura HMAC no webhook e na ligação de verificação.
+  //
+  // O ADR-0013 §4 tinha removido /api/publico/verificar-email (a verificação
+  // era do Keycloak); o ADR-0031 §5 inverteu-o — a ligação volta a ser nossa,
+  // assinada com EMAIL_VERIFY_SECRET e sem estado. /auth/registo-callback
+  // continua removido: o handoff não voltou (ADR-0031, alternativas).
   '/api/publico/registo',
   '/api/publico/planos',
   '/api/publico/verificar-email',
   '/api/webhooks/stripe',
-  // Callback de handoff site→app: valida o token e estabelece a sessão. Já
-  // coberto pelo prefixo '/auth/', listado por ser contrato com a spec 18.
-  '/auth/registo-callback',
+  // Ecrã de registo servido pelo ERP (ADR-0031): é o formulário público que
+  // emite o cookie na origem que lhe pertence. Sem sessão, por definição.
+  '/registo',
+  // Crons: cada rota impõe `Authorization: Bearer <CRON_SECRET>` e devolve 401
+  // sem ele. Sem esta entrada, o agendador recebia 307 → /auth/login antes de
+  // a credencial própria ser sequer lida (defeito latente que afectava também
+  // o cron de transporte).
+  '/api/cron/',
   // Página pública de contacto/suporte, ligada a partir do ecrã de login.
   '/contactos',
   '/_next/',
@@ -69,6 +84,20 @@ export async function middleware(req: NextRequest) {
 
   // Construir todos os cabeçalhos de segurança (mesma lógica que nos testes)
   const securityHeaders = buildSecurityHeaders({ nonce, isDev, enforceCSP });
+
+  // `/registo` é a única rota que carrega o Turnstile, e o widget precisa do
+  // script e do <iframe> da Cloudflare que a política geral proíbe. A excepção
+  // é DA ROTA: abrir `challenges.cloudflare.com` nas rotas autenticadas para
+  // servir um ecrã anónimo seria pagar em toda a aplicação o preço de uma
+  // página. Tem de ser aqui e não no `next.config.ts` — o middleware escreve o
+  // mesmo nome de cabeçalho por último e um CSP substitui-se, não se acrescenta
+  // (medido; ver o cabeçalho de `src/app/registo/csp.ts`).
+  if (pathname === '/registo') {
+    const nome = enforceCSP
+      ? 'Content-Security-Policy'
+      : 'Content-Security-Policy-Report-Only';
+    securityHeaders[nome] = cspRegisto(nonce, isDev);
+  }
 
   // --- Autenticação (rotas privadas) ----------------------------------------
   if (!isPublic(pathname)) {

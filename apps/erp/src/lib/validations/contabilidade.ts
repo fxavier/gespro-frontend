@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { idEntidade } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -89,7 +90,7 @@ export const CriarContaPGCSchema = z.object({
   tipo: TipoContaEnum,
   natureza: NaturezaContaEnum,
   nivel: z.number().int().min(1).max(4),
-  contaPaiId: z.string().cuid().optional(),
+  contaMaeId: idEntidade('ID de conta mãe inválido').optional(),
   aceitaLancamento: z.boolean().default(false),
   descricao: z.string().max(500).optional(),
 });
@@ -97,7 +98,7 @@ export const CriarContaPGCSchema = z.object({
 export type CriarContaPGCInput = z.infer<typeof CriarContaPGCSchema>;
 
 export const AtualizarContaPGCSchema = CriarContaPGCSchema.partial().extend({
-  id: z.string().cuid(),
+  id: idEntidade('ID de conta inválido'),
 });
 
 export type AtualizarContaPGCInput = z.infer<typeof AtualizarContaPGCSchema>;
@@ -172,7 +173,7 @@ export type FiltroCentroCustoInput = z.infer<typeof FiltroCentroCustoSchema>;
 
 export const PartidaSchema = z
   .object({
-    contaId: z.string().cuid('ID de conta inválido'),
+    contaId: idEntidade('ID de conta inválido'),
     centroCustoId: z.string().cuid().optional(),
     tipo: TipoPartidaEnum,
     valor: z
@@ -231,7 +232,7 @@ export const FiltroLancamentoSchema = z.object({
   diarioId: z.string().cuid().optional(),
   status: StatusLancamentoEnum.optional(),
   origem: OrigemLancamentoEnum.optional(),
-  contaId: z.string().cuid().optional(),
+  contaId: idEntidade('ID de conta inválido').optional(),
   centroCustoId: z.string().cuid().optional(),
   periodoFiscal: z.string().regex(/^\d{4}-\d{2}$/, 'Formato YYYY-MM').optional(),
   dataInicio: z.coerce.date().optional(),
@@ -252,7 +253,7 @@ export const CriarContaBancariaSchema = z.object({
   numeroConta: z.string().min(1).max(30),
   tipoConta: TipoContaBancariaEnum,
   moeda: z.string().length(3).default('MZN'),
-  contaContabilId: z.string().cuid('ID de conta contabilística inválido'),
+  contaContabilId: idEntidade('ID de conta contabilística inválido'),
 });
 
 export type CriarContaBancariaInput = z.infer<typeof CriarContaBancariaSchema>;
@@ -358,7 +359,7 @@ export const ConcluirReconciliacaoSchema = z.object({
 export type ConcluirReconciliacaoInput = z.infer<typeof ConcluirReconciliacaoSchema>;
 
 export const FiltroRazaoSchema = z.object({
-  contaId: z.string().cuid('ID de conta inválido'),
+  contaId: idEntidade('ID de conta inválido'),
   dataInicio: z.coerce.date(),
   dataFim: z.coerce.date(),
   cursor: z.string().cuid().optional(),

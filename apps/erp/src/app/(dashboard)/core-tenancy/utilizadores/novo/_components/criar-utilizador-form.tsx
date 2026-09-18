@@ -5,15 +5,16 @@
  * Padrão: react-hook-form + zodResolver + useActionState.
  */
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Save, X } from 'lucide-react';
+import { Check, Copy, KeyRound, Mail, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Form,
   FormControl,
@@ -43,13 +44,18 @@ interface CriarUtilizadorFormProps {
 const DEFAULT_VALUES: CreateUserInput = {
   nome: '',
   email: '',
-  password: '',
   roleIds: [],
   ativo: true,
+  metodoAcesso: 'convite',
 };
 
 export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
   const router = useRouter();
+  // Mostrada UMA vez, logo a seguir a criar (ADR-0030 §2): não é lida de lado
+  // nenhum, não volta em nenhuma consulta.
+  const [credenciais, setCredenciais] = useState<{ email: string; palavraPasse: string } | null>(
+    null
+  );
   const [state, dispatch, isPending] = useActionState<FormState, CreateUserInput>(
     (_prev, data) => criarUtilizador(data),
     null
@@ -80,7 +86,20 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
         toast.error(state.error.message ?? 'Erro ao criar o utilizador.');
       }
     } else {
-      toast.success('Utilizador criado com sucesso!');
+      const dados = state.data as
+        | { utilizador?: { email?: string }; palavraPasseInicial?: string | null }
+        | undefined;
+
+      if (dados?.palavraPasseInicial) {
+        toast.success('Utilizador criado. Entregue a palavra-passe ao próprio.');
+        setCredenciais({
+          email: dados.utilizador?.email ?? '',
+          palavraPasse: dados.palavraPasseInicial,
+        });
+        return; // fica no ecrã: sair daqui perde a palavra-passe para sempre
+      }
+
+      toast.success('Utilizador criado. O convite seguiu por e-mail.');
       router.push('/core-tenancy/utilizadores');
     }
   }, [state, form, router]);
@@ -95,6 +114,10 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
     }
     router.push('/core-tenancy/utilizadores');
   };
+
+  if (credenciais) {
+    return <CredenciaisGeradas {...credenciais} />;
+  }
 
   return (
     <Form {...form}>
@@ -138,6 +161,10 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
                   <FormControl>
                     <Input type="email" placeholder="ex.: joao@empresa.co.mz" {...field} />
                   </FormControl>
+                  <FormDescription>
+                    É o identificador com que a pessoa inicia sessão. Um endereço só pode
+                    pertencer a uma empresa GestPro.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -146,14 +173,54 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
 
           <FormField
             control={form.control}
-            name="password"
+            name="metodoAcesso"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>Palavra-passe Inicial</FormLabel>
+              <FormItem className="space-y-2">
+                <FormLabel>Como é que esta pessoa entra pela primeira vez?</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="Mínimo 8 caracteres" {...field} />
+                  <RadioGroup
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    className="grid gap-3 sm:grid-cols-2"
+                  >
+                    <label
+                      htmlFor="metodo-convite"
+                      className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem value="convite" id="metodo-convite" className="mt-0.5" />
+                      <span className="space-y-1">
+                        <span className="flex items-center gap-1.5 text-sm font-medium">
+                          <Mail className="h-4 w-4" aria-hidden="true" />
+                          Convite por e-mail
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          Recebe uma mensagem onde confirma o endereço e escolhe a palavra-passe.
+                        </span>
+                      </span>
+                    </label>
+
+                    <label
+                      htmlFor="metodo-palavra-passe"
+                      className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem
+                        value="palavra-passe"
+                        id="metodo-palavra-passe"
+                        className="mt-0.5"
+                      />
+                      <span className="space-y-1">
+                        <span className="flex items-center gap-1.5 text-sm font-medium">
+                          <KeyRound className="h-4 w-4" aria-hidden="true" />
+                          Definir palavra-passe agora
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          O sistema gera uma provisória, mostra-a a si uma vez, e a pessoa é
+                          obrigada a mudá-la ao entrar.
+                        </span>
+                      </span>
+                    </label>
+                  </RadioGroup>
                 </FormControl>
-                <FormDescription>O utilizador poderá alterar a palavra-passe após o primeiro acesso.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -170,7 +237,7 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-                <FormLabel className="font-normal">Utilizador activo (com acesso imediato)</FormLabel>
+                <FormLabel className="font-normal">Utilizador activo</FormLabel>
               </FormItem>
             )}
           />
@@ -239,5 +306,70 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
         )}
       </FormPage>
     </Form>
+  );
+}
+
+/**
+ * A palavra-passe provisória, mostrada uma única vez (ADR-0030 §2).
+ *
+ * Sair deste ecrã perde-a para sempre — não está guardada em lado nenhum e não
+ * há leitura que a devolva. Quem a perder repõe-na na ficha do utilizador.
+ */
+function CredenciaisGeradas({ email, palavraPasse }: { email: string; palavraPasse: string }) {
+  const router = useRouter();
+  const [copiado, setCopiado] = useState(false);
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(`${email} · ${palavraPasse}`);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch {
+      toast.error('O navegador não deixou copiar. Anote a palavra-passe antes de sair.');
+    }
+  };
+
+  return (
+    <div className="max-w-xl space-y-4 rounded-lg border bg-card p-6">
+      <div className="space-y-1">
+        <h2 className="text-lg font-semibold tracking-tight">Utilizador criado</h2>
+        <p className="text-sm text-muted-foreground">
+          Entregue estes dados ao próprio. Esta palavra-passe <strong>não volta a ser
+          mostrada</strong> — se sair deste ecrã sem a guardar, terá de a repor na ficha do
+          utilizador.
+        </p>
+      </div>
+
+      <dl className="space-y-3 rounded-lg border bg-muted/40 p-4">
+        <div className="space-y-0.5">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">E-mail</dt>
+          <dd className="font-mono text-sm">{email}</dd>
+        </div>
+        <div className="space-y-0.5">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+            Palavra-passe provisória
+          </dt>
+          <dd className="font-mono text-lg tracking-wide">{palavraPasse}</dd>
+        </div>
+      </dl>
+
+      <p className="text-sm text-muted-foreground">
+        No primeiro acesso é pedido que a troque por uma que só ela conheça.
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={copiar}>
+          {copiado ? (
+            <Check className="h-4 w-4 mr-1.5" aria-hidden="true" />
+          ) : (
+            <Copy className="h-4 w-4 mr-1.5" aria-hidden="true" />
+          )}
+          {copiado ? 'Copiado' : 'Copiar'}
+        </Button>
+        <Button type="button" size="sm" onClick={() => router.push('/core-tenancy/utilizadores')}>
+          Já anotei — concluir
+        </Button>
+      </div>
+    </div>
   );
 }

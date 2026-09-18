@@ -21,6 +21,7 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { esperarFormularioLogin } from './helpers/auth';
 
 // ─── Helper: executar axe e falhar em violações AA ────────────────────────────
 
@@ -63,36 +64,94 @@ async function checkA11y(
 
 // ─── Testes ───────────────────────────────────────────────────────────────────
 
-// Login usa sessão limpa (não autenticado)
-test.describe('A11y: Página de Login', () => {
+// Login usa sessão limpa (não autenticado). Desde o ADR-0029 a porta de
+// entrada voltou a ser NOSSA: `/auth/login` não salta, e o axe corre no nosso
+// ecrã — nos dois temas, senão a página onde o cliente escreve a palavra-passe
+// ficava a única do produto sem verificação de acessibilidade.
+//
+// Os 32/32 WCAG AA deixaram de ser herdados do PatternFly: passaram a ser
+// responsabilidade deste repositório.
+test.describe('A11y: Página de Login (ecrã do GestPro)', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('sem violações AA na página de login', async ({ page }) => {
+  test('sem violações AA no ecrã de login — tema claro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
     await page.goto('/auth/login');
-    // CardTitle "Iniciar Sessão" é div, não heading; aguarda o campo de email
-    await expect(page.getByLabel('E-mail Corporativo')).toBeVisible({ timeout: 15_000 });
+    await esperarFormularioLogin(page);
 
-    await checkA11y(page, 'login');
+    await checkA11y(page, 'login GestPro (claro)');
+  });
+
+  test('sem violações AA no ecrã de login — tema escuro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/auth/login');
+    await esperarFormularioLogin(page);
+
+    await checkA11y(page, 'login GestPro (escuro)');
+  });
+
+  // O ecrã de mudança de palavra-passe (ADR-0030) é público como o login e é
+  // onde a pessoa entra pela primeira vez: fica sujeito ao mesmo gate.
+  test('sem violações AA no ecrã de mudança de palavra-passe — tema claro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto('/auth/mudar-palavra-passe?identificador=alguem%40demo.mz');
+    await expect(page.locator('#actual')).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'mudar palavra-passe (claro)');
+  });
+
+  test('sem violações AA no ecrã de mudança de palavra-passe — tema escuro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/auth/mudar-palavra-passe?identificador=alguem%40demo.mz');
+    await expect(page.locator('#actual')).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'mudar palavra-passe (escuro)');
+  });
+
+  // `/registo` (ADR-0031) é a primeira coisa que um potencial cliente vê, e é
+  // pública como o login. O formulário tem nove campos, um select e um widget
+  // de terceiros — mais superfície de acessibilidade do que qualquer outro
+  // ecrã anónimo do produto. Fica sujeito ao mesmo gate, nos dois temas.
+  test('sem violações AA no ecrã de registo — tema claro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto('/registo?plano=PROFISSIONAL');
+    await expect(page.locator('[name="empresa.nome"]')).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'registo (claro)');
+  });
+
+  test('sem violações AA no ecrã de registo — tema escuro', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/registo?plano=PROFISSIONAL');
+    await expect(page.locator('[name="empresa.nome"]')).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'registo (escuro)');
   });
 
   test('foco visível nos campos do formulário de login', async ({ page }) => {
     await page.goto('/auth/login');
-    await expect(page.getByLabel('E-mail Corporativo')).toBeVisible({ timeout: 15_000 });
+    await esperarFormularioLogin(page);
 
-    // Foca directamente no campo de email para testar navegação por teclado
-    await page.getByLabel('E-mail Corporativo').focus();
-    const emailFocused = await page.evaluate(() => document.activeElement?.id ?? document.activeElement?.tagName);
-    expect(emailFocused).toBeTruthy();
+    // Foca directamente no campo de utilizador para testar navegação por teclado
+    await page.locator('#identificador').focus();
+    const focado = await page.evaluate(() => document.activeElement?.id);
+    expect(focado).toBe('identificador');
 
-    // Tab para o campo de password
+    // Tab avança para um elemento interactivo (password / mostrar palavra-passe)
     await page.keyboard.press('Tab');
-    const afterTab = await page.evaluate(() => {
+    const aposTab = await page.evaluate(() => {
       const el = document.activeElement;
-      return el ? { tag: el.tagName, type: (el as HTMLInputElement).type } : null;
+      return el ? { tag: el.tagName } : null;
     });
-    expect(afterTab).not.toBeNull();
-    // Deve ser um elemento interactivo (input, button, etc.)
-    expect(['INPUT', 'BUTTON', 'A', 'SELECT', 'TEXTAREA'].includes(afterTab!.tag)).toBeTruthy();
+    expect(aposTab).not.toBeNull();
+    expect(['INPUT', 'BUTTON', 'A', 'SELECT', 'TEXTAREA'].includes(aposTab!.tag)).toBeTruthy();
+  });
+
+  test('a página de recusa /auth/erro é acessível', async ({ page }) => {
+    // A recusa explícita («contacte o administrador…») é nossa e também conta.
+    await page.goto('/auth/erro?motivo=nao-provisionado');
+    await expect(page.getByRole('heading')).toBeVisible({ timeout: 15_000 });
+    await checkA11y(page, 'erro de autenticação');
   });
 });
 

@@ -36,17 +36,3 @@ export const ICONE_MODULO: Record<ModuloSlug, string> = {
   operacoes: "HardHat",
   pos: "ScanBarcode",
 };
-
-/**
- * Token de cor de acento por módulo — nomes de tokens `@theme`, nunca valores.
- * Resolvidos em `theme.css`; ver `components/marketing/modulo-card.tsx`.
- */
-export const ACENTO_MODULO: Record<ModuloSlug, string> = {
-  vendas: "modulo-vendas",
-  stock: "modulo-stock",
-  compras: "modulo-compras",
-  financas: "modulo-financas",
-  rh: "modulo-rh",
-  operacoes: "modulo-operacoes",
-  pos: "modulo-pos",
-};

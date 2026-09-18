@@ -1,0 +1,12 @@
+                                                                   QUERY PLAN                                                                    
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Index Scan using "PagamentoVenda_vendaId_idx" on "PagamentoVenda"  (cost=0.42..8.44 rows=1 width=148) (actual time=0.036..0.036 rows=1 loops=1)
+   Index Cond: ("vendaId" = 'caf529c305738629b8ecbd4cb'::text)
+   Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=156 read=1
+   I/O Timings: shared read=1.005
+ Planning Time: 2.505 ms
+ Execution Time: 0.123 ms
+(8 rows)
+

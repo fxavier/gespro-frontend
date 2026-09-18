@@ -1,6 +1,106 @@
-# Postgres 17 para desenvolvimento local (spec 01 task 1).
-# Subir: docker compose up -d   |  Aplicar schema: pnpm db:migrate:dev
+# ==============================================================================
+# Pilha local de referência — encarnação executável da topologia de produção
+# (ADR-0026 §2; partes locais dos ADR-0012, 0014, 0017, 0019, 0020).
+#
+# Perfis (task 1.8; revisto pelo ADR-0013 §7):
+#   docker compose up -d                  → perfil mínimo: Postgres + Keycloak
+#                                           (o login é OIDC; sem Keycloak não há sessão)
+#   docker compose --profile full up -d   → pilha completa (11 serviços):
+#     db · keycloak · valkey · minio · otel-lgtm · mailpit ·
+#     erp-1 + erp-2 (mesma imagem de produção) atrás de proxy · webhook-receptor
+#
+# Regras (ADR-0026 §3):
+#   - a imagem do ERP que corre aqui é a MESMA que correrá em produção;
+#     diferenças só em variáveis de ambiente;
+#   - versões de imagem fixadas — nunca `latest`;
+#   - segredos em `.env` (raiz, não versionado) — ver `.env.example`. Os valores
+#     por omissão abaixo são placeholders de dev local, nunca de produção.
+#
+# Endereços úteis (perfil full):
+#   http://localhost:8080  → ERP (proxy sobre erp-1/erp-2; header X-Gespro-Instancia)
+#   http://localhost:8081  → Keycloak (realm gespro importado de infra/keycloak/)
+#   http://localhost:3002  → Grafana (otel-lgtm; OTLP em 4317/4318)
+#   http://localhost:9001  → Consola MinIO (API S3 em 9000)
+#   http://localhost:8025  → Mailpit (SMTP em 1025)
+#   http://localhost:8082  → Receptor de webhook (alertas; config do w8-observabilidade)
+# ==============================================================================
+
+# Nome do projecto FIXO. Sem isto o Compose deriva-o do directório, e um agente
+# a correr `docker compose` a partir de `wt/<agente>/` cria um projecto novo —
+# mas como os `container_name:` abaixo são fixos, apossa-se dos contentores
+# partilhados e liga-lhes volumes VAZIOS. Aconteceu em 2026-08-30: o `gespro-db`
+# foi substituído por um com 0 tabelas, e os dados ficaram órfãos em
+# `gespro_gespro-pgdata`. Com o nome fixo, qualquer worktree reutiliza a mesma
+# pilha e os mesmos volumes.
+name: gespro
+
+# Ambiente comum às duas instâncias do ERP — a paridade instância-a-instância é
+# o que torna verificável o limitador partilhado e a sessão entre instâncias.
+x-erp-ambiente: &erp-ambiente
+  DATABASE_URL: postgresql://gespro:gespro@db:5432/gespro?schema=public
+  DIRECT_URL: postgresql://gespro:gespro@db:5432/gespro?schema=public
+  AUTH_SECRET: ${AUTH_SECRET:-dev-only-change-me-0123456789abcdef0123456789abcdef}
+  NEXTAUTH_URL: http://localhost:8080
+  APP_URL: http://localhost:8080
+  APP_VERSION: local
+  ALLOWED_ORIGINS: http://localhost:8080,http://localhost:3001
+  METRICS_SECRET: ${METRICS_SECRET:-dev-metrics-secret}
+  # Credencial do agendador (serviço `cron` abaixo). As rotas /api/cron/* não
+  # estão em PUBLIC_PATHS: entram com esta, e não com sessão.
+  CRON_SECRET: ${CRON_SECRET:-dev-cron-secret}
+  # Armazenamento: driver local até o cliente S3 ganhar `endpoint` configurável
+  # (ADR-0026 §3.2 — trabalho do w8-armazenamento, fase 3). O MinIO já está de
+  # pé e o bucket criado; mudar para s3 será só trocar estas variáveis.
+  STORAGE_DRIVER: local
+  S3_BUCKET: ${S3_BUCKET:-gespro-uploads}
+  S3_REGION: local
+  S3_ENDPOINT: http://minio:9000
+  S3_FORCE_PATH_STYLE: "true"
+  AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-gespro}
+  AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-gespro-minio-dev}
+  # E-mail: apanhado pelo Mailpit — sem fornecedor (task 1.6)
+  EMAIL_PROVIDER: smtp
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_USER: gespro
+  SMTP_PASS: gespro
+  SMTP_FROM: noreply@gespro.mz
+  # Telemetria: destino OTLP é UMA variável (ADR-0019 / task 2.11)
+  OTEL_SERVICE_NAME: gespro-erp
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+  # Rate limiting distribuído (ADR-0014, w8-cache): adaptador Valkey partilhado
+  # pelas duas instâncias. É o que torna o limite verificável entre instâncias.
+  RATE_LIMIT_DRIVER: valkey
+  # Anti-abuso (ADR-0016). Sem estas, os contentores correm em modo produção com
+  # CAPTCHA_PROVIDER por definir → `captcha_nao_configurado` → o registo público
+  # é SEMPRE recusado, e a pilha de referência não consegue correr o seu próprio
+  # fluxo de inscrição. Os valores por omissão são as chaves de TESTE públicas da
+  # Cloudflare, que passam sempre — nunca chaves reais.
+  CAPTCHA_PROVIDER: ${CAPTCHA_PROVIDER:-turnstile}
+  CAPTCHA_SECRET_KEY: ${CAPTCHA_SECRET_KEY:-1x0000000000000000000000000000000AA}
+  VALKEY_URL: redis://valkey:6379
+  KEYCLOAK_URL: http://keycloak:8080
+  KEYCLOAK_ISSUER: http://localhost:8081/realms/gespro
+  # Base interna para o backchannel OIDC (troca de código, renovação, Admin
+  # API): o browser vai a localhost:8081, o contentor vai a keycloak:8080.
+  KEYCLOAK_ISSUER_INTERNO: http://keycloak:8080/realms/gespro
+  KEYCLOAK_CLIENT_ID: gespro-erp
+  KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-gespro-erp-dev-secret}
+  # Intervalo de re-resolução do Auth.js (ADR-0011): permissões, `ativo` e
+  # bloqueio de subscrição relidos do Postgres a cada renovação. 900 s = 15 min.
+  AUTH_SESSION_MAX_AGE: ${AUTH_SESSION_MAX_AGE:-900}
+  KEYCLOAK_SSO_MAX_SECONDS: ${KEYCLOAK_SSO_MAX_SECONDS:-43200}
+  # Endpoint de saúde do Keycloak (porta de gestão 9000, interna à rede Docker).
+  # KEYCLOAK_ISSUER aponta para o browser (localhost:8081) — não usar dentro do contentor.
+  # M2 fix (ADR-0019 §2): probes.ts usa esta variável para sonda de saúde.
+  KEYCLOAK_HEALTH_URL: http://keycloak:9000/health/live
+
 services:
+  # ----------------------------------------------------------------------------
+  # Postgres 17 — BD de dev E da pilha; arquivo de WAL activo (task 1.1) para o
+  # ensaio de restauro (ADR-0020). O wrapper sh cria/chown o directório de
+  # arquivo antes de delegar no entrypoint oficial (o volume nasce root:root).
+  # ----------------------------------------------------------------------------
   db:
     image: postgres:17-alpine
     container_name: gespro-db
@@ -8,15 +108,333 @@ services:
       POSTGRES_USER: gespro
       POSTGRES_PASSWORD: gespro
       POSTGRES_DB: gespro
+    command:
+      - sh
+      - -ec
+      - |
+        mkdir -p /var/lib/postgresql/wal-archive
+        chown postgres:postgres /var/lib/postgresql/wal-archive
+        exec docker-entrypoint.sh postgres \
+          -c wal_level=replica \
+          -c archive_mode=on \
+          -c "archive_command=test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f" \
+          -c archive_timeout=60
     ports:
       - "5432:5432"
     volumes:
       - gespro-pgdata:/var/lib/postgresql/data
+      - gespro-walarchive:/var/lib/postgresql/wal-archive
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gespro -d gespro"]
       interval: 5s
       timeout: 5s
       retries: 12
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  # ----------------------------------------------------------------------------
+  # One-shot: BD própria do Keycloak dentro da MESMA instância Postgres
+  # (ADR-0012 §2) — e assim a PITR do cluster cobre ERP e identidade como UM
+  # sistema (ADR-0020 §1). Idempotente.
+  # ----------------------------------------------------------------------------
+  db-init:
+    image: postgres:17-alpine
+    container_name: gespro-db-init
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: gespro
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak-dev}
+    volumes:
+      - ./infra/local/postgres/init-keycloak.sh:/init-keycloak.sh:ro
+    entrypoint: ["sh", "/init-keycloak.sh"]
+
+  # ----------------------------------------------------------------------------
+  # Keycloak — versão FIXADA (nunca latest, ADR-0012 §1), realm importado de
+  # ficheiro versionado (§7). Consola de administração só em localhost.
+  # infra/keycloak/** é do w8-identidade (fase 2, exclusivo toda a wave).
+  #
+  # PERFIL POR OMISSÃO desde o ADR-0013 §7: o login do ERP é OIDC e não há
+  # atalho de autenticação só para dev — `docker compose up -d` levanta
+  # Postgres E Keycloak. As durações de sessão do realm são PARÂMETROS
+  # (ADR-0013 §6): o ambiente de E2E põe-nas em segundos.
+  # ----------------------------------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    container_name: gespro-keycloak
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    # O entrypoint próprio injecta os parâmetros de ambiente no realm antes do
+    # `--import-realm` (os campos Integer não aceitam `${env.…}` nativo — ver
+    # infra/keycloak/import-realm.sh) e delega no kc.sh.
+    entrypoint: ["/bin/sh", "/opt/keycloak/import-realm.sh"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak-dev}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin-dev}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: http://localhost:8081
+      # false: os tokens emitidos via backchannel (http://keycloak:8080) levam
+      # iss = KC_HOSTNAME — é o que o Auth.js valida (ADR-0010 §3).
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
+      # Substituídos no import do realm (infra/keycloak/realm-gespro.json).
+      GESPRO_SSO_IDLE_SECONDS: ${KEYCLOAK_SSO_IDLE_SECONDS:-28800}
+      GESPRO_SSO_MAX_SECONDS: ${KEYCLOAK_SSO_MAX_SECONDS:-43200}
+      GESPRO_ERP_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-gespro-erp-dev-secret}
+      GESPRO_SMTP_HOST: ${KEYCLOAK_SMTP_HOST:-mailpit}
+      GESPRO_SMTP_PORT: ${KEYCLOAK_SMTP_PORT:-1025}
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      JAVA_OPTS_APPEND: -XX:MaxRAMPercentage=70
+    volumes:
+      - ./infra/keycloak/realm-gespro.json:/opt/keycloak/realm-template/realm-gespro.json:ro
+      - ./infra/keycloak/import-realm.sh:/opt/keycloak/import-realm.sh:ro
+      # Tema mínimo (ADR-0012 §8): variáveis de cor da marca, logótipo e
+      # ortografia pré-AO. Templates FreeMarker NÃO são tocados.
+      - ./infra/keycloak/themes/gespro:/opt/keycloak/themes/gespro:ro
+    ports:
+      - "127.0.0.1:8081:8080"
+    healthcheck:
+      # A imagem não traz curl/wget; /health/ready vive na porta de gestão 9000
+      # (interna à pilha, nunca publicada — ADR-0012 §3/§4).
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '200' <&3",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 1200m
+
+  # ----------------------------------------------------------------------------
+  # Valkey — contadores partilhados entre instâncias (ADR-0014). SÓ na rede
+  # interna da pilha: nenhuma porta publicada (task 1.3). O adaptador chega na
+  # fase 2 (w8-cache) e liga por VALKEY_URL=redis://valkey:6379.
+  # ----------------------------------------------------------------------------
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: gespro-valkey
+    profiles: [full]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # ----------------------------------------------------------------------------
+  # MinIO — fala a API S3 a sério (é o que torna a política de POST do ADR-0017
+  # verificável). Bucket criado e versionado no arranque pelo one-shot minio-init.
+  # ----------------------------------------------------------------------------
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: gespro-minio
+    profiles: [full]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-gespro}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-gespro-minio-dev}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - gespro-minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: gespro-minio-init
+    profiles: [full]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-gespro}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-gespro-minio-dev}
+      S3_BUCKET: ${S3_BUCKET:-gespro-uploads}
+    volumes:
+      - ./infra/local/minio/init-buckets.sh:/init-buckets.sh:ro
+    entrypoint: ["sh", "/init-buckets.sh"]
+
+  # ----------------------------------------------------------------------------
+  # Grafana + Prometheus + Loki + Tempo num contentor, com receptor OTLP
+  # (task 1.5). Painéis e alertas são provisionados POR FICHEIRO a partir de
+  # infra/local/observabilidade/** — pasta do w8-observabilidade (contrato §3
+  # do handoff). As montagens substituem os exemplos da imagem.
+  # ----------------------------------------------------------------------------
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.31.0
+    container_name: gespro-otel-lgtm
+    profiles: [full]
+    ports:
+      - "127.0.0.1:3002:3000" # Grafana (3000/3001 do host ficam para pnpm dev / site)
+      - "127.0.0.1:4317:4317" # OTLP gRPC  (para pnpm dev no host)
+      - "127.0.0.1:4318:4318" # OTLP HTTP
+    volumes:
+      - ./infra/local/observabilidade/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards
+      - ./infra/local/observabilidade/alerts:/otel-lgtm/grafana/conf/provisioning/alerting
+      # Prometheus config com scrape job gespro-erp (w8-observabilidade Fase B)
+      - ./infra/local/observabilidade/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+  # ----------------------------------------------------------------------------
+  # Receptor de webhook local para alertas (task 2.7 do w8-observabilidade):
+  # eco de cada pedido recebido para o stdout/logs. A configuração de destino
+  # dos alertas é do w8-observabilidade; aqui só existe o serviço.
+  # ----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Agendador — chama as rotas /api/cron/* pelo proxy (ADR-0032)
+  #
+  # Existe porque não há produção onde agendar (ADR-0026 §5) e porque, sem
+  # alguém a chamar, o ciclo de vida das subscrições simplesmente não acontece:
+  # o trial nunca acaba, a Leitura nunca começa e nunca fecha. O ADR-0026 §2 faz
+  # deste compose «a encarnação executável da topologia de produção», e um
+  # mecanismo que nunca correu não se sabe se funciona.
+  #
+  # Deliberadamente burro: `crond` do BusyBox e `wget`. Quem provisionar
+  # produção substitui isto pelo agendador do fornecedor — o contrato são as
+  # rotas, os horários e o segredo, e está no runbook.
+  # ---------------------------------------------------------------------------
+  cron:
+    image: alpine:3.22
+    container_name: gespro-cron
+    profiles: [full]
+    depends_on:
+      proxy:
+        condition: service_started
+    environment:
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret}
+      # Pelo proxy, para exercitar o mesmo caminho que um agendador externo faria.
+      BASE_ERP: http://proxy:8080
+    volumes:
+      - ./infra/local/cron/crontab:/etc/crontabs/root:ro
+      - ./infra/local/cron/chamar.sh:/usr/local/bin/chamar:ro
+    command: ["crond", "-f", "-l", "8", "-L", "/dev/stdout"]
+    deploy:
+      resources:
+        limits:
+          memory: 32m
+
+  webhook-receptor:
+    image: mendhak/http-https-echo:41
+    container_name: gespro-webhook-receptor
+    profiles: [full]
+    environment:
+      HTTP_PORT: "8080"
+    ports:
+      - "127.0.0.1:8082:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+
+  # ----------------------------------------------------------------------------
+  # Mailpit — apanha e-mail sem fornecedor (task 1.6). UI em :8025.
+  # ----------------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:v1.30.7
+    container_name: gespro-mailpit
+    profiles: [full]
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025" # SMTP também para pnpm dev no host
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  # ----------------------------------------------------------------------------
+  # Duas instâncias do ERP — a MESMA imagem de produção (Dockerfile, standalone)
+  # nas duas; diferenças zero (ADR-0026 §3.5). Duas porque é isso que torna
+  # verificável o limitador partilhado, a sessão entre instâncias e a publicação
+  # em duas fases (task 1.7). O HEALTHCHECK vem do Dockerfile (/api/health).
+  # `prisma migrate deploy` no entrypoint é idempotente e seguro em paralelo.
+  # ----------------------------------------------------------------------------
+  erp-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gespro-erp:local
+    container_name: gespro-erp-1
+    profiles: [full]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *erp-ambiente
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  erp-2:
+    image: gespro-erp:local
+    container_name: gespro-erp-2
+    profiles: [full]
+    depends_on:
+      db:
+        condition: service_healthy
+      erp-1:
+        condition: service_started
+    environment:
+      <<: *erp-ambiente
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  # ----------------------------------------------------------------------------
+  # Proxy — round-robin sobre as duas instâncias; expõe X-Gespro-Instancia para
+  # o smoke provar a alternância. Porta 8080 (3000 fica livre para pnpm dev).
+  # ----------------------------------------------------------------------------
+  proxy:
+    image: caddy:2.11.4-alpine
+    container_name: gespro-proxy
+    profiles: [full]
+    depends_on:
+      erp-1:
+        condition: service_healthy
+      erp-2:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./infra/local/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128m
 
 volumes:
   gespro-pgdata:
+  gespro-walarchive:
+  gespro-minio-data:

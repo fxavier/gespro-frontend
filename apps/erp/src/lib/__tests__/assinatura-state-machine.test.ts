@@ -3,7 +3,7 @@ import fc from 'fast-check';
 import {
   ESTADOS_ASSINATURA,
   TRANSICOES_ASSINATURA,
-  bloqueiaAcesso,
+  estadoDeAcesso,
   transicaoAssinaturaValida,
   type EstadoAssinatura,
 } from '@/lib/state-machines';
@@ -50,47 +50,65 @@ describe('máquina de estados da Assinatura (spec 19)', () => {
   });
 
   it('rejeita transições concretas impossíveis', () => {
-    expect(transicaoAssinaturaValida('TRIAL', 'SUSPENSA')).toBe(false);
+    expect(transicaoAssinaturaValida('TRIAL', 'FECHADA')).toBe(false);
     expect(transicaoAssinaturaValida('EXPIRADO', 'TRIAL')).toBe(false);
-    expect(transicaoAssinaturaValida('CANCELADA', 'SUSPENSA')).toBe(false);
+    expect(transicaoAssinaturaValida('FECHADA', 'LEITURA')).toBe(false);
     expect(transicaoAssinaturaValida('CANCELADA', 'TRIAL')).toBe(false);
     expect(transicaoAssinaturaValida('ATIVA', 'TRIAL')).toBe(false);
   });
 
-  it('aceita as transições do requisito 3.1', () => {
-    expect(transicaoAssinaturaValida('TRIAL', 'ATIVA')).toBe(true);
-    expect(transicaoAssinaturaValida('TRIAL', 'EXPIRADO')).toBe(true);
-    expect(transicaoAssinaturaValida('ATIVA', 'SUSPENSA')).toBe(true);
-    expect(transicaoAssinaturaValida('SUSPENSA', 'ATIVA')).toBe(true);
-    // Qualquer estado não-terminal pode ser cancelado.
-    for (const e of ESTADOS_ASSINATURA.filter((x) => x !== 'CANCELADA')) {
-      expect(transicaoAssinaturaValida(e, 'CANCELADA')).toBe(true);
-    }
+  it('as três saídas convergem em LEITURA (ADR-0027 §6)', () => {
+    // Fim de Trial, cancelamento voluntário e dunning esgotado: um só destino.
+    expect(transicaoAssinaturaValida('TRIAL', 'LEITURA')).toBe(true);
+    expect(transicaoAssinaturaValida('ATIVA', 'LEITURA')).toBe(true);
+    // E é o ÚNICO destino: nenhuma saída directa para um estado sem acesso.
+    expect(transicaoAssinaturaValida('TRIAL', 'EXPIRADO')).toBe(false);
+    expect(transicaoAssinaturaValida('ATIVA', 'SUSPENSA')).toBe(false);
+    expect(transicaoAssinaturaValida('ATIVA', 'CANCELADA')).toBe(false);
   });
 
-  it('permite reactivar após CANCELADA (nova Checkout no mesmo registo)', () => {
-    expect(transicaoAssinaturaValida('CANCELADA', 'ATIVA')).toBe(true);
+  it('da Leitura sai-se para FECHADA ou, pagando, para ATIVA', () => {
+    expect(transicaoAssinaturaValida('LEITURA', 'FECHADA')).toBe(true);
+    expect(transicaoAssinaturaValida('LEITURA', 'ATIVA')).toBe(true);
+  });
+
+  it('nunca se prende quem quer pagar: todo o estado sem acesso volta a ATIVA', () => {
+    for (const e of ESTADOS_ASSINATURA.filter((x) => x !== 'ATIVA' && x !== 'TRIAL')) {
+      expect(transicaoAssinaturaValida(e, 'ATIVA')).toBe(true);
+    }
   });
 });
 
-describe('bloqueiaAcesso — requisito 6.1', () => {
-  it('reflecte exactamente o mapa do requisito para todos os estados', () => {
-    const esperado: Record<EstadoAssinatura, boolean> = {
-      TRIAL: false,
-      ATIVA: false,
-      SUSPENSA: true,
-      CANCELADA: true,
-      EXPIRADO: true,
+describe('estadoDeAcesso — tabela completa (ADR-0032 §4)', () => {
+  it('mapeia todos os estados do enum, com o tenant vivo', () => {
+    const esperado: Record<EstadoAssinatura, 'aberto' | 'leitura' | 'fechado'> = {
+      TRIAL: 'aberto',
+      ATIVA: 'aberto',
+      LEITURA: 'leitura',
+      FECHADA: 'fechado',
+      SUSPENSA: 'fechado',
+      CANCELADA: 'fechado',
+      EXPIRADO: 'fechado',
     };
     for (const e of ESTADOS_ASSINATURA) {
-      expect(bloqueiaAcesso(e)).toBe(esperado[e]);
+      expect(estadoDeAcesso(e, false)).toBe(esperado[e]);
     }
   });
 
-  it('statusAtivo é sempre o inverso de bloqueiaAcesso', () => {
+  it('a decisão da GestPro ganha sempre — nem o pagamento a desfaz', () => {
+    // O defeito que o ADR-0032 §4 fecha: um tenant suspenso por abuso NÃO
+    // reabre por ter pago. Vale para TODOS os estados, ATIVA incluído.
     fc.assert(
       fc.property(arbEstado, (e) => {
-        expect(!bloqueiaAcesso(e)).toBe(e === 'TRIAL' || e === 'ATIVA');
+        expect(estadoDeAcesso(e, true)).toBe('fechado');
+      }),
+    );
+  });
+
+  it('só a Leitura é leitura, e só ela deixa pagar de dentro', () => {
+    fc.assert(
+      fc.property(arbEstado, (e) => {
+        expect(estadoDeAcesso(e, false) === 'leitura').toBe(e === 'LEITURA');
       }),
     );
   });

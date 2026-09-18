@@ -1,10 +1,10 @@
 {
   "_nota": "Valores literais da marca para contextos que NÃO resolvem CSS custom properties: a barra do browser (`theme-color`), a geração de imagens OG (`next/og` renderiza fora do browser) e os favicons. Espelham os tokens de tokens.css (oklch → hex, aproximação sRGB). Alterar aqui E em tokens.css em conjunto.",
-  "fundoClaro": "#ffffff",
-  "fundoEscuro": "#0a0a0a",
-  "textoClaro": "#fafafa",
-  "textoEscuro": "#0a0a0a",
-  "textoSecundario": "#a1a1aa",
-  "marca": "#6183d6",
-  "destaque": "#d98a5e"
+  "fundoClaro": "#f8f9ff",
+  "fundoEscuro": "#14171f",
+  "textoClaro": "#f2f4fa",
+  "textoEscuro": "#0b1c30",
+  "textoSecundario": "#8b93a7",
+  "marca": "#2257d8",
+  "destaque": "#00788c"
 }

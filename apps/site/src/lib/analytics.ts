@@ -77,10 +77,15 @@ export function registarEvento(
   (window as JanelaPlausible).plausible?.(nome, props ? { props } : undefined);
 }
 
-/** Eventos usados pelo site — lista fechada para não haver nomes soltos. */
+/**
+ * Eventos usados pelo site — lista fechada para não haver nomes soltos.
+ *
+ * Os eventos de registo saíram daqui com o ADR-0031 §4: o registo mudou de
+ * domínio e passou a ser medido do servidor do ERP para a API de eventos do
+ * Plausible, com o domínio do site (Requisito 7.1). Emitir aqui um
+ * `registo_iniciado` que o browser nunca chega a disparar — a página de
+ * `/comecar` responde 307 antes de renderizar — seria um número a mentir.
+ */
 export const EVENTOS = {
-  registoIniciado: "registo_iniciado",
-  registoConcluido: "registo_concluido",
-  registoFalhado: "registo_falhado",
   contactoEnviado: "contacto_enviado",
 } as const;

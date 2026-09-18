@@ -88,12 +88,28 @@ export interface ContaPGC {
   tipo: TipoConta;
   natureza: NaturezaConta;
   nivel: number;
-  contaPaiId: string | null;
+  contaMaeId: string | null;
   aceitaLancamento: boolean;
   ativo: boolean;
   descricao: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** A conta com hierarquia e movimento — o que uma página de detalhe precisa. */
+export interface ContaDetalhe {
+  conta: ContaPGC;
+  contaMae: { id: string; codigo: string; nome: string } | null;
+  subContas: { id: string; codigo: string; nome: string; nivel: number; ativo: boolean }[];
+  /** Somas do intervalo pedido. */
+  debitos: Prisma.Decimal;
+  creditos: Prisma.Decimal;
+  /** Já com o sinal da natureza da conta aplicado. */
+  saldo: Prisma.Decimal;
+  /** Partidas no intervalo. */
+  movimentos: number;
+  /** Partidas de sempre — é o que tranca os campos estruturais. */
+  movimentosTotais: number;
 }
 
 export interface Diario {
@@ -105,6 +121,23 @@ export interface Diario {
   ativo: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Um lançamento com os dois lados do estorno já resolvidos. */
+export interface LancamentoDetalhe {
+  lancamento: LancamentoComPartidas;
+  /** Preenchido quando ESTE lançamento é o estorno de outro. */
+  original: ResumoLancamento | null;
+  /** Preenchido quando este lançamento FOI estornado. */
+  estorno: ResumoLancamento | null;
+}
+
+export interface ResumoLancamento {
+  id: string;
+  numero: string;
+  data: Date;
+  historico: string;
+  status: StatusLancamento;
 }
 
 export interface CentroCusto {

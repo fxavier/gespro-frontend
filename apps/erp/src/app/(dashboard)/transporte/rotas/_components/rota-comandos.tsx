@@ -14,15 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { TRANSICOES_ROTA } from '@/lib/state-machines';
-import { STATUS_LABELS } from '@/components/patterns';
+import { STATUS_LABELS, Combobox } from '@/components/patterns';
 import { transitarRotaAction, atribuirRecursosRotaAction } from '@/server/actions/transporte.actions';
 
 interface Opcao {
@@ -105,23 +98,23 @@ export function RotaComandos({ rotaId, estado, viaturaId, motoristaId, viaturas,
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="r-viatura">Viatura</Label>
-                  <Select name="viaturaId" defaultValue={viaturaId ?? SEM}>
-                    <SelectTrigger id="r-viatura"><SelectValue placeholder="Sem viatura" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SEM}>Sem viatura</SelectItem>
-                      {viaturas.map((v) => <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    id="r-viatura"
+                    name="viaturaId"
+                    defaultValue={viaturaId ?? SEM}
+                    placeholder="Sem viatura"
+                    options={[{ value: SEM, label: 'Sem viatura' }, ...viaturas.map((v) => ({ value: v.id, label: v.label }))]}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="r-motorista">Motorista</Label>
-                  <Select name="motoristaId" defaultValue={motoristaId ?? SEM}>
-                    <SelectTrigger id="r-motorista"><SelectValue placeholder="Sem motorista" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SEM}>Sem motorista</SelectItem>
-                      {motoristas.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    id="r-motorista"
+                    name="motoristaId"
+                    defaultValue={motoristaId ?? SEM}
+                    placeholder="Sem motorista"
+                    options={[{ value: SEM, label: 'Sem motorista' }, ...motoristas.map((m) => ({ value: m.id, label: m.label }))]}
+                  />
                 </div>
               </div>
               <Button type="submit" size="sm" variant="outline" disabled={pending}>Guardar Recursos</Button>

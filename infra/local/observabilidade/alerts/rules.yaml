@@ -1,0 +1,386 @@
+# Regras de Alerta GestPro ERP (ADR-0019 §4)
+# Formato: Grafana Alerting YAML provisioning (apiVersion: 1)
+# Montado em /otel-lgtm/grafana/conf/provisioning/alerting/ no contentor otel-lgtm.
+#
+# Dois níveis de alerta:
+#   PAGINA (critical): acorda alguém — ERP ou Keycloak indisponíveis, erro > 1% em 5min
+#   AVISO  (warning):  dia útil seguinte — consumo de budget SLO, latência, webhooks, tarefas
+#
+# REGRA DE CARDINALIDADE: as regras nunca usam userId nem requestId como dimensão.
+# tenant_id é permitido como agrupamento (cardinalidade controlada).
+#
+# Runbooks obrigatórios (ADR-0019): cada alerta que PAGINA tem docs/runbooks/alerta-*.md
+#
+# SELECTORS CORRECTOS (M1 fix):
+#   As métricas do ERP são geradas pelo prom-client e raspadas via scrape job 'gespro-erp'.
+#   Séries resultantes: job="gespro-erp", service="gespro" (default label do registry).
+#   NÃO usar service_name="gespro-erp" — esse label só existe em métricas OTLP do SDK,
+#   não nas métricas prom-client que são a fonte de dados desta pilha de alertas.
+#   O selector correcto para isolar métricas do ERP é job="gespro-erp".
+
+apiVersion: 1
+
+groups:
+  # ---------------------------------------------------------------------------
+  # ALERTAS DE PAGINAÇÃO (critical — acordar alguém)
+  # ---------------------------------------------------------------------------
+  - orgId: 1
+    name: "gespro-criticos"
+    folder: "GestPro"
+    interval: 1m
+    rules:
+      - uid: "gespro-erp-indisponivel"
+        title: "ERP Indisponível"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              # up{job="gespro-erp"} = 0 quando o Prometheus não consegue raspar /api/metrics
+              # absent(...) = 1 quando o job não existe de todo (scrape config ausente)
+              # Ambas as condições indicam ERP inacessível.
+              # NOTA: quando ERP está UP (up=1), ambas as condições retornam vazio.
+              # noDataState: OK garante que vazio = Normal (não dispara).
+              # noDataState: NoData causaria DatasourceNoData mesmo com ERP saudável (M2 fix).
+              expr: "absent(up{job=\"gespro-erp\"}) or up{job=\"gespro-erp\"} == 0"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0.5], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        labels:
+          severity: critical
+          runbook: "docs/runbooks/alerta-erp-indisponivel.md"
+        annotations:
+          summary: "ERP GestPro indisponível há mais de 2 minutos"
+          description: "O Prometheus não consegue raspar o /api/metrics do ERP (up=0 ou ausente). Verificar o processo Next.js e a conectividade de rede. Runbook: {{ $labels.runbook }}"
+          runbook_url: "docs/runbooks/alerta-erp-indisponivel.md"
+
+      - uid: "gespro-keycloak-indisponivel"
+        title: "Keycloak Indisponível"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              # keycloak_available é um gauge prom-client actualizado pelo probe de saúde
+              # (probes.ts → KEYCLOAK_HEALTH_URL ou http://keycloak:9000/health/live)
+              # noDataState: OK — quando Keycloak está UP (keycloak_available=1),
+              # a expressão == 0 retorna vazio, e vazio = Normal (não dispara).
+              expr: "keycloak_available{job=\"gespro-erp\"} == 0"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0.5], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        labels:
+          severity: critical
+          runbook: "docs/runbooks/alerta-keycloak-indisponivel.md"
+        annotations:
+          summary: "Keycloak indisponível — login bloqueado"
+          description: "O Keycloak não responde ao probe de saúde (keycloak_available=0). Nenhum utilizador consegue autenticar-se. Runbook: {{ $labels.runbook }}"
+          runbook_url: "docs/runbooks/alerta-keycloak-indisponivel.md"
+
+      - uid: "gespro-taxa-erro-elevada"
+        title: "Taxa de Erro 5xx Elevada"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              # job="gespro-erp": selector correcto para métricas prom-client (M1 fix)
+              # service_name="gespro-erp" era incorrecto — não existe nestas séries
+              expr: "sum(rate(http_requests_total{status_code=~\"5..\",job=\"gespro-erp\"}[5m])) / sum(rate(http_requests_total{job=\"gespro-erp\"}[5m])) > 0.01"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: critical
+          runbook: "docs/runbooks/alerta-taxa-erro-elevada.md"
+        annotations:
+          summary: "Taxa de erros 5xx acima de 1% há 5 minutos"
+          description: "A taxa de erros HTTP 5xx excede o SLO de 0,1%. Taxa actual: {{ $values.A.Value | humanizePercentage }}. Runbook: {{ $labels.runbook }}"
+          runbook_url: "docs/runbooks/alerta-taxa-erro-elevada.md"
+
+      - uid: "gespro-db-inacessivel"
+        title: "Base de Dados Inacessível"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              # Proxy para DB inacessível: ERP está up (scrape OK) mas >90% dos pedidos
+              # são 5xx, o que indica falha de conectividade com a BD.
+              # noDataState: OK — sem 5xx (sistema saudável), a expressão retorna vazio,
+              # e vazio = Normal (não dispara). noDataState: NoData causava DatasourceNoData
+              # em falso quando não havia tráfego de erros (M2 fix).
+              expr: "sum(rate(http_requests_total{status_code=~\"5..\",job=\"gespro-erp\"}[5m])) / sum(rate(http_requests_total{job=\"gespro-erp\"}[5m])) > 0.90"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        labels:
+          severity: critical
+          runbook: "docs/runbooks/alerta-db-inacessivel.md"
+        annotations:
+          summary: "PostgreSQL possivelmente inacessível"
+          description: "Mais de 90% dos pedidos estão a retornar 5xx — a BD pode estar inacessível. Runbook: {{ $labels.runbook }}"
+          runbook_url: "docs/runbooks/alerta-db-inacessivel.md"
+
+  # ---------------------------------------------------------------------------
+  # ALERTAS DE AVISO (warning — dia útil seguinte)
+  # ---------------------------------------------------------------------------
+  - orgId: 1
+    name: "gespro-avisos"
+    folder: "GestPro"
+    interval: 5m
+    rules:
+      - uid: "gespro-latencia-p95-elevada"
+        title: "Latência p95 Acima do SLO"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: prometheus
+            model:
+              # job="gespro-erp": selector correcto (M1 fix)
+              expr: "histogram_quantile(0.95, sum(rate(http_request_duration_ms_bucket{job=\"gespro-erp\"}[5m])) by (le)) > 800"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência p95 acima de 800ms há 30 minutos"
+          description: "A latência no percentil 95 excede o SLO de 800ms para leituras. Valor actual: {{ $values.A.Value }}ms. Verificar consultas lentas e carga da DB."
+
+      - uid: "gespro-stripe-webhook-fila"
+        title: "Falhas de Webhook Stripe em Fila"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: "sum(increase(negocio_stripe_webhook_falhas_total[1h])) > 0"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhooks Stripe falharam na última hora"
+          description: "{{ $values.A.Value }} webhook(s) Stripe falharam o processamento na última hora. SLO: 99,9% em 5min. Verificar logs do handler /api/webhooks/stripe."
+
+      - uid: "gespro-tarefa-agendada-em-falta"
+        title: "Tarefa Agendada em Falta"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: "max(negocio_tarefas_agendadas_em_falta) > 0"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uma ou mais tarefas agendadas não correram"
+          description: "Pelo menos uma tarefa agendada não correu na janela esperada. Verificar as rotas /api/cron/* e o agendador."
+
+      - uid: "gespro-valkey-circuit-breaker-aberto"
+        title: "Limitador Valkey em Modo Fail-Open"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: "increase(valkey_circuit_breaker_open_total[30m]) > 0"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Limitador de tráfego em modo fail-open (Valkey inacessível)"
+          description: "O limitador de tráfego entrou em modo fail-open {{ $values.A.Value }} vez(es) nos últimos 30 minutos. O Valkey pode estar com problemas. Verificar valkey_available."
+
+      - uid: "gespro-keycloak-latencia-elevada"
+        title: "Latência do Keycloak Elevada"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: prometheus
+            model:
+              # Métrica renomeada: keycloak_health_probe_duration_ms (era keycloak_token_duration_ms)
+              expr: "histogram_quantile(0.95, sum(rate(keycloak_health_probe_duration_ms_bucket[5m])) by (le)) > 1000"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência do probe de saúde do Keycloak acima de 1000ms"
+          description: "O probe de saúde do Keycloak está a demorar mais de 1000ms. Pode indicar pressão na base de dados do Keycloak ou problemas de rede."
+
+      - uid: "gespro-slo-budget-burn"
+        title: "Consumo Elevado de Budget de Erro SLO"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              # job="gespro-erp": selector correcto (M1 fix)
+              expr: "sum(rate(http_requests_total{status_code=~\"5..\",job=\"gespro-erp\"}[1h])) / sum(rate(http_requests_total{job=\"gespro-erp\"}[1h])) > 0.005"
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  query: { params: [A] }
+                  reducer: { params: [], type: "last" }
+              expression: A
+              refId: C
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taxa de erro acima de 50% do budget SLO (0,5%)"
+          description: "A taxa de erro excede 0,5% na última hora, mais de metade do budget permitido pelo SLO de 99,5%. Taxa actual: {{ $values.A.Value | humanizePercentage }}."

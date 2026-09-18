@@ -29,7 +29,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarContaBancaria, atualizarContaBancaria } from '@/server/actions/contabilidade.actions';
 import {
   CriarContaBancariaSchema,
@@ -212,20 +212,14 @@ export function ContaBancariaForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Conta PGC</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || undefined}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar conta PGC" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {contasPGC.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Combobox
+                    value={field.value || undefined}
+                    onChange={field.onChange}
+                    placeholder="Seleccionar conta PGC"
+                    options={contasPGC.map((c) => ({ value: c.id, label: c.label }))}
+                  />
+                </FormControl>
                 <FormDescription>
                   O saldo contabilístico da reconciliação é calculado a partir do razão desta conta.
                 </FormDescription>

@@ -16,7 +16,7 @@ interface Linha {
   id: string;
   tenantId: string;
   nivel: number;
-  contaPaiId: string | null;
+  contaMaeId: string | null;
   tipo: string;
   ano: number;
   proximoNumero: number;
@@ -81,18 +81,26 @@ describe('bootstrapPlanoContas', () => {
     expect(linhas.every((l) => l.tenantId === 'tenant-1')).toBe(true);
   });
 
-  it('insere por nível ascendente — o pai existe antes do filho (FK auto-referencial)', async () => {
+  it('insere por nível ascendente — a mãe existe antes da subconta (FK auto-referencial)', async () => {
     await bootstrapPlanoContas(tx as never, 'tenant-1');
     const niveis = tx.contaPGC.createMany.mock.calls.map((c) => c[0].data[0].nivel as number);
     expect(niveis).toEqual([...niveis].sort((a, b) => a - b));
   });
 
-  it('resolve contaPaiId para ids já emitidos, nunca para códigos', async () => {
+  it('resolve contaMaeId para ids já emitidos, nunca para códigos', async () => {
     await bootstrapPlanoContas(tx as never, 'tenant-1');
     const linhas = tx.contaPGC.createMany.mock.calls.flatMap((c) => c[0].data);
     const ids = new Set(linhas.map((l) => l.id));
+
+    // A hierarquia tem mesmo de existir. O `for` abaixo passa à mesma se TODAS
+    // as contas ficarem órfãs — foi o que quase aconteceu ao renomear a chave
+    // `contaMaeCodigo` no JSON: um nome trocado não dá erro de compilação,
+    // deixa só o plano inteiro plano.
+    const comMae = linhas.filter((l) => l.contaMaeId);
+    expect(comMae.length).toBeGreaterThan(400);
+
     for (const l of linhas) {
-      if (l.contaPaiId) expect(ids.has(l.contaPaiId)).toBe(true);
+      if (l.contaMaeId) expect(ids.has(l.contaMaeId)).toBe(true);
     }
   });
 
@@ -115,6 +123,26 @@ describe('diários e séries', () => {
     const n = await bootstrapSeriesDocumento(tx as never, 'tenant-1', 2030);
     expect(n).toBe(SERIES_INICIAIS.length);
     const data = tx.serieDocumento.createMany.mock.calls[0][0].data;
+
+    // Cada tipo que um serviço pede tem de estar aqui: sem série, a operação
+    // inteira falha dentro da transacção. Foi o que aconteceu às encomendas,
+    // às devoluções e às contagens de stock — o enum cresceu, a lista não.
+    const tipos = new Set(data.map((s) => (s as { tipo: string }).tipo));
+    for (const obrigatorio of [
+      'FATURA',
+      'VENDA',
+      'SESSAO_CAIXA',
+      'ENCOMENDA',
+      'NOTA_DEVOLUCAO',
+      'CONTAGEM_STOCK',
+      'PAGAMENTO',
+    ]) {
+      expect(tipos).toContain(obrigatorio);
+    }
+    // Prefixos distintos, senão a chave @@unique([tenantId, tipo, ano, prefixo])
+    // deixa passar mas o utilizador vê dois documentos com a mesma cara.
+    const prefixos = data.map((s) => (s as { prefixo: string }).prefixo);
+    expect(new Set(prefixos).size).toBe(prefixos.length);
     expect(data.every((s) => s.ano === 2030)).toBe(true);
     expect(data.every((s) => s.proximoNumero === 1)).toBe(true);
     expect(data.every((s) => s.tenantId === 'tenant-1')).toBe(true);
@@ -169,5 +197,30 @@ describe('bootstrapRbac', () => {
     await bootstrapRbac(tx as never, 'tenant-1');
     const ligacoes = tx.rolePermission.createMany.mock.calls.flatMap((c) => c[0].data);
     expect(ligacoes.every((l) => l.permissionId === 'p1')).toBe(true);
+  });
+});
+
+describe('plano-contas-pgc.json — natureza das classes', () => {
+  // O ficheiro tinha as classes 6 e 7 trocadas: 145 contas de gasto marcadas
+  // `CREDORA` e 87 de rendimento `DEVEDORA`. O `montarLinhasBalancete` usa a
+  // natureza para dar sinal ao saldo, por isso o balancete mostrava a receita
+  // em negativo e a DRE herdava o erro. Isto tranca a correcção: o ficheiro é
+  // gerado, e uma regeneração podia voltar a invertê-las em silêncio.
+  const contas: Array<{ codigo: string; classe: number; natureza: string }> =
+    require('../../../../prisma/seed/data/plano-contas-pgc.json');
+
+  it('gasta-se a débito: toda a classe 6 é DEVEDORA', () => {
+    const erradas = contas.filter((c) => c.classe === 6 && c.natureza !== 'DEVEDORA');
+    expect(erradas.map((c) => c.codigo)).toEqual([]);
+  });
+
+  it('ganha-se a crédito: toda a classe 7 é CREDORA', () => {
+    const erradas = contas.filter((c) => c.classe === 7 && c.natureza !== 'CREDORA');
+    expect(erradas.map((c) => c.codigo)).toEqual([]);
+  });
+
+  it('a natureza não altera o tipo das classes 5–8 — só o sinal do saldo', () => {
+    expect(derivarTipoConta(6, 'DEVEDORA')).toBe('GASTO');
+    expect(derivarTipoConta(7, 'CREDORA')).toBe('RENDIMENTO');
   });
 });

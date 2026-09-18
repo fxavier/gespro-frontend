@@ -41,6 +41,14 @@ export default defineConfig({
       },
     },
     {
+      // Funil: `/comecar` encaminha para o ERP (Requisito 2.1 / tarefa 6.5).
+      // Projecto próprio porque nada aqui precisa de movimento reduzido nem de
+      // axe — é contrato de encaminhamento, e falha depressa.
+      name: "funil",
+      testMatch: /.*\.funil\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // Emula `prefers-reduced-motion: reduce` (Requisito 3.2 / tarefa 9.4).
       name: "movimento-reduzido",
       testMatch: /.*\.movimento\.ts/,

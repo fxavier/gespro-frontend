@@ -8,6 +8,7 @@ import { Edit, ArrowLeft, Mail, Shield } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { userAdminService } from '@/server/services/plataforma/user-admin.service';
 import { Button } from '@/components/ui/button';
+import { ReporPalavraPasse } from '../_components/repor-palavra-passe';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
 import { NotFoundError } from '@/lib/errors';
 import { Badge } from '@/components/ui/badge';
@@ -128,6 +129,7 @@ export default async function UtilizadorDetalhePage({ params }: Props) {
                     Editar
                   </Link>
                 </Button>
+                <ReporPalavraPasse id={id} nome={utilizador.nome} />
               </div>
             }
           />

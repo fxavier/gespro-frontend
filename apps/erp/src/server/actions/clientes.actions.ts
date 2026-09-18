@@ -23,6 +23,32 @@ import { z } from 'zod';
 // CRUD principal
 // ---------------------------------------------------------------------------
 
+/**
+ * Pesquisa para caixas de selecção (combobox de cliente nos formulários).
+ * É leitura, mas passa pelo pipeline de action porque quem a chama é um
+ * Client Component — o `q` vem do que o utilizador escreve.
+ */
+export const procurarClientes = createSafeAction({
+  schema: z.object({ q: z.string().max(200).optional() }),
+  permission: 'clientes:ver',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await clienteService.listar(
+      { q, status: 'ATIVO', take: 20, orderBy: 'nome', order: 'asc' },
+      ctx,
+    );
+    // Contactos incluídos para quem precisa do instantâneo (agendamentos);
+    // a factura só usa id e rótulo.
+    return pagina.items.map((c) => ({
+      id: c.id,
+      codigo: c.codigo,
+      nome: c.nome,
+      email: c.email,
+      telefone: c.telefone,
+    }));
+  },
+});
+
 export const criarCliente = createSafeAction({
   schema: CreateClienteSchema,
   permission: 'clientes:criar',

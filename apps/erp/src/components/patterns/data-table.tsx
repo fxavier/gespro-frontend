@@ -49,7 +49,8 @@ interface DataTableProps<T extends { id: string }> {
   currentOrderDir?: string;
 }
 
-function TableSkeleton({ cols, rows = 8 }: { cols: number; rows?: number }) {
+/** Só as linhas — vive dentro de um <tbody>. */
+function LinhasSkeleton({ cols, rows = 8 }: { cols: number; rows?: number }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
@@ -62,6 +63,26 @@ function TableSkeleton({ cols, rows = 8 }: { cols: number; rows?: number }) {
         </TableRow>
       ))}
     </>
+  );
+}
+
+/**
+ * Esqueleto de tabela para `<Suspense fallback>` — tabela completa.
+ *
+ * Era só um punhado de `<tr>`: usado como fallback (86 páginas fazem-no) isso
+ * punha linhas de tabela dentro de uma `<div>`, HTML inválido que o React
+ * assinala como erro de hidratação. Quem precisa das linhas soltas, dentro de
+ * um `<tbody>`, usa `LinhasSkeleton`.
+ */
+function TableSkeleton({ cols, rows = 8 }: { cols: number; rows?: number }) {
+  return (
+    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <Table>
+        <TableBody>
+          <LinhasSkeleton cols={cols} rows={rows} />
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
@@ -115,7 +136,7 @@ export function DataTable<T extends { id: string }>({
 
   return (
     <div className={cn('space-y-3', className)}>
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -154,7 +175,7 @@ export function DataTable<T extends { id: string }>({
 
           <TableBody>
             {isLoading ? (
-              <TableSkeleton cols={columns.length} />
+              <LinhasSkeleton cols={columns.length} />
             ) : data.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="p-0">

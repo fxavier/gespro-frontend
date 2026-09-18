@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage } from '@/components/patterns';
+import { FormPage, Combobox } from '@/components/patterns';
 import { criarAvaliacaoAction } from '@/server/actions/rh.actions';
 
 const CriterioSchema = z.object({
@@ -138,21 +138,12 @@ export default function NovaAvaliacaoForm({ colaboradores, avaliadorId }: Props)
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Colaborador Avaliado *</Label>
-              <Select
+              <Combobox
                 value={form.watch('colaboradorId') ?? ''}
-                onValueChange={(v) => form.setValue('colaboradorId', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione colaborador" />
-                </SelectTrigger>
-                <SelectContent>
-                  {colaboradores.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.codigo} — {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) => form.setValue('colaboradorId', v)}
+                placeholder="Seleccione colaborador"
+                options={colaboradores.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+              />
               {errors.colaboradorId && <p className="text-xs text-destructive">{errors.colaboradorId.message}</p>}
             </div>
             <div className="space-y-2">

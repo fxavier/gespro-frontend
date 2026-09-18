@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
+import { formatMZN } from '@/lib/format-currency';
+import { formatarData } from '@/lib/format-date';
 
 export interface FaturaResumo {
   id: string;
@@ -24,8 +26,9 @@ export interface FaturaResumo {
   statusFatura: string;
 }
 
-const fmtDate = (s: string) => s ? new Date(s).toLocaleDateString('pt-PT') : '—';
-const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
+// Formatação pela porta da frente: o Intl cru devolvia «8 288,00 MTn», e a
+// data em pt-PT sem fuso divergia entre servidor e cliente.
+const fmtMZN = (v: string) => formatMZN(parseFloat(v));
 
 const columns: TableColumn<FaturaResumo>[] = [
   {
@@ -44,13 +47,13 @@ const columns: TableColumn<FaturaResumo>[] = [
     key: 'dataEmissao',
     label: 'Emissão',
     mobileHidden: true,
-    render: (row) => <span className="text-sm text-muted-foreground">{fmtDate(row.dataEmissao)}</span>,
+    render: (row) => <span className="text-sm text-muted-foreground">{formatarData(row.dataEmissao)}</span>,
   },
   {
     key: 'dataVencimento',
     label: 'Vencimento',
     mobileHidden: true,
-    render: (row) => <span className="text-sm text-muted-foreground">{fmtDate(row.dataVencimento)}</span>,
+    render: (row) => <span className="text-sm text-muted-foreground">{formatarData(row.dataVencimento)}</span>,
   },
   {
     key: 'ivaTotal',
@@ -58,14 +61,14 @@ const columns: TableColumn<FaturaResumo>[] = [
     mobileHidden: true,
     className: 'text-right tabular-nums',
     headerClassName: 'text-right',
-    render: (row) => fmtMZN.format(parseFloat(row.ivaTotal)),
+    render: (row) => fmtMZN(row.ivaTotal),
   },
   {
     key: 'total',
     label: 'Total',
     className: 'text-right tabular-nums font-semibold',
     headerClassName: 'text-right',
-    render: (row) => fmtMZN.format(parseFloat(row.total)),
+    render: (row) => fmtMZN(row.total),
   },
   {
     key: 'statusFatura',

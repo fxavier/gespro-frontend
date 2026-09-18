@@ -24,6 +24,7 @@ import {
   RECURSOS_DOCUMENTO,
   PERMISSAO_ESCRITA_POR_RECURSO,
 } from '@/lib/storage/documento-config';
+import { presignLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 
 export const runtime = 'nodejs';
 
@@ -36,6 +37,10 @@ const PresignSchema = z.object({
 });
 
 export const POST = withApi(async (req: NextRequest, ctx) => {
+  // Rate limiting: 30 presigns/minuto por utilizador (ADR-0014 §3).
+  const rl = await presignLimiter.consume(`${ctx.userId}::presign`);
+  if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
+
   const corpo = await req.json().catch(() => null);
   const parsed = PresignSchema.safeParse(corpo);
   if (!parsed.success) {

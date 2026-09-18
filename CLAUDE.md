@@ -8,23 +8,38 @@ GestPro é um ERP **multi-tenant** para empresas moçambicanas. Next.js 16 (App 
 
 **Monorepo (spec 18 §1, ADR-0006)** — o repositório é um workspace pnpm + Turborepo. O ERP vive em
 `apps/erp/` (todos os caminhos `src/`, `prisma/`, `e2e/`… deste documento são relativos a `apps/erp/`);
-o site de marketing virá em `apps/site/`; config partilhada em `packages/tsconfig` e
-`packages/eslint-config`. Os scripts abaixo correm **da raiz** e delegam via `pnpm --filter erp` /
+o site de marketing vive em `apps/site/` (Next 16, porta 3100, sem base de dados — ver secção própria);
+a marca partilhada em `packages/brand` (tokens, logótipos, `cores.json`); config partilhada em
+`packages/tsconfig` e `packages/eslint-config`. Os scripts abaixo correm **da raiz** e delegam via `pnpm --filter erp` /
 `turbo run`; nomes inalterados.
 
 ```bash
-# Base de dados (necessária para dev, seed e testes de integração/E2E)
-docker compose up -d          # Postgres 17 (container gespro-db)
+# Base + identidade (necessárias para dev, seed e testes de integração/E2E).
+# O KEYCLOAK faz parte do perfil por omissão (ADR-0013 §7): realm `gespro`
+# importado de infra/keycloak/, consola em http://localhost:8081. Sem ele não
+# há sessão nenhuma — mas o ECRÃ de login é NOSSO desde o ADR-0029: o
+# formulário vive em /auth/login e fala com o Keycloak por Direct Access Grant.
+# Não há salto de domínio; quem autentica continua a ser o Keycloak.
+docker compose up -d          # Postgres 17 (gespro-db, porta 5432, WAL arquivado) + Keycloak 26.7
 pnpm db:migrate:dev           # aplica migrations
 pnpm db:seed                  # tenant demo + utilizadores + PGC + dados dos 7 domínios
 pnpm db:studio
 
-pnpm dev                      # http://localhost:3000  (login: admin@demo.mz / demo1234)
+pnpm dev                      # http://localhost:3000  (login: admin@demo.mz / demo1234, no nosso ecrã)
+
+# Pilha local de referência COMPLETA (ADR-0026): Keycloak + Valkey + MinIO +
+# otel-lgtm + Mailpit + 2× ERP (imagem de produção) atrás de proxy. Segredos por
+# .env na raiz (ver .env.example); tem placeholders de dev, sobe sem .env.
+docker compose --profile full up -d --build
+#   ERP via proxy:  http://localhost:8080  (header X-Gespro-Instancia mostra a instância)
+#   Keycloak :8081 · Grafana :3002 (OTLP 4317/4318) · MinIO :9001 · Mailpit :8025
+# Ensaio de cópia/restauro cronometrado (runbooks em docs/runbooks/):
+./infra/local/scripts/ensaio-restauro.sh
 
 # Verificação (tudo tem de estar verde antes de entregar)
 pnpm check                    # prisma validate && tsc --noEmit && eslint . && vitest run
 pnpm gates                    # gates de arquitectura (ver abaixo)
-pnpm e2e                      # Playwright — 5 fluxos críticos (precisa da app + DB)
+pnpm e2e                      # Playwright — fluxos críticos (precisa da app + DB + Keycloak REAL)
 pnpm e2e:a11y                 # axe (WCAG AA)
 
 # Um único ficheiro de teste (a partir de apps/erp/)
@@ -35,7 +50,24 @@ npx playwright test e2e/03-caixa.spec.ts
 pnpm test:integration
 ```
 
-`pnpm check` **não** apanha: (1) erros de runtime RSC (ver "Fronteira Servidor↔Cliente"); (2) erros que **só o build de produção** revela. Para UI, confirma sempre com um **smoke autenticado** (`pnpm dev` + login) ou `pnpm e2e`; antes de entregar algo que toque em build/deploy, corre também `pnpm build` (ver "Build de produção" nas regras invioláveis).
+Os E2E do ERP (`e2e`, `a11y`) correm um projecto `setup` que **reescreve `apps/erp/playwright/.auth/admin.json`**
+com uma sessão fresca; depois de qualquer corrida, `git checkout -- apps/erp/playwright/.auth/admin.json`.
+O ficheiro versionado tem uma sessão expirada — um script ad-hoc com esse `storageState` cai no login;
+corre `npx playwright test --project=setup` primeiro.
+
+```bash
+# Site de marketing (apps/site) — estático, sem DB nem Keycloak; só /comecar depende do ERP
+pnpm dev:site                              # http://localhost:3100
+pnpm --filter site gate:cores              # zero literais de cor fora de src/app/theme.css e packages/brand
+pnpm --filter site build && pnpm --filter site e2e:a11y   # axe nos dois temas; sobe o servidor sozinho
+pnpm --filter site e2e:funil               # /comecar responde 307 para NEXT_PUBLIC_APP_URL/registo
+```
+Se a porta 3100 tiver um `next start` antigo, o `e2e:a11y` falha com `EADDRINUSE`/500: `lsof -ti:3100 | xargs kill`.
+O `e2e:funil` espera `NEXT_PUBLIC_APP_URL=http://localhost:3000`; um `.env` com `:8080` (proxy do perfil `full`) fá-lo falhar.
+
+`pnpm check` **não** apanha: (1) erros de runtime RSC (ver "Fronteira Servidor↔Cliente"); (2) erros que **só o build de produção** revela; (3) formulários que se recusam a submeter — o `zodResolver` rejeita e, se o campo não renderizar o seu erro, não acontece nada visível. Para UI, confirma sempre com um **smoke autenticado** (`pnpm dev` + login) ou `pnpm e2e`; antes de entregar algo que toque em build/deploy, corre também `pnpm build` (ver "Build de produção" nas regras invioláveis).
+
+Na suite E2E completa (`workers: 1`, `timeout: 30_000`) cai quase sempre **um** teste por corrida, e nem sempre o mesmo: com o `pnpm dev` a compilar rotas à medida, uma rota fria estoura o tecto. Antes de culpar uma alteração, corre o ficheiro sozinho. Falha conhecida e alheia ao código: `e2e/07-sessao.spec.ts:60` precisa de `AUTH_SESSION_MAX_AGE=8`, que só se aplica quando é o Playwright a arrancar o servidor (`reuseExistingServer`).
 
 ### Migrations — só o orquestrador, e **não-interativas**
 `pnpm db:migrate:dev` (`prisma migrate dev`) exige TTY e **rebenta em ambiente não-interactivo**. Para gerar uma migration a partir do delta schema↔DB sem prompts:
@@ -44,9 +76,35 @@ mig="prisma/migrations/$(date +%Y%m%d%H%M%S)_<nome>"; mkdir -p "$mig"
 npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --script > "$mig/migration.sql"
 npx prisma migrate deploy
 ```
-Rename de valor de enum: o `migrate diff` gera **drop+recreate** (perde dados) — escreve à mão `ALTER TYPE "X" RENAME VALUE 'A' TO 'B';` e marca com `prisma migrate resolve --applied <migration>`. Em produção usa **sempre** `migrate deploy`, nunca `migrate dev`.
+Renomear (valor de enum **ou coluna**): o `migrate diff` gera **drop+create** e perde os dados — escreve à mão `ALTER TYPE "X" RENAME VALUE 'A' TO 'B';` ou `ALTER TABLE "T" RENAME COLUMN "a" TO "b";` (renomeia também a constraint: `ALTER TABLE "T" RENAME CONSTRAINT …`, senão o próximo `migrate diff` vê deriva) e marca com `prisma migrate resolve --applied <migration>`. Confirma no fim que `migrate diff --from-config-datasource --to-schema prisma/schema --script` devolve *empty migration*. Em produção usa **sempre** `migrate deploy`, nunca `migrate dev`.
 
-Utilizadores demo (senha `demo1234`): `admin@demo.mz`, `gestor@`, `financeiro@`, `operador@`, `leitura@` — tenant slug `demo`.
+Depois de `prisma generate`, **reinicia o `pnpm dev`** (`touch apps/erp/next.config.ts` chega): o processo em memória continua com o cliente antigo e as páginas afectadas passam a devolver o cartão de erro do `catch` — parece bug de código e é só o processo desactualizado.
+
+Utilizadores demo (senha `demo1234`): `admin@demo.mz`, `gestor@`, `financeiro@`, `operador@`, `leitura@` — tenant slug `demo`. As identidades vivem no **realm Keycloak** (`infra/keycloak/realm-gespro.json`, `sub` fixos) e o seed grava exactamente esses `sub` em `User.keycloakSub` — um teste no `pnpm check` garante a concordância (ADR-0013 §7).
+
+## Marca partilhada (`packages/brand`)
+
+`packages/brand/tokens.css` é a **única** paleta das duas apps: tela azulada, tinta marinho, um azul vivo
+como cor de acção e de ligação, barra lateral azul fixa nos dois temas. O `globals.css` do ERP só faz o
+mapeamento Tailwind (`@theme inline`) — **não sobrepõe cor nenhuma**; o `theme.css` do site mapeia os seus
+nomes históricos (`bg-azul`, `text-texto-suave`, `bg-superficie`…) para tokens de marca e só declara os
+seus (faixa final, acento do gradiente). Alterar uma cor é alterar `tokens.css` e correr o axe das duas apps.
+No tema escuro o `--primary` clareia e `--primary-foreground` passa a tinta escura: um token que serve de fundo
+de botão E de cor de ligação só passa AA assim. `cores.json` espelha em hex o que `next/og`, favicons e a barra
+do browser não conseguem ler de custom properties — alterar os dois em conjunto. Inter nas duas apps.
+
+## Site de marketing (`apps/site`)
+
+- Nenhum literal de cor fora de `src/app/theme.css` (gate `gate:cores`); nenhum valor monetário em
+  `messages/*.json` nem em componentes — os preços vêm de `GET /api/publico/planos` (spec 19, USD por ADR-0009)
+  e há um teste que o impõe. Números decorativos (painel do hero, KPI ilustrativos) vivem nos componentes.
+- `messages/pt.json` é a fonte do conteúdo; `en.json` é um *stub* fundido sobre PT em `src/i18n/request.ts`
+  (chaves novas só em PT; EN não pode ter chaves que PT não tenha).
+- O `cn` do site é um `join` **sem tailwind-merge**: dois `bg-`/`text-` na mesma classe ficam à mercê da ordem
+  do CSS gerado. Variações de botão são **variantes** em `primitivos.tsx`, nunca `className` por cima.
+- O gate de cores trata `#8902` numa string como hex: escreve «n.º 8902».
+- `/comecar` é uma Route Handler que responde 307 para o ERP preservando `plano` e `utm_*`; o formulário de
+  registo vive no ERP (`/registo`, ADR-0031).
 
 ## Arquitectura
 
@@ -80,7 +138,10 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 ### UI
 - **Golden standard**: `src/app/(dashboard)/compras/requisicoes/**` — o molde a replicar (lista SC + `@panel`/`(.)[id]` + detalhe com tabs + `novo`/`[id]/editar`). **Nota:** o interceptor `@panel/(.)[id]` captura o segmento literal `novo` (é um valor válido para `[id]`) — em build de produção isto mostra a listagem em vez do formulário na navegação client-side. Bug conhecido do molde (ver `docs/status.md`); ao replicar, garante que o painel devolve `null` em vez de `notFound()`.
 - `src/components/patterns/*` — biblioteca única (PageHeader, DataTable, FilterBar, StatusBadge, KpiCard, DetailShell, FormPage, Stepper, UnsavedChangesGuard…). Compor a partir daqui, não dos primitivos `ui/`.
-- `StatusBadge` usa um **mapa único** status→variante (`patterns/status-badge.tsx`); proibido mapa local.
+- `StatusBadge` usa um **mapa único** status→variante (`patterns/status-badge.tsx`); proibido mapa local. Estado sem entrada no mapa aparece **em bruto** (`LANCADO`) — ao introduzir um estado novo, regista-o lá.
+- Escolher uma entidade: `Combobox` (filtro local) ou `ComboboxRemoto` (pesquisa no servidor, com atraso e sem corridas) — nunca um campo de texto para colar um id. Acima de uma página de registos é `ComboboxRemoto`, senão os registos fora da primeira página ficam inalcançáveis.
+- `TableSkeleton` (patterns) é uma **tabela completa**, para `<Suspense fallback>`; dentro de um `<tbody>` usa-se `LinhasSkeleton`. Linhas `<tr>` soltas dentro de uma `<div>` são HTML inválido e dão erro de hidratação.
+- `Select` com valor inicial: passa o rótulo como filho — `<SelectValue placeholder="…">{opcaoEscolhida?.label}</SelectValue>`. O Radix só resolve o texto do item **depois** de a lista abrir; sem isto o campo aparece vazio apesar de haver valor escolhido.
 - Formulários: `react-hook-form` + `zodResolver` com o **mesmo** schema de `src/lib/validations/<modulo>.ts`, submit via Server Action com `useActionState`.
 
 ## Regras invioláveis (não-óbvias — causaram crashes/fugas reais)
@@ -93,15 +154,90 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 
 **Multi-tenancy** — `tenantId` **nunca** vem do cliente; vem do contexto. A extensão injecta em `create`/`findMany`/etc., mas **`findUnique`/`update`/`delete`/`upsert` NÃO são scoped** → os serviços filtram por `tenantId` explicitamente; cross-tenant devolve `NotFoundError` (404), nunca 403. Dentro de `prismaBase.$transaction` (client cru) inclui sempre `tenantId` nas escritas.
 
-**Dinheiro e documentos** — dinheiro sempre `Prisma.Decimal` (nunca `Float`); serializa `Decimal`→`string` ao passar SC→CC. Documentos transaccionais (facturas emitidas, lançamentos) são **append-only** — correcções por estorno/nota de crédito, nunca UPDATE de valores.
+**Dinheiro e documentos** — dinheiro sempre `Prisma.Decimal` (nunca `Float`); serializa `Decimal`→`string` ao passar SC→CC (`.toString()`, que é a convenção da casa — perde zeros à direita, não perde valor). O **retorno das Server Actions já vai serializado**: o `createSafeAction` passa tudo por `serializarDecimais` e o tipo é `ActionResult<Serializado<T>>` — sem isso, uma mutação que devolva a entidade gravada rebenta no cliente **depois** do commit, e o utilizador vê um erro sobre um registo que existe. Documentos transaccionais (facturas emitidas, lançamentos) são **append-only** — correcções por estorno/nota de crédito, nunca UPDATE de valores.
 
-**UI** — **sem modais**: criar/editar/detalhar são rotas dedicadas; única excepção é `AlertDialog` para confirmação destrutiva. Zero cores hardcoded (só tokens `@theme`); dark mode obrigatório.
+**Datas na UI** — formata **sempre** por `src/lib/format-date.ts` (fuso fixo `Africa/Maputo`), nunca `toLocaleString`/`toLocaleDateString` directos. O servidor corre em UTC e o browser no fuso do utilizador: horas diferentes dos dois lados ⇒ falha de hidratação ⇒ o React descarta a árvore e leva com ela os handlers — tipicamente o clique nas linhas da tabela deixa de navegar, **sem erro visível**. Mesmo princípio de `formatMZN` em `format-currency.ts`.
+
+**Identificadores em Zod** — usa `idEntidade()` de `src/lib/validations/common.ts`, não `z.string().cuid()`. O Prisma gera cuid, mas o `tenant-bootstrap` atribui **uuid** às contas PGC (o `createMany` insere por níveis e o filho precisa do id da mãe antes de ela existir). Um `.cuid()` num campo que carregue id de conta rejeita todas as contas reais, em produção inclusive.
+
+**Séries de documento** — ao estender o enum `TipoSerieDocumento`, acrescenta a série a `SERIES_INICIAIS` (`src/server/provisioning/tenant-bootstrap.ts`). O número é atribuído dentro da transacção: sem série, a operação inteira falha com «série activa não encontrada» em **todos** os tenants. Aconteceu a encomendas, devoluções e contagens de stock.
+
+**UI** — **sem modais**: criar/editar/detalhar são rotas dedicadas; única excepção é `AlertDialog` para confirmação destrutiva (confirmar, não recolher dados: um campo de texto é formulário, logo é rota). Zero cores hardcoded (só tokens `@theme`); dark mode obrigatório.
 
 **Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`.
 
 **Middleware e probes** — `middleware.ts` redirige pedidos não-autenticados para `/auth/login`. Endpoints que têm de responder sem sessão (`/api/health`, `/api/ready`, `/api/metrics` para o HEALTHCHECK do Docker/App Runner; `/api/auth/*`) **têm de estar em `PUBLIC_PATHS`** — senão os health checks recebem 307 em vez de 200.
 
-**Gates de CI** (`pnpm gates`, `scripts/gate-*.mjs`) — falham o merge se houver: `Dialog` fora de `AlertDialog`, `'use client'` em `page.tsx` de listagem/detalhe, ou imports de `@/data/` em `src/app`. Manter a zero.
+**Fronteira `'use client'` no servidor** — tudo o que um módulo `'use client'` exporta chega a um Server
+Component como *referência de cliente*, incluindo constantes: `cookies().get(COOKIE)` com `COOKIE` importado
+de um componente cliente devolve `undefined` com o cookie presente. Constantes partilhadas vivem em módulos
+neutros (`src/lib/*`, ex.: `barra-lateral.ts`). Nomes de cookie sem `:` (separador em RFC 6265).
+
+**Formulários cuja action muda o que a página mostra** — uma Server Action revalida a rota; se a página volta a
+renderizar noutro ramo (conta já cancelada, já liquidada), o formulário é desmontado e um `useEffect` sobre o
+`state` de `useActionState` nunca corre: sem toast, sem redirecção. Padrão da casa (`EstornarForm`,
+`RegistarPagamentoForm`): `useTransition`, chamar a action, `router.push` de imediato.
+
+**Server Action que redirecciona, chamada pelo `handleSubmit`** — o `handleSubmit` do
+react-hook-form corre a validação do cliente e chama o callback **fora de uma transição**. Um
+`redirect()` dentro de uma action invocada assim **não é aplicado**: o servidor devolve
+`x-action-redirect`, o router até vai buscar o destino, e nunca fixa a navegação — a escrita
+acontece e o utilizador fica no formulário a achar que falhou. Envolve sempre em
+`startTransition(() => submeter(dados))`. O React avisa na consola do browser
+(«…called outside of a transition») e mais em lado nenhum: `pnpm check` e os E2E que não leem a
+consola passam na mesma. Aconteceu em `/registo` e passou despercebido a uma spec inteira.
+
+**Datas de `<input type="date">`** — `new Date('aaaa-mm-dd')` lê como UTC e, a leste de Greenwich, cai no dia
+anterior — muda o período fiscal. Parte a string e constrói `new Date(ano, mes - 1, dia, 12)`.
+
+**Máquinas de estado (`transitar*` em `*.service.interface.ts`)** — lançam `Error` cru, não `BusinessRuleError`:
+uma transição inválida chega ao utilizador como «Erro interno» (500). Antes de chamar `transitar*`, garante que o
+estado-alvo é mesmo diferente e permitido (ex.: pagamento parcial numa `VENCIDA` mantém `VENCIDA`).
+
+**Campos numéricos** — o `ui/Input` base, quando `type="number"`, selecciona o conteúdo ao focar, apaga zeros à
+esquerda enquanto se escreve e repõe `0` se ficar vazio ao sair. Não reimplementar isto nos formulários.
+
+**Seed pelos serviços** — `db:seed` corre com `tsx -C react-server`: nessa condição `server-only` resolve para
+vazio e o seed pode escrever pelos serviços (numeração em série, lançamentos contabilísticos — ver
+`prisma/seed/contas-pagar.ts`), dentro de `runWithTenantContext`. Os outros seeds continuam a usar o
+`PrismaClient` próprio. Idempotência por contagem quando não há chave natural.
+
+**Realm Keycloak** — `infra/keycloak/realm-gespro.json` tem `verifyEmail: false` e assim tem de ficar (ADR-0031
+§2-ter): com `true`, a primeira tentativa de login de uma conta acabada de registar carimba `VERIFY_EMAIL` e o
+registo público deixa de abrir sessão — os 1426 testes passam à mesma, porque o Keycloak é sempre dobrado.
+
+**Barra lateral** — nunca desaparece: recolhe para um carril de 56px em qualquer largura (em < md a expandida
+sobrepõe-se ao conteúdo com véu); estado no cookie `gespro-barra-lateral`, lido pelos layouts. Grupos no carril
+abrem um `DropdownMenu` (rato, toque e teclado). ⌘B/Ctrl+B alterna.
+
+**Modo de leitura (ADR-0027 §6, ADR-0032)** — uma `Assinatura` que sai de `TRIAL`/`ATIVA` passa por
+`LEITURA` durante 30 dias (`leituraFim`) e só depois `FECHADA`; nada se apaga nunca. Em Leitura a
+**sessão abre** e a **escrita não passa**: o `createSafeAction` e o `withApi` recusam com
+`ACESSO_LEITURA`. Consequências ao escrever código novo:
+- Uma action de **leitura** (`listar*`/`obter*`/`procurar*`) tem de declarar `permiteEmLeitura: true`,
+  senão o cliente em Leitura nem consegue ver o que é seu. O gate `gate-leitura` recusa qualquer
+  action sem `revalidate` que também não declare a bandeira — a omissão não é decisão.
+- **Pagar e exportar nunca se travam.** As exportações são `GET`, logo passam sozinhas; as três
+  actions de subscrição declaram a bandeira de propósito.
+- O estado de acesso vem da **sessão** (`session.user.acesso`), re-resolvido no intervalo do
+  ADR-0011 — nunca se lê a `Assinatura` por pedido.
+- `ConfiguracaoFiscal.statusAtivo` está **morto**: não é lido nem escrito por ninguém (cai com o
+  `planoAssinatura` no ticket #38). Os dois donos do acesso são `Assinatura.estado` e
+  `Tenant.deletedAt`, e quem os arbitra é `estadoDeAcesso()`, em `lib/state-machines.ts`.
+- `EXPIRADO`, `SUSPENSA` e `CANCELADA` continuam no enum e **não se escrevem** — só existem por
+  causa de linhas antigas.
+
+**Notificações fora do `notificacao.service.criar()`** — quem escreve notificações dentro de uma
+`$transaction` não pode fazer I/O externo lá dentro: persiste com `createManyAndReturn`, guarda os
+ids e chama `despacharNotificacoes(ids)` **depois do commit**. Sem isso ficam `PENDENTE` para
+sempre — nada as varre, e foi assim que os avisos de subscrição nunca saíram durante duas waves.
+
+**Agendador** — nada no repositório chama as rotas `/api/cron/*` em produção (não há produção,
+ADR-0026 §5). Localmente é o serviço `cron` do compose (perfil `full`); o contrato — rotas,
+horários, `CRON_SECRET` — está em `docs/runbooks/agendador.md`. Uma rota `/api/cron/*` nova entra
+nos dois sítios ou não corre em lado nenhum.
+
+**Gates de CI** (`pnpm gates`, `scripts/gate-*.mjs`) — falham o merge se houver: `Dialog` fora de `AlertDialog`, `'use client'` em `page.tsx` de listagem/detalhe, imports de `@/data/` em `src/app`, ou Server Actions que não declarem o que fazem em Leitura. Manter a zero.
 
 ## Convenções detalhadas (normativas)
 
@@ -116,4 +252,21 @@ As skills em `.claude/skills/` são a fonte de verdade e devem ser lidas antes d
 
 ## Referência
 
-Especificações e histórico do programa: `.kiro/specs/` — backend Waves 0–3 e UI Waves 0–2 em `{01,02,03}-*`; funcionalidades em falta em `04-09` (reconciliações, payroll, recrutamento, benefícios); funcionalidades + produção em `10-17` (encomendas/devoluções, projetos, relatórios/PDF, notificações, observabilidade, CI/CD, infra, segurança). Decisões de arquitectura: `docs/decisions/` (ADR 0001–0004; **três ADRs da Wave 5 colidem no nº 0005** — motor-pdf, infraestrutura, observabilidade; o próximo ADR deve renumerar). Contratos de domínio, mapa entidades↔conflitos e handoffs por spec: `docs/handoff/`. Estado operacional (fonte de verdade do que está feito e da dívida): `docs/status.md`.
+Especificações e histórico do programa: `.kiro/specs/` — backend Waves 0–3 e UI Waves 0–2 em `{01,02,03}-*`; funcionalidades em falta em `04-09` (reconciliações, payroll, recrutamento, benefícios); funcionalidades + produção em `10-17` (encomendas/devoluções, projetos, relatórios/PDF, notificações, observabilidade, CI/CD, infra, segurança). Decisões de arquitectura: `docs/decisions/` — índice canónico e próximo número livre em `docs/decisions/README.md` (**três ADRs da Wave 5 colidem no nº 0005**; por decisão do ADR-0023 **não são renumerados** e citam-se como `ADR-0005-a/-b/-c`). Wave 8 (prontidão para produção): ADR-0010 a 0025, com plano de execução em `docs/handoff/execucao-paralela-w8.md`. Contratos de domínio, mapa entidades↔conflitos e handoffs por spec: `docs/handoff/`. Estado operacional (fonte de verdade do que está feito e da dívida): `docs/status.md`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues no GitHub (`fxavier/gespro-frontend`), via `gh`. PRs externos **não** entram na fila de
+triagem. Ver `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Vocabulário canónico — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
+`wontfix`. Ver `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Contexto único: `CONTEXT.md` na raiz. **ADRs em `docs/decisions/`, não em `docs/adr/`** —
+numeração governada pelo ADR-0023. Ver `docs/agents/domain.md`.

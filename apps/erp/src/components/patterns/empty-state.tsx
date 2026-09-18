@@ -29,7 +29,7 @@ export function EmptyState({
       role="status"
       aria-label={title}
     >
-      <div className="rounded-full bg-muted p-5 text-muted-foreground">
+      <div className="rounded-full bg-accent p-5 text-primary">
         {icon ?? <InboxIcon className="h-8 w-8" aria-hidden="true" />}
       </div>
 

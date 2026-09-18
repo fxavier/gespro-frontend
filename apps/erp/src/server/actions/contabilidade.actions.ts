@@ -25,6 +25,7 @@ import {
 } from '@/lib/validations/contabilidade';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import { z } from 'zod';
+import { idEntidade } from '@/lib/validations/common';
 
 // --- Plano de contas ---
 
@@ -43,7 +44,8 @@ export const atualizarContaPGC = createSafeAction({
 });
 
 export const desativarContaPGC = createSafeAction({
-  schema: z.object({ id: z.string().cuid() }),
+  // `idEntidade` e não `cuid`: as contas PGC nascem com uuid (ver common.ts).
+  schema: z.object({ id: idEntidade('ID de conta inválido') }),
   permission: 'financas:plano-contas:escrita',
   revalidate: { tags: ['contabilidade', 'contas-pgc'] },
   handler: (input, ctx) => contabilidade.desativarConta(input.id, ctx),
@@ -52,11 +54,13 @@ export const desativarContaPGC = createSafeAction({
 export const listarContasPGC = createSafeAction({
   schema: FiltroContaPGCSchema,
   permission: 'financas:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => contabilidade.listarContas(input, ctx),
 });
 
 export const arvoreContasPGC = createSafeAction({
   permission: 'financas:leitura',
+  permiteEmLeitura: true,
   handler: (_, ctx) => contabilidade.arvoreContas(ctx),
 });
 
@@ -78,6 +82,7 @@ export const atualizarDiario = createSafeAction({
 
 export const listarDiarios = createSafeAction({
   permission: 'financas:leitura',
+  permiteEmLeitura: true,
   handler: (_, ctx) => contabilidade.listarDiarios(ctx),
 });
 
@@ -100,6 +105,7 @@ export const atualizarCentroCusto = createSafeAction({
 export const listarCentrosCusto = createSafeAction({
   schema: FiltroCentroCustoSchema,
   permission: 'financas:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => contabilidade.listarCentrosCusto(input, ctx),
 });
 
@@ -129,6 +135,7 @@ export const estornarLancamento = createSafeAction({
 export const listarLancamentos = createSafeAction({
   schema: FiltroLancamentoSchema,
   permission: 'financas:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => contabilidade.listarLancamentos(input, ctx),
 });
 
@@ -137,18 +144,21 @@ export const listarLancamentos = createSafeAction({
 export const gerarBalancete = createSafeAction({
   schema: FiltroBalanceteSchema,
   permission: 'financas:relatorios:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => contabilidade.gerarBalancete(input, ctx),
 });
 
 export const razaoConta = createSafeAction({
   schema: FiltroRazaoSchema,
   permission: 'financas:relatorios:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => contabilidade.razaoConta(input, ctx),
 });
 
 export const gerarDRE = createSafeAction({
   schema: FiltroDRESchema,
   permission: 'financas:relatorios:leitura',
+  permiteEmLeitura: true,
   handler: (input, ctx) => contabilidade.gerarDRE(input, ctx),
 });
 
@@ -170,6 +180,7 @@ export const atualizarContaBancaria = createSafeAction({
 
 export const listarContasBancarias = createSafeAction({
   permission: 'financas:leitura',
+  permiteEmLeitura: true,
   handler: (_, ctx) => contabilidade.listarContasBancarias(ctx),
 });
 
@@ -197,6 +208,7 @@ export const importarExtrato = createSafeAction({
 export const sugerirMatches = createSafeAction({
   schema: AutoMatchSchema,
   permission: 'financas:banca:reconciliacao',
+  permiteEmLeitura: true,
   handler: (input, ctx) => contabilidade.sugerirMatches(input, ctx),
 });
 

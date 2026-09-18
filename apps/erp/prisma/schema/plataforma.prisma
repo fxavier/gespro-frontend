@@ -169,6 +169,16 @@ model PreferenciaNotificacao {
 enum EstadoAssinatura {
   TRIAL
   ATIVA
+
+  /// Saída de TRIAL/ATIVA: vê e exporta tudo, não escreve nada, e pode pagar
+  /// para sair de lá. Trinta dias (ADR-0027 §6, ADR-0032 §1).
+  LEITURA
+
+  /// Fim dos trinta dias de LEITURA. Ninguém entra; nada se apaga (ADR-0027 §7).
+  FECHADA
+
+  /// @deprecated Não escrever. Substituídos por LEITURA/FECHADA no ADR-0032 §1;
+  /// ficam no enum só pelas linhas que já os têm.
   SUSPENSA
   CANCELADA
   EXPIRADO
@@ -210,6 +220,18 @@ model Assinatura {
   trialInicio DateTime @default(now())
   trialFim    DateTime
 
+  // --- Leitura (ADR-0027 §6, ADR-0032 §5) ---
+  /// Instante em que o acesso fecha, escrito ao entrar em LEITURA (+30 dias).
+  /// Data absoluta e não um início a somar: o processo agendado fica com a
+  /// mesma forma do trial (`campoFim < now()`), e estender o prazo a um cliente
+  /// é um UPDATE numa data. Nulo em qualquer outro estado.
+  leituraFim DateTime?
+
+  /// Quando se avisou que o acesso ia fechar (a sete dias). Existe para o
+  /// processo agendado ser idempotente sem adivinhar: correr duas vezes no
+  /// mesmo dia não manda dois avisos. Limpa-se ao sair da LEITURA.
+  avisoPreFechoEm DateTime?
+
   dataAtivacao       DateTime?
   dataCancelamento   DateTime?
   motivoCancelamento String?
@@ -223,6 +245,8 @@ model Assinatura {
   @@index([tenantId])
   /// Cron de fallback: estado=TRIAL AND trialFim < now().
   @@index([estado, trialFim])
+  /// Mesmo cron, outra ponta: estado=LEITURA AND leituraFim < now().
+  @@index([estado, leituraFim])
 }
 
 /// Livro de idempotência dos webhooks Stripe.
@@ -244,39 +268,10 @@ model EventoWebhookStripe {
   @@index([tipo, processadoEm])
 }
 
-/// Token de handoff SSO site→app: uso único, TTL ~60s.
-/// Consumo atómico: `UPDATE ... WHERE jti = ? AND usedAt IS NULL RETURNING *`
-/// (nunca findUnique+update — a corrida entre dois pedidos tem de perder um).
-model TokenHandoff {
-  id String @id @default(cuid())
-
-  jti      String    @unique
-  tenantId String
-  userId   String
-  usedAt   DateTime?
-  expiraEm DateTime
-  createdAt DateTime @default(now())
-
-  @@index([tenantId])
-  @@index([expiraEm])
-}
-
-/// Token de verificação do email do administrador criado no registo.
-/// Enquanto não for consumido, o login fica bloqueado (User.emailVerificado=false).
-/// Mesmo padrão de consumo atómico do TokenHandoff.
-model TokenVerificacaoEmail {
-  id String @id @default(cuid())
-
-  token    String    @unique
-  tenantId String
-  userId   String
-  usadoEm  DateTime?
-  expiraEm DateTime
-  createdAt DateTime @default(now())
-
-  @@index([tenantId, userId])
-  @@index([expiraEm])
-}
+// `TokenHandoff` e `TokenVerificacaoEmail` foram REMOVIDOS pelo ADR-0013
+// (§5 e §4): o handoff site→app morreu com o provider `handoff`, e a
+// verificação de e-mail passou a ser acção obrigatória do Keycloak
+// (`VERIFY_EMAIL` + `UPDATE_PASSWORD` + execute-actions-email).
 
 /// Registo de `Idempotency-Key` de endpoints públicos (POST /api/publico/registo).
 /// A chave é reservada antes do provisionamento (@unique = trava de corrida) e a

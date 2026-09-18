@@ -1,0 +1,13 @@
+                                                                                             QUERY PLAN                                                                                             
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..8.90 rows=51 width=333) (actual time=0.046..0.454 rows=51 loops=1)
+   Buffers: shared hit=54
+   ->  Index Scan Backward using "MovimentoStock_tenantId_createdAt_id_idx" on "MovimentoStock" m  (cost=0.42..34340.68 rows=206541 width=333) (actual time=0.044..0.449 rows=51 loops=1)
+         Index Cond: (("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text) AND (ROW("createdAt", id) < ROW('2025-08-28 16:30:54.423'::timestamp without time zone, 'cd2bcd9d15a9044cd04bc2c26'::text)))
+         Buffers: shared hit=54
+ Planning:
+   Buffers: shared hit=308
+ Planning Time: 2.605 ms
+ Execution Time: 0.595 ms
+(9 rows)
+

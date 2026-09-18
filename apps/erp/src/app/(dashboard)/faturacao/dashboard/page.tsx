@@ -9,6 +9,7 @@ import { Receipt, FileText, TrendingUp, Clock, CheckCircle, AlertTriangle, Plus 
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
+import { clienteService } from '@/server/services/comercial/cliente.service';
 import { Button } from '@/components/ui/button';
 import { PageHeader, KpiCard } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,13 +25,13 @@ async function DashboardContent({ tenantId, userId }: { tenantId: string; userId
         faturacaoService.listarFaturas({ take: 1000 } as any, { tenantId, userId })
       ),
       runWithTenantContext({ tenantId, userId }, () =>
-        faturacaoService.listarFaturas({ statusFatura: 'PAGA', take: 1000 } as any, { tenantId, userId })
+        faturacaoService.listarFaturas({ status: 'PAGA', take: 1000 } as any, { tenantId, userId })
       ),
       runWithTenantContext({ tenantId, userId }, () =>
-        faturacaoService.listarFaturas({ statusFatura: 'EMITIDA', take: 1000 } as any, { tenantId, userId })
+        faturacaoService.listarFaturas({ status: 'EMITIDA', take: 1000 } as any, { tenantId, userId })
       ),
       runWithTenantContext({ tenantId, userId }, () =>
-        faturacaoService.listarFaturas({ statusFatura: 'VENCIDA', take: 1000 } as any, { tenantId, userId })
+        faturacaoService.listarFaturas({ status: 'VENCIDA', take: 1000 } as any, { tenantId, userId })
       ),
     ]);
 
@@ -41,6 +42,14 @@ async function DashboardContent({ tenantId, userId }: { tenantId: string; userId
 
     // Latest 5 faturas
     const recentes = todas.items.slice(0, 5);
+
+    // `clienteId` é escalar (FK cross-domínio): o nome vem do WS C.
+    const nomes = await runWithTenantContext({ tenantId, userId }, () =>
+      clienteService.nomesPorIds(
+        recentes.map((f: any) => f.clienteId),
+        { tenantId, userId },
+      )
+    );
 
     return (
       <div className="space-y-6">
@@ -79,12 +88,14 @@ async function DashboardContent({ tenantId, userId }: { tenantId: string; userId
               {recentes.map((f: any) => (
                 <div key={f.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div className="flex-1 min-w-0">
-                    <p className="font-mono text-sm font-medium">{f.serie?.numero ?? f.id}</p>
-                    <p className="text-xs text-muted-foreground truncate">{f.cliente?.nome ?? '—'}</p>
+                    <p className="font-mono text-sm font-medium">{f.numero}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {nomes[f.clienteId]?.nome ?? '—'}
+                    </p>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="tabular-nums text-sm font-semibold">{fmtMZN.format(n(f.total))}</span>
-                    <StatusBadge status={f.statusFatura} />
+                    <StatusBadge status={f.status} />
                     <Button asChild size="sm" variant="ghost">
                       <Link href={`/faturacao/${f.id}`}>Ver</Link>
                     </Button>

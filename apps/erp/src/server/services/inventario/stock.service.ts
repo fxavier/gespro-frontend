@@ -197,7 +197,13 @@ export async function obterSaldoTotal(
   const s = agg._sum.saldo ?? new Prisma.Decimal(0);
   const r = agg._sum.saldoReservado ?? new Prisma.Decimal(0);
   return {
-    id: '', tenantId: ctx.tenantId, produtoId,
+    // Linha sintética: o total não é uma linha de `SaldoStock`, logo não tem id
+    // próprio. Um `id: ''` fazia a `DataTable` — que usa `row.id` como chave —
+    // dar a mesma chave a todas as linhas do alerta de reposição, e o React
+    // reaproveita linhas erradas entre renderizações. A identidade é o par
+    // (produto, variante), que é exactamente o que este total agrega.
+    id: `${produtoId}:${varianteProdutoId ?? VARIANTE_SEM}:__total__`,
+    tenantId: ctx.tenantId, produtoId,
     varianteProdutoId: varianteProdutoId ?? VARIANTE_SEM,
     localizacaoId: '__total__',
     saldo: s.toString(),
@@ -245,6 +251,9 @@ const MOV_SELECT = {
   quantidade: true, localizacaoOrigemId: true, localizacaoDestinoId: true,
   transferenciaRefId: true, documentoReferenciaId: true, documentoReferenciaTipo: true,
   motivo: true, observacoes: true, criadoPor: true, createdAt: true,
+  // Nome e SKU do produto para a listagem — o produto é do mesmo domínio,
+  // logo a relação pode ser lida directamente (sem contrato cross-WS).
+  produto: { select: { nome: true, sku: true } },
 } as const;
 
 function mapMov(m: {
@@ -253,9 +262,11 @@ function mapMov(m: {
   localizacaoDestinoId: string | null; transferenciaRefId: string | null;
   documentoReferenciaId: string | null; documentoReferenciaTipo: string | null;
   motivo: string | null; observacoes: string | null; criadoPor: string; createdAt: Date;
+  produto?: { nome: string; sku: string } | null;
 }): MovimentoStockDto {
   return {
     id: m.id, tenantId: m.tenantId, produtoId: m.produtoId,
+    produtoNome: m.produto?.nome ?? null, produtoSku: m.produto?.sku ?? null,
     varianteProdutoId: m.varianteProdutoId, tipo: m.tipo,
     quantidade: m.quantidade.toString(),
     localizacaoOrigemId: m.localizacaoOrigemId, localizacaoDestinoId: m.localizacaoDestinoId,

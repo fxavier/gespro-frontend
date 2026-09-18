@@ -1,0 +1,141 @@
+# ADR-0028 — O ecrã de entrada: templates próprios no tema do Keycloak
+
+- **Estado**: Proposto
+- **Data**: 2026-09-11
+- **Contexto**: Issue #57 · Wave 8
+- **Substitui**: [ADR-0012](./ADR-0012-alojamento-keycloak.md) §8, **apenas** no tecto de personalização. A rejeição do *Direct Access Grant*, no mesmo §8, **mantém-se em vigor**.
+- **Relacionados**: [ADR-0010](./ADR-0010-keycloak-fornecedor-identidade.md), [ADR-0011](./ADR-0011-fronteira-autorizacao.md), [ADR-0013](./ADR-0013-migracao-identidade.md), [ADR-0026](./ADR-0026-adiamento-fornecedor-infraestrutura.md)
+- **Skills**: `engineering:architecture`, `ui-conventions`
+
+## Contexto
+
+Desde o ADR-0012, `/auth/login` não é um ecrã nosso: é um redireccionamento. O Client Component
+dispara `signIn('keycloak')` e o browser salta para o Keycloak, com Authorization Code + PKCE e
+cliente confidencial.
+
+O §8 pôs um tecto explícito na personalização: o tema `gespro` estende o `keycloak.v2` e substitui
+**apenas** as variáveis CSS derivadas do `packages/brand`, o logótipo e as cadeias em Português.
+Os *templates* FreeMarker não se tocam. E o §8 concedeu, por escrito, o que isso implica:
+
+> «Aceita-se que a **disposição** do ecrã seja a do Keycloak; o que não se aceita é que as cores,
+> o logótipo e a língua o sejam.»
+
+**O estado real, verificado:** o tema tem 68 linhas de CSS sobre três selectores
+(`.pf-v5-c-login`, `.pf-v5-c-background-image`, `#kc-header-wrapper.pf-v5-c-brand`), 17 chaves de
+texto e dois logótipos. Está montado pelo `docker-compose.yml` e o realm tem `loginTheme: gespro`.
+As cores, o fundo, o logótipo e a língua **já são nossos**. O que não é nosso é a disposição do
+cartão de login, que é a do PatternFly v5.
+
+A queixa da issue #57 é de **coerência de marca** — não ausência de salto de domínio, não uma
+credencial que o Keycloak não modela. E, feita essa distinção, o que sobra da queixa é
+exactamente a peça que o §8 entregou de propósito.
+
+## Decisão
+
+### 1. O tecto do §8 sobe: a disposição passa a ser nossa
+
+O tecto do §8 — «os *templates* FreeMarker não são tocados» — deixa de valer. A disposição dos
+ecrãs de credenciais passa a ser desenhada por nós, nos quatro: entrada, definição de
+palavra-passe, verificação de e-mail e recuperação.
+
+**Por que mecanismo, depende do desenho alvo**, e a distinção foi apurada depois de ler o tema
+base do Keycloak 26.7. Não é a que a issue #57 e a primeira redacção deste ADR supunham:
+
+| Alcance pretendido | Mecanismo | Custo recorrente |
+|---|---|---|
+| Outra **aparência** da estrutura que já existe — espaçamento, tipografia, cor, dimensão e posição do cartão | `theme.properties` + CSS. **Zero `.ftl`** | Nenhum. As doze propriedades de layout são um contrato mais estável do que os *templates* |
+| Outra **estrutura** — painel lateral, logótipo dentro do cartão, ordem diferente dos elementos | `template.ftl` — **um** ficheiro, e muda os quatro ecrãs de uma vez | Um ficheiro a revalidar por subida de versão |
+| Outros **campos** ou outra ordem de campos dentro de um ecrã | O `.ftl` desse ecrã | Um ficheiro por ecrã alterado |
+
+O que o apuramento mostrou: `login.ftl` são 56 linhas que importam o `template.ftl` e preenchem
+duas secções — o título e os campos. Todo o chrome vive no `template.ftl`, e nele **doze classes
+de layout são configuráveis por propriedade** (`kcLogin`, `kcLoginContainer`, `kcLoginMain`,
+`kcLoginMainHeader`, `kcLoginMainTitle`, `kcLoginMainBody`, `kcLoginMainFooter` e afins). Só três
+classes estão cravadas — `pf-v5-c-login__header`, `pf-v5-c-brand` e `pf-v5-svg` — e o
+`gespro.css` já estiliza duas delas.
+
+**Consequência prática:** o eixo «um *template* ou quatro», que foi discutido ao decidir isto, era
+o eixo errado. O eixo real é **estilo contra estrutura**. Os quatro ecrãs partilham um chrome; ou
+se muda esse chrome uma vez, ou não se muda de todo.
+
+**Este ADR não fixa o mecanismo**, porque o desenho alvo não existe: ninguém desenhou o que é «a
+disposição do GestPro». Fixa a autorização — a disposição pode passar a ser nossa — e manda
+escolher o mecanismo mais barato que sirva o desenho, pela ordem da tabela acima.
+
+### 2. O *Direct Access Grant* continua rejeitado
+
+A opção de manter o formulário no ERP e enviar as credenciais ao Keycloak por trás **não é
+adoptada**, e a rejeição do §8 mantém-se pelas razões que lá estão: punha o ERP a receber
+palavras-passe outra vez e matava MFA e federação, que são as duas coisas pelas quais se adoptou
+o Keycloak (ADR-0010).
+
+Acresce o que o ADR-0013 §2/§5-bis tornou verdade depois: os utilizadores são criados **sem
+credencial**, com `VERIFY_EMAIL` e `UPDATE_PASSWORD` pendentes, e o *direct grant* recusa contas
+com acções obrigatórias por cumprir. Adoptá-lo obrigaria a reconstruir no ERP o primeiro acesso e
+a recuperação de palavra-passe — e a escrever credenciais pela Admin API.
+
+Isto não se reabre por razões estéticas. Reabre-se se aparecer um requisito que o ecrã do Keycloak
+não consiga servir de todo: uma credencial que ele não modela, ou a proibição contratual de
+qualquer mudança de endereço.
+
+### 3. A versão fica fixada, e a revalidação passa a ser da actualização
+
+O ADR-0012 §6 impõe **cadência trimestral obrigatória** por calendário, e o próprio §8 usava o
+custo dessa cadência como argumento para não tocar nos *templates*.
+
+A cadência passa a ser **disparada pela actualização, não pelo calendário**. A imagem está fixada
+em `quay.io/keycloak/keycloak:26.7.0` no `docker-compose.yml`; a versão só sobe quando alguém
+decide subi-la, e revalidar os quatro *templates* é **um passo dessa tarefa**, não um compromisso
+recorrente à parte.
+
+Isto não afrouxa a segurança: subir por causa de um boletim de segurança continua a ser urgente,
+e o procedimento de ensaio do §6 — aplicar em `dev`, correr a suite E2E de autenticação, plano de
+reversão escrito antes — mantém-se inteiro.
+
+### 4. O Keycloak passa a ser servido num subdomínio da marca
+
+Em produção, `contas.gespro.mz` (ou equivalente sob o domínio do produto), via `frontendUrl` no
+realm — que hoje **não está definido**. Não substitui os *templates* e não estava em causa: arruma
+o endereço, que é a parte que o DNS resolve e o CSS não.
+
+**Alternativas consideradas:**
+
+| Opção | Prós | Contras |
+|---|---|---|
+| **Templates próprios no tema** ✅ | Disposição, cores, logótipo e língua nossos, sem perder nada: MFA, federação, *required actions*, SSO e protecção anti-força-bruta ficam onde estão; zero código de autenticação no ERP | O salto de domínio continua visível; quatro ficheiros a revalidar em cada subida de versão |
+| *Direct Access Grant* (ROPC) | UI totalmente nossa, sem salto de domínio | Mata federação e reduz o MFA a OTP; o ERP volta a ver palavras-passe; parte o primeiro acesso e a recuperação (ADR-0013); desaconselhado pela [RFC 9700 §2.4](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.4) |
+| Híbrido — submeter para `login-actions/authenticate` | Aspecto nosso mantendo o fluxo padrão | *Endpoint* interno sem contrato público; parte em qualquer actualização |
+| Só o subdomínio de marca | DNS e configuração, zero código | Arruma o endereço, não a disposição — que é o que resta da queixa |
+| Manter o tecto do §8 | Custo zero | Não resolve o requisito |
+
+Racional: a queixa era de marca, e a marca já estava resolvida em tudo menos na disposição. Mudar
+o protocolo de autenticação para corrigir uma disposição seria pagar capacidades com estética. O
+que este ADR faz é levantar um tecto que existia por medo de um custo recorrente — e, ao prender
+esse custo à actualização em vez do calendário, remover a razão pela qual o tecto foi posto.
+
+## Consequências
+
+- **Falta o desenho alvo**, e é o que bloqueia a execução. Enquanto não existir, não se sabe se
+  bastam `theme.properties` e CSS ou se é preciso `template.ftl` — e a diferença entre os dois é
+  todo o custo recorrente desta decisão.
+- **O `theme.properties` mantém `parent=keycloak.v2`** em qualquer dos caminhos: herda-se tudo o
+  que não for substituído, e nunca se copia o tema base inteiro.
+- **Se o caminho for `template.ftl`:** um ficheiro a reler em cada subida do Keycloak, não quatro.
+- **Executado pelo primeiro caminho** (issue #57, 2026-09-11): `theme.properties` intacto, **zero
+  `.ftl`**, tudo em `gespro.css` sobre as classes que o `template.ftl` já emite. Custo recorrente
+  nulo. Se um desenho futuro exigir outra estrutura, sobe-se ao segundo caminho sem ADR novo — a
+  autorização deste cobre os três.
+- **O portão de acessibilidade não muda de sítio.** O `a11y.a11y.ts` continua a apontar ao ecrã do
+  Keycloak nos dois temas, como o ADR-0012 deixou. O que muda é que o ecrã passa a ser desenhado
+  por nós — e portanto os 32/32 WCAG AA passam a ser responsabilidade nossa, não herdada do
+  PatternFly.
+- **Merece um gate** que falhe se a versão da imagem subir sem que os quatro ficheiros tenham sido
+  tocados ou explicitamente revalidados. Sem isso, a decisão do ponto 3 depende de memória.
+- **Nada muda no ERP.** Nem `src/lib/auth.ts`, nem o fluxo OIDC, nem o contrato do ADR-0011: a
+  re-resolução de 15 minutos e o `kcRefreshToken` ficam intactos. Este ADR não toca em código de
+  aplicação — só em tema e em configuração de realm.
+- **Correcção de deriva documental:** o ADR-0012 §8 escreve `messages_pt_PT.properties`; o ficheiro
+  real é `messages_pt.properties`, e está certo — o realm tem `defaultLocale: pt` e
+  `supportedLocales: ["pt"]`. Quem seguir o §8 à letra cria um ficheiro que o Keycloak não lê.
+- **O glossário não muda.** «Tema», «template» e «ecrã de entrada» são vocabulário técnico geral,
+  não termos do domínio do GestPro. O `CONTEXT.md` fica como está.

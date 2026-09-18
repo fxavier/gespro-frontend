@@ -1,0 +1,40 @@
+                                                                                                          QUERY PLAN                                                                                                           
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=12811.35..12827.60 rows=60 width=70) (actual time=82.427..88.723 rows=60 loops=1)
+   Group Key: p."contaId", p.tipo
+   Buffers: shared hit=8285
+   ->  Gather Merge  (cost=12811.35..12825.35 rows=120 width=70) (actual time=81.871..88.032 rows=180 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=8285
+         ->  Sort  (cost=11811.32..11811.47 rows=60 width=70) (actual time=75.647..75.679 rows=60 loops=3)
+               Sort Key: p."contaId", p.tipo
+               Sort Method: quicksort  Memory: 32kB
+               Buffers: shared hit=8285
+               Worker 0:  Sort Method: quicksort  Memory: 32kB
+               Worker 1:  Sort Method: quicksort  Memory: 32kB
+               ->  Partial HashAggregate  (cost=11808.80..11809.55 rows=60 width=70) (actual time=75.451..75.472 rows=60 loops=3)
+                     Group Key: p."contaId", p.tipo
+                     Batches: 1  Memory Usage: 48kB
+                     Buffers: shared hit=8253
+                     Worker 0:  Batches: 1  Memory Usage: 48kB
+                     Worker 1:  Batches: 1  Memory Usage: 48kB
+                     ->  Parallel Hash Join  (cost=4408.66..11276.80 rows=53200 width=37) (actual time=14.383..64.341 rows=41911 loops=3)
+                           Hash Cond: (p."lancamentoId" = j0.id)
+                           Buffers: shared hit=8253
+                           ->  Parallel Seq Scan on "PartidaLancamento" p  (cost=0.00..6588.68 rows=106455 width=63) (actual time=0.010..29.222 rows=84668 loops=3)
+                                 Filter: ("tenantId" = 'cca2100ef69ac393c5a6c6e51'::text)
+                                 Buffers: shared hit=5258
+                           ->  Parallel Hash  (cost=4035.21..4035.21 rows=29876 width=26) (actual time=14.156..14.157 rows=16762 loops=3)
+                                 Buckets: 65536  Batches: 1  Memory Usage: 3712kB
+                                 Buffers: shared hit=2989
+                                 ->  Parallel Seq Scan on "Lancamento" j0  (cost=0.00..4035.21 rows=29876 width=26) (actual time=0.010..9.693 rows=16762 loops=3)
+                                       Filter: ((status <> 'ESTORNADO'::"StatusLancamento") AND (data >= '2025-01-01 00:00:00'::timestamp without time zone) AND (data <= '2025-12-31 23:59:59'::timestamp without time zone))
+                                       Rows Removed by Filter: 17016
+                                       Buffers: shared hit=2989
+ Planning:
+   Buffers: shared hit=416
+ Planning Time: 4.941 ms
+ Execution Time: 88.938 ms
+(36 rows)
+

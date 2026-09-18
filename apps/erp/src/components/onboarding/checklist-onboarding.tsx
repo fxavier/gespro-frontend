@@ -19,10 +19,17 @@ export async function ChecklistOnboarding({
   tenantId,
   userId,
   forcar = false,
+  emailVerificado = true,
 }: {
   tenantId: string;
   userId: string;
   forcar?: boolean;
+  /**
+   * `session.user.emailVerificado` (ADR-0031 §6). Por omissão `true` para que
+   * um chamador que ainda não o passe não mostre um passo por fazer a quem já
+   * confirmou — a origem do valor é a sessão, e só ela.
+   */
+  emailVerificado?: boolean;
 }) {
   const assinatura = await runWithTenantContext({ tenantId, userId }, () =>
     assinaturaService.obterOuNulo({ tenantId, userId }),
@@ -31,22 +38,25 @@ export async function ChecklistOnboarding({
   if (!assinatura) return null;
   if (!forcar && assinatura.estado !== 'TRIAL') return null;
 
-  const [clientes, produtos, faturas, utilizadores, utilizador] = await Promise.all([
+  const [clientes, produtos, faturas, utilizadores] = await Promise.all([
     prismaBase.cliente.count({ where: { tenantId } }),
     prismaBase.produto.count({ where: { tenantId } }),
     prismaBase.fatura.count({ where: { tenantId } }),
     prismaBase.user.count({ where: { tenantId, deletedAt: null } }),
-    prismaBase.user.findFirst({
-      where: { id: userId, tenantId },
-      select: { emailVerificado: true },
-    }),
   ]);
 
   const passos = [
     {
-      feito: Boolean(utilizador?.emailVerificado),
-      titulo: 'Confirmar o endereço de email',
-      descricao: 'Sem confirmação, não é possível iniciar sessão de novo.',
+      // PRIMEIRO passo desde o ADR-0031 §5 (tarefa 4.5). Até aqui o primeiro
+      // passo era «activar a conta», dado por `primeiroAcessoEm`: com o e-mail
+      // de acções do Keycloak, entrar IMPLICAVA ter confirmado o endereço e
+      // definido a palavra-passe. Deixou de implicar — quem se regista entra
+      // na mesma submissão, com o endereço por confirmar — e o passo passaria
+      // a estar sempre feito, a dizer uma coisa falsa. O reenvio vive no aviso
+      // do topo do painel, que é onde a pessoa já está a olhar.
+      feito: emailVerificado,
+      titulo: 'Confirmar o endereço de e-mail',
+      descricao: 'Liberta a emissão de documentos fiscais e a criação de utilizadores.',
       href: null as string | null,
       accao: null as string | null,
     },

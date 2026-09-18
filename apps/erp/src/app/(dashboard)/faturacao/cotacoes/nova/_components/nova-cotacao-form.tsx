@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarCotacaoComercial } from '@/server/actions/faturacao.actions';
 
 // ponytail: schema do formulário (client-safe); o servidor revalida com CriarCotacaoComercialSchema.
@@ -78,6 +78,8 @@ export function NovaCotacaoForm({ series }: Props) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'linhas' });
   const linhas = useWatch({ control, name: 'linhas' }) ?? [];
+  const serieId = useWatch({ control, name: 'serieDocumentoId' });
+  const serieEscolhida = series.find((s) => s.id === serieId);
 
   const totais = linhas.reduce(
     (acc, l) => {
@@ -144,22 +146,20 @@ export function NovaCotacaoForm({ series }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serie-cotacao">Série de Documento *</Label>
-              <Select
-                defaultValue={series[0]?.id ?? ''}
-                onValueChange={(v) => setValue('serieDocumentoId', v)}
-              >
-                <SelectTrigger id="serie-cotacao" aria-label="Série de Documento">
-                  <SelectValue placeholder="Seleccione a série" />
-                </SelectTrigger>
-                <SelectContent>
-                  {series.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.codigo} — {s.nome}</SelectItem>
-                  ))}
-                  {series.length === 0 && (
-                    <SelectItem value="" disabled>Sem séries configuradas</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="serie-cotacao"
+                aria-label="Série de Documento"
+                value={serieId}
+                disabled={series.length === 0}
+                onChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
+                placeholder="Seleccione a série"
+                options={series.map((s) => ({ value: s.id, label: s.nome }))}
+              />
+              {series.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Sem séries activas deste tipo — configure uma antes de emitir.
+                </p>
+              )}
               {errors.serieDocumentoId && (
                 <p className="text-sm text-destructive">{errors.serieDocumentoId.message}</p>
               )}
