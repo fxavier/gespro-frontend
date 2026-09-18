@@ -10,7 +10,7 @@ o histórico).
 - **Ficheiro**: `ADR-<NNNN>-<slug>.md` (quatro dígitos, zero-padded). Os ADRs 0001–0004 usam o
   prefixo curto `<NNNN>-<slug>.md` por razões históricas; do 0006 em diante a convenção é
   `ADR-<NNNN>-<slug>.md`.
-- **Numeração**: sequencial e **única**. O próximo número livre é **0033**.
+- **Numeração**: sequencial e **única**. O próximo número livre é **0036**.
 - **Estado**: `Proposto` → `Aceite` → (`Substituído por ADR-XXXX` | `Descontinuado`).
 - **Citação**: use sempre o identificador canónico da coluna «ADR» deste índice. Para os três
   documentos que colidem no número 0005, o identificador canónico é `ADR-0005-a`, `-b` ou `-c`
@@ -92,6 +92,26 @@ o histórico).
 | [0023](./ADR-0023-governacao-documentacao.md) | Governação da documentação e numeração de ADRs | Proposto | — |
 | [0024](./ADR-0024-gates-arquitectura.md) | Reforço dos gates de arquitectura | Proposto | 0015, 0023 |
 | [0025](./ADR-0025-separacao-dominio-pessoas-projetos.md) | Separação do domínio Pessoas & Projectos | Proposto | 0017, 0024 |
+
+**Ciclo contabilístico e fiscal**
+
+| ADR | Título | Estado | Depende de |
+|---|---|---|---|
+| [0033](./ADR-0033-exercicio-contabilistico.md) | **Exercício contabilístico: abertura, períodos e trancamento** | Proposto | 0015, 0011 (§3, D9), 0032 (§2) |
+| [0034](./ADR-0034-apuramento-iva.md) | **Apuramento periódico do IVA** | Proposto⁸ | 0033, 0015; cruza 0021 |
+| [0035](./ADR-0035-encerramento-exercicio.md) | **Encerramento do exercício contabilístico** | Proposto | 0033, 0034, 0017, 0005-a |
+
+> Os três formam uma cadeia e lêem-se por esta ordem: o 0033 cria o exercício e o período e tranca a
+> escrita; o 0034 apura o IVA dentro de um período trancado e é pré-condição do fecho mensal; o 0035
+> encerra o ano sobre os doze períodos fechados. O 0033 documenta ainda **três achados verificados**
+> — estorno que inverte o balancete, rascunhos contados nos mapas, e prefixos com ponto na DRE contra
+> códigos sem ponto — que são defeitos sem decisão a tomar, e pré-requisitos dos outros dois.
+
+⁸ A parte legal do ADR-0034 (Lei n.º 10/2025, que altera o Código do IVA com efeitos a 1 de Janeiro
+de 2026) apoia-se em análises de consultoras e **não no articulado do Boletim da República**, que
+continua por ler — é a mesma lacuna que o [`docs/research/mocambique-quadro-legal.md`](../research/mocambique-quadro-legal.md)
+já registava. A forma contabilística do apuramento decide-se ali; os prazos e os modelos
+declarativos são parametrização e confirmam-se antes de `Aceite`.
 
 ³ Revisto na parte de infraestrutura pelo [ADR-0026](./ADR-0026-adiamento-fornecedor-infraestrutura.md).
 
