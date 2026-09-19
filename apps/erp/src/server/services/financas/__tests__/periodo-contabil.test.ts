@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   partidaGroupBy:   vi.fn(),
   userFindFirst:    vi.fn(),
   reaberturaPeriodoCreate: vi.fn(),
+  apuramentoIvaFindFirst: vi.fn(),
   transaction:      vi.fn(),
   queryRaw:         vi.fn(),
 }));
@@ -40,6 +41,7 @@ vi.mock('@/server/db/client', () => {
     partidaLancamento:  { groupBy: mocks.partidaGroupBy },
     user:               { findFirst: mocks.userFindFirst },
     reaberturaPeriodo:  { create: mocks.reaberturaPeriodoCreate },
+    apuramentoIva:      { findFirst: mocks.apuramentoIvaFindFirst },
     $queryRaw:          mocks.queryRaw,
   };
   return {
@@ -75,6 +77,7 @@ beforeEach(() => {
   mocks.exercicioFindFirst.mockResolvedValue(null); // default: no previous exercise
   mocks.notaCreditoCount.mockResolvedValue(0);      // default: no NC without lancamento
   mocks.notaDebitoCount.mockResolvedValue(0);       // default: no ND without lancamento
+  mocks.apuramentoIvaFindFirst.mockResolvedValue(null); // default: sem apuramento
   mocks.transaction.mockImplementation((cb: (tx: unknown) => Promise<unknown>) =>
     cb({
       periodoContabil:    { findFirst: mocks.periodoFindFirst, upsert: mocks.periodoUpsert, update: mocks.periodoUpdate },
@@ -88,6 +91,7 @@ beforeEach(() => {
       partidaLancamento:  { groupBy: mocks.partidaGroupBy },
       user:               { findFirst: mocks.userFindFirst },
       reaberturaPeriodo:  { create: mocks.reaberturaPeriodoCreate },
+      apuramentoIva:      { findFirst: mocks.apuramentoIvaFindFirst },
       $queryRaw:          mocks.queryRaw,
     }),
   );
@@ -164,10 +168,12 @@ describe('resolverPeriodo — rede de segurança (exercício não existe)', () =
 function setupFechoOk(overrides: Partial<{
   rascunhos: number; sessoesCaixa: number; reconciliacoes: number;
   faturasSem: number; debitos: string; creditos: string; estadoAnterior: string;
+  ivaApurado: boolean;
 }> = {}) {
   const {
     rascunhos = 0, sessoesCaixa = 0, reconciliacoes = 0,
     faturasSem = 0, debitos = '1000', creditos = '1000', estadoAnterior = 'FECHADO',
+    ivaApurado = true,
   } = overrides;
 
   // $queryRaw é chamado 4 vezes:
@@ -201,6 +207,8 @@ function setupFechoOk(overrides: Partial<{
   mocks.periodoUpdate.mockResolvedValue({
     id: 'per-1', codigo: '2026-06', estado: 'FECHADO',
   });
+  // Pré-condição 7: apuramento de IVA (ADR-0033 §6 / ADR-0034)
+  mocks.apuramentoIvaFindFirst.mockResolvedValue(ivaApurado ? { id: 'apr-1' } : null);
 }
 
 // ---------------------------------------------------------------------------

@@ -1616,13 +1616,7 @@ export async function listarPeriodos(
  * 5. BALANCETE_DESEQUILIBRADO  — total débitos === total créditos no período
  * 6. PERIODO_ANTERIOR_ABERTO   — o período anterior está fechado (ordem estrita)
  *
- * Pré-condição em falta (Fase 2 — aguarda modelo ApuramentoIva do ADR-0034):
- * 7. IVA_NAO_APURADO — o apuramento do IVA do período está feito
- *    Quando o ADR-0034 for implementado, acrescentar aqui:
- *      const ivaApurado = await tx.apuramentoIva.findFirst({
- *        where: { tenantId: ctx.tenantId, periodoId: periodo.id, estado: 'APURADO' },
- *      });
- *      if (!ivaApurado) impedimentos.push('IVA_NAO_APURADO');
+ * 7. IVA_NAO_APURADO — o apuramento do IVA do período está feito (ADR-0034)
  */
 export async function fecharPeriodo(
   input: FecharPeriodoInput,
@@ -1729,9 +1723,16 @@ export async function fecharPeriodo(
       }
     }
 
-    // FASE 2 — pré-condição em falta:
-    // 7. IVA_NAO_APURADO: apuramento do IVA do período (ADR-0034, modelo ApuramentoIva).
-    //    Quando o ADR-0034 for implementado, acrescentar a verificação aqui.
+    // 7. IVA_NAO_APURADO: apuramento do IVA do período (ADR-0033 §6, ADR-0034)
+    const ivaApurado = await tx.apuramentoIva.findFirst({
+      where: {
+        tenantId: ctx.tenantId,
+        periodoId: periodo.id,
+        estado: { in: ['APURADO', 'DECLARADO'] },
+      },
+      select: { id: true },
+    });
+    if (!ivaApurado) impedimentos.push('IVA_NAO_APURADO');
 
     if (impedimentos.length > 0) {
       return { ok: false, impedimentos };
@@ -1755,13 +1756,7 @@ export async function fecharPeriodo(
  * Reabre um período contabilístico, exigindo motivo e gravando ReaberturaPeriodo (ADR-0033 §7).
  * Recusa se o exercício estiver ENCERRADO.
  *
- * Pré-condição em falta (Fase 2 — aguarda ApuramentoIva do ADR-0034):
- * — Não reabre se o apuramento do IVA do período já estiver declarado à AT.
- *   Quando o ADR-0034 for implementado, acrescentar antes do update:
- *     const ivaDeclarado = await tx.apuramentoIva.findFirst({
- *       where: { tenantId: ctx.tenantId, periodoId: input.id, declaradoAt: { not: null } },
- *     });
- *     if (ivaDeclarado) throw new BusinessRuleError('IVA_JA_DECLARADO', '...');
+ * Recusa a reabertura se o apuramento do IVA do período já estiver `DECLARADO` à AT (ADR-0033 §7).
  */
 export async function reabrirPeriodo(
   input: ReabrirPeriodoInput,
@@ -1792,8 +1787,23 @@ export async function reabrirPeriodo(
       );
     }
 
-    // FASE 2 — pré-condição em falta:
-    // Verificar se o apuramento do IVA já foi declarado à AT (ADR-0034).
+    // Não reabre se o apuramento do IVA do período já estiver declarado à AT (ADR-0033 §7, ADR-0034 §7)
+    const ivaDeclarado = await tx.apuramentoIva.findFirst({
+      where: {
+        tenantId: ctx.tenantId,
+        periodoId: periodo.id,
+        estado: 'DECLARADO',
+      },
+      select: { id: true, referenciaEntrega: true },
+    });
+    if (ivaDeclarado) {
+      throw new BusinessRuleError(
+        'IVA_JA_DECLARADO',
+        `O apuramento do IVA do período ${periodo.codigo} já foi declarado à AT ` +
+          `(referência: ${ivaDeclarado.referenciaEntrega ?? 'n/d'}). ` +
+          'A correcção deve ser feita por regularização no período seguinte (ADR-0034 §7).',
+      );
+    }
 
     // Obter keycloakSub do utilizador para o registo de auditoria
     const utilizador = await tx.user.findFirst({

@@ -197,6 +197,16 @@ enum EstadoPeriodo {
   FECHADO
 }
 
+/// Estado do apuramento periódico de IVA (ADR-0034 §7).
+/// APURADO → lançamento gerado, período pode fechar.
+/// ESTORNADO → versão cancelada por correcção (nova versão com versao+1).
+/// DECLARADO → entregue à AT; o período não pode reabrir (ADR-0033 §7).
+enum EstadoApuramentoIva {
+  APURADO
+  ESTORNADO
+  DECLARADO
+}
+
 // ---------------------------------------------------------------------------
 // CAIXA
 // ---------------------------------------------------------------------------
@@ -298,6 +308,7 @@ model PeriodoContabil {
   exercicio    ExercicioContabil @relation(fields: [exercicioId], references: [id])
   lancamentos  Lancamento[]
   reaberturasRegistos ReaberturaPeriodo[]
+  apuramentosIva      ApuramentoIva[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, exercicioId, ordem])
@@ -453,6 +464,70 @@ model PartidaLancamento {
 }
 
 // ---------------------------------------------------------------------------
+// APURAMENTO DE IVA (ADR-0034)
+// ---------------------------------------------------------------------------
+
+/// Apuramento periódico do IVA. Append-only: correcção cria nova versão (versao+1).
+/// O apuramento fecha as contas 4432x/4433x/4434x contra 4435 e liquida 4435 para 4437/4438.
+/// Os totais e as linhas ficam gravados para reprodutibilidade dos mapas em 2031 sobre 2026.
+model ApuramentoIva {
+  id              String               @id @default(cuid())
+  tenantId        String
+  periodoId       String               // FK PeriodoContabil
+  versao          Int                  // 1 no primeiro; incrementa em correcção por estorno (ADR-0034 §7)
+  estado          EstadoApuramentoIva  @default(APURADO)
+  lancamentoId    String?              // FK Lancamento de apuramento gerado (escalar — sem @relation)
+
+  // Totais apurados — imutáveis; nova versão para correcção (ADR-0034 §9)
+  totalIvaLiquidado   Decimal          @db.Decimal(18, 2) // soma saldos credores 4433x
+  totalIvaDedutivel   Decimal          @db.Decimal(18, 2) // soma saldos devedores 4432x
+  totalRegularizacoes Decimal          @db.Decimal(18, 2) // líquido 4434x (+= a favor do Estado)
+  saldoApuramento     Decimal          @db.Decimal(18, 2) // saldo de 4435 antes de liquidar para 4437/4438
+  creditoReportado    Decimal          @db.Decimal(18, 2) @default(0) // valor transferido de 4438 do período anterior
+
+  // Declarado à AT (ADR-0034 §7; tranca reabertura do período — ADR-0033 §7)
+  declaradoPorId    String?            // FK User (escalar)
+  declaradoEm      DateTime?
+  referenciaEntrega String?            // referência da entrega (ex.: número da guia/DAS)
+
+  // Trilho de auditoria (ADR-0015 §3, ADR-0034 §9)
+  apuradoPorId  String                 // FK User (escalar)
+  keycloakSub   String                 // sub do Keycloak no momento do apuramento
+  requestId     String?                // correlação com registo estruturado (ADR-0033 §8)
+  createdAt     DateTime               @default(now())
+
+  periodo PeriodoContabil      @relation(fields: [periodoId], references: [id])
+  linhas  LinhaApuramentoIva[]
+
+  @@unique([tenantId, periodoId, versao]) // cada período tem uma versão activa por vez
+  @@index([tenantId, periodoId])
+  @@index([tenantId, estado])
+  @@index([tenantId, createdAt])
+}
+
+/// Linha de apuramento de IVA: detalhe por conta, com base e imposto gravados à data (ADR-0034 §9).
+/// Guarda código E nome da conta para garantir reprodutibilidade dos mapas em exercícios futuros
+/// (mesma razão do ADR-0033 §8.2: ContaPGC.nome é mutável).
+/// baseImponivel é nula para contas de regularização (4434x) e de apuramento/liquidação (4435/4437/4438).
+/// taxaAplicada e divergenciaBase permitem mostrar no mapa quando base×taxa ≠ imposto do razão.
+model LinhaApuramentoIva {
+  id              String      @id @default(cuid())
+  tenantId        String
+  apuramentoId    String
+  contaCodigo     String      // ex.: "44331" — código à data do apuramento
+  contaNome       String      // nome à data do apuramento (ContaPGC.nome é mutável)
+  tipoMovimento   TipoPartida // DEBITO | CREDITO no lançamento gerado
+  baseImponivel   Decimal?    @db.Decimal(18, 2) // nula para 4434x, 4435, 4437, 4438; calculada dos documentos
+  taxaAplicada    Decimal?    @db.Decimal(9, 6)  // taxa de IVA (0.160000 = 16 %); nula para regularizações
+  valorImposto    Decimal     @db.Decimal(18, 2) // valor da partida no lançamento (do razão)
+  divergenciaBase Decimal?    @db.Decimal(18, 2) // |base×taxa − valorImposto| > 0.01 → mostrar no mapa
+
+  apuramento ApuramentoIva @relation(fields: [apuramentoId], references: [id])
+
+  @@index([tenantId, apuramentoId])
+}
+
+// ---------------------------------------------------------------------------
 // BANCA
 // ---------------------------------------------------------------------------
 
@@ -567,6 +642,7 @@ model Fatura {
   serieDocumentoId String
   numero           String       // número formatado (ex.: FAT/2024/000001)
   clienteId        String       // FK cross-domínio (WS C) — escalar sem @relation
+  nuitCliente      String?      // NUIT congelado no momento da emissão (reprodutibilidade mapa IVA §8)
   vendaId          String?      // FK cross-domínio (WS C) — escalar sem @relation
   moeda            String       @default("MZN")
   subtotal         Decimal      @db.Decimal(18, 2)
