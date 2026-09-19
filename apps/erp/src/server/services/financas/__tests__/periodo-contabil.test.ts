@@ -12,10 +12,13 @@ const mocks = vi.hoisted(() => ({
   periodoUpsert:    vi.fn(),
   periodoUpdate:    vi.fn(),
   exercicioUpsert:  vi.fn(),
+  exercicioFindFirst: vi.fn(),
   lancamentoCount:  vi.fn(),
   sessaoCaixaCount: vi.fn(),
   reconciliacaoCount: vi.fn(),
   faturaCount:      vi.fn(),
+  notaCreditoCount: vi.fn(),
+  notaDebitoCount:  vi.fn(),
   partidaGroupBy:   vi.fn(),
   userFindFirst:    vi.fn(),
   reaberturaPeriodoCreate: vi.fn(),
@@ -27,11 +30,13 @@ vi.mock('@/server/db/client', () => {
   // Construído inline — só referencia `mocks` (hoisted, seguro aqui)
   const tx = {
     periodoContabil:    { findFirst: mocks.periodoFindFirst, upsert: mocks.periodoUpsert, update: mocks.periodoUpdate },
-    exercicioContabil:  { upsert: mocks.exercicioUpsert },
+    exercicioContabil:  { upsert: mocks.exercicioUpsert, findFirst: mocks.exercicioFindFirst },
     lancamento:         { count: mocks.lancamentoCount },
     sessaoCaixa:        { count: mocks.sessaoCaixaCount },
     reconciliacaoBancaria: { count: mocks.reconciliacaoCount },
     fatura:             { count: mocks.faturaCount },
+    notaCredito:        { count: mocks.notaCreditoCount },
+    notaDebito:         { count: mocks.notaDebitoCount },
     partidaLancamento:  { groupBy: mocks.partidaGroupBy },
     user:               { findFirst: mocks.userFindFirst },
     reaberturaPeriodo:  { create: mocks.reaberturaPeriodoCreate },
@@ -60,21 +65,26 @@ const CTX = { tenantId: 'tenant-test', userId: 'user-test' };
 // Mesmo conjunto de mocks — qualquer chamada vai para os vi.fn() acima
 const TX_PARA_TESTES = {
   periodoContabil:   { findFirst: mocks.periodoFindFirst, upsert: mocks.periodoUpsert, update: mocks.periodoUpdate },
-  exercicioContabil: { upsert: mocks.exercicioUpsert },
+  exercicioContabil: { upsert: mocks.exercicioUpsert, findFirst: mocks.exercicioFindFirst },
   $queryRaw:         mocks.queryRaw,
 } as unknown as import('@prisma/client').Prisma.TransactionClient;
 
 beforeEach(() => {
   vi.clearAllMocks();
   // $transaction chama o callback com o tx completo (o mesmo que está no mock)
+  mocks.exercicioFindFirst.mockResolvedValue(null); // default: no previous exercise
+  mocks.notaCreditoCount.mockResolvedValue(0);      // default: no NC without lancamento
+  mocks.notaDebitoCount.mockResolvedValue(0);       // default: no ND without lancamento
   mocks.transaction.mockImplementation((cb: (tx: unknown) => Promise<unknown>) =>
     cb({
       periodoContabil:    { findFirst: mocks.periodoFindFirst, upsert: mocks.periodoUpsert, update: mocks.periodoUpdate },
-      exercicioContabil:  { upsert: mocks.exercicioUpsert },
+      exercicioContabil:  { upsert: mocks.exercicioUpsert, findFirst: mocks.exercicioFindFirst },
       lancamento:         { count: mocks.lancamentoCount },
       sessaoCaixa:        { count: mocks.sessaoCaixaCount },
       reconciliacaoBancaria: { count: mocks.reconciliacaoCount },
       fatura:             { count: mocks.faturaCount },
+      notaCredito:        { count: mocks.notaCreditoCount },
+      notaDebito:         { count: mocks.notaDebitoCount },
       partidaLancamento:  { groupBy: mocks.partidaGroupBy },
       user:               { findFirst: mocks.userFindFirst },
       reaberturaPeriodo:  { create: mocks.reaberturaPeriodoCreate },
@@ -181,6 +191,9 @@ function setupFechoOk(overrides: Partial<{
   mocks.sessaoCaixaCount.mockResolvedValue(sessoesCaixa);
   mocks.reconciliacaoCount.mockResolvedValue(reconciliacoes);
   mocks.faturaCount.mockResolvedValue(faturasSem);
+  // M5: notaCredito e notaDebito sem lancamento — default 0 (sobreposto pelos testes que precisam)
+  mocks.notaCreditoCount.mockResolvedValue(0);
+  mocks.notaDebitoCount.mockResolvedValue(0);
   mocks.partidaGroupBy.mockResolvedValue([
     { tipo: 'DEBITO',  _sum: { valor: new Prisma.Decimal(debitos)  } },
     { tipo: 'CREDITO', _sum: { valor: new Prisma.Decimal(creditos) } },

@@ -192,7 +192,7 @@ export const contaPagarService: IContaPagarService = {
       }
 
       const txClient = tx as unknown as Prisma.TransactionClient;
-      const numero = await proximoNumeroSerie(txClient, 'PAGAMENTO', ctx, new Date());
+      const numero = await proximoNumeroSerie(txClient, 'PAGAMENTO', ctx, input.dataPagamento);
 
       // Criar pagamento primeiro para ter o id disponível para o lançamento
       const pagamento = await tx.pagamento.create({

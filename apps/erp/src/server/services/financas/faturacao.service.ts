@@ -271,6 +271,7 @@ export async function proximoNumeroSerie(
         AND tipo::text = ${tipo as string}
         AND ativo = true
         AND ano = ${anoDocumento}
+      ORDER BY "createdAt" DESC
       LIMIT 1
       FOR UPDATE
     )

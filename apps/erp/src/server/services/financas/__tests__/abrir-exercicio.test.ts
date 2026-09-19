@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   periodoContabilFindFirst: vi.fn(),
   periodoContabilUpsert: vi.fn(),
   exercicioContabilUpsert: vi.fn(),
+  exercicioContabilFindFirst: vi.fn(),
   transaction: vi.fn(),
   runWithTenantContext: vi.fn(),
   runWithRequestContext: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('@/lib/auth', () => ({ auth: mocks.auth }));
 vi.mock('@/server/db/client', () => {
   const tx = {
     periodoContabil: { findFirst: mocks.periodoContabilFindFirst, upsert: mocks.periodoContabilUpsert },
-    exercicioContabil: { upsert: mocks.exercicioContabilUpsert },
+    exercicioContabil: { upsert: mocks.exercicioContabilUpsert, findFirst: mocks.exercicioContabilFindFirst },
     serieDocumento: { createMany: mocks.serieDocumentoCreateMany },
     lancamento: {},
     sessaoCaixa: {},
@@ -81,14 +82,14 @@ const CTX = { tenantId: 'tenant-1', userId: 'user-1' };
 beforeEach(() => {
   vi.clearAllMocks();
 
-  // Configuração padrão: período existe (resolverPeriodo não precisa criar)
-  mocks.periodoContabilFindFirst.mockResolvedValue({
-    id: 'per-1', codigo: '2027-01', estado: 'ABERTO',
-  });
+  // Configuração padrão: exercício anterior não existe, upsert idempotente
+  mocks.exercicioContabilFindFirst.mockResolvedValue(null);
+  mocks.exercicioContabilUpsert.mockResolvedValue({ id: 'exc-2027' });
+  mocks.periodoContabilUpsert.mockResolvedValue({ id: 'per-1' });
   mocks.transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
     fn({
       periodoContabil: { findFirst: mocks.periodoContabilFindFirst, upsert: mocks.periodoContabilUpsert },
-      exercicioContabil: { upsert: mocks.exercicioContabilUpsert },
+      exercicioContabil: { upsert: mocks.exercicioContabilUpsert, findFirst: mocks.exercicioContabilFindFirst },
       serieDocumento: { createMany: mocks.serieDocumentoCreateMany },
     }),
   );
@@ -102,12 +103,18 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('abrirExercicio (service)', () => {
-  it('chama resolverPeriodo e bootstrapSeriesDocumento para o ano dado', async () => {
+  it('cria exercício, períodos e séries para o ano dado', async () => {
     const resultado = await abrirExercicioService({ ano: 2027 }, CTX);
 
     expect(resultado.ano).toBe(2027);
     expect(resultado.seriesCriadas).toBe(20);
     expect(bootstrapSeriesDocumento).toHaveBeenCalledWith(expect.anything(), CTX.tenantId, 2027);
+    // exercicioContabil.upsert chamado para criar o exercício
+    expect(mocks.exercicioContabilUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId_codigo: { tenantId: CTX.tenantId, codigo: '2027' } },
+      }),
+    );
   });
 
   it('é idempotente — segunda chamada devolve 0 séries criadas (skipDuplicates)', async () => {

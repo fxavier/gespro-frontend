@@ -27,15 +27,22 @@ import { join, relative, resolve } from 'node:path';
 
 const ROOT = process.cwd();
 const SRC = join(ROOT, 'src');
+const PRISMA_DIR = join(ROOT, 'prisma');
 
 // Ficheiro autorizado — o único que pode escrever directamente nestas tabelas
 const AUTORIZADO = resolve(join(SRC, 'server', 'services', 'financas', 'contabilidade.service.ts'));
 
-// Padrão: prisma/tx.lancamento.create( ou .createMany( .upsert( .update(
-// Captura as duas tabelas.
-const PADROES = [
+// Padrão Prisma Client: prisma/tx.lancamento.create( etc.
+const PADROES_PRISMA = [
   /\blancamento\s*\.\s*(create|createMany|createManyAndReturn|upsert|update|updateMany|delete|deleteMany)\s*\(/i,
   /\bpartidaLancamento\s*\.\s*(create|createMany|createManyAndReturn|upsert|update|updateMany|delete|deleteMany)\s*\(/i,
+];
+
+// Padrão SQL cru: INSERT INTO "Lancamento" ou INSERT INTO "PartidaLancamento"
+// Detecta SQL em strings de template ou strings literais em ficheiros .ts
+const PADROES_SQL = [
+  /INSERT\s+INTO\s+"?Lancamento"?\s*\(/i,
+  /INSERT\s+INTO\s+"?PartidaLancamento"?\s*\(/i,
 ];
 
 /** Recolhe todos os ficheiros .ts recursivamente (excluindo node_modules e .next) */
@@ -56,6 +63,7 @@ function listarTs(dir) {
 
 const violacoes = [];
 
+// Varrer src/ — Prisma Client + SQL cru
 for (const ficheiro of listarTs(SRC)) {
   if (resolve(ficheiro) === AUTORIZADO) continue; // ficheiro autorizado
   if (ficheiro.endsWith('.test.ts') || ficheiro.endsWith('.spec.ts')) continue; // testes não contam
@@ -65,14 +73,40 @@ for (const ficheiro of listarTs(SRC)) {
 
   for (let i = 0; i < linhas.length; i++) {
     const linha = linhas[i];
-    for (const padrao of PADROES) {
+    const todosOsPadroes = [...PADROES_PRISMA, ...PADROES_SQL];
+    for (const padrao of todosOsPadroes) {
       if (padrao.test(linha)) {
         violacoes.push({
           ficheiro: relative(ROOT, ficheiro),
           linha: i + 1,
           texto: linha.trim(),
         });
-        break; // um hit por linha é suficiente
+        break;
+      }
+    }
+  }
+}
+
+// Varrer prisma/ — SQL cru em seeds e bulk loaders
+for (const ficheiro of listarTs(PRISMA_DIR)) {
+  if (ficheiro.endsWith('.test.ts') || ficheiro.endsWith('.spec.ts')) continue;
+
+  const conteudo = readFileSync(ficheiro, 'utf8');
+  const linhas = conteudo.split('\n');
+
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i];
+    // Só verificamos periodoId em INSERTs na tabela Lancamento (não PartidaLancamento)
+    if (/INSERT\s+INTO\s+"?Lancamento"?\s*\(/i.test(linha)) {
+      // Verificar se a coluna periodoId está presente na mesma instrução INSERT
+      // (pode ser multi-linha — verificamos o bloco de 10 linhas seguintes)
+      const bloco = linhas.slice(i, i + 10).join(' ');
+      if (!bloco.includes('periodoId')) {
+        violacoes.push({
+          ficheiro: relative(ROOT, ficheiro),
+          linha: i + 1,
+          texto: `INSERT em Lancamento sem "periodoId": ${linha.trim()}`,
+        });
       }
     }
   }

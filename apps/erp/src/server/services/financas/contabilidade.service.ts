@@ -147,7 +147,14 @@ async function criarExercicioComPeriodos(
   tx: Prisma.TransactionClient,
   ano: number,
   tenantId: string,
+  criadoPorId: string | null = null,
 ): Promise<{ id: string }> {
+  // Encadear ao exercício anterior (FK escalar, sem @relation)
+  const anterior = await tx.exercicioContabil.findFirst({
+    where: { tenantId, codigo: String(ano - 1) },
+    select: { id: true },
+  });
+
   // upsert idempotente — o cron já pode ter criado
   const exercicio = await tx.exercicioContabil.upsert({
     where: { tenantId_codigo: { tenantId, codigo: String(ano) } },
@@ -157,6 +164,8 @@ async function criarExercicioComPeriodos(
       dataInicio: inicioDeMesEmMaputo(ano, 1),
       dataFim: fimDeMesEmMaputo(ano, 12),
       estado: 'ABERTO',
+      anteriorId: anterior?.id ?? null,
+      criadoPorId,
     },
     update: {},
     select: { id: true },
@@ -179,8 +188,10 @@ async function criarExercicioComPeriodos(
       update: {},
     });
   }
-  // Período 13 — encerramento (abrange todo o ano; usado para lançamentos de fecho)
+  // Período 13 — encerramento: instante no último milissegundo do ano (ADR-0033 §2)
+  // dataInicio = dataFim = fim do mês 12, alinhado com a migration de backfill.
   const codigo13 = `${ano}-13`;
+  const fimAno = fimDeMesEmMaputo(ano, 12);
   await tx.periodoContabil.upsert({
     where: { tenantId_codigo: { tenantId, codigo: codigo13 } },
     create: {
@@ -188,8 +199,8 @@ async function criarExercicioComPeriodos(
       exercicioId: exercicio.id,
       ordem: 13,
       codigo: codigo13,
-      dataInicio: inicioDeMesEmMaputo(ano, 1),
-      dataFim: fimDeMesEmMaputo(ano, 12),
+      dataInicio: fimAno,
+      dataFim: fimAno,
       estado: 'ABERTO',
     },
     update: {},
@@ -1504,12 +1515,13 @@ export async function abrirExercicio(
 ): Promise<{ ano: number; seriesCriadas: number }> {
   const { ano } = input;
 
-  // resolverPeriodo cria o exercício + os 13 períodos se não existirem (idempotente)
-  const primeiroJaneiro = new Date(Date.UTC(ano, 0, 1, 12, 0, 0));
   let seriesCriadas = 0;
+  // userId 'cron' (string literal) indica criação automática — guardamos null
+  const criadoPorId = ctx.userId === 'cron' ? null : ctx.userId;
 
   await prismaBase.$transaction(async (tx) => {
-    await resolverPeriodo(tx, primeiroJaneiro, ctx.tenantId);
+    // Cria exercício + 13 períodos; idempotente via @@unique([tenantId, codigo])
+    await criarExercicioComPeriodos(tx, ano, ctx.tenantId, criadoPorId);
     seriesCriadas = await bootstrapSeriesDocumento(tx, ctx.tenantId, ano);
   });
 
@@ -1623,16 +1635,20 @@ export async function fecharPeriodo(
       if (reconciliacoes > 0) impedimentos.push('RECONCILIACAO_EM_ANDAMENTO');
     }
 
-    // 4. Todo documento fiscal emitido tem lancamentoId
-    const faturasSemLancamento = await tx.fatura.count({
-      where: {
-        tenantId: ctx.tenantId,
-        status: { in: ['EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA'] },
-        lancamentoId: null,
-        dataEmissao: perDb ? { gte: perDb.data_inicio, lte: perDb.data_fim } : undefined,
-      },
-    });
-    if (faturasSemLancamento > 0) impedimentos.push('DOCUMENTO_SEM_LANCAMENTO');
+    // 4. Todo documento fiscal emitido (Fatura, NotaCredito, NotaDebito) tem lancamentoId
+    const periodoFiltro = perDb ? { gte: perDb.data_inicio, lte: perDb.data_fim } : undefined;
+    const [faturasSL, ncSL, ndSL] = await Promise.all([
+      tx.fatura.count({
+        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+      }),
+      tx.notaCredito.count({
+        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+      }),
+      tx.notaDebito.count({
+        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+      }),
+    ]);
+    if (faturasSL + ncSL + ndSL > 0) impedimentos.push('DOCUMENTO_SEM_LANCAMENTO');
 
     // 5. Balancete equilibrado — total débitos === total créditos no período
     const agregados = await tx.partidaLancamento.groupBy({
@@ -1728,7 +1744,7 @@ export async function reabrirPeriodo(
 
     // Obter keycloakSub do utilizador para o registo de auditoria
     const utilizador = await tx.user.findFirst({
-      where: { id: ctx.userId },
+      where: { id: ctx.userId, tenantId: ctx.tenantId },
       select: { keycloakSub: true },
     });
     const keycloakSub = utilizador?.keycloakSub ?? ctx.userId;

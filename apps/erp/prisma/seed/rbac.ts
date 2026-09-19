@@ -408,6 +408,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
   // FINANCEIRO — contabilidade, faturação, caixa + leituras gerais
   FINANCEIRO: allCodes().filter((code) => {
+    // Permissões sensíveis que o FINANCEIRO não tem: só ADMIN/roles específicos
+    if (['financas:periodo:reabrir', 'financas:exercicio:abrir'].includes(code)) return false;
     if (code.startsWith('financas:')) return true;
     if (code.startsWith('faturacao:')) return true;
     if (code.startsWith('caixa:')) return true;

@@ -35,7 +35,9 @@ export const GET = withApi(
       );
     }
 
-    const anoAlvo = new Date().getUTCFullYear() + 1;
+    // Aceita ?ano=YYYY para abertura manual/forçada; caso contrário abre o ano seguinte.
+    const paramAno = req.nextUrl.searchParams.get('ano');
+    const anoAlvo = paramAno ? parseInt(paramAno, 10) : new Date().getUTCFullYear() + 1;
 
     // A `Assinatura` liga-se ao `Tenant` por `tenantId` escalar, sem `@relation`
     // (regra de FK cross-domínio; está escrita no comentário de `tenant.prisma`).

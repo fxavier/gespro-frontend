@@ -11,7 +11,8 @@
  *   - FOR UPDATE bloqueia FOR SHARE subsequente (T1 vê PERIODO_FECHADO)
  *
  * Os dois casos são testados com duas ligações pg.Client independentes e
- * sincronização explícita por promessas — sem setTimeout, sem contagem de ms.
+ * sincronização explícita por promessas. O único setTimeout é em `esperarBloqueioSobre`
+ * (polling com limite de iterações) — não é espera de tempo fixo, é polling com tecto.
  * A confirmação de que T2 está bloqueado é feita por pg_stat_activity antes
  * de libertar T1, eliminando o falso-positivo de uma espera que nunca chegou
  * a acontecer.

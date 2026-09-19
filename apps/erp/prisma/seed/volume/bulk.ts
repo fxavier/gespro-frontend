@@ -153,14 +153,55 @@ export async function seedTenantBulk(
     FROM generate_series(1, ${MS}) AS n
     ON CONFLICT ("id") DO NOTHING`);
 
+  // ── Contabilidade: exercícios + períodos para os anos cobertos pelo gerador ──
+  // O SPREAD abarca 730 dias (≈ 2 anos); precisamos de ExercicioContabil e
+  // PeriodoContabil para todos os anos possíveis, senão o INSERT de Lancamento
+  // não encontra o periodoId e viola o NOT NULL (ADR-0033 §4).
+  await run(prisma, 'exercícios contabilísticos', `
+    INSERT INTO "ExercicioContabil" ("id","tenantId","codigo","dataInicio","dataFim","estado","createdAt","updatedAt")
+    SELECT
+      ${sqlCuid(`perf:${slug}:exc:`, 'y::text')},
+      '${t}',
+      y::text,
+      (y::text || '-01-01 00:00:00+02')::timestamptz,
+      (y::text || '-12-31 21:59:59.999+00')::timestamptz,
+      'ABERTO',
+      now(), now()
+    FROM generate_series(
+      extract(year from now())::int - 2,
+      extract(year from now())::int + 1
+    ) AS y
+    ON CONFLICT ("tenantId","codigo") DO NOTHING`);
+
+  await run(prisma, 'períodos contabilísticos', `
+    INSERT INTO "PeriodoContabil" ("id","tenantId","exercicioId","ordem","codigo","dataInicio","dataFim","estado","createdAt","updatedAt")
+    SELECT
+      ${sqlCuid(`perf:${slug}:per:`, `y::text || ':' || m::text`)},
+      '${t}',
+      ${sqlCuid(`perf:${slug}:exc:`, 'y::text')},
+      m,
+      y::text || '-' || lpad(m::text, 2, '0'),
+      ((y::text || '-' || lpad(m::text, 2, '0') || '-01 00:00:00+02')::timestamptz),
+      (((y::text || '-' || lpad(m::text, 2, '0') || '-01 00:00:00+02')::timestamptz + interval '1 month') - interval '1 millisecond'),
+      'ABERTO',
+      now(), now()
+    FROM generate_series(extract(year from now())::int - 2, extract(year from now())::int + 1) AS y,
+         generate_series(1, 12) AS m
+    ON CONFLICT ("tenantId","codigo") DO NOTHING`);
+
   // ── Contabilidade: lançamentos + partidas (partida dobrada) ───────────────
   await run(prisma, 'lançamentos', `
     INSERT INTO "Lancamento" ("id","tenantId","numero","data","tipo","origem","diarioId",
-      "historico","valorTotal","status","periodoFiscal","criadoPorId","createdAt","updatedAt")
+      "periodoId","historico","valorTotal","status","periodoFiscal","criadoPorId","createdAt","updatedAt")
     SELECT ${id('lanc', 'n::text')}, '${t}', n::text, d, 'AUTOMATICO',
       CASE n % 4 WHEN 0 THEN 'VENDA' WHEN 1 THEN 'CAIXA' WHEN 2 THEN 'MANUAL' ELSE 'AJUSTE' END::"OrigemLancamento",
-      ${id('diario', `((n % 4) + 1)::text`)}, 'Lançamento perf ' || n,
-      ${valDet(slug, 'lv', 'n')}, 'LANCADO', to_char(d, 'YYYY-MM'), '${base.adminUserId}', d, now()
+      ${id('diario', `((n % 4) + 1)::text`)},
+      (SELECT id FROM "PeriodoContabil"
+       WHERE "tenantId" = '${t}'
+         AND codigo = to_char(d AT TIME ZONE 'Africa/Maputo', 'YYYY-MM')
+       LIMIT 1),
+      'Lançamento perf ' || n,
+      ${valDet(slug, 'lv', 'n')}, 'LANCADO', to_char(d AT TIME ZONE 'Africa/Maputo', 'YYYY-MM'), '${base.adminUserId}', d, now()
     FROM (SELECT n, ${SPREAD} AS d FROM generate_series(1, ${L}) AS n) AS g
     ON CONFLICT ("id") DO NOTHING`);
 
