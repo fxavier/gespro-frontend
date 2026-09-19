@@ -196,7 +196,7 @@ export async function bootstrapSeriesDocumento(
   const anos = [ano];
   // Em Dezembro cria já o ano seguinte para evitar que o cron de 1/12 seja o único caminho
   // ponytail: só criamos 2 anos se estivermos em Dezembro; YAGNI para outros cenários
-  if (mesEmMaputo() === 12 && !anos.includes(ano + 1)) anos.push(ano + 1);
+  if (mesEmMaputo() === 12) anos.push(ano + 1);
 
   let total = 0;
   for (const a of anos) {

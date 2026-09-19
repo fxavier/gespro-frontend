@@ -181,12 +181,16 @@ export async function seedTenantBulk(
       ${sqlCuid(`perf:${slug}:exc:`, 'y::text')},
       m,
       y::text || '-' || lpad(m::text, 2, '0'),
-      ((y::text || '-' || lpad(m::text, 2, '0') || '-01 00:00:00+02')::timestamptz),
-      (((y::text || '-' || lpad(m::text, 2, '0') || '-01 00:00:00+02')::timestamptz + interval '1 month') - interval '1 millisecond'),
+      CASE WHEN m = 13
+        THEN (y::text || '-12-31 21:59:59.999+00')::timestamptz
+        ELSE ((y::text || '-' || lpad(m::text, 2, '0') || '-01 00:00:00+02')::timestamptz) END,
+      CASE WHEN m = 13
+        THEN (y::text || '-12-31 21:59:59.999+00')::timestamptz
+        ELSE (((y::text || '-' || lpad(m::text, 2, '0') || '-01 00:00:00+02')::timestamptz + interval '1 month') - interval '1 millisecond') END,
       'ABERTO',
       now(), now()
     FROM generate_series(extract(year from now())::int - 2, extract(year from now())::int + 1) AS y,
-         generate_series(1, 12) AS m
+         generate_series(1, 13) AS m  -- 13 = encerramento (ADR-0035 §2); sem ele o cenário de encerramento nos perf-* falha
     ON CONFLICT ("tenantId","codigo") DO NOTHING`);
 
   // ── Contabilidade: lançamentos + partidas (partida dobrada) ───────────────

@@ -36,8 +36,16 @@ export const GET = withApi(
     }
 
     // Aceita ?ano=YYYY para abertura manual/forçada; caso contrário abre o ano seguinte.
+    // Sem validação, `?ano=abc` dá NaN e atravessa o ciclo inteiro para falhar
+    // tenant a tenant. Os limites são os mesmos do `AbrirExercicioSchema`.
     const paramAno = req.nextUrl.searchParams.get('ano');
-    const anoAlvo = paramAno ? parseInt(paramAno, 10) : new Date().getUTCFullYear() + 1;
+    const anoAlvo = paramAno ? Number(paramAno) : new Date().getUTCFullYear() + 1;
+    if (!Number.isInteger(anoAlvo) || anoAlvo < 2020 || anoAlvo > 2099) {
+      return NextResponse.json(
+        { error: { code: 'ANO_INVALIDO', message: 'O ano tem de ser um inteiro entre 2020 e 2099.' } },
+        { status: 400 },
+      );
+    }
 
     // A `Assinatura` liga-se ao `Tenant` por `tenantId` escalar, sem `@relation`
     // (regra de FK cross-domínio; está escrita no comentário de `tenant.prisma`).
