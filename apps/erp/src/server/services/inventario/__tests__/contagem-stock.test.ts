@@ -292,13 +292,18 @@ describe('idempotência da reconciliação', () => {
   it('prop: itens AJUSTADOS são sempre ignorados', () => {
     fc.assert(
       fc.property(
-        fc.array(
+        // `uniqueArray` por `id`: a asserção abaixo compara itens PELO id, e o
+        // `id` é chave primária de `ItemContagemStock` — não repete numa
+        // contagem real. Sem a restrição, o fast-check gera dois itens com o
+        // mesmo id (um AJUSTADO, outro não) e a propriedade falha por um
+        // cenário que a base de dados não permite. Falhava ~1 corrida em 3.
+        fc.uniqueArray(
           fc.record({
             id: fc.string({ minLength: 1, maxLength: 10 }),
             status: fc.constantFrom('PENDENTE', 'CONTADO', 'AJUSTADO', 'JUSTIFICADO'),
             diferenca: fc.integer({ min: -100, max: 100 }).map(String),
           }),
-          { minLength: 0, maxLength: 20 },
+          { selector: (i) => i.id, minLength: 0, maxLength: 20 },
         ),
         (itens) => {
           const paraAjuste = itens.filter(
