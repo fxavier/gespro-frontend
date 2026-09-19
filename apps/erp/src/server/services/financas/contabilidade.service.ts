@@ -57,6 +57,34 @@ import {
 } from './contabilidade.interface';
 
 // ---------------------------------------------------------------------------
+// Filtro canónico dos mapas contabilísticos
+// ---------------------------------------------------------------------------
+
+/**
+ * Predicado de status para balancete, razão e DRE.
+ *
+ * Lista explícita em vez de `{ not: 'RASCUNHO' }`: se um quarto valor entrar
+ * no enum amanhã ele não entrará nos mapas em silêncio — terá de ser aqui
+ * adicionado por decisão consciente.
+ *
+ * Decisão (ADR-0033):
+ *
+ * - ESTORNADO (original) é INCLUÍDO: o par original+estorno soma zero nas
+ *   contas, que é o comportamento contabilístico correcto — um estorno é
+ *   um lançamento de reversão e as duas peças ficam no razão.
+ *   O filtro antigo `{ not: 'ESTORNADO' }` excluía o original e contava só
+ *   o espelho, deixando o simétrico do movimento em vez de zero.
+ *
+ * - RASCUNHO é EXCLUÍDO: um rascunho não confirmado não tem efeito contabilístico
+ *   e não deve inflar balancetes, razão nem DRE.
+ *
+ * Quatro locais usam este predicado: `obterContaDetalhe`, `gerarBalancete`,
+ * `razaoConta` e `calcularLinhasDRE` (via `gerarDRE`). Uma única constante
+ * fecha os quatro caminhos.
+ */
+export const FILTRO_LANCAMENTO_MAPA = { in: ['LANCADO', 'ESTORNADO'] as StatusLancamento[] };
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -214,7 +242,7 @@ export async function obterContaDetalhe(
       contaId: id,
       lancamento: {
         data: { gte: intervalo.dataInicio, lte: intervalo.dataFim },
-        status: { not: 'ESTORNADO' },
+        status: FILTRO_LANCAMENTO_MAPA,
       },
     },
     _sum: { valor: true },
@@ -663,7 +691,7 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
       tenantId: ctx.tenantId,
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
-        status: { not: 'ESTORNADO' },
+        status: FILTRO_LANCAMENTO_MAPA,
       },
     },
     _sum: { valor: true },
@@ -693,7 +721,7 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Li
       contaId: filtro.contaId,
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
-        status: { not: 'ESTORNADO' },
+        status: FILTRO_LANCAMENTO_MAPA,
       },
     },
     include: {
@@ -721,6 +749,99 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Li
 }
 
 /**
+ * Tipo mínimo de conta necessário para o cálculo da DRE.
+ * Idêntico ao que `gerarDRE` obtém por `select: { id, codigo, natureza }`.
+ */
+export type ContaParaDRE = { id: string; codigo: string; natureza: 'DEVEDORA' | 'CREDORA' };
+
+/**
+ * Cálculo puro das linhas da DRE a partir de agregados pré-calculados.
+ *
+ * Separado de `gerarDRE` pelo mesmo motivo que `montarLinhasBalancete` existe:
+ * a consulta e a aritmética têm responsabilidades diferentes, e a aritmética
+ * tem de ser testável sem base de dados.
+ *
+ * Correcções aplicadas (achado C do ADR-0033):
+ *
+ * 1. Prefixos sem pontos — os 504 códigos PGC do seed não têm pontos
+ *    (`611`, `6112`, …). `'6.1'.startsWith('6.1')` não coincidia com nenhum
+ *    código real; apenas `saldoPrefixo('7')` acertava. Corrigido para `'61'`,
+ *    `'62'`, etc.
+ *
+ * 2. Duplo cômputo em classe 78 — após a correcção dos prefixos,
+ *    `saldoPrefixo('7')` passa a incluir a classe 78 E
+ *    `saldoPrefixo('78')` também devolve valor. Para evitar que o rendimento
+ *    financeiro entre duas vezes (uma em receitaBruta, outra em
+ *    receitasFinanceiras/resultadoFinanceiro), `receitaBruta` é calculada
+ *    como `saldo('7') − saldo('78')`, ficando só com as receitas operacionais.
+ *
+ * 3. O `.abs()` que aqui existia foi removido. Devolvia sempre magnitudes
+ *    positivas, o que era inócuo enquanto as linhas de gasto davam zero. Deixou
+ *    de o ser: `estornarLancamento` aceita `input.data`, logo um estorno pode
+ *    cair noutro período, e nesse período a conta de gasto tem só o crédito —
+ *    o saldo é negativo e o `.abs()` apresentava-o como gasto positivo, errando
+ *    por duas vezes o valor. A `natureza` já assina o saldo; a página apresenta
+ *    negativos entre parênteses (`DreRow`, `dre/page.tsx`).
+ */
+export function calcularLinhasDRE(
+  agregados: AgregadoPartida[],
+  contas: Map<string, ContaParaDRE>,
+): Omit<DRE, 'dataInicio' | 'dataFim' | 'centroCustoId'> {
+  function saldoPrefixo(prefixo: string): Prisma.Decimal {
+    let s = new Prisma.Decimal(0);
+    for (const a of agregados) {
+      const conta = contas.get(a.contaId);
+      if (!conta || !conta.codigo.startsWith(prefixo)) continue;
+      const valor = a._sum.valor ?? new Prisma.Decimal(0);
+      const isDevedora = conta.natureza === 'DEVEDORA';
+      if (a.tipo === 'DEBITO') s = isDevedora ? s.plus(valor) : s.minus(valor);
+      else s = isDevedora ? s.minus(valor) : s.plus(valor);
+    }
+    // Sem .abs(): a `natureza` já assina o saldo. Um saldo negativo num período
+    // indica uma reversão (p.ex. estorno cross-período que deixa só o crédito
+    // numa conta DEVEDORA) — a DRE deve reflecti-lo tal qual, e a página
+    // apresenta negativos entre parênteses em vermelho (DreRow, dre/page.tsx).
+    return s;
+  }
+
+  // Receitas operacionais = classe 7 excluindo 78 (financeiras).
+  // Calcula-se receitasFinanceiras primeiro para poder subtrair de saldo('7').
+  const receitasFinanceiras = saldoPrefixo('78'); // classe 78 = Rendimentos e ganhos financeiros
+  const receitaBruta = saldoPrefixo('7').minus(receitasFinanceiras);
+  const deducoes = new Prisma.Decimal(0);
+  const receitaLiquida = receitaBruta.minus(deducoes);
+  const custoProdutosVendidos = saldoPrefixo('61'); // classe 61 = Custo dos inventários vendidos
+  const lucroBruto = receitaLiquida.minus(custoProdutosVendidos);
+  const despesasVendas = saldoPrefixo('62');         // classe 62 = Gastos com o pessoal (PGC-NIRF)
+  const despesasAdministrativas = saldoPrefixo('63'); // classe 63 = Fornecimentos e serviços de terceiros (PGC-NIRF)
+  // classe 64 = Perdas por imparidade · 65 = Amortizações e depreciações
+  // classe 66 = Provisões · 67 = Justo valor e outros ajustamentos
+  // classe 68 = Outros gastos e perdas operacionais (PGC-NIRF) — operacional, não financeiro
+  const despesasGerais = saldoPrefixo('64').plus(saldoPrefixo('65')).plus(saldoPrefixo('66'))
+    .plus(saldoPrefixo('67')).plus(saldoPrefixo('68'));
+  const totalDespesasOperacionais = despesasVendas.plus(despesasAdministrativas).plus(despesasGerais);
+  const lucroOperacional = lucroBruto.minus(totalDespesasOperacionais);
+  const despesasFinanceiras = saldoPrefixo('69'); // classe 69 = Gastos e perdas financeiros (PGC-NIRF)
+  const resultadoFinanceiro = receitasFinanceiras.minus(despesasFinanceiras);
+  const lucroAntesImpostos = lucroOperacional.plus(resultadoFinanceiro);
+  // Classe 85 (851 Imposto corrente, 852 Imposto diferido) deixada a zero
+  // até ao ADR-0035 §4: (1) nenhum fluxo escreve a classe 8 actualmente;
+  // (2) a conta 851 tem natureza CREDORA no seed, o que faria um débito de
+  // imposto sair negativo — a lógica de sinal tem de ser decidida em conjunto
+  // com a implementação do ADR-0035. Pré-requisito: linha 823 deste ficheiro.
+  const impostos = new Prisma.Decimal(0);
+  const lucroLiquido = lucroAntesImpostos.minus(impostos);
+
+  return {
+    receitaBruta, deducoes, receitaLiquida,
+    custoProdutosVendidos, lucroBruto,
+    despesasVendas, despesasAdministrativas, despesasGerais, totalDespesasOperacionais,
+    lucroOperacional, receitasFinanceiras, despesasFinanceiras, resultadoFinanceiro,
+    lucroAntesImpostos, impostos, lucroLiquido,
+  };
+}
+
+/**
  * Demonstração de resultados do período.
  *
  * Agregação em SQL pelo mesmo motivo do `gerarBalancete` (defeito D3): a versão
@@ -728,6 +849,8 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Li
  * (conta, lado) não altera a aritmética — a soma é associativa e o sinal
  * depende só do `tipo` (que está na chave de agrupamento) e da `natureza` da
  * conta (que é constante por conta).
+ *
+ * A lógica de cálculo foi extraída para `calcularLinhasDRE` (testável sem DB).
  */
 export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
   const agregados = await prisma.partidaLancamento.groupBy({
@@ -737,7 +860,7 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
       ...(filtro.centroCustoId ? { centroCustoId: filtro.centroCustoId } : {}),
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
-        status: { not: 'ESTORNADO' },
+        status: FILTRO_LANCAMENTO_MAPA,
       },
     },
     _sum: { valor: true },
@@ -747,48 +870,13 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
     where: { tenantId: ctx.tenantId, id: { in: [...new Set(agregados.map((a) => a.contaId))] } },
     select: { id: true, codigo: true, natureza: true },
   });
-  const porId = new Map(contas.map((c) => [c.id, c]));
-
-  // Saldo líquido das somas agregadas para um prefixo de código de conta
-  function saldoPrefixo(prefixo: string): Prisma.Decimal {
-    let s = new Prisma.Decimal(0);
-    for (const a of agregados) {
-      const conta = porId.get(a.contaId);
-      if (!conta || !conta.codigo.startsWith(prefixo)) continue;
-      const valor = a._sum.valor ?? new Prisma.Decimal(0);
-      const isDevedora = conta.natureza === 'DEVEDORA';
-      if (a.tipo === 'DEBITO') s = isDevedora ? s.plus(valor) : s.minus(valor);
-      else s = isDevedora ? s.minus(valor) : s.plus(valor);
-    }
-    return s.abs(); // retornar valor absoluto — o sinal é interpretado pelo contexto DRE
-  }
-
-  const receitaBruta = saldoPrefixo('7');
-  const deducoes = new Prisma.Decimal(0);
-  const receitaLiquida = receitaBruta.minus(deducoes);
-  const custoProdutosVendidos = saldoPrefixo('6.1');
-  const lucroBruto = receitaLiquida.minus(custoProdutosVendidos);
-  const despesasVendas = saldoPrefixo('6.2');
-  const despesasAdministrativas = saldoPrefixo('6.3');
-  const despesasGerais = saldoPrefixo('6.4').plus(saldoPrefixo('6.5')).plus(saldoPrefixo('6.6')).plus(saldoPrefixo('6.7'));
-  const totalDespesasOperacionais = despesasVendas.plus(despesasAdministrativas).plus(despesasGerais);
-  const lucroOperacional = lucroBruto.minus(totalDespesasOperacionais);
-  const receitasFinanceiras = saldoPrefixo('7.8');
-  const despesasFinanceiras = saldoPrefixo('6.8');
-  const resultadoFinanceiro = receitasFinanceiras.minus(despesasFinanceiras);
-  const lucroAntesImpostos = lucroOperacional.plus(resultadoFinanceiro);
-  const impostos = saldoPrefixo('6.9');
-  const lucroLiquido = lucroAntesImpostos.minus(impostos);
+  const porId = new Map(contas.map((c) => [c.id, c as ContaParaDRE]));
 
   return {
     dataInicio: filtro.dataInicio,
     dataFim: filtro.dataFim,
     centroCustoId: filtro.centroCustoId,
-    receitaBruta, deducoes, receitaLiquida,
-    custoProdutosVendidos, lucroBruto,
-    despesasVendas, despesasAdministrativas, despesasGerais, totalDespesasOperacionais,
-    lucroOperacional, receitasFinanceiras, despesasFinanceiras, resultadoFinanceiro,
-    lucroAntesImpostos, impostos, lucroLiquido,
+    ...calcularLinhasDRE(agregados, porId),
   };
 }
 

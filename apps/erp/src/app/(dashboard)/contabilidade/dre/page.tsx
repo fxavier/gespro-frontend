@@ -73,8 +73,8 @@ async function DreSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; t
             <DreRow label="(-) Custo dos Bens/Serviços Vendidos" value={-n(dre.custoProdutosVendidos)} indent={1} />
             <DreRow label="LUCRO BRUTO" value={n(dre.lucroBruto)} highlight />
             <DreRow label="DESPESAS OPERACIONAIS" value={-n(dre.totalDespesasOperacionais)} bold />
-            <DreRow label="Despesas de Vendas" value={-n(dre.despesasVendas)} indent={1} />
-            <DreRow label="Despesas Administrativas" value={-n(dre.despesasAdministrativas)} indent={1} />
+            <DreRow label="Gastos com o Pessoal" value={-n(dre.despesasVendas)} indent={1} />
+            <DreRow label="Fornecimentos e Serviços de Terceiros" value={-n(dre.despesasAdministrativas)} indent={1} />
             <DreRow label="Outras Despesas Gerais" value={-n(dre.despesasGerais)} indent={1} />
             <DreRow label="LUCRO OPERACIONAL" value={n(dre.lucroOperacional)} highlight />
             <DreRow label="(+) Receitas Financeiras" value={n(dre.receitasFinanceiras)} indent={1} />
