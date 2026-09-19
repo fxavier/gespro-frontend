@@ -225,6 +225,51 @@ export function construirLancamentoNotaCredito(nc: {
   };
 }
 
+export function construirLancamentoNotaDebito(nd: {
+  id: string;
+  numero: string;
+  total: Prisma.Decimal;
+  subtotal: Prisma.Decimal;
+  ivaTotal: Prisma.Decimal;
+  dataEmissao: Date;
+}): RegistarLancamentoContabilisticoInput {
+  // Nota de débito: o cliente passa a dever mais → D Clientes, C Receita (+IVA)
+  // É o espelho contabilístico da nota de crédito.
+  const partidas: RegistarLancamentoContabilisticoInput['partidas'] = [
+    {
+      contaCodigo: PGC_FATURACAO.CLIENTES_CC,
+      tipo: 'DEBITO',
+      valor: nd.total.toFixed(2),
+      historico: `ND ${nd.numero} — débito clientes`,
+    },
+    {
+      contaCodigo: PGC_FATURACAO.RECEITA_VENDAS,
+      tipo: 'CREDITO',
+      valor: nd.subtotal.toFixed(2),
+      historico: `ND ${nd.numero} — receita adicional`,
+    },
+  ];
+
+  if (nd.ivaTotal.greaterThan(0)) {
+    partidas.push({
+      contaCodigo: PGC_FATURACAO.IVA_LIQUIDADO,
+      tipo: 'CREDITO',
+      valor: nd.ivaTotal.toFixed(2),
+      historico: `ND ${nd.numero} — IVA adicional`,
+    });
+  }
+
+  return {
+    data: nd.dataEmissao,
+    diarioTipo: 'VENDAS',
+    origem: 'VENDA',
+    documentoOrigemId: nd.id,
+    documentoOrigemTipo: 'NotaDebito',
+    historico: `Nota de débito ${nd.numero}`,
+    partidas,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // proximoNumeroSerie — UPDATE...RETURNING atómico (sem lacunas)
 // Chamado por todos os WS via $transaction.
@@ -447,8 +492,11 @@ export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<
       ),
     );
 
-    // Wave 3: lançamento contabilístico automático na MESMA transacção
-    await registarLancamentoContabilistico(
+    // Wave 3: lançamento contabilístico automático na MESMA transacção.
+    // O retorno é guardado para ligar Fatura.lancamentoId — sem esta ligação
+    // a pré-condição DOCUMENTO_SEM_LANCAMENTO impede o apuramento de IVA e o
+    // fecho do período em TODOS os meses com actividade (verificado em prod).
+    const lancamentoFatura = await registarLancamentoContabilistico(
       tx,
       construirLancamentoFatura({
         id: fatura.id,
@@ -460,6 +508,10 @@ export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<
       }),
       ctx,
     );
+    await tx.fatura.update({
+      where: { id: fatura.id },
+      data: { lancamentoId: lancamentoFatura.id },
+    });
 
     return tx.fatura.findFirst({
       where: { id: fatura.id },
@@ -620,8 +672,9 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
       ),
     );
 
-    // Wave 3: lançamento de estorno contabilístico na MESMA transacção
-    await registarLancamentoContabilistico(
+    // Wave 3: lançamento de estorno contabilístico na MESMA transacção.
+    // Guarda lancamentoId — idem à factura: sem ligação o apuramento fica bloqueado.
+    const lancamentoNC = await registarLancamentoContabilistico(
       tx,
       construirLancamentoNotaCredito({
         id: nc.id,
@@ -633,6 +686,10 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
       }),
       ctx,
     );
+    await tx.notaCredito.update({
+      where: { id: nc.id },
+      data: { lancamentoId: lancamentoNC.id },
+    });
 
     return tx.notaCredito.findFirst({
       where: { id: nc.id },
@@ -758,6 +815,26 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
         }),
       ),
     );
+
+    // Lançamento contabilístico da nota de débito na MESMA transacção.
+    // A ND não tinha este lançamento — adicionado em conjunto com a ligação
+    // lancamentoId que o apuramento de IVA e o fecho de período exigem.
+    const lancamentoND = await registarLancamentoContabilistico(
+      tx,
+      construirLancamentoNotaDebito({
+        id: nd.id,
+        numero,
+        total: subtotal.plus(ivaTotal),
+        subtotal,
+        ivaTotal,
+        dataEmissao: input.dataEmissao,
+      }),
+      ctx,
+    );
+    await tx.notaDebito.update({
+      where: { id: nd.id },
+      data: { lancamentoId: lancamentoND.id },
+    });
 
     return tx.notaDebito.findFirst({
       where: { id: nd.id },

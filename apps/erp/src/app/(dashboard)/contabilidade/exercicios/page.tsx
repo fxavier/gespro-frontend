@@ -2,15 +2,14 @@
  * Exercícios Contabilísticos — Server Component (NUNCA 'use client').
  *
  * Exibe os exercícios do tenant com os respectivos treze períodos.
- * Uma única acção de escrita: abrir exercício (rota dedicada /novo).
- * Fecho de período não está disponível nesta entrega — aguarda o
- * apuramento do IVA (ADR-0034, Fase 2).
+ * Acções disponíveis por período: Fechar (inline, com lista de impedimentos)
+ * e Reabrir (rota dedicada — exige motivo).
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus, CalendarDays, Lock } from 'lucide-react';
+import { Plus, CalendarDays } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
@@ -19,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge, EmptyState } from '@/components/patterns';
 import { formatarData } from '@/lib/format-date';
 import { ExerciciosTableSkeleton } from './_components/exercicios-skeleton';
+import { PeriodoAcoes } from './_components/periodo-acoes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Componente de períodos de um exercício
@@ -38,11 +38,12 @@ function GrelhaperiodosExercicio({ periodos }: { periodos: PeriodoContabil[] }) 
             <th className="py-2 px-3 text-left font-medium text-muted-foreground">Fim</th>
             <th className="py-2 px-3 text-left font-medium text-muted-foreground">Estado</th>
             <th className="py-2 px-3 text-left font-medium text-muted-foreground">Fechado em</th>
+            <th className="py-2 px-3 text-left font-medium text-muted-foreground">Acções</th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((p) => (
-            <tr key={p.id} className="border-b last:border-0 hover:bg-muted/40 transition-colors">
+            <tr key={p.id} className="border-b last:border-0 hover:bg-muted/40 transition-colors align-top">
               <td className="py-2 px-3 font-medium">
                 {p.ordem === 13 ? 'Período 13 (encerramento)' : `Mês ${p.ordem}`}
               </td>
@@ -54,6 +55,9 @@ function GrelhaperiodosExercicio({ periodos }: { periodos: PeriodoContabil[] }) 
               </td>
               <td className="py-2 px-3 text-muted-foreground">
                 {p.fechadoEm ? formatarData(p.fechadoEm) : '—'}
+              </td>
+              <td className="py-2 px-3">
+                <PeriodoAcoes periodoId={p.id} estado={p.estado} />
               </td>
             </tr>
           ))}
@@ -162,27 +166,6 @@ async function ExerciciosSection({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Aviso de fecho de períodos em falta
-// ─────────────────────────────────────────────────────────────────────────────
-
-function AvisoFechoPeriodo() {
-  return (
-    <div className="rounded-lg border border-info/40 bg-info/10 p-4 text-sm flex items-start gap-3">
-      <Lock className="h-4 w-4 mt-0.5 text-info shrink-0" />
-      <div>
-        <p className="font-medium text-info">Fecho de períodos disponível na Fase 2</p>
-        <p className="mt-1 text-muted-foreground">
-          O fecho manual de períodos mensais estará disponível quando o apuramento do IVA
-          for implementado (ADR-0034). Uma das pré-condições de fecho é que o IVA do
-          período esteja apurado — fechar um período sem essa confirmação assinaria um
-          mapa que pode mudar depois de entregue à AT.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Página principal — Server Component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -210,8 +193,6 @@ export default async function ExerciciosPage() {
           </Button>
         }
       />
-
-      <AvisoFechoPeriodo />
 
       <Suspense fallback={<ExerciciosTableSkeleton />}>
         <ExerciciosSection tenantId={tenantId} userId={userId} />

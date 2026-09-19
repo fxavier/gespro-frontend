@@ -33,6 +33,7 @@ import {
   Wrench,
   Calendar,
   Settings,
+  PercentCircle,
 } from 'lucide-react';
 
 interface NavItem {
@@ -69,6 +70,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Plano de Contas', href: '/contabilidade/plano-contas', icon: BookOpen, group: 'Finanças' },
   { label: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText, group: 'Finanças' },
   { label: 'Exercícios Contabilísticos', href: '/contabilidade/exercicios', icon: Calendar, group: 'Finanças' },
+  { label: 'Apuramento de IVA', href: '/contabilidade/iva', icon: PercentCircle, group: 'Finanças' },
   { label: 'Configurações de Contabilidade', href: '/contabilidade/configuracoes', icon: Settings, group: 'Finanças' },
   { label: 'Caixa', href: '/caixa', icon: Receipt, group: 'Finanças' },
 

@@ -12,7 +12,7 @@ import {
   Clock, Wallet, Ticket, UserCog, Calendar,
   Award, GraduationCap, Factory, FileBarChart2, PackageSearch, LineChart,
   RotateCcw, AlertCircle, BookMarked as JournalIcon, CreditCard,
-  PanelLeftClose, PanelLeftOpen, Settings,
+  PanelLeftClose, PanelLeftOpen, Settings, PercentCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -114,6 +114,7 @@ const menuItems: MenuItem[] = [
       { title: 'Balancete', href: '/contabilidade/balancete', icon: FileBarChart2 },
       { title: 'Reconciliação', href: '/contabilidade/reconciliacao', icon: Landmark },
       { title: 'Exercícios', href: '/contabilidade/exercicios', icon: Calendar },
+      { title: 'Apuramento de IVA', href: '/contabilidade/iva', icon: PercentCircle },
       { title: 'Faturação', href: '/faturacao/dashboard', icon: Receipt },
       { title: 'Caixa', href: '/caixa', icon: Wallet },
       { title: 'Configurações', href: '/contabilidade/configuracoes', icon: Settings },

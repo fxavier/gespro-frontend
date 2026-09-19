@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
 import {
   construirLancamentoFatura,
   construirLancamentoNotaCredito,
+  construirLancamentoNotaDebito,
   PGC_FATURACAO,
 } from '../faturacao.service';
 
@@ -258,5 +259,121 @@ describe('PGC_FATURACAO', () => {
 
   it('usa código 44331 para IVA liquidado (PGC-NIRF 4.4.3.3.1)', () => {
     expect(PGC_FATURACAO.IVA_LIQUIDADO).toBe('44331');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// construirLancamentoNotaDebito
+// ---------------------------------------------------------------------------
+
+describe('construirLancamentoNotaDebito', () => {
+  const nd = {
+    id: 'nd-1',
+    numero: 'ND/2026/000001',
+    total: new Prisma.Decimal('1160'),
+    subtotal: new Prisma.Decimal('1000'),
+    ivaTotal: new Prisma.Decimal('160'),
+    dataEmissao: new Date('2026-06-20'),
+  };
+
+  it('retorna diário VENDAS e origem VENDA e tipo NotaDebito', () => {
+    const l = construirLancamentoNotaDebito(nd);
+    expect(l.diarioTipo).toBe('VENDAS');
+    expect(l.origem).toBe('VENDA');
+    expect(l.documentoOrigemTipo).toBe('NotaDebito');
+    expect(l.documentoOrigemId).toBe('nd-1');
+  });
+
+  it('invariante: sum(débitos) === sum(créditos)', () => {
+    const l = construirLancamentoNotaDebito(nd);
+    const d = l.partidas.filter(p => p.tipo === 'DEBITO').reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
+    const c = l.partidas.filter(p => p.tipo === 'CREDITO').reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
+    expect(d.toString()).toBe(c.toString());
+  });
+
+  it('débito em Clientes c/c igual ao total (ND aumenta o que o cliente deve)', () => {
+    const l = construirLancamentoNotaDebito(nd);
+    const debClientes = l.partidas.find(p => p.contaCodigo === PGC_FATURACAO.CLIENTES_CC && p.tipo === 'DEBITO');
+    expect(new Prisma.Decimal(debClientes!.valor).toString()).toBe('1160');
+  });
+
+  it('crédito em Receita de Vendas igual ao subtotal', () => {
+    const l = construirLancamentoNotaDebito(nd);
+    const credReceita = l.partidas.find(p => p.contaCodigo === PGC_FATURACAO.RECEITA_VENDAS && p.tipo === 'CREDITO');
+    expect(new Prisma.Decimal(credReceita!.valor).toString()).toBe('1000');
+  });
+
+  it('crédito em IVA liquidado quando ivaTotal > 0 (ND aumenta IVA a pagar)', () => {
+    const l = construirLancamentoNotaDebito(nd);
+    const credIva = l.partidas.find(p => p.contaCodigo === PGC_FATURACAO.IVA_LIQUIDADO && p.tipo === 'CREDITO');
+    expect(new Prisma.Decimal(credIva!.valor).toString()).toBe('160');
+  });
+
+  it('gera 3 partidas quando ivaTotal > 0', () => {
+    const l = construirLancamentoNotaDebito(nd);
+    expect(l.partidas).toHaveLength(3);
+  });
+
+  it('gera 2 partidas quando ivaTotal === 0 (isento de IVA)', () => {
+    const l = construirLancamentoNotaDebito({ ...nd, ivaTotal: new Prisma.Decimal('0'), total: new Prisma.Decimal('1000') });
+    expect(l.partidas).toHaveLength(2);
+    const credIva = l.partidas.find(p => p.contaCodigo === PGC_FATURACAO.IVA_LIQUIDADO);
+    expect(credIva).toBeUndefined();
+  });
+
+  it('é o espelho contabilístico da nota de crédito (partidas com sinais trocados)', () => {
+    // NC: D Receita / C Clientes / D IVA
+    // ND: C Receita / D Clientes / C IVA
+    const lNC = construirLancamentoNotaCredito(nd);
+    const lND = construirLancamentoNotaDebito(nd);
+    for (const nc of lNC.partidas) {
+      const nd_ = lND.partidas.find(p => p.contaCodigo === nc.contaCodigo);
+      expect(nd_).toBeDefined();
+      expect(nd_!.tipo).toBe(nc.tipo === 'DEBITO' ? 'CREDITO' : 'DEBITO');
+      expect(new Prisma.Decimal(nd_!.valor).toString()).toBe(new Prisma.Decimal(nc.valor).toString());
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ligação lancamentoId — prova que emitirFatura/NC/ND preenche o campo
+//
+// O wiring acontece dentro da transacção de emissão: captura o retorno de
+// `registarLancamentoContabilistico` e faz `update({ data: { lancamentoId } })`.
+// Sem isso, `DOCUMENTO_SEM_LANCAMENTO` recusa o apuramento e o fecho de período
+// em todos os meses com actividade — o que aconteceu em produção.
+//
+// Estes testes verificam o wiring por inspeção do código do serviço exportado:
+// as funções `construirLancamento*` têm `documentoOrigemTipo` correcto, o que
+// é a metade do contrato. A outra metade (update dentro de $transaction) está
+// no serviço e é garantida pelo teste de integração do §7 no Postgres real.
+// ---------------------------------------------------------------------------
+
+describe('documentoOrigemTipo — identifica o documento no lançamento', () => {
+  it('construirLancamentoFatura usa "Fatura" como documentoOrigemTipo (backfill SQL dependente)', () => {
+    const l = construirLancamentoFatura({
+      id: 'fat-1', numero: 'FAT/2026/000001',
+      total: new Prisma.Decimal('1160'), subtotal: new Prisma.Decimal('1000'),
+      ivaTotal: new Prisma.Decimal('160'), dataEmissao: new Date('2026-06-01'),
+    });
+    expect(l.documentoOrigemTipo).toBe('Fatura');
+  });
+
+  it('construirLancamentoNotaCredito usa "NotaCredito" como documentoOrigemTipo', () => {
+    const l = construirLancamentoNotaCredito({
+      id: 'nc-1', numero: 'NC/2026/000001',
+      total: new Prisma.Decimal('1160'), subtotal: new Prisma.Decimal('1000'),
+      ivaTotal: new Prisma.Decimal('160'), dataEmissao: new Date('2026-06-01'),
+    });
+    expect(l.documentoOrigemTipo).toBe('NotaCredito');
+  });
+
+  it('construirLancamentoNotaDebito usa "NotaDebito" como documentoOrigemTipo', () => {
+    const l = construirLancamentoNotaDebito({
+      id: 'nd-1', numero: 'ND/2026/000001',
+      total: new Prisma.Decimal('1160'), subtotal: new Prisma.Decimal('1000'),
+      ivaTotal: new Prisma.Decimal('160'), dataEmissao: new Date('2026-06-01'),
+    });
+    expect(l.documentoOrigemTipo).toBe('NotaDebito');
   });
 });

@@ -9,9 +9,9 @@
  * que redirecciona, chamada pelo handleSubmit»).
  *
  * Nota sobre fechoPeriodoAutomatico: o campo é mostrado mas desactivado.
- * A pré-condição de apuramento do IVA (ADR-0034) ainda não está implementada,
- * por isso a preferência fica guardada mas não produz efeito nenhum até à
- * Fase 2.
+ * O apuramento do IVA (ADR-0034) está implementado e é pré-condição de fecho.
+ * O que ainda não existe é o cron que executaria o fecho automático —
+ * a preferência fica guardada e será activada quando o agendador for configurado.
  */
 
 import { useTransition } from 'react';
@@ -204,15 +204,16 @@ export function CalendarioForm({ initialData }: { initialData: InitialData }) {
           title="Fecho automático de períodos"
           description="Configuração do fecho mensal automático após o fim do período"
         >
-          <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm mb-4">
-            <p className="font-medium text-warning">
-              Disponível na Fase 2 — aguarda o apuramento do IVA
+          <div className="rounded-lg border border-muted bg-muted/20 p-4 text-sm mb-4">
+            <p className="font-medium text-foreground">
+              Fecho automático ainda sem agendador
             </p>
             <p className="mt-1 text-muted-foreground">
-              Uma das pré-condições de fecho de período é que o apuramento do IVA
-              esteja feito (ADR-0033 §6). O apuramento do IVA será implementado
-              na Fase 2 (ADR-0034). A preferência fica guardada e será activada
-              automaticamente quando a funcionalidade estiver disponível.
+              A pré-condição de apuramento do IVA (ADR-0034) já existe e está
+              implementada — o que ainda não existe é o processo agendado (cron)
+              que executaria o fecho automático. A preferência fica guardada e
+              será activada quando o agendador for configurado (ver
+              docs/runbooks/agendador.md).
             </p>
           </div>
 
@@ -225,7 +226,7 @@ export function CalendarioForm({ initialData }: { initialData: InitialData }) {
                   <FormLabel>Fecho automático de períodos</FormLabel>
                   <FormDescription>
                     Fecha os períodos mensais automaticamente após os dias configurados.
-                    Inactivo até ao apuramento do IVA estar disponível.
+                    Inactivo até o agendador automático estar configurado.
                   </FormDescription>
                 </div>
                 <FormControl>

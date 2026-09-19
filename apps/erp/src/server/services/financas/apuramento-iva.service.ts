@@ -440,6 +440,15 @@ export async function apurarIva(
     // Se não há partidas (apuramento trivialmente zero), geramos um lançamento vazio
     // com as contas de 4435 D e C = 0, para registar que o apuramento foi feito.
     // Se todas as partidas têm valor 0, o lançamento seria desequilibrado — não criar.
+    // Nomes das contas de destino (4435/4437/4438), que não aparecem nos
+    // agregados do razão por não terem movimento prévio no período.
+    const codigosPartidas = [...new Set(resultado.partidas.map((x) => x.contaCodigo))];
+    const nomesDestino = new Map(
+      (await tx.contaPGC.findMany({
+        where: { tenantId: ctx.tenantId, codigo: { in: codigosPartidas } },
+        select: { codigo: true, nome: true },
+      })).map((c) => [c.codigo, c.nome] as const),
+    );
     const totalDebitos = resultado.partidas
       .filter((p) => p.tipo === 'DEBITO')
       .reduce((acc, p) => acc.plus(p.valor), new Prisma.Decimal(0));
@@ -556,8 +565,14 @@ export async function apurarIva(
         const base = basesPorConta.get(p.contaCodigo) ?? null;
         const taxa = base !== null ? TAXA_NORMAL : null;
         const divergencia = calcularDivergencia(base, taxa, p.valor);
+        // `contasDb` só traz as contas COM movimento no razão. As de destino do
+        // apuramento — 4435, 4437, 4438 — não têm movimento prévio no período,
+        // e ficavam sem nome: a linha gravava o código onde devia estar «IVA a
+        // pagar». Precisamente na coluna que existe para preservar o nome à data.
         const nomeContaNaLinha =
-          contasDb.find((c) => c.codigo === p.contaCodigo)?.nome ?? p.contaCodigo;
+          contasDb.find((c) => c.codigo === p.contaCodigo)?.nome ??
+          nomesDestino.get(p.contaCodigo) ??
+          p.contaCodigo;
         return {
           tenantId: ctx.tenantId,
           apuramentoId: apuramento.id,

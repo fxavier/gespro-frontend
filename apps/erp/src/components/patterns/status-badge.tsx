@@ -79,6 +79,11 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   // append-only. Fica neutro, como CANCELADA, e não a vermelho.
   ESTORNADO: 'secondary',
 
+  // Apuramento de IVA (EstadoApuramentoIva — ADR-0034 §7)
+  // ESTORNADO já definido acima com a mesma variante.
+  APURADO: 'success',
+  DECLARADO: 'info',   // diferente de APURADO: declarado à AT é informativo, não terminal
+
   // Exercício contabilístico (EstadoExercicio — ADR-0033 §1)
   // ABERTO e FECHADO já existem acima (Tickets) com variantes compatíveis.
   EM_ENCERRAMENTO: 'info',
@@ -307,6 +312,9 @@ export const STATUS_LABELS: Record<string, string> = {
   RASCUNHO: 'Rascunho',
   LANCADO: 'Lançado',
   ESTORNADO: 'Estornado',
+  // Apuramento de IVA (ADR-0034)
+  APURADO: 'Apurado',
+  DECLARADO: 'Declarado à AT',
   // Exercício contabilístico (ADR-0033)
   EM_ENCERRAMENTO: 'Em Encerramento',
   ENCERRADO_PROVISORIO: 'Encerrado (Provisório)',
