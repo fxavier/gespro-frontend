@@ -24,6 +24,7 @@ import type {
   FiltroDREInput,
   FecharPeriodoInput,
   ReabrirPeriodoInput,
+  AbrirExercicioInput,
   ListarPeriodosInput,
 } from '@/lib/validations/contabilidade';
 import type { MatchSugerido } from './reconciliacao.helpers';
@@ -511,6 +512,7 @@ export interface IContabilidadeService {
 
   // --- Períodos e Exercícios (ADR-0033 §5, §6, §7) ---
   listarPeriodos(filtro: ListarPeriodosInput, ctx: Ctx): Promise<PeriodoContabil[]>;
+  abrirExercicio(input: AbrirExercicioInput, ctx: Ctx): Promise<{ ano: number; seriesCriadas: number }>;
   listarExercicios(ctx: Ctx): Promise<ExercicioContabil[]>;
   fecharPeriodo(input: FecharPeriodoInput, ctx: Ctx): Promise<ResultadoFechoPeriodo>;
   reabrirPeriodo(input: ReabrirPeriodoInput, ctx: Ctx): Promise<PeriodoContabil>;

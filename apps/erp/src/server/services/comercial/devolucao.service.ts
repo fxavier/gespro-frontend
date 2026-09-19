@@ -168,7 +168,7 @@ export class DevolucaoService {
     }
 
     return prismaBase.$transaction(async (tx) => {
-      const numero = await proximoNumeroSerie(tx, 'NOTA_DEVOLUCAO', ctx);
+      const numero = await proximoNumeroSerie(tx, 'NOTA_DEVOLUCAO', ctx, new Date());
 
       const devolucao = await tx.devolucao.create({
         data: {

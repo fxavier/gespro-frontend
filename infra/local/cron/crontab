@@ -16,3 +16,8 @@
 
 # Alertas de transporte: documentos a expirar e manutenções pendentes.
 30 3 * * * chamar /api/cron/transporte-alertas
+
+# Abertura do exercício contabilístico do ano seguinte (ADR-0033 §3).
+# Corre apenas em Dezembro (mês 12): cria ExercicioContabil + PeriodoContabil + séries.
+# Idempotente — pode correr à mão sem efeito se o exercício já existir.
+0 2 1 12 * chamar /api/cron/abrir-exercicio

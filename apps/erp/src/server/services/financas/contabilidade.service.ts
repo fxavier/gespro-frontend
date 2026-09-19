@@ -29,7 +29,9 @@ import type {
   FecharPeriodoInput,
   ReabrirPeriodoInput,
   ListarPeriodosInput,
+  AbrirExercicioInput,
 } from '@/lib/validations/contabilidade';
+import { bootstrapSeriesDocumento } from '@/server/provisioning/tenant-bootstrap';
 import {
   calcularDiferencaNaoConciliada,
   sugerirMatchesPuro,
@@ -1484,6 +1486,36 @@ export async function listarReconciliacoes(ctx: Ctx): Promise<ReconciliacaoComCo
 // Períodos e Exercícios (ADR-0033 §5, §6, §7)
 // ---------------------------------------------------------------------------
 
+/**
+ * Abre o exercício contabilístico para um dado ano — cria ExercicioContabil + 13 PeriodoContabil
+ * + séries de documento para o tenant do contexto.
+ *
+ * Idempotente: o @@unique([tenantId, codigo]) e o skipDuplicates garantem que chamar duas vezes
+ * para o mesmo ano não duplica nem lança erro.
+ *
+ * Partilhado entre o cron de Dezembro (disparo automático) e a Server Action
+ * `abrirExercicio` (disparo manual, requer `financas:exercicio:abrir`).
+ *
+ * @returns { seriesCriadas } — número de séries novas criadas (0 se já existiam todas)
+ */
+export async function abrirExercicio(
+  input: AbrirExercicioInput,
+  ctx: Ctx,
+): Promise<{ ano: number; seriesCriadas: number }> {
+  const { ano } = input;
+
+  // resolverPeriodo cria o exercício + os 13 períodos se não existirem (idempotente)
+  const primeiroJaneiro = new Date(Date.UTC(ano, 0, 1, 12, 0, 0));
+  let seriesCriadas = 0;
+
+  await prismaBase.$transaction(async (tx) => {
+    await resolverPeriodo(tx, primeiroJaneiro, ctx.tenantId);
+    seriesCriadas = await bootstrapSeriesDocumento(tx, ctx.tenantId, ano);
+  });
+
+  return { ano, seriesCriadas };
+}
+
 export async function listarExercicios(ctx: Ctx): Promise<ExercicioContabil[]> {
   return prisma.exercicioContabil.findMany({
     where: { tenantId: ctx.tenantId },
@@ -1848,6 +1880,7 @@ export const contabilidadeService = {
   cancelarReconciliacao,
   obterReconciliacao,
   listarReconciliacoes,
+  abrirExercicio,
   listarExercicios,
   listarPeriodos,
   fecharPeriodo,

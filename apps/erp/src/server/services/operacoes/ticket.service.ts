@@ -144,7 +144,7 @@ async function criarTicket(
   const sla = calcularSla(input.prioridade, agora, categoriaTempos);
 
   const ticket = await prismaBase.$transaction(async (tx) => {
-    const numero = await proximoNumeroSerie(tx, 'TICKET', ctx);
+    const numero = await proximoNumeroSerie(tx, 'TICKET', ctx, new Date());
 
     const created = await tx.ticket.create({
       data: {

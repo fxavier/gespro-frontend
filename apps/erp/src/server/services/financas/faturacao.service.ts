@@ -230,11 +230,34 @@ export function construirLancamentoNotaCredito(nc: {
 // Chamado por todos os WS via $transaction.
 // ---------------------------------------------------------------------------
 
+/**
+ * Devolve o ano civil do documento em Africa/Maputo.
+ *
+ * Necessário porque o servidor corre em UTC: um documento emitido a 1 de
+ * Janeiro de 2027 às 00:30 de Maputo (= 2026-12-31T22:30Z) tem ano 2027
+ * em Maputo mas 2026 em UTC. Usar getFullYear() aqui escolheria a série de
+ * 2026 para um documento de 2027.
+ */
+function anoFiscalDe(data: Date): number {
+  const partes = new Intl.DateTimeFormat('pt-MZ', {
+    timeZone: 'Africa/Maputo',
+    year: 'numeric',
+  }).formatToParts(data);
+  return parseInt(partes.find((p) => p.type === 'year')!.value, 10);
+}
+
 export async function proximoNumeroSerie(
   tx: Prisma.TransactionClient,
   tipo: TipoSerieDocumento,
   ctx: Ctx,
+  data: Date,
 ): Promise<string> {
+  // ADR-0033 §4: filtra pelo ano do documento (em Africa/Maputo) em vez de ORDER BY ano DESC.
+  // O modo de falha anterior era silencioso: a 1 de Janeiro de 2027, com só a série de 2026
+  // activa, continuava a emitir FAT/2026/000487 para documentos de 2027. Agora lança
+  // SERIE_NAO_ENCONTRADA — um erro que pára a emissão e se repara em 5 minutos.
+  const anoDocumento = anoFiscalDe(data);
+
   // Incrementa atomicamente e devolve o número anterior (que irá usar o documento).
   // FOR UPDATE na subquery garante serialização sem lacunas mesmo com transacções concorrentes.
   const rows = await tx.$queryRaw<
@@ -247,7 +270,7 @@ export async function proximoNumeroSerie(
       WHERE "tenantId" = ${ctx.tenantId}
         AND tipo::text = ${tipo as string}
         AND ativo = true
-      ORDER BY ano DESC, "createdAt" DESC
+        AND ano = ${anoDocumento}
       LIMIT 1
       FOR UPDATE
     )
@@ -257,7 +280,7 @@ export async function proximoNumeroSerie(
   if (!rows.length) {
     throw new BusinessRuleError(
       'SERIE_NAO_ENCONTRADA',
-      `Série activa para tipo "${tipo}" não encontrada. Crie uma série primeiro.`,
+      `Série activa para tipo "${tipo}" no ano ${anoDocumento} não encontrada. Crie a série ${anoDocumento} primeiro.`,
     );
   }
 
@@ -381,7 +404,7 @@ export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<
       if (!venda) throw new NotFoundError('Venda não encontrada');
     }
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
     const totais = calcularTotaisLinhas(input.linhas);
 
     const fatura = await tx.fatura.create({
@@ -547,7 +570,7 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
     });
     if (!serie) throw new NotFoundError('Série de NC não encontrada');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -685,7 +708,7 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -804,7 +827,7 @@ export async function criarProforma(input: CriarProformaInput, ctx: Ctx): Promis
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -895,7 +918,7 @@ export async function converterProformaEmFatura(
     });
     if (!serie) throw new NotFoundError('Série de factura não encontrada');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, new Date());
 
     const fatura = await tx.fatura.create({
       data: {
@@ -999,7 +1022,7 @@ export async function criarCotacaoComercial(input: CriarCotacaoComercialInput, c
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -1095,7 +1118,7 @@ export async function converterCotacaoEmProforma(
     });
     if (!serie) throw new NotFoundError('Série de proforma não encontrada');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, new Date());
 
     const proforma = await tx.proforma.create({
       data: {

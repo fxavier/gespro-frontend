@@ -131,6 +131,7 @@ describe('Numeração sequencial — WS F × WS D', () => {
       expect.anything(),   // tx — qualquer TransactionClient
       'ATIVIDADE',
       CTX,
+      expect.any(Date),    // data do documento (ADR-0033 §4)
     );
   });
 

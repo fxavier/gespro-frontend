@@ -22,6 +22,7 @@ import {
   type RegistarMovimentoCaixaInput,
   type Ctx,
 } from './caixa.interface';
+import { proximoNumeroSerie } from './faturacao.service';
 
 // ---------------------------------------------------------------------------
 // Helpers internos
@@ -46,44 +47,7 @@ function transitarEstado(atual: StatusSessaoCaixa, alvo: StatusSessaoCaixa): voi
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helper: numeração atómica via SerieDocumento (W7)
-// Espelha proximoNumeroSerie de faturacao.service sem importar aquele ficheiro.
-// ---------------------------------------------------------------------------
-
-async function proximoNumeroSerieLocal(
-  tx: Prisma.TransactionClient,
-  tipo: string,
-  tenantId: string,
-): Promise<string> {
-  const rows = await tx.$queryRaw<
-    Array<{ numero: number; prefixo: string; ano: number; formatoNumero: string }>
-  >`
-    UPDATE "SerieDocumento"
-    SET "proximoNumero" = "proximoNumero" + 1
-    WHERE id = (
-      SELECT id FROM "SerieDocumento"
-      WHERE "tenantId" = ${tenantId}
-        AND tipo::text = ${tipo}
-        AND ativo = true
-      ORDER BY ano DESC, "createdAt" DESC
-      LIMIT 1
-      FOR UPDATE
-    )
-    RETURNING "proximoNumero" - 1 AS numero, prefixo, ano, "formatoNumero"
-  `;
-  if (!rows.length) {
-    throw new BusinessRuleError(
-      'SERIE_NAO_ENCONTRADA',
-      `Série activa para "${tipo}" não encontrada. Crie uma série SESSAO_CAIXA primeiro.`,
-    );
-  }
-  const { numero, prefixo, ano, formatoNumero } = rows[0];
-  return formatoNumero
-    .replace('{prefixo}', prefixo)
-    .replace('{ano}', String(ano))
-    .replace(/\{numero(?::(\d+))?\}/, (_, w) => String(numero).padStart(w ? parseInt(w, 10) : 1, '0'));
-}
+// proximoNumeroSerieLocal removida (ADR-0033 §4): usa agora proximoNumeroSerie de faturacao.service.
 
 // ---------------------------------------------------------------------------
 // Abertura de sessão
@@ -105,8 +69,8 @@ export async function abrirSessao(
       );
     }
 
-    // W7: numeração atómica via SerieDocumento SESSAO_CAIXA (UPDATE...RETURNING FOR UPDATE)
-    const numero = await proximoNumeroSerieLocal(tx, 'SESSAO_CAIXA', ctx.tenantId);
+    // W7 + ADR-0033 §4: numeração atómica via SerieDocumento SESSAO_CAIXA, filtrada pelo ano de abertura
+    const numero = await proximoNumeroSerie(tx, 'SESSAO_CAIXA', ctx, new Date());
 
     const sessao = await tx.sessaoCaixa.create({
       data: {

@@ -25,6 +25,7 @@ import {
   FecharPeriodoSchema,
   ReabrirPeriodoSchema,
   ListarPeriodosSchema,
+  AbrirExercicioSchema,
 } from '@/lib/validations/contabilidade';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import { z } from 'zod';
@@ -262,4 +263,11 @@ export const reabrirPeriodo = createSafeAction({
   permission: 'financas:periodo:reabrir',
   revalidate: { tags: ['contabilidade', 'periodos'], paths: ['/contabilidade/periodos'] },
   handler: (input, ctx) => contabilidade.reabrirPeriodo(input, ctx),
+});
+
+export const abrirExercicio = createSafeAction({
+  schema: AbrirExercicioSchema,
+  permission: 'financas:exercicio:abrir',
+  revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/periodos'] },
+  handler: (input, ctx) => contabilidade.abrirExercicio(input, ctx),
 });

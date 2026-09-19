@@ -76,7 +76,7 @@ async function obterDetalhe(id: string, ctx: Ctx): Promise<EntregaDetalhe> {
 
 async function criarEntrega(input: CriarEntregaInput, ctx: Ctx): Promise<EntregaDetalhe> {
   const entrega = await prismaBase.$transaction(async (tx) => {
-    const numero = await proximoNumeroSerie(tx, 'ENTREGA', ctx);
+    const numero = await proximoNumeroSerie(tx, 'ENTREGA', ctx, new Date());
 
     const created = await tx.entrega.create({
       data: {

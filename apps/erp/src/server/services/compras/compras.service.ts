@@ -297,7 +297,7 @@ export const comprasService: IComprasService = {
     const valorTotal = input.itens.reduce((s, i) => s + subtotal(i), 0);
 
     const numero = await prisma.$transaction(async (tx) =>
-      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'REQUISICAO_COMPRA', ctx),
+      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'REQUISICAO_COMPRA', ctx, input.data ?? new Date()),
     );
 
     const requisicao = await db.requisicaoCompra.create({
@@ -545,7 +545,7 @@ export const comprasService: IComprasService = {
 
   async criarCotacao(input: CreateCotacaoInput, ctx: Ctx) {
     const numero = await prisma.$transaction(async (tx) =>
-      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'COTACAO_RFQ', ctx),
+      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'COTACAO_RFQ', ctx, new Date()),
     );
 
     const cotacao = await db.cotacao.create({
@@ -706,7 +706,7 @@ export const comprasService: IComprasService = {
     })));
 
     const numero = await prisma.$transaction(async (tx) =>
-      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx),
+      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx, input.data ?? new Date()),
     );
 
     const pedido = await db.pedidoCompra.create({
@@ -770,7 +770,7 @@ export const comprasService: IComprasService = {
     }));
 
     const totais = calcularTotaisPedido(itensPedido);
-    const numero = await prisma.$transaction(async (tx) => proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx));
+    const numero = await prisma.$transaction(async (tx) => proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx, new Date()));
 
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as PrismaClient;
@@ -952,7 +952,7 @@ export const comprasService: IComprasService = {
 
       // Se RECEBIDO_TOTAL → criar ContaPagar
       if (novoStatus === 'RECEBIDO_TOTAL') {
-        const numCP = await proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx);
+        const numCP = await proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx, new Date());
         await tx.contaPagar.create({
           data: {
             tenantId: ctx.tenantId, numero: numCP,

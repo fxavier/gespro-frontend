@@ -106,7 +106,7 @@ function toPagamentoDto(p: any): PagamentoDto {
 export const contaPagarService: IContaPagarService = {
   async criar(input: CreateContaPagarInput, ctx: Ctx): Promise<ContaPagarDetalhe> {
     const numero = await prisma.$transaction(async (tx) =>
-      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx),
+      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx, input.dataEmissao),
     );
 
     const conta = await db.contaPagar.create({
@@ -192,7 +192,7 @@ export const contaPagarService: IContaPagarService = {
       }
 
       const txClient = tx as unknown as Prisma.TransactionClient;
-      const numero = await proximoNumeroSerie(txClient, 'PAGAMENTO', ctx);
+      const numero = await proximoNumeroSerie(txClient, 'PAGAMENTO', ctx, new Date());
 
       // Criar pagamento primeiro para ter o id disponível para o lançamento
       const pagamento = await tx.pagamento.create({

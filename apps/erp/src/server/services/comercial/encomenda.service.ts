@@ -267,7 +267,7 @@ export class EncomendaService {
 
     return prismaBase.$transaction(async (tx) => {
       // Numeração atómica (contrato D)
-      const numero = await proximoNumeroSerie(tx, 'ENCOMENDA', ctx);
+      const numero = await proximoNumeroSerie(tx, 'ENCOMENDA', ctx, new Date());
 
       const encomenda = await tx.encomenda.create({
         data: {
@@ -553,7 +553,7 @@ export class EncomendaService {
       }
 
       // 2. Numeração e totais
-      const numeroVenda = await proximoNumeroSerie(tx, 'VENDA', ctx);
+      const numeroVenda = await proximoNumeroSerie(tx, 'VENDA', ctx, new Date());
       const subtotal = encomenda.subtotal as Prisma.Decimal;
       const ivaTotal = encomenda.iva as Prisma.Decimal;
       const total = encomenda.total as Prisma.Decimal;

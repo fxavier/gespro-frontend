@@ -21,6 +21,7 @@ como motor primário; para o fecho da Leitura não há motor nenhum — o prazo 
 | `/api/cron/expirar-registos-nao-verificados` | diário, 03:10 UTC | Expurga registos públicos que nunca confirmaram o e-mail (> 7 dias) |
 | `/api/cron/reconciliar-identidades` | diário, 03:15 UTC | Compara Identidade ↔ Utilizador. **Reporta, não apaga** (ADR-0013 §3) |
 | `/api/cron/transporte-alertas` | diário, 03:30 UTC | Recalcula estados de documentos e emite alertas |
+| `/api/cron/abrir-exercicio` | 1 de Dezembro, 02:00 UTC | Cria `ExercicioContabil` + 13 `PeriodoContabil` + séries de documento para o ano seguinte (ADR-0033 §3). Idempotente. |
 
 - **Método**: `GET`.
 - **Autenticação**: `Authorization: Bearer <CRON_SECRET>`. As rotas **não** estão em

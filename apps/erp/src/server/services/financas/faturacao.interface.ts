@@ -494,6 +494,7 @@ export interface IFaturacaoService {
     tx: Prisma.TransactionClient,
     tipo: TipoSerieDocumento,
     ctx: Ctx,
+    data: Date,
   ): Promise<string>;
 
   // --- Facturas ---

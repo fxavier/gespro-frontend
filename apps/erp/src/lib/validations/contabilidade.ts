@@ -408,3 +408,13 @@ export const ListarPeriodosSchema = z.object({
 });
 
 export type ListarPeriodosInput = z.infer<typeof ListarPeriodosSchema>;
+
+export const AbrirExercicioSchema = z.object({
+  ano: z
+    .number()
+    .int('O ano tem de ser um número inteiro')
+    .min(2020, 'Ano inválido')
+    .max(2099, 'Ano inválido'),
+});
+
+export type AbrirExercicioInput = z.infer<typeof AbrirExercicioSchema>;
