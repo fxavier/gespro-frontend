@@ -12,7 +12,7 @@ import {
   Clock, Wallet, Ticket, UserCog, Calendar,
   Award, GraduationCap, Factory, FileBarChart2, PackageSearch, LineChart,
   RotateCcw, AlertCircle, BookMarked as JournalIcon, CreditCard,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -113,8 +113,10 @@ const menuItems: MenuItem[] = [
       { title: 'Razão Geral', href: '/contabilidade/razao-geral', icon: BookText },
       { title: 'Balancete', href: '/contabilidade/balancete', icon: FileBarChart2 },
       { title: 'Reconciliação', href: '/contabilidade/reconciliacao', icon: Landmark },
+      { title: 'Exercícios', href: '/contabilidade/exercicios', icon: Calendar },
       { title: 'Faturação', href: '/faturacao/dashboard', icon: Receipt },
       { title: 'Caixa', href: '/caixa', icon: Wallet },
+      { title: 'Configurações', href: '/contabilidade/configuracoes', icon: Settings },
     ],
   },
   // WS E — Pessoas & Projectos

@@ -31,6 +31,8 @@ import {
   Store,
   BookOpen,
   Wrench,
+  Calendar,
+  Settings,
 } from 'lucide-react';
 
 interface NavItem {
@@ -66,6 +68,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Contabilidade', href: '/contabilidade', icon: Landmark, group: 'Finanças' },
   { label: 'Plano de Contas', href: '/contabilidade/plano-contas', icon: BookOpen, group: 'Finanças' },
   { label: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText, group: 'Finanças' },
+  { label: 'Exercícios Contabilísticos', href: '/contabilidade/exercicios', icon: Calendar, group: 'Finanças' },
+  { label: 'Configurações de Contabilidade', href: '/contabilidade/configuracoes', icon: Settings, group: 'Finanças' },
   { label: 'Caixa', href: '/caixa', icon: Receipt, group: 'Finanças' },
 
   // RH
