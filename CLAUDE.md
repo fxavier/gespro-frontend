@@ -180,6 +180,10 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 
 **Séries de documento** — ao estender o enum `TipoSerieDocumento`, acrescenta a série a `SERIES_INICIAIS` (`src/server/provisioning/tenant-bootstrap.ts`). O número é atribuído dentro da transacção: sem série, a operação inteira falha com «série activa não encontrada» em **todos** os tenants. Aconteceu a encomendas, devoluções e contagens de stock.
 
+**Permissões novas** — acrescentar uma permissão a `prisma/seed/rbac.ts` não a liga a papel nenhum nos
+tenants que já existem: é preciso correr `pnpm db:seed` (aditivo, não destrói nada). Sem isso a
+funcionalidade fica completa e o utilizador — o ADMIN inclusive — vê «Sem permissão».
+
 O **número** nunca se inventa, nem em seeds nem em testes: sai de `SerieDocumento.proximoNumero` e a série
 fica avançada. Escrever `FAT/2026/000007` à mão porque «é o próximo» põe o primeiro documento criado pela UI
 a colidir no `@@unique([tenantId, numero])` — e o erro aparece ao utilizador, não a quem semeou.
@@ -215,6 +219,27 @@ negativo**: o `montarLinhasBalancete` calcula `saldoAtual` a partir da `natureza
 assumia o correcto — era o ficheiro de dados que discordava do código. Há teste a trancar as duas regras; se
 falhar, o defeito está no JSON, não no teste. (A classe 4 continua toda `DEVEDORA` — `44331 IVA liquidado` e
 `421 Fornecedores c/c` aparecem com o sinal ao contrário. Não há regra única: é conta a conta.)
+
+**Exercício e período contabilístico (ADR-0033, 0034, 0035)** — cada `Lancamento` pertence a um
+`PeriodoContabil` (`periodoId`, obrigatório) de um `ExercicioContabil`; 13 períodos por exercício (o 13.º
+é o do encerramento). Consequências ao escrever código novo:
+- Ninguém escreve em `Lancamento`/`PartidaLancamento` pelo Prisma — só `criarLancamento` /
+  `registarLancamentoContabilistico`, que resolvem o período e recusam um período trancado. É o que o
+  `gate-periodo` impõe.
+- O dia fiscal é `Africa/Maputo`, sempre via `diaCivilEmMaputo`/`periodoFiscalDe` (`Intl`) ou
+  `AT TIME ZONE` em SQL. O servidor corre em UTC: `getFullYear()` no dia 1 às 00h30 devolve o ano
+  anterior, e um `+2` à mão é uma decisão de fuso escondida numa soma.
+- `proximoNumeroSerie(tx, tipo, ctx, data)` exige a **data do documento**. A série é por ano; com
+  `new Date()` um documento retroactivo sai numerado com a série do ano corrente.
+- Quem emite um documento **guarda o lançamento que criou** (`Fatura.lancamentoId`, notas de crédito e
+  de débito idem). Não guardar não parte teste nenhum, não dá erro nenhum — e torna o período
+  inapurável e infechável para sempre (`DOCUMENTO_SEM_LANCAMENTO`). Já aconteceu.
+- `fecharPeriodo` verifica sete pré-condições e devolve-as **todas** em `impedimentos: string[]` — uma de
+  cada vez obriga o utilizador a sete voltas. O estado que decide vem da leitura **trancada**
+  (`FOR SHARE` na escrita, `FOR UPDATE` no fecho), nunca de uma leitura anterior à tranca.
+- Mapas, balancete, razão e DRE filtram lançamentos por `FILTRO_LANCAMENTO_MAPA`
+  (`LANCADO` + `ESTORNADO`), exportado do serviço — nunca um literal local, que foi como quatro cópias
+  divergiram.
 
 **Datas de `<input type="date">`** — `new Date('aaaa-mm-dd')` lê como UTC e, a leste de Greenwich, cai no dia
 anterior — muda o período fiscal. Parte a string e constrói `new Date(ano, mes - 1, dia, 12)`.
@@ -272,7 +297,7 @@ ADR-0026 §5). Localmente é o serviço `cron` do compose (perfil `full`); o con
 horários, `CRON_SECRET` — está em `docs/runbooks/agendador.md`. Uma rota `/api/cron/*` nova entra
 nos dois sítios ou não corre em lado nenhum.
 
-**Gates de CI** (`pnpm gates`, `scripts/gate-*.mjs`) — falham o merge se houver: `Dialog` fora de `AlertDialog`, `'use client'` em `page.tsx` de listagem/detalhe, imports de `@/data/` em `src/app`, ou Server Actions que não declarem o que fazem em Leitura. Manter a zero.
+**Gates de CI** (`pnpm gates`, `apps/erp/scripts/gate-*.mjs`) — cinco, e falham o merge se houver: `Dialog` fora de `AlertDialog`, `'use client'` em `page.tsx` de listagem/detalhe, imports de `@/data/` em `src/app`, Server Actions que não declarem o que fazem em Leitura, ou escrita directa em `Lancamento`/`PartidaLancamento` fora do `contabilidade.service.ts` (`gate-periodo`, que varre `src/` **e** `prisma/`). Manter a zero.
 
 ## Convenções detalhadas (normativas)
 
@@ -288,7 +313,7 @@ As skills em `.claude/skills/` são a fonte de verdade e devem ser lidas antes d
 
 ## Referência
 
-Especificações e histórico do programa: `.kiro/specs/` — backend Waves 0–3 e UI Waves 0–2 em `{01,02,03}-*`; funcionalidades em falta em `04-09` (reconciliações, payroll, recrutamento, benefícios); funcionalidades + produção em `10-17` (encomendas/devoluções, projetos, relatórios/PDF, notificações, observabilidade, CI/CD, infra, segurança). Decisões de arquitectura: `docs/decisions/` — índice canónico e próximo número livre em `docs/decisions/README.md` (**três ADRs da Wave 5 colidem no nº 0005**; por decisão do ADR-0023 **não são renumerados** e citam-se como `ADR-0005-a/-b/-c`). Wave 8 (prontidão para produção): ADR-0010 a 0025, com plano de execução em `docs/handoff/execucao-paralela-w8.md`. Contratos de domínio, mapa entidades↔conflitos e handoffs por spec: `docs/handoff/`. Estado operacional (fonte de verdade do que está feito e da dívida): `docs/status.md`.
+Especificações e histórico do programa: `.kiro/specs/` — backend Waves 0–3 e UI Waves 0–2 em `{01,02,03}-*`; funcionalidades em falta em `04-09` (reconciliações, payroll, recrutamento, benefícios); funcionalidades + produção em `10-17` (encomendas/devoluções, projetos, relatórios/PDF, notificações, observabilidade, CI/CD, infra, segurança). Decisões de arquitectura: `docs/decisions/` — índice canónico e próximo número livre em `docs/decisions/README.md` (**três ADRs da Wave 5 colidem no nº 0005**; por decisão do ADR-0023 **não são renumerados** e citam-se como `ADR-0005-a/-b/-c`). Wave 8 (prontidão para produção): ADR-0010 a 0025, com plano de execução em `docs/handoff/execucao-paralela-w8.md`. Ciclo contabilístico e fiscal: ADR-0033 (exercício/períodos), 0034 (apuramento do IVA) e 0035 (encerramento) — **os três estão `Proposto`**, o 0034 à espera de confirmação legal (issue #64); marcá-los `Aceite` é um acto humano. Contratos de domínio, mapa entidades↔conflitos e handoffs por spec: `docs/handoff/`. Estado operacional (fonte de verdade do que está feito e da dívida): `docs/status.md`.
 
 ## Agent skills
 
