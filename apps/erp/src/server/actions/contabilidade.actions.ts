@@ -27,6 +27,7 @@ import {
   ListarPeriodosSchema,
   AbrirExercicioSchema,
 } from '@/lib/validations/contabilidade';
+import { CalendarioContabilisticoSchema } from '@/lib/validations/plataforma';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import { z } from 'zod';
 import { idEntidade } from '@/lib/validations/common';
@@ -270,4 +271,29 @@ export const abrirExercicio = createSafeAction({
   permission: 'financas:exercicio:abrir',
   revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/periodos'] },
   handler: (input, ctx) => contabilidade.abrirExercicio(input, ctx),
+});
+
+// --- Calendário contabilístico (ADR-0033 §3) ---
+
+/**
+ * Lê as preferências do calendário contabilístico do tenant.
+ * Permitido em modo de Leitura: um cliente em modo de Leitura tem de conseguir
+ * ver o que configurou (ADR-0032 §2, bandeira explícita).
+ */
+export const obterCalendarioContabilistico = createSafeAction({
+  permission: 'financas:leitura',
+  permiteEmLeitura: true,
+  handler: (_, ctx) => contabilidade.obterCalendarioContabilistico(ctx),
+});
+
+/**
+ * Actualiza as preferências do calendário contabilístico do tenant.
+ * Usa a permissão de configuração do módulo financeiro.
+ * NÃO permitido em modo de Leitura — configurar o automatismo é escrita.
+ */
+export const atualizarCalendarioContabilistico = createSafeAction({
+  schema: CalendarioContabilisticoSchema,
+  permission: 'financas:configurar',
+  revalidate: { tags: ['contabilidade', 'configuracoes'], paths: ['/contabilidade/configuracoes'] },
+  handler: (input, ctx) => contabilidade.atualizarCalendarioContabilistico(input, ctx),
 });

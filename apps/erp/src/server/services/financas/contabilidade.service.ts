@@ -31,6 +31,7 @@ import type {
   ListarPeriodosInput,
   AbrirExercicioInput,
 } from '@/lib/validations/contabilidade';
+import type { CalendarioContabilisticoInput } from '@/lib/validations/plataforma';
 import { bootstrapSeriesDocumento } from '@/server/provisioning/tenant-bootstrap';
 import {
   calcularDiferencaNaoConciliada,
@@ -64,6 +65,7 @@ import {
   type ExercicioContabil,
   type ResultadoFechoPeriodo,
   type ReaberturaPeriodo,
+  type CalendarioContabilisticoRow,
 } from './contabilidade.interface';
 
 // ---------------------------------------------------------------------------
@@ -116,6 +118,57 @@ export function periodoFiscalDe(data: Date): string {
   const ano = partes.find((p) => p.type === 'year')!.value;
   const mes = partes.find((p) => p.type === 'month')!.value;
   return `${ano}-${mes}`;
+}
+
+/**
+ * Devolve o dia civil, mês e ano de `data` no fuso Africa/Maputo.
+ *
+ * Reutiliza `_FUSO_FISCAL` — não cria uma terceira implementação de `Intl`.
+ * Usado pelo cron de abertura de exercício para comparar com a configuração
+ * por tenant sem depender do fuso do processo (que é UTC no servidor).
+ *
+ * @internal Exportado apenas para testes unitários e para o cron route.
+ */
+export function diaCivilEmMaputo(data: Date): { dia: number; mes: number; ano: number } {
+  const fmt = new Intl.DateTimeFormat('pt-MZ', {
+    timeZone: _FUSO_FISCAL,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const partes = fmt.formatToParts(data);
+  return {
+    dia: Number(partes.find((p) => p.type === 'day')!.value),
+    mes: Number(partes.find((p) => p.type === 'month')!.value),
+    ano: Number(partes.find((p) => p.type === 'year')!.value),
+  };
+}
+
+/**
+ * Determina se um tenant deve ter o exercício aberto hoje, com base na sua
+ * configuração e na data actual em Africa/Maputo.
+ *
+ * Função pura, extraída para ser testável independentemente do cron e do Prisma.
+ * O cron chama-a para cada tenant; o resultado de `false` deve ser contado como
+ * `saltouData` ou `saltouConfig` no relatório da corrida (para distinguir
+ * «saltei de propósito» de «não havia nada a fazer»).
+ *
+ * @param config Configuração do tenant (nova coluna `ConfiguracaoFiscal`).
+ * @param agora  Instante actual (UTC, como `new Date()` devolve). Por omissão `new Date()`.
+ *
+ * @internal Exportado apenas para testes unitários e para o cron route.
+ */
+export function deveAbrirHoje(
+  config: {
+    aberturaExercicioAutomatica: boolean;
+    diaAberturaExercicio: number;
+    mesAberturaExercicio: number;
+  },
+  agora: Date = new Date(),
+): boolean {
+  if (!config.aberturaExercicioAutomatica) return false;
+  const { dia, mes } = diaCivilEmMaputo(agora);
+  return dia === config.diaAberturaExercicio && mes === config.mesAberturaExercicio;
 }
 
 // ---------------------------------------------------------------------------
@@ -1772,6 +1825,83 @@ export async function reabrirPeriodo(
 }
 
 // ---------------------------------------------------------------------------
+// Calendário contabilístico — leitura e actualização (ADR-0033 §3)
+// Configuração do automatismo de abertura de exercício e (futuramente) de
+// fecho automático de períodos.
+// ---------------------------------------------------------------------------
+
+/**
+ * Lê as preferências do calendário contabilístico do tenant.
+ *
+ * Se o tenant ainda não tiver `ConfiguracaoFiscal` (raro em produção, possível
+ * em testes), devolve os valores por omissão que o schema define.
+ */
+export async function obterCalendarioContabilistico(
+  ctx: Ctx,
+): Promise<CalendarioContabilisticoRow> {
+  const cfg = await prismaBase.configuracaoFiscal.findUnique({
+    where: { tenantId: ctx.tenantId },
+    select: {
+      aberturaExercicioAutomatica: true,
+      diaAberturaExercicio: true,
+      mesAberturaExercicio: true,
+      fechoPeriodoAutomatico: true,
+      diasAposFimDoMesParaFechoAutomatico: true,
+    },
+  });
+  // Valores por omissão espelham os @default do schema — preservam o comportamento
+  // anterior ao campo existir (cron a 1 de Dezembro, automático ligado).
+  return {
+    aberturaExercicioAutomatica: cfg?.aberturaExercicioAutomatica ?? true,
+    diaAberturaExercicio: cfg?.diaAberturaExercicio ?? 1,
+    mesAberturaExercicio: cfg?.mesAberturaExercicio ?? 12,
+    fechoPeriodoAutomatico: cfg?.fechoPeriodoAutomatico ?? false,
+    diasAposFimDoMesParaFechoAutomatico: cfg?.diasAposFimDoMesParaFechoAutomatico ?? 10,
+  };
+}
+
+/**
+ * Actualiza as preferências do calendário contabilístico do tenant.
+ *
+ * Usa `upsert` com tenantId: um tenant recém-criado pode ainda não ter
+ * ConfiguracaoFiscal (é criada pelo bootstrap, mas pode falhar parcialmente em testes).
+ *
+ * NOTA: `update` não é scoped pela extensão de tenant — filtra por `tenantId`
+ * explicitamente (CLAUDE.md, «Multi-tenancy»).
+ */
+export async function atualizarCalendarioContabilistico(
+  input: CalendarioContabilisticoInput,
+  ctx: Ctx,
+): Promise<CalendarioContabilisticoRow> {
+  // Filtra apenas os campos relevantes ao calendário — outros campos de
+  // ConfiguracaoFiscal (regimeIva, taxaIvaDefault…) pertencem a outras actions.
+  const campos = {
+    ...(input.aberturaExercicioAutomatica !== undefined && {
+      aberturaExercicioAutomatica: input.aberturaExercicioAutomatica,
+    }),
+    ...(input.diaAberturaExercicio !== undefined && {
+      diaAberturaExercicio: input.diaAberturaExercicio,
+    }),
+    ...(input.mesAberturaExercicio !== undefined && {
+      mesAberturaExercicio: input.mesAberturaExercicio,
+    }),
+    ...(input.fechoPeriodoAutomatico !== undefined && {
+      fechoPeriodoAutomatico: input.fechoPeriodoAutomatico,
+    }),
+    ...(input.diasAposFimDoMesParaFechoAutomatico !== undefined && {
+      diasAposFimDoMesParaFechoAutomatico: input.diasAposFimDoMesParaFechoAutomatico,
+    }),
+  };
+
+  await prismaBase.configuracaoFiscal.update({
+    where: { tenantId: ctx.tenantId },
+    data: campos,
+  });
+
+  return obterCalendarioContabilistico(ctx);
+}
+
+// ---------------------------------------------------------------------------
 // Contrato cross-domínio: registarLancamentoContabilistico
 // Chamado por WS A, B, C dentro de $transaction.
 // ---------------------------------------------------------------------------
@@ -1901,5 +2031,7 @@ export const contabilidadeService = {
   listarPeriodos,
   fecharPeriodo,
   reabrirPeriodo,
+  obterCalendarioContabilistico,
+  atualizarCalendarioContabilistico,
   registarLancamentoContabilistico,
 } satisfies IContabilidadeService;

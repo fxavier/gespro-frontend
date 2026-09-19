@@ -21,7 +21,15 @@ como motor primário; para o fecho da Leitura não há motor nenhum — o prazo 
 | `/api/cron/expirar-registos-nao-verificados` | diário, 03:10 UTC | Expurga registos públicos que nunca confirmaram o e-mail (> 7 dias) |
 | `/api/cron/reconciliar-identidades` | diário, 03:15 UTC | Compara Identidade ↔ Utilizador. **Reporta, não apaga** (ADR-0013 §3) |
 | `/api/cron/transporte-alertas` | diário, 03:30 UTC | Recalcula estados de documentos e emite alertas |
-| `/api/cron/abrir-exercicio` | 1 de Dezembro, 02:00 UTC | Cria `ExercicioContabil` + 13 `PeriodoContabil` + séries de documento para o ano seguinte (ADR-0033 §3). Idempotente. |
+| `/api/cron/abrir-exercicio` | diário, 02:00 UTC | Cria `ExercicioContabil` + 13 `PeriodoContabil` + séries de documento. Por tenant: só actua no dia/mês configurado em `ConfiguracaoFiscal` (ADR-0033 §3). Idempotente. |
+
+**Nota sobre a data da abertura de exercício:** a rota corre todos os dias (era `0 2 1 12 *`,
+passou a `0 2 * * *`). A data deixou de viver no crontab e passou a ser configurada por tenant
+em `ConfiguracaoFiscal.diaAberturaExercicio` / `mesAberturaExercicio`. Por omissão: dia 1, mês
+12 (1 de Dezembro) — preserva o comportamento anterior. Um tenant que configure dia 15/mês 11
+abre o exercício a 15 de Novembro. Quem procurar a data no crontab vai encontrá-la no ecrã
+`/contabilidade/configuracoes` de cada tenant. O `?ano=YYYY` força a abertura ignorando a
+configuração — é o caminho de recuperação de quem descobre em Janeiro que o automatismo falhou.
 
 - **Método**: `GET`.
 - **Autenticação**: `Authorization: Bearer <CRON_SECRET>`. As rotas **não** estão em

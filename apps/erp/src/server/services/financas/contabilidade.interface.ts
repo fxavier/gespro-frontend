@@ -27,6 +27,7 @@ import type {
   AbrirExercicioInput,
   ListarPeriodosInput,
 } from '@/lib/validations/contabilidade';
+import type { CalendarioContabilisticoInput } from '@/lib/validations/plataforma';
 import type { MatchSugerido } from './reconciliacao.helpers';
 
 // ---------------------------------------------------------------------------
@@ -438,6 +439,15 @@ export type ResultadoFechoPeriodo =
   | { ok: true; periodo: PeriodoContabil }
   | { ok: false; impedimentos: string[] };
 
+/** Campos do calendário contabilístico lidos ou gravados pelo serviço. */
+export interface CalendarioContabilisticoRow {
+  aberturaExercicioAutomatica: boolean;
+  diaAberturaExercicio: number;
+  mesAberturaExercicio: number;
+  fechoPeriodoAutomatico: boolean;
+  diasAposFimDoMesParaFechoAutomatico: number;
+}
+
 // ---------------------------------------------------------------------------
 // Interface do serviço de contabilidade
 // ---------------------------------------------------------------------------
@@ -516,6 +526,13 @@ export interface IContabilidadeService {
   listarExercicios(ctx: Ctx): Promise<ExercicioContabil[]>;
   fecharPeriodo(input: FecharPeriodoInput, ctx: Ctx): Promise<ResultadoFechoPeriodo>;
   reabrirPeriodo(input: ReabrirPeriodoInput, ctx: Ctx): Promise<PeriodoContabil>;
+
+  // --- Calendário contabilístico (ADR-0033 §3 — configuração do automatismo) ---
+  obterCalendarioContabilistico(ctx: Ctx): Promise<CalendarioContabilisticoRow>;
+  atualizarCalendarioContabilistico(
+    input: CalendarioContabilisticoInput,
+    ctx: Ctx,
+  ): Promise<CalendarioContabilisticoRow>;
 
   // ------------------------------------------------------------------
   // Contrato exposto a WS A, B, C — chamado dentro de $transaction
