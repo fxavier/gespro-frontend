@@ -22,6 +22,9 @@ import type {
   FiltroBalanceteInput,
   FiltroRazaoInput,
   FiltroDREInput,
+  FecharPeriodoInput,
+  ReabrirPeriodoInput,
+  ListarPeriodosInput,
 } from '@/lib/validations/contabilidade';
 import type { MatchSugerido } from './reconciliacao.helpers';
 
@@ -162,6 +165,7 @@ export interface Lancamento {
   tipo: string;
   origem: OrigemLancamento;
   diarioId: string;
+  periodoId: string;
   documentoOrigemId: string | null;
   documentoOrigemTipo: string | null;
   historico: string;
@@ -380,6 +384,60 @@ export interface RegistarLancamentoContabilisticoInput {
 }
 
 // ---------------------------------------------------------------------------
+// Períodos e Exercícios (ADR-0033)
+// ---------------------------------------------------------------------------
+
+export type EstadoExercicio = 'ABERTO' | 'EM_ENCERRAMENTO' | 'ENCERRADO_PROVISORIO' | 'ENCERRADO';
+export type EstadoPeriodo = 'ABERTO' | 'FECHADO';
+
+export interface ExercicioContabil {
+  id: string;
+  tenantId: string;
+  codigo: string;      // "2026"
+  dataInicio: Date;
+  dataFim: Date;
+  estado: EstadoExercicio;
+  anteriorId: string | null;
+  criadoPorId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PeriodoContabil {
+  id: string;
+  tenantId: string;
+  exercicioId: string;
+  ordem: number;       // 1..13
+  codigo: string;      // "2026-01" … "2026-13"
+  dataInicio: Date;
+  dataFim: Date;
+  estado: EstadoPeriodo;
+  fechadoEm: Date | null;
+  fechadoPorId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReaberturaPeriodo {
+  id: string;
+  tenantId: string;
+  periodoId: string;
+  motivo: string;
+  reabertoPorId: string;
+  keycloakSub: string;
+  requestId: string | null;
+  createdAt: Date;
+}
+
+/**
+ * Resultado do fecho de período. Quando `ok: false`, `impedimentos` lista todos os
+ * códigos que falharam (devolvidos de uma vez para o ecrã os mostrar todos).
+ */
+export type ResultadoFechoPeriodo =
+  | { ok: true; periodo: PeriodoContabil }
+  | { ok: false; impedimentos: string[] };
+
+// ---------------------------------------------------------------------------
 // Interface do serviço de contabilidade
 // ---------------------------------------------------------------------------
 
@@ -450,6 +508,12 @@ export interface IContabilidadeService {
   cancelarReconciliacao(id: string, ctx: Ctx): Promise<ReconciliacaoBancaria>;
   obterReconciliacao(id: string, ctx: Ctx): Promise<ReconciliacaoDetalhe | null>;
   listarReconciliacoes(ctx: Ctx): Promise<ReconciliacaoComConta[]>;
+
+  // --- Períodos e Exercícios (ADR-0033 §5, §6, §7) ---
+  listarPeriodos(filtro: ListarPeriodosInput, ctx: Ctx): Promise<PeriodoContabil[]>;
+  listarExercicios(ctx: Ctx): Promise<ExercicioContabil[]>;
+  fecharPeriodo(input: FecharPeriodoInput, ctx: Ctx): Promise<ResultadoFechoPeriodo>;
+  reabrirPeriodo(input: ReabrirPeriodoInput, ctx: Ctx): Promise<PeriodoContabil>;
 
   // ------------------------------------------------------------------
   // Contrato exposto a WS A, B, C — chamado dentro de $transaction

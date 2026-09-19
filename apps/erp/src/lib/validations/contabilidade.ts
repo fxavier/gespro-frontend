@@ -384,3 +384,27 @@ export const FiltroDRESchema = z.object({
 });
 
 export type FiltroDREInput = z.infer<typeof FiltroDRESchema>;
+
+// ---------------------------------------------------------------------------
+// Períodos e Exercícios (ADR-0033 §5, §6, §7)
+// ---------------------------------------------------------------------------
+
+export const FecharPeriodoSchema = z.object({
+  id: z.string().cuid('ID de período inválido'),
+});
+
+export type FecharPeriodoInput = z.infer<typeof FecharPeriodoSchema>;
+
+export const ReabrirPeriodoSchema = z.object({
+  id: z.string().cuid('ID de período inválido'),
+  motivo: z.string().min(10, 'Motivo deve ter pelo menos 10 caracteres').max(1000),
+});
+
+export type ReabrirPeriodoInput = z.infer<typeof ReabrirPeriodoSchema>;
+
+export const ListarPeriodosSchema = z.object({
+  exercicioId: z.string().cuid('ID de exercício inválido').optional(),
+  estado: z.enum(['ABERTO', 'FECHADO']).optional(),
+});
+
+export type ListarPeriodosInput = z.infer<typeof ListarPeriodosSchema>;

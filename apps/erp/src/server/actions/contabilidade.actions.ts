@@ -22,6 +22,9 @@ import {
   FiltroBalanceteSchema,
   FiltroRazaoSchema,
   FiltroDRESchema,
+  FecharPeriodoSchema,
+  ReabrirPeriodoSchema,
+  ListarPeriodosSchema,
 } from '@/lib/validations/contabilidade';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import { z } from 'zod';
@@ -231,4 +234,32 @@ export const cancelarReconciliacao = createSafeAction({
   permission: 'financas:banca:reconciliacao',
   revalidate: { tags: ['contabilidade', 'reconciliacao'], paths: ['/contabilidade/reconciliacao'] },
   handler: (input, ctx) => contabilidade.cancelarReconciliacao(input.id, ctx),
+});
+// --- Períodos e Exercícios (ADR-0033 §5, §6, §7) ---
+
+export const listarPeriodos = createSafeAction({
+  schema: ListarPeriodosSchema,
+  permission: 'financas:ver',
+  permiteEmLeitura: true,
+  handler: (input, ctx) => contabilidade.listarPeriodos(input, ctx),
+});
+
+export const listarExercicios = createSafeAction({
+  permission: 'financas:ver',
+  permiteEmLeitura: true,
+  handler: (_, ctx) => contabilidade.listarExercicios(ctx),
+});
+
+export const fecharPeriodo = createSafeAction({
+  schema: FecharPeriodoSchema,
+  permission: 'financas:fechar_periodo',
+  revalidate: { tags: ['contabilidade', 'periodos'], paths: ['/contabilidade/periodos'] },
+  handler: (input, ctx) => contabilidade.fecharPeriodo(input, ctx),
+});
+
+export const reabrirPeriodo = createSafeAction({
+  schema: ReabrirPeriodoSchema,
+  permission: 'financas:periodo:reabrir',
+  revalidate: { tags: ['contabilidade', 'periodos'], paths: ['/contabilidade/periodos'] },
+  handler: (input, ctx) => contabilidade.reabrirPeriodo(input, ctx),
 });
