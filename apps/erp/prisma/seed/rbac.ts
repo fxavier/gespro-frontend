@@ -88,6 +88,12 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'financas:exportar',              descricao: 'Exportar relatórios financeiros' },
   { code: 'financas:configurar',            descricao: 'Configurar plano de contas' },
   { code: 'financas:leitura',               descricao: 'Leitura geral do módulo financeiro' },
+  // Apuramento periódico do IVA (ADR-0034). `mapas` é leitura: exportar em modo de
+  // Leitura é garantia do ADR-0032, e o mapa de IVA é dos documentos que o cliente
+  // mais precisa de levar consigo quando a subscrição acaba.
+  { code: 'financas:iva:apurar',            descricao: 'Apurar o IVA de um período' },
+  { code: 'financas:iva:declarar',          descricao: 'Marcar o apuramento como declarado à AT (tranca a reabertura do período)' },
+  { code: 'financas:iva:mapas',             descricao: 'Consultar e exportar os mapas de suporte à Declaração Periódica' },
   { code: 'financas:lancamentos:escrita',   descricao: 'Criar e editar lançamentos contabilísticos' },
   { code: 'financas:lancamentos:confirmar', descricao: 'Confirmar lançamentos pendentes' },
   { code: 'financas:lancamentos:estornar',  descricao: 'Estornar lançamentos confirmados' },
@@ -384,6 +390,7 @@ function isReadOnly(code: string): boolean {
     'core_tenancy:ver',
     'admin:ver_utilizadores', 'admin:ver_auditoria', 'admin:ver_integracoes',
     'financas:relatorios:leitura',
+    'financas:iva:mapas',
     'ativos:read',
     'rh:colaboradores:read', 'rh:assiduidade:read', 'rh:recrutamento:read', 'rh:beneficios:read',
     'projetos:read', 'projetos:tarefas:read', 'projetos:timesheets:read',
@@ -465,6 +472,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
       'financas:plano-contas:escrita',
       'financas:fechar_periodo',
       'financas:periodo:reabrir',
+      'financas:iva:declarar',
       'financas:lancamentos:estornar',
       'faturacao:series:escrita',
       'rh:colaboradores:delete',

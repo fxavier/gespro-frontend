@@ -158,6 +158,15 @@ enum StatusPagamento {
   CANCELADO
 }
 
+// ---- Enums: IVA Dedutível ----
+
+/// Tipo de aquisição para efeitos de IVA dedutível (contas 44321/44322/44323 do PGC).
+enum TipoAquisicaoIva {
+  INVENTARIOS          // → 44321 IVA dedutível — inventários
+  ATIVOS               // → 44322 IVA dedutível — activos
+  OUTROS_BENS_SERVICOS // → 44323 IVA dedutível — outros bens e serviços
+}
+
 // ---- Enums: Serviços ----
 
 enum TipoServico {
@@ -741,6 +750,18 @@ model ContaPagar {
   centroCustoId  String?
   // FK escalar cross-domínio (ContaPGC → WS D) — conta de crédito para lançamento
   contaContabilId String?
+  // Bloco fiscal — IVA dedutível (ADR-0034 §1)
+  // Nulos para o histórico: o IVA dedutível do passado não é reconstituível.
+  // Sem numeroDocumento + nuitFornecedor não há dedução (DOCUMENTO_FORNECEDOR_INCOMPLETO).
+  // nuitFornecedor é copiado do Fornecedor no momento do registo — não varia com alterações futuras.
+  // taxaIva é fracção: 0.160000 = 16 %.
+  numeroDocumento  String?           // número da factura do fornecedor
+  dataDocumento    DateTime?         // data do documento, que define o período de dedução
+  nuitFornecedor   String?           // copiado do Fornecedor no momento do registo
+  baseIva          Decimal?          @db.Decimal(18, 2)
+  taxaIva          Decimal?          @db.Decimal(9, 6)
+  valorIva         Decimal?          @db.Decimal(18, 2)
+  tipoAquisicao    TipoAquisicaoIva?
   observacoes    String?
   currency       String           @default("MZN")
   createdAt      DateTime         @default(now())

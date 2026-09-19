@@ -21,6 +21,9 @@ vi.mock('@/server/services/inventario/stock.service', () => ({
 vi.mock('@/server/services/financas/faturacao.service', () => ({
   proximoNumeroSerie: vi.fn().mockResolvedValue('REQ-2024-00001'),
 }));
+vi.mock('@/server/services/financas/contabilidade.service', () => ({
+  registarLancamentoContabilistico: vi.fn().mockResolvedValue({ id: 'lan-rec-001' }),
+}));
 
 // Mock do módulo prisma (nunca toca DB em testes unitários)
 vi.mock('@/server/db/client', () => ({
@@ -360,5 +363,148 @@ describe('TRANSICOES_PEDIDO_COMPRA — invariantes críticos', () => {
 
   it('RECEBIDO_PARCIAL só pode progredir para RECEBIDO_TOTAL (não volta a EM_TRANSITO)', () => {
     expect(TRANSICOES_PEDIDO_COMPRA.RECEBIDO_PARCIAL).toEqual(['RECEBIDO_TOTAL']);
+  });
+});
+
+// =====================================================================
+// registarRecebimento() — RECEBIDO_TOTAL → ContaPagar + bloco fiscal
+// (ADR-0034 §1 — reconhecimento da dívida ao fornecedor)
+// =====================================================================
+
+describe('registarRecebimento() — RECEBIDO_TOTAL cria ContaPagar com bloco fiscal', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Monta o mock de tx para um cenário de recebimento total:
+   * 1 item no pedido, totalRecebido = quantidade pedida → RECEBIDO_TOTAL.
+   */
+  function buildTxMock(overrides: Record<string, any> = {}) {
+    const itemPedido = {
+      id: 'ip-1', tenantId: 'tenant-test', pedidoCompraId: 'pc-1',
+      produtoId: 'prod-1', descricao: 'Produto A',
+      quantidade: 10, quantidadeRecebida: 0,
+    };
+    const pedido = {
+      id: 'pc-1', tenantId: 'tenant-test', numero: 'PED-2026-001',
+      fornecedorId: 'for-1', status: 'EM_TRANSITO',
+      valorSubtotal: 1000, valorIva: 160, valorTotal: 1160,
+      taxaIva: 0.16, prazoEntregaDias: 30,
+      itens: [itemPedido],
+      ...overrides,
+    };
+    const recebimento = {
+      id: 'rec-1', tenantId: 'tenant-test', pedidoCompraId: 'pc-1',
+      data: new Date(), status: 'COMPLETO', itens: [],
+    };
+    const contaPagarCriada = {
+      id: 'cp-rec-1', tenantId: 'tenant-test', numero: 'CP-2026-00001',
+    };
+    return {
+      pedidoCompra: {
+        findUnique: vi.fn().mockResolvedValue(pedido),
+        update: vi.fn().mockResolvedValue({ ...pedido, status: 'RECEBIDO_TOTAL' }),
+      },
+      recebimentoCompra: {
+        create: vi.fn().mockResolvedValue(recebimento),
+      },
+      itemPedidoCompra: {
+        findMany: vi.fn().mockResolvedValue([{ ...itemPedido, quantidadeRecebida: 10 }]),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      fornecedor: {
+        findUnique: vi.fn().mockResolvedValue({ nuit: '123456789' }),
+      },
+      contaPagar: {
+        create: vi.fn().mockResolvedValue(contaCriadaMock ?? contaPagarCriada),
+      },
+    };
+  }
+
+  const contaCriadaMock = {
+    id: 'cp-rec-1', tenantId: 'tenant-test', numero: 'CP-2026-00001',
+    fornecedor: { nome: 'Fornecedor A' }, pagamentos: [],
+  };
+
+  it('cria ContaPagar com bloco fiscal (baseIva, valorIva, taxaIva, nuitFornecedor) populado', async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+    const txMock = buildTxMock();
+    db.$transaction.mockImplementation(async (fn: any) => fn(txMock));
+
+    const { comprasService } = await import('../compras.service');
+    await comprasService.registarRecebimento(
+      {
+        pedidoCompraId: 'pc-1',
+        data: new Date(),
+        itens: [{ itemPedidoCompraId: 'ip-1', quantidadeRecebida: 10, quantidadeAceita: 10, quantidadeRejeitada: 0, localizacaoDestinoId: 'loc-1' }],
+      },
+      ctx,
+    );
+
+    expect(txMock.contaPagar.create).toHaveBeenCalledOnce();
+    const data = txMock.contaPagar.create.mock.calls[0][0].data;
+    // bloco fiscal preenchido a partir do PedidoCompra
+    expect(Number(data.baseIva)).toBeCloseTo(1000, 5);
+    expect(Number(data.valorIva)).toBeCloseTo(160, 5);
+    expect(Number(data.taxaIva)).toBeCloseTo(0.16, 5);
+    expect(data.nuitFornecedor).toBe('123456789');
+    expect(data.tipoAquisicao).toBeNull();    // sem factura → sem dedução
+    expect(data.numeroDocumento).toBeNull();  // factura não chegou ainda
+  });
+
+  it('produz lançamento D 211 Mercadorias / C 421 equilibrado ao cêntimo, sem 4432x', async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+    db.$transaction.mockImplementation(async (fn: any) => fn(buildTxMock()));
+
+    const { comprasService } = await import('../compras.service');
+    const { registarLancamentoContabilistico } = await import('@/server/services/financas/contabilidade.service');
+    const mockLan = registarLancamentoContabilistico as any;
+    mockLan.mockResolvedValue({ id: 'lan-211' });
+
+    await comprasService.registarRecebimento(
+      {
+        pedidoCompraId: 'pc-1',
+        data: new Date(),
+        itens: [{ itemPedidoCompraId: 'ip-1', quantidadeRecebida: 10, quantidadeAceita: 10, quantidadeRejeitada: 0, localizacaoDestinoId: 'loc-1' }],
+      },
+      ctx,
+    );
+
+    expect(mockLan).toHaveBeenCalledOnce();
+    const chamada = mockLan.mock.calls[0][1];
+
+    // Conta correcta: 211 Mercadorias
+    const debito211 = chamada.partidas.find((p: any) => p.tipo === 'DEBITO' && p.contaCodigo === '211');
+    const credito421 = chamada.partidas.find((p: any) => p.tipo === 'CREDITO' && p.contaCodigo === '421');
+    expect(debito211).toBeDefined();
+    expect(credito421).toBeDefined();
+
+    // Equilibrado ao cêntimo
+    const totalDebito  = chamada.partidas.filter((p: any) => p.tipo === 'DEBITO').reduce((s: number, p: any) => s + Number(p.valor), 0);
+    const totalCredito = chamada.partidas.filter((p: any) => p.tipo === 'CREDITO').reduce((s: number, p: any) => s + Number(p.valor), 0);
+    expect(totalDebito).toBeCloseTo(totalCredito, 5);
+
+    // Apenas 2 partidas — sem 4432x (sem factura do fornecedor)
+    expect(chamada.partidas).toHaveLength(2);
+    expect(chamada.partidas.find((p: any) => p.contaCodigo.startsWith('4432'))).toBeUndefined();
+  });
+
+  it('não lança excepção — recepção nunca pode ser bloqueada por motivo contabilístico', async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+    db.$transaction.mockImplementation(async (fn: any) => fn(buildTxMock()));
+
+    const { comprasService } = await import('../compras.service');
+    await expect(
+      comprasService.registarRecebimento(
+        {
+          pedidoCompraId: 'pc-1',
+          data: new Date(),
+          itens: [{ itemPedidoCompraId: 'ip-1', quantidadeRecebida: 10, quantidadeAceita: 10, quantidadeRejeitada: 0, localizacaoDestinoId: 'loc-1' }],
+        },
+        ctx,
+      ),
+    ).resolves.toBeDefined();
   });
 });
