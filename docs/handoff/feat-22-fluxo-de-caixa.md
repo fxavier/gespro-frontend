@@ -100,11 +100,76 @@ Só leitura, sem alteração de schema fora de `financas.prisma`:
 | Invariante | Ficheiro | Escrito por | Estado |
 |---|---|---|---|
 | `I1` | `__tests__/projecao.integracao.test.ts` | `verificador-fluxo-caixa` | — |
-| `I2`, `I3`, `I5` | `__tests__/projecao.property.test.ts` | `verificador-fluxo-caixa` | — |
+| `I2`, `I3`, `I5` | `__tests__/projecao.property.test.ts` | `verificador-fluxo-caixa` | **Escrito e vermelho** (P2v, 2026-09-21) — ver abaixo |
 | `I4` | `__tests__/projecao.tenant.test.ts` (integração) | `verificador-fluxo-caixa` | — |
 | `I6`, `I8` | `__tests__/dfc.property.test.ts` | `verificador-fluxo-caixa` | — |
 | `I7`, `I9`, `I10` | `__tests__/dfc.integracao.test.ts` | `verificador-fluxo-caixa` | — |
 | Fixtures | `__tests__/fixtures/{projecao,dfc}-seed-demo.json` | `verificador-fluxo-caixa` | — |
+
+### P2v — saída vermelha de `projecao.property.test.ts` (2026-09-21)
+
+O oráculo foi escrito antes da solução e **falha porque o módulo não existe** — não por outra razão
+(o `tsc --noEmit` sobre o ficheiro só acusa o mesmo `TS2307` do import em falta; zero erros de tipo
+próprios). Saída literal de
+`npx vitest run src/server/services/financas/__tests__/projecao.property.test.ts` (de `apps/erp/`):
+
+```
+ RUN  v4.1.10 /Users/xavier/dev/code/workspace/2026/gespro/wt/feat-tesouraria/apps/erp
+
+ ❯ src/server/services/financas/__tests__/projecao.property.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/server/services/financas/__tests__/projecao.property.test.ts [ src/server/services/financas/__tests__/projecao.property.test.ts ]
+Error: Cannot find module '../projecao.service' imported from /Users/xavier/dev/code/workspace/2026/gespro/wt/feat-tesouraria/apps/erp/src/server/services/financas/__tests__/projecao.property.test.ts
+ ❯ src/server/services/financas/__tests__/projecao.property.test.ts:27:1
+     25| // BLOCKER (doutrina 00 §2).
+     26| // -------------------------------------------------------------------…
+     27| import {
+       | ^
+     28|   acumularSaldos,
+     29|   distribuirCompromissos,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  02:31:34
+   Duration  927ms (transform 169ms, setup 0ms, import 0ms, tests 0ms, environment 0ms)
+```
+
+O que o L2 tem de exportar de `projecao.service.ts` para o oráculo correr:
+`montarBuckets` (`MontarBucketsFn`), `expandirRecorrencia` (`ExpandirRecorrenciaFn`),
+`distribuirCompromissos` (`DistribuirCompromissosFn`), `acumularSaldos` (`AcumularSaldosFn`).
+
+Casos que TÊM de lançar (um por invariante, escolhidos de propósito):
+
+- **I2**: `montarBuckets` com horizonte negativo. O Zod trava `min(0)` na fronteira, mas devolver
+  `[]` em silêncio faria I2 valer por vacuidade e a projecção sair vazia, indistinguível de «não há
+  compromissos».
+- **I3**: `distribuirCompromissos` com cenário fora do enum. Um `default` silencioso trataria um
+  cenário novo (ou um typo) como OTIMISTA e devolveria números plausíveis e falsos.
+- **I5**: `expandirRecorrencia` com recorrência fora do enum. Um `default` silencioso expandiria uma
+  futura `SEMANAL` como `UNICA` ou como nada — 51 ocorrências desapareceriam da projecção sem erro.
+
+Pontos em que o contrato do L1 é insuficiente e o oráculo NÃO decidiu por ele (a fixar antes do L2,
+ou pelo orquestrador no ADR):
+
+1. **Atraso médio negativo** (`PerfilAtraso.atrasoMedioDias < 0` — clientes que pagam adiantado é um
+   dado histórico possível). Aplicado ingenuamente inverte I3. O oráculo aceita «lança» ou «trunca a
+   zero» e proíbe a violação silenciosa; o contrato devia dizer qual das duas.
+2. **`dataFimRecorrencia < dataPrevista` no núcleo puro**. R3.4 recusa-a no Zod/serviço, mas a
+   função pura pode recebê-la; o oráculo aceita «lança» ou «conjunto vazio», consistente entre
+   chamadas — o contrato não diz qual.
+3. **Aritmética de calendário da recorrência**: MENSAL a partir do dia 31 (Fevereiro não o tem) e
+   ANUAL a partir de 29 de Fevereiro não têm regra fixada no ADR-0036 nem na interface. I5
+   (idempotência) vale seja qual for a regra, mas as golden fixtures do I1/I2 de integração vão
+   precisar dela pinada por escrito.
+4. **Desigualdade não-estrita nos extremos de I3**: com horizonte 0, atraso 0, amostra insuficiente
+   (BASE degrada para OTIMISTA, R5.3) ou tudo vencido (R2.4: vencidas entram no primeiro bucket em
+   todos os cenários), os três cenários coincidem legitimamente — só «≤» é exigível. Não é
+   relaxamento do invariante: o ADR-0036 escreve I3 com «≤».
 
 ## Registo do orquestrador
 
