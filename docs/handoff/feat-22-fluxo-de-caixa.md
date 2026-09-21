@@ -8,7 +8,7 @@
 
 | Épico | Agente | Worktree | Nó actual | Estado |
 |---|---|---|---|---|
-| WS-1 Projecção de Tesouraria | `feat-tesouraria` | `wt/feat-tesouraria` | L1 | Contratos entregues — em revisão (`code-reviewer`); migração `22a` por gerar |
+| WS-1 Projecção de Tesouraria | `feat-tesouraria` | `wt/feat-tesouraria` | L1 **fechado** → L2 | Contratos revistos (aprovado com nits, zero blockers); migração `22a` aplicada; a seguir é o oráculo do L2 (`P2v`, `verificador-fluxo-caixa`) |
 | WS-2 DFC | `feat-dfc` | `wt/feat-dfc` | L9 | Bloqueado por WS-1 |
 
 ## Mapa de conflitos
@@ -105,6 +105,38 @@ Só leitura, sem alteração de schema fora de `financas.prisma`:
 | `I6`, `I8` | `__tests__/dfc.property.test.ts` | `verificador-fluxo-caixa` | — |
 | `I7`, `I9`, `I10` | `__tests__/dfc.integracao.test.ts` | `verificador-fluxo-caixa` | — |
 | Fixtures | `__tests__/fixtures/{projecao,dfc}-seed-demo.json` | `verificador-fluxo-caixa` | — |
+
+## Registo do orquestrador
+
+### L1 — fechado
+
+Revisão do `code-reviewer`: **aprovar com nits**, zero BLOCKERs. Diff restrito aos quatro
+entregáveis; `__tests__/` e `fixtures/` intocados; `pnpm check` 111/1584 e `pnpm gates` 5/5, iguais
+à linha de base.
+
+Migração `22a_compromisso_tesouraria` gerada por mim pelo procedimento não-interactivo
+(`migrate diff --from-config-datasource --to-schema prisma/schema --script` + `migrate deploy`),
+não por `migrate dev`, que exige TTY. O SQL é puramente aditivo — dois `CREATE TYPE`, um
+`CREATE TABLE`, dois `CREATE INDEX`, zero `ALTER` e zero `DROP` sobre tabelas existentes. O
+`migrate diff` final devolve *empty migration*.
+
+Nits encaminhados para onde se resolvem, em vez de ficarem num parecer que ninguém relê:
+- **R3.4 no `atualizar` parcial** (o único MAJOR) → task **5.1-bis**, com os dois casos de teste.
+  A regra vivia só num comentário de código, e um comentário não é um gate.
+- **`obterCompromisso(id, ctx)`** em falta no `IProjecaoService` → task **5.1-ter**. A rota
+  `[id]/editar` precisa dele e o `listarCompromissos` não serve.
+- **`dataFim` ≥ `dataInicio`** no `FiltroCompromissoSchema` → task **6.2-bis**. Um intervalo
+  invertido devolve hoje uma lista vazia sem dizer porquê.
+- **`<input type="date">`** → task **7.4-bis**. `new Date('aaaa-mm-dd')` lê como UTC e a leste de
+  Greenwich cai no dia anterior; o formulário constrói `new Date(ano, mes-1, dia, 12)`.
+- **`valor` acima de ~9×10¹⁵** perde exactidão em `number` e o `Decimal(18,2)` admite-o. É dívida
+  da casa inteira (`validations/caixa.ts` tem o mesmo), não deste nó. Não se corrige aqui: ou se
+  corrige em todos os schemas de dinheiro, ou não se corrige.
+
+Divergência a registar antes de o ADR-0036 ir a `Aceite` (acto humano): o §4 do ADR chama
+`categoriaId` ao campo que o design §2, o schema, as tasks e este handoff chamam `rubricaId`. O
+agente seguiu a fonte certa — o design governa o schema —, mas a divergência fica a apanhar quem
+leia o ADR primeiro.
 
 ## Bloqueios
 

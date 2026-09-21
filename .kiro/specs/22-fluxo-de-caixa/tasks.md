@@ -47,12 +47,15 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
 
 - [ ] **5. CRUD de compromissos + isolamento**
   - [ ] 5.1 `criar`/`atualizar`/`eliminar` (soft delete), `tenantId` explícito em todos os `findFirst`/`update`
+  - [ ] 5.1-bis `atualizarCompromisso` reimpõe **R3.4** contra o registo existente quando só uma das datas vem no input — o `superRefine` do Zod não a apanha, porque não conhece o registo. Teste com os dois casos: só `dataPrevista` movida para depois do `dataFimRecorrencia` gravado, e só `dataFimRecorrencia` movida para antes da `dataPrevista` gravada; ambos `ValidationError`
+  - [ ] 5.1-ter `obterCompromisso(id, ctx)` no `IProjecaoService` — a rota `[id]/editar` (7.4) carrega por id e o `listarCompromissos` não serve; extensão aditiva do contrato do L1, molde `ICaixaService.obterSessao`
   - [ ] 5.2 Teste de integração cross-tenant → `NotFoundError` (`I4`)
   - ✅ Gate: `pnpm test:integration` verde
 
 - [ ] **6. Actions e permissões**
   - [ ] 6.1 `financas:tesouraria:leitura` e `:escrita` em `prisma/seed/rbac.ts`, ligadas aos papéis
   - [ ] 6.2 `tesouraria.actions.ts` via `createSafeAction`; consultas com `permiteEmLeitura: true`; `revalidate` declarado
+  - [ ] 6.2-bis `superRefine` de `dataFim` ≥ `dataInicio` no `FiltroCompromissoSchema` — hoje um intervalo invertido devolve lista vazia sem dizer porquê
   - ✅ Gate: `pnpm gates` verde (`gate-leitura` em particular); `pnpm db:seed` corrido para ligar as permissões
 
 - [ ] **7. UI `/tesouraria`**
@@ -60,6 +63,7 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
   - [ ] 7.2 `tabela-buckets.tsx` e `grafico-projecao.tsx` ('use client'); tabela é a fonte
   - [ ] 7.3 `aviso-ambito.tsx` — limite do âmbito visível na página (R7.4)
   - [ ] 7.4 Rotas de compromissos (listagem/novo/editar) sem modais; `AlertDialog` só para eliminar
+  - [ ] 7.4-bis Datas do formulário construídas por `new Date(ano, mes-1, dia, 12)` a partir do `<input type="date">` — `new Date('aaaa-mm-dd')` lê como UTC e a leste de Greenwich cai no dia anterior, mudando o bucket
   - [ ] 7.5 Entradas em `AppSidebar`, `Breadcrumbs`, `CommandPalette`
   - [ ] 7.6 Saldo negativo destacado sem depender só da cor
   - ✅ Gate: `pnpm build` (standalone) verde; `pnpm e2e:a11y` AA nos dois temas
