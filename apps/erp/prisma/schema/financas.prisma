@@ -207,6 +207,22 @@ enum EstadoApuramentoIva {
   DECLARADO
 }
 
+/// Sinal de um compromisso de tesouraria (ADR-0036 §4).
+enum TipoCompromisso {
+  ENTRADA
+  SAIDA
+}
+
+/// Recorrência de um compromisso manual (ADR-0036 §4).
+/// A expansão é feita em memória no horizonte pedido — as ocorrências
+/// futuras NUNCA se materializam em linhas.
+enum RecorrenciaCompromisso {
+  UNICA
+  MENSAL
+  TRIMESTRAL
+  ANUAL
+}
+
 // ---------------------------------------------------------------------------
 // CAIXA
 // ---------------------------------------------------------------------------
@@ -910,4 +926,38 @@ model LinhaCotacaoComercial {
   cotacaoComercial CotacaoComercial @relation(fields: [cotacaoComercialId], references: [id])
 
   @@index([tenantId, cotacaoComercialId])
+}
+
+// ---------------------------------------------------------------------------
+// TESOURARIA (spec 22 · WS-1 · ADR-0036)
+// ---------------------------------------------------------------------------
+
+/// Compromisso de tesouraria: obrigação ou direito DATADO, ainda não liquidado,
+/// que o ERP não conhece por outra via (renda, leasing, impostos, IVA a entregar).
+/// NÃO é um lançamento — nada aqui toca a contabilidade.
+/// As outras três origens de compromisso (Fatura, ContaPagar, Payroll) são lidas
+/// nos seus próprios modelos; este é apenas o lugar do que falta (ADR-0036 §3-4).
+/// `rubricaId` → RubricaFluxoCaixa (WS-2; escalar e nulo até à migração 22b).
+/// `contaContabilId` → ContaPGC (escalar).
+/// Soft delete: entidade de referência editável, não documento transaccional.
+model CompromissoTesouraria {
+  id                 String                 @id @default(cuid())
+  tenantId           String
+  descricao          String
+  tipo               TipoCompromisso
+  valor              Decimal                @db.Decimal(18, 2)
+  dataPrevista       DateTime
+  recorrencia        RecorrenciaCompromisso @default(UNICA)
+  dataFimRecorrencia DateTime?
+  rubricaId          String?                // → RubricaFluxoCaixa (WS-2; nulo até lá)
+  contaContabilId    String?                // → ContaPGC (escalar)
+  ativo              Boolean                @default(true)
+  observacoes        String?
+  criadoPorId        String                 // FK User (escalar)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  deletedAt          DateTime?
+
+  @@index([tenantId, dataPrevista, ativo])
+  @@index([tenantId, deletedAt])
 }
