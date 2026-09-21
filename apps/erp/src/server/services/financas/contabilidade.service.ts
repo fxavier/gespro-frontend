@@ -112,6 +112,17 @@ const _FMT_PERIODO = new Intl.DateTimeFormat('pt-MZ', {
   month: '2-digit',
 });
 
+// Içado a módulo pelo mesmo motivo do _FMT_PERIODO: construir um
+// Intl.DateTimeFormat custa ~200µs; reutilizá-lo custa ~10µs por formatToParts.
+// A projecção de tesouraria (spec 22) chama diaCivilEmMaputo dezenas de vezes
+// por pedido e os property tests milhares de vezes por corrida.
+const _FMT_DIA_CIVIL = new Intl.DateTimeFormat('pt-MZ', {
+  timeZone: _FUSO_FISCAL,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
 /** @internal Exportado apenas para testes unitários (ADR-0033 §2). */
 export function periodoFiscalDe(data: Date): string {
   const partes = _FMT_PERIODO.formatToParts(data);
@@ -130,13 +141,7 @@ export function periodoFiscalDe(data: Date): string {
  * @internal Exportado apenas para testes unitários e para o cron route.
  */
 export function diaCivilEmMaputo(data: Date): { dia: number; mes: number; ano: number } {
-  const fmt = new Intl.DateTimeFormat('pt-MZ', {
-    timeZone: _FUSO_FISCAL,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const partes = fmt.formatToParts(data);
+  const partes = _FMT_DIA_CIVIL.formatToParts(data);
   return {
     dia: Number(partes.find((p) => p.type === 'day')!.value),
     mes: Number(partes.find((p) => p.type === 'month')!.value),

@@ -8,7 +8,7 @@
 
 | Épico | Agente | Worktree | Nó actual | Estado |
 |---|---|---|---|---|
-| WS-1 Projecção de Tesouraria | `feat-tesouraria` | `wt/feat-tesouraria` | L1 **fechado** → L2 | Contratos revistos (aprovado com nits, zero blockers); migração `22a` aplicada; a seguir é o oráculo do L2 (`P2v`, `verificador-fluxo-caixa`) |
+| WS-1 Projecção de Tesouraria | `feat-tesouraria` | `wt/feat-tesouraria` | L2 **fechado** → L3 | Núcleo puro entregue; oráculo `projecao.property.test.ts` 11/11 verde, intocado; cobertura do módulo 97,9 % linhas / 96,2 % ramos; caso canónico §4.1-bis confirmado por script |
 | WS-2 DFC | `feat-dfc` | `wt/feat-dfc` | L9 | Bloqueado por WS-1 |
 
 ## Mapa de conflitos
@@ -78,6 +78,36 @@ só, a regra é reimposta pelo serviço contra o registo existente (nó L5).
    transformaria a string `"false"` em `true`.
 4. `perfilAtraso` entrou na interface pública do serviço (o design §4.1 só o usa no pipeline,
    mas a task 3.2 trata-o como entregável testável).
+
+### Núcleo puro (nó L2, tasks 2.1–2.4 — entregue 2026-09-21)
+
+`projecao.service.ts` com as quatro funções puras (`montarBuckets`, `expandirRecorrencia`,
+`distribuirCompromissos`, `acumularSaldos`). Oráculo 11/11 verde, **intocado**. Decisões que o
+contrato não fixava, para o revisor olhar:
+
+1. **Horizonte inclusivo nos dois extremos**: os buckets cobrem `[inicio, inicio+horizonteDias]`
+   em dias civis Maputo — é o que faz `2026-01-31 + 150` alcançar `2026-06-30` (caso canónico
+   §4.1-bis, confirmado por script descartável; horizonte 0 ⇒ um bucket, como o oráculo exige).
+2. **MENSAL = meses civis** (primeiro e último buckets truncados ao horizonte), não janelas de
+   30 dias — é a linha «Setembro» que um tesoureiro lê. SEMANAL = janelas de 7 dias a partir
+   do início. O design não fixava; o oráculo não distingue.
+3. **Perfil de atraso negativo LANÇA** (`PERFIL_ATRASO_INVALIDO`): o truncamento em zero é por
+   observação no L3 (ADR-0036 §10), logo um perfil negativo aqui é defeito de quem chama. É a
+   saída que a propriedade «ou lança, ou a monotonia mantém-se» admite e a única compatível com
+   a regra 3 do design.
+4. **`expandirRecorrencia` devolve `vencida: false`**: a marcação contra a data de referência é
+   do L3, que é quem a conhece (a assinatura pura não recebe referência). `distribuirCompromissos`
+   confia na bandeira.
+5. **Deslocamento fraccionário arredonda** (`Math.round`) — o atraso médio real é fraccionário;
+   `round` é monótono, logo I3 sobrevive. `amostraInsuficiente` degrada só o BASE (R5.3);
+   o PESSIMISTA mantém a fórmula.
+6. **Guardas de totalidade** também em `montarBuckets` (granularidade desconhecida lança) —
+   mesmo racional dos «TEM de lançar» do oráculo para cenário/recorrência. São as duas únicas
+   linhas não cobertas (97,9 %): não lhes posso escrever testes (`__tests__/` é do oráculo).
+7. **Correcção de desempenho fora do módulo**: `diaCivilEmMaputo` construía um
+   `Intl.DateTimeFormat` por chamada (~200 µs); içado a módulo em `contabilidade.service.ts`,
+   no padrão do `_FMT_PERIODO` vizinho. Sem isto o oráculo estourava o timeout do vitest
+   (1000 runs × ~120 chamadas). Sem mudança de comportamento; suite inteira verde.
 
 ## Contratos WS-2 (DFC)
 
