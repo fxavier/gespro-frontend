@@ -104,6 +104,39 @@ fica fora deste épico.
 são apenas o CRUD de `CompromissoTesouraria`, com permissões novas
 `financas:tesouraria:leitura` e `financas:tesouraria:escrita`.
 
+**9. Regra de calendário das recorrências: último dia do mês, com âncora no dia original.**
+Cada ocorrência cai em `min(diaÂncora, últimoDiaDoMês)`, e o `diaÂncora` deriva sempre da
+`dataPrevista`, nunca da ocorrência anterior. Um compromisso de 31 de Janeiro expande para
+31 Jan · 28 Fev · 31 Mar · 30 Abr. Mesma regra para `TRIMESTRAL` e `ANUAL` (29 de Fevereiro cai em
+28 nos anos comuns). Tudo calculado em `Africa/Maputo`, incluindo a derivação do `diaÂncora`.
+
+Duas alternativas rejeitadas, ambas por motivo verificável. A **normalização do JavaScript**
+(`new Date(2026, 1, 31)` → 3 de Março) quebra a propriedade que torna a recorrência mensal
+utilizável — exactamente uma ocorrência por mês civil: Fevereiro fica vazio e Março a dobrar, sem
+erro nenhum, e o `I5` continua a valer porque a expansão é idempotente na mesma. O **dia 28 fixo**,
+ou o clamp arrastado (28 Fev → 28 Mar → 28 Abr), perde o dia original para sempre a partir do
+primeiro Fevereiro: é *date drift*, a classe de defeito que o RRULE do iCalendar e os motores de
+facturação resolvem ancorando em vez de arrastando.
+
+**Fronteira explícita:** dia civil, não dia útil. Não se desloca a ocorrência para fora de
+fim-de-semana ou feriado, porque isso exige uma tabela de feriados moçambicanos que o repositório
+não tem — e meia tabela é pior do que nenhuma. Limitação conhecida, a rever se e quando existir
+calendário bancário.
+
+**10. Atraso negativo trunca em zero, por observação.** `atraso = max(0, dataPagamento −
+dataVencimento)` em cada factura da amostra, antes de calcular média e desvio. Um cliente que pagou
+adiantado uma vez não dá direito a esperar o próximo adiantado, e com atrasos não-negativos o `I3`
+passa a ser estrutural (`BASE ≤ OTIMISTA` por construção) em vez de depender da amostra.
+**Trade-off aceite:** truncar por observação encolhe o σ, logo o `PESSIMISTA` fica menos
+conservador do que se se truncasse só a média; o conservadorismo desse cenário vem sobretudo da
+exclusão das entradas vencidas há mais de 90 dias (§6).
+
+**11. `dataFimRecorrencia` anterior à `dataPrevista` lança, mesmo no núcleo puro.**
+`expandirRecorrencia` recebe entrada já validada pelo Zod e reimposta pelo serviço, mas pode
+recebê-la na mesma por defeito de quem chama: lança `BusinessRuleError('RECORRENCIA_INVALIDA')`.
+Devolver vazio é indistinguível de «a recorrência terminou legitimamente» — o compromisso
+desaparece da projecção e ninguém vê nada.
+
 ## Alternativas consideradas
 
 **Projecção materializada com job nocturno.** Rejeitada. Resolve um problema de latência que não

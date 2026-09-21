@@ -126,6 +126,28 @@ puras correm em milissegundos e geram milhares de casos. Segue o precedente de
 Tudo em `Prisma.Decimal`; serialização para o cliente por `.toString()` no `createSafeAction`
 (`serializarDecimais` já o faz — ver regras invioláveis sobre o retorno das actions).
 
+### 4.1-bis Regras de calendário e de fronteira (ADR-0036 §9–§11)
+
+Fixadas **antes** do L2, porque as golden fixtures do L4 são apuradas à mão contra elas. Sem isto
+escrito, o L2 escolhe uma, o L4 apura fixtures contra essa escolha, e ela passa a ser a regra da
+casa por omissão — sem nunca ter sido decidida.
+
+| Caso | Regra | Porquê não a alternativa |
+|---|---|---|
+| Recorrência a partir de dia inexistente no mês (31 → Fev) | `min(diaÂncora, últimoDiaDoMês)`; `diaÂncora` vem da `dataPrevista`, nunca da ocorrência anterior | Normalização JS move para o mês seguinte (Fev vazio, Mar a dobrar); clamp arrastado perde o dia original para sempre (*drift*) |
+| 29 de Fevereiro em `ANUAL`/`TRIMESTRAL` | 28 de Fevereiro nos anos comuns | Mesma regra, sem excepção própria |
+| Ocorrência em fim-de-semana ou feriado | **Não se desloca.** Dia civil, não dia útil | Exigiria tabela de feriados MZ, que não existe no repositório. Limitação conhecida |
+| Fuso | Tudo em `Africa/Maputo`, incluindo a derivação do `diaÂncora` | O servidor corre em UTC; um `getDate()` cru muda o dia de âncora |
+| Atraso de cobrança negativo | `max(0, dataPagamento − dataVencimento)`, truncado **por observação** antes de média e σ | Truncar só a média deixa o σ inflado por pagamentos adiantados; não truncar inverte o `I3` |
+| `dataFimRecorrencia < dataPrevista` no núcleo puro | Lança `BusinessRuleError('RECORRENCIA_INVALIDA')` | Devolver vazio é indistinguível de recorrência terminada: o compromisso desaparece em silêncio |
+
+Exemplo canónico, a reproduzir como caso nomeado no teste e na fixture do L4 — compromisso mensal
+com `dataPrevista = 2026-01-31`, horizonte 150 dias:
+
+```
+2026-01-31 · 2026-02-28 · 2026-03-31 · 2026-04-30 · 2026-05-31 · 2026-06-30
+```
+
 ### 4.2 `src/server/services/financas/dfc.service.ts` (WS-2)
 
 ```ts
