@@ -35,6 +35,7 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
   - [ ] 3.1 `saldoTesourariaAte` — Σ `saldoContabilAte` das contas bancárias activas + sessões `ABERTA`. **Proibido** ler `ContaBancaria.saldoAtual`
   - [ ] 3.2 `perfilAtraso` — média e desvio sobre facturas liquidadas ≤ 180 d; `< 20` ⇒ `amostraInsuficiente`
   - [ ] 3.3 Teste `I1` (horizonte zero == balancete) contra o seed demo
+  - [ ] 3.3-bis **R2.4 ganha verificador externo**: o teste de integração do L3 assere que uma ocorrência manual com data anterior à referência sai marcada `vencida: true`. O `expandirRecorrencia` devolve sempre `false` — a assinatura pura não recebe data de referência — e a re-marcação é do L3. Se o L3 se esquecer, nada parte: a ocorrência cai no primeiro bucket na mesma e só a degradação de cenário fica inoperante, com números plausíveis. É o perfil exacto da quase-perda da R3.4
   - ✅ Gate: `grep -n "saldoAtual" projecao.service.ts` devolve zero linhas
 
 - [ ] **4. Agregações e orquestração**
@@ -44,6 +45,7 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
   - [ ] 4.4 Agregação de `CompromissoTesouraria` + expansão
   - [ ] 4.5 `projetarTesouraria` — `Promise.all`, pipeline do design §4.1, `primeiroDiaNegativo`, `menorSaldoProjetado`
   - [ ] 4.6 Vencidos no primeiro bucket, assinalados (R2.4)
+  - [ ] 4.6-bis A golden fixture `projecao-seed-demo.json` contém pelo menos uma ocorrência vencida, com a bandeira `vencida` asserida e a exclusão PESSIMISTA (> 90 dias) exercitada — senão a fixture prova o caminho feliz e mais nada
   - [ ] 4.7 Ao guardar `perf/explain/22-projecao.sql`, olhar em concreto para o índice `[tenantId, dataPrevista, ativo]`: a chave de intervalo vem antes da de igualdade, e a forma canónica seria `[tenantId, ativo, dataPrevista]`. É o índice literal do design §2 — só se muda com o custo de filtro à vista no plano, nunca por teoria
   - ✅ Gate: golden fixture `projecao-seed-demo.json` bate ao cêntimo
 

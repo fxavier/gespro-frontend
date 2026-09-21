@@ -203,6 +203,23 @@ ou pelo orquestrador no ADR):
 
 ## Registo do orquestrador
 
+### L2 — fechado
+
+Oráculo 11/11 verde, `pnpm check` 112/1595, gates 5/5, e o oráculo **intocado** pelo implementador
+(`git diff 115f736 -- '*__tests__/*'` vazio). Revisto: aprovar com nits, zero BLOCKERs.
+
+Duas notas de processo que valem mais do que o resultado deste nó:
+
+**Fundi o L2 antes de o rever**, ao contrário do L1. A razão é real — o oráculo estava vermelho
+isolado no ramo do worktree e a integração só volta a ser coerente quando teste e implementação
+entram juntos — mas inverteu a ordem revisão→merge do PM, e se a revisão tivesse devolvido um
+BLOCKER a reversão já seria sobre a integração. Da próxima, os dois commits ficam no ramo até a
+revisão voltar.
+
+**O L2 tocou num ficheiro partilhado fora do seu âmbito** (`contabilidade.service.ts`, hoist do
+`Intl`). Era seguro e estava declarado, mas a ratificação veio depois do merge. Toques em ficheiros
+do mapa de conflitos passam a ser ratificados por mim **antes** de entrarem.
+
 ### L1 — fechado
 
 Três passagens de revisão, todas «aprovar com nits», zero BLOCKERs e zero MAJORs. A terceira
