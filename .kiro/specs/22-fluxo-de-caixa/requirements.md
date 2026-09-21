@@ -37,9 +37,11 @@ WS-2 **só arranca depois de WS-1 integrado** — partilham `RubricaFluxoCaixa` 
 
 ### Requisito 1 — Saldo de abertura fidedigno
 
-1. O sistema DEVE calcular o saldo de abertura como a soma de `saldoContabilAte(contaContabilId, d)`
-   sobre todas as `ContaBancaria` activas do tenant, mais o saldo das `SessaoCaixa` em estado `ABERTA`
-   (`fundoInicial + totalEntradas − totalSaidas`).
+1. O sistema DEVE calcular o saldo de abertura como a soma do saldo de razão sobre os
+   `contaContabilId` **distintos** das `ContaBancaria` activas do tenant — uma conta PGC entra se
+   pelo menos uma bancária ancorada nela estiver activa, e entra **uma vez, pelo saldo inteiro**
+   (ADR-0036 §2-bis; a redacção anterior dizia «todas as `ContaBancaria` activas» e contava a dobrar) —
+   mais o saldo das `SessaoCaixa` em estado `ABERTA` (`fundoInicial + totalEntradas − totalSaidas`).
 2. O sistema NÃO DEVE ler `ContaBancaria.saldoAtual` em nenhum ponto do cálculo.
 3. QUANDO o tenant não tiver nenhuma conta bancária activa nem sessão aberta, ENTÃO o saldo de
    abertura É zero e a UI DEVE dizer explicitamente que não há origens de saldo configuradas — nunca
