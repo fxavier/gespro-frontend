@@ -78,6 +78,7 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
   - [ ] 7.1 `page.tsx` SC + filtros em searchParams (`<Suspense>` à volta de `useSearchParams`)
   - [ ] 7.2 `tabela-buckets.tsx` e `grafico-projecao.tsx` ('use client'); tabela é a fonte
   - [ ] 7.3 `aviso-ambito.tsx` — limite do âmbito visível na página (R7.4)
+  - [ ] 7.0 **[BLOCKING]** `revalidatePath('/tesouraria/compromissos/[id]')` é hoje um **no-op**: o `createSafeAction` chama `revalidatePath(p)` sem o segundo argumento (`safe-action.ts:114`), e o Next só casa um padrão com segmento dinâmico quando lhe passam `type: 'page'`. As actions de actualizar e eliminar declaram o literal conforme o prompt, o `gate-leitura` fica verde e a página de detalhe serve conteúdo obsoleto depois de uma edição — sem erro nenhum. Decidir entre (a) o `revalidate` aceitar `{ path, type }` no `createSafeAction`, que é alteração transversal a todas as actions da casa, e (b) revalidar por `tag`. Nenhuma action do repositório revalida caminho dinâmico hoje, por isso não há precedente a copiar
   - [ ] 7.4 Rotas de compromissos (listagem/novo/editar) sem modais; `AlertDialog` só para eliminar
   - [ ] 7.4-bis Datas do formulário construídas por `new Date(ano, mes-1, dia, 12)` a partir do `<input type="date">` — `new Date('aaaa-mm-dd')` lê como UTC e a leste de Greenwich cai no dia anterior, mudando o bucket
   - [ ] 7.5 Entradas em `AppSidebar`, `Breadcrumbs`, `CommandPalette`
