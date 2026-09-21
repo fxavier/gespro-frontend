@@ -364,12 +364,16 @@ criam `User` e `ContaPGC` por INSERT directo e ficaram para trás do schema
 Por isso o gate dos nós que usam esta suite **não é «verde»** — é **identidade de falhas por nome**.
 Contagem não serve: uma corrigida e uma nova dão o mesmo total.
 
-Medido em `ed5b5b4` (2026-09-21), com Testcontainers a funcionar:
+Medido em `00d2041` (2026-09-21, depois do L5), com Testcontainers a funcionar:
 
 ```
-Test Files  3 failed | 3 passed (6)
-Tests       3 failed | 19 passed | 8 skipped (30)
+Test Files  3 failed | 4 passed (7)
+Tests       3 failed | 29 passed | 7 skipped (39)
 ```
+
+Os **nomes** das falhas não mudam de nó para nó — é isso que se compara. Os totais sobem à medida
+que cada nó traz testes; actualiza-os aqui ao fechar cada um, e sobe o piso do bloco de sanidade
+em conformidade.
 
 Falhas esperadas, **por nome exacto**:
 
@@ -386,7 +390,7 @@ correu de todo. Uma corrida só conta se:
 
 1. a saída contém `[integration] Container Postgres parado.` — prova que o container subiu e caiu,
    e que o `globalSetup` não degradou para `SKIP_INTEGRATION=true`;
-2. o número de testes **passados** é `≥ 19` — o degradado gracioso dá zero passados e tudo saltado;
+2. o número de testes **passados** é `≥ 29` (piso do último nó fechado) — o degradado gracioso dá zero passados e tudo saltado;
 3. o ficheiro do nó corre **isolado** e passa.
 
 Qualquer falha fora desta tabela é do nó que a introduziu, e trava-o.
