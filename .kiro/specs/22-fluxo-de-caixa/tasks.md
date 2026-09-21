@@ -37,6 +37,8 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
   - [ ] 3.2-bis Duas funções **puras** entram no contrato (`projecao.interface.ts`), ratificadas pelo orquestrador porque sem elas as regras R2.4 e ADR §10 não são falsificáveis senão no L4, tarde demais: `marcarVencidas(ocorrencias, dataReferencia): Ocorrencia[]` (anterior **estrito**; marca também SAÍDAS; não muta a entrada) e `calcularPerfilAtraso(atrasosBrutosDias: number[]): PerfilAtraso` (recebe os atrasos **crus**, possivelmente negativos, e trunca lá dentro — receber já truncado tornava a regra intestável)
   - [ ] 3.3 Teste `I1` (horizonte zero == balancete) contra o seed demo
   - [ ] 3.3-bis **R2.4 ganha verificador externo**: o teste de integração do L3 assere que uma ocorrência manual com data anterior à referência sai marcada `vencida: true`. O `expandirRecorrencia` devolve sempre `false` — a assinatura pura não recebe data de referência — e a re-marcação é do L3. Se o L3 se esquecer, nada parte: a ocorrência cai no primeiro bucket na mesma e só a degradação de cenário fica inoperante, com números plausíveis. É o perfil exacto da quase-perda da R3.4
+  - [ ] 3.4-bis `saldoTesourariaAte` soma sobre `contaContabilId` **distintos**, não sobre `ContaBancaria` (ADR-0036 §2-bis). Uma conta PGC entra se ≥1 conta bancária ancorada nela estiver activa, e entra pelo saldo inteiro
+  - [ ] 3.5-bis **[verificador]** Teste nomeado do alias: duas `ContaBancaria` activas ancoradas na mesma `ContaPGC` ⇒ o saldo dessa conta entra **uma vez**. Não há caso no seed, logo sem este teste a regra não tem guardião
   - ✅ Gate: `grep -n "saldoAtual" projecao.service.ts` devolve zero linhas
 
 - [ ] **4. Agregações e orquestração**

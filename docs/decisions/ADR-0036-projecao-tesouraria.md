@@ -54,7 +54,7 @@ silêncio e ninguém sabe dizer de que momento é.
 **2. O saldo de abertura vem do razão, nunca de `ContaBancaria.saldoAtual`.**
 
 ```
-saldoAbertura(d) = Σ saldoContabilAte(conta.contaContabilId, d)   ∀ ContaBancaria ativa
+saldoAbertura(d) = Σ saldoContabilAte(c, d)   ∀ c ∈ contaContabilId DISTINTOS de ContaBancaria ativa
                  + Σ (fundoInicial + totalEntradas − totalSaidas)  ∀ SessaoCaixa ABERTA
 ```
 
@@ -69,6 +69,29 @@ na [issue #66](https://github.com/fxavier/gespro-frontend/issues/66) — não se
 
 `ContaBancaria.saldoAtual` fica marcada como morta neste ADR; quem lhe quiser dar um escritor fá-lo
 noutro ADR, não nas costas deste.
+
+**2-bis. O somatório percorre contas PGC distintas, não contas bancárias.**
+`ContaBancaria.contaContabilId` não é único — a única restrição é `@@unique([tenantId, banco,
+numeroConta])` — logo duas contas bancárias ancoradas na mesma `121` fariam contar o saldo dessa
+conta duas vezes. `saldoContabilAte` devolve o saldo de uma conta do **razão**, e a grandeza
+procurada é propriedade do conjunto de contas PGC, não do conjunto de contas bancárias: somar por
+conta bancária é um erro de categoria que só acerta enquanto o mapeamento for injectivo.
+
+Uma conta PGC entra no âmbito se **pelo menos uma** conta bancária ancorada nela estiver activa, e
+entra pelo saldo inteiro — o saldo de uma conta partilhada não se reparte por conta bancária.
+
+Rejeitou-se `@@unique([tenantId, contaContabilId])` em `ContaBancaria`: não há base contabilística
+para proibir duas contas bancárias sob a mesma conta PGC (o PGC-NIRF não exige analítica por conta
+bancária), e a constraint seria uma opinião de modelação empurrada para o schema para proteger uma
+função, com migração destrutiva sobre dados que já a podem violar.
+
+**Consequência fora desta spec, a juntar à issue #66:** os quatro outros consumidores de
+`saldoContabilAte` (`contabilidade.service.ts:1301, 1305, 1488, 1492`, todos em reconciliação
+bancária) sofrem do mesmo alias, e aí não duplica — **contamina**. Reconciliar a conta bancária A
+traz os movimentos de razão de A *e* de B, o extracto só tem os de A, e a diferença de B inteira
+cai em `diferencaNaoConciliada` atribuída ao banco. Mesmo sintoma da #66 — «o banco não bate» — e
+mesma origem nossa. As duas perguntas devem ser feitas sobre as mesmas quatro linhas ao mesmo
+tempo.
 
 **3. Quatro origens de compromisso, com precedência explícita.**
 
