@@ -23,9 +23,11 @@ import type {
  *                  NÃO é um período contabilístico.
  *
  * Nada do que a projecção calcula se grava (ADR-0036 §Decisão-1): sem tabela
- * de resultados, sem job, sem cache. O saldo de abertura vem SEMPRE de
- * `saldoContabilAte` — `ContaBancaria.saldoAtual` é estado morto e não se lê
- * (ADR-0036 §Decisão-2).
+ * de resultados, sem job, sem cache. O saldo de abertura vem SEMPRE do razão
+ * — agregado com `FILTRO_LANCAMENTO_MAPA` sobre os `contaContabilId`
+ * DISTINTOS das contas bancárias activas (§Decisão-2 e §2-bis), sem delegar
+ * no `saldoContabilAte`, que filtra só `LANCADO` (issue #66).
+ * `ContaBancaria.saldoAtual` é estado morto e não se lê.
  */
 
 // ---------------------------------------------------------------------------
@@ -255,9 +257,13 @@ export type CalcularPerfilAtrasoFn = (
  * IProjecaoService — contrato do serviço de projecção de tesouraria.
  *
  * Regras de negócio:
- *  - Saldo de abertura = Σ saldoContabilAte(conta.contaContabilId, d) sobre as
- *    ContaBancaria activas + Σ (fundoInicial + totalEntradas − totalSaidas)
- *    das SessaoCaixa ABERTA. `ContaBancaria.saldoAtual` NUNCA se lê.
+ *  - Saldo de abertura = Σ saldo do razão (filtro `FILTRO_LANCAMENTO_MAPA`)
+ *    sobre os `contaContabilId` DISTINTOS das ContaBancaria activas (§2-bis:
+ *    uma conta PGC entra se ≥ 1 bancária ancorada nela estiver activa, e
+ *    entra uma vez, pelo saldo inteiro) + Σ (fundoInicial + totalEntradas −
+ *    totalSaidas) das SessaoCaixa ABERTA. `ContaBancaria.saldoAtual` NUNCA
+ *    se lê; `saldoContabilAte` NUNCA se delega (filtra só `LANCADO` — §2,
+ *    issue #66).
  *  - Origens derivadas (ADR-0036 §Decisão-3): Fatura EMITIDA/PARCIALMENTE_PAGA/
  *    VENCIDA (total − totalPago) · ContaPagar ABERTA/PARCIALMENTE_PAGA/VENCIDA
  *    (valorRestante) · Payroll PROCESSADO (custoTotalEntidade, dataPagamento ??
@@ -274,14 +280,22 @@ export interface IProjecaoService {
   ): Promise<ProjecaoTesouraria>;
 
   /**
-   * Saldo de tesouraria até `data` (inclusive): contas bancárias activas pelo
-   * razão (`saldoContabilAte`, filtrado por FILTRO_LANCAMENTO_MAPA) + sessões
-   * de caixa ABERTAS. Responde «quanto dinheiro há», não «quanto há a receber».
+   * Saldo de tesouraria até `data` (inclusive): agrega as partidas do razão
+   * com `FILTRO_LANCAMENTO_MAPA` sobre os `contaContabilId` DISTINTOS das
+   * contas bancárias activas (§2-bis) + sessões de caixa ABERTAS. NÃO delega
+   * no `saldoContabilAte` — essa função filtra só `LANCADO` e, numa conta com
+   * estornos, guarda a metade invertida (§2, issue #66). Responde «quanto
+   * dinheiro há», não «quanto há a receber».
    */
   saldoTesourariaAte(data: Date, ctx: Ctx): Promise<Prisma.Decimal>;
 
-  /** Perfil de atraso de cobrança sobre facturas liquidadas ≤ 180 dias (R5.2-3). */
-  perfilAtraso(ctx: Ctx): Promise<PerfilAtraso>;
+  /**
+   * Perfil de atraso de cobrança sobre facturas liquidadas nos 180 dias que
+   * antecedem `dataReferencia` (R5.2-3). A data é parâmetro para a projecção
+   * ter UM relógio só (design §4.1 passo 4); tem valor por omissão
+   * (`new Date()`) porque o oráculo do L3 chama `perfilAtraso(ctx)`.
+   */
+  perfilAtraso(ctx: Ctx, dataReferencia?: Date): Promise<PerfilAtraso>;
 
   listarCompromissos(
     filtro: FiltroCompromissoInput,

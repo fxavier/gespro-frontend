@@ -150,6 +150,76 @@ ratificadas (`marcarVencidas`, `calcularPerfilAtraso`) com assinaturas no `proje
    OBSERVAÇÃO antes de média e σ; desvio AMOSTRAL (`n − 1`); `n < 2` ⇒ σ = 0, nunca `NaN`;
    vazia ⇒ média 0, σ 0, `amostraInsuficiente: true`; `n < 20` ⇒ insuficiente (R5.3).
 
+### Agregações e orquestração (nó L4, tasks 4.1–4.6 + 3.4-bis/quater — entregue 2026-09-21)
+
+Quatro agregações privadas (`agregarFaturas`, `agregarContasPagar`, `agregarPayroll`,
+`agregarCompromissos`) e `projetarTesouraria` em `projecao.service.ts`, pelo pipeline do design
+§4.1. Oráculos anteriores intocados (property 14/14, integração 10/10); golden fixture nova
+`projecao-seed-demo.json` + `projecao.golden.test.ts` 3/3. Decisões e factos deste nó:
+
+1. **3.4-bis corrigida**: o loop de soma de `saldoTesourariaAte` itera agora os `contaContabilId`
+   **distintos** (`contaIds`, construídos filtrando `ativo: true` primeiro e desduplicando
+   depois), não `contasAtivas`. Docstring reescrito (3.4-quater); idem os três sítios do
+   `projecao.interface.ts` que citavam a letra revogada do §2 (`saldoContabilAte` +
+   «por conta bancária»), incluindo a afirmação falsa apontada pelo orquestrador (`:278`).
+   O oráculo das duas activas na mesma PGC (3.4-ter/3.5-bis) continua por escrever — é do
+   `verificador-fluxo-caixa`.
+2. **`perfilAtraso(ctx, dataReferencia)`** — contrato ratificado pelo orquestrador. O parâmetro
+   tem **valor por omissão `new Date()`**: o oráculo do L3 chama `perfilAtraso(ctx)`
+   (`projecao.integracao.test.ts:233`) e um parâmetro obrigatório partia-o em compilação e em
+   runtime — a omissão preserva o oráculo, e `projetarTesouraria` passa SEMPRE o instante
+   explícito (um relógio só). Se o orquestrador quiser o parâmetro obrigatório, o verificador
+   tem de actualizar o oráculo primeiro. Acrescentei também `lte: dataReferencia` à janela
+   (semântica «os 180 dias que antecedem a referência»); com a referência no presente é
+   indistinguível do comportamento anterior.
+3. **§12 (último dia útil do payroll)** implementado como decidido: último dia do mês de
+   referência que não seja sábado/domingo, sem feriados, via `ultimoDiaUtilSerial(ano, mes)` —
+   parte de inteiros civis, nunca de instantes, logo é Africa/Maputo por construção. O seed demo
+   não tem `Payroll PROCESSADO` (só `PENDENTE`), portanto o fallback não é exercitado pela
+   fixture — fica para o verificador se o quiser trancar com caso próprio.
+4. **`primeiroDiaNegativo` = `inicio` do primeiro bucket com `saldoFinal` negativo** — a
+   granularidade não sabe o dia exacto do cruzamento; o `inicio` é a leitura conservadora.
+   `menorSaldoProjetado` = mínimo dos `saldoFinal`. Interpretação deste nó, não fixada pelo
+   design — o revisor que a conteste aqui.
+5. **`semOrigensDeSaldo`** = zero `ContaBancaria` activas E zero `SessaoCaixa` ABERTA (duas
+   contagens baratas dentro do mesmo `Promise.all`).
+6. **Defeito pré-existente corrigido de passagem**: `pnpm db:seed` estava **partido em base
+   limpa** — o commit `52739f3` (IVA dedutível) tornou `contaContabilId` obrigatório em
+   `contaPagarService.criar` e não actualizou `prisma/seed/contas-pagar.ts`; a guarda de
+   idempotência escondia-o em bases já semeadas. O seed passa agora `contaContabilId`
+   (`6112 De mercadorias` para bens, `63299 Outros fornecimentos e serviços` por omissão).
+   Sem isto o passo 1 do P4 («base limpa + pnpm db:seed») era inexequível.
+7. A base `gespro-db` foi **limpa e re-semeada** (P4 passo 1) em 2026-09-21; os tenants `perf-*`
+   foram re-criados com `db:seed:volume` para os EXPLAIN (e ficam prontos para o nó do k6).
+
+#### Golden fixture — derivação (2026-09-21, base limpa + seed)
+
+Números derivados por SQL independente sobre o tenant demo + aritmética `Decimal` em Python —
+nunca por `projetarTesouraria`. Relógio do teste pinado em `2026-09-21T16:30:00.000Z` (só
+`Date`); o seed gera datas relativas ao dia da execução, logo **re-semear noutro dia civil exige
+re-derivar a fixture** (as sentinelas do teste falham primeiro, com mensagem). Origem de cada
+número:
+
+- **`saldoAbertura` 724 106,60** = 0 (zero `ContaBancaria` no seed) + sessão ABERTA
+  `CXS/2026/000008` (`fundoInicial` 5 000,00 + `totalEntradas` 719 106,60 − `totalSaidas` 0,00).
+- **Perfil de atraso**: 64 facturas `PAGA` com `dataPagamento` na janela de 180 dias; atraso cru
+  civil (`AT TIME ZONE 'Africa/Maputo'`) = **−30 em todas** (o seed paga 30 dias antes do
+  vencimento) ⇒ truncado por observação: média 0, σ 0, `amostraInsuficiente: false` —
+  demonstração viva do §10 (sem truncar, a média seria −30 e o BASE anteciparia entradas).
+  Deslocamento BASE = round(0) = 0; PESSIMISTA = round(0+0) = 0.
+- **Entradas**: 20 facturas em aberto (3 `EMITIDA` + 8 `PARCIALMENTE_PAGA` + 9 `VENCIDA`),
+  valor `total − totalPago`, data civil do `dataVencimento`. 14 vencidas (< 21-09) → 1.º bucket;
+  FAT/092 (25-09) no 1.º bucket **não** vencida; restantes por semana.
+- **Saídas**: 10 contas a pagar em aberto; 3 vencidas → 1.º bucket; restantes por semana.
+  `Payroll PROCESSADO` = 0 e `CompromissoTesouraria` = 0 no seed — contribuição nula, documentada.
+- **Buckets**: 13 semanas exactas (91 dias inclusivos), 21-09 → 20-12; saldos em cadeia (I2).
+- **PESSIMISTA (4.6-bis)**: exclui as 8 entradas vencidas há > 90 dias (< 23-06); as duas margens
+  da fronteira estão asseridas — FAT/045 (115 dias) sai, FAT/055 (87 dias) fica. O saldo cruza
+  para negativo em 2026-11-02 (`primeiroDiaNegativo`), menor saldo −226 694,92 — o alarme de
+  ruptura (R6.1) fica exercitado pela fixture.
+- Sentinela `totalFaturas` = **106**, não 104: o funil de `demo-vendas` cria 104 e o seed clássico
+  de finanças mais 2 (ambas `PAGA` — não tocam na projecção).
+
 ## Contratos WS-2 (DFC)
 
 _A preencher pelo nó L9._
