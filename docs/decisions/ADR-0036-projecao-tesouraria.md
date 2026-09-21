@@ -131,6 +131,13 @@ passa a ser estrutural (`BASE ≤ OTIMISTA` por construção) em vez de depender
 conservador do que se se truncasse só a média; o conservadorismo desse cenário vem sobretudo da
 exclusão das entradas vencidas há mais de 90 dias (§6).
 
+O desvio é **amostral** (divisor `n − 1`), não populacional. A amostra dos últimos 180 dias é
+exactamente isso — uma amostra de que se infere o comportamento futuro —, e não a população de
+todos os recebimentos do cliente; e o divisor menor dá um σ maior, logo um `PESSIMISTA` mais
+conservador, que é o lado certo para onde errar num mapa de tesouraria. Com `n < 2` o desvio é
+**zero** por definição, não `NaN`: o `n − 1` dividiria por zero e um `NaN` propagado por
+`Decimal` rebenta longe da causa. Amostra vazia devolve média 0, σ 0 e `amostraInsuficiente: true`.
+
 **11. `dataFimRecorrencia` anterior à `dataPrevista` lança, mesmo no núcleo puro.**
 `expandirRecorrencia` recebe entrada já validada pelo Zod e reimposta pelo serviço, mas pode
 recebê-la na mesma por defeito de quem chama: lança `BusinessRuleError('RECORRENCIA_INVALIDA')`.

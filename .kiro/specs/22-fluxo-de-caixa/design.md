@@ -139,6 +139,7 @@ casa por omissão — sem nunca ter sido decidida.
 | Ocorrência em fim-de-semana ou feriado | **Não se desloca.** Dia civil, não dia útil | Exigiria tabela de feriados MZ, que não existe no repositório. Limitação conhecida |
 | Fuso | Tudo em `Africa/Maputo`, incluindo a derivação do `diaÂncora` | O servidor corre em UTC; um `getDate()` cru muda o dia de âncora |
 | Atraso de cobrança negativo | `max(0, dataPagamento − dataVencimento)`, truncado **por observação** antes de média e σ | Truncar só a média deixa o σ inflado por pagamentos adiantados; não truncar inverte o `I3` |
+| Desvio do perfil de atraso | **Amostral** (`n − 1`); `n < 2` ⇒ σ = 0, nunca `NaN` | É uma amostra de que se infere o futuro, não a população; e o σ maior dá um `PESSIMISTA` mais conservador |
 | `dataFimRecorrencia < dataPrevista` no núcleo puro | Lança `BusinessRuleError('RECORRENCIA_INVALIDA')` | Devolver vazio é indistinguível de recorrência terminada: o compromisso desaparece em silêncio |
 
 Exemplo canónico, a reproduzir como caso nomeado no teste e na fixture do L4 — compromisso mensal

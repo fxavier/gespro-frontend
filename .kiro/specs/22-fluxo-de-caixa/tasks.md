@@ -34,6 +34,7 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
 - [ ] **3. Saldo de abertura e perfil de atraso**
   - [ ] 3.1 `saldoTesourariaAte` — Σ `saldoContabilAte` das contas bancárias activas + sessões `ABERTA`. **Proibido** ler `ContaBancaria.saldoAtual`
   - [ ] 3.2 `perfilAtraso` — média e desvio sobre facturas liquidadas ≤ 180 d; `< 20` ⇒ `amostraInsuficiente`
+  - [ ] 3.2-bis Duas funções **puras** entram no contrato (`projecao.interface.ts`), ratificadas pelo orquestrador porque sem elas as regras R2.4 e ADR §10 não são falsificáveis senão no L4, tarde demais: `marcarVencidas(ocorrencias, dataReferencia): Ocorrencia[]` (anterior **estrito**; marca também SAÍDAS; não muta a entrada) e `calcularPerfilAtraso(atrasosBrutosDias: number[]): PerfilAtraso` (recebe os atrasos **crus**, possivelmente negativos, e trunca lá dentro — receber já truncado tornava a regra intestável)
   - [ ] 3.3 Teste `I1` (horizonte zero == balancete) contra o seed demo
   - [ ] 3.3-bis **R2.4 ganha verificador externo**: o teste de integração do L3 assere que uma ocorrência manual com data anterior à referência sai marcada `vencida: true`. O `expandirRecorrencia` devolve sempre `false` — a assinatura pura não recebe data de referência — e a re-marcação é do L3. Se o L3 se esquecer, nada parte: a ocorrência cai no primeiro bucket na mesma e só a degradação de cenário fica inoperante, com números plausíveis. É o perfil exacto da quase-perda da R3.4
   - ✅ Gate: `grep -n "saldoAtual" projecao.service.ts` devolve zero linhas
