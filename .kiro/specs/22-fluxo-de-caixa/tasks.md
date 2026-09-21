@@ -50,6 +50,8 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
   - [ ] 4.4 Agregação de `CompromissoTesouraria` + expansão
   - [ ] 4.5 `projetarTesouraria` — `Promise.all`, pipeline do design §4.1, `primeiroDiaNegativo`, `menorSaldoProjetado`
   - [ ] 4.6 Vencidos no primeiro bucket, assinalados (R2.4)
+  - [ ] 4.8 **[verificador]** Actualizar o oráculo do L3 para chamar `perfilAtraso(ctx, dataReferencia)` e **só então** tornar o parâmetro obrigatório. O L4 deixou-o opcional com `new Date()` por omissão para não tocar no oráculo — correcto, mas o default repõe o defeito que a ratificação fechava: quem chamar `perfilAtraso(ctx)` volta a ter um segundo relógio na mesma projecção
+  - [ ] 4.9 **[verificador]** O **§12** (último dia útil do payroll) não tem caso vivo: o seed demo só tem `Payroll` `PENDENTE`, logo a fixture não o exercita. Teste nomeado com `Payroll` `PROCESSADO` e `dataPagamento` nula, num mês cujo último dia caia a sábado e noutro a domingo
   - [ ] 4.6-bis A golden fixture `projecao-seed-demo.json` contém pelo menos uma ocorrência vencida, com a bandeira `vencida` asserida e a exclusão PESSIMISTA (> 90 dias) exercitada — senão a fixture prova o caminho feliz e mais nada
   - [ ] 4.7 Ao guardar `perf/explain/22-projecao.sql`, olhar em concreto para o índice `[tenantId, dataPrevista, ativo]`: a chave de intervalo vem antes da de igualdade, e a forma canónica seria `[tenantId, ativo, dataPrevista]`. É o índice literal do design §2 — só se muda com o custo de filtro à vista no plano, nunca por teoria
   - ✅ Gate: golden fixture `projecao-seed-demo.json` bate ao cêntimo
