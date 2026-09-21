@@ -43,11 +43,12 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
   - [ ] 4.4 Agregação de `CompromissoTesouraria` + expansão
   - [ ] 4.5 `projetarTesouraria` — `Promise.all`, pipeline do design §4.1, `primeiroDiaNegativo`, `menorSaldoProjetado`
   - [ ] 4.6 Vencidos no primeiro bucket, assinalados (R2.4)
+  - [ ] 4.7 Ao guardar `perf/explain/22-projecao.sql`, olhar em concreto para o índice `[tenantId, dataPrevista, ativo]`: a chave de intervalo vem antes da de igualdade, e a forma canónica seria `[tenantId, ativo, dataPrevista]`. É o índice literal do design §2 — só se muda com o custo de filtro à vista no plano, nunca por teoria
   - ✅ Gate: golden fixture `projecao-seed-demo.json` bate ao cêntimo
 
 - [ ] **5. CRUD de compromissos + isolamento**
   - [ ] 5.1 `criar`/`atualizar`/`eliminar` (soft delete), `tenantId` explícito em todos os `findFirst`/`update`
-  - [ ] 5.1-bis `atualizarCompromisso` reimpõe **R3.4** contra o registo existente quando só uma das datas vem no input — o `superRefine` do Zod não a apanha, porque não conhece o registo. Teste com os dois casos: só `dataPrevista` movida para depois do `dataFimRecorrencia` gravado, e só `dataFimRecorrencia` movida para antes da `dataPrevista` gravada; ambos `ValidationError`
+  - [ ] 5.1-bis `atualizarCompromisso` reimpõe **R3.4** contra o registo existente quando só uma das datas vem no input — o `superRefine` do Zod não a apanha, porque não conhece o registo. Teste com os dois casos: só `dataPrevista` movida para depois do `dataFimRecorrencia` gravado, e só `dataFimRecorrencia` movida para antes da `dataPrevista` gravada; ambos `ValidationError`. No mesmo `superRefine`, `recorrencia: 'UNICA'` com `dataFimRecorrencia` preenchida — hoje ninguém a apanha, e é a mesma classe de defeito da R3.4
   - [ ] 5.1-ter `obterCompromisso(id, ctx)` no `IProjecaoService` — a rota `[id]/editar` (7.4) carrega por id e o `listarCompromissos` não serve; extensão aditiva do contrato do L1, molde `ICaixaService.obterSessao`
   - [ ] 5.2 Teste de integração cross-tenant → `NotFoundError` (`I4`)
   - ✅ Gate: `pnpm test:integration` verde
