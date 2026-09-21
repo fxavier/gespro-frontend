@@ -26,8 +26,11 @@ obtém um número plausível e falso.
 ## Regras invioláveis deste domínio
 
 **1. `ContaBancaria.saldoAtual` não se lê.** Não tem escritor em produção — existe com `DEFAULT 0`
-desde a migração inicial. Saldo de abertura é sempre
-`Σ saldoContabilAte(conta.contaContabilId, d)` + sessões `ABERTA`.
+desde a migração inicial. O saldo de abertura é sempre o saldo do **razão** sobre os
+`contaContabilId` **distintos** das contas bancárias activas (ADR-0036 §2-bis: por conta PGC, não
+por conta bancária — duas bancárias na mesma `121` contariam a dobrar), agregado com
+`FILTRO_LANCAMENTO_MAPA`, + sessões `ABERTA`. **Não se delega no `saldoContabilAte`**: essa função
+filtra só `LANCADO` e, numa conta com estornos, guarda a metade invertida (§2, issue #66).
 
 **2. Nada de projecção se grava.** Sem tabela de resultados, sem job nocturno, sem cache. Uma
 projecção gravada fica obsoleta em silêncio e ninguém sabe de que momento é.

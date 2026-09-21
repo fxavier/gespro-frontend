@@ -113,13 +113,17 @@ puras correm em milissegundos e geram milhares de casos. Segue o precedente de
 
 **Pipeline de `projetarTesouraria`:**
 
-1. `saldoAbertura` ← Σ `saldoContabilAte(conta.contaContabilId, hoje)` ∀ `ContaBancaria.ativo`
-   + Σ sessões `ABERTA`. Nunca `ContaBancaria.saldoAtual`.
+1. `saldoAbertura` ← `saldoTesourariaAte(hoje, ctx)`: saldo do razão sobre os `contaContabilId`
+   **distintos** das contas bancárias activas (§2-bis — não por conta bancária, que conta a dobrar),
+   agregado com `FILTRO_LANCAMENTO_MAPA` e **sem delegar** no `saldoContabilAte`, que filtra só
+   `LANCADO` (§2, issue #66), + Σ sessões `ABERTA`. Nunca `ContaBancaria.saldoAtual`.
 2. Quatro agregações em paralelo (`Promise.all`), cada uma indexada por data:
    facturas a receber · contas a pagar · payroll processado · compromissos manuais.
 3. `expandirRecorrencia` sobre os manuais.
-4. `perfilAtraso(ctx)` — atraso médio e desvio padrão sobre facturas liquidadas ≤ 180 dias;
-   `< 20` amostras ⇒ `{ amostraInsuficiente: true }` e `BASE` degrada para `OTIMISTA`.
+4. `perfilAtraso(ctx, dataReferencia)` — atraso médio e desvio sobre facturas liquidadas ≤ 180
+   dias, truncado em zero **por observação** e com desvio **amostral** (§10); `< 20` amostras ⇒
+   `{ amostraInsuficiente: true }` e `BASE` degrada para `OTIMISTA`. A `dataReferencia` é a mesma
+   do passo 1: um só relógio por projecção.
 5. `montarBuckets` → `distribuirCompromissos` → `acumularSaldos`.
 6. `primeiroDiaNegativo`, `menorSaldoProjetado`.
 

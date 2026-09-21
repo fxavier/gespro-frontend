@@ -175,6 +175,20 @@ recebê-la na mesma por defeito de quem chama: lança `BusinessRuleError('RECORR
 Devolver vazio é indistinguível de «a recorrência terminou legitimamente» — o compromisso
 desaparece da projecção e ninguém vê nada.
 
+**12. «Último dia útil» do payroll é dia de semana, sem feriados.** Quando `Payroll.dataPagamento`
+é nula, a saída data-se no último dia do mês de referência que não seja sábado nem domingo,
+calculado em `Africa/Maputo`. **Não** se excluem feriados moçambicanos, pela mesma razão que o §9
+deu para as recorrências: a tabela não existe no repositório e meia tabela é pior do que nenhuma.
+
+A decisão é necessária porque o R2.3 e o bloco P4 prescrevem «último dia útil» sem dizer o que
+conta como útil — e uma leitura que exija feriados é inexequível hoje, enquanto a que os ignora é
+trivial. Sem isto escrito, o nó que implementa escolhe uma e a golden fixture apura-se contra ela.
+
+**Consequência assumida:** num mês em que o último dia de semana seja feriado, a saída fica datada
+um ou dois dias antes do pagamento real. O erro é de dias, sempre para o lado conservador — a saída
+aparece mais cedo do que acontece —, e vive num fallback que só actua quando a data real é
+desconhecida. A rever quando existir calendário bancário, junto com o §9.
+
 ## Alternativas consideradas
 
 **Projecção materializada com job nocturno.** Rejeitada. Resolve um problema de latência que não
