@@ -28,6 +28,7 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
   - [ ] 2.3 `distribuirCompromissos` (cenários; saídas nunca deslocadas)
   - [ ] 2.4 `acumularSaldos`
   - [ ] 2.5 `projecao.property.test.ts` — `I2`, `I3`, `I5` com fast-check
+  - [ ] 2.5-bis Caso canónico do design §4.1-bis como **teste nomeado** no oráculo: mensal de `2026-01-31`, horizonte 150 → `31 Jan · 28 Fev · 31 Mar · 30 Abr · 31 Mai · 30 Jun`. Escreve-o o `verificador-fluxo-caixa`, nunca o `feat-tesouraria` — é território do oráculo. Verificado à mão no L2, mas verificação à mão não fica a guardar a regra
   - ✅ Gate: property tests verdes com ≥ 1000 execuções por propriedade; cobertura do módulo puro ≥ 95 %
 
 - [ ] **3. Saldo de abertura e perfil de atraso**
