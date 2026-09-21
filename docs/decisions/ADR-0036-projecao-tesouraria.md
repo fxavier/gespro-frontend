@@ -58,9 +58,17 @@ saldoAbertura(d) = Σ saldoContabilAte(conta.contaContabilId, d)   ∀ ContaBanc
                  + Σ (fundoInicial + totalEntradas − totalSaidas)  ∀ SessaoCaixa ABERTA
 ```
 
-`saldoContabilAte` já existe (`contabilidade.service.ts:1177`) e já filtra por
-`FILTRO_LANCAMENTO_MAPA`. `ContaBancaria.saldoAtual` fica marcada como morta neste ADR; quem lhe
-quiser dar um escritor fá-lo noutro ADR, não nas costas deste.
+`saldoContabilAte` já existe (`contabilidade.service.ts:1182`), mas filtra apenas `LANCADO` — **não**
+por `FILTRO_LANCAMENTO_MAPA`, ao contrário do que uma versão anterior deste ADR afirmava. Numa conta
+com estornos as duas coisas não são equivalentes: o estorno cria um lançamento novo `LANCADO` com as
+partidas invertidas e marca o original `ESTORNADO`, portanto o filtro actual exclui o original e
+guarda a metade invertida. Por isso a projecção **não delega** no `saldoContabilAte`: agrega com o
+filtro dos mapas. O defeito que isto revela na reconciliação bancária é anterior a esta spec e está
+na [issue #66](https://github.com/fxavier/gespro-frontend/issues/66) — não se corrige dentro deste
+épico.
+
+`ContaBancaria.saldoAtual` fica marcada como morta neste ADR; quem lhe quiser dar um escritor fá-lo
+noutro ADR, não nas costas deste.
 
 **3. Quatro origens de compromisso, com precedência explícita.**
 
