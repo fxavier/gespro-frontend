@@ -43,28 +43,35 @@ interface Conta {
   valor: number;
   emissao: number; // dias relativos a hoje
   vencimento: number;
+  /**
+   * Código PGC da conta de gasto/existências a debitar no reconhecimento da
+   * dívida (obrigatório desde o ADR-0034 §1 — `CONTA_CONTABIL_OBRIGATORIA`).
+   * `6112 De mercadorias` para compra de bens; por omissão `63299 Outros
+   * fornecimentos e serviços`.
+   */
+  conta?: '6112' | '63299';
   observacoes?: string;
   pagamentos?: Pagamento[];
 }
 
 const CONTAS: Conta[] = [
   // ── Abertas, a vencer ───────────────────────────────────────────────────
-  { fornecedor: 'FOR-0001', descricao: 'Factura FT 2026/118 — mercadoria para revenda (Julho)', valor: 184_500, emissao: -5, vencimento: 25 },
+  { fornecedor: 'FOR-0001', descricao: 'Factura FT 2026/118 — mercadoria para revenda (Julho)', valor: 184_500, emissao: -5, vencimento: 25, conta: '6112' },
   { fornecedor: 'FOR-0002', descricao: 'Factura IMP-4471 — contentor de material de escritório', valor: 420_000, emissao: -3, vencimento: 42 },
   { fornecedor: 'FOR-0003', descricao: 'Recibo 0312 — manutenção do gerador da loja', valor: 8_500, emissao: -2, vencimento: 13 },
-  { fornecedor: 'FOR-0005', descricao: 'Factura NP-2026-0057 — fornecimento Nampula (1.ª entrega)', valor: 96_300, emissao: -10, vencimento: 20, observacoes: 'Pagar contra guia de remessa assinada.' },
-  { fornecedor: 'FOR-0001', descricao: 'Factura FT 2026/131 — reposição de stock (Agosto)', valor: 132_750, emissao: -1, vencimento: 59 },
+  { fornecedor: 'FOR-0005', descricao: 'Factura NP-2026-0057 — fornecimento Nampula (1.ª entrega)', valor: 96_300, emissao: -10, vencimento: 20, conta: '6112', observacoes: 'Pagar contra guia de remessa assinada.' },
+  { fornecedor: 'FOR-0001', descricao: 'Factura FT 2026/131 — reposição de stock (Agosto)', valor: 132_750, emissao: -1, vencimento: 59, conta: '6112' },
 
   // ── Vencidas (o serviço marca-as no fim) ────────────────────────────────
-  { fornecedor: 'FOR-0002', descricao: 'Factura IMP-4390 — peças de reposição', valor: 58_900, emissao: -60, vencimento: -15 },
+  { fornecedor: 'FOR-0002', descricao: 'Factura IMP-4390 — peças de reposição', valor: 58_900, emissao: -60, vencimento: -15, conta: '6112' },
   { fornecedor: 'FOR-0003', descricao: 'Recibo 0298 — reparação eléctrica do armazém', valor: 12_400, emissao: -48, vencimento: -33, observacoes: 'Fornecedor já reclamou por telefone.' },
-  { fornecedor: 'FOR-0005', descricao: 'Factura NP-2026-0041 — fornecimento Nampula (Maio)', valor: 74_200, emissao: -75, vencimento: -45 },
+  { fornecedor: 'FOR-0005', descricao: 'Factura NP-2026-0041 — fornecimento Nampula (Maio)', valor: 74_200, emissao: -75, vencimento: -45, conta: '6112' },
 
   // ── Parcialmente pagas ──────────────────────────────────────────────────
   {
     fornecedor: 'FOR-0001',
     descricao: 'Factura FT 2026/097 — mercadoria para revenda (Junho)',
-    valor: 246_000, emissao: -40, vencimento: 5,
+    valor: 246_000, emissao: -40, vencimento: 5, conta: '6112',
     pagamentos: [{ em: -20, valor: 120_000, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-06-27/0412' }],
   },
   {
@@ -85,7 +92,7 @@ const CONTAS: Conta[] = [
   {
     fornecedor: 'FOR-0001',
     descricao: 'Factura FT 2026/064 — mercadoria para revenda (Abril)',
-    valor: 152_300, emissao: -100, vencimento: -70,
+    valor: 152_300, emissao: -100, vencimento: -70, conta: '6112',
     pagamentos: [
       { em: -85, valor: 80_000, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-04-23/0177' },
       { em: -71, valor: 72_300, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-05-07/0203' },
@@ -112,6 +119,19 @@ export async function seedContasPagar(
   });
   const porCodigo = new Map(fornecedores.map((f) => [f.codigo, f.id]));
 
+  // Contas PGC de débito do reconhecimento da dívida (ADR-0034 §1): o serviço
+  // recusa criar sem `contaContabilId` (CONTA_CONTABIL_OBRIGATORIA).
+  const contasGasto = await prisma.contaPGC.findMany({
+    where: { tenantId, codigo: { in: ['6112', '63299'] } },
+    select: { id: true, codigo: true },
+  });
+  const gastoPorCodigo = new Map(contasGasto.map((c) => [c.codigo, c.id]));
+  for (const codigo of ['6112', '63299'] as const) {
+    if (!gastoPorCodigo.has(codigo)) {
+      throw new Error(`[WS-B] Conta PGC ${codigo} não existe — correr o seed do plano de contas antes.`);
+    }
+  }
+
   const ctx = { tenantId, userId };
 
   await runWithTenantContext(ctx, async () => {
@@ -126,6 +146,7 @@ export async function seedContasPagar(
           valorOriginal: c.valor,
           dataEmissao: dias(c.emissao),
           dataVencimento: dias(c.vencimento),
+          contaContabilId: gastoPorCodigo.get(c.conta ?? '63299')!,
           observacoes: c.observacoes,
         },
         ctx,
