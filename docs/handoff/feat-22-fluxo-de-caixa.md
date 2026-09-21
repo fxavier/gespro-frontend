@@ -220,6 +220,48 @@ número:
 - Sentinela `totalFaturas` = **106**, não 104: o funil de `demo-vendas` cria 104 e o seed clássico
   de finanças mais 2 (ambas `PAGA` — não tocam na projecção).
 
+### CRUD de compromissos (nó L5, tasks 5.0–5.2 + bis/ter/quater/quinquies — entregue 2026-09-21)
+
+`listarCompromissos` (cursor via `paginate`, ordem estável `(dataPrevista, id)`), `obterCompromisso`,
+`criarCompromisso`, `atualizarCompromisso` e `eliminarCompromisso` (soft delete) em
+`projecao.service.ts`. Oráculos anteriores intocados; `projecao.tenant.test.ts` (I4) escrito por
+este agente **por autorização explícita do P5** («se o verificador ainda não o escreveu, escreve-o
+tu») — 9/9 verde isolado e na suite. Decisões deste nó:
+
+1. **5.0 fechada**: `perfilAtraso(ctx, dataReferencia: Date)` sem `?` nem `new Date()` por
+   omissão, na interface e no serviço (`grep -c "dataReferencia.*=.*new Date()"` = 0 nos dois).
+   Chamador esquecido passa a erro de compilação; o único chamador sem data era o oráculo do L3,
+   já actualizado pelo verificador (`acd1488`).
+2. **5.1-quater — `PaginacaoTesouraria.total?` SAIU** do contrato. Nenhum requisito nem o design
+   §2 o pedem, a navegação é por cursor (nunca por número de página, padrão `paginate` da casa) e
+   um `COUNT(*)` por pedido seria custo sem consumidor. Se a UI um dia o quiser, entra COM o
+   contrato de quem o preenche.
+3. **5.1-ter — `obterCompromisso` desvia do molde num ponto declarado**: `obterSessao` devolve
+   `null`; aqui inexistente/eliminado/cross-tenant lançam o MESMO `NotFoundError` — o I4 exige o
+   mesmo erro nos três verbos e um retorno `null` obrigaria cada chamador a re-inventar o 404.
+4. **5.1-bis**: regras de coerência num único `validarCoerenciaCompromisso` sobre o par
+   EFECTIVO (input ⊕ registo). A comparação R3.4 é por **dia civil Maputo** (`serialCivil`), a
+   mesma régua de `expandirRecorrencia` — fim no próprio dia da primeira ocorrência é válido.
+   São `ValidationError` (422), não `BusinessRuleError`: é dado mal-formado, não transição
+   recusada. A regra irmã (UNICA com `dataFimRecorrencia`) entrou também no `superRefine` do Zod.
+5. **`AtualizarCompromissoSchema.dataFimRecorrencia` aceita `null`** (limpar): sem isso, um
+   recorrente com fim gravado nunca poderia converter-se em UNICA — a regra irmã recusá-lo-ia
+   para sempre. O `nullable` embrulha o `coerce.date` por fora (um `null` cru viraria 1970).
+6. **O ficheiro do I4 vive em `src/**/__tests__/`** (caminho literal do P5 e da tabela de
+   oráculos) mas é de integração: `vitest.integration.config.ts` ganhou o caminho no `include`;
+   no projecto `unit` salta sozinho (sem `INTEGRATION_DB_URL`) e aparece como 1 ficheiro/9 testes
+   skipped no `pnpm check`.
+7. **5.2-bis confirmada com os olhos**: o teste em skip do verificador («compromisso MENSAL a
+   atravessar o horizonte produz uma ocorrência por mês civil (§9)») **activou** — corrida
+   verbosa isolada mostra-o `✓ … 14ms`; a suite completa passou de 8 para 7 skipped e de 19+9
+   para 29 passados. Ficheiro do verificador intocado.
+8. **Linha de base respeitada**: suite de integração com as MESMAS cinco falhas, por nome
+   (2 hooks + 3 de `tenant-isolation`), bloco de sanidade presente
+   (`[integration] Container Postgres parado.`, 29 ≥ 19 passados). Nota lateral: a primeira falha
+   de `tenant-isolation` exibe `Unique constraint (nuit)` — é intrínseca ao próprio ficheiro
+   (`String(now).slice(0, 9)` dá o MESMO nuit aos dois tenants, o prefixo só muda a cada ~10 s),
+   não induzida por este nó (os nuit deste nó são da gama `41x xxx xxx`). Fica para a issue #67.
+
 ## Contratos WS-2 (DFC)
 
 _A preencher pelo nó L9._
@@ -242,7 +284,7 @@ Só leitura, sem alteração de schema fora de `financas.prisma`:
 |---|---|---|---|
 | `I1` | `__tests__/projecao.integracao.test.ts` | `verificador-fluxo-caixa` | — |
 | `I2`, `I3`, `I5` | `__tests__/projecao.property.test.ts` | `verificador-fluxo-caixa` | **Escrito e vermelho** (P2v, 2026-09-21) — ver abaixo |
-| `I4` | `__tests__/projecao.tenant.test.ts` (integração) | `verificador-fluxo-caixa` | — |
+| `I4` | `__tests__/projecao.tenant.test.ts` (integração) | `feat-tesouraria` (autorização explícita do P5 — o verificador não o tinha escrito à data do L5) | **Verde** (9/9, 2026-09-21) |
 | `I6`, `I8` | `__tests__/dfc.property.test.ts` | `verificador-fluxo-caixa` | — |
 | `I7`, `I9`, `I10` | `__tests__/dfc.integracao.test.ts` | `verificador-fluxo-caixa` | — |
 | Fixtures | `__tests__/fixtures/{projecao,dfc}-seed-demo.json` | `verificador-fluxo-caixa` | — |

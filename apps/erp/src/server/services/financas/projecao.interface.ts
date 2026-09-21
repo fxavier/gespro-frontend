@@ -158,10 +158,17 @@ export interface ProjecaoTesouraria {
   perfilAtraso: PerfilAtraso;
 }
 
+/**
+ * Página de resultados por cursor (padrão da casa, `src/server/db/paginate.ts`).
+ * Deliberadamente SEM `total` (task 5.1-quater): nenhum requisito nem o design
+ * §2 o pedem, a listagem de compromissos navega por cursor (nunca por número
+ * de página) e um `COUNT(*)` por pedido seria custo sem consumidor. Se um dia
+ * a UI precisar de um total, ele entra aqui COM o contrato de quem o preenche
+ * — nunca como campo opcional que ninguém sabe se vem.
+ */
 export interface PaginacaoTesouraria<T> {
   items: T[];
   nextCursor: string | null;
-  total?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +182,9 @@ export interface PaginacaoTesouraria<T> {
  * Expande um compromisso manual nas suas ocorrências dentro do horizonte
  * [dataPrevista, ate], respeitando `recorrencia` e `dataFimRecorrencia`.
  * UNICA produz no máximo uma ocorrência.
+ * As ocorrências saem em ORDEM CRONOLÓGICA ASCENDENTE (task 5.1-quinquies):
+ * os casos nomeados do §4.1-bis asserem listas ordenadas, e sem esta cláusula
+ * uma reordenação futura parti-los-ia sem violar contrato nenhum.
  * Invariante I5 (idempotência): expandir duas vezes sobre o mesmo horizonte
  * produz exactamente o mesmo conjunto de ocorrências.
  */
@@ -291,22 +301,41 @@ export interface IProjecaoService {
 
   /**
    * Perfil de atraso de cobrança sobre facturas liquidadas nos 180 dias que
-   * antecedem `dataReferencia` (R5.2-3). A data é parâmetro para a projecção
-   * ter UM relógio só (design §4.1 passo 4); tem valor por omissão
-   * (`new Date()`) porque o oráculo do L3 chama `perfilAtraso(ctx)`.
+   * antecedem `dataReferencia` (R5.2-3). A data é parâmetro OBRIGATÓRIO (task
+   * 5.0, fecha a 4.8): a projecção tem UM relógio só (design §4.1 passo 4) e
+   * um `new Date()` por omissão dava um segundo relógio a qualquer chamador
+   * esquecido — sem default, o esquecimento é erro de compilação.
    */
-  perfilAtraso(ctx: Ctx, dataReferencia?: Date): Promise<PerfilAtraso>;
+  perfilAtraso(ctx: Ctx, dataReferencia: Date): Promise<PerfilAtraso>;
 
   listarCompromissos(
     filtro: FiltroCompromissoInput,
     ctx: Ctx,
   ): Promise<PaginacaoTesouraria<CompromissoTesouraria>>;
 
+  /**
+   * Carrega um compromisso por id (task 5.1-ter — a rota `[id]/editar`
+   * precisa dele; molde `ICaixaService.obterSessao(id, ctx)`). Ao contrário
+   * do molde, NÃO devolve `null`: inexistente, eliminado (soft delete) ou de
+   * outro tenant lançam `NotFoundError` (404) — o I4 exige o mesmo erro nos
+   * três verbos, e um 403 confirmaria a existência do registo a quem não
+   * devia saber dela.
+   */
+  obterCompromisso(id: string, ctx: Ctx): Promise<CompromissoTesouraria>;
+
   criarCompromisso(
     input: CriarCompromissoInput,
     ctx: Ctx,
   ): Promise<CompromissoTesouraria>;
 
+  /**
+   * Actualização parcial. A R3.4 é reimposta contra o registo EXISTENTE
+   * (task 5.1-bis): o `superRefine` do Zod só vê o input, e mover só uma das
+   * datas pode invalidar o par efectivo — `dataPrevista` para depois do
+   * `dataFimRecorrencia` gravado, ou `dataFimRecorrencia` para antes da
+   * `dataPrevista` gravada, ambos `ValidationError`. Idem `recorrencia`
+   * UNICA efectiva com `dataFimRecorrencia` efectiva preenchida.
+   */
   atualizarCompromisso(
     input: AtualizarCompromissoInput,
     ctx: Ctx,

@@ -1,12 +1,17 @@
 import 'server-only'; // A5: serviços são server-only
 
 import { Prisma } from '@prisma/client';
-import { BusinessRuleError } from '@/lib/errors';
+import { BusinessRuleError, NotFoundError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/server/db/client';
+import { paginate } from '@/server/db/paginate';
 import type {
+  AtualizarCompromissoInput,
   Cenario,
+  CriarCompromissoInput,
+  FiltroCompromissoInput,
   FiltroProjecaoInput,
   Granularidade,
+  RecorrenciaCompromisso,
 } from '@/lib/validations/tesouraria';
 import {
   diaCivilEmMaputo,
@@ -15,8 +20,10 @@ import {
 import type {
   Bucket,
   CompromissoBase,
+  CompromissoTesouraria,
   Ctx,
   Ocorrencia,
+  PaginacaoTesouraria,
   PerfilAtraso,
   ProjecaoTesouraria,
 } from './projecao.interface';
@@ -336,6 +343,9 @@ function passoEmMeses(recorrencia: CompromissoBase['recorrencia']): number | nul
  *
  * As ocorrências saem com `vencida: false` — a marcação contra a data de
  * referência é de quem chama (L3), que é quem a conhece.
+ * Saem em ORDEM CRONOLÓGICA ASCENDENTE (task 5.1-quinquies — cláusula do
+ * contrato, não acidente de implementação: os casos nomeados do §4.1-bis
+ * asserem listas ordenadas).
  * Invariante I5: a expansão é determinista e idempotente.
  */
 export function expandirRecorrencia(
@@ -570,10 +580,10 @@ const JANELA_PERFIL_DIAS = 180;
  *
  * `dataReferencia` existe para o pipeline de `projetarTesouraria` ter UM SÓ
  * relógio por projecção (design §4.1 passo 4): o mesmo instante alimenta
- * `saldoTesourariaAte` e a janela dos 180 dias. O parâmetro tem valor por
- * omissão (`new Date()`) porque o oráculo do L3 chama `perfilAtraso(ctx)` —
- * um parâmetro obrigatório partia-o; quem orquestra uma projecção passa-o
- * SEMPRE explicitamente.
+ * `saldoTesourariaAte` e a janela dos 180 dias. O parâmetro é OBRIGATÓRIO
+ * (task 5.0, fecha a 4.8): o oráculo do L3 já passa a data (`acd1488`) e um
+ * `new Date()` por omissão devolvia um segundo relógio a qualquer chamador
+ * esquecido — sem default, o esquecimento é erro de compilação.
  *
  * Os dias de atraso são diferenças de DIAS CIVIS em Africa/Maputo
  * (`serialCivil`), nunca uma divisão de milissegundos: o servidor corre em
@@ -582,7 +592,7 @@ const JANELA_PERFIL_DIAS = 180;
  */
 export async function perfilAtraso(
   ctx: Ctx,
-  dataReferencia: Date = new Date(),
+  dataReferencia: Date,
 ): Promise<PerfilAtraso> {
   const limite = new Date(
     dataReferencia.getTime() - JANELA_PERFIL_DIAS * DIA_MS,
@@ -898,4 +908,230 @@ export async function projetarTesouraria(
     menorSaldoProjetado,
     perfilAtraso: perfil,
   };
+}
+
+// ---------------------------------------------------------------------------
+// CRUD de compromissos (nó L5 — tasks 5.1, 5.1-bis, 5.1-ter)
+// ---------------------------------------------------------------------------
+// Multi-tenancy (invariante I4 — onde esta casa já sangrou na Wave 2):
+//  - `tenantId` vem SEMPRE do `Ctx`, nunca do input.
+//  - A extensão de tenant injecta em create/findMany, mas findFirst/update/
+//    delete NÃO são scoped — o filtro `tenantId` é explícito em todos.
+//  - Cross-tenant devolve `NotFoundError` (404), nunca 403: um 403 confirma a
+//    existência do registo a quem não devia saber dela.
+//  - Eliminar é SOFT DELETE (`deletedAt`), nunca DELETE físico.
+
+/**
+ * Regras de coerência de um compromisso, sobre os valores EFECTIVOS — no
+ * criar são os do input; no actualizar são input-quando-veio, registo-quando-
+ * não (task 5.1-bis: o `superRefine` do Zod não conhece o registo gravado).
+ * São `ValidationError` (422), não `BusinessRuleError`: é o dado que está
+ * mal-formado face às regras R3.3-4, não uma transição de estado recusada.
+ *
+ * A comparação de datas é por DIA CIVIL de Maputo (`serialCivil`) — a mesma
+ * régua de `expandirRecorrencia`, que lança `RECORRENCIA_INVALIDA` pela mesma
+ * desigualdade: fim no PRÓPRIO dia da primeira ocorrência é válido (produz
+ * exactamente uma ocorrência), fim no dia civil anterior é impossível.
+ */
+function validarCoerenciaCompromisso(efetivo: {
+  valor: Prisma.Decimal;
+  dataPrevista: Date;
+  recorrencia: RecorrenciaCompromisso;
+  dataFimRecorrencia: Date | null;
+}): void {
+  if (!efetivo.valor.greaterThan(0)) {
+    throw new ValidationError('Valor do compromisso deve ser positivo.');
+  }
+  if (efetivo.dataFimRecorrencia === null) {
+    return;
+  }
+  if (efetivo.recorrencia === 'UNICA') {
+    throw new ValidationError(
+      'Compromisso único não admite data de fim de recorrência.',
+    );
+  }
+  if (
+    serialCivil(efetivo.dataFimRecorrencia) <
+    serialCivil(efetivo.dataPrevista)
+  ) {
+    throw new ValidationError(
+      'Data de fim da recorrência não pode ser anterior à data prevista.',
+    );
+  }
+}
+
+/**
+ * Task 5.1 — listagem paginada por cursor (`paginate`, padrão da casa; nunca
+ * `skip` grande). Ordem estável `(dataPrevista, id)` — o cursor exige-a.
+ * Filtros do `FiltroCompromissoSchema`; eliminados (soft delete) nunca saem.
+ */
+export async function listarCompromissos(
+  filtro: FiltroCompromissoInput,
+  ctx: Ctx,
+): Promise<PaginacaoTesouraria<CompromissoTesouraria>> {
+  const where: Prisma.CompromissoTesourariaWhereInput = {
+    tenantId: ctx.tenantId,
+    deletedAt: null,
+    ...(filtro.tipo ? { tipo: filtro.tipo } : {}),
+    ...(filtro.recorrencia ? { recorrencia: filtro.recorrencia } : {}),
+    ...(filtro.ativo !== undefined ? { ativo: filtro.ativo } : {}),
+    ...(filtro.dataInicio || filtro.dataFim
+      ? {
+          dataPrevista: {
+            ...(filtro.dataInicio ? { gte: filtro.dataInicio } : {}),
+            ...(filtro.dataFim ? { lte: filtro.dataFim } : {}),
+          },
+        }
+      : {}),
+    ...(filtro.pesquisa
+      ? { descricao: { contains: filtro.pesquisa, mode: 'insensitive' } }
+      : {}),
+  };
+
+  return paginate<CompromissoTesouraria>(
+    (args) =>
+      prisma.compromissoTesouraria.findMany({
+        ...args,
+        where,
+        orderBy: [{ dataPrevista: 'asc' }, { id: 'asc' }],
+      }),
+    { cursor: filtro.cursor, take: filtro.take },
+  );
+}
+
+/**
+ * Task 5.1-ter — carrega um compromisso por id (rota `[id]/editar`; molde
+ * `ICaixaService.obterSessao`). Inexistente, eliminado ou de OUTRO tenant
+ * lançam o MESMO `NotFoundError` — indistinguíveis de propósito (I4).
+ */
+export async function obterCompromisso(
+  id: string,
+  ctx: Ctx,
+): Promise<CompromissoTesouraria> {
+  const compromisso = await prisma.compromissoTesouraria.findFirst({
+    where: { id, tenantId: ctx.tenantId, deletedAt: null },
+  });
+  if (!compromisso) {
+    throw new NotFoundError(`Compromisso ${id} não encontrado`);
+  }
+  return compromisso;
+}
+
+/**
+ * Task 5.1 — cria um compromisso manual. `tenantId` e `criadoPorId` vêm do
+ * contexto; o Zod já validou o input, mas as regras de coerência reimpõem-se
+ * aqui — o serviço não confia em quem o chama (seeds, testes, futuros
+ * chamadores sem Zod).
+ */
+export async function criarCompromisso(
+  input: CriarCompromissoInput,
+  ctx: Ctx,
+): Promise<CompromissoTesouraria> {
+  const valor = new Prisma.Decimal(input.valor);
+  const dataFimRecorrencia = input.dataFimRecorrencia ?? null;
+  validarCoerenciaCompromisso({
+    valor,
+    dataPrevista: input.dataPrevista,
+    recorrencia: input.recorrencia,
+    dataFimRecorrencia,
+  });
+
+  return prisma.compromissoTesouraria.create({
+    data: {
+      tenantId: ctx.tenantId,
+      descricao: input.descricao,
+      tipo: input.tipo,
+      valor,
+      dataPrevista: input.dataPrevista,
+      recorrencia: input.recorrencia,
+      dataFimRecorrencia,
+      rubricaId: input.rubricaId ?? null,
+      contaContabilId: input.contaContabilId ?? null,
+      observacoes: input.observacoes ?? null,
+      criadoPorId: ctx.userId,
+    },
+  });
+}
+
+/**
+ * Tasks 5.1 e 5.1-bis — actualização parcial. A R3.4 e a regra da UNICA são
+ * reimpostas contra o par EFECTIVO (input ⊕ registo existente): mover só a
+ * `dataPrevista` para depois do `dataFimRecorrencia` gravado, ou só o
+ * `dataFimRecorrencia` para antes da `dataPrevista` gravada, é
+ * `ValidationError` — o Zod não apanha, porque não conhece o registo.
+ * `dataFimRecorrencia: null` LIMPA o campo (é o caminho de MENSAL → UNICA).
+ */
+export async function atualizarCompromisso(
+  input: AtualizarCompromissoInput,
+  ctx: Ctx,
+): Promise<CompromissoTesouraria> {
+  const existente = await prisma.compromissoTesouraria.findFirst({
+    where: { id: input.id, tenantId: ctx.tenantId, deletedAt: null },
+  });
+  if (!existente) {
+    throw new NotFoundError(`Compromisso ${input.id} não encontrado`);
+  }
+
+  const valor =
+    input.valor !== undefined ? new Prisma.Decimal(input.valor) : existente.valor;
+  validarCoerenciaCompromisso({
+    valor,
+    dataPrevista: input.dataPrevista ?? existente.dataPrevista,
+    recorrencia: input.recorrencia ?? existente.recorrencia,
+    dataFimRecorrencia:
+      input.dataFimRecorrencia !== undefined
+        ? input.dataFimRecorrencia
+        : existente.dataFimRecorrencia,
+  });
+
+  return prisma.compromissoTesouraria.update({
+    // `update` não é scoped pela extensão — o `tenantId` no where é o I4.
+    where: { id: existente.id, tenantId: ctx.tenantId },
+    data: {
+      ...(input.descricao !== undefined ? { descricao: input.descricao } : {}),
+      ...(input.tipo !== undefined ? { tipo: input.tipo } : {}),
+      ...(input.valor !== undefined ? { valor } : {}),
+      ...(input.dataPrevista !== undefined
+        ? { dataPrevista: input.dataPrevista }
+        : {}),
+      ...(input.recorrencia !== undefined
+        ? { recorrencia: input.recorrencia }
+        : {}),
+      ...(input.dataFimRecorrencia !== undefined
+        ? { dataFimRecorrencia: input.dataFimRecorrencia }
+        : {}),
+      ...(input.rubricaId !== undefined ? { rubricaId: input.rubricaId } : {}),
+      ...(input.contaContabilId !== undefined
+        ? { contaContabilId: input.contaContabilId }
+        : {}),
+      ...(input.observacoes !== undefined
+        ? { observacoes: input.observacoes }
+        : {}),
+      ...(input.ativo !== undefined ? { ativo: input.ativo } : {}),
+    },
+  });
+}
+
+/**
+ * Task 5.1 — SOFT DELETE (`deletedAt = now`), nunca DELETE físico: o
+ * histórico de quem projectou com este compromisso não se reescreve. Devolve
+ * o registo marcado. Já eliminado ⇒ `NotFoundError` (idempotência à
+ * superfície: o segundo pedido não encontra o que o primeiro escondeu).
+ */
+export async function eliminarCompromisso(
+  id: string,
+  ctx: Ctx,
+): Promise<CompromissoTesouraria> {
+  const existente = await prisma.compromissoTesouraria.findFirst({
+    where: { id, tenantId: ctx.tenantId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!existente) {
+    throw new NotFoundError(`Compromisso ${id} não encontrado`);
+  }
+
+  return prisma.compromissoTesouraria.update({
+    where: { id: existente.id, tenantId: ctx.tenantId },
+    data: { deletedAt: new Date() },
+  });
 }

@@ -26,7 +26,15 @@ export default defineConfig({
   test: {
     name: 'integration',
     environment: 'node',
-    include: ['test/integration/**/*.test.ts'],
+    include: [
+      'test/integration/**/*.test.ts',
+      // Oráculo do I4 (spec 22, task 5.2): vive em `src/**/__tests__/` por
+      // decisão do grafo (a tabela de oráculos fixa-lhe o caminho), mas é um
+      // teste de INTEGRAÇÃO — precisa do Postgres efémero deste projecto.
+      // No projecto `unit` (que inclui `src/**/*.test.ts`) salta sozinho,
+      // porque INTEGRATION_DB_URL só existe com o globalSetup daqui.
+      'src/server/services/financas/__tests__/projecao.tenant.test.ts',
+    ],
     globalSetup: ['./test/integration/setup.ts'],
     fileParallelism: false,
     // Timeout alargado para arranque do container (~20-30s em CI)

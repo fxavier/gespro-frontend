@@ -71,12 +71,21 @@ export type FiltroProjecaoInput = z.infer<typeof FiltroProjecaoSchema>;
 
 /**
  * R3.4: `dataFimRecorrencia` anterior a `dataPrevista` → ValidationError.
- * Só é verificável no Zod quando ambas as datas estão presentes; no Atualizar
- * parcial (uma das datas omitida) a regra é reimposta pelo serviço contra o
- * registo existente (nó L5).
+ * E a regra irmã (task 5.1-bis): `recorrencia` UNICA com `dataFimRecorrencia`
+ * preenchida → ValidationError — um compromisso único não tem fim de
+ * recorrência, e aceitar o par em silêncio deixaria na base um campo que a
+ * expansão ignora e a UI mostra.
+ *
+ * Só são verificáveis no Zod quando os campos envolvidos estão presentes; no
+ * Atualizar parcial (campo omitido) as regras são reimpostas pelo serviço
+ * contra o registo existente (nó L5, `atualizarCompromisso`).
  */
 const regraFimRecorrencia = (
-  v: { dataPrevista?: Date; dataFimRecorrencia?: Date },
+  v: {
+    dataPrevista?: Date;
+    dataFimRecorrencia?: Date | null;
+    recorrencia?: RecorrenciaCompromisso;
+  },
   ctx: z.RefinementCtx,
 ): void => {
   if (
@@ -88,6 +97,13 @@ const regraFimRecorrencia = (
       code: z.ZodIssueCode.custom,
       path: ['dataFimRecorrencia'],
       message: 'Data de fim da recorrência não pode ser anterior à data prevista.',
+    });
+  }
+  if (v.recorrencia === 'UNICA' && v.dataFimRecorrencia instanceof Date) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['dataFimRecorrencia'],
+      message: 'Compromisso único não admite data de fim de recorrência.',
     });
   }
 };
@@ -121,6 +137,15 @@ export const AtualizarCompromissoSchema = CompromissoCamposSchema.partial()
   .extend({
     id: idEntidade('ID de compromisso inválido'),
     ativo: z.boolean().optional(),
+    // `null` LIMPA o fim de recorrência (sem ele, um compromisso recorrente
+    // com fim gravado nunca poderia passar a UNICA — a regra irmã da R3.4
+    // recusaria a conversão para sempre). `undefined` = não mexer.
+    // O `nullable` embrulha o `coerce.date` POR FORA: um `null` curto-circuita
+    // antes da coerção — `z.coerce.date()` cru faria `new Date(null)` = 1970.
+    dataFimRecorrencia: z.coerce
+      .date({ invalid_type_error: 'Data de fim de recorrência inválida' })
+      .nullable()
+      .optional(),
   })
   .superRefine(regraFimRecorrencia);
 
