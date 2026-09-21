@@ -2,25 +2,36 @@ import 'server-only'; // A5: serviços são server-only
 
 import { Prisma } from '@prisma/client';
 import { BusinessRuleError } from '@/lib/errors';
+import { prisma } from '@/server/db/client';
 import type { Cenario, Granularidade } from '@/lib/validations/tesouraria';
-import { diaCivilEmMaputo } from './contabilidade.service';
+import {
+  diaCivilEmMaputo,
+  FILTRO_LANCAMENTO_MAPA,
+} from './contabilidade.service';
 import type {
   Bucket,
   CompromissoBase,
+  Ctx,
   Ocorrencia,
   PerfilAtraso,
 } from './projecao.interface';
 
 /**
- * Núcleo puro da Projecção de Tesouraria (spec 22 · WS-1 · nó L2).
+ * Projecção de Tesouraria (spec 22 · WS-1).
  *
- * Funções puras exportadas, sem Prisma client, sem `Date.now()` — a data de
- * referência é sempre parâmetro. É onde vivem os invariantes I2 (conservação),
- * I3 (monotonia de cenário) e I5 (idempotência de recorrência), verificados
- * pelo oráculo `__tests__/projecao.property.test.ts` (escrito por outro
- * agente; ver doutrina 00 §2).
+ * O ficheiro tem duas metades, por esta ordem:
  *
- * Regras vinculativas: ADR-0036 §Decisão-6, §9, §10 e §11; design §4.1-bis.
+ *  1. NÚCLEO PURO (nó L2 + task 3.2-bis): funções puras exportadas, sem
+ *     Prisma client, sem `Date.now()` — a data de referência é sempre
+ *     parâmetro. É onde vivem os invariantes I2 (conservação), I3 (monotonia
+ *     de cenário) e I5 (idempotência de recorrência), verificados pelo
+ *     oráculo `__tests__/projecao.property.test.ts` (escrito por outro
+ *     agente; ver doutrina 00 §2).
+ *  2. CASCA DE I/O (nó L3): `saldoTesourariaAte` e `perfilAtraso`, que vão à
+ *     base e delegam toda a aritmética no núcleo. Oráculo:
+ *     `__tests__/projecao.integracao.test.ts`.
+ *
+ * Regras vinculativas: ADR-0036 §Decisão-2, -6, §9, §10 e §11; design §4.1-bis.
  * Precedente da casa: `montarLinhasBalancete`, `calcularLinhasDRE`.
  */
 
@@ -378,4 +389,196 @@ export function expandirRecorrencia(
     emitir(serial);
   }
   return ocorrencias;
+}
+
+// ---------------------------------------------------------------------------
+// marcarVencidas (task 3.2-bis) — puro
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-marca a bandeira `vencida` contra a data de referência (R2.4).
+ *
+ * «Anterior» é ESTRITO em dias civis de Africa/Maputo: uma ocorrência no
+ * próprio dia da referência NÃO é vencida — está por liquidar hoje, não em
+ * atraso. Marca ENTRADAS e SAÍDAS por igual (a bandeira depende da data, não
+ * do tipo) e recalcula sempre a partir da data: um `vencida` pré-existente
+ * não sobrevive à re-marcação. Pura: devolve ocorrências novas, sem mutar o
+ * array nem os objectos recebidos.
+ *
+ * Existe porque `expandirRecorrencia` devolve sempre `vencida: false` — a
+ * assinatura pura não recebe data de referência; a marcação é de quem a
+ * conhece (a casca de I/O, contra o dia civil do pedido).
+ */
+export function marcarVencidas(
+  ocorrencias: Ocorrencia[],
+  dataReferencia: Date,
+): Ocorrencia[] {
+  const sReferencia = serialCivil(dataReferencia);
+  return ocorrencias.map((o) => ({
+    ...o,
+    vencida: serialCivil(o.data) < sReferencia,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// calcularPerfilAtraso (task 3.2-bis) — puro
+// ---------------------------------------------------------------------------
+
+/** R5.3: abaixo disto a amostra é insuficiente e o BASE degrada para OTIMISTA. */
+const AMOSTRA_MINIMA_PERFIL = 20;
+
+/**
+ * Perfil de atraso a partir dos atrasos CRUS em dias — possivelmente
+ * negativos quando o cliente pagou adiantado.
+ *
+ * ADR-0036 §10, design §4.1-bis (regras arbitradas, não rediscutíveis):
+ *  - O truncamento em zero é POR OBSERVAÇÃO: `max(0, atraso)` em CADA factura
+ *    da amostra, ANTES de média e desvio. Truncar só a média daria a mesma
+ *    média em muitos casos e um σ inflado por pagamentos adiantados — e um
+ *    cliente que pagou adiantado uma vez não antecipa o próximo recebimento.
+ *  - O desvio é AMOSTRAL (divisor `n − 1`): os 180 dias são uma amostra de
+ *    que se infere o futuro, não a população; o σ maior dá um PESSIMISTA mais
+ *    conservador, que é o lado certo para onde errar.
+ *  - `n < 2` ⇒ σ = 0 por definição, nunca `NaN` — o `n − 1` dividiria por
+ *    zero e um `NaN` propagado por `Decimal` rebenta longe da causa.
+ *  - Amostra vazia ⇒ média 0, σ 0, `amostraInsuficiente: true`.
+ *
+ * Dias de atraso são `number` de propósito: são contagens de dias, não
+ * dinheiro — o `Decimal` de ponta a ponta aplica-se aos valores.
+ */
+export function calcularPerfilAtraso(
+  atrasosBrutosDias: number[],
+): PerfilAtraso {
+  const truncados = atrasosBrutosDias.map((a) => Math.max(0, a));
+  const n = truncados.length;
+
+  const media = n === 0 ? 0 : truncados.reduce((s, a) => s + a, 0) / n;
+  const variancia =
+    n < 2
+      ? 0
+      : truncados.reduce((s, a) => s + (a - media) ** 2, 0) / (n - 1);
+
+  return {
+    atrasoMedioDias: media,
+    desvioPadraoDias: Math.sqrt(variancia),
+    amostra: n,
+    amostraInsuficiente: n < AMOSTRA_MINIMA_PERFIL,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Casca de I/O (nó L3) — saldoTesourariaAte e perfilAtraso
+// ---------------------------------------------------------------------------
+
+/**
+ * Saldo de tesouraria até `data`, inclusive (ADR-0036 §Decisão-2):
+ *
+ *   Σ saldo do razão da conta contabilística  ∀ ContaBancaria com ativo = true
+ * + Σ (fundoInicial + totalEntradas − totalSaidas)  ∀ SessaoCaixa ABERTA
+ *
+ * Responde «quanto dinheiro há», não «quanto há a receber» — contas a receber
+ * são compromissos, não tesouraria.
+ *
+ * O saldo bancário vem SEMPRE do razão (partidas de lançamentos filtrados por
+ * `FILTRO_LANCAMENTO_MAPA`, como o balancete — nunca um literal local, que
+ * foi como quatro cópias divergiram; o par original+estorno soma zero). A
+ * soma é por CONTA BANCÁRIA, não por conta PGC: duas contas bancárias
+ * ancoradas na mesma conta contam-na duas vezes — letra do §Decisão-2.
+ *
+ * A agregação é um único `groupBy` para todas as contas (o orçamento do
+ * §Decisão-5 é p95 < 400 ms e a correcção de um estouro seria a query, nunca
+ * cache). Classe 1 é DEVEDORA: saldo = Σ débitos − Σ créditos.
+ */
+export async function saldoTesourariaAte(
+  data: Date,
+  ctx: Ctx,
+): Promise<Prisma.Decimal> {
+  let total = ZERO;
+
+  const contasAtivas = await prisma.contaBancaria.findMany({
+    where: { tenantId: ctx.tenantId, ativo: true },
+    select: { contaContabilId: true },
+  });
+
+  if (contasAtivas.length > 0) {
+    const contaIds = [...new Set(contasAtivas.map((c) => c.contaContabilId))];
+    const agregados = await prisma.partidaLancamento.groupBy({
+      by: ['contaId', 'tipo'],
+      where: {
+        tenantId: ctx.tenantId,
+        contaId: { in: contaIds },
+        lancamento: {
+          status: FILTRO_LANCAMENTO_MAPA,
+          data: { lte: data },
+        },
+      },
+      _sum: { valor: true },
+    });
+
+    const saldoPorConta = new Map<string, Prisma.Decimal>();
+    for (const a of agregados) {
+      const acumulado = saldoPorConta.get(a.contaId) ?? ZERO;
+      const valor = a._sum.valor ?? ZERO;
+      saldoPorConta.set(
+        a.contaId,
+        a.tipo === 'DEBITO' ? acumulado.plus(valor) : acumulado.minus(valor),
+      );
+    }
+
+    for (const cb of contasAtivas) {
+      total = total.plus(saldoPorConta.get(cb.contaContabilId) ?? ZERO);
+    }
+  }
+
+  const sessoesAbertas = await prisma.sessaoCaixa.findMany({
+    where: { tenantId: ctx.tenantId, status: 'ABERTA' },
+    select: { fundoInicial: true, totalEntradas: true, totalSaidas: true },
+  });
+  for (const s of sessoesAbertas) {
+    total = total
+      .plus(s.fundoInicial)
+      .plus(s.totalEntradas)
+      .minus(s.totalSaidas);
+  }
+
+  return total;
+}
+
+/** Janela da amostra do perfil de atraso (ADR-0036 §Decisão-6). */
+const JANELA_PERFIL_DIAS = 180;
+
+/**
+ * Perfil de atraso de cobrança do tenant (R5.2-3): média e desvio padrão do
+ * atraso sobre `Fatura` com status PAGA cujo `dataPagamento` cai nos últimos
+ * 180 dias. Esta casca só vai à base buscar os atrasos CRUS — a aritmética
+ * (truncamento por observação, desvio amostral, amostra insuficiente) vive
+ * toda em `calcularPerfilAtraso`, onde é testável sem base de dados.
+ *
+ * Os dias de atraso são diferenças de DIAS CIVIS em Africa/Maputo
+ * (`serialCivil`), nunca uma divisão de milissegundos: o servidor corre em
+ * UTC e uma factura vencida às 23h de Maputo pagou-se «no dia seguinte» ou
+ * «no próprio dia» consoante o fuso de quem dividir.
+ */
+export async function perfilAtraso(ctx: Ctx): Promise<PerfilAtraso> {
+  const limite = new Date(Date.now() - JANELA_PERFIL_DIAS * DIA_MS);
+
+  const pagas = await prisma.fatura.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      status: 'PAGA',
+      dataPagamento: { gte: limite },
+    },
+    select: { dataPagamento: true, dataVencimento: true },
+  });
+
+  const atrasosBrutosDias: number[] = [];
+  for (const f of pagas) {
+    // O filtro `gte` já exclui nulos; o guard é para o sistema de tipos.
+    if (f.dataPagamento === null) continue;
+    atrasosBrutosDias.push(
+      serialCivil(f.dataPagamento) - serialCivil(f.dataVencimento),
+    );
+  }
+
+  return calcularPerfilAtraso(atrasosBrutosDias);
 }

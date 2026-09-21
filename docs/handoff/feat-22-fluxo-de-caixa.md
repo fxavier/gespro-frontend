@@ -109,6 +109,42 @@ contrato não fixava, para o revisor olhar:
    no padrão do `_FMT_PERIODO` vizinho. Sem isto o oráculo estourava o timeout do vitest
    (1000 runs × ~120 chamadas). Sem mudança de comportamento; suite inteira verde.
 
+### Casca de I/O (nó L3, tasks 3.1–3.3 + 3.2-bis — entregue 2026-09-21)
+
+`saldoTesourariaAte` e `perfilAtraso` em `projecao.service.ts`, mais as duas funções puras
+ratificadas (`marcarVencidas`, `calcularPerfilAtraso`) com assinaturas no `projecao.interface.ts`
+(`MarcarVencidasFn`, `CalcularPerfilAtrasoFn`). Oráculo `projecao.integracao.test.ts` 10/10 verde
+à primeira, **intocado**; property 14/14; `pnpm check` e `pnpm gates` verdes; gate literal
+`grep -c "saldoAtual" projecao.service.ts` = **0**. Decisões que o contrato não fixava:
+
+1. **`saldoTesourariaAte` NÃO chama `saldoContabilAte`** — faz um único `groupBy` por
+   `(contaId, tipo)` com `FILTRO_LANCAMENTO_MAPA` importado. Motivo: o ADR-0036 §2 afirma que
+   `saldoContabilAte` «já filtra por `FILTRO_LANCAMENTO_MAPA`», mas o código real filtra só
+   `LANCADO`, e esse default está trancado por oráculo alheio
+   (`reconciliacao.service.test.ts:83`) — alterá-lo era partir um teste que não posso tocar.
+   O oráculo do I1 deriva o esperado do balancete (que filtra por MAPA), logo a projecção tem de
+   filtrar igual: com um estorno na conta do banco, `LANCADO`-só contaria o estorno sem o
+   original. **Fica a divergência ADR↔`saldoContabilAte` para o orquestrador arbitrar** — a
+   reconciliação bancária herda hoje esse mesmo defeito latente (sem estornos semeados, nada o
+   mostra).
+2. **Soma por conta bancária, não por conta PGC**: duas contas bancárias activas na mesma conta
+   contabilística contam-na duas vezes — letra do §2 e comportamento que o oráculo fixa
+   (conta activa + inactiva na mesma 121: ignorar `ativo` duplicaria; deduplicar por PGC também
+   divergiria).
+3. **Saldo do razão = Σ débitos − Σ créditos**, sem consultar `natureza` — é a fórmula literal
+   do `saldoContabilAte`/ADR §2 (classe 1 é DEVEDORA). Uma conta bancária ancorada numa conta
+   CREDORA divergiria do balancete natureza-aware; nota para o revisor, não há caso real.
+4. **`perfilAtraso` é casca fina**: janela = `Date.now() − 180 dias` (a proibição de `Date.now()`
+   é do núcleo puro; a casca de I/O é quem conhece o presente), amostra = `Fatura` `PAGA` com
+   `dataPagamento ≥ limite`, atrasos crus = diferença de **dias civis Maputo** (`serialCivil`),
+   nunca divisão de milissegundos. Toda a aritmética delega em `calcularPerfilAtraso`.
+5. **`marcarVencidas` recalcula sempre** a bandeira a partir da data (anterior **estrito**, em
+   dias civis Maputo; ENTRADAS e SAÍDAS por igual): um `vencida` pré-existente não sobrevive à
+   re-marcação — a bandeira depende da data, não de quem a pôs.
+6. **`calcularPerfilAtraso`** segue o arbitrado em `479eaae`: truncamento em zero POR
+   OBSERVAÇÃO antes de média e σ; desvio AMOSTRAL (`n − 1`); `n < 2` ⇒ σ = 0, nunca `NaN`;
+   vazia ⇒ média 0, σ 0, `amostraInsuficiente: true`; `n < 20` ⇒ insuficiente (R5.3).
+
 ## Contratos WS-2 (DFC)
 
 _A preencher pelo nó L9._

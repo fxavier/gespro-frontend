@@ -217,6 +217,36 @@ export type AcumularSaldosFn = (
   saldoAbertura: Prisma.Decimal,
 ) => Bucket[];
 
+/**
+ * Re-marca a bandeira `vencida` contra a data de referência (R2.4, task
+ * 3.2-bis). «Anterior» é ESTRITO: uma ocorrência no próprio dia da referência
+ * NÃO é vencida — está por liquidar hoje, não em atraso. Marca ENTRADAS e
+ * SAÍDAS por igual: a bandeira depende da data, não do tipo. Pura: devolve
+ * ocorrências novas, sem mutar o array nem os objectos recebidos.
+ *
+ * Existe porque `expandirRecorrencia` devolve sempre `vencida: false` — a
+ * assinatura pura não recebe data de referência; sem esta função a R2.4 só
+ * seria falsificável no L4.
+ */
+export type MarcarVencidasFn = (
+  ocorrencias: Ocorrencia[],
+  dataReferencia: Date,
+) => Ocorrencia[];
+
+/**
+ * Calcula o perfil de atraso a partir dos atrasos CRUS em dias
+ * (dataPagamento − dataVencimento, possivelmente NEGATIVOS quando o cliente
+ * pagou adiantado). O truncamento em zero é POR OBSERVAÇÃO, cá dentro —
+ * `max(0, atraso)` em cada factura ANTES de média e desvio (ADR-0036 §10,
+ * design §4.1-bis); receber os atrasos já truncados tornaria a regra
+ * intestável. O desvio é AMOSTRAL (divisor `n − 1`); com `n < 2` o desvio é
+ * ZERO, nunca `NaN`. Amostra vazia ⇒ média 0, σ 0, `amostraInsuficiente: true`;
+ * `n < 20` ⇒ `amostraInsuficiente: true` (R5.3).
+ */
+export type CalcularPerfilAtrasoFn = (
+  atrasosBrutosDias: number[],
+) => PerfilAtraso;
+
 // ---------------------------------------------------------------------------
 // Interface do serviço de projecção (I/O — implementação nos nós L3–L5)
 // ---------------------------------------------------------------------------
