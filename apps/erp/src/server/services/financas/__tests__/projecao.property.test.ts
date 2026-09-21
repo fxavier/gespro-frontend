@@ -683,3 +683,114 @@ describe('I5 — idempotência de recorrência', () => {
     expect(() => expandirRecorrencia(compromisso, dia(2026, 12, 31))).toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// §4.1-bis — casos nomeados de calendário (task 2.5-bis; NÃO gerados)
+//
+// Três exemplos com valores literais, sem fc.property. Nasceram DEPOIS da
+// implementação do L2, por isso passaram à primeira — a prova de que
+// discriminam foi feita fora deste ficheiro, calculando à mão a sequência do
+// CLAMP ARRASTADO (âncora perdida: cada ocorrência herda o dia da anterior):
+//
+//   ancorada :  31 Jan · 28 Fev · 31 Mar · 30 Abr · 31 Mai · 30 Jun
+//   arrastada:  31 Jan · 28 Fev · 28 Mar · 28 Abr · 28 Mai · 28 Jun
+//
+// Divergem da 3.ª ocorrência em diante, e é essa diferença que cada `toEqual`
+// sobre a LISTA INTEIRA guarda. Verificado à mão no L2 (task 2.5-bis), mas
+// verificação à mão não fica a guardar a regra — estes casos ficam.
+// ---------------------------------------------------------------------------
+
+/**
+ * Dia civil em Africa/Maputo como `aaaa-mm-dd` (a locale en-CA dá exactamente
+ * esse formato). NUNCA `toISOString()`: o servidor corre em UTC e um
+ * `toISOString` a leste de Greenwich compara o dia errado — a comparação
+ * certa é sempre a civil no fuso da casa, como no resto deste ficheiro.
+ */
+const FMT_DIA_MAPUTO = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Maputo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function diaCivilMaputo(data: Date): string {
+  return FMT_DIA_MAPUTO.format(data);
+}
+
+/** Compromisso mensal literal, sem fim de recorrência — o sujeito dos 3 casos. */
+function compromissoMensalDe(dataPrevista: Date): CompromissoBase {
+  return {
+    id: 'comp-4-1-bis',
+    descricao: 'compromisso mensal do §4.1-bis',
+    tipo: 'SAIDA',
+    valor: decimalDeCentavos(1_234_56),
+    dataPrevista,
+    recorrencia: 'MENSAL',
+    dataFimRecorrencia: null,
+  };
+}
+
+describe('§4.1-bis — casos nomeados de calendário (não gerados)', () => {
+  it('caso canónico: mensal de 2026-01-31, horizonte 150 dias — a lista completa e ordenada', () => {
+    const dataPrevista = dia(2026, 1, 31);
+    const ocorrencias = expandirRecorrencia(
+      compromissoMensalDe(dataPrevista),
+      somaDias(dataPrevista, 150), // 2026-06-30, o fim do horizonte do design
+    );
+    // A asserção é sobre a LISTA INTEIRA E ORDENADA. Não sobre o comprimento
+    // (seis datas erradas também são seis), não sobre elementos soltos (a
+    // normalização JS de «31 Jan + 1 mês» dá 3 de Março — Fevereiro vazio e
+    // Março a dobrar — e sobreviveria a asserções pontuais).
+    expect(ocorrencias.map((o) => diaCivilMaputo(o.data))).toEqual([
+      '2026-01-31',
+      '2026-02-28',
+      '2026-03-31',
+      '2026-04-30',
+      '2026-05-31',
+      '2026-06-30',
+    ]);
+    // O valor viaja intacto por todas as ocorrências — Decimal.equals, nunca number.
+    for (const o of ocorrencias) {
+      expect(o.valor.equals(decimalDeCentavos(1_234_56))).toBe(true);
+    }
+  });
+
+  it('bissexto: mensal de 2028-01-31 dá 2028-02-29 — e volta ao dia 31 em Março', () => {
+    const dataPrevista = dia(2028, 1, 31);
+    const ocorrencias = expandirRecorrencia(
+      compromissoMensalDe(dataPrevista),
+      somaDias(dataPrevista, 60), // 2028-03-31
+    );
+    // Março entra DE PROPÓSITO: 29 de Fevereiro sozinho não distingue a
+    // âncora do clamp arrastado (ambos dão 29); é o regresso ao dia 31 em
+    // Março que só a âncora garante.
+    expect(ocorrencias.map((o) => diaCivilMaputo(o.data))).toEqual([
+      '2028-01-31',
+      '2028-02-29',
+      '2028-03-31',
+    ]);
+  });
+
+  it('ausência de drift: a 5.ª ocorrência de 2026-01-31 é 31 de Maio, não 28', () => {
+    // Este caso existe para discriminar a ÂNCORA do CLAMP ARRASTADO. Uma
+    // implementação que derive o dia da ocorrência ANTERIOR (em vez da
+    // dataPrevista) dá 28 Fev → 28 Mar → 28 Abr → 28 Mai: passa num teste de
+    // comprimento (cinco ocorrências) e num teste de fronteira (o clamp de
+    // Fevereiro está certo) sem guardar a regra que interessa — o dia 31
+    // perder-se-ia para sempre no primeiro Fevereiro (ADR-0036 §9).
+    const dataPrevista = dia(2026, 1, 31);
+    const ocorrencias = expandirRecorrencia(
+      compromissoMensalDe(dataPrevista),
+      somaDias(dataPrevista, 120), // 2026-05-31
+    );
+    expect(ocorrencias.map((o) => diaCivilMaputo(o.data))).toEqual([
+      '2026-01-31',
+      '2026-02-28',
+      '2026-03-31',
+      '2026-04-30',
+      '2026-05-31',
+    ]);
+    // E, nomeadamente, a quinta é 31 de Maio — o dia que o drift perderia.
+    expect(diaCivilMaputo(ocorrencias[4].data)).toBe('2026-05-31');
+  });
+});
