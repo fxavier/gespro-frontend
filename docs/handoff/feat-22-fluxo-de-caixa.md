@@ -110,6 +110,17 @@ Só leitura, sem alteração de schema fora de `financas.prisma`:
 
 ### L1 — fechado
 
+Três passagens de revisão, todas «aprovar com nits», zero BLOCKERs e zero MAJORs. A terceira
+auditou cobertura em vez de conformidade: cada requisito numerado de **R3** e **R4** contra uma
+correspondência nomeável no contrato — schema, campo, tipo ou assinatura, nunca «está implícito no
+desenho». Nenhum requisito ficou por exprimir. Isto importa porque nenhum dos 1584 testes exercita
+o contrato novo: até o oráculo do L2 existir, o contrato é a única coisa que protege o L2, que
+implementa contra ele e não contra o spec.
+
+Rastreabilidade dos três campos que existem no schema e não constam de R3.1 — `contaContabilId`,
+`observacoes` e `ativo`: vêm do **design §2**, que o P1 manda seguir exactamente. Não são invenção
+do agente.
+
 Revisão do `code-reviewer`: **aprovar com nits**, zero BLOCKERs. Diff restrito aos quatro
 entregáveis; `__tests__/` e `fixtures/` intocados; `pnpm check` 111/1584 e `pnpm gates` 5/5, iguais
 à linha de base.
