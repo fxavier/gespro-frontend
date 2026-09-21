@@ -128,9 +128,14 @@ ratificadas (`marcarVencidas`, `calcularPerfilAtraso`) com assinaturas no `proje
    reconciliação bancária herda hoje esse mesmo defeito latente (sem estornos semeados, nada o
    mostra).
 2. **Soma por conta bancária, não por conta PGC**: duas contas bancárias activas na mesma conta
-   contabilística contam-na duas vezes — letra do §2 e comportamento que o oráculo fixa
-   (conta activa + inactiva na mesma 121: ignorar `ativo` duplicaria; deduplicar por PGC também
-   divergiria).
+   contabilística contam-na duas vezes. Era a letra do §2, revogada pelo **§2-bis** — corrige-se
+   nas tasks 3.4-bis/ter/quater.
+   **Correcção ao que esta nota dizia antes:** afirmava que «deduplicar por PGC também divergiria»
+   do oráculo. É falso. A fixture tem uma bancária activa e uma inactiva na mesma `121`, e o lado
+   direito do I1 soma só sobre activas — logo conta a `121` uma vez e as duas semânticas dão o
+   mesmo número. O oráculo fixa o respeito por `ativo` e a proibição de `saldoAtual`; **não** fixa
+   a semântica por-bancária, e é por isso que a 3.4-ter tem de lhe acrescentar o caso das duas
+   activas na mesma conta.
 3. **Saldo do razão = Σ débitos − Σ créditos**, sem consultar `natureza` — é a fórmula literal
    do `saldoContabilAte`/ADR §2 (classe 1 é DEVEDORA). Uma conta bancária ancorada numa conta
    CREDORA divergiria do balancete natureza-aware; nota para o revisor, não há caso real.
