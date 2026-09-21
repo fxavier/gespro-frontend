@@ -142,7 +142,8 @@ casa por omissão — sem nunca ter sido decidida.
 | `dataFimRecorrencia < dataPrevista` no núcleo puro | Lança `BusinessRuleError('RECORRENCIA_INVALIDA')` | Devolver vazio é indistinguível de recorrência terminada: o compromisso desaparece em silêncio |
 
 Exemplo canónico, a reproduzir como caso nomeado no teste e na fixture do L4 — compromisso mensal
-com `dataPrevista = 2026-01-31`, horizonte 150 dias:
+com `dataPrevista = 2026-01-31`, horizonte 150 dias **inclusive nos dois extremos** (`31 Jan + 150 =
+30 Jun`; uma leitura exclusiva do fim daria cinco ocorrências e um exemplo canónico diferente):
 
 ```
 2026-01-31 · 2026-02-28 · 2026-03-31 · 2026-04-30 · 2026-05-31 · 2026-06-30

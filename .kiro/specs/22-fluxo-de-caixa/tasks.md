@@ -51,6 +51,7 @@ Nenhum agente gera migrações Prisma (só o orquestrador).
 
 - [ ] **5. CRUD de compromissos + isolamento**
   - [ ] 5.1 `criar`/`atualizar`/`eliminar` (soft delete), `tenantId` explícito em todos os `findFirst`/`update`
+  - [ ] 5.1-quinquies `ExpandirRecorrenciaFn` declara no docstring que devolve as ocorrências em **ordem cronológica ascendente**. A implementação emite assim e os casos nomeados do §4.1-bis asserem listas ordenadas, mas o contrato nunca o disse — uma reordenação futura partiria os testes sem violar contrato nenhum
   - [ ] 5.1-quater Decidir `PaginacaoTesouraria.total?` — nenhum requisito nem o design §2 o pedem, e o contrato não diz quem o preenche. Ou passa a ter consumidor e contrato escrito, ou sai do `projecao.interface.ts`
   - [ ] 5.1-bis `atualizarCompromisso` reimpõe **R3.4** contra o registo existente quando só uma das datas vem no input — o `superRefine` do Zod não a apanha, porque não conhece o registo. Teste com os dois casos: só `dataPrevista` movida para depois do `dataFimRecorrencia` gravado, e só `dataFimRecorrencia` movida para antes da `dataPrevista` gravada; ambos `ValidationError`. No mesmo `superRefine`, `recorrencia: 'UNICA'` com `dataFimRecorrencia` preenchida — hoje ninguém a apanha, e é a mesma classe de defeito da R3.4
   - [ ] 5.1-ter `obterCompromisso(id, ctx)` no `IProjecaoService` — a rota `[id]/editar` (7.4) carrega por id e o `listarCompromissos` não serve; extensão aditiva do contrato do L1, molde `ICaixaService.obterSessao`
