@@ -312,6 +312,43 @@ ou pelo orquestrador no ADR):
    todos os cenários), os três cenários coincidem legitimamente — só «≤» é exigível. Não é
    relaxamento do invariante: o ADR-0036 escreve I3 com «≤».
 
+## Linha de base da suite de integração
+
+`pnpm test:integration` está **vermelho por motivo alheio à spec 22** — os três ficheiros abaixo
+criam `User` e `ContaPGC` por INSERT directo e ficaram para trás do schema
+([issue #67](https://github.com/fxavier/gespro-frontend/issues/67)). **Não se corrigem dentro deste
+épico.**
+
+Por isso o gate dos nós que usam esta suite **não é «verde»** — é **identidade de falhas por nome**.
+Contagem não serve: uma corrigida e uma nova dão o mesmo total.
+
+Medido em `ed5b5b4` (2026-09-21), com Testcontainers a funcionar:
+
+```
+Test Files  3 failed | 3 passed (6)
+Tests       3 failed | 19 passed | 8 skipped (30)
+```
+
+Falhas esperadas, **por nome exacto**:
+
+| Ficheiro | Teste |
+|---|---|
+| `test/integration/apuramento-iva-reproducibilidade.test.ts` | `Reprodutibilidade do apuramento IVA — DB efémera` (falha no hook) |
+| `test/integration/periodo-trancamento.test.ts` | `Trancamento de período — DB efémera (Testcontainers)` (falha no hook) |
+| `test/integration/tenant-isolation.test.ts` | `Tenant A e Tenant B podem ser criados de forma independente` |
+| `test/integration/tenant-isolation.test.ts` | `utilizadores do Tenant A não são visíveis no filtro do Tenant B` |
+| `test/integration/tenant-isolation.test.ts` | `DB está limpa no início — sem dados de runs anteriores (stateless)` |
+
+**Bloco de sanidade** — sem isto, «as falhas são as mesmas» também é verdade quando a suite não
+correu de todo. Uma corrida só conta se:
+
+1. a saída contém `[integration] Container Postgres parado.` — prova que o container subiu e caiu,
+   e que o `globalSetup` não degradou para `SKIP_INTEGRATION=true`;
+2. o número de testes **passados** é `≥ 19` — o degradado gracioso dá zero passados e tudo saltado;
+3. o ficheiro do nó corre **isolado** e passa.
+
+Qualquer falha fora desta tabela é do nó que a introduziu, e trava-o.
+
 ## Registo do orquestrador
 
 ### L2 — fechado
