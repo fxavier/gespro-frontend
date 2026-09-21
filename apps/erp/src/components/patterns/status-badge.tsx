@@ -59,6 +59,11 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   INATIVO: 'secondary',
   SUSPENSO: 'destructive',
 
+  // Tesouraria — CompromissoTesouraria (Spec 22): entrada a verde, saída a
+  // vermelho, como o sinal do valor nos movimentos de caixa.
+  ENTRADA: 'success',
+  SAIDA: 'destructive',
+
   // Conta a Pagar / Pagamento
   ABERTA: 'warning',
   PARCIALMENTE_PAGA: 'info',
@@ -492,6 +497,9 @@ export const STATUS_LABELS: Record<string, string> = {
   EXPIRADO: 'Expirado',
   MENSAL: 'Mensal',
   ANUAL: 'Anual',
+  // Tesouraria — Spec 22
+  ENTRADA: 'Entrada',
+  SAIDA: 'Saída',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {

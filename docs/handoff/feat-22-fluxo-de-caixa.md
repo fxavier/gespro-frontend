@@ -298,6 +298,41 @@ incluído). Oráculos intocados. Decisões e provas deste nó:
    3 de `tenant-isolation`, issue #67), bloco de sanidade presente, 29 ≥ 29 passados. O piso
    mantém-se em 29.
 
+### UI de Tesouraria (nó P7, tasks 7.0–7.6 — entregue 2026-09-22)
+
+`pnpm check` exit 0, 114 ficheiros / 1611 testes, **zero skips**; `pnpm gates` 5/5; `pnpm build`
+verde com as quatro rotas (`/tesouraria`, `/tesouraria/compromissos`, `novo`, `[id]/editar`, todas
+ƒ dinâmicas); `pnpm e2e:a11y` **28/28** no ERP (9 novos, tesouraria nos dois temas) + 23/23 no
+site. Smoke autenticado real (admin@demo.mz): projecção BASE mostra 724 106,60 MT de abertura e
+«Sem ruptura»; PESSIMISTA mostra −226 694,92 MT e primeira ruptura **27/10/2026**, com 8 buckets
+destacados por fundo `destructive/5` + ícone + `sr-only` (não só cor, R6.2). CRUD completo pela UI
+(criar → projecção muda → editar → eliminar por AlertDialog → projecção repõe 493 747,24 MT).
+Oráculos intocados. Decisões deste nó:
+
+1. **7.0 (arbitrado) cumprido**: o literal `'/tesouraria/compromissos/[id]'` saiu; as três
+   mutações revalidam `paths: ['/tesouraria', '/tesouraria/compromissos']` +
+   `tags: ['financas:tesouraria']`. `createSafeAction` intacto (issue #68).
+2. **`startTransition` no submit** — o `dispatch` do `useActionState` chamado pelo `handleSubmit`
+   corre fora de transição; o smoke apanhou o aviso do React na consola («called outside of a
+   transition») e o `isPending` nunca actualizava. O golden standard
+   (`nova-requisicao-form.tsx:105`) tem o mesmo defeito latente — não se tocou lá (fora de âmbito),
+   fica o registo.
+3. **Cenários coincidentes ditos ao utilizador** — no demo o perfil de atraso é 0d/σ0d (amostra
+   64), logo BASE == OTIMISTA; a página di-lo numa nota em vez de fingir três curvas. A degradação
+   R5.3 (amostra < 20) tem o seu próprio `Alert`, e `semOrigensDeSaldo` tem outro («não há origens
+   de saldo configuradas», abertura mostra «—», nunca `0,00 MT` como facto).
+4. **`formatarDiaMes` novo em `format-date.ts`** (dd/mm, Maputo) para o eixo do gráfico — em vez
+   de um `Intl` local que violaria o ponto único. `ENTRADA`/`SAIDA` registados no mapa único do
+   `StatusBadge` (success/destructive, como o sinal do valor nos movimentos de caixa).
+5. **Gráfico com `ChartContainer`/`ChartTooltip` partilhados**; cores por `var(--chart-1)` directo
+   — os tokens da marca são oklch completos, o `hsl(var(--chart-1))` do analytics é legado que
+   não resolve. A tabela é a fonte; o gráfico tem `role="img"` com aria-label a dizê-lo.
+6. **A11y de edição auto-limpa** — o teste cria (se preciso) um compromisso com data 2099-12-31 e
+   elimina-o no fim pela UI: o `projecao.golden.test.ts` lê a MESMA base de dev, e um resíduo
+   dentro do horizonte envenenava a fixture (aconteceu na primeira corrida; caçado e corrigido).
+7. **Sem `@panel`/interceptor** — o spec só pede listagem/novo/editar (R7.3); o painel de
+   inspecção não tem detalhe que justifique, e o molde tem o bug conhecido do segmento `novo`.
+
 ## Contratos WS-2 (DFC)
 
 _A preencher pelo nó L9._

@@ -69,6 +69,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   historico: 'Histórico',
   'contas-pagar': 'Contas a Pagar',
   documentos: 'Documentos',
+  tesouraria: 'Tesouraria',
+  compromissos: 'Compromissos',
 };
 
 function isId(segment: string): boolean {

@@ -306,3 +306,141 @@ test.describe('A11y: POS', () => {
     await checkA11y(page, 'POS');
   });
 });
+
+// ─── Spec 22 · WS-1: Tesouraria ──────────────────────────────────────────────
+// As quatro páginas novas passam axe AA NOS DOIS TEMAS (R7.5). O tema segue
+// `defaultTheme="system"`, por isso `emulateMedia({ colorScheme })` chega.
+
+const TEMAS = ['light', 'dark'] as const;
+
+test.describe('A11y: Tesouraria — Projecção', () => {
+  for (const tema of TEMAS) {
+    test(`sem violações AA na projecção de tesouraria — tema ${tema === 'light' ? 'claro' : 'escuro'}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      await page.goto('/tesouraria');
+      await page.waitForLoadState('domcontentloaded');
+
+      await expect(
+        page.getByRole('heading', { name: 'Projecção de Tesouraria' })
+      ).toBeVisible({ timeout: 20_000 });
+
+      // Sai do skeleton: a tabela de buckets é a fonte e tem de estar presente
+      await expect(
+        page.getByRole('heading', { name: /^Buckets/ })
+      ).toBeVisible({ timeout: 20_000 });
+
+      await checkA11y(page, `projecção de tesouraria (${tema})`);
+    });
+  }
+
+  test('o cenário PESSIMISTA mantém a página acessível', async ({ page }) => {
+    await page.goto('/tesouraria?cenario=PESSIMISTA');
+    await page.waitForLoadState('domcontentloaded');
+
+    await expect(
+      page.getByRole('heading', { name: /^Buckets/ })
+    ).toBeVisible({ timeout: 20_000 });
+
+    await checkA11y(page, 'projecção de tesouraria (PESSIMISTA)');
+  });
+});
+
+test.describe('A11y: Tesouraria — Compromissos', () => {
+  for (const tema of TEMAS) {
+    test(`sem violações AA na listagem de compromissos — tema ${tema === 'light' ? 'claro' : 'escuro'}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      await page.goto('/tesouraria/compromissos');
+      await page.waitForLoadState('domcontentloaded');
+
+      await expect(
+        page.getByRole('heading', { name: 'Compromissos de Tesouraria' })
+      ).toBeVisible({ timeout: 20_000 });
+      await page.waitForTimeout(1_000); // hydration
+
+      await checkA11y(page, `listagem de compromissos (${tema})`);
+    });
+
+    test(`sem violações AA no formulário de novo compromisso — tema ${tema === 'light' ? 'claro' : 'escuro'}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      await page.goto('/tesouraria/compromissos/novo');
+      await page.waitForLoadState('domcontentloaded');
+
+      await expect(
+        page.getByRole('heading', { name: 'Novo Compromisso' })
+      ).toBeVisible({ timeout: 20_000 });
+
+      await checkA11y(page, `novo compromisso (${tema})`);
+    });
+  }
+
+  for (const tema of TEMAS) {
+    test(`sem violações AA no formulário de edição — tema ${tema === 'light' ? 'claro' : 'escuro'}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: tema });
+
+      // Garante que existe pelo menos um compromisso editável.
+      await page.goto('/tesouraria/compromissos');
+      await expect(
+        page.getByRole('heading', { name: 'Compromissos de Tesouraria' })
+      ).toBeVisible({ timeout: 20_000 });
+      await page.waitForTimeout(500);
+
+      let linkEditar = page.locator('a[href$="/editar"]').first();
+      let criadoPeloTeste = false;
+      if ((await linkEditar.count()) === 0) {
+        // Data MUITO futura de propósito: o golden fixture da projecção
+        // (`projecao.golden.test.ts`) lê esta mesma base de dados — um
+        // compromisso dentro do horizonte de 90/365 dias envenenava-o.
+        await page.goto('/tesouraria/compromissos/novo');
+        await expect(
+          page.getByRole('heading', { name: 'Novo Compromisso' })
+        ).toBeVisible({ timeout: 20_000 });
+        await page.getByLabel('Descrição *').fill('Compromisso a11y');
+        await page.getByLabel('Valor (MT) *').fill('1234.56');
+        await page.getByLabel('Data prevista *').fill('2099-12-31');
+        await page.getByRole('button', { name: 'Guardar' }).click();
+        await expect(
+          page.getByRole('heading', { name: 'Compromissos de Tesouraria' })
+        ).toBeVisible({ timeout: 20_000 });
+        criadoPeloTeste = true;
+        linkEditar = page.locator('a[href$="/editar"]').first();
+      }
+
+      const href = await linkEditar.getAttribute('href');
+      expect(href).toBeTruthy();
+      await page.goto(href!);
+      await expect(
+        page.getByRole('heading', { name: 'Editar Compromisso' })
+      ).toBeVisible({ timeout: 20_000 });
+
+      await checkA11y(page, `editar compromisso (${tema})`);
+
+      // Limpeza: o que o teste criou, o teste elimina (soft delete via UI —
+      // eliminados não entram na projecção nem na listagem).
+      if (criadoPeloTeste) {
+        await page.goto('/tesouraria/compromissos');
+        await expect(
+          page.getByRole('heading', { name: 'Compromissos de Tesouraria' })
+        ).toBeVisible({ timeout: 20_000 });
+        await page.waitForTimeout(1_000); // hydration
+        await page
+          .getByRole('button', { name: 'Eliminar compromisso Compromisso a11y' })
+          .click();
+        await page
+          .getByRole('alertdialog')
+          .getByRole('button', { name: 'Eliminar', exact: true })
+          .click();
+        await expect(page.getByText('Compromisso eliminado.')).toBeVisible({
+          timeout: 20_000,
+        });
+      }
+    });
+  }
+});

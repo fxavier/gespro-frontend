@@ -35,6 +35,12 @@ const dataExtensa = new Intl.DateTimeFormat(LOCALE, {
   timeStyle: 'short',
 });
 
+const diaMes = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: FUSO,
+  day: '2-digit',
+  month: '2-digit',
+});
+
 type Entrada = Date | string | number | null | undefined;
 
 const asDate = (v: Entrada): Date | null => {
@@ -59,4 +65,10 @@ export function formatarData(v: Entrada): string {
 export function formatarDataExtensa(v: Entrada): string {
   const d = asDate(v);
   return d ? dataExtensa.format(d) : '—';
+}
+
+/** 24/07 — rótulo curto para eixos de gráficos e buckets (spec 22). */
+export function formatarDiaMes(v: Entrada): string {
+  const d = asDate(v);
+  return d ? diaMes.format(d) : '—';
 }

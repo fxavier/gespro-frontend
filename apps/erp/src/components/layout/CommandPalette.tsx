@@ -73,6 +73,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Apuramento de IVA', href: '/contabilidade/iva', icon: PercentCircle, group: 'Finanças' },
   { label: 'Configurações de Contabilidade', href: '/contabilidade/configuracoes', icon: Settings, group: 'Finanças' },
   { label: 'Caixa', href: '/caixa', icon: Receipt, group: 'Finanças' },
+  { label: 'Tesouraria — Projecção', href: '/tesouraria', icon: BarChart3, group: 'Finanças' },
+  { label: 'Compromissos de Tesouraria', href: '/tesouraria/compromissos', icon: ClipboardList, group: 'Finanças' },
 
   // RH
   { label: 'Colaboradores', href: '/rh/colaboradores', icon: Users, group: 'Recursos Humanos' },
