@@ -262,6 +262,42 @@ tu») — 9/9 verde isolado e na suite. Decisões deste nó:
    (`String(now).slice(0, 9)` dá o MESMO nuit aos dois tenants, o prefixo só muda a cada ~10 s),
    não induzida por este nó (os nuit deste nó são da gama `41x xxx xxx`). Fica para a issue #67.
 
+### Actions e permissões (nó P6, tasks 6.0–6.2 + 6.2-bis — entregue 2026-09-21)
+
+`pnpm check` exit 0, 114 ficheiros / 1611 testes, **zero skips**; `pnpm gates` 5/5 (`gate-leitura`
+incluído). Oráculos intocados. Decisões e provas deste nó:
+
+1. **6.0 — o I4 mudou de casa**: `projecao.tenant.test.ts` saiu de
+   `src/server/services/financas/__tests__/` para `test/integration/` por `git mv`, **conteúdo
+   intacto** (os imports são todos por alias `@/`, nada a ajustar). A entrada avulsa no `include`
+   de `vitest.integration.config.ts` saiu com ele. Consequência medida: o `pnpm check` passou de
+   «1 ficheiro / 9 testes skipped» para **zero skips**; na suite de integração o ficheiro corre
+   isolado **9/9 verde** com `[integration] Container Postgres parado.` na saída.
+2. **6.1 — permissões ligadas pelo padrão, e provadas na base**: `financas:tesouraria:leitura` e
+   `financas:tesouraria:escrita` entraram no bloco financeiro do catálogo; a ligação aos papéis é
+   automática pelo padrão existente (`:leitura` ⇒ `isReadOnly` ⇒ LEITURA/OPERADOR; prefixo
+   `financas:` ⇒ FINANCEIRO; GESTOR = tudo menos a lista restrita; ADMIN = tudo). `pnpm db:seed`
+   corrido; consulta directa ao Postgres (tenant `demo`) devolve **8 linhas**: ADMIN, FINANCEIRO
+   e GESTOR com as duas; LEITURA e OPERADOR só com `:leitura`.
+3. **6.2 — seis actions em `tesouraria.actions.ts`**: três consultas com
+   `permiteEmLeitura: true` (projecção e compromissos visíveis em modo de Leitura, ADR-0032) e
+   três mutações com `revalidate.paths` declarado, sem a bandeira (a escrita não passa em
+   Leitura). O schema do `obterCompromissoAction` é um `z.object({ id: idEntidade() })` local
+   **não exportado** — um ficheiro `'use server'` só pode exportar funções async.
+4. **⚠️ Nota para o nó 7 (UI)** — o `revalidate` de actualizar/eliminar inclui o caminho literal
+   `'/tesouraria/compromissos/[id]'`, conforme o prompt P6. Mas o `createSafeAction` chama
+   `revalidatePath(p)` **sem o argumento `type`**, e o Next só revalida um padrão com segmento
+   dinâmico quando recebe `type: 'page'` — o literal `[id]` sem `type` não casa com rota nenhuma.
+   Nenhuma action da casa revalida hoje um caminho dinâmico, por isso não há precedente. Quando a
+   rota `[id]` existir (7.4), ou o `createSafeAction` aceita `type`, ou troca-se por `tags` — a
+   decisão é do orquestrador; deixá-la implícita era o bug de cache stale com outro nome.
+5. **6.2-bis — intervalo invertido acusa-se**: `superRefine` no `FiltroCompromissoSchema` recusa
+   `dataFim < dataInicio` com mensagem em `dataFim` — antes devolvia lista vazia sem dizer porquê.
+6. **Linha de base inalterada por nome**: `Test Files 3 failed | 4 passed (7)` ·
+   `Tests 3 failed | 29 passed | 7 skipped (39)` — as mesmas cinco falhas da tabela (2 hooks +
+   3 de `tenant-isolation`, issue #67), bloco de sanidade presente, 29 ≥ 29 passados. O piso
+   mantém-se em 29.
+
 ## Contratos WS-2 (DFC)
 
 _A preencher pelo nó L9._
@@ -284,7 +320,7 @@ Só leitura, sem alteração de schema fora de `financas.prisma`:
 |---|---|---|---|
 | `I1` | `__tests__/projecao.integracao.test.ts` | `verificador-fluxo-caixa` | — |
 | `I2`, `I3`, `I5` | `__tests__/projecao.property.test.ts` | `verificador-fluxo-caixa` | **Escrito e vermelho** (P2v, 2026-09-21) — ver abaixo |
-| `I4` | `__tests__/projecao.tenant.test.ts` (integração) | `feat-tesouraria` (autorização explícita do P5 — o verificador não o tinha escrito à data do L5) | **Verde** (9/9, 2026-09-21) |
+| `I4` | `test/integration/projecao.tenant.test.ts` (movido de `__tests__/` no P6, task 6.0 — conteúdo intacto) | `feat-tesouraria` (autorização explícita do P5 — o verificador não o tinha escrito à data do L5) | **Verde** (9/9, 2026-09-21) |
 | `I6`, `I8` | `__tests__/dfc.property.test.ts` | `verificador-fluxo-caixa` | — |
 | `I7`, `I9`, `I10` | `__tests__/dfc.integracao.test.ts` | `verificador-fluxo-caixa` | — |
 | Fixtures | `__tests__/fixtures/{projecao,dfc}-seed-demo.json` | `verificador-fluxo-caixa` | — |

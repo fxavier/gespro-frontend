@@ -105,6 +105,11 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'financas:centros-custo:escrita', descricao: 'Criar e editar centros de custo' },
   { code: 'financas:plano-contas:escrita',  descricao: 'Criar e editar contas no plano de contas' },
   { code: 'financas:relatorios:leitura',    descricao: 'Consultar relatórios financeiros' },
+  // Projecção de tesouraria (spec 22, ADR-0036). A ligação aos papéis é pelo
+  // padrão das restantes financas:*: `:leitura` entra em LEITURA/OPERADOR via
+  // isReadOnly; FINANCEIRO e GESTOR levam as duas; ADMIN leva tudo.
+  { code: 'financas:tesouraria:leitura',    descricao: 'Consultar a projecção de tesouraria e os compromissos' },
+  { code: 'financas:tesouraria:escrita',    descricao: 'Criar e editar compromissos de tesouraria' },
 
   // ── Caixa / PDV ───────────────────────────────────────────────────────────
   { code: 'caixa:ver',             descricao: 'Consultar movimentos de caixa' },

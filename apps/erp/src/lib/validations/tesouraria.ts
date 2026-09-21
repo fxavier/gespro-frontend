@@ -161,16 +161,32 @@ const booleanoDeSearchParam = z.union([
   z.enum(['true', 'false']).transform((v) => v === 'true'),
 ]);
 
-export const FiltroCompromissoSchema = z.object({
-  tipo: TipoCompromissoEnum.optional(),
-  recorrencia: RecorrenciaCompromissoEnum.optional(),
-  ativo: booleanoDeSearchParam.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
-  pesquisa: z.string().max(255).optional(),
-  cursor: idEntidade('Cursor inválido').optional(),
-  take: z.coerce.number().int().min(1).max(100).default(25),
-});
+export const FiltroCompromissoSchema = z
+  .object({
+    tipo: TipoCompromissoEnum.optional(),
+    recorrencia: RecorrenciaCompromissoEnum.optional(),
+    ativo: booleanoDeSearchParam.optional(),
+    dataInicio: z.coerce.date().optional(),
+    dataFim: z.coerce.date().optional(),
+    pesquisa: z.string().max(255).optional(),
+    cursor: idEntidade('Cursor inválido').optional(),
+    take: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .superRefine((v, ctx) => {
+    // Task 6.2-bis: intervalo invertido → ValidationError, nunca lista vazia
+    // — um `dataFim < dataInicio` devolvia [] sem dizer porquê.
+    if (
+      v.dataInicio instanceof Date &&
+      v.dataFim instanceof Date &&
+      v.dataFim.getTime() < v.dataInicio.getTime()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dataFim'],
+        message: 'Data de fim não pode ser anterior à data de início.',
+      });
+    }
+  });
 
 export type FiltroCompromissoInput = z.infer<typeof FiltroCompromissoSchema>;
 
