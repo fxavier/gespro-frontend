@@ -108,10 +108,12 @@ describe.skipIf(!hasDB)(
       ctx = { tenantId: tenant.id, userId: admin.id };
 
       // O seed demo não cria contas bancárias — sem isto o I1 seria vácuo do
-      // lado do razão. Ancoramos uma conta bancária ACTIVA na conta PGC
+      // lado do razão. Ancoramos DUAS contas bancárias ACTIVAS na conta PGC
       // `121 Depósitos à ordem`, que tem movimento real semeado (recebimentos
-      // de facturas), e uma INACTIVA na mesma conta: se a implementação
-      // ignorar `ativo`, soma o razão do 121 duas vezes e falha.
+      // de facturas), e uma INACTIVA na mesma conta (task 3.4-ter):
+      //  - se a implementação somar por conta BANCÁRIA em vez de por conta
+      //    PGC distinta (ADR-0036 §2-bis), conta o razão do 121 a dobrar;
+      //  - se ignorar `ativo`, conta-o a triplicar.
       const conta121 = await prismaBase.contaPGC.findFirst({
         where: { tenantId: tenant.id, codigo: '121' },
       });
@@ -131,6 +133,18 @@ describe.skipIf(!hasDB)(
           saldoAtual: SALDO_ATUAL_VENENO,
         },
       });
+      const ativa2 = await prismaBase.contaBancaria.create({
+        data: {
+          tenantId: tenant.id,
+          banco: 'BANCO ORACULO L3',
+          agencia: '001',
+          numeroConta: `${MARCA}-ativa2`,
+          tipoConta: 'CORRENTE',
+          contaContabilId: conta121.id,
+          ativo: true,
+          saldoAtual: SALDO_ATUAL_VENENO,
+        },
+      });
       const inativa = await prismaBase.contaBancaria.create({
         data: {
           tenantId: tenant.id,
@@ -143,7 +157,7 @@ describe.skipIf(!hasDB)(
           saldoAtual: SALDO_ATUAL_VENENO,
         },
       });
-      contasBancariasCriadas.push(ativa.id, inativa.id);
+      contasBancariasCriadas.push(ativa.id, ativa2.id, inativa.id);
     });
 
     afterAll(async () => {
@@ -164,8 +178,11 @@ describe.skipIf(!hasDB)(
           where: { tenantId: ctx.tenantId, ativo: true },
           select: { contaContabilId: true },
         });
-        // Anti-vacuidade: a conta criada no beforeAll garante ≥ 1 activa.
-        expect(contasAtivas.length).toBeGreaterThanOrEqual(1);
+        // Anti-vacuidade da 3.4-ter: há PELO MENOS duas activas ancoradas na
+        // MESMA conta PGC — é o estado que falsifica a soma por conta bancária.
+        expect(contasAtivas.length).toBeGreaterThanOrEqual(2);
+        const contasPGCDistintas = [...new Set(contasAtivas.map((cb) => cb.contaContabilId))];
+        expect(contasPGCDistintas.length).toBeLessThan(contasAtivas.length);
 
         const balancete = await gerarBalancete(
           {
@@ -179,11 +196,13 @@ describe.skipIf(!hasDB)(
           balancete.contas.map((l) => [l.conta.id, l.saldoAtual]),
         );
 
-        // Σ por CONTA BANCÁRIA activa (a fórmula do ADR é por conta bancária;
-        // duas contas bancárias na mesma conta PGC contam duas vezes dos dois
-        // lados — deliberadamente coerente com a letra do §Decisão-2).
-        let total = contasAtivas.reduce(
-          (acc, cb) => acc.plus(saldoPorConta.get(cb.contaContabilId) ?? D(0)),
+        // Σ por conta PGC DISTINTA (ADR-0036 §2-bis, que revogou a leitura
+        // por conta bancária de uma versão anterior do §Decisão-2): uma conta
+        // PGC entra se ≥ 1 bancária ancorada nela estiver activa, e entra UMA
+        // vez, pelo saldo inteiro — o saldo de uma conta partilhada não se
+        // reparte nem se multiplica por conta bancária.
+        let total = contasPGCDistintas.reduce(
+          (acc, contaId) => acc.plus(saldoPorConta.get(contaId) ?? D(0)),
           D(0),
         );
 
@@ -220,17 +239,23 @@ describe.skipIf(!hasDB)(
     });
 
     it('perfilAtraso: amostra coere com a contagem independente de facturas PAGA ≤ 180 dias', async () => {
+      // Task 4.8: UM relógio por projecção — a data de referência passa-se
+      // SEMPRE explicitamente. Este era o único chamador de `perfilAtraso(ctx)`
+      // sem data; com esta chamada actualizada, o valor por omissão
+      // (`new Date()`) em `perfilAtraso` deixou de ter quem o justifique e
+      // pode cair — remover o default é alteração de produção (interface +
+      // serviço) e pertence ao nó seguinte, não ao oráculo.
       const agora = new Date();
       const limite = new Date(agora.getTime() - 180 * 24 * 60 * 60 * 1000);
       const contagem = await prismaBase.fatura.count({
         where: {
           tenantId: ctx.tenantId,
           status: 'PAGA',
-          dataPagamento: { gte: limite },
+          dataPagamento: { gte: limite, lte: agora },
         },
       });
 
-      const perfil = await runWithTenantContext(ctx, () => perfilAtraso(ctx));
+      const perfil = await runWithTenantContext(ctx, () => perfilAtraso(ctx, agora));
 
       expect(perfil.amostra).toBe(contagem);
       expect(perfil.amostraInsuficiente).toBe(contagem < 20);
