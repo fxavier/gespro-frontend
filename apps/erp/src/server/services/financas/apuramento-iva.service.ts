@@ -29,6 +29,7 @@ import type {
   EstornarApuramentoInput,
   MarcarDeclaradoInput,
   IApuramentoIvaService,
+  DocumentoSemLancamento,
   Ctx,
 } from './apuramento-iva.interface';
 import {
@@ -317,37 +318,61 @@ export async function apurarIva(
     }
 
     // 4. DOCUMENTO_SEM_LANCAMENTO (ADR-0034 §4)
+    //    Devolve QUAIS são os documentos, não só quantos: «tem 3 documentos sem
+    //    lançamento» obriga o utilizador a procurá-los à mão num período inteiro.
+    const seleccao = { select: { id: true, numero: true, dataEmissao: true } } as const;
+    const janela = { gte: periodo.dataInicio, lte: periodo.dataFim };
     const [faturasSL, ncSL, ndSL] = await Promise.all([
-      tx.fatura.count({
+      tx.fatura.findMany({
         where: {
           tenantId: ctx.tenantId,
           status: { in: ['EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA'] },
           lancamentoId: null,
-          dataEmissao: { gte: periodo.dataInicio, lte: periodo.dataFim },
+          dataEmissao: janela,
         },
+        orderBy: { dataEmissao: 'asc' },
+        ...seleccao,
       }),
-      tx.notaCredito.count({
+      tx.notaCredito.findMany({
         where: {
           tenantId: ctx.tenantId,
           status: { in: ['EMITIDA', 'LIQUIDADA'] },
           lancamentoId: null,
-          dataEmissao: { gte: periodo.dataInicio, lte: periodo.dataFim },
+          dataEmissao: janela,
         },
+        orderBy: { dataEmissao: 'asc' },
+        ...seleccao,
       }),
-      tx.notaDebito.count({
+      tx.notaDebito.findMany({
         where: {
           tenantId: ctx.tenantId,
           status: { in: ['EMITIDA', 'LIQUIDADA'] },
           lancamentoId: null,
-          dataEmissao: { gte: periodo.dataInicio, lte: periodo.dataFim },
+          dataEmissao: janela,
         },
+        orderBy: { dataEmissao: 'asc' },
+        ...seleccao,
       }),
     ]);
-    if (faturasSL + ncSL + ndSL > 0) {
+    const listar = (
+      docs: { id: string; numero: string; dataEmissao: Date }[],
+      tipo: DocumentoSemLancamento['tipo'],
+    ): DocumentoSemLancamento[] =>
+      docs.map((d) => ({ tipo, id: d.id, numero: d.numero, dataEmissao: d.dataEmissao.toISOString() }));
+    const documentosSemLancamento = [
+      ...listar(faturasSL, 'FATURA'),
+      ...listar(ncSL, 'NOTA_CREDITO'),
+      ...listar(ndSL, 'NOTA_DEBITO'),
+    ];
+    if (documentosSemLancamento.length > 0) {
+      const numeros = documentosSemLancamento.map((d) => d.numero);
       throw new BusinessRuleError(
         'DOCUMENTO_SEM_LANCAMENTO',
-        `O período ${periodo.codigo} tem ${faturasSL + ncSL + ndSL} documento(s) fiscal(is) sem ` +
-          'lançamento. Gere os lançamentos em falta antes de apurar.',
+        `O período ${periodo.codigo} tem ${numeros.length} documento(s) fiscal(is) sem ` +
+          `lançamento: ${numeros.slice(0, 10).join(', ')}` +
+          (numeros.length > 10 ? ` e mais ${numeros.length - 10}.` : '.') +
+          ' Gere os lançamentos em falta antes de apurar.',
+        { documentos: documentosSemLancamento },
       );
     }
 

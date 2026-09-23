@@ -25,9 +25,9 @@ const mocks = vi.hoisted(() => ({
   transaction:         vi.fn(),
   apuramentoFindFirst: vi.fn(),
   lancamentoCount:     vi.fn(),
-  faturaCount:         vi.fn(),
-  notaCreditoCount:    vi.fn(),
-  notaDebitoCount:     vi.fn(),
+  faturaFindMany:      vi.fn(),
+  notaCreditoFindMany: vi.fn(),
+  notaDebitoFindMany:  vi.fn(),
   queryRaw:            vi.fn(),
   getRequestContext:   vi.fn(() => ({ requestId: 'req-test-123' })),
 }));
@@ -37,9 +37,9 @@ vi.mock('@/server/db/client', () => {
   const tx = {
     apuramentoIva:       { findFirst: mocks.apuramentoFindFirst },
     lancamento:          { count: mocks.lancamentoCount },
-    fatura:              { count: mocks.faturaCount },
-    notaCredito:         { count: mocks.notaCreditoCount },
-    notaDebito:          { count: mocks.notaDebitoCount },
+    fatura:              { findMany: mocks.faturaFindMany },
+    notaCredito:         { findMany: mocks.notaCreditoFindMany },
+    notaDebito:          { findMany: mocks.notaDebitoFindMany },
     $queryRaw:           mocks.queryRaw,
   };
   return {
@@ -77,6 +77,15 @@ const PERIODO_2026 = {
   dataFim:    new Date('2026-06-30T23:59:59Z'),
 };
 
+/** n documentos sem lançamento, no formato que o serviço selecciona. */
+function semLancamento(n: number, prefixo: string) {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `${prefixo}-${i + 1}`,
+    numero: `${prefixo.toUpperCase()}/2026/00000${i + 1}`,
+    dataEmissao: new Date('2026-06-15T00:00:00Z'),
+  }));
+}
+
 /**
  * Configura `mocks.transaction` para chamar o callback com `tx` e devolve `tx`
  * para que cada teste o possa sobrepor parcialmente.
@@ -85,9 +94,9 @@ function setupTx(overrides: Record<string, unknown> = {}) {
   const tx = {
     apuramentoIva:    { findFirst: mocks.apuramentoFindFirst },
     lancamento:       { count: mocks.lancamentoCount },
-    fatura:           { count: mocks.faturaCount },
-    notaCredito:      { count: mocks.notaCreditoCount },
-    notaDebito:       { count: mocks.notaDebitoCount },
+    fatura:           { findMany: mocks.faturaFindMany },
+    notaCredito:      { findMany: mocks.notaCreditoFindMany },
+    notaDebito:       { findMany: mocks.notaDebitoFindMany },
     $queryRaw:        mocks.queryRaw,
     ...overrides,
   };
@@ -101,9 +110,9 @@ beforeEach(() => {
   mocks.queryRaw.mockResolvedValue([PERIODO_2026]);   // FOR UPDATE
   mocks.apuramentoFindFirst.mockResolvedValue(null);  // sem apuramento anterior
   mocks.lancamentoCount.mockResolvedValue(0);
-  mocks.faturaCount.mockResolvedValue(0);
-  mocks.notaCreditoCount.mockResolvedValue(0);
-  mocks.notaDebitoCount.mockResolvedValue(0);
+  mocks.faturaFindMany.mockResolvedValue([]);
+  mocks.notaCreditoFindMany.mockResolvedValue([]);
+  mocks.notaDebitoFindMany.mockResolvedValue([]);
 });
 
 // ---------------------------------------------------------------------------
@@ -157,7 +166,7 @@ describe('§4 — PERIODO_COM_RASCUNHOS', () => {
     mocks.queryRaw.mockResolvedValueOnce([PERIODO_2026]);
     mocks.apuramentoFindFirst.mockResolvedValueOnce(null);
     mocks.lancamentoCount.mockResolvedValueOnce(0);    // zero rascunhos → não lança
-    mocks.faturaCount.mockResolvedValueOnce(1);        // 1 fatura sem lançamento → lança a seguir
+    mocks.faturaFindMany.mockResolvedValueOnce(semLancamento(1, 'fat'));        // 1 fatura sem lançamento → lança a seguir
 
     await expect(apurarIva(INPUT, CTX)).rejects.toMatchObject({
       code: 'DOCUMENTO_SEM_LANCAMENTO',  // prova que passou PERIODO_COM_RASCUNHOS
@@ -175,12 +184,22 @@ describe('§4 — DOCUMENTO_SEM_LANCAMENTO', () => {
     mocks.queryRaw.mockResolvedValueOnce([PERIODO_2026]);
     mocks.apuramentoFindFirst.mockResolvedValueOnce(null);
     mocks.lancamentoCount.mockResolvedValueOnce(0);
-    mocks.faturaCount.mockResolvedValueOnce(2);   // 2 faturas sem lançamento
-    mocks.notaCreditoCount.mockResolvedValueOnce(0);
-    mocks.notaDebitoCount.mockResolvedValueOnce(0);
+    mocks.faturaFindMany.mockResolvedValueOnce(semLancamento(2, 'fat'));   // 2 faturas sem lançamento
+    mocks.notaCreditoFindMany.mockResolvedValueOnce(semLancamento(1, 'nc'));
+    mocks.notaDebitoFindMany.mockResolvedValueOnce(semLancamento(0, 'nd'));
 
+    // A recusa identifica QUAIS são os documentos — sem isso o utilizador tem
+    // de os procurar à mão num período inteiro.
     await expect(apurarIva(INPUT, CTX)).rejects.toMatchObject({
       code: 'DOCUMENTO_SEM_LANCAMENTO',
+      message: expect.stringContaining('FAT/2026/000001'),
+      details: {
+        documentos: [
+          { tipo: 'FATURA', id: 'fat-1', numero: 'FAT/2026/000001' },
+          { tipo: 'FATURA', id: 'fat-2', numero: 'FAT/2026/000002' },
+          { tipo: 'NOTA_CREDITO', id: 'nc-1', numero: 'NC/2026/000001' },
+        ],
+      },
     });
   });
 
@@ -189,9 +208,9 @@ describe('§4 — DOCUMENTO_SEM_LANCAMENTO', () => {
     mocks.queryRaw.mockResolvedValueOnce([PERIODO_2026]);
     mocks.apuramentoFindFirst.mockResolvedValueOnce(null);
     mocks.lancamentoCount.mockResolvedValueOnce(0);
-    mocks.faturaCount.mockResolvedValueOnce(0);
-    mocks.notaCreditoCount.mockResolvedValueOnce(1);
-    mocks.notaDebitoCount.mockResolvedValueOnce(0);
+    mocks.faturaFindMany.mockResolvedValueOnce(semLancamento(0, 'fat'));
+    mocks.notaCreditoFindMany.mockResolvedValueOnce(semLancamento(1, 'nc'));
+    mocks.notaDebitoFindMany.mockResolvedValueOnce(semLancamento(0, 'nd'));
 
     await expect(apurarIva(INPUT, CTX)).rejects.toMatchObject({
       code: 'DOCUMENTO_SEM_LANCAMENTO',
@@ -208,9 +227,9 @@ describe('§4 — DOCUMENTO_SEM_LANCAMENTO', () => {
       .mockResolvedValueOnce([{ existe: false }]);     // PRORATA — ContaPagar
     mocks.apuramentoFindFirst.mockResolvedValueOnce(null);
     mocks.lancamentoCount.mockResolvedValueOnce(0);
-    mocks.faturaCount.mockResolvedValueOnce(0);
-    mocks.notaCreditoCount.mockResolvedValueOnce(0);
-    mocks.notaDebitoCount.mockResolvedValueOnce(0);
+    mocks.faturaFindMany.mockResolvedValueOnce(semLancamento(0, 'fat'));
+    mocks.notaCreditoFindMany.mockResolvedValueOnce(semLancamento(0, 'nc'));
+    mocks.notaDebitoFindMany.mockResolvedValueOnce(semLancamento(0, 'nd'));
 
     await expect(apurarIva(INPUT, CTX)).rejects.toMatchObject({
       code: 'PRORATA_NAO_SUPORTADO',  // prova que passou DOCUMENTO_SEM_LANCAMENTO
@@ -234,9 +253,9 @@ describe('§4 — PRORATA_NAO_SUPORTADO', () => {
       .mockResolvedValueOnce([{ existe: false }]);   // ContaPagar taxa normal
     mocks.apuramentoFindFirst.mockResolvedValueOnce(null);
     mocks.lancamentoCount.mockResolvedValueOnce(0);
-    mocks.faturaCount.mockResolvedValueOnce(0);
-    mocks.notaCreditoCount.mockResolvedValueOnce(0);
-    mocks.notaDebitoCount.mockResolvedValueOnce(0);
+    mocks.faturaFindMany.mockResolvedValueOnce(semLancamento(0, 'fat'));
+    mocks.notaCreditoFindMany.mockResolvedValueOnce(semLancamento(0, 'nc'));
+    mocks.notaDebitoFindMany.mockResolvedValueOnce(semLancamento(0, 'nd'));
 
     const promise = apurarIva(INPUT, CTX);
 
@@ -252,9 +271,9 @@ describe('§4 — PRORATA_NAO_SUPORTADO', () => {
       .mockResolvedValueOnce([{ existe: true }]);    // ContaPagar com taxa 5%
     mocks.apuramentoFindFirst.mockResolvedValueOnce(null);
     mocks.lancamentoCount.mockResolvedValueOnce(0);
-    mocks.faturaCount.mockResolvedValueOnce(0);
-    mocks.notaCreditoCount.mockResolvedValueOnce(0);
-    mocks.notaDebitoCount.mockResolvedValueOnce(0);
+    mocks.faturaFindMany.mockResolvedValueOnce(semLancamento(0, 'fat'));
+    mocks.notaCreditoFindMany.mockResolvedValueOnce(semLancamento(0, 'nc'));
+    mocks.notaDebitoFindMany.mockResolvedValueOnce(semLancamento(0, 'nd'));
 
     await expect(apurarIva(INPUT, CTX)).rejects.toMatchObject({
       code: 'PRORATA_NAO_SUPORTADO',
@@ -280,9 +299,9 @@ describe('§4 — PRORATA_NAO_SUPORTADO', () => {
       .mockRejectedValueOnce(new Error('groupBy não mockado')); // aggregação
     mocks.apuramentoFindFirst.mockResolvedValueOnce(null);
     mocks.lancamentoCount.mockResolvedValueOnce(0);
-    mocks.faturaCount.mockResolvedValueOnce(0);
-    mocks.notaCreditoCount.mockResolvedValueOnce(0);
-    mocks.notaDebitoCount.mockResolvedValueOnce(0);
+    mocks.faturaFindMany.mockResolvedValueOnce(semLancamento(0, 'fat'));
+    mocks.notaCreditoFindMany.mockResolvedValueOnce(semLancamento(0, 'nc'));
+    mocks.notaDebitoFindMany.mockResolvedValueOnce(semLancamento(0, 'nd'));
 
     await expect(apurarIva({ periodoId: 'per-1' }, CTX)).rejects.not.toMatchObject({
       code: 'PRORATA_NAO_SUPORTADO',
