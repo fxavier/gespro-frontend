@@ -1,7 +1,7 @@
 {
   "$descricao": [
     "Golden fixture da projecção de tesouraria sobre o TENANT DEMO acabado de semear",
-    "(base limpa + pnpm db:seed, corrido em 2026-09-21). Os números foram derivados",
+    "(base limpa + pnpm db:seed, corrido em 2026-09-23). Os números foram derivados",
     "À MÃO a partir das listagens do seed (SQL independente + aritmética Decimal),",
     "NUNCA da implementação — se projetarTesouraria discordar disto, o defeito é da",
     "implementação até prova documentada em contrário (P4). NUNCA `vitest -u` aqui.",
@@ -10,28 +10,28 @@
     "relógio pinado em instanteReferencia E com o seed corrido nesse mesmo dia civil.",
     "Se o seed for re-corrido noutro dia, a fixture tem de ser RE-DERIVADA à mão."
   ],
-  "instanteReferencia": "2026-09-21T16:30:00.000Z",
+  "instanteReferencia": "2026-09-23T16:30:00.000Z",
   "filtro": {
     "horizonteDias": 90,
     "granularidade": "SEMANAL",
     "cenario": "BASE"
   },
   "sentinelasDoSeed": {
-    "$nota": "Pré-condições que detectam um seed divergente ANTES de comparar números. totalFaturas=106: 104 do funil de demo-vendas + 2 do seed clássico de finanças (ambas PAGA — não tocam na projecção).",
+    "$nota": "Pré-condições que detectam um seed divergente ANTES de comparar números. totalFaturas=106: 104 do funil de demo-vendas + 2 do seed clássico de finanças (ambas PAGA — não tocam na projecção). contasBancarias=3: BCI e Millennium bim ancoradas na MESMA conta PGC 121, Standard Bank na 123 (seed financas.ts).",
     "totalFaturas": 106,
     "faturasEmAberto": 20,
     "contasPagarEmAberto": 10,
     "payrollProcessado": 0,
     "compromissosManuais": 0,
-    "contasBancarias": 0,
+    "contasBancarias": 3,
     "sessoesAbertas": 1,
-    "vencimentoCivilDaFAT92": "2026-09-25"
+    "vencimentoCivilDaFAT92": "2026-09-27"
   },
   "esperado": {
-    "dataReferencia": "2026-09-21",
+    "dataReferencia": "2026-09-23",
     "cenarioAplicado": "BASE",
-    "saldoAbertura": "724106.60",
-    "$saldoAbertura": "0 (sem ContaBancaria) + sessão ABERTA CXS/2026/000008: 5000.00 + 719106.60 − 0.00",
+    "saldoAbertura": "4960087.80",
+    "$saldoAbertura": "Conta PGC 121 UMA vez (duas contas bancárias activas nela — ADR-0036 §2-bis): 4624081.20 débito − 388100.00 crédito = 4235981.20; conta PGC 123 sem partidas = 0.00; + sessão ABERTA CXS/2026/000008: 5000.00 + 719106.60 − 0.00 = 724106.60. Total 4960087.80. Somar por conta bancária daria 9196068.40 — é esse o defeito que a fixture tranca.",
     "semOrigensDeSaldo": false,
     "perfilAtraso": {
       "$nota": "64 facturas PAGA na janela de 180 dias, TODAS pagas 30 dias antes do vencimento (atraso cru −30); truncadas por observação a 0 ⇒ média 0, σ 0 (ADR-0036 §10).",
@@ -42,112 +42,112 @@
     },
     "buckets": [
       {
-        "inicio": "2026-09-21",
-        "fim": "2026-09-27",
+        "inicio": "2026-09-23",
+        "fim": "2026-09-29",
         "entradas": "1063029.64",
         "saidas": "271500.00",
-        "saldoInicial": "724106.60",
-        "saldoFinal": "1515636.24"
+        "saldoInicial": "4960087.80",
+        "saldoFinal": "5751617.44"
       },
       {
-        "inicio": "2026-09-28",
-        "fim": "2026-10-04",
+        "inicio": "2026-09-30",
+        "fim": "2026-10-06",
         "entradas": "5568.00",
         "saidas": "220500.00",
-        "saldoInicial": "1515636.24",
-        "saldoFinal": "1300704.24"
+        "saldoInicial": "5751617.44",
+        "saldoFinal": "5536685.44"
       },
       {
-        "inicio": "2026-10-05",
-        "fim": "2026-10-11",
+        "inicio": "2026-10-07",
+        "fim": "2026-10-13",
         "entradas": "12707.80",
         "saidas": "96300.00",
-        "saldoInicial": "1300704.24",
-        "saldoFinal": "1217112.04"
+        "saldoInicial": "5536685.44",
+        "saldoFinal": "5453093.24"
       },
       {
-        "inicio": "2026-10-12",
-        "fim": "2026-10-18",
+        "inicio": "2026-10-14",
+        "fim": "2026-10-20",
         "entradas": "13885.20",
         "saidas": "184500.00",
-        "saldoInicial": "1217112.04",
-        "saldoFinal": "1046497.24"
+        "saldoInicial": "5453093.24",
+        "saldoFinal": "5282478.44"
       },
       {
-        "inicio": "2026-10-19",
-        "fim": "2026-10-25",
+        "inicio": "2026-10-21",
+        "fim": "2026-10-27",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "1046497.24",
-        "saldoFinal": "1046497.24"
+        "saldoInicial": "5282478.44",
+        "saldoFinal": "5282478.44"
       },
       {
-        "inicio": "2026-10-26",
-        "fim": "2026-11-01",
+        "inicio": "2026-10-28",
+        "fim": "2026-11-03",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "1046497.24",
-        "saldoFinal": "1046497.24"
+        "saldoInicial": "5282478.44",
+        "saldoFinal": "5282478.44"
       },
       {
-        "inicio": "2026-11-02",
-        "fim": "2026-11-08",
+        "inicio": "2026-11-04",
+        "fim": "2026-11-10",
         "entradas": "0",
         "saidas": "420000.00",
-        "saldoInicial": "1046497.24",
-        "saldoFinal": "626497.24"
+        "saldoInicial": "5282478.44",
+        "saldoFinal": "4862478.44"
       },
       {
-        "inicio": "2026-11-09",
-        "fim": "2026-11-15",
+        "inicio": "2026-11-11",
+        "fim": "2026-11-17",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "626497.24",
-        "saldoFinal": "626497.24"
+        "saldoInicial": "4862478.44",
+        "saldoFinal": "4862478.44"
       },
       {
-        "inicio": "2026-11-16",
-        "fim": "2026-11-22",
+        "inicio": "2026-11-18",
+        "fim": "2026-11-24",
         "entradas": "0",
         "saidas": "132750.00",
-        "saldoInicial": "626497.24",
-        "saldoFinal": "493747.24"
+        "saldoInicial": "4862478.44",
+        "saldoFinal": "4729728.44"
       },
       {
-        "inicio": "2026-11-23",
-        "fim": "2026-11-29",
+        "inicio": "2026-11-25",
+        "fim": "2026-12-01",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "493747.24",
-        "saldoFinal": "493747.24"
+        "saldoInicial": "4729728.44",
+        "saldoFinal": "4729728.44"
       },
       {
-        "inicio": "2026-11-30",
-        "fim": "2026-12-06",
+        "inicio": "2026-12-02",
+        "fim": "2026-12-08",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "493747.24",
-        "saldoFinal": "493747.24"
+        "saldoInicial": "4729728.44",
+        "saldoFinal": "4729728.44"
       },
       {
-        "inicio": "2026-12-07",
-        "fim": "2026-12-13",
+        "inicio": "2026-12-09",
+        "fim": "2026-12-15",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "493747.24",
-        "saldoFinal": "493747.24"
+        "saldoInicial": "4729728.44",
+        "saldoFinal": "4729728.44"
       },
       {
-        "inicio": "2026-12-14",
-        "fim": "2026-12-20",
+        "inicio": "2026-12-16",
+        "fim": "2026-12-22",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "493747.24",
-        "saldoFinal": "493747.24"
+        "saldoInicial": "4729728.44",
+        "saldoFinal": "4729728.44"
       }
     ],
     "primeiroDiaNegativo": null,
-    "menorSaldoProjetado": "493747.24",
+    "menorSaldoProjetado": "4729728.44",
     "vencidasNoPrimeiroBucket": {
       "$nota": "R2.4/4.6-bis: 14 facturas + 3 contas a pagar vencidas e em aberto, no 1.º bucket, assinaladas.",
       "faturas": [
@@ -179,7 +179,7 @@
     }
   },
   "pessimista": {
-    "$nota": "Mesmo estado, cenário PESSIMISTA: deslocamento 0 (média 0 + σ 0); difere do BASE só pela exclusão das ENTRADAS vencidas há > 90 dias (ADR-0036 §6). FAT/2026/000045 (115 dias) sai; FAT/2026/000055 (87 dias) fica — as duas margens da fronteira.",
+    "$nota": "Mesmo estado, cenário PESSIMISTA: deslocamento 0 (média 0 + σ 0); difere do BASE só pela exclusão das ENTRADAS vencidas há > 90 dias (ADR-0036 §6). FAT/2026/000045 (115 dias) sai; FAT/2026/000055 (87 dias) fica — as duas margens da fronteira. Com o saldo da conta 121 o PESSIMISTA já NÃO cruza para negativo: a ruptura (primeiroDiaNegativo ≠ null) deixou de ser exercitada por esta fixture.",
     "excluidasMaisDe90Dias": [
       "FAT/2026/000002",
       "FAT/2026/000006",
@@ -193,111 +193,111 @@
     "incluidaNaFronteira": "FAT/2026/000055",
     "buckets": [
       {
-        "inicio": "2026-09-21",
-        "fim": "2026-09-27",
+        "inicio": "2026-09-23",
+        "fim": "2026-09-29",
         "entradas": "342587.48",
         "saidas": "271500.00",
-        "saldoInicial": "724106.60",
-        "saldoFinal": "795194.08"
+        "saldoInicial": "4960087.80",
+        "saldoFinal": "5031175.28"
       },
       {
-        "inicio": "2026-09-28",
-        "fim": "2026-10-04",
+        "inicio": "2026-09-30",
+        "fim": "2026-10-06",
         "entradas": "5568.00",
         "saidas": "220500.00",
-        "saldoInicial": "795194.08",
-        "saldoFinal": "580262.08"
+        "saldoInicial": "5031175.28",
+        "saldoFinal": "4816243.28"
       },
       {
-        "inicio": "2026-10-05",
-        "fim": "2026-10-11",
+        "inicio": "2026-10-07",
+        "fim": "2026-10-13",
         "entradas": "12707.80",
         "saidas": "96300.00",
-        "saldoInicial": "580262.08",
-        "saldoFinal": "496669.88"
+        "saldoInicial": "4816243.28",
+        "saldoFinal": "4732651.08"
       },
       {
-        "inicio": "2026-10-12",
-        "fim": "2026-10-18",
+        "inicio": "2026-10-14",
+        "fim": "2026-10-20",
         "entradas": "13885.20",
         "saidas": "184500.00",
-        "saldoInicial": "496669.88",
-        "saldoFinal": "326055.08"
+        "saldoInicial": "4732651.08",
+        "saldoFinal": "4562036.28"
       },
       {
-        "inicio": "2026-10-19",
-        "fim": "2026-10-25",
+        "inicio": "2026-10-21",
+        "fim": "2026-10-27",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "326055.08",
-        "saldoFinal": "326055.08"
+        "saldoInicial": "4562036.28",
+        "saldoFinal": "4562036.28"
       },
       {
-        "inicio": "2026-10-26",
-        "fim": "2026-11-01",
+        "inicio": "2026-10-28",
+        "fim": "2026-11-03",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "326055.08",
-        "saldoFinal": "326055.08"
+        "saldoInicial": "4562036.28",
+        "saldoFinal": "4562036.28"
       },
       {
-        "inicio": "2026-11-02",
-        "fim": "2026-11-08",
+        "inicio": "2026-11-04",
+        "fim": "2026-11-10",
         "entradas": "0",
         "saidas": "420000.00",
-        "saldoInicial": "326055.08",
-        "saldoFinal": "-93944.92"
+        "saldoInicial": "4562036.28",
+        "saldoFinal": "4142036.28"
       },
       {
-        "inicio": "2026-11-09",
-        "fim": "2026-11-15",
+        "inicio": "2026-11-11",
+        "fim": "2026-11-17",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "-93944.92",
-        "saldoFinal": "-93944.92"
+        "saldoInicial": "4142036.28",
+        "saldoFinal": "4142036.28"
       },
       {
-        "inicio": "2026-11-16",
-        "fim": "2026-11-22",
+        "inicio": "2026-11-18",
+        "fim": "2026-11-24",
         "entradas": "0",
         "saidas": "132750.00",
-        "saldoInicial": "-93944.92",
-        "saldoFinal": "-226694.92"
+        "saldoInicial": "4142036.28",
+        "saldoFinal": "4009286.28"
       },
       {
-        "inicio": "2026-11-23",
-        "fim": "2026-11-29",
+        "inicio": "2026-11-25",
+        "fim": "2026-12-01",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "-226694.92",
-        "saldoFinal": "-226694.92"
+        "saldoInicial": "4009286.28",
+        "saldoFinal": "4009286.28"
       },
       {
-        "inicio": "2026-11-30",
-        "fim": "2026-12-06",
+        "inicio": "2026-12-02",
+        "fim": "2026-12-08",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "-226694.92",
-        "saldoFinal": "-226694.92"
+        "saldoInicial": "4009286.28",
+        "saldoFinal": "4009286.28"
       },
       {
-        "inicio": "2026-12-07",
-        "fim": "2026-12-13",
+        "inicio": "2026-12-09",
+        "fim": "2026-12-15",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "-226694.92",
-        "saldoFinal": "-226694.92"
+        "saldoInicial": "4009286.28",
+        "saldoFinal": "4009286.28"
       },
       {
-        "inicio": "2026-12-14",
-        "fim": "2026-12-20",
+        "inicio": "2026-12-16",
+        "fim": "2026-12-22",
         "entradas": "0",
         "saidas": "0",
-        "saldoInicial": "-226694.92",
-        "saldoFinal": "-226694.92"
+        "saldoInicial": "4009286.28",
+        "saldoFinal": "4009286.28"
       }
     ],
-    "primeiroDiaNegativo": "2026-11-02",
-    "menorSaldoProjetado": "-226694.92"
+    "primeiroDiaNegativo": null,
+    "menorSaldoProjetado": "4009286.28"
   }
 }

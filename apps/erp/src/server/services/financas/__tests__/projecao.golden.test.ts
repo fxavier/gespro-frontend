@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 //
 // A fixture `fixtures/projecao-seed-demo.json` foi apurada À MÃO a partir do
 // estado do tenant demo acabado de semear (base limpa + pnpm db:seed em
-// 2026-09-21): listagens SQL independentes de facturas, contas a pagar,
+// 2026-09-23; primeira derivação a 2026-09-21): listagens SQL independentes de facturas, contas a pagar,
 // payroll e sessões de caixa + aritmética Decimal — NUNCA a partir de
 // `projetarTesouraria`. Se a implementação discordar da fixture, o defeito é
 // da implementação até prova documentada em contrário. NUNCA `vitest -u`
