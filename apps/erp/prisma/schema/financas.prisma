@@ -95,12 +95,6 @@ enum TipoContaBancaria {
   DEPOSITO_PRAZO
 }
 
-enum StatusReconciliacao {
-  EM_ANDAMENTO
-  CONCLUIDA
-  CANCELADA
-}
-
 enum TipoCentroCusto {
   DEPARTAMENTO
   PROJETO
@@ -582,7 +576,6 @@ model ContaBancaria {
   maxMovimentosAgregacao     Int     @default(5)
 
   contaContabil     ContaPGC               @relation(fields: [contaContabilId], references: [id])
-  reconciliacoes    ReconciliacaoBancaria[]
 
   // ADR-0038 — domínio de reconciliação (prisma/schema/reconciliacao.prisma)
   movimentosBancarios      MovimentoBancario[]
@@ -593,60 +586,6 @@ model ContaBancaria {
 
   @@unique([tenantId, banco, numeroConta])
   @@index([tenantId, ativo])
-}
-
-/// DEPRECIADO (ADR-0038) — substituído por PeriodoReconciliacao + MovimentoBancario
-/// + MovimentoContabilistico + CorrespondenciaBancaria. Mantido apenas enquanto o
-/// serviço antigo existir; removido no nó RECONCILIATION do ADR-0038.
-/// Reconciliação bancária: confronto entre extracto bancário e razão contabilístico.
-model ReconciliacaoBancaria {
-  id                    String              @id @default(cuid())
-  tenantId              String
-  contaBancariaId       String
-  dataInicio            DateTime
-  dataFim               DateTime
-  saldoInicialBanco     Decimal             @db.Decimal(18, 2)
-  saldoFinalBanco       Decimal             @db.Decimal(18, 2)
-  saldoInicialContabil  Decimal             @db.Decimal(18, 2)
-  saldoFinalContabil    Decimal             @db.Decimal(18, 2)
-  diferencaNaoConciliada Decimal            @db.Decimal(18, 2) @default(0)
-  status                StatusReconciliacao @default(EM_ANDAMENTO)
-  observacoes           String?
-  responsavelId         String              // FK User (escalar)
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-
-  contaBancaria ContaBancaria              @relation(fields: [contaBancariaId], references: [id])
-  itens         ItemReconciliacaoBancaria[]
-
-  @@index([tenantId, contaBancariaId])
-  @@index([tenantId, status])
-  @@index([tenantId, dataInicio, dataFim])
-}
-
-/// DEPRECIADO (ADR-0038) — ver nota em ReconciliacaoBancaria.
-/// Linha de reconciliação bancária (lançamento contabilístico ou linha de extracto).
-model ItemReconciliacaoBancaria {
-  id               String              @id @default(cuid())
-  tenantId         String              // A1: tenantId em todas as tabelas-filho
-  reconciliacaoId  String
-  tipo             String              // 'LANCAMENTO_CONTABIL' | 'EXTRATO_BANCARIO'
-  data             DateTime
-  descricao        String
-  valor            Decimal             @db.Decimal(18, 2)
-  tipoMovimento    TipoPartida         // DEBITO | CREDITO
-  conciliado       Boolean             @default(false)
-  lancamentoId     String?             // FK Lancamento (escalar)
-  extratoReferencia String?            // referência do extracto bancário
-  itemParId        String?             // id do item do lado oposto conciliado com este (auto-relação escalar)
-  observacoes      String?
-  createdAt        DateTime            @default(now())
-
-  reconciliacao ReconciliacaoBancaria @relation(fields: [reconciliacaoId], references: [id])
-
-  @@unique([tenantId, reconciliacaoId, extratoReferencia]) // idempotência de importação de extracto
-  @@index([tenantId, reconciliacaoId])
-  @@index([tenantId, reconciliacaoId, conciliado])
 }
 
 // ---------------------------------------------------------------------------

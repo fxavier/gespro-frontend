@@ -61,40 +61,6 @@ export interface CentroCusto {
   dataAtualizacao: string;
 }
 
-export interface ReconciliacaoBancaria {
-  id: string;
-  tenantId: string;
-  contaBancariaId: string;
-  contaBancariaNome: string;
-  dataInicio: string;
-  dataFim: string;
-  saldoInicialBanco: number;
-  saldoFinalBanco: number;
-  saldoInicialContabil: number;
-  saldoFinalContabil: number;
-  status: 'em_andamento' | 'concluida' | 'cancelada';
-  itens: ItemReconciliacao[];
-  diferencaNaoConciliada: number;
-  observacoes?: string;
-  usuarioId: string;
-  usuarioNome: string;
-  dataCriacao: string;
-  dataAtualizacao: string;
-}
-
-export interface ItemReconciliacao {
-  id: string;
-  tipo: 'lancamento_contabil' | 'extrato_bancario';
-  data: string;
-  descricao: string;
-  valor: number;
-  tipoMovimento: 'debito' | 'credito';
-  conciliado: boolean;
-  lancamentoId?: string;
-  extratoId?: string;
-  observacoes?: string;
-}
-
 export interface ContaBancaria {
   id: string;
   tenantId: string;

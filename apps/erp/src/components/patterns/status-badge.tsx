@@ -287,6 +287,15 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   EXPIRADO: 'destructive',
   MENSAL: 'secondary',
   ANUAL: 'secondary',
+  // Reconciliação bancária — ADR-0038 (PENDENTE, EM_TRANSITO, ABERTO já acima)
+  RECONCILIADO: 'success',
+  RECONCILIADO_MANUALMENTE: 'success',
+  BANCO_SEM_CONTABILIZACAO: 'destructive',
+  CONTABILIDADE_SEM_BANCO: 'destructive',
+  DIFERENCA_VALOR: 'warning',
+  DIVERGENCIA: 'destructive',
+  IGNORADO: 'secondary',
+  EM_RECONCILIACAO: 'info',
 };
 
 const badgeVariants = cva(
@@ -500,6 +509,15 @@ export const STATUS_LABELS: Record<string, string> = {
   // Tesouraria — Spec 22
   ENTRADA: 'Entrada',
   SAIDA: 'Saída',
+  // Reconciliação bancária — ADR-0038 (PENDENTE, EM_TRANSITO, ABERTO já acima)
+  RECONCILIADO: 'Reconciliado',
+  RECONCILIADO_MANUALMENTE: 'Reconciliado manualmente',
+  BANCO_SEM_CONTABILIZACAO: 'Banco sem contabilização',
+  CONTABILIDADE_SEM_BANCO: 'Contabilidade sem banco',
+  DIFERENCA_VALOR: 'Diferença de valor',
+  DIVERGENCIA: 'Divergência',
+  IGNORADO: 'Ignorado',
+  EM_RECONCILIACAO: 'Em reconciliação',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {

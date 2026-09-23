@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   contaPagarFindMany: vi.fn(),
   sessaoCaixaAggregate: vi.fn(),
   movimentoCaixaAggregate: vi.fn(),
-  itemReconciliacaoBancariaCount: vi.fn(), // Wave 3: reconciliacaoRatio
+  movimentoBancarioCount: vi.fn(), // Wave 3: reconciliacaoRatio
   colaboradorCount: vi.fn(),
   registoAssiduidadeCount: vi.fn(),
   solicitacaoFeriasCount: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock('@/server/db/client', () => ({
     contaPagar: { aggregate: mocks.contaPagarAggregate, findMany: mocks.contaPagarFindMany },
     sessaoCaixa: { aggregate: mocks.sessaoCaixaAggregate },
     movimentoCaixa: { aggregate: mocks.movimentoCaixaAggregate },
-    itemReconciliacaoBancaria: { count: mocks.itemReconciliacaoBancariaCount },
+    movimentoBancario: { count: mocks.movimentoBancarioCount },
     colaborador: { count: mocks.colaboradorCount },
     registoAssiduidade: { count: mocks.registoAssiduidadeCount },
     solicitacaoFerias: { count: mocks.solicitacaoFeriasCount },
@@ -81,7 +81,7 @@ function setupZeros() {
   mocks.contaPagarFindMany.mockResolvedValue([]);
   mocks.sessaoCaixaAggregate.mockResolvedValue({ _sum: { fundoInicial: null, totalEntradas: null, totalSaidas: null } });
   mocks.movimentoCaixaAggregate.mockResolvedValue({ _sum: { valor: null } });
-  mocks.itemReconciliacaoBancariaCount.mockResolvedValue(0); // total + conciliados
+  mocks.movimentoBancarioCount.mockResolvedValue(0); // total + conciliados
   mocks.colaboradorCount.mockResolvedValue(0);
   mocks.registoAssiduidadeCount.mockResolvedValue(0);
   mocks.solicitacaoFeriasCount.mockResolvedValue(0);
@@ -209,7 +209,7 @@ describe('kpiComprasImpl', () => {
 });
 
 // ---------------------------------------------------------------------------
-// kpiFinancasImpl — Wave 3: reconciliacaoRatio via ItemReconciliacaoBancaria.conciliado
+// kpiFinancasImpl — reconciliacaoRatio via MovimentoBancario.estado (ADR-0038; antes ItemReconciliacaoBancaria)
 // ---------------------------------------------------------------------------
 describe('kpiFinancasImpl', () => {
   it('calcula saldo de caixa: fundo + entradas - saídas', async () => {
@@ -219,7 +219,7 @@ describe('kpiFinancasImpl', () => {
     mocks.movimentoCaixaAggregate
       .mockResolvedValueOnce({ _sum: { valor: 3000 } })
       .mockResolvedValueOnce({ _sum: { valor: 1000 } });
-    mocks.itemReconciliacaoBancariaCount
+    mocks.movimentoBancarioCount
       .mockResolvedValueOnce(10) // total
       .mockResolvedValueOnce(7); // conciliados
 
@@ -230,22 +230,24 @@ describe('kpiFinancasImpl', () => {
     expect(kpi.resultadoLiquido).toBe('2000.00');
   });
 
-  it('Wave 3: reconciliacaoRatio usa ItemReconciliacaoBancaria.conciliado', async () => {
-    mocks.itemReconciliacaoBancariaCount
+  it('ADR-0038: reconciliacaoRatio conta movimentos bancários reconciliados sobre o total', async () => {
+    mocks.movimentoBancarioCount
       .mockResolvedValueOnce(20) // total
       .mockResolvedValueOnce(15); // conciliados
 
     const kpi = await kpiFinancasImpl('tenant-1');
     expect(kpi.reconciliacaoRatio).toBe('15/20');
-    // Confirmar que usa itemReconciliacaoBancaria, não contaBancaria
-    expect(mocks.itemReconciliacaoBancariaCount).toHaveBeenCalledTimes(2);
+    // Confirmar que usa movimentoBancario, não contaBancaria
+    expect(mocks.movimentoBancarioCount).toHaveBeenCalledTimes(2);
     // 1ª chamada: total (sem filtro conciliado)
-    expect(mocks.itemReconciliacaoBancariaCount).toHaveBeenNthCalledWith(1,
+    expect(mocks.movimentoBancarioCount).toHaveBeenNthCalledWith(1,
       expect.objectContaining({ where: expect.objectContaining({ tenantId: 'tenant-1' }) }),
     );
     // 2ª chamada: só conciliados
-    expect(mocks.itemReconciliacaoBancariaCount).toHaveBeenNthCalledWith(2,
-      expect.objectContaining({ where: expect.objectContaining({ conciliado: true }) }),
+    expect(mocks.movimentoBancarioCount).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        where: expect.objectContaining({ estado: { in: ['RECONCILIADO', 'RECONCILIADO_MANUALMENTE'] } }),
+      }),
     );
   });
 

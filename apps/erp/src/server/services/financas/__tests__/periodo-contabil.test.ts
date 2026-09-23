@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   exercicioFindFirst: vi.fn(),
   lancamentoCount:  vi.fn(),
   sessaoCaixaCount: vi.fn(),
-  reconciliacaoCount: vi.fn(),
   periodoReconciliacaoCount: vi.fn(),
   faturaCount:      vi.fn(),
   notaCreditoCount: vi.fn(),
@@ -35,7 +34,6 @@ vi.mock('@/server/db/client', () => {
     exercicioContabil:  { upsert: mocks.exercicioUpsert, findFirst: mocks.exercicioFindFirst },
     lancamento:         { count: mocks.lancamentoCount },
     sessaoCaixa:        { count: mocks.sessaoCaixaCount },
-    reconciliacaoBancaria: { count: mocks.reconciliacaoCount },
     periodoReconciliacao: { count: mocks.periodoReconciliacaoCount }, // ADR-0038
     fatura:             { count: mocks.faturaCount },
     notaCredito:        { count: mocks.notaCreditoCount },
@@ -86,8 +84,7 @@ beforeEach(() => {
       exercicioContabil:  { upsert: mocks.exercicioUpsert, findFirst: mocks.exercicioFindFirst },
       lancamento:         { count: mocks.lancamentoCount },
       sessaoCaixa:        { count: mocks.sessaoCaixaCount },
-      reconciliacaoBancaria: { count: mocks.reconciliacaoCount },
-      periodoReconciliacao: { count: mocks.periodoReconciliacaoCount }, // ADR-0038
+        periodoReconciliacao: { count: mocks.periodoReconciliacaoCount }, // ADR-0038
       fatura:             { count: mocks.faturaCount },
       notaCredito:        { count: mocks.notaCreditoCount },
       notaDebito:         { count: mocks.notaDebitoCount },
@@ -198,8 +195,8 @@ function setupFechoOk(overrides: Partial<{
 
   mocks.lancamentoCount.mockResolvedValue(rascunhos);
   mocks.sessaoCaixaCount.mockResolvedValue(sessoesCaixa);
-  mocks.reconciliacaoCount.mockResolvedValue(reconciliacoes);
-  mocks.periodoReconciliacaoCount.mockResolvedValue(0);
+  // ADR-0038: a reconciliação em curso é um PeriodoReconciliacao activo (o modelo antigo saiu).
+  mocks.periodoReconciliacaoCount.mockResolvedValue(reconciliacoes);
   mocks.faturaCount.mockResolvedValue(faturasSem);
   // M5: notaCredito e notaDebito sem lancamento — default 0 (sobreposto pelos testes que precisam)
   mocks.notaCreditoCount.mockResolvedValue(0);
