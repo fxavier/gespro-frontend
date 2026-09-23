@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   exercicioFindFirst: vi.fn(),
   lancamentoCount:  vi.fn(),
   sessaoCaixaCount: vi.fn(),
-  reconciliacaoCount: vi.fn(),
+  periodoReconciliacaoCount: vi.fn(),
   faturaCount:      vi.fn(),
   notaCreditoCount: vi.fn(),
   notaDebitoCount:  vi.fn(),
@@ -34,7 +34,7 @@ vi.mock('@/server/db/client', () => {
     exercicioContabil:  { upsert: mocks.exercicioUpsert, findFirst: mocks.exercicioFindFirst },
     lancamento:         { count: mocks.lancamentoCount },
     sessaoCaixa:        { count: mocks.sessaoCaixaCount },
-    reconciliacaoBancaria: { count: mocks.reconciliacaoCount },
+    periodoReconciliacao: { count: mocks.periodoReconciliacaoCount }, // ADR-0038
     fatura:             { count: mocks.faturaCount },
     notaCredito:        { count: mocks.notaCreditoCount },
     notaDebito:         { count: mocks.notaDebitoCount },
@@ -84,7 +84,7 @@ beforeEach(() => {
       exercicioContabil:  { upsert: mocks.exercicioUpsert, findFirst: mocks.exercicioFindFirst },
       lancamento:         { count: mocks.lancamentoCount },
       sessaoCaixa:        { count: mocks.sessaoCaixaCount },
-      reconciliacaoBancaria: { count: mocks.reconciliacaoCount },
+        periodoReconciliacao: { count: mocks.periodoReconciliacaoCount }, // ADR-0038
       fatura:             { count: mocks.faturaCount },
       notaCredito:        { count: mocks.notaCreditoCount },
       notaDebito:         { count: mocks.notaDebitoCount },
@@ -195,7 +195,8 @@ function setupFechoOk(overrides: Partial<{
 
   mocks.lancamentoCount.mockResolvedValue(rascunhos);
   mocks.sessaoCaixaCount.mockResolvedValue(sessoesCaixa);
-  mocks.reconciliacaoCount.mockResolvedValue(reconciliacoes);
+  // ADR-0038: a reconciliação em curso é um PeriodoReconciliacao activo (o modelo antigo saiu).
+  mocks.periodoReconciliacaoCount.mockResolvedValue(reconciliacoes);
   mocks.faturaCount.mockResolvedValue(faturasSem);
   // M5: notaCredito e notaDebito sem lancamento — default 0 (sobreposto pelos testes que precisam)
   mocks.notaCreditoCount.mockResolvedValue(0);
@@ -239,6 +240,20 @@ describe('fecharPeriodo — pré-condição 3: RECONCILIACAO_EM_ANDAMENTO', () =
     const r = await fecharPeriodo({ id: 'per-1' }, CTX);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.impedimentos).toContain('RECONCILIACAO_EM_ANDAMENTO');
+  });
+
+  it('ADR-0038: impedimento quando há um período de reconciliação activo que se sobrepõe', async () => {
+    setupFechoOk();
+    mocks.periodoReconciliacaoCount.mockResolvedValue(1);
+    const r = await fecharPeriodo({ id: 'per-1' }, CTX);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.impedimentos).toContain('RECONCILIACAO_EM_ANDAMENTO');
+    expect(mocks.periodoReconciliacaoCount.mock.calls[0][0].where).toMatchObject({
+      tenantId: CTX.tenantId,
+      estado: { in: ['ABERTO', 'EM_RECONCILIACAO'] },
+      dataInicio: { lte: new Date('2026-06-30T21:59:59.999Z') },
+      dataFim: { gte: new Date('2026-05-31T22:00:00Z') },
+    });
   });
 });
 

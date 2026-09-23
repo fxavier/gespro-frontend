@@ -250,9 +250,11 @@ export async function kpiFinancasImpl(tenantId: string): Promise<KpiFinancas> {
       },
       _sum: { valor: true },
     }),
-    // Wave 3: ratio de reconciliação via ItemReconciliacaoBancaria.conciliado
-    prismaBase.itemReconciliacaoBancaria.count({ where: { tenantId } }),
-    prismaBase.itemReconciliacaoBancaria.count({ where: { tenantId, conciliado: true } }),
+    // ADR-0038: movimentos do extracto reconciliados (automática ou manualmente) / total.
+    prismaBase.movimentoBancario.count({ where: { tenantId } }),
+    prismaBase.movimentoBancario.count({
+      where: { tenantId, estado: { in: ['RECONCILIADO', 'RECONCILIADO_MANUALMENTE'] } },
+    }),
   ]);
 
   const saldoCaixa =

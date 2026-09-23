@@ -274,3 +274,39 @@ export function calcularMidpoint(anterior: string | null, posterior: string | nu
   // Manter precisão razoável (6 casas decimais) para evitar colisões rápidas
   return mid.toFixed(6).replace(/\.?0+$/, '') || '0.5';
 }
+
+// ADR-0038 / RF-XXX §12: estado de reconciliação de um movimento.
+// RECONCILIADO não é terminal — reverter uma correspondência devolve o movimento
+// a PENDENTE e deixa o trilho de auditoria intacto (RF §19: nada muda em silêncio).
+export const TRANSICOES_MOVIMENTO_RECONCILIACAO: Record<string, string[]> = {
+  PENDENTE: [
+    'RECONCILIADO', 'RECONCILIADO_MANUALMENTE', 'EM_TRANSITO',
+    'BANCO_SEM_CONTABILIZACAO', 'CONTABILIDADE_SEM_BANCO',
+    'DIFERENCA_VALOR', 'DIVERGENCIA', 'IGNORADO',
+  ],
+  EM_TRANSITO: [
+    'RECONCILIADO', 'RECONCILIADO_MANUALMENTE', 'CONTABILIDADE_SEM_BANCO',
+    'DIFERENCA_VALOR', 'DIVERGENCIA', 'IGNORADO',
+  ],
+  BANCO_SEM_CONTABILIZACAO: [
+    'RECONCILIADO', 'RECONCILIADO_MANUALMENTE', 'DIFERENCA_VALOR', 'DIVERGENCIA', 'IGNORADO',
+  ],
+  CONTABILIDADE_SEM_BANCO: [
+    'RECONCILIADO', 'RECONCILIADO_MANUALMENTE', 'EM_TRANSITO', 'DIFERENCA_VALOR',
+    'DIVERGENCIA', 'IGNORADO',
+  ],
+  DIFERENCA_VALOR: ['RECONCILIADO_MANUALMENTE', 'DIVERGENCIA', 'IGNORADO', 'PENDENTE'],
+  DIVERGENCIA: ['RECONCILIADO_MANUALMENTE', 'IGNORADO', 'PENDENTE'],
+  RECONCILIADO: ['PENDENTE'],
+  RECONCILIADO_MANUALMENTE: ['PENDENTE'],
+  IGNORADO: ['PENDENTE'],
+};
+
+// ADR-0038 / RF-XXX §17: ciclo de vida do período de reconciliação.
+// RECONCILIADO e CANCELADO são terminais — reabrir é criar um período novo.
+export const TRANSICOES_PERIODO_RECONCILIACAO: Record<string, string[]> = {
+  ABERTO: ['EM_RECONCILIACAO', 'CANCELADO'],
+  EM_RECONCILIACAO: ['RECONCILIADO', 'CANCELADO'],
+  RECONCILIADO: [],
+  CANCELADO: [],
+};

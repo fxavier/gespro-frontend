@@ -95,12 +95,6 @@ enum TipoContaBancaria {
   DEPOSITO_PRAZO
 }
 
-enum StatusReconciliacao {
-  EM_ANDAMENTO
-  CONCLUIDA
-  CANCELADA
-}
-
 enum TipoCentroCusto {
   DEPARTAMENTO
   PROJETO
@@ -562,61 +556,36 @@ model ContaBancaria {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  // Configuração de reconciliação (ADR-0038, RF-XXX §11) — por conta, porque é
+  // por conta que os bancos diferem em pontualidade e em qualidade de referência.
+  /// Tolerância temporal entre data contabilística e data do extracto, em dias.
+  toleranciaDias             Int     @default(5)
+  /// Tolerância absoluta de valor. 0 = qualquer diferença impede match automático.
+  toleranciaValor            Decimal @db.Decimal(18, 2) @default(0)
+  permitirMatchPorReferencia Boolean @default(true)
+  permitirMatchPorValor      Boolean @default(true)
+  permitirMatchPorDescricao  Boolean @default(false)
+  /// Confirmar automaticamente as correspondências que passem o limiar de confiança.
+  autoReconciliacao          Boolean @default(false)
+  /// Limiar de confiança (0–100) para confirmação automática.
+  limiarConfianca            Int     @default(90)
+  /// Permitir correspondência agregada N:1 / 1:N (RF §15). Desligada por omissão:
+  /// a soma de subconjuntos é cara e produz falsos positivos sem supervisão.
+  permitirAgregacao          Boolean @default(false)
+  /// Tecto de cardinalidade da agregação — sem isto a busca é um vector de DoS.
+  maxMovimentosAgregacao     Int     @default(5)
+
   contaContabil     ContaPGC               @relation(fields: [contaContabilId], references: [id])
-  reconciliacoes    ReconciliacaoBancaria[]
+
+  // ADR-0038 — domínio de reconciliação (prisma/schema/reconciliacao.prisma)
+  movimentosBancarios      MovimentoBancario[]
+  movimentosContabilisticos MovimentoContabilistico[]
+  importacoesExtracto      ImportacaoExtracto[]
+  correspondencias         CorrespondenciaBancaria[]
+  periodosReconciliacao    PeriodoReconciliacao[]
 
   @@unique([tenantId, banco, numeroConta])
   @@index([tenantId, ativo])
-}
-
-/// Reconciliação bancária: confronto entre extracto bancário e razão contabilístico.
-model ReconciliacaoBancaria {
-  id                    String              @id @default(cuid())
-  tenantId              String
-  contaBancariaId       String
-  dataInicio            DateTime
-  dataFim               DateTime
-  saldoInicialBanco     Decimal             @db.Decimal(18, 2)
-  saldoFinalBanco       Decimal             @db.Decimal(18, 2)
-  saldoInicialContabil  Decimal             @db.Decimal(18, 2)
-  saldoFinalContabil    Decimal             @db.Decimal(18, 2)
-  diferencaNaoConciliada Decimal            @db.Decimal(18, 2) @default(0)
-  status                StatusReconciliacao @default(EM_ANDAMENTO)
-  observacoes           String?
-  responsavelId         String              // FK User (escalar)
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-
-  contaBancaria ContaBancaria              @relation(fields: [contaBancariaId], references: [id])
-  itens         ItemReconciliacaoBancaria[]
-
-  @@index([tenantId, contaBancariaId])
-  @@index([tenantId, status])
-  @@index([tenantId, dataInicio, dataFim])
-}
-
-/// Linha de reconciliação bancária (lançamento contabilístico ou linha de extracto).
-model ItemReconciliacaoBancaria {
-  id               String              @id @default(cuid())
-  tenantId         String              // A1: tenantId em todas as tabelas-filho
-  reconciliacaoId  String
-  tipo             String              // 'LANCAMENTO_CONTABIL' | 'EXTRATO_BANCARIO'
-  data             DateTime
-  descricao        String
-  valor            Decimal             @db.Decimal(18, 2)
-  tipoMovimento    TipoPartida         // DEBITO | CREDITO
-  conciliado       Boolean             @default(false)
-  lancamentoId     String?             // FK Lancamento (escalar)
-  extratoReferencia String?            // referência do extracto bancário
-  itemParId        String?             // id do item do lado oposto conciliado com este (auto-relação escalar)
-  observacoes      String?
-  createdAt        DateTime            @default(now())
-
-  reconciliacao ReconciliacaoBancaria @relation(fields: [reconciliacaoId], references: [id])
-
-  @@unique([tenantId, reconciliacaoId, extratoReferencia]) // idempotência de importação de extracto
-  @@index([tenantId, reconciliacaoId])
-  @@index([tenantId, reconciliacaoId, conciliado])
 }
 
 // ---------------------------------------------------------------------------

@@ -1,38 +1,40 @@
 /**
- * Reconciliação Bancária — Server Component (listagem).
- * Criação em rota separada /reconciliacao/nova (sem modais).
+ * Reconciliação bancária (ADR-0038) — uma linha por conta, com o que falta
+ * fazer em cada uma. O trabalho faz-se no workspace da conta, por estado.
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Landmark, Plus } from 'lucide-react';
+import { Landmark } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
+import { listarContasReconciliacao, VISTAS } from '@/server/services/reconciliacao/consulta.service';
 import { Button } from '@/components/ui/button';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
-import { ReconciliacoesTable, type ReconciliacaoRow } from './_components/reconciliacoes-table';
+import { ContasTable, type ContaReconciliacaoRow } from './_components/contas-table';
 
-const fmtData = (d: Date) => d.toLocaleDateString('pt-PT');
+const soma = (c: Partial<Record<string, number>>, estados: readonly string[]) =>
+  estados.reduce((a, e) => a + (c[e] ?? 0), 0);
 
-async function ReconciliacoesSection({ tenantId, userId }: { tenantId: string; userId: string }) {
+async function Contas({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
-  const recs = await runWithTenantContext(ctx, () =>
-    contabilidadeService.listarReconciliacoes(ctx),
-  );
-
-  const rows: ReconciliacaoRow[] = recs.map((r) => ({
-    id: r.id,
-    contaLabel: `${r.contaBancaria.banco} — ${r.contaBancaria.numeroConta}`,
-    periodo: `${fmtData(r.dataInicio)} — ${fmtData(r.dataFim)}`,
-    saldoFinalBanco: r.saldoFinalBanco.toFixed(2),
-    saldoFinalContabil: r.saldoFinalContabil.toFixed(2),
-    diferencaNaoConciliada: r.diferencaNaoConciliada.toFixed(2),
-    status: r.status,
+  const contas = await runWithTenantContext(ctx, () => listarContasReconciliacao(ctx));
+  const rows: ContaReconciliacaoRow[] = contas.map((c) => ({
+    id: c.id,
+    conta: `${c.banco} — ${c.numeroConta}`,
+    contaPgc: `${c.contaContabil.codigo} ${c.contaContabil.nome}`,
+    pgcPartilhada: c.pgcPartilhada,
+    excecoes: soma(c.contagens.banco, VISTAS.excecoes) + soma(c.contagens.contabilidade, VISTAS.excecoes),
+    sugestoes: c.contagens.sugestoes,
+    emTransito: soma(c.contagens.contabilidade, ['EM_TRANSITO']),
+    periodo: c.periodoActivo && {
+      estado: c.periodoActivo.estado,
+      dataInicio: c.periodoActivo.dataInicio.toISOString(),
+      dataFim: c.periodoActivo.dataFim.toISOString(),
+    },
   }));
-
-  return <ReconciliacoesTable data={rows} />;
+  return <ContasTable data={rows} />;
 }
 
 export default async function ReconciliacaoPage() {
@@ -44,31 +46,19 @@ export default async function ReconciliacaoPage() {
     <div className="p-6 space-y-6">
       <PageHeader
         title="Reconciliação Bancária"
-        description="Conciliação entre extractos bancários e lançamentos contabilísticos"
-        breadcrumbs={[
-          { label: 'Contabilidade', href: '/contabilidade' },
-          { label: 'Reconciliação Bancária' },
-        ]}
+        description="O que a contabilidade registou já apareceu no banco? O que o banco mostra já foi registado?"
+        breadcrumbs={[{ label: 'Contabilidade', href: '/contabilidade' }, { label: 'Reconciliação Bancária' }]}
         actions={
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="outline">
-              <Link href="/contabilidade/contas-bancarias">
-                <Landmark className="h-4 w-4 mr-2" />
-                Contas Bancárias
-              </Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/contabilidade/reconciliacao/nova">
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Reconciliação
-              </Link>
-            </Button>
-          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/contabilidade/contas-bancarias">
+              <Landmark className="h-4 w-4 mr-2" />
+              Contas Bancárias
+            </Link>
+          </Button>
         }
       />
-
-      <Suspense fallback={<TableSkeleton rows={6} cols={6} />}>
-        <ReconciliacoesSection tenantId={tenantId} userId={userId} />
+      <Suspense fallback={<TableSkeleton rows={4} cols={5} />}>
+        <Contas tenantId={tenantId} userId={userId} />
       </Suspense>
     </div>
   );

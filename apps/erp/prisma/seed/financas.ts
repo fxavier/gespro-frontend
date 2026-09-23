@@ -4,6 +4,7 @@
  *  - Diários contabilísticos por tipo
  *  - SerieDocumento para cada TipoSerieDocumento
  *  - ContaBancaria: as contas do tenant demo, ligadas ao PGC
+ *  - RegraSugestaoLancamento: comissões e encargos bancários → 6981 (ADR-0038, RF §9)
  *  - Fatura demo a partir de src/data/faturacao.ts
  *
  * Exporta seedFinancas(prisma, tenantId) — chamado por prisma/seed/index.ts.
@@ -30,6 +31,7 @@ export async function seedFinancas(prisma: PrismaClient, tenantId: string): Prom
   await seedDiarios(prisma, tenantId);
   await seedSeriesDocumento(prisma, tenantId);
   await seedContasBancarias(prisma, tenantId);
+  await seedRegrasSugestao(prisma, tenantId);
   await seedFaturasDemo(prisma, tenantId);
 
   console.log('[WS-D] Seed financas concluído.');
@@ -130,6 +132,35 @@ async function seedContasBancarias(prisma: PrismaClient, tenantId: string): Prom
   }
 
   console.log(`[WS-D] ContaBancaria: ${criadas} criadas (restantes já existiam).`);
+}
+
+// ---------------------------------------------------------------------------
+// 4-bis. Regras de sugestão de lançamento (ADR-0038, RF §9)
+//
+// Uma regra por omissão: saídas bancárias cuja descrição fale de comissão,
+// encargo, taxa, imposto de selo ou manutenção sugerem 6981 Serviços bancários.
+// Só SUGERE — criar o lançamento é sempre acto do utilizador. Idempotente por
+// contagem: se o tenant já tem regras (suas ou esta), não se mexe.
+// ---------------------------------------------------------------------------
+
+async function seedRegrasSugestao(prisma: PrismaClient, tenantId: string): Promise<void> {
+  if ((await prisma.regraSugestaoLancamento.count({ where: { tenantId } })) > 0) return;
+  const servicosBancarios = await prisma.contaPGC.findFirst({
+    where: { tenantId, codigo: '6981' },
+    select: { id: true },
+  });
+  if (!servicosBancarios) throw new Error('[WS-D] ContaPGC 6981 em falta — plano de contas não semeado.');
+  await prisma.regraSugestaoLancamento.create({
+    data: {
+      tenantId,
+      padrao: 'COMISSAO|ENCARGO|TAXA|IMPOSTO DE SELO|MANUTENCAO',
+      natureza: 'CREDITO',
+      contaContrapartidaId: servicosBancarios.id,
+      descricao: 'Comissões e encargos bancários',
+      prioridade: 100,
+    },
+  });
+  console.log('[WS-D] RegraSugestaoLancamento: regra por omissão criada.');
 }
 
 // ---------------------------------------------------------------------------
