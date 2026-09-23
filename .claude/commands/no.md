@@ -25,6 +25,8 @@ for o nó pedido:
 - `apps/erp/prisma/schema/reconciliacao.prisma` — os sete modelos
 - `apps/erp/src/server/services/reconciliacao/reconciliacao.model.ts` — o núcleo puro
 
+O RF-XXX vive em `.kiro/specs/23-reconciliacao-bancaria-automatica/requirements.md` — lê as secções do nó antes do código.
+
 Lê também o handoff do nó anterior em `docs/handoff/adr-0038-*.md`, se existir.
 
 **Antes de arrancar, verifica as dependências do nó pedido** (tabela em baixo). Se um nó de

@@ -109,8 +109,26 @@ a fixture re-deriva-se à mão e nunca por um agente autor. **Acção humana**: 
   num conflito só se prova com Postgres (Testcontainers) no RECONCILIATION.
 - **Throughput**: uma transacção por correspondência. Se o volume o exigir, agrupar por lote com
   savepoints.
-- **RF-XXX**: juntar o documento ao repositório antes do REVIEW do RECONCILIATION. A §16 tem um erro
-  de sinal já registado no ADR.
+- **RF-XXX**: já está no repositório, em `.kiro/specs/23-reconciliacao-bancaria-automatica/requirements.md`. O exemplo da §16 tem o sinal trocado; já
+  está registado no ADR.
+
+## Fidelidade ao RF-XXX (confronto feito depois da entrega)
+
+O RF só entrou no repositório depois deste nó. Confrontado com as secções do MATCHING:
+
+| RF | Estado |
+|---|---|
+| §5, §22 (datas distintas; uma diferença de datas não é divergência) | Cumprido: nenhuma regra exige igualdade de datas, e nenhuma produz `DIVERGENCIA` |
+| §7.1 / CA01 (match exacto → `RECONCILIADO`) | Cumprido **com `autoReconciliacao` ligada**: `REFERENCIA_EXACTA` no mesmo dia dá confiança 100 |
+| §7.2 / CA02 (10/09 ↔ 12/09, tolerância 5 → `RECONCILIADO`, `DIFERENCA_TEMPORAL`) | Cumprido com `autoReconciliacao`: confiança 96 ≥ 90, `tipo = DIFERENCA_TEMPORAL` |
+| §8 / CA03, CA04 (`EM_TRANSITO`, depois `RECONCILIADO`) | Cumprido: `EM_TRANSITO` está em `ESTADOS_LIVRES` e a transição para `RECONCILIADO` é permitida |
+| §9 / CA05 (`BANCO_SEM_CONTABILIZACAO`) | Cumprido. A sugestão de lançamento fica para o RECONCILIATION |
+| §10 / CA06 (100 000 contra 100 500, tolerância 0 → não reconcilia) | Cumprido: `DIFERENCA_VALOR`, nunca confirmada |
+| §14 (dupla reconciliação) | Cumprido para 1:1 |
+| §19 (sem O(N×M), índices) | Cumprido |
+| **§6 «ordem de prioridade configurável»** | **Divergência.** A ordem é fixa: é a do enum, por decisão do ADR-0038 §5. Torná-la configurável pede um campo por conta (por exemplo `ordemRegras RegraCorrespondencia[]`) e passá-lo a `emparelhar(…, passagens)`, que já aceita a lista. Decisão para o dono do RF |
+| **§11 exemplo «Auto-reconciliação: SIM»** | O ADR-0038 §6 põe `autoReconciliacao` **desligada** por omissão. Sem a ligar, CA01 e CA02 dão sugestões e não reconciliações. O teste de aceitação tem de configurar a conta como no exemplo do RF |
+| §15 (N:M) | Não implementado neste nó (ver acima) |
 
 ## O que o nó seguinte assume
 

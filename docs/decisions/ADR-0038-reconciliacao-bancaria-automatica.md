@@ -2,7 +2,7 @@
 
 - **Estado**: Proposto
 - **Data**: 2026-09-23
-- **Contexto**: RF-XXX (Reconciliação Bancária Automática) · substitui o modelo da Spec 04
+- **Contexto**: [RF-XXX (Reconciliação Bancária Automática)](../../.kiro/specs/23-reconciliacao-bancaria-automatica/requirements.md) · substitui o modelo da Spec 04
 - **Depende de**: [ADR-0033](./ADR-0033-exercicio-contabilistico.md) (dia fiscal `Africa/Maputo`, lançamentos `LANCADO`), [ADR-0015](./ADR-0015-auditoria-documentos-financeiros.md) (trilho de auditoria), [ADR-0011](./ADR-0011-fronteira-autorizacao.md) (permissões)
 - **Relacionados**: [ADR-0018](./ADR-0018-desempenho-capacidade.md) (orçamento de latência), [ADR-0036](./ADR-0036-projecao-tesouraria.md) (a projecção consome o saldo reconciliado)
 - **Skills**: `engineering:architecture`, `prisma-conventions`, `domain-modeling`, `tdd`
