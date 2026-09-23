@@ -192,33 +192,55 @@ Quatro agregações privadas (`agregarFaturas`, `agregarContasPagar`, `agregarPa
 7. A base `gespro-db` foi **limpa e re-semeada** (P4 passo 1) em 2026-09-21; os tenants `perf-*`
    foram re-criados com `db:seed:volume` para os EXPLAIN (e ficam prontos para o nó do k6).
 
-#### Golden fixture — derivação (2026-09-21, base limpa + seed)
+#### Golden fixture — derivação (2026-09-23, base limpa + seed)
 
-Números derivados por SQL independente sobre o tenant demo + aritmética `Decimal` em Python —
-nunca por `projetarTesouraria`. Relógio do teste pinado em `2026-09-21T16:30:00.000Z` (só
-`Date`); o seed gera datas relativas ao dia da execução, logo **re-semear noutro dia civil exige
-re-derivar a fixture** (as sentinelas do teste falham primeiro, com mensagem). Origem de cada
-número:
+Re-derivada em 2026-09-23 porque o seed passou a criar três `ContaBancaria` no tenant demo
+(`prisma/seed/financas.ts`). A de 2026-09-21 assumia zero contas, e a base local tinha ainda resíduos
+manuais (2 payrolls processados, 1 conta a pagar liquidada). Método igual ao da primeira derivação:
+base reposta (`prisma migrate reset` + `pnpm db:seed`), listagens SQL cruas sobre o tenant demo e
+aritmética `Decimal` em Python. Nunca por `projetarTesouraria`. O script está reproduzido abaixo, em
+«Como re-derivar». Relógio do teste pinado em `2026-09-23T16:30:00.000Z` (só `Date`); o seed gera
+datas relativas ao dia da execução, logo **re-semear noutro dia civil exige re-derivar a fixture**
+(as sentinelas do teste falham primeiro, com mensagem). Origem de cada número:
 
-- **`saldoAbertura` 724 106,60** = 0 (zero `ContaBancaria` no seed) + sessão ABERTA
-  `CXS/2026/000008` (`fundoInicial` 5 000,00 + `totalEntradas` 719 106,60 − `totalSaidas` 0,00).
-- **Perfil de atraso**: 64 facturas `PAGA` com `dataPagamento` na janela de 180 dias; atraso cru
-  civil (`AT TIME ZONE 'Africa/Maputo'`) = **−30 em todas** (o seed paga 30 dias antes do
-  vencimento) ⇒ truncado por observação: média 0, σ 0, `amostraInsuficiente: false` —
-  demonstração viva do §10 (sem truncar, a média seria −30 e o BASE anteciparia entradas).
-  Deslocamento BASE = round(0) = 0; PESSIMISTA = round(0+0) = 0.
-- **Entradas**: 20 facturas em aberto (3 `EMITIDA` + 8 `PARCIALMENTE_PAGA` + 9 `VENCIDA`),
-  valor `total − totalPago`, data civil do `dataVencimento`. 14 vencidas (< 21-09) → 1.º bucket;
-  FAT/092 (25-09) no 1.º bucket **não** vencida; restantes por semana.
-- **Saídas**: 10 contas a pagar em aberto; 3 vencidas → 1.º bucket; restantes por semana.
-  `Payroll PROCESSADO` = 0 e `CompromissoTesouraria` = 0 no seed — contribuição nula, documentada.
-- **Buckets**: 13 semanas exactas (91 dias inclusivos), 21-09 → 20-12; saldos em cadeia (I2).
-- **PESSIMISTA (4.6-bis)**: exclui as 8 entradas vencidas há > 90 dias (< 23-06); as duas margens
-  da fronteira estão asseridas — FAT/045 (115 dias) sai, FAT/055 (87 dias) fica. O saldo cruza
-  para negativo em 2026-11-02 (`primeiroDiaNegativo`), menor saldo −226 694,92 — o alarme de
-  ruptura (R6.1) fica exercitado pela fixture.
+- **`saldoAbertura` 4 960 087,80**:
+  - Conta PGC **121**, contada **uma vez**: 4 624 081,20 a débito − 388 100,00 a crédito =
+    **4 235 981,20**, todas as partidas `LANCADO` e anteriores à referência. BCI e Millennium bim
+    estão ambas ancoradas na 121: é o §2-bis do ADR-0036 exercitado ao vivo, e somar por conta
+    bancária daria 9 196 068,40.
+  - Conta PGC **123** (Standard Bank): sem partidas, logo 0,00.
+  - Sessão ABERTA `CXS/2026/000008`: `fundoInicial` 5 000,00 + `totalEntradas` 719 106,60 −
+    `totalSaidas` 0,00 = 724 106,60.
+- **Perfil de atraso**: 64 facturas `PAGA` com `dataPagamento` na janela de 180 dias. O atraso cru
+  civil (`AT TIME ZONE 'Africa/Maputo'`) é **−30 em todas**, porque o seed paga 30 dias antes do
+  vencimento. Truncado por observação dá média 0, σ 0 e `amostraInsuficiente: false`. Contagem
+  insensível à fronteira da janela (180 ou 181 dias dão os mesmos 64). Deslocamento BASE =
+  PESSIMISTA = 0.
+- **Entradas**: 20 facturas em aberto (3 `EMITIDA` + 8 `PARCIALMENTE_PAGA` + 9 `VENCIDA`), com valor
+  `total − totalPago` e data civil do `dataVencimento`. 14 vencidas (< 23-09) vão para o 1.º bucket.
+  A FAT/092 (vence a 27-09) cai no 1.º bucket e **não** está vencida.
+- **Saídas**: 10 contas a pagar em aberto; 3 vencidas vão para o 1.º bucket. `Payroll PROCESSADO` = 0
+  e `CompromissoTesouraria` = 0 no seed, com contribuição nula documentada.
+- **Buckets**: 13 semanas exactas (91 dias inclusivos), de 23-09 a 22-12, com saldos em cadeia (I2).
+  Entradas e saídas por bucket são **idênticas** às da derivação de 21-09, porque o seed desloca
+  todas as datas por igual. Só o saldo muda, em +4 235 981,20 (verificação: 1 515 636,24 +
+  4 235 981,20 = 5 751 617,44, o saldo final do 1.º bucket BASE).
+- **PESSIMISTA (4.6-bis)**: exclui as 8 entradas vencidas há mais de 90 dias (< 25-06). As duas
+  margens da fronteira estão asseridas: a FAT/045 (115 dias) sai e a FAT/055 (87 dias) fica. Menor
+  saldo 4 009 286,28.
+- **Perda de cobertura, assumida**: com o saldo da conta 121, o PESSIMISTA **já não cruza para
+  negativo** (`primeiroDiaNegativo: null` nos dois cenários). O alarme de ruptura (R6.1) deixou de ser
+  exercitado pela golden. Continua coberto pelos property tests do núcleo; se se quiser de volta na
+  golden, é preciso um compromisso manual de saída no seed, não um número inventado na fixture.
 - Sentinela `totalFaturas` = **106**, não 104: o funil de `demo-vendas` cria 104 e o seed clássico
-  de finanças mais 2 (ambas `PAGA` — não tocam na projecção).
+  de finanças mais 2 (ambas `PAGA`, não tocam na projecção).
+
+**Como re-derivar**: repor a base, `pnpm db:seed`, e depois, com `psql` sobre o tenant demo, tirar
+cinco listagens: facturas em aberto (`total`, `totalPago`, `dataVencimento` civil), contas a pagar em
+aberto (`valorRestante`, `dataVencimento` civil), a sessão ABERTA, as facturas `PAGA`
+(`dataPagamento`/`dataVencimento` civis) e as partidas das contas PGC **distintas** das
+`ContaBancaria` activas. A seguir, `Decimal` à mão: bucket = semana a partir da referência; vencidas
+vão para o 1.º bucket; saldo em cadeia; PESSIMISTA sem as entradas vencidas há mais de 90 dias.
 
 ### CRUD de compromissos (nó L5, tasks 5.0–5.2 + bis/ter/quater/quinquies — entregue 2026-09-21)
 

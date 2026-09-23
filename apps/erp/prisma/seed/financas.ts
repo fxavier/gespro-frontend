@@ -3,6 +3,7 @@
  *  - ContaPGC: 504 contas PGC-NIRF (plano-contas-pgc.json)
  *  - Diários contabilísticos por tipo
  *  - SerieDocumento para cada TipoSerieDocumento
+ *  - ContaBancaria: as contas do tenant demo, ligadas ao PGC
  *  - Fatura demo a partir de src/data/faturacao.ts
  *
  * Exporta seedFinancas(prisma, tenantId) — chamado por prisma/seed/index.ts.
@@ -28,6 +29,7 @@ export async function seedFinancas(prisma: PrismaClient, tenantId: string): Prom
   await seedPlanoContas(prisma, tenantId);
   await seedDiarios(prisma, tenantId);
   await seedSeriesDocumento(prisma, tenantId);
+  await seedContasBancarias(prisma, tenantId);
   await seedFaturasDemo(prisma, tenantId);
 
   console.log('[WS-D] Seed financas concluído.');
@@ -55,7 +57,83 @@ async function seedSeriesDocumento(prisma: PrismaClient, tenantId: string): Prom
 }
 
 // ---------------------------------------------------------------------------
-// 4. Faturas demo (a partir de src/data/faturacao.ts mock)
+// 4. Contas bancárias do tenant demo
+//
+// Ao contrário do plano de contas, dos diários e das séries, uma conta bancária
+// NÃO é bootstrap de tenant — é dado do cliente. Por isso vive aqui e não em
+// tenant-bootstrap.ts.
+//
+// `saldoAtual` fica a zero de propósito: é derivado dos movimentos (append-only)
+// e o serviço recusa-se a aceitá-lo como entrada. Semear um saldo era inventar
+// um número que o razão não confirma.
+//
+// A conta contabilística tem de ser folha da classe 1 (`validarContaContabilBancaria`).
+// Idempotente pela chave natural @@unique([tenantId, banco, numeroConta]).
+// ---------------------------------------------------------------------------
+
+const CONTAS_BANCARIAS = [
+  {
+    banco: 'Millennium bim',
+    agencia: 'Sede — Av. 25 de Setembro',
+    numeroConta: '178903456',
+    tipoConta: 'CORRENTE',
+    moeda: 'MZN',
+    contaPgc: '121',
+  },
+  {
+    banco: 'BCI',
+    agencia: 'Maputo Baixa',
+    numeroConta: '48920174501',
+    tipoConta: 'CORRENTE',
+    moeda: 'MZN',
+    contaPgc: '121',
+  },
+  {
+    banco: 'Standard Bank',
+    agencia: 'Matola',
+    numeroConta: '0103331290004',
+    tipoConta: 'DEPOSITO_PRAZO',
+    moeda: 'MZN',
+    contaPgc: '123',
+  },
+] as const;
+
+async function seedContasBancarias(prisma: PrismaClient, tenantId: string): Promise<void> {
+  let criadas = 0;
+
+  for (const def of CONTAS_BANCARIAS) {
+    const conta = await prisma.contaPGC.findFirst({
+      where: { tenantId, codigo: def.contaPgc },
+      select: { id: true },
+    });
+    if (!conta) throw new Error(`[WS-D] ContaPGC ${def.contaPgc} em falta — plano de contas não semeado.`);
+
+    const existente = await prisma.contaBancaria.findFirst({
+      where: { tenantId, banco: def.banco, numeroConta: def.numeroConta },
+      select: { id: true },
+    });
+    if (existente) continue;
+
+    await prisma.contaBancaria.create({
+      data: {
+        tenantId,
+        banco: def.banco,
+        agencia: def.agencia,
+        numeroConta: def.numeroConta,
+        tipoConta: def.tipoConta,
+        moeda: def.moeda,
+        contaContabilId: conta.id,
+        saldoAtual: new Prisma.Decimal(0),
+      },
+    });
+    criadas += 1;
+  }
+
+  console.log(`[WS-D] ContaBancaria: ${criadas} criadas (restantes já existiam).`);
+}
+
+// ---------------------------------------------------------------------------
+// 5. Faturas demo (a partir de src/data/faturacao.ts mock)
 // ---------------------------------------------------------------------------
 
 async function seedFaturasDemo(prisma: PrismaClient, tenantId: string): Promise<void> {
