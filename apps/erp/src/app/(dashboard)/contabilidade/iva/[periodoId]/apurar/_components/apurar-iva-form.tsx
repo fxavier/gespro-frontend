@@ -16,7 +16,15 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { AlertTriangle, Loader2, PercentCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatarData } from '@/lib/format-date';
 import { apurarIvaAction } from '@/server/actions/financas-iva.actions';
+import type { DocumentoSemLancamento } from '@/server/services/financas/apuramento-iva.interface';
+
+const ROTULO_TIPO: Record<DocumentoSemLancamento['tipo'], string> = {
+  FATURA: 'Factura',
+  NOTA_CREDITO: 'Nota de crédito',
+  NOTA_DEBITO: 'Nota de débito',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Textos dos códigos de recusa (ADR-0034 §4)
@@ -66,7 +74,15 @@ const TEXTOS_RECUSA: Record<string, CodigoRecusaInfo> = {
   },
 };
 
-function TextoRecusa({ codigo, info }: { codigo: string; info: CodigoRecusaInfo }) {
+function TextoRecusa({
+  codigo,
+  info,
+  documentos,
+}: {
+  codigo: string;
+  info: CodigoRecusaInfo;
+  documentos?: DocumentoSemLancamento[];
+}) {
   return (
     <div
       className={[
@@ -92,6 +108,17 @@ function TextoRecusa({ codigo, info }: { codigo: string; info: CodigoRecusaInfo 
           {info.titulo}
         </p>
         <p className="text-muted-foreground">{info.descricao}</p>
+        {documentos?.length ? (
+          <ul className="pt-1 space-y-0.5 text-muted-foreground">
+            {documentos.map((d) => (
+              <li key={`${d.tipo}-${d.id}`} className="flex gap-2">
+                <span className="w-32 shrink-0">{ROTULO_TIPO[d.tipo]}</span>
+                <span className="font-mono">{d.numero}</span>
+                <span className="text-xs self-center">{formatarData(d.dataEmissao)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <p className="text-xs text-muted-foreground font-mono">Código: {codigo}</p>
       </div>
     </div>
@@ -111,17 +138,22 @@ export function ApurarIvaForm({ periodoId, periodoCodigo }: ApurarIvaFormProps) 
   const [aCorrer, iniciarTransicao] = useTransition();
   const [erroCode, setErroCode] = useState<string | null>(null);
   const [erroMsg, setErroMsg] = useState<string | null>(null);
+  const [documentos, setDocumentos] = useState<DocumentoSemLancamento[] | undefined>();
   const router = useRouter();
 
   function apurar() {
     setErroCode(null);
     setErroMsg(null);
+    setDocumentos(undefined);
     iniciarTransicao(async () => {
       const res = await apurarIvaAction({ periodoId });
       if (!res.ok) {
         const code = (res.error as { code?: string })?.code ?? '';
         setErroCode(code);
         setErroMsg(res.error?.message ?? 'Erro ao apurar IVA');
+        setDocumentos(
+          (res.error?.details as { documentos?: DocumentoSemLancamento[] } | undefined)?.documentos,
+        );
         return;
       }
       toast.success(`IVA apurado com sucesso para o período ${periodoCodigo}`);
@@ -163,7 +195,7 @@ export function ApurarIvaForm({ periodoId, periodoCodigo }: ApurarIvaFormProps) 
 
       {/* Resultado de erro */}
       {erroCode && infoRecusa ? (
-        <TextoRecusa codigo={erroCode} info={infoRecusa} />
+        <TextoRecusa codigo={erroCode} info={infoRecusa} documentos={documentos} />
       ) : erroMsg ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
           <p className="font-medium text-destructive">Erro ao apurar</p>
