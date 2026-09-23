@@ -1,0 +1,305 @@
+// WS D — Reconciliação bancária automática (ADR-0038, RF-XXX)
+// Regras:
+//   - Dinheiro: Decimal @db.Decimal(18,2); valores SEMPRE positivos, o sinal vive em `natureza`
+//   - Natureza na perspectiva da EMPRESA: DEBITO = entrada de dinheiro na conta
+//   - FK cross-agregado (lancamentoId, partidaId, userId) são escalares
+//   - Movimentos são entidades de primeira classe POR CONTA BANCÁRIA, não filhos
+//     de uma reconciliação: é isso que permite o estado EM_TRANSITO sobreviver
+//     à fronteira do período (RF §8, CA04)
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+/// Estado de reconciliação de um movimento — RF §12 (os nove estados mínimos).
+enum EstadoMovimentoReconciliacao {
+  PENDENTE
+  RECONCILIADO
+  EM_TRANSITO
+  BANCO_SEM_CONTABILIZACAO
+  CONTABILIDADE_SEM_BANCO
+  DIFERENCA_VALOR
+  DIVERGENCIA
+  RECONCILIADO_MANUALMENTE
+  IGNORADO
+}
+
+/// `matchType` da RF §7.2 — como a correspondência foi estabelecida.
+enum TipoCorrespondencia {
+  EXACTO
+  DIFERENCA_TEMPORAL
+  TOLERANCIA_VALOR
+  AGREGADO
+  MANUAL
+}
+
+/// Regra que produziu a correspondência — ordem de prioridade da RF §6.
+/// A ordem de declaração É a ordem de prioridade do motor (passagens sucessivas).
+enum RegraCorrespondencia {
+  REFERENCIA_EXACTA
+  REFERENCIA_NORMALIZADA
+  DOCUMENTO
+  VALOR_NATUREZA_DATA
+  VALOR_TOLERANCIA
+  DESCRICAO
+  MANUAL
+}
+
+/// Proveniência do movimento bancário — RF §4 (arquitectura aberta a MT940/CAMT).
+enum OrigemExtracto {
+  CSV
+  XLSX
+  MT940
+  CAMT053
+  API
+  MANUAL
+}
+
+/// Ciclo de vida do período de reconciliação — RF §17.
+enum EstadoPeriodoReconciliacao {
+  ABERTO
+  EM_RECONCILIACAO
+  RECONCILIADO
+  CANCELADO
+}
+
+// ---------------------------------------------------------------------------
+// IMPORTAÇÃO
+// ---------------------------------------------------------------------------
+
+/// Lote de importação de extracto — trilho de proveniência e primeira camada de
+/// idempotência (RF §19): o mesmo ficheiro para a mesma conta não entra duas vezes.
+model ImportacaoExtracto {
+  id              String         @id @default(cuid())
+  tenantId        String
+  contaBancariaId String
+  origem          OrigemExtracto
+  nomeFicheiro    String?
+  /// SHA-256 do conteúdo bruto do ficheiro.
+  hashFicheiro    String
+  totalLinhas     Int            @default(0)
+  criados         Int            @default(0)
+  ignorados       Int            @default(0)
+  periodoInicio   DateTime?
+  periodoFim      DateTime?
+  importadoPorId  String // FK User (escalar)
+  createdAt       DateTime       @default(now())
+
+  contaBancaria ContaBancaria       @relation(fields: [contaBancariaId], references: [id])
+  movimentos    MovimentoBancario[]
+
+  @@unique([tenantId, contaBancariaId, hashFicheiro])
+  @@index([tenantId, contaBancariaId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// MOVIMENTOS
+// ---------------------------------------------------------------------------
+
+/// Linha de extracto bancário. Vive por conta bancária e tem ciclo de vida próprio.
+/// `valor` é sempre positivo; o sentido vive em `natureza`.
+model MovimentoBancario {
+  id                 String                       @id @default(cuid())
+  tenantId           String
+  contaBancariaId    String
+  /// Lote de importação. Anulável: um movimento com `origem = MANUAL`
+  /// (lançado pelo utilizador, RF §4) não vem de ficheiro nenhum.
+  importacaoId       String?
+  /// RF §5: data em que o movimento aparece no extracto.
+  dataMovimento      DateTime
+  /// RF §5: data-valor do banco, quando disponibilizada.
+  dataValor          DateTime?
+  referencia         String?
+  /// Referência sem espaços, pontuação nem acentos, em maiúsculas — chave de
+  /// procura do motor. Derivada de `referencia`; NUNCA introduzida pelo utilizador.
+  referenciaNormalizada String?
+  descricao          String
+  valor              Decimal                      @db.Decimal(18, 2)
+  natureza           TipoPartida
+  saldoAposMovimento Decimal?                     @db.Decimal(18, 2)
+  origem             OrigemExtracto
+  /// Chave determinística do movimento no banco (ver `chaveIdempotenciaBanco`).
+  /// Segunda camada de idempotência: reimportar um extracto sobreposto não duplica.
+  chaveIdempotencia  String
+  estado             EstadoMovimentoReconciliacao @default(PENDENTE)
+  /// Correspondência ACTIVA deste movimento (FK escalar para CorrespondenciaBancaria).
+  /// Sendo uma coluna escalar única, é estruturalmente impossível um movimento
+  /// pertencer a duas correspondências activas — é assim que a RF §14 é garantida
+  /// pelo modelo e não por código. Reverter uma correspondência põe isto a NULL;
+  /// o histórico permanece nas linhas de correspondência.
+  correspondenciaAtivaId String?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+
+  contaBancaria ContaBancaria                @relation(fields: [contaBancariaId], references: [id])
+  importacao    ImportacaoExtracto?          @relation(fields: [importacaoId], references: [id])
+  linhas        LinhaCorrespondenciaBanco[]
+
+  @@unique([tenantId, contaBancariaId, chaveIdempotencia])
+  /// Blocking key do motor (RF §19): reduz o universo de candidatos por índice,
+  /// nunca por produto cartesiano.
+  @@index([tenantId, contaBancariaId, estado, natureza, valor, dataMovimento])
+  @@index([tenantId, contaBancariaId, referenciaNormalizada])
+  @@index([tenantId, contaBancariaId, dataMovimento])
+  @@index([tenantId, correspondenciaAtivaId])
+}
+
+/// Projecção de uma partida de lançamento sobre a conta bancária, com estado de
+/// reconciliação próprio. É derivada de `PartidaLancamento` (append-only) mas não
+/// é um espelho: o estado é dela.
+model MovimentoContabilistico {
+  id                    String                       @id @default(cuid())
+  tenantId              String
+  contaBancariaId       String
+  lancamentoId          String // FK Lancamento (escalar)
+  /// FK PartidaLancamento (escalar) — chave natural da projecção.
+  partidaId             String
+  /// RF §5: data em que a operação foi reconhecida no sistema.
+  dataContabilistica    DateTime
+  documento             String?
+  referencia            String?
+  referenciaNormalizada String?
+  descricao             String
+  valor                 Decimal                      @db.Decimal(18, 2)
+  natureza              TipoPartida
+  estado                EstadoMovimentoReconciliacao @default(PENDENTE)
+  /// Ver `MovimentoBancario.correspondenciaAtivaId`.
+  correspondenciaAtivaId String?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+
+  contaBancaria ContaBancaria                       @relation(fields: [contaBancariaId], references: [id])
+  linhas        LinhaCorrespondenciaContabilidade[]
+
+  /// Idempotência da projecção: uma partida dá exactamente um movimento.
+  @@unique([tenantId, partidaId])
+  @@index([tenantId, contaBancariaId, estado, natureza, valor, dataContabilistica])
+  @@index([tenantId, contaBancariaId, referenciaNormalizada])
+  @@index([tenantId, contaBancariaId, dataContabilistica])
+  @@index([tenantId, correspondenciaAtivaId])
+}
+
+// ---------------------------------------------------------------------------
+// CORRESPONDÊNCIAS
+// ---------------------------------------------------------------------------
+
+/// Correspondência entre N movimentos bancários e M movimentos contabilísticos
+/// (RF §15). Append-only: reverter marca `revertida`, nunca apaga — é o trilho
+/// que a RF §18 exige.
+model CorrespondenciaBancaria {
+  id                  String               @id @default(cuid())
+  tenantId            String
+  contaBancariaId     String
+  tipo                TipoCorrespondencia
+  regra               RegraCorrespondencia
+  /// 0–100. O motor só confirma automaticamente acima do limiar da conta.
+  confianca           Int                  @default(0)
+  automatica          Boolean              @default(true)
+  valorBanco          Decimal              @db.Decimal(18, 2)
+  valorContabilistico Decimal              @db.Decimal(18, 2)
+  /// valorBanco − valorContabilistico. Zero numa correspondência exacta.
+  diferencaValor      Decimal              @db.Decimal(18, 2) @default(0)
+  /// Distância máxima em dias entre os dois lados. Zero numa correspondência exacta.
+  diferencaDias       Int                  @default(0)
+  /// Obrigatória em correspondência manual (RF §13) e sempre que houver diferença.
+  justificacao        String?
+  confirmadaPorId     String? // FK User (escalar)
+  confirmadaEm        DateTime?
+  revertida           Boolean              @default(false)
+  revertidaPorId      String? // FK User (escalar)
+  revertidaEm         DateTime?
+  /// Período em que a correspondência foi fechada (preenchido no fecho).
+  periodoId           String?
+  createdAt           DateTime             @default(now())
+
+  contaBancaria         ContaBancaria                      @relation(fields: [contaBancariaId], references: [id])
+  periodo               PeriodoReconciliacao?              @relation(fields: [periodoId], references: [id])
+  linhasBanco           LinhaCorrespondenciaBanco[]
+  linhasContabilidade   LinhaCorrespondenciaContabilidade[]
+
+  @@index([tenantId, contaBancariaId, revertida])
+  @@index([tenantId, contaBancariaId, createdAt])
+  @@index([tenantId, periodoId])
+}
+
+/// Lado bancário de uma correspondência. Tabela própria (em vez de uma linha
+/// polimórfica com dois FK anuláveis) para que o estado inválido «linha sem lado»
+/// seja irrepresentável.
+model LinhaCorrespondenciaBanco {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  correspondenciaId   String
+  movimentoBancarioId String
+  createdAt           DateTime @default(now())
+
+  correspondencia   CorrespondenciaBancaria @relation(fields: [correspondenciaId], references: [id], onDelete: Cascade)
+  movimentoBancario MovimentoBancario       @relation(fields: [movimentoBancarioId], references: [id])
+
+  @@unique([tenantId, correspondenciaId, movimentoBancarioId])
+  @@index([tenantId, movimentoBancarioId])
+}
+
+/// Lado contabilístico de uma correspondência.
+model LinhaCorrespondenciaContabilidade {
+  id                        String   @id @default(cuid())
+  tenantId                  String
+  correspondenciaId         String
+  movimentoContabilisticoId String
+  createdAt                 DateTime @default(now())
+
+  correspondencia         CorrespondenciaBancaria @relation(fields: [correspondenciaId], references: [id], onDelete: Cascade)
+  movimentoContabilistico MovimentoContabilistico @relation(fields: [movimentoContabilisticoId], references: [id])
+
+  @@unique([tenantId, correspondenciaId, movimentoContabilisticoId])
+  @@index([tenantId, movimentoContabilisticoId])
+}
+
+// ---------------------------------------------------------------------------
+// PERÍODO DE FECHO
+// ---------------------------------------------------------------------------
+
+/// Fecho de reconciliação de um período (RF §17). Ao contrário do modelo antigo,
+/// NÃO é dono dos movimentos: é uma vista fechada sobre eles, com o mapa gravado
+/// para reprodutibilidade.
+model PeriodoReconciliacao {
+  id                   String                     @id @default(cuid())
+  tenantId             String
+  contaBancariaId      String
+  dataInicio           DateTime
+  dataFim              DateTime
+  estado               EstadoPeriodoReconciliacao @default(ABERTO)
+
+  saldoInicialBanco    Decimal @db.Decimal(18, 2)
+  saldoFinalBanco      Decimal @db.Decimal(18, 2)
+  saldoInicialContabil Decimal @db.Decimal(18, 2)
+  saldoFinalContabil   Decimal @db.Decimal(18, 2)
+
+  // Mapa de fecho (RF §16/§17) — gravado, não recalculado a posteriori.
+  totalMovimentosBanco          Int     @default(0)
+  totalMovimentosContabilisticos Int    @default(0)
+  totalReconciliados            Int     @default(0)
+  valorEmTransito               Decimal @db.Decimal(18, 2) @default(0)
+  valorBancoSemContabilizacao   Decimal @db.Decimal(18, 2) @default(0)
+  valorDiferencas               Decimal @db.Decimal(18, 2) @default(0)
+  /// saldoFinalBanco − emTrânsito + bancoSemContabilização ± diferenças.
+  saldoReconciliado             Decimal @db.Decimal(18, 2) @default(0)
+  /// saldoReconciliado − saldoFinalContabil. Zero fecha sem justificação.
+  diferencaResidual             Decimal @db.Decimal(18, 2) @default(0)
+
+  justificacao  String?
+  responsavelId String // FK User (escalar)
+  fechadoPorId  String? // FK User (escalar)
+  fechadoEm     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  contaBancaria    ContaBancaria             @relation(fields: [contaBancariaId], references: [id])
+  correspondencias CorrespondenciaBancaria[]
+
+  /// Impede o mesmo período duas vezes. NÃO impede períodos sobrepostos nem
+  /// dois períodos abertos na mesma conta — isso é invariante de serviço,
+  /// verificado dentro da transacção de abertura (ver ADR-0038).
+  @@unique([tenantId, contaBancariaId, dataInicio, dataFim])
+  @@index([tenantId, contaBancariaId, estado])
+  @@index([tenantId, estado])
+}

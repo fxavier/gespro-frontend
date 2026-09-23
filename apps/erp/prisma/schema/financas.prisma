@@ -562,13 +562,42 @@ model ContaBancaria {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  // Configuração de reconciliação (ADR-0038, RF-XXX §11) — por conta, porque é
+  // por conta que os bancos diferem em pontualidade e em qualidade de referência.
+  /// Tolerância temporal entre data contabilística e data do extracto, em dias.
+  toleranciaDias             Int     @default(5)
+  /// Tolerância absoluta de valor. 0 = qualquer diferença impede match automático.
+  toleranciaValor            Decimal @db.Decimal(18, 2) @default(0)
+  permitirMatchPorReferencia Boolean @default(true)
+  permitirMatchPorValor      Boolean @default(true)
+  permitirMatchPorDescricao  Boolean @default(false)
+  /// Confirmar automaticamente as correspondências que passem o limiar de confiança.
+  autoReconciliacao          Boolean @default(false)
+  /// Limiar de confiança (0–100) para confirmação automática.
+  limiarConfianca            Int     @default(90)
+  /// Permitir correspondência agregada N:1 / 1:N (RF §15). Desligada por omissão:
+  /// a soma de subconjuntos é cara e produz falsos positivos sem supervisão.
+  permitirAgregacao          Boolean @default(false)
+  /// Tecto de cardinalidade da agregação — sem isto a busca é um vector de DoS.
+  maxMovimentosAgregacao     Int     @default(5)
+
   contaContabil     ContaPGC               @relation(fields: [contaContabilId], references: [id])
   reconciliacoes    ReconciliacaoBancaria[]
+
+  // ADR-0038 — domínio de reconciliação (prisma/schema/reconciliacao.prisma)
+  movimentosBancarios      MovimentoBancario[]
+  movimentosContabilisticos MovimentoContabilistico[]
+  importacoesExtracto      ImportacaoExtracto[]
+  correspondencias         CorrespondenciaBancaria[]
+  periodosReconciliacao    PeriodoReconciliacao[]
 
   @@unique([tenantId, banco, numeroConta])
   @@index([tenantId, ativo])
 }
 
+/// DEPRECIADO (ADR-0038) — substituído por PeriodoReconciliacao + MovimentoBancario
+/// + MovimentoContabilistico + CorrespondenciaBancaria. Mantido apenas enquanto o
+/// serviço antigo existir; removido no nó RECONCILIATION do ADR-0038.
 /// Reconciliação bancária: confronto entre extracto bancário e razão contabilístico.
 model ReconciliacaoBancaria {
   id                    String              @id @default(cuid())
@@ -595,6 +624,7 @@ model ReconciliacaoBancaria {
   @@index([tenantId, dataInicio, dataFim])
 }
 
+/// DEPRECIADO (ADR-0038) — ver nota em ReconciliacaoBancaria.
 /// Linha de reconciliação bancária (lançamento contabilístico ou linha de extracto).
 model ItemReconciliacaoBancaria {
   id               String              @id @default(cuid())
