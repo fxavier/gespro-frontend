@@ -124,3 +124,14 @@ export interface IApuramentoIvaService {
   marcarDeclarado(input: MarcarDeclaradoInput, ctx: Ctx): Promise<ApuramentoIva>;
   obterApuramento(periodoId: string, ctx: Ctx): Promise<ApuramentoIvaComLinhas | null>;
 }
+
+/**
+ * Detalhe do `details` de `DOCUMENTO_SEM_LANCAMENTO` (ADR-0034 §4): a recusa
+ * identifica os documentos em falta, não só quantos são.
+ */
+export interface DocumentoSemLancamento {
+  tipo: 'FATURA' | 'NOTA_CREDITO' | 'NOTA_DEBITO';
+  id: string;
+  numero: string;
+  dataEmissao: string; // ISO — serializado para atravessar a fronteira RSC
+}
