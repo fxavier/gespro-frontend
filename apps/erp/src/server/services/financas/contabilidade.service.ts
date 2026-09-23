@@ -1684,7 +1684,16 @@ export async function fecharPeriodo(
           dataFim: { gte: perDb.data_inicio },
         },
       });
-      if (reconciliacoes > 0) impedimentos.push('RECONCILIACAO_EM_ANDAMENTO');
+      // ADR-0038: o período de reconciliação novo. O modelo antigo sai no nó UI.
+      const periodosReconciliacao = await tx.periodoReconciliacao.count({
+        where: {
+          tenantId: ctx.tenantId,
+          estado: { in: ['ABERTO', 'EM_RECONCILIACAO'] },
+          dataInicio: { lte: perDb.data_fim },
+          dataFim: { gte: perDb.data_inicio },
+        },
+      });
+      if (reconciliacoes + periodosReconciliacao > 0) impedimentos.push('RECONCILIACAO_EM_ANDAMENTO');
     }
 
     // 4. Todo documento fiscal emitido (Fatura, NotaCredito, NotaDebito) tem lancamentoId

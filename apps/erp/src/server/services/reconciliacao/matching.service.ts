@@ -36,6 +36,8 @@ export interface ResultadoMatching {
   comDiferencaValor: number;
   /** Propostas perdidas porque um dos lados foi reclamado entretanto (outra corrida, outro utilizador). */
   conflitos: number;
+  /** Propostas descartadas porque o utilizador já rejeitou (reverteu) esse mesmo par. */
+  jaRejeitadas: number;
   classificados: number;
 }
 
@@ -79,7 +81,7 @@ export async function executarMatching(contaBancariaId: string, ctx: Ctx): Promi
     correspondenciaAtivaId: null,
   };
   const resultado: ResultadoMatching = {
-    propostas: 0, confirmadas: 0, sugeridas: 0, comDiferencaValor: 0, conflitos: 0, classificados: 0,
+    propostas: 0, confirmadas: 0, sugeridas: 0, comDiferencaValor: 0, conflitos: 0, jaRejeitadas: 0, classificados: 0,
   };
 
   // Passagem por fora, lotes por dentro: a prioridade da RF §6 é GLOBAL à conta.
@@ -114,7 +116,8 @@ export async function executarMatching(contaBancariaId: string, ctx: Ctx): Promi
         resultado.propostas++;
         try {
           const desfecho = await gravarCorrespondencia(p, porId.get(p.bancoId)!, porId.get(p.contabilisticoId)!, conta, ctx);
-          if (desfecho === 'DIFERENCA_VALOR') resultado.comDiferencaValor++;
+          if (desfecho === 'JA_REJEITADA') resultado.jaRejeitadas++;
+          else if (desfecho === 'DIFERENCA_VALOR') resultado.comDiferencaValor++;
           else if (desfecho === 'CONFIRMADA') resultado.confirmadas++;
           else resultado.sugeridas++;
         } catch (e) {
@@ -180,7 +183,23 @@ async function gravarCorrespondencia(
   contab: MovimentoParaMatch,
   conta: { id: string; autoReconciliacao: boolean; limiarConfianca: number; toleranciaValor: Prisma.Decimal },
   ctx: Ctx,
-): Promise<'CONFIRMADA' | 'SUGERIDA' | 'DIFERENCA_VALOR'> {
+): Promise<'CONFIRMADA' | 'SUGERIDA' | 'DIFERENCA_VALOR' | 'JA_REJEITADA'> {
+  // Rejeitar uma sugestão é revertê-la antes de confirmada; sem isto, a corrida seguinte
+  // propunha-a outra vez. Uma reconciliação CONFIRMADA e depois desfeita não conta: pode
+  // ter sido engano, e o motor pode voltar a propô-la. Fora da transacção de escrita: o
+  // pior caso de uma corrida é uma sugestão repetida, que o utilizador rejeita outra vez.
+  const rejeitada = await prisma.correspondenciaBancaria.count({
+    where: {
+      tenantId: ctx.tenantId,
+      contaBancariaId: conta.id,
+      revertida: true,
+      confirmadaEm: null,
+      linhasBanco: { some: { movimentoBancarioId: banco.id } },
+      linhasContabilidade: { some: { movimentoContabilisticoId: contab.id } },
+    },
+  });
+  if (rejeitada > 0) return 'JA_REJEITADA';
+
   const { confirmar, estadoAlvo } = decidirDesfecho(p, conta);
   for (const lado of [banco, contab]) {
     if (estadoAlvo && lado.estado !== estadoAlvo) transitarMovimento(lado.estado, estadoAlvo);

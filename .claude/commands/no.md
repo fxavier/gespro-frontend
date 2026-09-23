@@ -97,8 +97,8 @@ Diz-me o resultado de INSPECT antes de passar a PLAN.
 - Sugestão de lançamento contabilístico para `BANCO_SEM_CONTABILIZACAO` (RF §9).
 - RBAC: `financas:banca:reconciliacao` nas mutações; corrige a assimetria da exportação, que
   hoje usa `financas:leitura`, mais lata do que a permissão de reconciliar.
-- **Só neste nó** se faz o `DROP` de `ReconciliacaoBancaria` e `ItemReconciliacaoBancaria`,
-  numa migração única, depois de o substituto funcionar.
+- ~~`DROP` do modelo antigo~~ — **passou para o fim do nó UI** (decisão D1 do utilizador,
+  2026-09-23; ver `docs/handoff/adr-0038-reconciliation.md`).
 - RF relevante: §16, §17, §18, §19.
 
 ### `ui` — depende de: Reconciliation
@@ -109,6 +109,9 @@ Diz-me o resultado de INSPECT antes de passar a PLAN.
 - Confirmação em lote das sugestões do motor, com a regra e a confiança visíveis.
 - Reconciliação manual com **justificação obrigatória** (RF §13) — hoje é opcional.
 - Mapa de fecho e exportação; substituição do `matching-board.tsx`.
+- **No fim deste nó, e só depois de o ecrã novo funcionar**: o `DROP` de `ReconciliacaoBancaria` e
+  `ItemReconciliacaoBancaria` numa migração única, com as rotas, actions, componentes e restos
+  listados em «O que ficou por fazer» de `docs/handoff/adr-0038-reconciliation.md`.
 - Skill `ui-conventions`: sem modais (`AlertDialog` só em acção destrutiva ou terminal),
   Server Components por omissão, tokens de `packages/brand`, pt-PT.
 - RF relevante: §13, §17, §23.

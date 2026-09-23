@@ -10,6 +10,11 @@ type JsonSafe = Prisma.InputJsonValue;
 // ---------------------------------------------------------------------------
 export const AUDIT_MODELS = new Set<string>([
   'User', 'Role', 'Permission', 'UserRole', 'RolePermission',
+  // ADR-0038 (RF §18). Só `create`/`update`/`delete` de UMA linha são interceptados:
+  // as escritas em lote (`createMany`/`updateMany`) do motor e da importação não
+  // passam aqui — o trilho delas é a própria CorrespondenciaBancaria, append-only.
+  'CorrespondenciaBancaria', 'PeriodoReconciliacao', 'ImportacaoExtracto',
+  'MovimentoBancario', 'MovimentoContabilistico', 'RegraSugestaoLancamento',
 ]);
 
 /**
@@ -19,6 +24,7 @@ export const AUDIT_MODELS = new Set<string>([
 export const CRITICAL_ENTITIES = new Set<string>([
   // Serão adicionados na Wave 2: 'LancamentoContabil', 'Fatura', 'MovimentoCaixa'
   'User', 'Role',
+  'CorrespondenciaBancaria', 'PeriodoReconciliacao',
 ]);
 
 // ---------------------------------------------------------------------------

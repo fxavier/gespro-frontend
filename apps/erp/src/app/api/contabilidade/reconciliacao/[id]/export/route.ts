@@ -149,5 +149,6 @@ export const GET = withApi(
       },
     });
   },
-  { permission: 'financas:leitura' },
+  // Exportar a reconciliação expõe o mesmo que reconciliá-la: a mesma permissão (ADR-0038).
+  { permission: 'financas:banca:reconciliacao' },
 );

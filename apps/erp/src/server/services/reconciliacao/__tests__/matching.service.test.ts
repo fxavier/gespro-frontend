@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
     create: vi.fn(),
     updateMany: vi.fn(),
     aggregate: vi.fn(),
+    count: vi.fn(),
   });
   const db = {
     contaBancaria: model(),
@@ -106,6 +107,7 @@ beforeEach(() => {
   fake(db.movimentoBancario, () => bancos);
   fake(db.movimentoContabilistico, () => contabs);
   db.correspondenciaBancaria.create.mockImplementation(async () => ({ id: `corr-${++nCorr}` }));
+  db.correspondenciaBancaria.count.mockResolvedValue(0);
   db.movimentoBancario.aggregate.mockImplementation(async () => ({
     _max: { dataMovimento: bancos.reduce<Date | null>((m, b) => (!m || (b.dataMovimento as Date) > m ? (b.dataMovimento as Date) : m), null) },
   }));
@@ -242,6 +244,20 @@ describe('executarMatching — RF §14 (dupla reconciliação)', () => {
     db.movimentoContabilistico.updateMany.mockResolvedValueOnce({ count: 0 });
     const r = await executarMatching('conta-1', ctx);
     expect(r).toMatchObject({ propostas: 1, conflitos: 1, sugeridas: 0 });
+  });
+
+  it('um par que o utilizador já rejeitou (revertido) não volta a ser proposto', async () => {
+    db.correspondenciaBancaria.count.mockResolvedValue(1);
+    const r = await executarMatching('conta-1', ctx);
+    // O par fica livre e as passagens seguintes voltam a encontrá-lo: é recusado em todas.
+    expect(r.propostas).toBeGreaterThan(0);
+    expect(r).toMatchObject({ jaRejeitadas: r.propostas, sugeridas: 0, confirmadas: 0 });
+    expect(db.correspondenciaBancaria.create).not.toHaveBeenCalled();
+    expect(db.correspondenciaBancaria.count.mock.calls[0][0].where).toMatchObject({
+      tenantId: 'tenant-a', revertida: true, confirmadaEm: null,
+      linhasBanco: { some: { movimentoBancarioId: 'b1' } },
+      linhasContabilidade: { some: { movimentoContabilisticoId: 'c1' } },
+    });
   });
 
   it('um erro que não é conflito propaga', async () => {

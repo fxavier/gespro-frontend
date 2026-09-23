@@ -285,6 +285,9 @@ model PeriodoReconciliacao {
   saldoReconciliado             Decimal @db.Decimal(18, 2) @default(0)
   /// saldoReconciliado − saldoFinalContabil. Zero fecha sem justificação.
   diferencaResidual             Decimal @db.Decimal(18, 2) @default(0)
+  /// saldoInicialBanco − saldo do razão no início da PRIMEIRA reconciliação da conta:
+  /// o que ficou por explicar antes de o sistema começar a reconciliar.
+  diferencaAbertura             Decimal @db.Decimal(18, 2) @default(0)
 
   justificacao  String?
   responsavelId String // FK User (escalar)
@@ -302,4 +305,33 @@ model PeriodoReconciliacao {
   @@unique([tenantId, contaBancariaId, dataInicio, dataFim])
   @@index([tenantId, contaBancariaId, estado])
   @@index([tenantId, estado])
+}
+
+// ---------------------------------------------------------------------------
+// SUGESTÃO DE LANÇAMENTO (RF §9)
+// ---------------------------------------------------------------------------
+
+/// Regra configurada pela empresa para SUGERIR o lançamento de um movimento
+/// bancário sem contabilização (comissões, encargos, juros). Só sugere — a
+/// criação do lançamento é sempre um acto do utilizador (RF §9).
+model RegraSugestaoLancamento {
+  id                   String      @id @default(cuid())
+  tenantId             String
+  /// Conta bancária a que a regra se aplica; NULL = todas as contas do tenant.
+  contaBancariaId      String?
+  /// Palavras a procurar na descrição, separadas por `|`, comparadas sem acentos
+  /// nem maiúsculas (ex.: `COMISSAO|ENCARGO|TAXA`).
+  padrao               String
+  /// Natureza do movimento bancário a que se aplica (CREDITO = saída).
+  natureza             TipoPartida
+  /// Conta PGC de contrapartida (FK escalar para ContaPGC, folha).
+  contaContrapartidaId String
+  descricao            String?
+  /// Menor = avaliada primeiro.
+  prioridade           Int         @default(100)
+  ativo                Boolean     @default(true)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  @@index([tenantId, ativo, prioridade])
 }
