@@ -225,16 +225,84 @@ export function construirLancamentoNotaCredito(nc: {
   };
 }
 
+export function construirLancamentoNotaDebito(nd: {
+  id: string;
+  numero: string;
+  total: Prisma.Decimal;
+  subtotal: Prisma.Decimal;
+  ivaTotal: Prisma.Decimal;
+  dataEmissao: Date;
+}): RegistarLancamentoContabilisticoInput {
+  // Nota de débito: o cliente passa a dever mais → D Clientes, C Receita (+IVA)
+  // É o espelho contabilístico da nota de crédito.
+  const partidas: RegistarLancamentoContabilisticoInput['partidas'] = [
+    {
+      contaCodigo: PGC_FATURACAO.CLIENTES_CC,
+      tipo: 'DEBITO',
+      valor: nd.total.toFixed(2),
+      historico: `ND ${nd.numero} — débito clientes`,
+    },
+    {
+      contaCodigo: PGC_FATURACAO.RECEITA_VENDAS,
+      tipo: 'CREDITO',
+      valor: nd.subtotal.toFixed(2),
+      historico: `ND ${nd.numero} — receita adicional`,
+    },
+  ];
+
+  if (nd.ivaTotal.greaterThan(0)) {
+    partidas.push({
+      contaCodigo: PGC_FATURACAO.IVA_LIQUIDADO,
+      tipo: 'CREDITO',
+      valor: nd.ivaTotal.toFixed(2),
+      historico: `ND ${nd.numero} — IVA adicional`,
+    });
+  }
+
+  return {
+    data: nd.dataEmissao,
+    diarioTipo: 'VENDAS',
+    origem: 'VENDA',
+    documentoOrigemId: nd.id,
+    documentoOrigemTipo: 'NotaDebito',
+    historico: `Nota de débito ${nd.numero}`,
+    partidas,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // proximoNumeroSerie — UPDATE...RETURNING atómico (sem lacunas)
 // Chamado por todos os WS via $transaction.
 // ---------------------------------------------------------------------------
 
+/**
+ * Devolve o ano civil do documento em Africa/Maputo.
+ *
+ * Necessário porque o servidor corre em UTC: um documento emitido a 1 de
+ * Janeiro de 2027 às 00:30 de Maputo (= 2026-12-31T22:30Z) tem ano 2027
+ * em Maputo mas 2026 em UTC. Usar getFullYear() aqui escolheria a série de
+ * 2026 para um documento de 2027.
+ */
+function anoFiscalDe(data: Date): number {
+  const partes = new Intl.DateTimeFormat('pt-MZ', {
+    timeZone: 'Africa/Maputo',
+    year: 'numeric',
+  }).formatToParts(data);
+  return parseInt(partes.find((p) => p.type === 'year')!.value, 10);
+}
+
 export async function proximoNumeroSerie(
   tx: Prisma.TransactionClient,
   tipo: TipoSerieDocumento,
   ctx: Ctx,
+  data: Date,
 ): Promise<string> {
+  // ADR-0033 §4: filtra pelo ano do documento (em Africa/Maputo) em vez de ORDER BY ano DESC.
+  // O modo de falha anterior era silencioso: a 1 de Janeiro de 2027, com só a série de 2026
+  // activa, continuava a emitir FAT/2026/000487 para documentos de 2027. Agora lança
+  // SERIE_NAO_ENCONTRADA — um erro que pára a emissão e se repara em 5 minutos.
+  const anoDocumento = anoFiscalDe(data);
+
   // Incrementa atomicamente e devolve o número anterior (que irá usar o documento).
   // FOR UPDATE na subquery garante serialização sem lacunas mesmo com transacções concorrentes.
   const rows = await tx.$queryRaw<
@@ -247,7 +315,8 @@ export async function proximoNumeroSerie(
       WHERE "tenantId" = ${ctx.tenantId}
         AND tipo::text = ${tipo as string}
         AND ativo = true
-      ORDER BY ano DESC, "createdAt" DESC
+        AND ano = ${anoDocumento}
+      ORDER BY "createdAt" DESC
       LIMIT 1
       FOR UPDATE
     )
@@ -257,7 +326,7 @@ export async function proximoNumeroSerie(
   if (!rows.length) {
     throw new BusinessRuleError(
       'SERIE_NAO_ENCONTRADA',
-      `Série activa para tipo "${tipo}" não encontrada. Crie uma série primeiro.`,
+      `Série activa para tipo "${tipo}" no ano ${anoDocumento} não encontrada. Crie a série ${anoDocumento} primeiro.`,
     );
   }
 
@@ -381,7 +450,7 @@ export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<
       if (!venda) throw new NotFoundError('Venda não encontrada');
     }
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
     const totais = calcularTotaisLinhas(input.linhas);
 
     const fatura = await tx.fatura.create({
@@ -423,8 +492,11 @@ export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<
       ),
     );
 
-    // Wave 3: lançamento contabilístico automático na MESMA transacção
-    await registarLancamentoContabilistico(
+    // Wave 3: lançamento contabilístico automático na MESMA transacção.
+    // O retorno é guardado para ligar Fatura.lancamentoId — sem esta ligação
+    // a pré-condição DOCUMENTO_SEM_LANCAMENTO impede o apuramento de IVA e o
+    // fecho do período em TODOS os meses com actividade (verificado em prod).
+    const lancamentoFatura = await registarLancamentoContabilistico(
       tx,
       construirLancamentoFatura({
         id: fatura.id,
@@ -436,6 +508,10 @@ export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<
       }),
       ctx,
     );
+    await tx.fatura.update({
+      where: { id: fatura.id },
+      data: { lancamentoId: lancamentoFatura.id },
+    });
 
     return tx.fatura.findFirst({
       where: { id: fatura.id },
@@ -547,7 +623,7 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
     });
     if (!serie) throw new NotFoundError('Série de NC não encontrada');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -596,8 +672,9 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
       ),
     );
 
-    // Wave 3: lançamento de estorno contabilístico na MESMA transacção
-    await registarLancamentoContabilistico(
+    // Wave 3: lançamento de estorno contabilístico na MESMA transacção.
+    // Guarda lancamentoId — idem à factura: sem ligação o apuramento fica bloqueado.
+    const lancamentoNC = await registarLancamentoContabilistico(
       tx,
       construirLancamentoNotaCredito({
         id: nc.id,
@@ -609,6 +686,10 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
       }),
       ctx,
     );
+    await tx.notaCredito.update({
+      where: { id: nc.id },
+      data: { lancamentoId: lancamentoNC.id },
+    });
 
     return tx.notaCredito.findFirst({
       where: { id: nc.id },
@@ -685,7 +766,7 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -734,6 +815,26 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
         }),
       ),
     );
+
+    // Lançamento contabilístico da nota de débito na MESMA transacção.
+    // A ND não tinha este lançamento — adicionado em conjunto com a ligação
+    // lancamentoId que o apuramento de IVA e o fecho de período exigem.
+    const lancamentoND = await registarLancamentoContabilistico(
+      tx,
+      construirLancamentoNotaDebito({
+        id: nd.id,
+        numero,
+        total: subtotal.plus(ivaTotal),
+        subtotal,
+        ivaTotal,
+        dataEmissao: input.dataEmissao,
+      }),
+      ctx,
+    );
+    await tx.notaDebito.update({
+      where: { id: nd.id },
+      data: { lancamentoId: lancamentoND.id },
+    });
 
     return tx.notaDebito.findFirst({
       where: { id: nd.id },
@@ -804,7 +905,7 @@ export async function criarProforma(input: CriarProformaInput, ctx: Ctx): Promis
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -895,7 +996,7 @@ export async function converterProformaEmFatura(
     });
     if (!serie) throw new NotFoundError('Série de factura não encontrada');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, new Date());
 
     const fatura = await tx.fatura.create({
       data: {
@@ -999,7 +1100,7 @@ export async function criarCotacaoComercial(input: CriarCotacaoComercialInput, c
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -1095,7 +1196,7 @@ export async function converterCotacaoEmProforma(
     });
     if (!serie) throw new NotFoundError('Série de proforma não encontrada');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx);
+    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, new Date());
 
     const proforma = await tx.proforma.create({
       data: {

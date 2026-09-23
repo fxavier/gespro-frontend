@@ -549,7 +549,7 @@ export const OrdemProducaoService = {
     input: CreateOrdemProducaoInput,
     ctx: Ctx,
   ): Promise<{ id: string; numero: string }> {
-    const numero = await proximoNumeroSerie(tx, 'ORDEM_PRODUCAO', ctx);
+    const numero = await proximoNumeroSerie(tx, 'ORDEM_PRODUCAO', ctx, new Date());
 
     const ordem = await tx.ordemProducao.create({
       data: {

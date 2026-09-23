@@ -4,7 +4,7 @@
  */
 import 'server-only';
 
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, type TipoAquisicaoIva } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
@@ -103,21 +103,185 @@ function toPagamentoDto(p: any): PagamentoDto {
 // Implementação
 // =====================================================================
 
-export const contaPagarService: IContaPagarService = {
-  async criar(input: CreateContaPagarInput, ctx: Ctx): Promise<ContaPagarDetalhe> {
-    const numero = await prisma.$transaction(async (tx) =>
-      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx),
-    );
+// Mapeamento tipoAquisicao → conta PGC de IVA dedutível (ADR-0034 §1)
+export const MAPA_4432X: Record<TipoAquisicaoIva, string> = {
+  INVENTARIOS:          '44321',
+  ATIVOS:               '44322',
+  OUTROS_BENS_SERVICOS: '44323',
+};
 
-    const conta = await db.contaPagar.create({
-      data: {
-        tenantId: ctx.tenantId,
-        numero, ...input,
-        valorPago: 0, valorRestante: input.valorOriginal,
-        status: 'ABERTA',
-      },
-      include: { fornecedor: { select: { nome: true } }, pagamentos: true },
+/**
+ * Lança o reconhecimento da dívida ao fornecedor dentro de uma transacção existente.
+ *
+ * Aceita `contaCodigo` (código PGC, ex.: '211', '3111') — padrão do produto
+ * (ver PGC_PAYROLL em payroll.service.ts e PGC_COMPRAS em compras.service.ts).
+ * O chamador resolve o código; esta função constrói e submete o lançamento.
+ *
+ * Lançamento:
+ * - Com IVA dedutível (tipoAquisicao + baseIva + valorIva definidos):
+ *     D contaCodigo(baseIva) + D 4432x(valorIva) / C 421(valorOriginal)
+ * - Sem IVA dedutível:
+ *     D contaCodigo(valorOriginal) / C 421(valorOriginal)
+ *
+ * A invariante débitos=créditos é verificada por registarLancamentoContabilistico
+ * e faz a criação falhar se os valores não fecharem — nunca silencia desequilíbrio.
+ *
+ * Exportada para ser partilhada por `compras.service.ts` sem duplicar a lógica.
+ */
+export async function lancarReconhecimentoDivida(
+  tx: Prisma.TransactionClient,
+  params: {
+    contaPagarId: string;
+    numero: string;
+    descricao: string;
+    /** Código PGC da conta de gasto/existências (ex.: '211', '3111') */
+    contaCodigo: string;
+    valorOriginal: number | Prisma.Decimal;
+    tipoAquisicao: TipoAquisicaoIva | null;
+    baseIva: number | Prisma.Decimal | null;
+    valorIva: number | Prisma.Decimal | null;
+    dataLancamento: Date;
+  },
+  ctx: Ctx,
+): Promise<void> {
+  const valorOrig = String(params.valorOriginal);
+  let partidas: Array<{ contaCodigo: string; tipo: 'DEBITO' | 'CREDITO'; valor: string }>;
+
+  if (params.tipoAquisicao && params.baseIva != null && params.valorIva != null) {
+    // D gasto(baseIva) + D 4432x(valorIva) / C 421(valorOriginal)
+    partidas = [
+      { contaCodigo: params.contaCodigo,                    tipo: 'DEBITO',  valor: String(params.baseIva) },
+      { contaCodigo: MAPA_4432X[params.tipoAquisicao],      tipo: 'DEBITO',  valor: String(params.valorIva) },
+      { contaCodigo: '421',                                 tipo: 'CREDITO', valor: valorOrig },
+    ];
+  } else {
+    // Sem IVA dedutível: D gasto(total) / C 421(total)
+    partidas = [
+      { contaCodigo: params.contaCodigo, tipo: 'DEBITO',  valor: valorOrig },
+      { contaCodigo: '421',              tipo: 'CREDITO', valor: valorOrig },
+    ];
+  }
+
+  await registarLancamentoContabilistico(
+    tx,
+    {
+      data: params.dataLancamento,
+      diarioTipo: 'COMPRAS',
+      origem: 'COMPRA',
+      documentoOrigemId: params.contaPagarId,
+      documentoOrigemTipo: 'ContaPagar',
+      historico: `Reconhecimento ${params.numero} — ${params.descricao}`,
+      partidas,
+    },
+    ctx,
+  );
+}
+
+export const contaPagarService: IContaPagarService = {
+  /**
+   * Cria uma conta a pagar e lança o reconhecimento da dívida ao fornecedor (ADR-0034 §1).
+   *
+   * Lançamento: D <gasto|existências> [+ D 4432x] / C 421 Fornecedores c/c
+   *
+   * Decisões de design:
+   * 1. contaContabilId obrigatório: sem ele não é possível equilibrar o débito de gasto/existências.
+   *    Recusa com CONTA_CONTABIL_OBRIGATORIA.
+   * 2. Se tipoAquisicao está presente e numeroDocumento está ausente: recusa toda a criação com
+   *    DOCUMENTO_FORNECEDOR_INCOMPLETO. O chamador está a afirmar um facto fiscal (IVA dedutível
+   *    existe) mas sem o documento que o suporta; criar a conta sem lançar o dedutível deixaria
+   *    o razão com uma dívida mas sem o direito à dedução registado — não é recuperável sem
+   *    estorno + recriação. Se tipoAquisicao está ausente, lança D gasto(total) / C 421 sem IVA.
+   * 3. nuitFornecedor é sempre copiado do Fornecedor neste momento (não relido no apuramento),
+   *    porque o NUIT do fornecedor pode mudar e o do documento é imutável.
+   * 4. A data do lançamento é dataDocumento (se presente), senão dataEmissao — é a dataDocumento
+   *    que define o período de dedução (§1 do ADR), não a data de criação da conta a pagar.
+   * 5. Número, ContaPagar e lançamento estão numa única $transaction: se o lançamento falhar
+   *    (ex.: período fechado), não fica lacuna na série nem conta a pagar semi-criada.
+   */
+  async criar(input: CreateContaPagarInput, ctx: Ctx): Promise<ContaPagarDetalhe> {
+    // Guarda de contaContabilId antes de entrar na transacção (falha rápida, sem consumir número)
+    if (!input.contaContabilId) {
+      throw new BusinessRuleError(
+        'CONTA_CONTABIL_OBRIGATORIA',
+        'A conta contabilística de gasto/existências (contaContabilId) é obrigatória para registar o reconhecimento da dívida.',
+      );
+    }
+
+    // Guarda de documento fiscal (falha rápida)
+    if (input.tipoAquisicao && !input.numeroDocumento) {
+      throw new BusinessRuleError(
+        'DOCUMENTO_FORNECEDOR_INCOMPLETO',
+        'Para registar IVA dedutível (tipoAquisicao definido) é obrigatório indicar o número do documento do fornecedor (numeroDocumento).',
+      );
+    }
+
+    const conta = await prisma.$transaction(async (rawTx) => {
+      const tx = rawTx as unknown as PrismaClient;
+      const txClient = rawTx as unknown as Prisma.TransactionClient;
+
+      // 1. Obter e avançar a série (dentro da mesma tx — sem lacunas se o resto falhar)
+      const numero = await proximoNumeroSerie(txClient, 'CONTA_PAGAR', ctx, input.dataEmissao);
+
+      // 2. Carregar fornecedor para copiar o NUIT no momento do registo
+      const fornecedor = await tx.fornecedor.findUnique({
+        where: { id: input.fornecedorId },
+        select: { nuit: true, tenantId: true },
+      });
+      if (!fornecedor || fornecedor.tenantId !== ctx.tenantId) {
+        throw new NotFoundError('Fornecedor não encontrado');
+      }
+
+      // 3. Resolver e validar a conta PGC de gasto/existências
+      const contaPGC = await tx.contaPGC.findUnique({
+        where: { id: input.contaContabilId! },
+        select: { codigo: true, tenantId: true },
+      });
+      if (!contaPGC || contaPGC.tenantId !== ctx.tenantId) {
+        throw new NotFoundError('Conta contabilística não encontrada');
+      }
+
+      // 4. Criar ContaPagar com bloco fiscal populado
+      const { tipoAquisicao, baseIva, taxaIva, valorIva, numeroDocumento, dataDocumento, ...restInput } = input;
+      const contaCriada = await tx.contaPagar.create({
+        data: {
+          tenantId: ctx.tenantId,
+          numero,
+          ...restInput,
+          nuitFornecedor: fornecedor.nuit,
+          numeroDocumento:  numeroDocumento ?? null,
+          dataDocumento:    dataDocumento ?? null,
+          baseIva:          baseIva   != null ? new Prisma.Decimal(String(baseIva))  : null,
+          taxaIva:          taxaIva   != null ? new Prisma.Decimal(String(taxaIva))  : null,
+          valorIva:         valorIva  != null ? new Prisma.Decimal(String(valorIva)) : null,
+          tipoAquisicao:    tipoAquisicao ?? null,
+          valorPago: 0,
+          valorRestante: input.valorOriginal,
+          status: 'ABERTA',
+        },
+        include: { fornecedor: { select: { nome: true } }, pagamentos: true },
+      });
+
+      // 5. Lançamento de reconhecimento da dívida (ADR-0034 §1)
+      //    Data = dataDocumento (define o período de dedução) ou dataEmissao se ausente
+      await lancarReconhecimentoDivida(
+        txClient,
+        {
+          contaPagarId:  contaCriada.id,
+          numero,
+          descricao:     input.descricao,
+          contaCodigo:   contaPGC.codigo,
+          valorOriginal: input.valorOriginal,
+          tipoAquisicao: tipoAquisicao ?? null,
+          baseIva:       baseIva  ?? null,
+          valorIva:      valorIva ?? null,
+          dataLancamento: dataDocumento ?? input.dataEmissao,
+        },
+        ctx,
+      );
+
+      return contaCriada;
     });
+
     return toContaPagarDetalhe(conta);
   },
 
@@ -192,7 +356,7 @@ export const contaPagarService: IContaPagarService = {
       }
 
       const txClient = tx as unknown as Prisma.TransactionClient;
-      const numero = await proximoNumeroSerie(txClient, 'PAGAMENTO', ctx);
+      const numero = await proximoNumeroSerie(txClient, 'PAGAMENTO', ctx, input.dataPagamento);
 
       // Criar pagamento primeiro para ter o id disponível para o lançamento
       const pagamento = await tx.pagamento.create({

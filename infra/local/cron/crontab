@@ -16,3 +16,10 @@
 
 # Alertas de transporte: documentos a expirar e manutenções pendentes.
 30 3 * * * chamar /api/cron/transporte-alertas
+
+# Abertura do exercício contabilístico do ano seguinte (ADR-0033 §3).
+# Corre DIARIAMENTE: cada tenant decide, pela sua ConfiguracaoFiscal, se hoje é o seu dia.
+# A data deixou de viver aqui e passou a ser por tenant (diaAberturaExercicio/mesAberturaExercicio).
+# Por omissão: dia 1, mês 12 = 1 de Dezembro, preservando o comportamento anterior.
+# Idempotente — pode correr à mão sem efeito se o exercício já existir.
+0 2 * * * chamar /api/cron/abrir-exercicio

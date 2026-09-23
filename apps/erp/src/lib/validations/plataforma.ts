@@ -115,6 +115,54 @@ export const ConfiguracaoFiscalSchema = z.object({
 export type ConfiguracaoFiscalInput = z.infer<typeof ConfiguracaoFiscalSchema>;
 
 // ---------------------------------------------------------------------------
+// Calendário contabilístico — subconjunto editável pelo admin do tenant
+// (ADR-0033 §3; permissão: configuracoes:editar, mesmo ecrã)
+// ---------------------------------------------------------------------------
+
+/**
+ * Validação do calendário de abertura do exercício e do fecho automático de períodos.
+ *
+ * Restrições de intervalo aplicadas aqui (não só no ecrã) para evitar estados
+ * impossíveis na base de dados:
+ *
+ * - `diaAberturaExercicio`: 1-28. Limite inferior ao máximo do mês mais curto
+ *   (Fevereiro tem 28 dias em anos não bissextos). Um dia 29-31 nunca dispararia
+ *   em Fevereiro, criando uma armadilha silenciosa onde o exercício não é criado
+ *   nesse mês sem qualquer aviso.
+ *
+ * - `mesAberturaExercicio`: 1-12.
+ *
+ * - `diasAposFimDoMesParaFechoAutomatico`: 0-60. Zero = no próprio último dia do
+ *   mês; 60 = dois meses de margem, que cobre os prazos mais longos do PGC-NIRF.
+ *
+ * `fechoPeriodoAutomatico` aceita-se mas não produz efeito até à Fase 2 (ADR-0034).
+ */
+export const CalendarioContabilisticoSchema = z.object({
+  aberturaExercicioAutomatica: z.boolean().optional(),
+  diaAberturaExercicio: z
+    .number()
+    .int('O dia tem de ser um número inteiro')
+    .min(1, 'O dia tem de ser pelo menos 1')
+    .max(28, 'O dia não pode ser superior a 28 (Fevereiro tem 28 dias no mínimo)')
+    .optional(),
+  mesAberturaExercicio: z
+    .number()
+    .int('O mês tem de ser um número inteiro')
+    .min(1, 'O mês tem de ser pelo menos 1')
+    .max(12, 'O mês não pode ser superior a 12')
+    .optional(),
+  // Guardado para uso futuro; fecho automático não implementado até à Fase 2 (ADR-0034).
+  fechoPeriodoAutomatico: z.boolean().optional(),
+  diasAposFimDoMesParaFechoAutomatico: z
+    .number()
+    .int('O número de dias tem de ser um inteiro')
+    .min(0, 'O número de dias não pode ser negativo')
+    .max(60, 'O número de dias não pode ser superior a 60')
+    .optional(),
+});
+export type CalendarioContabilisticoInput = z.infer<typeof CalendarioContabilisticoSchema>;
+
+// ---------------------------------------------------------------------------
 // Gestão de Utilizadores — admin do tenant (permissão: utilizadores:gerir)
 // ---------------------------------------------------------------------------
 

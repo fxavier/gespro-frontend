@@ -78,11 +78,12 @@ function novaTx() {
     fatura: {
       create: vi.fn(doc('fat-1')),
       findFirst: vi.fn(doc('fat-1')),
+      update: vi.fn(async () => ({ id: 'fat-1' })),
     },
     linhaFatura: { create: vi.fn(async () => ({ id: 'lf-1' })) },
-    notaCredito: { create: vi.fn(doc('nc-1')), findFirst: vi.fn(doc('nc-1')) },
+    notaCredito: { create: vi.fn(doc('nc-1')), findFirst: vi.fn(doc('nc-1')), update: vi.fn(async () => ({ id: 'nc-1' })) },
     linhaNotaCredito: { create: vi.fn(async () => ({ id: 'lnc-1' })) },
-    notaDebito: { create: vi.fn(doc('nd-1')), findFirst: vi.fn(doc('nd-1')) },
+    notaDebito: { create: vi.fn(doc('nd-1')), findFirst: vi.fn(doc('nd-1')), update: vi.fn(async () => ({ id: 'nd-1' })) },
     linhaNotaDebito: { create: vi.fn(async () => ({ id: 'lnd-1' })) },
     proforma: {
       create: vi.fn(doc('pf-1')),
@@ -248,5 +249,40 @@ describe('o travão não alastra ao que não é documento fiscal', () => {
     comSessao(false);
     await expect(criarCotacaoComercial(COTACAO, CTX)).resolves.toBeTruthy();
     expect(mocks.$transaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lancamentoId — emitir documento fiscal deixa o campo preenchido (ADR-0034)
+// ---------------------------------------------------------------------------
+
+describe('lancamentoId fica gravado no documento emitido', () => {
+  let tx: ReturnType<typeof novaTx>;
+
+  beforeEach(() => {
+    comSessao(true);
+    tx = novaTx();
+    mocks.$transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx));
+  });
+
+  it('emitirFatura chama tx.fatura.update com o lancamentoId devolvido pelo lançamento', async () => {
+    await emitirFatura(FATURA, CTX);
+    expect(tx.fatura.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lancamentoId: 'lanc-1' }) }),
+    );
+  });
+
+  it('emitirNotaCredito chama tx.notaCredito.update com o lancamentoId', async () => {
+    await emitirNotaCredito(NOTA_CREDITO, CTX);
+    expect(tx.notaCredito.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lancamentoId: 'lanc-1' }) }),
+    );
+  });
+
+  it('emitirNotaDebito chama tx.notaDebito.update com o lancamentoId', async () => {
+    await emitirNotaDebito(NOTA_DEBITO, CTX);
+    expect(tx.notaDebito.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lancamentoId: 'lanc-1' }) }),
+    );
   });
 });

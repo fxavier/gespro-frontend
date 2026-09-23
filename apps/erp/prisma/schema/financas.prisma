@@ -183,6 +183,30 @@ enum StatusCotacaoComercial {
   CANCELADA
 }
 
+/// Estado de um exercício contabilístico (ADR-0033 §1).
+enum EstadoExercicio {
+  ABERTO
+  EM_ENCERRAMENTO
+  ENCERRADO_PROVISORIO
+  ENCERRADO
+}
+
+/// Estado de um período mensal (ADR-0033 §1).
+enum EstadoPeriodo {
+  ABERTO
+  FECHADO
+}
+
+/// Estado do apuramento periódico de IVA (ADR-0034 §7).
+/// APURADO → lançamento gerado, período pode fechar.
+/// ESTORNADO → versão cancelada por correcção (nova versão com versao+1).
+/// DECLARADO → entregue à AT; o período não pode reabrir (ADR-0033 §7).
+enum EstadoApuramentoIva {
+  APURADO
+  ESTORNADO
+  DECLARADO
+}
+
 // ---------------------------------------------------------------------------
 // CAIXA
 // ---------------------------------------------------------------------------
@@ -240,6 +264,74 @@ model MovimentoCaixa {
 // ---------------------------------------------------------------------------
 // CONTABILIDADE PGC-NIRF
 // ---------------------------------------------------------------------------
+
+/// Exercício contabilístico anual (ADR-0033 §1 e §3).
+/// Aberto automaticamente pelo cron de 1 de Dezembro; encadeia ao anterior via anteriorId.
+/// tenantId em todos os modelos: a tenant-extension deriva TENANT_MODELS do Prisma.dmmf.
+/// Nota: findUnique/update/delete NÃO são scoped — os serviços filtram por tenantId explicitamente.
+model ExercicioContabil {
+  id          String          @id @default(cuid())
+  tenantId    String
+  codigo      String          // "2026" — igual ao ano civil, salvo período especial
+  dataInicio  DateTime        // 2026-01-01 em Africa/Maputo
+  dataFim     DateTime        // 2026-12-31 em Africa/Maputo
+  estado      EstadoExercicio @default(ABERTO)
+  anteriorId  String?         // FK escalar ao exercício precedente (sem @relation — escalar)
+  criadoPorId String?         // FK User (escalar); pode ser nulo quando criado pelo cron
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  periodos    PeriodoContabil[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, estado])
+  @@index([tenantId, anteriorId])
+}
+
+/// Período contabilístico mensal dentro de um exercício (ADR-0033 §1).
+/// ordem 1..12 = Janeiro..Dezembro; ordem 13 = período de encerramento (ADR-0035 §2).
+/// O fecho escreve fechadoEm e fechadoPorId; a reabertura é registada em ReaberturaPeriodo.
+model PeriodoContabil {
+  id           String        @id @default(cuid())
+  tenantId     String
+  exercicioId  String
+  ordem        Int           // 1..12 = meses; 13 = período de encerramento
+  codigo       String        // "2026-01" … "2026-13"
+  dataInicio   DateTime
+  dataFim      DateTime
+  estado       EstadoPeriodo @default(ABERTO)
+  fechadoEm    DateTime?
+  fechadoPorId String?       // FK User (escalar); nulo enquanto aberto
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  exercicio    ExercicioContabil @relation(fields: [exercicioId], references: [id])
+  lancamentos  Lancamento[]
+  reaberturasRegistos ReaberturaPeriodo[]
+  apuramentosIva      ApuramentoIva[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, exercicioId, ordem])
+  @@index([tenantId, estado])
+}
+
+/// Registo imutável de cada reabertura de período (ADR-0033 §7). Append-only.
+/// Inclui keycloakSub e requestId para correlação com trilho de auditoria e registo estruturado.
+model ReaberturaPeriodo {
+  id             String   @id @default(cuid())
+  tenantId       String
+  periodoId      String   // FK PeriodoContabil
+  motivo         String
+  reabertoPorId  String   // FK User (escalar)
+  keycloakSub    String   // sub do Keycloak para correlação com trilho de auditoria
+  requestId      String?  // correlação com registo estruturado (ADR-0033 §8)
+  createdAt      DateTime @default(now())
+
+  periodo PeriodoContabil @relation(fields: [periodoId], references: [id])
+
+  @@index([tenantId, periodoId])
+  @@index([tenantId, createdAt])
+}
 
 /// Plano Geral de Contas (PGC-NIRF, Decreto 70/2009).
 /// Estrutura hierárquica por código e nível; seed populado a partir do xlsx oficial.
@@ -317,6 +409,7 @@ model Lancamento {
   tipo                String           // 'MANUAL' | 'AUTOMATICO'
   origem              OrigemLancamento
   diarioId            String
+  periodoId           String           // FK PeriodoContabil (ADR-0033 §1); estado final após backfill
   documentoOrigemId   String?          // FK polimórfico escalar
   documentoOrigemTipo String?
   historico           String
@@ -325,13 +418,17 @@ model Lancamento {
   // ATENÇÃO ao sentido: é o ESTORNO que guarda aqui o id do lançamento original.
   // O original não guarda nada — «quem estornou este?» é procura inversa.
   lancamentoEstornoId String?
-  periodoFiscal       String           // ex.: "2024-01" (YYYY-MM) para agrupamento
+  // periodoFiscal MANTÉM-SE: faz parte de @@unique e garante numeração sem lacunas por diário.
+  // Passa a ser cópia de periodo.codigo em vez de derivada da data.
+  // A invariante periodoFiscal === periodo.codigo fica por trancar no segundo tempo (ADR-0033 §1).
+  periodoFiscal       String           // ex.: "2026-01" (YYYY-MM); cópia de periodo.codigo
   observacoes         String?
   criadoPorId         String           // FK User (escalar)
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
   diario   Diario              @relation(fields: [diarioId], references: [id])
+  periodo  PeriodoContabil     @relation(fields: [periodoId], references: [id])
   partidas PartidaLancamento[]
 
   // Número é único por diário+período+tenant (sequencial por diário/exercício)
@@ -339,6 +436,7 @@ model Lancamento {
   @@index([tenantId, status])
   @@index([tenantId, data])
   @@index([tenantId, periodoFiscal])
+  @@index([tenantId, periodoId])
   @@index([tenantId, origem])
   @@index([tenantId, diarioId, data])
 }
@@ -363,6 +461,70 @@ model PartidaLancamento {
   @@index([tenantId, lancamentoId])
   @@index([tenantId, contaId])
   @@index([tenantId, contaId, tipo])
+}
+
+// ---------------------------------------------------------------------------
+// APURAMENTO DE IVA (ADR-0034)
+// ---------------------------------------------------------------------------
+
+/// Apuramento periódico do IVA. Append-only: correcção cria nova versão (versao+1).
+/// O apuramento fecha as contas 4432x/4433x/4434x contra 4435 e liquida 4435 para 4437/4438.
+/// Os totais e as linhas ficam gravados para reprodutibilidade dos mapas em 2031 sobre 2026.
+model ApuramentoIva {
+  id              String               @id @default(cuid())
+  tenantId        String
+  periodoId       String               // FK PeriodoContabil
+  versao          Int                  // 1 no primeiro; incrementa em correcção por estorno (ADR-0034 §7)
+  estado          EstadoApuramentoIva  @default(APURADO)
+  lancamentoId    String?              // FK Lancamento de apuramento gerado (escalar — sem @relation)
+
+  // Totais apurados — imutáveis; nova versão para correcção (ADR-0034 §9)
+  totalIvaLiquidado   Decimal          @db.Decimal(18, 2) // soma saldos credores 4433x
+  totalIvaDedutivel   Decimal          @db.Decimal(18, 2) // soma saldos devedores 4432x
+  totalRegularizacoes Decimal          @db.Decimal(18, 2) // líquido 4434x (+= a favor do Estado)
+  saldoApuramento     Decimal          @db.Decimal(18, 2) // saldo de 4435 antes de liquidar para 4437/4438
+  creditoReportado    Decimal          @db.Decimal(18, 2) @default(0) // valor transferido de 4438 do período anterior
+
+  // Declarado à AT (ADR-0034 §7; tranca reabertura do período — ADR-0033 §7)
+  declaradoPorId    String?            // FK User (escalar)
+  declaradoEm      DateTime?
+  referenciaEntrega String?            // referência da entrega (ex.: número da guia/DAS)
+
+  // Trilho de auditoria (ADR-0015 §3, ADR-0034 §9)
+  apuradoPorId  String                 // FK User (escalar)
+  keycloakSub   String                 // sub do Keycloak no momento do apuramento
+  requestId     String?                // correlação com registo estruturado (ADR-0033 §8)
+  createdAt     DateTime               @default(now())
+
+  periodo PeriodoContabil      @relation(fields: [periodoId], references: [id])
+  linhas  LinhaApuramentoIva[]
+
+  @@unique([tenantId, periodoId, versao]) // cada período tem uma versão activa por vez
+  @@index([tenantId, periodoId])
+  @@index([tenantId, estado])
+  @@index([tenantId, createdAt])
+}
+
+/// Linha de apuramento de IVA: detalhe por conta, com base e imposto gravados à data (ADR-0034 §9).
+/// Guarda código E nome da conta para garantir reprodutibilidade dos mapas em exercícios futuros
+/// (mesma razão do ADR-0033 §8.2: ContaPGC.nome é mutável).
+/// baseImponivel é nula para contas de regularização (4434x) e de apuramento/liquidação (4435/4437/4438).
+/// taxaAplicada e divergenciaBase permitem mostrar no mapa quando base×taxa ≠ imposto do razão.
+model LinhaApuramentoIva {
+  id              String      @id @default(cuid())
+  tenantId        String
+  apuramentoId    String
+  contaCodigo     String      // ex.: "44331" — código à data do apuramento
+  contaNome       String      // nome à data do apuramento (ContaPGC.nome é mutável)
+  tipoMovimento   TipoPartida // DEBITO | CREDITO no lançamento gerado
+  baseImponivel   Decimal?    @db.Decimal(18, 2) // nula para 4434x, 4435, 4437, 4438; calculada dos documentos
+  taxaAplicada    Decimal?    @db.Decimal(9, 6)  // taxa de IVA (0.160000 = 16 %); nula para regularizações
+  valorImposto    Decimal     @db.Decimal(18, 2) // valor da partida no lançamento (do razão)
+  divergenciaBase Decimal?    @db.Decimal(18, 2) // |base×taxa − valorImposto| > 0.01 → mostrar no mapa
+
+  apuramento ApuramentoIva @relation(fields: [apuramentoId], references: [id])
+
+  @@index([tenantId, apuramentoId])
 }
 
 // ---------------------------------------------------------------------------
@@ -480,6 +642,7 @@ model Fatura {
   serieDocumentoId String
   numero           String       // número formatado (ex.: FAT/2024/000001)
   clienteId        String       // FK cross-domínio (WS C) — escalar sem @relation
+  nuitCliente      String?      // NUIT congelado no momento da emissão (reprodutibilidade mapa IVA §8)
   vendaId          String?      // FK cross-domínio (WS C) — escalar sem @relation
   moeda            String       @default("MZN")
   subtotal         Decimal      @db.Decimal(18, 2)

@@ -17,15 +17,34 @@ vi.mock('@/server/services/financas/contabilidade.service', () => ({
   registarLancamentoContabilistico: vi.fn().mockResolvedValue({ id: 'lan-001' }),
 }));
 vi.mock('@/server/services/financas/faturacao.service', () => ({
-  proximoNumeroSerie: vi.fn().mockResolvedValue('PAG-2024-00001'),
+  proximoNumeroSerie: vi.fn().mockResolvedValue('CP-2026-00001'),
 }));
+
+// Fornecedor + ContaPGC base para testes de criar()
+const fornecedorMock = { nuit: '123456789', tenantId: 'tenant-test' };
+const contaPGCMock   = { codigo: '3111', tenantId: 'tenant-test' };
+
+// ContaPagar criada que o mock de tx.contaPagar.create devolve
+const contaCriadaMock = {
+  id: 'cp-novo', tenantId: 'tenant-test', numero: 'CP-2026-00001',
+  fornecedorId: 'for-1', descricao: 'Factura FRN-001', status: 'ABERTA',
+  valorOriginal: 116, valorPago: 0, valorRestante: 116,
+  dataEmissao: new Date('2026-02-10'), dataVencimento: new Date('2026-03-10'),
+  contaContabilId: 'pgc-id-1',
+  numeroDocumento: 'FRN-001', dataDocumento: new Date('2026-02-10'),
+  nuitFornecedor: '123456789', baseIva: 100, taxaIva: 0.16, valorIva: 16,
+  tipoAquisicao: 'INVENTARIOS',
+  fornecedor: { nome: 'Fornecedor A' }, pagamentos: [],
+};
 
 // Mock do Prisma
 vi.mock('@/server/db/client', () => ({
   prisma: {
     $transaction: vi.fn(async (fn: any) => fn({
-      contaPagar: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
-      pagamento: { create: vi.fn().mockResolvedValue({ id: 'pag-001', tenantId: 'tenant-test', numero: 'PAG-2024-00001', contaPagarId: 'cp-001', dataPagamento: new Date(), valor: 100, formaPagamento: 'Transferência', status: 'CONCLUIDO', createdAt: new Date() }), update: vi.fn() },
+      fornecedor:  { findUnique: vi.fn().mockResolvedValue(fornecedorMock) },
+      contaPGC:    { findUnique: vi.fn().mockResolvedValue(contaPGCMock) },
+      contaPagar:  { findUnique: vi.fn(), update: vi.fn(), create: vi.fn().mockResolvedValue(contaCriadaMock) },
+      pagamento:   { create: vi.fn().mockResolvedValue({ id: 'pag-001', tenantId: 'tenant-test', numero: 'CP-2026-00001', contaPagarId: 'cp-001', dataPagamento: new Date(), valor: 100, formaPagamento: 'Transferência', status: 'CONCLUIDO', createdAt: new Date() }), update: vi.fn() },
     })),
     contaPagar: {
       findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(),
@@ -399,5 +418,241 @@ describe('registarPagamento() — conta VENCIDA', () => {
     expect(mockContaPagarUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'PAGA' }) }),
     );
+  });
+});
+
+// =====================================================================
+// criar() — reconhecimento da dívida + IVA dedutível (ADR-0034 §1)
+// =====================================================================
+
+// Input base partilhado pelos testes de criar()
+const inputBase = {
+  fornecedorId: 'for-1',
+  descricao: 'Factura FRN-001',
+  valorOriginal: 116,
+  dataEmissao: new Date('2026-02-10'),
+  dataVencimento: new Date('2026-03-10'),
+  contaContabilId: 'pgc-id-1',
+};
+
+describe('contaPagarService.criar() — reconhecimento (ADR-0034 §1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('CONTA_CONTABIL_OBRIGATORIA quando contaContabilId está ausente', async () => {
+    const { contaPagarService } = await import('../conta-pagar.service');
+    const inputSemConta = { ...inputBase, contaContabilId: undefined };
+    await expect(
+      contaPagarService.criar(inputSemConta as any, ctx),
+    ).rejects.toMatchObject({ code: 'CONTA_CONTABIL_OBRIGATORIA' });
+  });
+
+  it('DOCUMENTO_FORNECEDOR_INCOMPLETO quando tipoAquisicao presente mas numeroDocumento ausente', async () => {
+    const { contaPagarService } = await import('../conta-pagar.service');
+    await expect(
+      contaPagarService.criar(
+        { ...inputBase, tipoAquisicao: 'INVENTARIOS', baseIva: 100, valorIva: 16 } as any,
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'DOCUMENTO_FORNECEDOR_INCOMPLETO' });
+  });
+
+  it('cria conta sem IVA: lançamento D gasto(total) / C 421(total)', async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+    const contaSemIvaMock = { ...contaCriadaMock, tipoAquisicao: null, baseIva: null, valorIva: null };
+    db.$transaction.mockImplementation(async (fn: any) =>
+      fn({
+        fornecedor: { findUnique: vi.fn().mockResolvedValue(fornecedorMock) },
+        contaPGC:   { findUnique: vi.fn().mockResolvedValue(contaPGCMock) },
+        contaPagar: { create: vi.fn().mockResolvedValue(contaSemIvaMock), update: vi.fn(), findUnique: vi.fn() },
+        pagamento:  { create: vi.fn(), update: vi.fn() },
+      }),
+    );
+
+    const { contaPagarService } = await import('../conta-pagar.service');
+    const { registarLancamentoContabilistico } = await import('@/server/services/financas/contabilidade.service');
+    const mockLan = registarLancamentoContabilistico as any;
+    mockLan.mockResolvedValue({ id: 'lan-sem-iva' });
+
+    await contaPagarService.criar({ ...inputBase }, ctx);
+
+    expect(mockLan).toHaveBeenCalledOnce();
+    const chamada = mockLan.mock.calls[0][1];
+    // Apenas duas partidas: D gasto / C 421
+    expect(chamada.partidas).toHaveLength(2);
+    const debito = chamada.partidas.find((p: any) => p.tipo === 'DEBITO');
+    const credito = chamada.partidas.find((p: any) => p.tipo === 'CREDITO');
+    expect(debito.contaCodigo).toBe(contaPGCMock.codigo);
+    expect(credito.contaCodigo).toBe('421');
+    expect(String(debito.valor)).toBe(String(inputBase.valorOriginal));
+    expect(String(credito.valor)).toBe(String(inputBase.valorOriginal));
+  });
+
+  it.each([
+    ['INVENTARIOS',          '44321', 100, 16],
+    ['ATIVOS',               '44322', 200, 32],
+    ['OUTROS_BENS_SERVICOS', '44323', 500, 80],
+  ] as const)(
+    'cria conta com tipoAquisicao=%s → conta IVA %s correcta',
+    async (tipoAquisicao, codigoIva, baseIva, valorIva) => {
+      const { prisma } = await import('@/server/db/client');
+      const db = prisma as any;
+      const valorOriginal = baseIva + valorIva;
+      const contaMockLocal = { ...contaCriadaMock, tipoAquisicao, baseIva, valorIva, valorOriginal };
+      db.$transaction.mockImplementation(async (fn: any) =>
+        fn({
+          fornecedor: { findUnique: vi.fn().mockResolvedValue(fornecedorMock) },
+          contaPGC:   { findUnique: vi.fn().mockResolvedValue(contaPGCMock) },
+          contaPagar: { create: vi.fn().mockResolvedValue(contaMockLocal), update: vi.fn(), findUnique: vi.fn() },
+          pagamento:  { create: vi.fn(), update: vi.fn() },
+        }),
+      );
+
+      const { contaPagarService } = await import('../conta-pagar.service');
+      const { registarLancamentoContabilistico } = await import('@/server/services/financas/contabilidade.service');
+      const mockLan = registarLancamentoContabilistico as any;
+      mockLan.mockResolvedValue({ id: `lan-${tipoAquisicao}` });
+
+      await contaPagarService.criar(
+        { ...inputBase, valorOriginal, tipoAquisicao, baseIva, valorIva, taxaIva: 0.16, numeroDocumento: 'FRN-X' },
+        ctx,
+      );
+
+      const chamada = mockLan.mock.calls[0][1];
+      expect(chamada.partidas).toHaveLength(3);
+
+      const [dGasto, dIva, c421] = [
+        chamada.partidas.find((p: any) => p.tipo === 'DEBITO' && p.contaCodigo === contaPGCMock.codigo),
+        chamada.partidas.find((p: any) => p.tipo === 'DEBITO' && p.contaCodigo === codigoIva),
+        chamada.partidas.find((p: any) => p.tipo === 'CREDITO' && p.contaCodigo === '421'),
+      ];
+      expect(dGasto).toBeDefined();
+      expect(dIva).toBeDefined();
+      expect(c421).toBeDefined();
+      // Invariante débitos = créditos
+      expect(Number(dGasto.valor) + Number(dIva.valor)).toBeCloseTo(Number(c421.valor), 5);
+    },
+  );
+
+  it('data do lançamento é dataDocumento, não dataEmissao', async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+    const dataDocumento = new Date('2026-01-31'); // período diferente de dataEmissao
+    const dataEmissao   = new Date('2026-02-10');
+    db.$transaction.mockImplementation(async (fn: any) =>
+      fn({
+        fornecedor: { findUnique: vi.fn().mockResolvedValue(fornecedorMock) },
+        contaPGC:   { findUnique: vi.fn().mockResolvedValue(contaPGCMock) },
+        contaPagar: { create: vi.fn().mockResolvedValue(contaCriadaMock), update: vi.fn(), findUnique: vi.fn() },
+        pagamento:  { create: vi.fn(), update: vi.fn() },
+      }),
+    );
+
+    const { contaPagarService } = await import('../conta-pagar.service');
+    const { registarLancamentoContabilistico } = await import('@/server/services/financas/contabilidade.service');
+    const mockLan = registarLancamentoContabilistico as any;
+    mockLan.mockResolvedValue({ id: 'lan-data' });
+
+    await contaPagarService.criar({ ...inputBase, dataEmissao, dataDocumento }, ctx);
+
+    const chamada = mockLan.mock.calls[0][1];
+    expect(chamada.data).toEqual(dataDocumento);
+    expect(chamada.data).not.toEqual(dataEmissao);
+  });
+
+  it('liquidação (registarPagamento) continua D 421 / C 121 sem tocar em IVA', async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+
+    const contaMock = {
+      id: 'cp-liq', tenantId: 'tenant-test', status: 'ABERTA',
+      valorOriginal: 116, valorPago: 0, valorRestante: 116,
+      descricao: 'Factura com IVA', pagamentos: [],
+    };
+    const pagamentoMock = {
+      id: 'pag-liq', numero: 'PAG-2026-LIQ', dataPagamento: new Date(),
+      valor: 116, formaPagamento: 'TRF', referencia: null, status: 'CONCLUIDO', lancamentoId: null,
+    };
+    db.$transaction.mockImplementation(async (fn: any) =>
+      fn({
+        contaPagar: {
+          findUnique: vi.fn().mockResolvedValue(contaMock),
+          update: vi.fn().mockResolvedValue({ ...contaMock, status: 'PAGA' }),
+        },
+        pagamento: {
+          create: vi.fn().mockResolvedValue(pagamentoMock),
+          update: vi.fn().mockResolvedValue({ ...pagamentoMock, lancamentoId: 'lan-001' }),
+        },
+      }),
+    );
+
+    const { contaPagarService } = await import('../conta-pagar.service');
+    const { registarLancamentoContabilistico } = await import('@/server/services/financas/contabilidade.service');
+    const mockLan = registarLancamentoContabilistico as any;
+    mockLan.mockResolvedValue({ id: 'lan-pag' });
+
+    await contaPagarService.registarPagamento(
+      { contaPagarId: 'cp-liq', dataPagamento: new Date(), valor: 116, formaPagamento: 'TRF' },
+      ctx,
+    );
+
+    expect(mockLan).toHaveBeenCalledOnce();
+    const partidas = mockLan.mock.calls[0][1].partidas;
+    // Apenas D 421 / C 121 — sem contas 4432x
+    expect(partidas).toHaveLength(2);
+    expect(partidas.find((p: any) => p.contaCodigo === '421' && p.tipo === 'DEBITO')).toBeDefined();
+    expect(partidas.find((p: any) => p.contaCodigo === '121' && p.tipo === 'CREDITO')).toBeDefined();
+    expect(partidas.find((p: any) => p.contaCodigo.startsWith('4432'))).toBeUndefined();
+  });
+});
+
+// =====================================================================
+// lancarReconhecimentoDivida() — função partilhada (ADR-0034 §1)
+// Testa a lógica de reconhecimento isolada do fluxo de criar()
+// para validar o que registarRecepcao usará quando tiver contaContabilId.
+// =====================================================================
+
+describe('lancarReconhecimentoDivida() — lançamento equilibrado sem 4432x', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('sem tipoAquisicao: D gasto(total) / C 421(total) — equilibrado, sem 4432x', async () => {
+    const mockTx = {} as any; // lancarReconhecimentoDivida não faz lookups — só constrói partidas
+
+    const { registarLancamentoContabilistico } = await import('@/server/services/financas/contabilidade.service');
+    const mockLan = registarLancamentoContabilistico as any;
+    mockLan.mockResolvedValue({ id: 'lan-reconh' });
+
+    const { lancarReconhecimentoDivida } = await import('../conta-pagar.service');
+    await lancarReconhecimentoDivida(
+      mockTx,
+      {
+        contaPagarId:  'cp-r-1',
+        numero:        'CP-2026-00001',
+        descricao:     'Compra via pedido PED-001',
+        contaCodigo:   '211',
+        valorOriginal: 1000,
+        tipoAquisicao: null,
+        baseIva:       null,
+        valorIva:      null,
+        dataLancamento: new Date('2026-02-15'),
+      },
+      ctx,
+    );
+
+    expect(mockLan).toHaveBeenCalledOnce();
+    const chamada = mockLan.mock.calls[0][1];
+
+    // Equilibrado: débitos = créditos
+    const totalDebito  = chamada.partidas.filter((p: any) => p.tipo === 'DEBITO').reduce((s: number, p: any) => s + Number(p.valor), 0);
+    const totalCredito = chamada.partidas.filter((p: any) => p.tipo === 'CREDITO').reduce((s: number, p: any) => s + Number(p.valor), 0);
+    expect(totalDebito).toBeCloseTo(totalCredito, 5);
+
+    // Apenas 2 partidas: D gasto / C 421 — sem 4432x
+    expect(chamada.partidas).toHaveLength(2);
+    expect(chamada.partidas.find((p: any) => p.contaCodigo.startsWith('4432'))).toBeUndefined();
+    expect(chamada.partidas.find((p: any) => p.contaCodigo === '421' && p.tipo === 'CREDITO')).toBeDefined();
+    expect(chamada.partidas.find((p: any) => p.contaCodigo === '211' && p.tipo === 'DEBITO')).toBeDefined();
   });
 });

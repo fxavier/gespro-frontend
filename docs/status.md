@@ -1,5 +1,35 @@
 # Estado do Programa de Modernização — GestPro ERP
 
+## 🔄 Ciclo contabilístico e fiscal (ADR-0033/0034/0035) — Fases 0 e 1 feitas (2026-09-19)
+
+Ramo `ciclo-contabilistico`. Os três ADRs estão **`Proposto`** — passá-los a `Aceite` é acto humano, e
+a parte legal do ADR-0034 (Lei n.º 10/2025) continua por conferir contra o Boletim da República
+([issue #64](https://github.com/fxavier/gespro-frontend/issues/64), `needs-info`).
+
+| Fase | Estado | Notas de gate |
+|---|---|---|
+| 0 — os três achados do ADR-0033 | ✅ `16005a7` | Estorno que invertia o balancete em vez de o zerar; rascunhos contados nos mapas; DRE a zero por prefixos com ponto contra códigos PGC sem ponto. Corrigir o terceiro destapou mais três defeitos que os zeros escondiam: duplo cômputo da classe 78, classes 68/69 trocadas contra o plano (a linha «Impostos» mostrava juros), e o `.abs()` a apresentar reversões de gasto como gasto |
+| 1 — exercício, período e trancamento | ✅ `d6666cc` · `80b12e6` · `cd509d4` | REJEITADO (BLOCKER: schemas Zod com `cuid()` contra períodos uuid do backfill — nenhum período existente podia ser fechado; 9 MAJOR) → corrigido → APROVADO. Migration com backfill em três tempos sobre 100 271 lançamentos: 0 órfãos, 0 divergências. Trancamento `FOR SHARE`/`FOR UPDATE` provado contra Postgres real nos dois entrelaçamentos. §4 tocou **17** chamadores, não os «quatro» que o ADR conta |
+
+**Dívida declarada, por ordem de quem a fecha:**
+
+- **O fecho de período não grava o balancete tal como estava ao fechar (ADR-0033 §8.2), nem
+  correlaciona por `requestId`/`keycloakSub` (§8.4).** Precisa de coluna nova e entra com o
+  `EncerramentoExercicio` do ADR-0035, que guarda a mesma espécie de fotografia pela mesma razão
+  (`ContaPGC` é mutável no nome: um balancete recalculado em 2031 devolve outras etiquetas).
+  **Não é impeditivo do merge nem da Fase 2; é impeditivo do primeiro fecho real.**
+- **A sétima pré-condição de fecho — apuramento do IVA feito — está ausente de propósito**
+  (ADR-0033 §6, depende do `ApuramentoIva` da Fase 2). Declarada em comentário nos dois sítios
+  (`fecharPeriodo` e `reabrirPeriodo`); a lista não finge estar completa.
+- **`pnpm test:integration` salta em silêncio e devolve exit 0** quando o Testcontainers não
+  arranca — foi assim que o teste de concorrência da Fase 1 chegou a dar-se por verificado sem
+  nunca ter corrido. Localmente falha com `Expected Reaper to map exposed port 8080` em Docker
+  Desktop. No CI corre (job próprio, Ryuk desactivado, *status check* obrigatório). Enquanto for
+  assim, «integração verde» em local não quer dizer nada.
+- **`ExercicioContabil.criadoPorId` distingue autoria por uma sentinela** (`ctx.userId === 'cron'`)
+  em vez de um campo próprio. Funciona; é frágil.
+
+
 ## ✅ Wave 7 — Funcionalidades em falta (specs wave-7/01–06) COMPLETA (2026-07-24)
 Auditoria ao código revelou que **quase todo o backend já existia** — o trabalho foi *last-mile* (rotas em falta, ligar UI a actions reais, de-mock) + **uma peça de infra nova: storage de objetos S3 com presigned URLs**. 6 agentes `feat-*` em paralelo (1 worktree cada), plugin `rtk`. Ordem de merge determinística: **doc-core → stock → rh-formacoes → ativos → fornecedores → transporte** — **zero conflitos** (`state-machines.ts` auto-mergiu; deltas de schema herdados do doc-core, ancestral comum). `pnpm check` verde (**1199 testes**, de 1148 na Wave 6), `pnpm gates` verde, `pnpm build` verde (2 apps), migração `2000_wave7` aplicada, seed completo. **`pnpm e2e` (contra build de produção): 36/37** — os 3 fluxos novos com mutação (criar formação, saída de stock com `STOCK_INSUFICIENTE`, entrega ponta-a-ponta criar→atribuir→transitar→prova) passam. **1 falha pré-existente** (`02-requisicao`, o bug conhecido do interceptor `@panel/(.)[id]` que captura `novo` em build de produção — herdado do golden standard, documentado desde a Wave 5, **não é regressão da Wave 7**). Os testes E2E novos falharam à primeira só por matcher/selector (número `ENT/2026/…` vs `/ENT-/`; `getByLabel('Produto')` ambíguo) — corrigidos no orquestrador; o produto estava correto.
 

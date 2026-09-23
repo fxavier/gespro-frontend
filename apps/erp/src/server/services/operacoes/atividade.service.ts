@@ -211,7 +211,7 @@ async function transitarAtividade(
 
 async function criarAtividade(input: CriarAtividadeInput, ctx: Ctx): Promise<AtividadeDetalhe> {
   const atividade = await prismaBase.$transaction(async (tx) => {
-    const codigo = await proximoNumeroSerie(tx, 'ATIVIDADE', ctx);
+    const codigo = await proximoNumeroSerie(tx, 'ATIVIDADE', ctx, new Date());
 
     const created = await tx.atividade.create({
       data: {

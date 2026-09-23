@@ -53,6 +53,9 @@ export const StatusPagamentoEnum = z.enum([
   'CANCELADO',
 ]);
 
+// ADR-0034 §1 — tipo de aquisição para IVA dedutível (44321/44322/44323)
+export const TipoAquisicaoIvaEnum = z.enum(['INVENTARIOS', 'ATIVOS', 'OUTROS_BENS_SERVICOS']);
+
 // ---- Sub-schemas reutilizáveis ----
 
 const positivoDecimal = z.number().positive('Valor deve ser positivo');
@@ -338,8 +341,18 @@ export const CreateContaPagarSchema = z.object({
   dataEmissao: z.coerce.date(),
   dataVencimento: z.coerce.date(),
   centroCustoId: z.string().optional(),
+  // contaContabilId é obrigatório em runtime (serviço lança CONTA_CONTABIL_OBRIGATORIA se ausente)
+  // mas permanece opcional no schema para não quebrar formulários legacy antes da migração de UI.
   contaContabilId: z.string().optional(),
   observacoes: z.string().max(2000).optional(),
+  // Bloco fiscal — ADR-0034 §1
+  // numeroDocumento obrigatório quando tipoAquisicao presente (serviço lança DOCUMENTO_FORNECEDOR_INCOMPLETO)
+  numeroDocumento: z.string().max(100).optional(),
+  dataDocumento: z.coerce.date().optional(),
+  baseIva: naoNegativoDecimal.optional(),
+  taxaIva: naoNegativoDecimal.optional(),
+  valorIva: naoNegativoDecimal.optional(),
+  tipoAquisicao: TipoAquisicaoIvaEnum.optional(),
 }).refine(
   (d) => d.dataVencimento >= d.dataEmissao,
   { message: 'Data de vencimento deve ser igual ou posterior à data de emissão' },

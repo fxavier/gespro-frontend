@@ -155,7 +155,7 @@ export async function abrirContagem(
 
   // Cria a contagem + itens dentro de $transaction (prismaBase = raw client)
   const resultado = await prismaBase.$transaction(async (tx) => {
-    const numero = await proximoNumeroSerie(tx, 'CONTAGEM_STOCK', ctx);
+    const numero = await proximoNumeroSerie(tx, 'CONTAGEM_STOCK', ctx, new Date());
 
     const contagem = await tx.contagemStock.create({
       data: {

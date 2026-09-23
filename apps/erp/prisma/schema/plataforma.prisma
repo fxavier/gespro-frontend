@@ -62,6 +62,37 @@ model ConfiguracaoFiscal {
   /// Referência à assinatura digital qualificada para documentos fiscais.
   assinaturaDigital String?
 
+  // --- Calendário contabilístico (ADR-0033 §3 e decisão de produto: configurar o automatismo) ---
+  //
+  // `aberturaExercicioAutomatica` preserva o comportamento que já existe hoje (cron a 1 de
+  // Dezembro). O default é TRUE para que tenants já existentes continuem a receber o exercício
+  // novo sem acção manual — mudar o default para FALSE em silêncio deixava-os sem exercício
+  // a 1 de Janeiro (o mesmo modo de falha que os comentários das SERIES_INICIAIS descrevem).
+  //
+  // `diaAberturaExercicio` + `mesAberturaExercicio` substituem a data fixa do crontab (0 2 1 12 *)
+  // por valores por tenant. Defaults = 1 e 12, preservando o comportamento de hoje.
+  // Dia limitado a 1-28: Fevereiro tem 28 dias no mínimo; um dia 29-31 nunca dispararia nesse
+  // mês, criando uma armadilha silenciosa (o exercício fica por criar até ao cron do dia seguinte
+  // ou à intervenção manual).
+  //
+  // `fechoPeriodoAutomatico` guarda-se mas NÃO se implementa nesta fase. A pré-condição 7 do
+  // ADR-0033 §6 — apuramento do IVA feito (ADR-0034, Fase 2) — ainda não existe. Um cron que
+  // feche períodos hoje passaria por cima dessa verificação em silêncio, carimbando exactamente
+  // o erro que o ADR-0033 existe para impedir. Quando o ADR-0034 for implementado e a
+  // pré-condição 7 estiver em `fecharPeriodo`, a flag pode ser activada.
+  //
+  // `diasAposFimDoMesParaFechoAutomatico` guarda-se para quando o fecho automático for activado.
+  /// Quando TRUE (default), o cron cria o exercício seguinte na data configurada pelo tenant.
+  aberturaExercicioAutomatica          Boolean @default(true)
+  /// Dia do mês em que o cron tenta criar o exercício seguinte (1-28; default 1 = primeiro do mês).
+  diaAberturaExercicio                 Int     @default(1)
+  /// Mês do ano em que o cron tenta criar o exercício seguinte (1-12; default 12 = Dezembro).
+  mesAberturaExercicio                 Int     @default(12)
+  /// Guardado para uso futuro — fecho automático de períodos ainda não implementado (ver comentário acima).
+  fechoPeriodoAutomatico               Boolean @default(false)
+  /// Quantos dias após o fim do mês se tentará o fecho automático, quando activado (0-60; default 10).
+  diasAposFimDoMesParaFechoAutomatico  Int     @default(10)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

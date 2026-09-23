@@ -274,6 +274,7 @@ export class VendaService implements IVendaService {
         tx as Prisma.TransactionClient,
         'VENDA' as TipoSerieDocumento,
         ctx,
+        input.dataVenda ?? new Date(),
       );
 
       // 3b. Resolver armazém padrão do tenant (usado em POS e ENCOMENDA)

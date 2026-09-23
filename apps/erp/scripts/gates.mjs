@@ -2,11 +2,12 @@
 /**
  * Gates CI — GestPro
  *
- * Executa os 4 gates de qualidade em sequência:
+ * Executa os 5 gates de qualidade em sequência:
  *   1. Dialog fora de AlertDialog (gate-dialog)
  *   2. 'use client' em page.tsx de listagem/detalhe (gate-use-client)
  *   3. imports de @/data/ em src/app/ (gate-data-imports)
  *   4. Server Actions que não decidem o que fazem em Leitura (gate-leitura)
+ *   5. Escrita directa em Lancamento/PartidaLancamento fora de contabilidade.service (gate-periodo)
  *
  * Exit code 0 = todos passam; 1 = pelo menos um falhou.
  *
@@ -26,6 +27,7 @@ const GATES = [
   { name: 'use-client', script: join(__dirname, 'gate-use-client.mjs') },
   { name: 'data-imports', script: join(__dirname, 'gate-data-imports.mjs') },
   { name: 'leitura', script: join(__dirname, 'gate-leitura.mjs') },
+  { name: 'periodo', script: join(__dirname, 'gate-periodo.mjs') },
 ];
 
 let allPassed = true;

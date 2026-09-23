@@ -81,11 +81,19 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'financas:ver',                   descricao: 'Consultar lançamentos e relatórios' },
   { code: 'financas:lancar',                descricao: 'Efectuar lançamentos contabilísticos' },
   { code: 'financas:fechar_periodo',        descricao: 'Fechar período contabilístico' },
+  { code: 'financas:periodo:reabrir',       descricao: 'Reabrir período contabilístico fechado (requer motivo)' },
+  { code: 'financas:exercicio:abrir',       descricao: 'Abrir exercício contabilístico para um novo ano' },
   { code: 'financas:fechar_caixa',          descricao: 'Fechar caixa diário' },
   { code: 'financas:conciliar',             descricao: 'Conciliar extractos bancários' },
   { code: 'financas:exportar',              descricao: 'Exportar relatórios financeiros' },
   { code: 'financas:configurar',            descricao: 'Configurar plano de contas' },
   { code: 'financas:leitura',               descricao: 'Leitura geral do módulo financeiro' },
+  // Apuramento periódico do IVA (ADR-0034). `mapas` é leitura: exportar em modo de
+  // Leitura é garantia do ADR-0032, e o mapa de IVA é dos documentos que o cliente
+  // mais precisa de levar consigo quando a subscrição acaba.
+  { code: 'financas:iva:apurar',            descricao: 'Apurar o IVA de um período' },
+  { code: 'financas:iva:declarar',          descricao: 'Marcar o apuramento como declarado à AT (tranca a reabertura do período)' },
+  { code: 'financas:iva:mapas',             descricao: 'Consultar e exportar os mapas de suporte à Declaração Periódica' },
   { code: 'financas:lancamentos:escrita',   descricao: 'Criar e editar lançamentos contabilísticos' },
   { code: 'financas:lancamentos:confirmar', descricao: 'Confirmar lançamentos pendentes' },
   { code: 'financas:lancamentos:estornar',  descricao: 'Estornar lançamentos confirmados' },
@@ -382,6 +390,7 @@ function isReadOnly(code: string): boolean {
     'core_tenancy:ver',
     'admin:ver_utilizadores', 'admin:ver_auditoria', 'admin:ver_integracoes',
     'financas:relatorios:leitura',
+    'financas:iva:mapas',
     'ativos:read',
     'rh:colaboradores:read', 'rh:assiduidade:read', 'rh:recrutamento:read', 'rh:beneficios:read',
     'projetos:read', 'projetos:tarefas:read', 'projetos:timesheets:read',
@@ -406,6 +415,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
   // FINANCEIRO — contabilidade, faturação, caixa + leituras gerais
   FINANCEIRO: allCodes().filter((code) => {
+    // Permissões sensíveis que o FINANCEIRO não tem: só ADMIN/roles específicos
+    if (['financas:periodo:reabrir', 'financas:exercicio:abrir'].includes(code)) return false;
     if (code.startsWith('financas:')) return true;
     if (code.startsWith('faturacao:')) return true;
     if (code.startsWith('caixa:')) return true;
@@ -460,6 +471,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
       'core_tenancy:configurar',
       'financas:plano-contas:escrita',
       'financas:fechar_periodo',
+      'financas:periodo:reabrir',
+      'financas:iva:declarar',
       'financas:lancamentos:estornar',
       'faturacao:series:escrita',
       'rh:colaboradores:delete',

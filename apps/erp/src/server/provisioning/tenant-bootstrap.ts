@@ -172,24 +172,49 @@ export const SERIES_INICIAIS: Array<{ tipo: string; prefixo: string }> = [
   { tipo: 'NOTA_DEVOLUCAO', prefixo: 'NDV' },
 ];
 
+/** Ano corrente no fuso Africa/Maputo (UTC+2, fixo). */
+function anoEmMaputo(agora = new Date()): number {
+  return parseInt(
+    new Intl.DateTimeFormat('pt', { timeZone: 'Africa/Maputo', year: 'numeric' }).format(agora),
+    10,
+  );
+}
+
+/** Mês corrente (1-12) no fuso Africa/Maputo. */
+function mesEmMaputo(agora = new Date()): number {
+  return parseInt(
+    new Intl.DateTimeFormat('pt', { timeZone: 'Africa/Maputo', month: 'numeric' }).format(agora),
+    10,
+  );
+}
+
 export async function bootstrapSeriesDocumento(
   tx: BootstrapClient,
   tenantId: string,
-  ano: number = new Date().getFullYear(),
+  ano: number = anoEmMaputo(),
 ): Promise<number> {
-  const r = await tx.serieDocumento.createMany({
-    data: SERIES_INICIAIS.map((s) => ({
-      tenantId,
-      tipo: s.tipo as never,
-      prefixo: s.prefixo,
-      ano,
-      formatoNumero: '{prefixo}/{ano}/{numero:06}',
-      ativo: true,
-      proximoNumero: 1,
-    })),
-    skipDuplicates: true,
-  });
-  return r.count;
+  const anos = [ano];
+  // Em Dezembro cria já o ano seguinte para evitar que o cron de 1/12 seja o único caminho
+  // ponytail: só criamos 2 anos se estivermos em Dezembro; YAGNI para outros cenários
+  if (mesEmMaputo() === 12) anos.push(ano + 1);
+
+  let total = 0;
+  for (const a of anos) {
+    const r = await tx.serieDocumento.createMany({
+      data: SERIES_INICIAIS.map((s) => ({
+        tenantId,
+        tipo: s.tipo as never,
+        prefixo: s.prefixo,
+        ano: a,
+        formatoNumero: '{prefixo}/{ano}/{numero:06}',
+        ativo: true,
+        proximoNumero: 1,
+      })),
+      skipDuplicates: true,
+    });
+    total += r.count;
+  }
+  return total;
 }
 
 // ---------------------------------------------------------------------------

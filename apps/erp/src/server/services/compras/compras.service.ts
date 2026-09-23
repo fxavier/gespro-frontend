@@ -11,6 +11,7 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
 import { entradaStock } from '@/server/services/inventario/stock.service';
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
+import { lancarReconhecimentoDivida } from './conta-pagar.service';
 import type {
   IComprasService,
   RequisicaoCompraDetalhe,
@@ -51,6 +52,20 @@ import type { FilterCotacaoSchema } from '@/lib/validations/compras';
 // Cast para PrismaClient: fornece tipagem completa de todos os modelos gerados.
 // A extensão (tenant + audit) continua activa em runtime — só o tipo muda.
 const db = prisma as unknown as PrismaClient;
+
+// ---------------------------------------------------------------------------
+// Contas PGC-NIRF usadas na contabilização das compras (códigos do seed
+// plano-contas-pgc.json). Contas estáveis — parametrização por tenant é
+// extensão futura (ConfiguracaoContabil), alinhado com PGC_PAYROLL.
+// ---------------------------------------------------------------------------
+export const PGC_COMPRAS = {
+  /** 211 — Mercadorias (existências; débito no reconhecimento de recepção) */
+  MERCADORIAS: '211',
+  /** 421 — Fornecedores c/c (passivo; crédito no reconhecimento, débito na liquidação) */
+  FORNECEDORES_CC: '421',
+  /** 121 — Depósitos à ordem (activo; crédito na liquidação) */
+  BANCO_DEPOSITOS_ORDEM: '121',
+} as const;
 
 // =====================================================================
 // Funções puras — exportadas para testes (state machines + quórum)
@@ -297,7 +312,7 @@ export const comprasService: IComprasService = {
     const valorTotal = input.itens.reduce((s, i) => s + subtotal(i), 0);
 
     const numero = await prisma.$transaction(async (tx) =>
-      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'REQUISICAO_COMPRA', ctx),
+      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'REQUISICAO_COMPRA', ctx, input.data ?? new Date()),
     );
 
     const requisicao = await db.requisicaoCompra.create({
@@ -545,7 +560,7 @@ export const comprasService: IComprasService = {
 
   async criarCotacao(input: CreateCotacaoInput, ctx: Ctx) {
     const numero = await prisma.$transaction(async (tx) =>
-      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'COTACAO_RFQ', ctx),
+      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'COTACAO_RFQ', ctx, new Date()),
     );
 
     const cotacao = await db.cotacao.create({
@@ -706,7 +721,7 @@ export const comprasService: IComprasService = {
     })));
 
     const numero = await prisma.$transaction(async (tx) =>
-      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx),
+      proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx, input.data ?? new Date()),
     );
 
     const pedido = await db.pedidoCompra.create({
@@ -770,7 +785,7 @@ export const comprasService: IComprasService = {
     }));
 
     const totais = calcularTotaisPedido(itensPedido);
-    const numero = await prisma.$transaction(async (tx) => proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx));
+    const numero = await prisma.$transaction(async (tx) => proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx, new Date()));
 
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as PrismaClient;
@@ -950,23 +965,79 @@ export const comprasService: IComprasService = {
 
       await tx.pedidoCompra.update({ where: { id: input.pedidoCompraId }, data: { status: novoStatus } });
 
-      // Se RECEBIDO_TOTAL → criar ContaPagar
+      // Se RECEBIDO_TOTAL → criar ContaPagar + lançamento de reconhecimento (ADR-0034 §1)
       if (novoStatus === 'RECEBIDO_TOTAL') {
-        const numCP = await proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx);
-        await tx.contaPagar.create({
+        const dataEmissaoCP = new Date();
+        const numCP = await proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx, dataEmissaoCP);
+        const descricaoCP = `Compra via pedido ${pedido.numero}`;
+
+        // Carregar fornecedor para copiar o NUIT no momento do registo (ADR-0034 §1)
+        const fornecedorCP = await tx.fornecedor.findUnique({
+          where: { id: pedido.fornecedorId },
+          select: { nuit: true },
+        });
+
+        // O PedidoCompra tem valorSubtotal, valorIva e taxaIva — preenchemos o bloco fiscal
+        // para que fique disponível ao apuramento. tipoAquisicao fica null: sem o número da
+        // factura do fornecedor (que costuma chegar depois da mercadoria) a dedução não pode
+        // ser registada (ver ADR-0034 §1 e a guarda DOCUMENTO_FORNECEDOR_INCOMPLETO).
+        //
+        // LACUNA DECLARADA: não existe hoje um caminho para completar o bloco fiscal
+        // (preencher tipoAquisicao, numeroDocumento) quando a factura chega e registar
+        // retroactivamente o D 4432x. O ADR-0034 §1 antecipa que um modelo FaturaFornecedor
+        // separado "seria o desenho de domínio correcto" e foi adiado por proporção.
+        // Até esse caminho existir, as compras via recebimento não geram IVA dedutível.
+        const contaCriada = await tx.contaPagar.create({
           data: {
-            tenantId: ctx.tenantId, numero: numCP,
+            tenantId: ctx.tenantId,
+            numero: numCP,
             fornecedorId: pedido.fornecedorId,
             pedidoCompraId: input.pedidoCompraId,
-            descricao: `Compra via pedido ${pedido.numero}`,
+            descricao: descricaoCP,
             valorOriginal: pedido.valorTotal,
             valorPago: 0,
             valorRestante: pedido.valorTotal,
-            dataEmissao: new Date(),
-            dataVencimento: new Date(Date.now() + pedido.prazoEntregaDias * 86400000),
+            dataEmissao: dataEmissaoCP,
+            dataVencimento: new Date(Date.now() + pedido.prazoEntregaDias * 86_400_000),
             status: 'ABERTA',
+            nuitFornecedor: fornecedorCP?.nuit ?? null,
+            baseIva:   pedido.valorSubtotal,
+            taxaIva:   pedido.taxaIva,
+            valorIva:  pedido.valorIva,
+            tipoAquisicao: null,  // sem factura do fornecedor não há dedução
+            numeroDocumento: null,
+            dataDocumento:   null,
           },
         });
+
+        // Lançamento de reconhecimento: D 211 Mercadorias / C 421 Fornecedores c/c
+        // Conta de débito: PGC_COMPRAS.MERCADORIAS ('211') — padrão do produto
+        // para recepção de mercadoria, sem configuração de tenant (ver PGC_PAYROLL).
+        //
+        // Sem IVA dedutível: a factura do fornecedor costuma chegar depois da
+        // mercadoria; sem `numeroDocumento` não há direito à dedução (ADR-0034 §1).
+        //
+        // LACUNA DECLARADA: não existe um caminho para completar o bloco fiscal
+        // (preencher tipoAquisicao, numeroDocumento e reclassificar o IVA para 4432x)
+        // quando a factura chegar. O ADR-0034 §1 antecipa que um modelo FaturaFornecedor
+        // separado seria o desenho correcto e foi adiado por proporção. Até lá,
+        // o bloco fiscal (nuitFornecedor, baseIva, valorIva, taxaIva) está gravado
+        // na ContaPagar, mas o direito à dedução não é registado neste fluxo.
+        await lancarReconhecimentoDivida(
+          tx as unknown as Prisma.TransactionClient,
+          {
+            contaPagarId:    contaCriada.id,
+            numero:          numCP,
+            descricao:       descricaoCP,
+            contaCodigo:     PGC_COMPRAS.MERCADORIAS,
+            valorOriginal:   pedido.valorTotal,
+            tipoAquisicao:   null,
+            baseIva:         null,
+            valorIva:        null,
+            dataLancamento:  dataEmissaoCP,
+          },
+          ctx,
+        );
       }
 
       return toRecebimentoDto(recebimento);

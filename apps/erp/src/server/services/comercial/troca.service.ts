@@ -154,7 +154,7 @@ export class TrocaService {
       const totalItem = baseItem.plus(ivaItem);
 
       // Criar Venda de substituição
-      const numeroVenda = await proximoNumeroSerie(tx, 'VENDA', ctx);
+      const numeroVenda = await proximoNumeroSerie(tx, 'VENDA', ctx, new Date());
       const venda = await tx.venda.create({
         data: {
           tenantId: ctx.tenantId,

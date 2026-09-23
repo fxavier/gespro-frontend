@@ -2,6 +2,7 @@ import 'server-only';
 import { Prisma, type TipoPartida } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
+import { getRequestContext } from '@/server/observability/context';
 import { paginate } from '@/server/db/paginate';
 import type {
   CriarContaPGCInput,
@@ -25,7 +26,13 @@ import type {
   FiltroBalanceteInput,
   FiltroRazaoInput,
   FiltroDREInput,
+  FecharPeriodoInput,
+  ReabrirPeriodoInput,
+  ListarPeriodosInput,
+  AbrirExercicioInput,
 } from '@/lib/validations/contabilidade';
+import type { CalendarioContabilisticoInput } from '@/lib/validations/plataforma';
+import { bootstrapSeriesDocumento } from '@/server/provisioning/tenant-bootstrap';
 import {
   calcularDiferencaNaoConciliada,
   sugerirMatchesPuro,
@@ -54,14 +61,238 @@ import {
   type PaginacaoContabilidade,
   type RegistarLancamentoContabilisticoInput,
   type Ctx,
+  type PeriodoContabil,
+  type ExercicioContabil,
+  type ResultadoFechoPeriodo,
+  type ReaberturaPeriodo,
+  type CalendarioContabilisticoRow,
 } from './contabilidade.interface';
+
+// ---------------------------------------------------------------------------
+// Filtro canónico dos mapas contabilísticos
+// ---------------------------------------------------------------------------
+
+/**
+ * Predicado de status para balancete, razão e DRE.
+ *
+ * Lista explícita em vez de `{ not: 'RASCUNHO' }`: se um quarto valor entrar
+ * no enum amanhã ele não entrará nos mapas em silêncio — terá de ser aqui
+ * adicionado por decisão consciente.
+ *
+ * Decisão (ADR-0033):
+ *
+ * - ESTORNADO (original) é INCLUÍDO: o par original+estorno soma zero nas
+ *   contas, que é o comportamento contabilístico correcto — um estorno é
+ *   um lançamento de reversão e as duas peças ficam no razão.
+ *   O filtro antigo `{ not: 'ESTORNADO' }` excluía o original e contava só
+ *   o espelho, deixando o simétrico do movimento em vez de zero.
+ *
+ * - RASCUNHO é EXCLUÍDO: um rascunho não confirmado não tem efeito contabilístico
+ *   e não deve inflar balancetes, razão nem DRE.
+ *
+ * Quatro locais usam este predicado: `obterContaDetalhe`, `gerarBalancete`,
+ * `razaoConta` e `calcularLinhasDRE` (via `gerarDRE`). Uma única constante
+ * fecha os quatro caminhos.
+ */
+export const FILTRO_LANCAMENTO_MAPA = { in: ['LANCADO', 'ESTORNADO'] as StatusLancamento[] };
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function periodoFiscalDe(data: Date): string {
-  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+// Fuso fixo — Africa/Maputo (UTC+2, sem horário de Verão). Ver ADR-0033 §2.
+// O servidor corre em UTC; o facto fiscal acontece em Maputo. Usar getFullYear()/
+// getMonth() leria o fuso do processo e uma factura emitida a 1 de Fevereiro
+// às 00h30 de Maputo (22h30 UTC do dia anterior) cairia no período errado.
+// Usa-se Intl, não um offset "+2" fixo em código: o Intl já tem a regra.
+const _FUSO_FISCAL = 'Africa/Maputo';
+const _FMT_PERIODO = new Intl.DateTimeFormat('pt-MZ', {
+  timeZone: _FUSO_FISCAL,
+  year: 'numeric',
+  month: '2-digit',
+});
+
+/** @internal Exportado apenas para testes unitários (ADR-0033 §2). */
+export function periodoFiscalDe(data: Date): string {
+  const partes = _FMT_PERIODO.formatToParts(data);
+  const ano = partes.find((p) => p.type === 'year')!.value;
+  const mes = partes.find((p) => p.type === 'month')!.value;
+  return `${ano}-${mes}`;
+}
+
+/**
+ * Devolve o dia civil, mês e ano de `data` no fuso Africa/Maputo.
+ *
+ * Reutiliza `_FUSO_FISCAL` — não cria uma terceira implementação de `Intl`.
+ * Usado pelo cron de abertura de exercício para comparar com a configuração
+ * por tenant sem depender do fuso do processo (que é UTC no servidor).
+ *
+ * @internal Exportado apenas para testes unitários e para o cron route.
+ */
+export function diaCivilEmMaputo(data: Date): { dia: number; mes: number; ano: number } {
+  const fmt = new Intl.DateTimeFormat('pt-MZ', {
+    timeZone: _FUSO_FISCAL,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const partes = fmt.formatToParts(data);
+  return {
+    dia: Number(partes.find((p) => p.type === 'day')!.value),
+    mes: Number(partes.find((p) => p.type === 'month')!.value),
+    ano: Number(partes.find((p) => p.type === 'year')!.value),
+  };
+}
+
+/**
+ * Determina se um tenant deve ter o exercício aberto hoje, com base na sua
+ * configuração e na data actual em Africa/Maputo.
+ *
+ * Função pura, extraída para ser testável independentemente do cron e do Prisma.
+ * O cron chama-a para cada tenant; o resultado de `false` deve ser contado como
+ * `saltouData` ou `saltouConfig` no relatório da corrida (para distinguir
+ * «saltei de propósito» de «não havia nada a fazer»).
+ *
+ * @param config Configuração do tenant (nova coluna `ConfiguracaoFiscal`).
+ * @param agora  Instante actual (UTC, como `new Date()` devolve). Por omissão `new Date()`.
+ *
+ * @internal Exportado apenas para testes unitários e para o cron route.
+ */
+export function deveAbrirHoje(
+  config: {
+    aberturaExercicioAutomatica: boolean;
+    diaAberturaExercicio: number;
+    mesAberturaExercicio: number;
+  },
+  agora: Date = new Date(),
+): boolean {
+  if (!config.aberturaExercicioAutomatica) return false;
+  const { dia, mes } = diaCivilEmMaputo(agora);
+  return dia === config.diaAberturaExercicio && mes === config.mesAberturaExercicio;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers de fronteira de período em Africa/Maputo
+// ---------------------------------------------------------------------------
+
+/**
+ * Instante UTC que corresponde ao início de um mês em Africa/Maputo (UTC+2, sem DST).
+ * 2026-02-01 00:00 Maputo = 2026-01-31T22:00:00Z
+ * O offset é fixo; o comentário explica porquê é aceitável aqui ao contrário
+ * de num selector de fuso do utilizador.
+ */
+function inicioDeMesEmMaputo(ano: number, mes: number): Date {
+  return new Date(Date.UTC(ano, mes - 1, 1) - 2 * 60 * 60 * 1000);
+}
+
+/** Último instante UTC de um mês em Africa/Maputo (23:59:59.999 Maputo = 21:59:59.999 UTC). */
+function fimDeMesEmMaputo(ano: number, mes: number): Date {
+  // Date.UTC(ano, mes, 0) = last day of `mes-1`; + 21:59:59.999 = last ms of day in Maputo
+  return new Date(Date.UTC(ano, mes, 0, 21, 59, 59, 999));
+}
+
+/**
+ * Cria um exercício contabilístico com os 13 períodos para `ano`.
+ * Idempotente via @@unique([tenantId, codigo]).
+ * Rede de segurança do ADR-0033 §3: o caminho normal é o cron de 1 de Dezembro.
+ */
+async function criarExercicioComPeriodos(
+  tx: Prisma.TransactionClient,
+  ano: number,
+  tenantId: string,
+  criadoPorId: string | null = null,
+): Promise<{ id: string }> {
+  // Encadear ao exercício anterior (FK escalar, sem @relation)
+  const anterior = await tx.exercicioContabil.findFirst({
+    where: { tenantId, codigo: String(ano - 1) },
+    select: { id: true },
+  });
+
+  // upsert idempotente — o cron já pode ter criado
+  const exercicio = await tx.exercicioContabil.upsert({
+    where: { tenantId_codigo: { tenantId, codigo: String(ano) } },
+    create: {
+      tenantId,
+      codigo: String(ano),
+      dataInicio: inicioDeMesEmMaputo(ano, 1),
+      dataFim: fimDeMesEmMaputo(ano, 12),
+      estado: 'ABERTO',
+      anteriorId: anterior?.id ?? null,
+      criadoPorId,
+    },
+    update: {},
+    select: { id: true },
+  });
+
+  // Criar os 12 períodos mensais + período 13 de encerramento (ADR-0035 §2)
+  for (let mes = 1; mes <= 12; mes++) {
+    const codigo = `${ano}-${String(mes).padStart(2, '0')}`;
+    await tx.periodoContabil.upsert({
+      where: { tenantId_codigo: { tenantId, codigo } },
+      create: {
+        tenantId,
+        exercicioId: exercicio.id,
+        ordem: mes,
+        codigo,
+        dataInicio: inicioDeMesEmMaputo(ano, mes),
+        dataFim: fimDeMesEmMaputo(ano, mes),
+        estado: 'ABERTO',
+      },
+      update: {},
+    });
+  }
+  // Período 13 — encerramento: instante no último milissegundo do ano (ADR-0033 §2)
+  // dataInicio = dataFim = fim do mês 12, alinhado com a migration de backfill.
+  const codigo13 = `${ano}-13`;
+  const fimAno = fimDeMesEmMaputo(ano, 12);
+  await tx.periodoContabil.upsert({
+    where: { tenantId_codigo: { tenantId, codigo: codigo13 } },
+    create: {
+      tenantId,
+      exercicioId: exercicio.id,
+      ordem: 13,
+      codigo: codigo13,
+      dataInicio: fimAno,
+      dataFim: fimAno,
+      estado: 'ABERTO',
+    },
+    update: {},
+  });
+
+  return exercicio;
+}
+
+/**
+ * Resolve o PeriodoContabil para uma data, dentro de uma transacção.
+ * Caminho normal: o período já existe (criado pelo cron de 1 de Dezembro).
+ * Rede de segurança: se não existir, cria o exercício e os 13 períodos.
+ * @internal Exportado para testes unitários.
+ */
+export async function resolverPeriodo(
+  tx: Prisma.TransactionClient,
+  data: Date,
+  tenantId: string,
+): Promise<{ id: string; codigo: string; estado: string }> {
+  const codigo = periodoFiscalDe(data);
+
+  const periodo = await tx.periodoContabil.findFirst({
+    where: { tenantId, codigo },
+    select: { id: true, codigo: true, estado: true },
+  });
+
+  if (periodo) return periodo;
+
+  // Rede de segurança: exercício ainda não existe → criar
+  const ano = parseInt(codigo.split('-')[0], 10);
+  await criarExercicioComPeriodos(tx, ano, tenantId);
+
+  // Agora o período existe
+  const criado = await tx.periodoContabil.findFirst({
+    where: { tenantId, codigo },
+    select: { id: true, codigo: true, estado: true },
+  });
+  if (!criado) throw new Error(`Falha ao criar período ${codigo} para tenant ${tenantId}`);
+  return criado;
 }
 
 function transitarEstado(atual: StatusLancamento, alvo: StatusLancamento): void {
@@ -214,7 +445,7 @@ export async function obterContaDetalhe(
       contaId: id,
       lancamento: {
         data: { gte: intervalo.dataInicio, lte: intervalo.dataFim },
-        status: { not: 'ESTORNADO' },
+        status: FILTRO_LANCAMENTO_MAPA,
       },
     },
     _sum: { valor: true },
@@ -365,8 +596,19 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
     });
     if (!diario) throw new NotFoundError('Diário não encontrado ou inactivo');
 
-    const periodo = periodoFiscalDe(input.data);
-    const numero = await proximoNumeroLancamento(tx, diario.id, periodo, ctx.tenantId);
+    // ADR-0033 §5: resolver período + bloquear com FOR SHARE para impedir fecho concorrente
+    const periodoResolvido = await resolverPeriodo(tx, input.data, ctx.tenantId);
+    const [periodoLocked] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
+      SELECT id, codigo, estado FROM "PeriodoContabil"
+      WHERE id = ${periodoResolvido.id} AND "tenantId" = ${ctx.tenantId}
+      FOR SHARE
+    `;
+    if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
+    if (periodoLocked.estado !== 'ABERTO') {
+      throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
+    }
+
+    const numero = await proximoNumeroLancamento(tx, diario.id, periodoLocked.codigo, ctx.tenantId);
 
     // Invariante débito=crédito (Decimal exacto a partir de number)
     let totalDebito = new Prisma.Decimal(0);
@@ -391,12 +633,13 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
         tipo: 'MANUAL',
         origem: input.origem ?? 'MANUAL',
         diarioId: diario.id,
+        periodoId: periodoLocked.id,
         documentoOrigemId: input.documentoOrigemId ?? null,
         documentoOrigemTipo: input.documentoOrigemTipo ?? null,
         historico: input.historico,
         valorTotal: totalDebito,
         status: 'RASCUNHO',
-        periodoFiscal: periodo,
+        periodoFiscal: periodoLocked.codigo, // cópia de periodo.codigo (ADR-0033 §1)
         observacoes: input.observacoes ?? null,
         criadoPorId: ctx.userId,
       },
@@ -457,8 +700,20 @@ export async function estornarLancamento(input: EstornarLancamentoInput, ctx: Ct
     transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
 
     const dataEstorno = input.data ?? new Date();
-    const periodo = periodoFiscalDe(dataEstorno);
-    const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodo, ctx.tenantId);
+
+    // ADR-0033 §5: resolver período do estorno + bloqueio FOR SHARE
+    const periodoResolvido = await resolverPeriodo(tx, dataEstorno, ctx.tenantId);
+    const [periodoLocked] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
+      SELECT id, codigo, estado FROM "PeriodoContabil"
+      WHERE id = ${periodoResolvido.id} AND "tenantId" = ${ctx.tenantId}
+      FOR SHARE
+    `;
+    if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
+    if (periodoLocked.estado !== 'ABERTO') {
+      throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
+    }
+
+    const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodoLocked.codigo, ctx.tenantId);
 
     const estorno = await tx.lancamento.create({
       data: {
@@ -468,12 +723,13 @@ export async function estornarLancamento(input: EstornarLancamentoInput, ctx: Ct
         tipo: 'ESTORNO',
         origem: lancamento.origem,
         diarioId: lancamento.diarioId,
+        periodoId: periodoLocked.id,
         documentoOrigemId: lancamento.id,
         documentoOrigemTipo: 'Lancamento',
         historico: `ESTORNO: ${lancamento.historico}`,
         valorTotal: lancamento.valorTotal,
         status: 'LANCADO',
-        periodoFiscal: periodo,
+        periodoFiscal: periodoLocked.codigo, // cópia de periodo.codigo (ADR-0033 §1)
         observacoes: input.motivo,
         criadoPorId: ctx.userId,
         lancamentoEstornoId: lancamento.id,
@@ -663,7 +919,7 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
       tenantId: ctx.tenantId,
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
-        status: { not: 'ESTORNADO' },
+        status: FILTRO_LANCAMENTO_MAPA,
       },
     },
     _sum: { valor: true },
@@ -693,7 +949,7 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Li
       contaId: filtro.contaId,
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
-        status: { not: 'ESTORNADO' },
+        status: FILTRO_LANCAMENTO_MAPA,
       },
     },
     include: {
@@ -721,6 +977,99 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Li
 }
 
 /**
+ * Tipo mínimo de conta necessário para o cálculo da DRE.
+ * Idêntico ao que `gerarDRE` obtém por `select: { id, codigo, natureza }`.
+ */
+export type ContaParaDRE = { id: string; codigo: string; natureza: 'DEVEDORA' | 'CREDORA' };
+
+/**
+ * Cálculo puro das linhas da DRE a partir de agregados pré-calculados.
+ *
+ * Separado de `gerarDRE` pelo mesmo motivo que `montarLinhasBalancete` existe:
+ * a consulta e a aritmética têm responsabilidades diferentes, e a aritmética
+ * tem de ser testável sem base de dados.
+ *
+ * Correcções aplicadas (achado C do ADR-0033):
+ *
+ * 1. Prefixos sem pontos — os 504 códigos PGC do seed não têm pontos
+ *    (`611`, `6112`, …). `'6.1'.startsWith('6.1')` não coincidia com nenhum
+ *    código real; apenas `saldoPrefixo('7')` acertava. Corrigido para `'61'`,
+ *    `'62'`, etc.
+ *
+ * 2. Duplo cômputo em classe 78 — após a correcção dos prefixos,
+ *    `saldoPrefixo('7')` passa a incluir a classe 78 E
+ *    `saldoPrefixo('78')` também devolve valor. Para evitar que o rendimento
+ *    financeiro entre duas vezes (uma em receitaBruta, outra em
+ *    receitasFinanceiras/resultadoFinanceiro), `receitaBruta` é calculada
+ *    como `saldo('7') − saldo('78')`, ficando só com as receitas operacionais.
+ *
+ * 3. O `.abs()` que aqui existia foi removido. Devolvia sempre magnitudes
+ *    positivas, o que era inócuo enquanto as linhas de gasto davam zero. Deixou
+ *    de o ser: `estornarLancamento` aceita `input.data`, logo um estorno pode
+ *    cair noutro período, e nesse período a conta de gasto tem só o crédito —
+ *    o saldo é negativo e o `.abs()` apresentava-o como gasto positivo, errando
+ *    por duas vezes o valor. A `natureza` já assina o saldo; a página apresenta
+ *    negativos entre parênteses (`DreRow`, `dre/page.tsx`).
+ */
+export function calcularLinhasDRE(
+  agregados: AgregadoPartida[],
+  contas: Map<string, ContaParaDRE>,
+): Omit<DRE, 'dataInicio' | 'dataFim' | 'centroCustoId'> {
+  function saldoPrefixo(prefixo: string): Prisma.Decimal {
+    let s = new Prisma.Decimal(0);
+    for (const a of agregados) {
+      const conta = contas.get(a.contaId);
+      if (!conta || !conta.codigo.startsWith(prefixo)) continue;
+      const valor = a._sum.valor ?? new Prisma.Decimal(0);
+      const isDevedora = conta.natureza === 'DEVEDORA';
+      if (a.tipo === 'DEBITO') s = isDevedora ? s.plus(valor) : s.minus(valor);
+      else s = isDevedora ? s.minus(valor) : s.plus(valor);
+    }
+    // Sem .abs(): a `natureza` já assina o saldo. Um saldo negativo num período
+    // indica uma reversão (p.ex. estorno cross-período que deixa só o crédito
+    // numa conta DEVEDORA) — a DRE deve reflecti-lo tal qual, e a página
+    // apresenta negativos entre parênteses em vermelho (DreRow, dre/page.tsx).
+    return s;
+  }
+
+  // Receitas operacionais = classe 7 excluindo 78 (financeiras).
+  // Calcula-se receitasFinanceiras primeiro para poder subtrair de saldo('7').
+  const receitasFinanceiras = saldoPrefixo('78'); // classe 78 = Rendimentos e ganhos financeiros
+  const receitaBruta = saldoPrefixo('7').minus(receitasFinanceiras);
+  const deducoes = new Prisma.Decimal(0);
+  const receitaLiquida = receitaBruta.minus(deducoes);
+  const custoProdutosVendidos = saldoPrefixo('61'); // classe 61 = Custo dos inventários vendidos
+  const lucroBruto = receitaLiquida.minus(custoProdutosVendidos);
+  const despesasVendas = saldoPrefixo('62');         // classe 62 = Gastos com o pessoal (PGC-NIRF)
+  const despesasAdministrativas = saldoPrefixo('63'); // classe 63 = Fornecimentos e serviços de terceiros (PGC-NIRF)
+  // classe 64 = Perdas por imparidade · 65 = Amortizações e depreciações
+  // classe 66 = Provisões · 67 = Justo valor e outros ajustamentos
+  // classe 68 = Outros gastos e perdas operacionais (PGC-NIRF) — operacional, não financeiro
+  const despesasGerais = saldoPrefixo('64').plus(saldoPrefixo('65')).plus(saldoPrefixo('66'))
+    .plus(saldoPrefixo('67')).plus(saldoPrefixo('68'));
+  const totalDespesasOperacionais = despesasVendas.plus(despesasAdministrativas).plus(despesasGerais);
+  const lucroOperacional = lucroBruto.minus(totalDespesasOperacionais);
+  const despesasFinanceiras = saldoPrefixo('69'); // classe 69 = Gastos e perdas financeiros (PGC-NIRF)
+  const resultadoFinanceiro = receitasFinanceiras.minus(despesasFinanceiras);
+  const lucroAntesImpostos = lucroOperacional.plus(resultadoFinanceiro);
+  // Classe 85 (851 Imposto corrente, 852 Imposto diferido) deixada a zero
+  // até ao ADR-0035 §4: (1) nenhum fluxo escreve a classe 8 actualmente;
+  // (2) a conta 851 tem natureza CREDORA no seed, o que faria um débito de
+  // imposto sair negativo — a lógica de sinal tem de ser decidida em conjunto
+  // com a implementação do ADR-0035. Pré-requisito: linha 823 deste ficheiro.
+  const impostos = new Prisma.Decimal(0);
+  const lucroLiquido = lucroAntesImpostos.minus(impostos);
+
+  return {
+    receitaBruta, deducoes, receitaLiquida,
+    custoProdutosVendidos, lucroBruto,
+    despesasVendas, despesasAdministrativas, despesasGerais, totalDespesasOperacionais,
+    lucroOperacional, receitasFinanceiras, despesasFinanceiras, resultadoFinanceiro,
+    lucroAntesImpostos, impostos, lucroLiquido,
+  };
+}
+
+/**
  * Demonstração de resultados do período.
  *
  * Agregação em SQL pelo mesmo motivo do `gerarBalancete` (defeito D3): a versão
@@ -728,6 +1077,8 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Li
  * (conta, lado) não altera a aritmética — a soma é associativa e o sinal
  * depende só do `tipo` (que está na chave de agrupamento) e da `natureza` da
  * conta (que é constante por conta).
+ *
+ * A lógica de cálculo foi extraída para `calcularLinhasDRE` (testável sem DB).
  */
 export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
   const agregados = await prisma.partidaLancamento.groupBy({
@@ -737,7 +1088,7 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
       ...(filtro.centroCustoId ? { centroCustoId: filtro.centroCustoId } : {}),
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
-        status: { not: 'ESTORNADO' },
+        status: FILTRO_LANCAMENTO_MAPA,
       },
     },
     _sum: { valor: true },
@@ -747,48 +1098,13 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
     where: { tenantId: ctx.tenantId, id: { in: [...new Set(agregados.map((a) => a.contaId))] } },
     select: { id: true, codigo: true, natureza: true },
   });
-  const porId = new Map(contas.map((c) => [c.id, c]));
-
-  // Saldo líquido das somas agregadas para um prefixo de código de conta
-  function saldoPrefixo(prefixo: string): Prisma.Decimal {
-    let s = new Prisma.Decimal(0);
-    for (const a of agregados) {
-      const conta = porId.get(a.contaId);
-      if (!conta || !conta.codigo.startsWith(prefixo)) continue;
-      const valor = a._sum.valor ?? new Prisma.Decimal(0);
-      const isDevedora = conta.natureza === 'DEVEDORA';
-      if (a.tipo === 'DEBITO') s = isDevedora ? s.plus(valor) : s.minus(valor);
-      else s = isDevedora ? s.minus(valor) : s.plus(valor);
-    }
-    return s.abs(); // retornar valor absoluto — o sinal é interpretado pelo contexto DRE
-  }
-
-  const receitaBruta = saldoPrefixo('7');
-  const deducoes = new Prisma.Decimal(0);
-  const receitaLiquida = receitaBruta.minus(deducoes);
-  const custoProdutosVendidos = saldoPrefixo('6.1');
-  const lucroBruto = receitaLiquida.minus(custoProdutosVendidos);
-  const despesasVendas = saldoPrefixo('6.2');
-  const despesasAdministrativas = saldoPrefixo('6.3');
-  const despesasGerais = saldoPrefixo('6.4').plus(saldoPrefixo('6.5')).plus(saldoPrefixo('6.6')).plus(saldoPrefixo('6.7'));
-  const totalDespesasOperacionais = despesasVendas.plus(despesasAdministrativas).plus(despesasGerais);
-  const lucroOperacional = lucroBruto.minus(totalDespesasOperacionais);
-  const receitasFinanceiras = saldoPrefixo('7.8');
-  const despesasFinanceiras = saldoPrefixo('6.8');
-  const resultadoFinanceiro = receitasFinanceiras.minus(despesasFinanceiras);
-  const lucroAntesImpostos = lucroOperacional.plus(resultadoFinanceiro);
-  const impostos = saldoPrefixo('6.9');
-  const lucroLiquido = lucroAntesImpostos.minus(impostos);
+  const porId = new Map(contas.map((c) => [c.id, c as ContaParaDRE]));
 
   return {
     dataInicio: filtro.dataInicio,
     dataFim: filtro.dataFim,
     centroCustoId: filtro.centroCustoId,
-    receitaBruta, deducoes, receitaLiquida,
-    custoProdutosVendidos, lucroBruto,
-    despesasVendas, despesasAdministrativas, despesasGerais, totalDespesasOperacionais,
-    lucroOperacional, receitasFinanceiras, despesasFinanceiras, resultadoFinanceiro,
-    lucroAntesImpostos, impostos, lucroLiquido,
+    ...calcularLinhasDRE(agregados, porId),
   };
 }
 
@@ -1231,6 +1547,371 @@ export async function listarReconciliacoes(ctx: Ctx): Promise<ReconciliacaoComCo
 }
 
 // ---------------------------------------------------------------------------
+// Períodos e Exercícios (ADR-0033 §5, §6, §7)
+// ---------------------------------------------------------------------------
+
+/**
+ * Abre o exercício contabilístico para um dado ano — cria ExercicioContabil + 13 PeriodoContabil
+ * + séries de documento para o tenant do contexto.
+ *
+ * Idempotente: o @@unique([tenantId, codigo]) e o skipDuplicates garantem que chamar duas vezes
+ * para o mesmo ano não duplica nem lança erro.
+ *
+ * Partilhado entre o cron de Dezembro (disparo automático) e a Server Action
+ * `abrirExercicio` (disparo manual, requer `financas:exercicio:abrir`).
+ *
+ * @returns { seriesCriadas } — número de séries novas criadas (0 se já existiam todas)
+ */
+export async function abrirExercicio(
+  input: AbrirExercicioInput,
+  ctx: Ctx,
+): Promise<{ ano: number; seriesCriadas: number }> {
+  const { ano } = input;
+
+  let seriesCriadas = 0;
+  // userId 'cron' (string literal) indica criação automática — guardamos null
+  const criadoPorId = ctx.userId === 'cron' ? null : ctx.userId;
+
+  await prismaBase.$transaction(async (tx) => {
+    // Cria exercício + 13 períodos; idempotente via @@unique([tenantId, codigo])
+    await criarExercicioComPeriodos(tx, ano, ctx.tenantId, criadoPorId);
+    seriesCriadas = await bootstrapSeriesDocumento(tx, ctx.tenantId, ano);
+  });
+
+  return { ano, seriesCriadas };
+}
+
+export async function listarExercicios(ctx: Ctx): Promise<ExercicioContabil[]> {
+  return prisma.exercicioContabil.findMany({
+    where: { tenantId: ctx.tenantId },
+    orderBy: { codigo: 'desc' },
+  }) as unknown as ExercicioContabil[];
+}
+
+export async function listarPeriodos(
+  filtro: ListarPeriodosInput,
+  ctx: Ctx,
+): Promise<PeriodoContabil[]> {
+  return prisma.periodoContabil.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      ...(filtro.exercicioId ? { exercicioId: filtro.exercicioId } : {}),
+      ...(filtro.estado ? { estado: filtro.estado } : {}),
+    },
+    orderBy: [{ codigo: 'desc' }, { ordem: 'asc' }],
+  }) as unknown as PeriodoContabil[];
+}
+
+/**
+ * Fecha um período contabilístico após verificar todas as pré-condições (ADR-0033 §6).
+ *
+ * Devolve o conjunto de impedimentos de uma só vez (não para à primeira falha)
+ * para que o ecrã os mostre todos.
+ *
+ * Pré-condições implementadas:
+ * 1. RASCUNHOS_NO_PERIODO  — nenhum lançamento em RASCUNHO no período
+ * 2. SESSAO_CAIXA_ABERTA   — nenhuma sessão de caixa por fechar no período
+ * 3. RECONCILIACAO_EM_ANDAMENTO — nenhuma reconciliação bancária em curso
+ * 4. DOCUMENTO_SEM_LANCAMENTO  — todo documento fiscal emitido tem lancamentoId
+ * 5. BALANCETE_DESEQUILIBRADO  — total débitos === total créditos no período
+ * 6. PERIODO_ANTERIOR_ABERTO   — o período anterior está fechado (ordem estrita)
+ *
+ * 7. IVA_NAO_APURADO — o apuramento do IVA do período está feito (ADR-0034)
+ */
+export async function fecharPeriodo(
+  input: FecharPeriodoInput,
+  ctx: Ctx,
+): Promise<ResultadoFechoPeriodo> {
+  return prismaBase.$transaction(async (tx) => {
+    // Bloquear a linha com FOR UPDATE para impedir leituras concorrentes que tentam escrever
+    const [periodo] = await tx.$queryRaw<
+      Array<{ id: string; codigo: string; estado: string; exercicioId: string; ordem: number; tenantId: string }>
+    >`
+      SELECT id, codigo, estado, "exercicioId", ordem, "tenantId"
+      FROM "PeriodoContabil"
+      WHERE id = ${input.id} AND "tenantId" = ${ctx.tenantId}
+      FOR UPDATE
+    `;
+    if (!periodo) throw new NotFoundError('Período não encontrado');
+    if (periodo.estado === 'FECHADO') {
+      throw new BusinessRuleError('PERIODO_JA_FECHADO', `Período ${periodo.codigo} já está fechado`);
+    }
+
+    // Verificar que o exercício não está encerrado
+    const [exercicio] = await tx.$queryRaw<Array<{ estado: string }>>`
+      SELECT estado FROM "ExercicioContabil"
+      WHERE id = ${periodo.exercicioId} AND "tenantId" = ${ctx.tenantId}
+    `;
+    if (exercicio?.estado === 'ENCERRADO') {
+      throw new BusinessRuleError('EXERCICIO_ENCERRADO', 'Exercício está encerrado');
+    }
+
+    const impedimentos: string[] = [];
+
+    // 1. Nenhum lançamento em RASCUNHO no período
+    const rascunhos = await tx.lancamento.count({
+      where: { tenantId: ctx.tenantId, periodoId: periodo.id, status: 'RASCUNHO' },
+    });
+    if (rascunhos > 0) impedimentos.push('RASCUNHOS_NO_PERIODO');
+
+    // 2. Nenhuma sessão de caixa aberta com abertura no período
+    // Usa dataAbertura para determinar a que período pertence a sessão
+    const [perDb] = await tx.$queryRaw<Array<{ data_inicio: Date; data_fim: Date }>>`
+      SELECT "dataInicio" as data_inicio, "dataFim" as data_fim
+      FROM "PeriodoContabil" WHERE id = ${periodo.id}
+    `;
+    if (perDb) {
+      const sessoesPorFechar = await tx.sessaoCaixa.count({
+        where: {
+          tenantId: ctx.tenantId,
+          status: 'ABERTA',
+          dataAbertura: { gte: perDb.data_inicio, lte: perDb.data_fim },
+        },
+      });
+      if (sessoesPorFechar > 0) impedimentos.push('SESSAO_CAIXA_ABERTA');
+
+      // 3. Nenhuma reconciliação bancária em curso (usa intervalo de datas do período)
+      const reconciliacoes = await tx.reconciliacaoBancaria.count({
+        where: {
+          tenantId: ctx.tenantId,
+          status: 'EM_ANDAMENTO',
+          dataInicio: { lte: perDb.data_fim },
+          dataFim: { gte: perDb.data_inicio },
+        },
+      });
+      if (reconciliacoes > 0) impedimentos.push('RECONCILIACAO_EM_ANDAMENTO');
+    }
+
+    // 4. Todo documento fiscal emitido (Fatura, NotaCredito, NotaDebito) tem lancamentoId
+    const periodoFiltro = perDb ? { gte: perDb.data_inicio, lte: perDb.data_fim } : undefined;
+    const [faturasSL, ncSL, ndSL] = await Promise.all([
+      tx.fatura.count({
+        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+      }),
+      tx.notaCredito.count({
+        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+      }),
+      tx.notaDebito.count({
+        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+      }),
+    ]);
+    if (faturasSL + ncSL + ndSL > 0) impedimentos.push('DOCUMENTO_SEM_LANCAMENTO');
+
+    // 5. Balancete equilibrado — total débitos === total créditos no período
+    const agregados = await tx.partidaLancamento.groupBy({
+      by: ['tipo'],
+      where: {
+        tenantId: ctx.tenantId,
+        lancamento: { periodoId: periodo.id, status: { in: ['LANCADO', 'ESTORNADO'] } },
+      },
+      _sum: { valor: true },
+    });
+    const totalDebitos = agregados.find((a) => a.tipo === 'DEBITO')?._sum.valor ?? new Prisma.Decimal(0);
+    const totalCreditos = agregados.find((a) => a.tipo === 'CREDITO')?._sum.valor ?? new Prisma.Decimal(0);
+    if (!totalDebitos.equals(totalCreditos)) impedimentos.push('BALANCETE_DESEQUILIBRADO');
+
+    // 6. Período anterior fechado (ordem estrita; período 1 não tem anterior)
+    if (periodo.ordem > 1) {
+      const [anterior] = await tx.$queryRaw<Array<{ estado: string }>>`
+        SELECT estado FROM "PeriodoContabil"
+        WHERE "tenantId" = ${ctx.tenantId}
+          AND "exercicioId" = ${periodo.exercicioId}
+          AND ordem = ${periodo.ordem - 1}
+      `;
+      if (anterior && anterior.estado !== 'FECHADO') {
+        impedimentos.push('PERIODO_ANTERIOR_ABERTO');
+      }
+    }
+
+    // 7. IVA_NAO_APURADO: apuramento do IVA do período (ADR-0033 §6, ADR-0034)
+    const ivaApurado = await tx.apuramentoIva.findFirst({
+      where: {
+        tenantId: ctx.tenantId,
+        periodoId: periodo.id,
+        estado: { in: ['APURADO', 'DECLARADO'] },
+      },
+      select: { id: true },
+    });
+    if (!ivaApurado) impedimentos.push('IVA_NAO_APURADO');
+
+    if (impedimentos.length > 0) {
+      return { ok: false, impedimentos };
+    }
+
+    // Todos os impedimentos passaram → fechar o período
+    const periodoFechado = await tx.periodoContabil.update({
+      where: { id: periodo.id },
+      data: {
+        estado: 'FECHADO',
+        fechadoEm: new Date(),
+        fechadoPorId: ctx.userId,
+      },
+    });
+
+    return { ok: true, periodo: periodoFechado as unknown as PeriodoContabil };
+  });
+}
+
+/**
+ * Reabre um período contabilístico, exigindo motivo e gravando ReaberturaPeriodo (ADR-0033 §7).
+ * Recusa se o exercício estiver ENCERRADO.
+ *
+ * Recusa a reabertura se o apuramento do IVA do período já estiver `DECLARADO` à AT (ADR-0033 §7).
+ */
+export async function reabrirPeriodo(
+  input: ReabrirPeriodoInput,
+  ctx: Ctx,
+): Promise<PeriodoContabil> {
+  return prismaBase.$transaction(async (tx) => {
+    const [periodo] = await tx.$queryRaw<
+      Array<{ id: string; codigo: string; estado: string; exercicioId: string; tenantId: string }>
+    >`
+      SELECT id, codigo, estado, "exercicioId", "tenantId"
+      FROM "PeriodoContabil"
+      WHERE id = ${input.id} AND "tenantId" = ${ctx.tenantId}
+      FOR UPDATE
+    `;
+    if (!periodo) throw new NotFoundError('Período não encontrado');
+    if (periodo.estado !== 'FECHADO') {
+      throw new BusinessRuleError('PERIODO_NAO_FECHADO', `Período ${periodo.codigo} não está fechado`);
+    }
+
+    const [exercicio] = await tx.$queryRaw<Array<{ estado: string }>>`
+      SELECT estado FROM "ExercicioContabil"
+      WHERE id = ${periodo.exercicioId} AND "tenantId" = ${ctx.tenantId}
+    `;
+    if (exercicio?.estado === 'ENCERRADO') {
+      throw new BusinessRuleError(
+        'EXERCICIO_ENCERRADO',
+        'Não é possível reabrir um período de um exercício encerrado',
+      );
+    }
+
+    // Não reabre se o apuramento do IVA do período já estiver declarado à AT (ADR-0033 §7, ADR-0034 §7)
+    const ivaDeclarado = await tx.apuramentoIva.findFirst({
+      where: {
+        tenantId: ctx.tenantId,
+        periodoId: periodo.id,
+        estado: 'DECLARADO',
+      },
+      select: { id: true, referenciaEntrega: true },
+    });
+    if (ivaDeclarado) {
+      throw new BusinessRuleError(
+        'IVA_JA_DECLARADO',
+        `O apuramento do IVA do período ${periodo.codigo} já foi declarado à AT ` +
+          `(referência: ${ivaDeclarado.referenciaEntrega ?? 'n/d'}). ` +
+          'A correcção deve ser feita por regularização no período seguinte (ADR-0034 §7).',
+      );
+    }
+
+    // Obter keycloakSub do utilizador para o registo de auditoria
+    const utilizador = await tx.user.findFirst({
+      where: { id: ctx.userId, tenantId: ctx.tenantId },
+      select: { keycloakSub: true },
+    });
+    const keycloakSub = utilizador?.keycloakSub ?? ctx.userId;
+    const requestId = getRequestContext()?.requestId ?? null;
+
+    // Reabrir + registar (tudo na mesma transacção)
+    const periodoAberto = await tx.periodoContabil.update({
+      where: { id: periodo.id },
+      data: { estado: 'ABERTO', fechadoEm: null, fechadoPorId: null },
+    });
+
+    await tx.reaberturaPeriodo.create({
+      data: {
+        tenantId: ctx.tenantId,
+        periodoId: periodo.id,
+        motivo: input.motivo,
+        reabertoPorId: ctx.userId,
+        keycloakSub,
+        requestId,
+      },
+    });
+
+    return periodoAberto as unknown as PeriodoContabil;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Calendário contabilístico — leitura e actualização (ADR-0033 §3)
+// Configuração do automatismo de abertura de exercício e (futuramente) de
+// fecho automático de períodos.
+// ---------------------------------------------------------------------------
+
+/**
+ * Lê as preferências do calendário contabilístico do tenant.
+ *
+ * Se o tenant ainda não tiver `ConfiguracaoFiscal` (raro em produção, possível
+ * em testes), devolve os valores por omissão que o schema define.
+ */
+export async function obterCalendarioContabilistico(
+  ctx: Ctx,
+): Promise<CalendarioContabilisticoRow> {
+  const cfg = await prismaBase.configuracaoFiscal.findUnique({
+    where: { tenantId: ctx.tenantId },
+    select: {
+      aberturaExercicioAutomatica: true,
+      diaAberturaExercicio: true,
+      mesAberturaExercicio: true,
+      fechoPeriodoAutomatico: true,
+      diasAposFimDoMesParaFechoAutomatico: true,
+    },
+  });
+  // Valores por omissão espelham os @default do schema — preservam o comportamento
+  // anterior ao campo existir (cron a 1 de Dezembro, automático ligado).
+  return {
+    aberturaExercicioAutomatica: cfg?.aberturaExercicioAutomatica ?? true,
+    diaAberturaExercicio: cfg?.diaAberturaExercicio ?? 1,
+    mesAberturaExercicio: cfg?.mesAberturaExercicio ?? 12,
+    fechoPeriodoAutomatico: cfg?.fechoPeriodoAutomatico ?? false,
+    diasAposFimDoMesParaFechoAutomatico: cfg?.diasAposFimDoMesParaFechoAutomatico ?? 10,
+  };
+}
+
+/**
+ * Actualiza as preferências do calendário contabilístico do tenant.
+ *
+ * Usa `upsert` com tenantId: um tenant recém-criado pode ainda não ter
+ * ConfiguracaoFiscal (é criada pelo bootstrap, mas pode falhar parcialmente em testes).
+ *
+ * NOTA: `update` não é scoped pela extensão de tenant — filtra por `tenantId`
+ * explicitamente (CLAUDE.md, «Multi-tenancy»).
+ */
+export async function atualizarCalendarioContabilistico(
+  input: CalendarioContabilisticoInput,
+  ctx: Ctx,
+): Promise<CalendarioContabilisticoRow> {
+  // Filtra apenas os campos relevantes ao calendário — outros campos de
+  // ConfiguracaoFiscal (regimeIva, taxaIvaDefault…) pertencem a outras actions.
+  const campos = {
+    ...(input.aberturaExercicioAutomatica !== undefined && {
+      aberturaExercicioAutomatica: input.aberturaExercicioAutomatica,
+    }),
+    ...(input.diaAberturaExercicio !== undefined && {
+      diaAberturaExercicio: input.diaAberturaExercicio,
+    }),
+    ...(input.mesAberturaExercicio !== undefined && {
+      mesAberturaExercicio: input.mesAberturaExercicio,
+    }),
+    ...(input.fechoPeriodoAutomatico !== undefined && {
+      fechoPeriodoAutomatico: input.fechoPeriodoAutomatico,
+    }),
+    ...(input.diasAposFimDoMesParaFechoAutomatico !== undefined && {
+      diasAposFimDoMesParaFechoAutomatico: input.diasAposFimDoMesParaFechoAutomatico,
+    }),
+  };
+
+  await prismaBase.configuracaoFiscal.update({
+    where: { tenantId: ctx.tenantId },
+    data: campos,
+  });
+
+  return obterCalendarioContabilistico(ctx);
+}
+
+// ---------------------------------------------------------------------------
 // Contrato cross-domínio: registarLancamentoContabilistico
 // Chamado por WS A, B, C dentro de $transaction.
 // ---------------------------------------------------------------------------
@@ -1247,8 +1928,19 @@ export async function registarLancamentoContabilistico(
     throw new NotFoundError(`Diário do tipo "${input.diarioTipo}" não encontrado`);
   }
 
-  const periodo = periodoFiscalDe(input.data);
-  const numero = await proximoNumeroLancamento(tx, diario.id, periodo, ctx.tenantId);
+  // ADR-0033 §5: resolver período + bloqueio FOR SHARE (mesmo dentro de tx externa)
+  const periodoResolvido = await resolverPeriodo(tx, input.data, ctx.tenantId);
+  const [periodoLocked] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
+    SELECT id, codigo, estado FROM "PeriodoContabil"
+    WHERE id = ${periodoResolvido.id} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodoLocked.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
+  }
+
+  const numero = await proximoNumeroLancamento(tx, diario.id, periodoLocked.codigo, ctx.tenantId);
 
   // Invariante débito=crédito (Decimal exacto)
   let totalDebito = new Prisma.Decimal(0);
@@ -1273,12 +1965,13 @@ export async function registarLancamentoContabilistico(
       tipo: 'AUTOMATICO',
       origem: input.origem,
       diarioId: diario.id,
+      periodoId: periodoLocked.id,
       documentoOrigemId: input.documentoOrigemId,
       documentoOrigemTipo: input.documentoOrigemTipo,
       historico: input.historico,
       valorTotal: totalDebito,
       status: 'LANCADO', // automático → directo para LANCADO
-      periodoFiscal: periodo,
+      periodoFiscal: periodoLocked.codigo, // cópia de periodo.codigo (ADR-0033 §1)
       criadoPorId: ctx.userId,
     },
   });
@@ -1343,5 +2036,12 @@ export const contabilidadeService = {
   cancelarReconciliacao,
   obterReconciliacao,
   listarReconciliacoes,
+  abrirExercicio,
+  listarExercicios,
+  listarPeriodos,
+  fecharPeriodo,
+  reabrirPeriodo,
+  obterCalendarioContabilistico,
+  atualizarCalendarioContabilistico,
   registarLancamentoContabilistico,
 } satisfies IContabilidadeService;
