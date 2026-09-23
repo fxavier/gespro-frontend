@@ -67,6 +67,8 @@ interface DiarioOpcao {
 interface NovoLancamentoFormProps {
   contas: ContaOpcao[];
   diarios: DiarioOpcao[];
+  /** Pré-preenchimento vindo de outro ecrã (ex.: sugestão da reconciliação bancária). */
+  valoresIniciais?: { data?: string; historico?: string; partidas?: PartidaInput[] };
 }
 
 const DEFAULT_PARTIDA: PartidaInput = {
@@ -91,7 +93,13 @@ const DEFAULT_VALUES: CriarLancamentoInput = {
 const formatMZN = (v: number) =>
   `MT ${v.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function NovoLancamentoForm({ contas, diarios }: NovoLancamentoFormProps) {
+/** `aaaa-mm-dd` → meio-dia local: o dia civil sobrevive ao fuso (CLAUDE.md §Datas). */
+function diaParaData(dia: string): Date {
+  const [a, m, d] = dia.split('-').map(Number);
+  return new Date(a, m - 1, d, 12);
+}
+
+export function NovoLancamentoForm({ contas, diarios, valoresIniciais }: NovoLancamentoFormProps) {
   const router = useRouter();
   const [state, dispatch, isPending] = useActionState<FormState, CriarLancamentoInput>(
     (_prev, data) => criarLancamento(data),
@@ -100,7 +108,12 @@ export function NovoLancamentoForm({ contas, diarios }: NovoLancamentoFormProps)
 
   const form = useForm<CriarLancamentoInput>({
     resolver: zodResolver(CriarLancamentoSchema),
-    defaultValues: DEFAULT_VALUES,
+    defaultValues: {
+      ...DEFAULT_VALUES,
+      ...(valoresIniciais?.data && { data: diaParaData(valoresIniciais.data) }),
+      ...(valoresIniciais?.historico && { historico: valoresIniciais.historico }),
+      ...(valoresIniciais?.partidas && { partidas: valoresIniciais.partidas }),
+    },
     mode: 'onChange',
   });
 

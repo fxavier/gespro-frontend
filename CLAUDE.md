@@ -306,6 +306,14 @@ As skills em `.claude/skills/` são a fonte de verdade e devem ser lidas antes d
 - `api-conventions` — Server Actions, serviços, `withApi`, validação Zod, hierarquia `AppError`.
 - `ui-conventions` — padrão sem-modais, patterns, tokens, Server Components, formulários.
 - `fiscalidade-mz` — INSS, IRPS, tabelas versionadas por vigência e integração contabilística do payroll.
+- `fluxo-de-caixa-conventions` — tesouraria vs caixa, projecção derivada, rubricas e mapeamento da DFC, articulação e invariantes (ADR-0036, ADR-0037).
+
+Disciplinas transversais, adaptadas dos padrões de [mattpocock/skills](https://github.com/mattpocock/skills):
+- `tdd` — vermelho-verde-refactor; quando é property test e quando é exemplo.
+- `diagnosing-bugs` — observar, reduzir, hipotetizar, instrumentar, corrigir; tabela dos suspeitos habituais desta casa.
+- `domain-modeling` — fixar vocabulário antes do código; a coluna «não é» é a que trabalha.
+- `revisao-dois-eixos` — conformidade e fidelidade ao spec, revistas em separado.
+- `tracer-bullet-tickets` — fatias finas com gate executável; `[BLOCKING]` e `[HUMANO]`.
 
 ## Deploy (spec 16)
 
@@ -331,3 +339,14 @@ Vocabulário canónico — `needs-triage`, `needs-info`, `ready-for-agent`, `rea
 
 Contexto único: `CONTEXT.md` na raiz. **ADRs em `docs/decisions/`, não em `docs/adr/`** —
 numeração governada pelo ADR-0023. Ver `docs/agents/domain.md`.
+
+### Loops e grafos
+
+Todo o trabalho executado por agentes segue `docs/agentic/00-doutrina-loop-e-grafo.md`: cada nó
+declara objectivo, verificador **externo**, condição de paragem (3 iterações) e quem tem veto. A
+prova vem de fora do sistema — invariante, golden fixture, processo real (`pnpm check`/`gates`/
+`e2e`) ou humano; a opinião de um agente nunca é prova. Quem escreve o oráculo não é quem escreve a
+implementação, e um agente autor que altere `__tests__/` ou `fixtures/` é BLOCKER automático.
+
+Primeiro grafo a seguir a doutrina: `docs/agentic/grafo-22-fluxo-de-caixa.md` (spec 22), com os
+prompts literais em `docs/agentic/prompts-22-fluxo-de-caixa.md`.

@@ -1,0 +1,1137 @@
+import 'server-only'; // A5: serviços são server-only
+
+import { Prisma } from '@prisma/client';
+import { BusinessRuleError, NotFoundError, ValidationError } from '@/lib/errors';
+import { prisma } from '@/server/db/client';
+import { paginate } from '@/server/db/paginate';
+import type {
+  AtualizarCompromissoInput,
+  Cenario,
+  CriarCompromissoInput,
+  FiltroCompromissoInput,
+  FiltroProjecaoInput,
+  Granularidade,
+  RecorrenciaCompromisso,
+} from '@/lib/validations/tesouraria';
+import {
+  diaCivilEmMaputo,
+  FILTRO_LANCAMENTO_MAPA,
+} from './contabilidade.service';
+import type {
+  Bucket,
+  CompromissoBase,
+  CompromissoTesouraria,
+  Ctx,
+  Ocorrencia,
+  PaginacaoTesouraria,
+  PerfilAtraso,
+  ProjecaoTesouraria,
+} from './projecao.interface';
+
+/**
+ * Projecção de Tesouraria (spec 22 · WS-1).
+ *
+ * O ficheiro tem duas metades, por esta ordem:
+ *
+ *  1. NÚCLEO PURO (nó L2 + task 3.2-bis): funções puras exportadas, sem
+ *     Prisma client, sem `Date.now()` — a data de referência é sempre
+ *     parâmetro. É onde vivem os invariantes I2 (conservação), I3 (monotonia
+ *     de cenário) e I5 (idempotência de recorrência), verificados pelo
+ *     oráculo `__tests__/projecao.property.test.ts` (escrito por outro
+ *     agente; ver doutrina 00 §2).
+ *  2. CASCA DE I/O (nó L3): `saldoTesourariaAte` e `perfilAtraso`, que vão à
+ *     base e delegam toda a aritmética no núcleo. Oráculo:
+ *     `__tests__/projecao.integracao.test.ts`.
+ *
+ * Regras vinculativas: ADR-0036 §Decisão-2, -6, §9, §10 e §11; design §4.1-bis.
+ * Precedente da casa: `montarLinhasBalancete`, `calcularLinhasDRE`.
+ */
+
+// ---------------------------------------------------------------------------
+// Calendário — dias civis em Africa/Maputo
+// ---------------------------------------------------------------------------
+
+const DIA_MS = 86_400_000;
+
+/**
+ * Número de série do dia civil de `data` em Africa/Maputo (dias desde a época,
+ * sobre o calendário proléptico — só serve para aritmética de dias inteiros).
+ * Toda a comparação de datas neste módulo passa por aqui: o servidor corre em
+ * UTC e um `getDate()` cru mudaria o dia de âncora (design §4.1-bis).
+ */
+function serialCivil(data: Date): number {
+  const { ano, mes, dia } = diaCivilEmMaputo(data);
+  return Date.UTC(ano, mes - 1, dia) / DIA_MS;
+}
+
+/** Componentes civis (ano, mês 1-based, dia) de um número de série. */
+function civilDoSerial(serial: number): { ano: number; mes: number; dia: number } {
+  const utc = new Date(serial * DIA_MS);
+  return {
+    ano: utc.getUTCFullYear(),
+    mes: utc.getUTCMonth() + 1,
+    dia: utc.getUTCDate(),
+  };
+}
+
+/**
+ * Materializa um dia civil como `Date`, pela convenção da casa para dias sem
+ * hora: `new Date(ano, mes-1, dia, 12)` — nunca `new Date('aaaa-mm-dd')`, que
+ * lê como UTC e a leste de Greenwich cai no dia anterior.
+ */
+function dataDoSerial(serial: number): Date {
+  const { ano, mes, dia } = civilDoSerial(serial);
+  return new Date(ano, mes - 1, dia, 12);
+}
+
+/** Último dia do mês (mês 1-based). Comprimentos de mês não dependem de fuso. */
+function ultimoDiaDoMes(ano: number, mes: number): number {
+  return new Date(ano, mes, 0, 12).getDate();
+}
+
+const ZERO = new Prisma.Decimal(0);
+
+// ---------------------------------------------------------------------------
+// montarBuckets (task 2.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Constrói a sequência de buckets vazios de `inicio` até
+ * `inicio + horizonteDias` (dias civis em Africa/Maputo, extremos INCLUSIVE —
+ * o exemplo canónico do design §4.1-bis exige que `2026-01-31 + 150 dias`
+ * alcance `2026-06-30`). Horizonte zero produz um único bucket do próprio dia.
+ *
+ * Granularidades:
+ *  - DIARIA: um bucket por dia civil;
+ *  - SEMANAL: janelas de 7 dias a partir de `inicio`, última truncada;
+ *  - MENSAL: meses civis (primeiro e último truncados ao horizonte) — é o que
+ *    um tesoureiro espera ler numa linha «Setembro».
+ *
+ * Horizonte negativo (ou não-inteiro) LANÇA: o Zod trava `min(0)` na
+ * fronteira, mas o núcleo não confia em quem o chama — devolver `[]` em
+ * silêncio seria indistinguível de «não há compromissos» (oráculo I2).
+ */
+export function montarBuckets(
+  inicio: Date,
+  horizonteDias: number,
+  granularidade: Granularidade,
+): Bucket[] {
+  if (!Number.isInteger(horizonteDias) || horizonteDias < 0) {
+    throw new BusinessRuleError(
+      'HORIZONTE_INVALIDO',
+      `Horizonte de projecção inválido: ${String(horizonteDias)} dias.`,
+    );
+  }
+
+  const s0 = serialCivil(inicio);
+  const sFim = s0 + horizonteDias;
+  const intervalos: Array<{ inicioS: number; fimS: number }> = [];
+
+  switch (granularidade) {
+    case 'DIARIA':
+      for (let s = s0; s <= sFim; s++) {
+        intervalos.push({ inicioS: s, fimS: s });
+      }
+      break;
+    case 'SEMANAL':
+      for (let s = s0; s <= sFim; s += 7) {
+        intervalos.push({ inicioS: s, fimS: Math.min(s + 6, sFim) });
+      }
+      break;
+    case 'MENSAL': {
+      let s = s0;
+      while (s <= sFim) {
+        const { ano, mes } = civilDoSerial(s);
+        const fimDoMesS =
+          Date.UTC(ano, mes - 1, ultimoDiaDoMes(ano, mes)) / DIA_MS;
+        const fimS = Math.min(fimDoMesS, sFim);
+        intervalos.push({ inicioS: s, fimS });
+        s = fimS + 1;
+      }
+      break;
+    }
+    default:
+      // Totalidade sobre o enum: um `default` silencioso trataria uma
+      // granularidade nova como vazio, sem erro — «mente baixo».
+      throw new BusinessRuleError(
+        'GRANULARIDADE_DESCONHECIDA',
+        `Granularidade desconhecida: ${String(granularidade)}.`,
+      );
+  }
+
+  return intervalos.map(({ inicioS, fimS }) => ({
+    inicio: dataDoSerial(inicioS),
+    fim: dataDoSerial(fimS),
+    entradas: ZERO,
+    saidas: ZERO,
+    saldoInicial: ZERO,
+    saldoFinal: ZERO,
+    ocorrencias: [],
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// distribuirCompromissos (task 2.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Deslocamento (em dias) a aplicar às ENTRADAS não vencidas, por cenário
+ * (ADR-0036 §Decisão-6). As SAÍDAS nunca se deslocam — o fornecedor não
+ * atrasa o recebimento dele por simpatia. Total sobre o enum: um cenário
+ * desconhecido LANÇA em vez de degradar para OTIMISTA em silêncio.
+ *
+ * O perfil chega já não-negativo: o truncamento `max(0, atraso)` é feito POR
+ * OBSERVAÇÃO em `perfilAtraso` (L3, ADR-0036 §10). Um perfil negativo aqui é
+ * defeito de quem chama — lança, porque aplicá-lo anteciparia as entradas do
+ * BASE face ao OTIMISTA e inverteria o invariante I3.
+ */
+function deslocamentoEntradaDias(cenario: Cenario, perfil: PerfilAtraso): number {
+  switch (cenario) {
+    case 'OTIMISTA':
+      return 0;
+    case 'BASE':
+      // R5.3: amostra insuficiente ⇒ BASE degrada para OTIMISTA (a UI di-lo).
+      return perfil.amostraInsuficiente ? 0 : Math.round(perfil.atrasoMedioDias);
+    case 'PESSIMISTA':
+      return Math.round(perfil.atrasoMedioDias + perfil.desvioPadraoDias);
+    default:
+      throw new BusinessRuleError(
+        'CENARIO_DESCONHECIDO',
+        `Cenário de projecção desconhecido: ${String(cenario)}.`,
+      );
+  }
+}
+
+/** Vencidas há mais de este nº de dias saem do PESSIMISTA (ADR-0036 §6). */
+const DIAS_EXCLUSAO_VENCIDAS_PESSIMISTA = 90;
+
+/**
+ * Distribui as ocorrências pelos buckets, aplicando o cenário às ENTRADAS.
+ * Não muta os buckets nem as ocorrências recebidos.
+ *
+ *  - Vencidas (R2.4): entram no PRIMEIRO bucket, assinaladas, sem re-aplicar
+ *    atraso (o atraso já aconteceu). Nunca omitidas — excepto, no PESSIMISTA,
+ *    as ENTRADAS vencidas há mais de 90 dias (ADR-0036 §6).
+ *  - Não vencidas: caem no bucket do seu dia civil (+ deslocamento de cenário
+ *    quando ENTRADA); o que fica além do último bucket sai do horizonte.
+ *
+ * A marcação de `vencida` é de quem constrói a ocorrência (L3, contra a data
+ * de referência) — este módulo confia na bandeira.
+ */
+export function distribuirCompromissos(
+  buckets: Bucket[],
+  ocorrencias: Ocorrencia[],
+  cenario: Cenario,
+  atraso: PerfilAtraso,
+): Bucket[] {
+  if (atraso.atrasoMedioDias < 0 || atraso.desvioPadraoDias < 0) {
+    throw new BusinessRuleError(
+      'PERFIL_ATRASO_INVALIDO',
+      'Perfil de atraso com dias negativos: o truncamento em zero, por observação, é de quem apura o perfil (ADR-0036 §10).',
+    );
+  }
+  // Valida o cenário mesmo sem ocorrências — a totalidade não depende do input.
+  const deslocamento = deslocamentoEntradaDias(cenario, atraso);
+
+  const novos: Bucket[] = buckets.map((b) => ({
+    ...b,
+    ocorrencias: [...b.ocorrencias],
+  }));
+  if (novos.length === 0) {
+    return novos;
+  }
+
+  const fimS = novos.map((b) => serialCivil(b.fim));
+  const referenciaS = serialCivil(novos[0].inicio);
+
+  for (const ocorrencia of ocorrencias) {
+    const sData = serialCivil(ocorrencia.data);
+
+    if (
+      ocorrencia.vencida &&
+      cenario === 'PESSIMISTA' &&
+      ocorrencia.tipo === 'ENTRADA' &&
+      referenciaS - sData > DIAS_EXCLUSAO_VENCIDAS_PESSIMISTA
+    ) {
+      continue;
+    }
+
+    const desloca = !ocorrencia.vencida && ocorrencia.tipo === 'ENTRADA';
+    const sDestino = desloca ? sData + deslocamento : sData;
+
+    // Buckets contíguos e ascendentes: o primeiro cujo fim alcança o destino
+    // é o que o contém — e as datas anteriores ao horizonte (vencidas) caem,
+    // pelo mesmo critério, no primeiro bucket.
+    const indice = fimS.findIndex((f) => sDestino <= f);
+    if (indice === -1) {
+      continue; // além do último bucket — fora do horizonte
+    }
+
+    const alvo = novos[indice];
+    if (ocorrencia.tipo === 'ENTRADA') {
+      alvo.entradas = alvo.entradas.plus(ocorrencia.valor);
+    } else {
+      alvo.saidas = alvo.saidas.plus(ocorrencia.valor);
+    }
+    alvo.ocorrencias.push(ocorrencia);
+  }
+
+  return novos;
+}
+
+// ---------------------------------------------------------------------------
+// acumularSaldos (task 2.4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Preenche `saldoInicial`/`saldoFinal` em cadeia a partir do saldo de
+ * abertura, em `Prisma.Decimal` exacto (invariante I2 — conservação):
+ * `saldoFinal(n) == saldoInicial(n) + entradas(n) − saidas(n)` e o fecho de
+ * um bucket é a abertura do seguinte. Não muta os buckets recebidos.
+ */
+export function acumularSaldos(
+  buckets: Bucket[],
+  saldoAbertura: Prisma.Decimal,
+): Bucket[] {
+  let saldo = saldoAbertura;
+  return buckets.map((b) => {
+    const saldoFinal = saldo.plus(b.entradas).minus(b.saidas);
+    const novo: Bucket = { ...b, saldoInicial: saldo, saldoFinal };
+    saldo = saldoFinal;
+    return novo;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// expandirRecorrencia (task 2.2)
+// ---------------------------------------------------------------------------
+
+/** Passo em meses de cada recorrência; `null` = ocorrência única. */
+function passoEmMeses(recorrencia: CompromissoBase['recorrencia']): number | null {
+  switch (recorrencia) {
+    case 'UNICA':
+      return null;
+    case 'MENSAL':
+      return 1;
+    case 'TRIMESTRAL':
+      return 3;
+    case 'ANUAL':
+      return 12;
+    default:
+      // Totalidade sobre o enum (oráculo I5): um `default` silencioso faria
+      // uma futura SEMANAL desaparecer da projecção sem erro nenhum.
+      throw new BusinessRuleError(
+        'RECORRENCIA_DESCONHECIDA',
+        `Recorrência desconhecida: ${String(recorrencia)}.`,
+      );
+  }
+}
+
+/**
+ * Expande um compromisso manual nas suas ocorrências dentro de
+ * `[dataPrevista, min(ate, dataFimRecorrencia)]`, em dias civis Africa/Maputo.
+ *
+ * Regra de calendário (ADR-0036 §9, design §4.1-bis): cada ocorrência cai em
+ * `min(diaÂncora, últimoDiaDoMês)`, com o `diaÂncora` derivado SEMPRE da
+ * `dataPrevista`, nunca da ocorrência anterior — mensal de 31 de Janeiro dá
+ * 31 Jan · 28 Fev · 31 Mar · 30 Abr (sem drift, sem mês a dobrar). Dia civil,
+ * não dia útil: não se desloca por fim-de-semana nem feriado.
+ *
+ * `dataFimRecorrencia` anterior à `dataPrevista` LANÇA
+ * `BusinessRuleError('RECORRENCIA_INVALIDA')` (ADR-0036 §11): devolver vazio
+ * seria indistinguível de «a recorrência terminou legitimamente».
+ *
+ * As ocorrências saem com `vencida: false` — a marcação contra a data de
+ * referência é de quem chama (L3), que é quem a conhece.
+ * Saem em ORDEM CRONOLÓGICA ASCENDENTE (task 5.1-quinquies — cláusula do
+ * contrato, não acidente de implementação: os casos nomeados do §4.1-bis
+ * asserem listas ordenadas).
+ * Invariante I5: a expansão é determinista e idempotente.
+ */
+export function expandirRecorrencia(
+  compromisso: CompromissoBase,
+  ate: Date,
+): Ocorrencia[] {
+  const passo = passoEmMeses(compromisso.recorrencia);
+
+  const sPrevista = serialCivil(compromisso.dataPrevista);
+  const sFimRecorrencia =
+    compromisso.dataFimRecorrencia === null
+      ? null
+      : serialCivil(compromisso.dataFimRecorrencia);
+  if (sFimRecorrencia !== null && sFimRecorrencia < sPrevista) {
+    throw new BusinessRuleError(
+      'RECORRENCIA_INVALIDA',
+      'Data de fim da recorrência anterior à data prevista (ADR-0036 §11).',
+    );
+  }
+
+  const sLimite =
+    sFimRecorrencia === null
+      ? serialCivil(ate)
+      : Math.min(serialCivil(ate), sFimRecorrencia);
+
+  const ocorrencias: Ocorrencia[] = [];
+  const emitir = (serial: number): void => {
+    ocorrencias.push({
+      origem: 'COMPROMISSO_MANUAL',
+      origemId: compromisso.id,
+      descricao: compromisso.descricao,
+      tipo: compromisso.tipo,
+      valor: compromisso.valor,
+      data: dataDoSerial(serial),
+      vencida: false,
+    });
+  };
+
+  if (passo === null) {
+    if (sPrevista <= sLimite) {
+      emitir(sPrevista);
+    }
+    return ocorrencias;
+  }
+
+  const ancora = diaCivilEmMaputo(compromisso.dataPrevista);
+  for (let k = 0; ; k++) {
+    const mesesTotais = ancora.mes - 1 + k * passo;
+    const ano = ancora.ano + Math.floor(mesesTotais / 12);
+    const mes = (mesesTotais % 12) + 1;
+    const dia = Math.min(ancora.dia, ultimoDiaDoMes(ano, mes));
+    const serial = Date.UTC(ano, mes - 1, dia) / DIA_MS;
+    if (serial > sLimite) {
+      break;
+    }
+    emitir(serial);
+  }
+  return ocorrencias;
+}
+
+// ---------------------------------------------------------------------------
+// marcarVencidas (task 3.2-bis) — puro
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-marca a bandeira `vencida` contra a data de referência (R2.4).
+ *
+ * «Anterior» é ESTRITO em dias civis de Africa/Maputo: uma ocorrência no
+ * próprio dia da referência NÃO é vencida — está por liquidar hoje, não em
+ * atraso. Marca ENTRADAS e SAÍDAS por igual (a bandeira depende da data, não
+ * do tipo) e recalcula sempre a partir da data: um `vencida` pré-existente
+ * não sobrevive à re-marcação. Pura: devolve ocorrências novas, sem mutar o
+ * array nem os objectos recebidos.
+ *
+ * Existe porque `expandirRecorrencia` devolve sempre `vencida: false` — a
+ * assinatura pura não recebe data de referência; a marcação é de quem a
+ * conhece (a casca de I/O, contra o dia civil do pedido).
+ */
+export function marcarVencidas(
+  ocorrencias: Ocorrencia[],
+  dataReferencia: Date,
+): Ocorrencia[] {
+  const sReferencia = serialCivil(dataReferencia);
+  return ocorrencias.map((o) => ({
+    ...o,
+    vencida: serialCivil(o.data) < sReferencia,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// calcularPerfilAtraso (task 3.2-bis) — puro
+// ---------------------------------------------------------------------------
+
+/** R5.3: abaixo disto a amostra é insuficiente e o BASE degrada para OTIMISTA. */
+const AMOSTRA_MINIMA_PERFIL = 20;
+
+/**
+ * Perfil de atraso a partir dos atrasos CRUS em dias — possivelmente
+ * negativos quando o cliente pagou adiantado.
+ *
+ * ADR-0036 §10, design §4.1-bis (regras arbitradas, não rediscutíveis):
+ *  - O truncamento em zero é POR OBSERVAÇÃO: `max(0, atraso)` em CADA factura
+ *    da amostra, ANTES de média e desvio. Truncar só a média daria a mesma
+ *    média em muitos casos e um σ inflado por pagamentos adiantados — e um
+ *    cliente que pagou adiantado uma vez não antecipa o próximo recebimento.
+ *  - O desvio é AMOSTRAL (divisor `n − 1`): os 180 dias são uma amostra de
+ *    que se infere o futuro, não a população; o σ maior dá um PESSIMISTA mais
+ *    conservador, que é o lado certo para onde errar.
+ *  - `n < 2` ⇒ σ = 0 por definição, nunca `NaN` — o `n − 1` dividiria por
+ *    zero e um `NaN` propagado por `Decimal` rebenta longe da causa.
+ *  - Amostra vazia ⇒ média 0, σ 0, `amostraInsuficiente: true`.
+ *
+ * Dias de atraso são `number` de propósito: são contagens de dias, não
+ * dinheiro — o `Decimal` de ponta a ponta aplica-se aos valores.
+ */
+export function calcularPerfilAtraso(
+  atrasosBrutosDias: number[],
+): PerfilAtraso {
+  const truncados = atrasosBrutosDias.map((a) => Math.max(0, a));
+  const n = truncados.length;
+
+  const media = n === 0 ? 0 : truncados.reduce((s, a) => s + a, 0) / n;
+  const variancia =
+    n < 2
+      ? 0
+      : truncados.reduce((s, a) => s + (a - media) ** 2, 0) / (n - 1);
+
+  return {
+    atrasoMedioDias: media,
+    desvioPadraoDias: Math.sqrt(variancia),
+    amostra: n,
+    amostraInsuficiente: n < AMOSTRA_MINIMA_PERFIL,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Casca de I/O (nó L3) — saldoTesourariaAte e perfilAtraso
+// ---------------------------------------------------------------------------
+
+/**
+ * Saldo de tesouraria até `data`, inclusive (ADR-0036 §Decisão-2 e §2-bis):
+ *
+ *   Σ saldo do razão  ∀ contaContabilId DISTINTO de ContaBancaria com ativo = true
+ * + Σ (fundoInicial + totalEntradas − totalSaidas)  ∀ SessaoCaixa ABERTA
+ *
+ * Responde «quanto dinheiro há», não «quanto há a receber» — contas a receber
+ * são compromissos, não tesouraria.
+ *
+ * O saldo bancário vem SEMPRE do razão (partidas de lançamentos filtrados por
+ * `FILTRO_LANCAMENTO_MAPA`, como o balancete — nunca um literal local, que
+ * foi como quatro cópias divergiram; o par original+estorno soma zero). A
+ * soma é por CONTA PGC, não por conta bancária (§2-bis): a grandeza é
+ * propriedade do conjunto de contas do razão, e duas contas bancárias
+ * ancoradas na mesma `121` contariam o saldo dela a dobrar. Uma conta PGC
+ * entra no âmbito se PELO MENOS UMA bancária ancorada nela estiver activa, e
+ * entra uma vez, pelo saldo inteiro. A ordem das operações não é indiferente:
+ * filtra-se `ativo: true` PRIMEIRO e desduplica-se DEPOIS — um `distinct`
+ * antes do filtro pode eleger a bancária inactiva como representante e a
+ * conta sai do âmbito, de forma não-determinista.
+ *
+ * A agregação é um único `groupBy` para todas as contas (o orçamento do
+ * §Decisão-5 é p95 < 400 ms e a correcção de um estouro seria a query, nunca
+ * cache). Classe 1 é DEVEDORA: saldo = Σ débitos − Σ créditos.
+ */
+export async function saldoTesourariaAte(
+  data: Date,
+  ctx: Ctx,
+): Promise<Prisma.Decimal> {
+  let total = ZERO;
+
+  const contasAtivas = await prisma.contaBancaria.findMany({
+    where: { tenantId: ctx.tenantId, ativo: true },
+    select: { contaContabilId: true },
+  });
+
+  if (contasAtivas.length > 0) {
+    const contaIds = [...new Set(contasAtivas.map((c) => c.contaContabilId))];
+    const agregados = await prisma.partidaLancamento.groupBy({
+      by: ['contaId', 'tipo'],
+      where: {
+        tenantId: ctx.tenantId,
+        contaId: { in: contaIds },
+        lancamento: {
+          status: FILTRO_LANCAMENTO_MAPA,
+          data: { lte: data },
+        },
+      },
+      _sum: { valor: true },
+    });
+
+    const saldoPorConta = new Map<string, Prisma.Decimal>();
+    for (const a of agregados) {
+      const acumulado = saldoPorConta.get(a.contaId) ?? ZERO;
+      const valor = a._sum.valor ?? ZERO;
+      saldoPorConta.set(
+        a.contaId,
+        a.tipo === 'DEBITO' ? acumulado.plus(valor) : acumulado.minus(valor),
+      );
+    }
+
+    // §2-bis: itera as contas PGC DISTINTAS (`contaIds`), nunca as contas
+    // bancárias — iterar `contasAtivas` somaria a conta partilhada a dobrar.
+    for (const contaId of contaIds) {
+      total = total.plus(saldoPorConta.get(contaId) ?? ZERO);
+    }
+  }
+
+  const sessoesAbertas = await prisma.sessaoCaixa.findMany({
+    where: { tenantId: ctx.tenantId, status: 'ABERTA' },
+    select: { fundoInicial: true, totalEntradas: true, totalSaidas: true },
+  });
+  for (const s of sessoesAbertas) {
+    total = total
+      .plus(s.fundoInicial)
+      .plus(s.totalEntradas)
+      .minus(s.totalSaidas);
+  }
+
+  return total;
+}
+
+/** Janela da amostra do perfil de atraso (ADR-0036 §Decisão-6). */
+const JANELA_PERFIL_DIAS = 180;
+
+/**
+ * Perfil de atraso de cobrança do tenant (R5.2-3): média e desvio padrão do
+ * atraso sobre `Fatura` com status PAGA cujo `dataPagamento` cai nos 180
+ * dias que antecedem `dataReferencia`. Esta casca só vai à base buscar os
+ * atrasos CRUS — a aritmética (truncamento por observação, desvio amostral,
+ * amostra insuficiente) vive toda em `calcularPerfilAtraso`, onde é testável
+ * sem base de dados.
+ *
+ * `dataReferencia` existe para o pipeline de `projetarTesouraria` ter UM SÓ
+ * relógio por projecção (design §4.1 passo 4): o mesmo instante alimenta
+ * `saldoTesourariaAte` e a janela dos 180 dias. O parâmetro é OBRIGATÓRIO
+ * (task 5.0, fecha a 4.8): o oráculo do L3 já passa a data (`acd1488`) e um
+ * `new Date()` por omissão devolvia um segundo relógio a qualquer chamador
+ * esquecido — sem default, o esquecimento é erro de compilação.
+ *
+ * Os dias de atraso são diferenças de DIAS CIVIS em Africa/Maputo
+ * (`serialCivil`), nunca uma divisão de milissegundos: o servidor corre em
+ * UTC e uma factura vencida às 23h de Maputo pagou-se «no dia seguinte» ou
+ * «no próprio dia» consoante o fuso de quem dividir.
+ */
+export async function perfilAtraso(
+  ctx: Ctx,
+  dataReferencia: Date,
+): Promise<PerfilAtraso> {
+  const limite = new Date(
+    dataReferencia.getTime() - JANELA_PERFIL_DIAS * DIA_MS,
+  );
+
+  const pagas = await prisma.fatura.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      status: 'PAGA',
+      dataPagamento: { gte: limite, lte: dataReferencia },
+    },
+    select: { dataPagamento: true, dataVencimento: true },
+  });
+
+  const atrasosBrutosDias: number[] = [];
+  for (const f of pagas) {
+    // O filtro `gte` já exclui nulos; o guard é para o sistema de tipos.
+    if (f.dataPagamento === null) continue;
+    atrasosBrutosDias.push(
+      serialCivil(f.dataPagamento) - serialCivil(f.dataVencimento),
+    );
+  }
+
+  return calcularPerfilAtraso(atrasosBrutosDias);
+}
+
+// ---------------------------------------------------------------------------
+// Agregações e orquestração (nó L4 — tasks 4.1 a 4.6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Instante UTC do FIM do dia civil de Maputo cujo número de série é `serial`:
+ * 23:59:59.999 em Maputo == 21:59:59.999 UTC (Africa/Maputo é UTC+2 fixo, sem
+ * DST — a mesma convenção do oráculo do L3, `fimDoDiaCivilDeHojeEmMaputo`).
+ * Serve de fronteira `lte` nas agregações: qualquer instante cujo dia civil
+ * em Maputo seja ≤ `serial` entra; o instante seguinte já é o dia seguinte.
+ */
+function instanteFimDoDiaCivil(serial: number): Date {
+  const { ano, mes, dia } = civilDoSerial(serial);
+  return new Date(Date.UTC(ano, mes - 1, dia, 21, 59, 59, 999));
+}
+
+/**
+ * Último dia ÚTIL do mês de referência (ADR-0036 §12): o último dia do mês
+ * que não seja sábado nem domingo. NÃO se excluem feriados moçambicanos — a
+ * tabela não existe no repositório e meia tabela é pior do que nenhuma (mesma
+ * razão do §9 para as recorrências). Devolve o número de série do dia civil.
+ *
+ * O dia da semana de uma data CIVIL não depende de fuso — parte-se de
+ * (ano, mês) inteiros e nunca de um instante, logo o cálculo é o de
+ * Africa/Maputo por construção. `getUTCDay()`: 0 = domingo, 6 = sábado.
+ */
+function ultimoDiaUtilSerial(ano: number, mes: number): number {
+  let dia = ultimoDiaDoMes(ano, mes);
+  while ([0, 6].includes(new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay())) {
+    dia -= 1;
+  }
+  return Date.UTC(ano, mes - 1, dia) / DIA_MS;
+}
+
+/** Estados de `Fatura` que são um direito de cobrança (R2.1, ADR-0036 §3). */
+const STATUS_FATURA_EM_ABERTO = [
+  'EMITIDA',
+  'PARCIALMENTE_PAGA',
+  'VENCIDA',
+] as const;
+
+/**
+ * Task 4.1 — ENTRADAS de `Fatura` em aberto (R2.1): `EMITIDA`,
+ * `PARCIALMENTE_PAGA` e `VENCIDA`, por `total − totalPago` na
+ * `dataVencimento`. `RASCUNHO`, `PAGA` e `CANCELADA` ficam de fora —
+ * `RASCUNHO` deliberadamente: uma factura por emitir não é um direito de
+ * cobrança.
+ *
+ * Sem limite inferior de data: as vencidas em aberto entram, venham de quando
+ * vierem (R2.4 — omiti-las tornaria a projecção optimista e inútil). Limite
+ * superior `ate` (fim do horizonte): as entradas só se DESLOCAM PARA A FRENTE
+ * por cenário, logo o que vence depois do horizonte nunca entra nele.
+ * Índice: `Fatura @@index([tenantId, dataVencimento, status])`.
+ */
+async function agregarFaturas(ate: Date, ctx: Ctx): Promise<Ocorrencia[]> {
+  const faturas = await prisma.fatura.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      status: { in: [...STATUS_FATURA_EM_ABERTO] },
+      dataVencimento: { lte: ate },
+    },
+    select: {
+      id: true,
+      numero: true,
+      total: true,
+      totalPago: true,
+      dataVencimento: true,
+    },
+  });
+
+  return faturas.map((f) => ({
+    origem: 'FATURA' as const,
+    origemId: f.id,
+    descricao: `Factura ${f.numero}`,
+    tipo: 'ENTRADA' as const,
+    valor: f.total.minus(f.totalPago),
+    data: f.dataVencimento,
+    vencida: false, // marcação contra a data de referência é de marcarVencidas
+  }));
+}
+
+/** Estados de `ContaPagar` ainda por liquidar (R2.2, ADR-0036 §3). */
+const STATUS_CONTA_PAGAR_EM_ABERTO = [
+  'ABERTA',
+  'PARCIALMENTE_PAGA',
+  'VENCIDA',
+] as const;
+
+/**
+ * Task 4.2 — SAÍDAS de `ContaPagar` (R2.2): `ABERTA`, `PARCIALMENTE_PAGA` e
+ * `VENCIDA`, por `valorRestante` na `dataVencimento`. As saídas nunca se
+ * deslocam por cenário, logo o limite superior `ate` é exacto.
+ * Índice: `ContaPagar @@index([tenantId, dataVencimento])`.
+ */
+async function agregarContasPagar(ate: Date, ctx: Ctx): Promise<Ocorrencia[]> {
+  const contas = await prisma.contaPagar.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      status: { in: [...STATUS_CONTA_PAGAR_EM_ABERTO] },
+      dataVencimento: { lte: ate },
+    },
+    select: {
+      id: true,
+      numero: true,
+      valorRestante: true,
+      dataVencimento: true,
+    },
+  });
+
+  return contas.map((c) => ({
+    origem: 'CONTA_PAGAR' as const,
+    origemId: c.id,
+    descricao: `Conta a pagar ${c.numero}`,
+    tipo: 'SAIDA' as const,
+    valor: c.valorRestante,
+    data: c.dataVencimento,
+    vencida: false,
+  }));
+}
+
+/**
+ * Task 4.3 — SAÍDAS de `Payroll` com `status = PROCESSADO` (R2.3), pelo
+ * `custoTotalEntidade` — NÃO `salarioLiquido`: o INSS patronal (4 %) é
+ * encargo da entidade e sai da mesma conta. Data: `dataPagamento` ou, quando
+ * nula, o último dia útil do mês/anoReferencia (ADR-0036 §12 — dia de
+ * semana, sem feriados, em Africa/Maputo).
+ *
+ * O `OR` com `dataPagamento: null` é deliberado: a data de fallback não é
+ * exprimível em SQL sem função sobre colunas — calcula-se em memória e o que
+ * cair além do horizonte sai em `distribuirCompromissos`.
+ * Índice: `Payroll @@index([tenantId, status])` (igualdade nas duas chaves).
+ */
+async function agregarPayroll(ate: Date, ctx: Ctx): Promise<Ocorrencia[]> {
+  const folhas = await prisma.payroll.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      status: 'PROCESSADO',
+      OR: [{ dataPagamento: { lte: ate } }, { dataPagamento: null }],
+    },
+    select: {
+      id: true,
+      mesReferencia: true,
+      anoReferencia: true,
+      custoTotalEntidade: true,
+      dataPagamento: true,
+    },
+  });
+
+  return folhas.map((p) => ({
+    origem: 'PAYROLL' as const,
+    origemId: p.id,
+    descricao: `Folha salarial ${String(p.mesReferencia).padStart(2, '0')}/${p.anoReferencia}`,
+    tipo: 'SAIDA' as const,
+    valor: p.custoTotalEntidade,
+    data:
+      p.dataPagamento ??
+      dataDoSerial(ultimoDiaUtilSerial(p.anoReferencia, p.mesReferencia)),
+    vencida: false,
+  }));
+}
+
+/**
+ * Task 4.4 — compromissos manuais activos e não eliminados, expandidos por
+ * `expandirRecorrencia` dentro do horizonte. O filtro `dataPrevista ≤ ate`
+ * não perde recorrências: toda a ocorrência é ≥ `dataPrevista`, logo um
+ * compromisso com `dataPrevista` além do horizonte nada contribui. O soft
+ * delete (`deletedAt: null`) é reimposto explicitamente, além da extensão.
+ * Índice: `CompromissoTesouraria @@index([tenantId, dataPrevista, ativo])`.
+ */
+async function agregarCompromissos(ate: Date, ctx: Ctx): Promise<Ocorrencia[]> {
+  const compromissos = await prisma.compromissoTesouraria.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      ativo: true,
+      deletedAt: null,
+      dataPrevista: { lte: ate },
+    },
+    select: {
+      id: true,
+      descricao: true,
+      tipo: true,
+      valor: true,
+      dataPrevista: true,
+      recorrencia: true,
+      dataFimRecorrencia: true,
+    },
+  });
+
+  return compromissos.flatMap((c) => expandirRecorrencia(c, ate));
+}
+
+/**
+ * Task 4.5 — orquestração da projecção (pipeline do design §4.1).
+ *
+ * UM relógio por projecção: `agora` lê-se uma vez; dele derivam o dia civil
+ * de referência (buckets, `marcarVencidas`, resposta), o instante de fecho
+ * do dia (fronteira do `saldoTesourariaAte` e da janela do `perfilAtraso`) e
+ * o fim do horizonte (fronteira das quatro agregações).
+ *
+ * As quatro agregações, o saldo de abertura, o perfil de atraso e as duas
+ * contagens de origens de saldo correm em `Promise.all` — nenhuma depende de
+ * outra, e o orçamento do §Decisão-5 (p95 < 400 ms) paga-se em paralelo.
+ *
+ * `primeiroDiaNegativo` é o `inicio` do primeiro bucket com `saldoFinal`
+ * negativo — o cruzamento acontece algures dentro do bucket e a granularidade
+ * não sabe o dia exacto; o `inicio` é a leitura conservadora (alarme nunca
+ * depois do facto). `menorSaldoProjetado` é o mínimo dos `saldoFinal`.
+ */
+export async function projetarTesouraria(
+  filtro: FiltroProjecaoInput,
+  ctx: Ctx,
+): Promise<ProjecaoTesouraria> {
+  const agora = new Date();
+  const sReferencia = serialCivil(agora);
+  const dataReferencia = dataDoSerial(sReferencia);
+  const fimDoDia = instanteFimDoDiaCivil(sReferencia);
+  const fimHorizonte = instanteFimDoDiaCivil(
+    sReferencia + filtro.horizonteDias,
+  );
+  const diaFimHorizonte = dataDoSerial(sReferencia + filtro.horizonteDias);
+
+  const [
+    saldoAbertura,
+    perfil,
+    deFaturas,
+    deContasPagar,
+    dePayroll,
+    deManuais,
+    contasBancariasAtivas,
+    sessoesAbertas,
+  ] = await Promise.all([
+    saldoTesourariaAte(fimDoDia, ctx),
+    perfilAtraso(ctx, fimDoDia),
+    agregarFaturas(fimHorizonte, ctx),
+    agregarContasPagar(fimHorizonte, ctx),
+    agregarPayroll(fimHorizonte, ctx),
+    agregarCompromissos(diaFimHorizonte, ctx),
+    prisma.contaBancaria.count({
+      where: { tenantId: ctx.tenantId, ativo: true },
+    }),
+    prisma.sessaoCaixa.count({
+      where: { tenantId: ctx.tenantId, status: 'ABERTA' },
+    }),
+  ]);
+
+  // R2.4 (task 4.6): a bandeira `vencida` é re-marcada aqui, contra o dia
+  // civil da referência — as agregações devolvem sempre `vencida: false`.
+  const ocorrencias = marcarVencidas(
+    [...deFaturas, ...deContasPagar, ...dePayroll, ...deManuais],
+    dataReferencia,
+  );
+
+  const buckets = acumularSaldos(
+    distribuirCompromissos(
+      montarBuckets(dataReferencia, filtro.horizonteDias, filtro.granularidade),
+      ocorrencias,
+      filtro.cenario,
+      perfil,
+    ),
+    saldoAbertura,
+  );
+
+  // R5.3: o deslocamento de BASE com amostra insuficiente já é zero dentro de
+  // `distribuirCompromissos`; `cenarioAplicado` é o relato disso à UI.
+  const cenarioAplicado: Cenario =
+    filtro.cenario === 'BASE' && perfil.amostraInsuficiente
+      ? 'OTIMISTA'
+      : filtro.cenario;
+
+  const primeiroNegativo = buckets.find((b) => b.saldoFinal.isNegative());
+  // `montarBuckets` devolve ≥ 1 bucket para horizonte ≥ 0 (I1).
+  const menorSaldoProjetado = buckets.reduce(
+    (menor, b) => (b.saldoFinal.lessThan(menor) ? b.saldoFinal : menor),
+    buckets[0]!.saldoFinal,
+  );
+
+  return {
+    dataReferencia,
+    horizonteDias: filtro.horizonteDias,
+    granularidade: filtro.granularidade,
+    cenario: filtro.cenario,
+    cenarioAplicado,
+    saldoAbertura,
+    semOrigensDeSaldo: contasBancariasAtivas === 0 && sessoesAbertas === 0,
+    buckets,
+    primeiroDiaNegativo: primeiroNegativo?.inicio ?? null,
+    menorSaldoProjetado,
+    perfilAtraso: perfil,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// CRUD de compromissos (nó L5 — tasks 5.1, 5.1-bis, 5.1-ter)
+// ---------------------------------------------------------------------------
+// Multi-tenancy (invariante I4 — onde esta casa já sangrou na Wave 2):
+//  - `tenantId` vem SEMPRE do `Ctx`, nunca do input.
+//  - A extensão de tenant injecta em create/findMany, mas findFirst/update/
+//    delete NÃO são scoped — o filtro `tenantId` é explícito em todos.
+//  - Cross-tenant devolve `NotFoundError` (404), nunca 403: um 403 confirma a
+//    existência do registo a quem não devia saber dela.
+//  - Eliminar é SOFT DELETE (`deletedAt`), nunca DELETE físico.
+
+/**
+ * Regras de coerência de um compromisso, sobre os valores EFECTIVOS — no
+ * criar são os do input; no actualizar são input-quando-veio, registo-quando-
+ * não (task 5.1-bis: o `superRefine` do Zod não conhece o registo gravado).
+ * São `ValidationError` (422), não `BusinessRuleError`: é o dado que está
+ * mal-formado face às regras R3.3-4, não uma transição de estado recusada.
+ *
+ * A comparação de datas é por DIA CIVIL de Maputo (`serialCivil`) — a mesma
+ * régua de `expandirRecorrencia`, que lança `RECORRENCIA_INVALIDA` pela mesma
+ * desigualdade: fim no PRÓPRIO dia da primeira ocorrência é válido (produz
+ * exactamente uma ocorrência), fim no dia civil anterior é impossível.
+ */
+function validarCoerenciaCompromisso(efetivo: {
+  valor: Prisma.Decimal;
+  dataPrevista: Date;
+  recorrencia: RecorrenciaCompromisso;
+  dataFimRecorrencia: Date | null;
+}): void {
+  if (!efetivo.valor.greaterThan(0)) {
+    throw new ValidationError('Valor do compromisso deve ser positivo.');
+  }
+  if (efetivo.dataFimRecorrencia === null) {
+    return;
+  }
+  if (efetivo.recorrencia === 'UNICA') {
+    throw new ValidationError(
+      'Compromisso único não admite data de fim de recorrência.',
+    );
+  }
+  if (
+    serialCivil(efetivo.dataFimRecorrencia) <
+    serialCivil(efetivo.dataPrevista)
+  ) {
+    throw new ValidationError(
+      'Data de fim da recorrência não pode ser anterior à data prevista.',
+    );
+  }
+}
+
+/**
+ * Task 5.1 — listagem paginada por cursor (`paginate`, padrão da casa; nunca
+ * `skip` grande). Ordem estável `(dataPrevista, id)` — o cursor exige-a.
+ * Filtros do `FiltroCompromissoSchema`; eliminados (soft delete) nunca saem.
+ */
+export async function listarCompromissos(
+  filtro: FiltroCompromissoInput,
+  ctx: Ctx,
+): Promise<PaginacaoTesouraria<CompromissoTesouraria>> {
+  const where: Prisma.CompromissoTesourariaWhereInput = {
+    tenantId: ctx.tenantId,
+    deletedAt: null,
+    ...(filtro.tipo ? { tipo: filtro.tipo } : {}),
+    ...(filtro.recorrencia ? { recorrencia: filtro.recorrencia } : {}),
+    ...(filtro.ativo !== undefined ? { ativo: filtro.ativo } : {}),
+    ...(filtro.dataInicio || filtro.dataFim
+      ? {
+          dataPrevista: {
+            ...(filtro.dataInicio ? { gte: filtro.dataInicio } : {}),
+            ...(filtro.dataFim ? { lte: filtro.dataFim } : {}),
+          },
+        }
+      : {}),
+    ...(filtro.pesquisa
+      ? { descricao: { contains: filtro.pesquisa, mode: 'insensitive' } }
+      : {}),
+  };
+
+  return paginate<CompromissoTesouraria>(
+    (args) =>
+      prisma.compromissoTesouraria.findMany({
+        ...args,
+        where,
+        orderBy: [{ dataPrevista: 'asc' }, { id: 'asc' }],
+      }),
+    { cursor: filtro.cursor, take: filtro.take },
+  );
+}
+
+/**
+ * Task 5.1-ter — carrega um compromisso por id (rota `[id]/editar`; molde
+ * `ICaixaService.obterSessao`). Inexistente, eliminado ou de OUTRO tenant
+ * lançam o MESMO `NotFoundError` — indistinguíveis de propósito (I4).
+ */
+export async function obterCompromisso(
+  id: string,
+  ctx: Ctx,
+): Promise<CompromissoTesouraria> {
+  const compromisso = await prisma.compromissoTesouraria.findFirst({
+    where: { id, tenantId: ctx.tenantId, deletedAt: null },
+  });
+  if (!compromisso) {
+    throw new NotFoundError(`Compromisso ${id} não encontrado`);
+  }
+  return compromisso;
+}
+
+/**
+ * Task 5.1 — cria um compromisso manual. `tenantId` e `criadoPorId` vêm do
+ * contexto; o Zod já validou o input, mas as regras de coerência reimpõem-se
+ * aqui — o serviço não confia em quem o chama (seeds, testes, futuros
+ * chamadores sem Zod).
+ */
+export async function criarCompromisso(
+  input: CriarCompromissoInput,
+  ctx: Ctx,
+): Promise<CompromissoTesouraria> {
+  const valor = new Prisma.Decimal(input.valor);
+  const dataFimRecorrencia = input.dataFimRecorrencia ?? null;
+  validarCoerenciaCompromisso({
+    valor,
+    dataPrevista: input.dataPrevista,
+    recorrencia: input.recorrencia,
+    dataFimRecorrencia,
+  });
+
+  return prisma.compromissoTesouraria.create({
+    data: {
+      tenantId: ctx.tenantId,
+      descricao: input.descricao,
+      tipo: input.tipo,
+      valor,
+      dataPrevista: input.dataPrevista,
+      recorrencia: input.recorrencia,
+      dataFimRecorrencia,
+      rubricaId: input.rubricaId ?? null,
+      contaContabilId: input.contaContabilId ?? null,
+      observacoes: input.observacoes ?? null,
+      criadoPorId: ctx.userId,
+    },
+  });
+}
+
+/**
+ * Tasks 5.1 e 5.1-bis — actualização parcial. A R3.4 e a regra da UNICA são
+ * reimpostas contra o par EFECTIVO (input ⊕ registo existente): mover só a
+ * `dataPrevista` para depois do `dataFimRecorrencia` gravado, ou só o
+ * `dataFimRecorrencia` para antes da `dataPrevista` gravada, é
+ * `ValidationError` — o Zod não apanha, porque não conhece o registo.
+ * `dataFimRecorrencia: null` LIMPA o campo (é o caminho de MENSAL → UNICA).
+ */
+export async function atualizarCompromisso(
+  input: AtualizarCompromissoInput,
+  ctx: Ctx,
+): Promise<CompromissoTesouraria> {
+  const existente = await prisma.compromissoTesouraria.findFirst({
+    where: { id: input.id, tenantId: ctx.tenantId, deletedAt: null },
+  });
+  if (!existente) {
+    throw new NotFoundError(`Compromisso ${input.id} não encontrado`);
+  }
+
+  const valor =
+    input.valor !== undefined ? new Prisma.Decimal(input.valor) : existente.valor;
+  validarCoerenciaCompromisso({
+    valor,
+    dataPrevista: input.dataPrevista ?? existente.dataPrevista,
+    recorrencia: input.recorrencia ?? existente.recorrencia,
+    dataFimRecorrencia:
+      input.dataFimRecorrencia !== undefined
+        ? input.dataFimRecorrencia
+        : existente.dataFimRecorrencia,
+  });
+
+  return prisma.compromissoTesouraria.update({
+    // `update` não é scoped pela extensão — o `tenantId` no where é o I4.
+    where: { id: existente.id, tenantId: ctx.tenantId },
+    data: {
+      ...(input.descricao !== undefined ? { descricao: input.descricao } : {}),
+      ...(input.tipo !== undefined ? { tipo: input.tipo } : {}),
+      ...(input.valor !== undefined ? { valor } : {}),
+      ...(input.dataPrevista !== undefined
+        ? { dataPrevista: input.dataPrevista }
+        : {}),
+      ...(input.recorrencia !== undefined
+        ? { recorrencia: input.recorrencia }
+        : {}),
+      ...(input.dataFimRecorrencia !== undefined
+        ? { dataFimRecorrencia: input.dataFimRecorrencia }
+        : {}),
+      ...(input.rubricaId !== undefined ? { rubricaId: input.rubricaId } : {}),
+      ...(input.contaContabilId !== undefined
+        ? { contaContabilId: input.contaContabilId }
+        : {}),
+      ...(input.observacoes !== undefined
+        ? { observacoes: input.observacoes }
+        : {}),
+      ...(input.ativo !== undefined ? { ativo: input.ativo } : {}),
+    },
+  });
+}
+
+/**
+ * Task 5.1 — SOFT DELETE (`deletedAt = now`), nunca DELETE físico: o
+ * histórico de quem projectou com este compromisso não se reescreve. Devolve
+ * o registo marcado. Já eliminado ⇒ `NotFoundError` (idempotência à
+ * superfície: o segundo pedido não encontra o que o primeiro escondeu).
+ */
+export async function eliminarCompromisso(
+  id: string,
+  ctx: Ctx,
+): Promise<CompromissoTesouraria> {
+  const existente = await prisma.compromissoTesouraria.findFirst({
+    where: { id, tenantId: ctx.tenantId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!existente) {
+    throw new NotFoundError(`Compromisso ${id} não encontrado`);
+  }
+
+  return prisma.compromissoTesouraria.update({
+    where: { id: existente.id, tenantId: ctx.tenantId },
+    data: { deletedAt: new Date() },
+  });
+}

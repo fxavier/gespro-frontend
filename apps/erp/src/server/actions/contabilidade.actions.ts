@@ -14,11 +14,6 @@ import {
   FiltroLancamentoSchema,
   CriarContaBancariaSchema,
   AtualizarContaBancariaSchema,
-  IniciarReconciliacaoSchema,
-  MarcarItemReconciliadoSchema,
-  ImportarExtratoSchema,
-  AutoMatchSchema,
-  ConcluirReconciliacaoSchema,
   FiltroBalanceteSchema,
   FiltroRazaoSchema,
   FiltroDRESchema,
@@ -189,54 +184,6 @@ export const listarContasBancarias = createSafeAction({
   handler: (_, ctx) => contabilidade.listarContasBancarias(ctx),
 });
 
-export const iniciarReconciliacao = createSafeAction({
-  schema: IniciarReconciliacaoSchema,
-  permission: 'financas:banca:reconciliacao',
-  revalidate: { tags: ['contabilidade', 'reconciliacao'], paths: ['/contabilidade/reconciliacao'] },
-  handler: (input, ctx) => contabilidade.iniciarReconciliacao(input, ctx),
-});
-
-export const gerarItensRazao = createSafeAction({
-  schema: z.object({ reconciliacaoId: z.string().cuid() }),
-  permission: 'financas:banca:reconciliacao',
-  revalidate: { tags: ['contabilidade', 'reconciliacao'], paths: ['/contabilidade/reconciliacao'] },
-  handler: (input, ctx) => contabilidade.gerarItensRazao(input.reconciliacaoId, ctx),
-});
-
-export const importarExtrato = createSafeAction({
-  schema: ImportarExtratoSchema,
-  permission: 'financas:banca:reconciliacao',
-  revalidate: { tags: ['contabilidade', 'reconciliacao'], paths: ['/contabilidade/reconciliacao'] },
-  handler: (input, ctx) => contabilidade.importarExtrato(input, ctx),
-});
-
-export const sugerirMatches = createSafeAction({
-  schema: AutoMatchSchema,
-  permission: 'financas:banca:reconciliacao',
-  permiteEmLeitura: true,
-  handler: (input, ctx) => contabilidade.sugerirMatches(input, ctx),
-});
-
-export const marcarItemReconciliado = createSafeAction({
-  schema: MarcarItemReconciliadoSchema,
-  permission: 'financas:banca:reconciliacao',
-  revalidate: { tags: ['contabilidade', 'reconciliacao'], paths: ['/contabilidade/reconciliacao'] },
-  handler: (input, ctx) => contabilidade.marcarItemReconciliado(input, ctx),
-});
-
-export const concluirReconciliacao = createSafeAction({
-  schema: ConcluirReconciliacaoSchema,
-  permission: 'financas:banca:reconciliacao',
-  revalidate: { tags: ['contabilidade', 'reconciliacao'], paths: ['/contabilidade/reconciliacao'] },
-  handler: (input, ctx) => contabilidade.concluirReconciliacao(input, ctx),
-});
-
-export const cancelarReconciliacao = createSafeAction({
-  schema: z.object({ id: z.string().cuid() }),
-  permission: 'financas:banca:reconciliacao',
-  revalidate: { tags: ['contabilidade', 'reconciliacao'], paths: ['/contabilidade/reconciliacao'] },
-  handler: (input, ctx) => contabilidade.cancelarReconciliacao(input.id, ctx),
-});
 // --- Períodos e Exercícios (ADR-0033 §5, §6, §7) ---
 
 export const listarPeriodos = createSafeAction({

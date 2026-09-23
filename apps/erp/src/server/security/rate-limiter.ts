@@ -239,6 +239,19 @@ export const exportLimiter = createRateLimiterFromEnv({
 });
 
 /**
+ * Importação de extracto bancário (ADR-0038): 10 ficheiros/minuto por utilizador.
+ * Chave: `${ctx.userId}::extracto`. O tecto de 5 MB é do ficheiro comprimido — um
+ * XLSX expande em memória no parse —, por isso o ritmo também conta.
+ *
+ * Falha aberta: como as exportações, indesejável mas não catastrófico sem Valkey.
+ */
+export const extractoLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 1000,
+  max: 10,
+  failClosed: false,
+});
+
+/**
  * Assinatura de URL de armazenamento (presign): 30 pedidos/minuto por
  * utilizador (ADR-0014 §3).
  * Chave a usar no handler: `${ctx.userId}::presign`

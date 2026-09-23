@@ -93,7 +93,7 @@ export interface KpiFinancas {
   despesaMes: string;
   /** Resultado líquido = receitaMes − despesaMes. */
   resultadoLiquido: string;
-  /** Ratio "ContaBancaria reconciliadas / total" (ex.: "3/5"). */
+  /** Movimentos bancários reconciliados / total (ADR-0038), ex.: "3/5". */
   reconciliacaoRatio: string;
 }
 
@@ -211,7 +211,7 @@ export interface IDashboardService {
    * Invalidado por: abrirCaixa, fecharCaixa, emitirFatura, registarLancamento (WS D)
    *
    * Lê de (WS D): SessaoCaixa, MovimentoCaixa, Lancamento, PartidaLancamento,
-   *               ContaBancaria, ReconciliacaoBancaria.
+   *               ContaBancaria, MovimentoBancario.
    */
   kpiFinancas(ctx: Ctx): Promise<KpiFinancas>;
 

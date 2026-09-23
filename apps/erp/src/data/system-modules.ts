@@ -121,7 +121,7 @@ export const SYSTEM_MODULES: SystemModule[] = [
     typescriptModels: [
       'PlanoContas',
       'LancamentoContabil',
-      'ReconciliacaoBancaria',
+      'CorrespondenciaBancaria',
       'ContaBancaria',
       'DRE',
       'Balancete'

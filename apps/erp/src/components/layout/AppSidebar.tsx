@@ -117,6 +117,8 @@ const menuItems: MenuItem[] = [
       { title: 'Apuramento de IVA', href: '/contabilidade/iva', icon: PercentCircle },
       { title: 'Faturação', href: '/faturacao/dashboard', icon: Receipt },
       { title: 'Caixa', href: '/caixa', icon: Wallet },
+      { title: 'Tesouraria', href: '/tesouraria', icon: LineChart },
+      { title: 'Compromissos', href: '/tesouraria/compromissos', icon: ClipboardList },
       { title: 'Configurações', href: '/contabilidade/configuracoes', icon: Settings },
     ],
   },
