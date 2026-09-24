@@ -14,6 +14,8 @@ import { NovoLancamentoForm } from './_components/novo-lancamento-form';
  * Pré-preenchimento por `searchParams` (ADR-0038, RF §9): a reconciliação sugere
  * o lançamento de um movimento bancário por contabilizar e manda para aqui.
  * `?data=aaaa-mm-dd&historico=…&p=contaId:DEBITO:500.00&p=…` — o utilizador revê e grava.
+ * Com UMA só partida (movimento sem regra que case) acrescenta-se a contrapartida em
+ * branco, do lado oposto e pelo mesmo valor: falta só escolher a conta.
  */
 function lerPrefill(sp: { data?: string; historico?: string; p?: string | string[] }) {
   const partidas = [sp.p ?? []].flat().flatMap((raw) => {
@@ -25,6 +27,10 @@ function lerPrefill(sp: { data?: string; historico?: string; p?: string | string
       ? [{ contaId, tipo: tipo as 'DEBITO' | 'CREDITO', valor: v, historico: '' }]
       : [];
   });
+  if (partidas.length === 1) {
+    const [p] = partidas;
+    partidas.push({ contaId: '', tipo: p.tipo === 'DEBITO' ? 'CREDITO' : 'DEBITO', valor: p.valor, historico: '' });
+  }
   const data = sp.data && /^\d{4}-\d{2}-\d{2}$/.test(sp.data) ? sp.data : undefined;
   if (!data && !sp.historico && partidas.length < 2) return undefined;
   return { data, historico: sp.historico?.slice(0, 500), partidas: partidas.length >= 2 ? partidas : undefined };
@@ -64,7 +70,7 @@ export default async function NovoLancamentoPage({
       tipo: d.tipo,
     }));
     // A conta sugerida pode não estar entre as 200 primeiras — sem isto o select apareceria vazio.
-    const emFalta = (prefill?.partidas ?? []).map((p) => p.contaId).filter((id) => !contas.some((c) => c.id === id));
+    const emFalta = (prefill?.partidas ?? []).map((p) => p.contaId).filter((id) => id && !contas.some((c) => c.id === id));
     for (const id of new Set(emFalta)) {
       const c = await runWithTenantContext({ tenantId, userId }, () => contabilidadeService.obterConta(id, { tenantId, userId }));
       if (c) contas.push({ id: c.id, codigo: c.codigo, nome: c.nome });

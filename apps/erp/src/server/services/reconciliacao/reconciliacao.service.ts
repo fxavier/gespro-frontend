@@ -543,7 +543,8 @@ export async function definirIgnorado(input: { lado: 'BANCO' | 'CONTABILIDADE'; 
 // ---------------------------------------------------------------------------
 
 export interface SugestaoLancamento {
-  regraId: string;
+  /** `null` = nenhuma regra casa: só vem a partida do banco, e a contrapartida escolhe-a o utilizador. */
+  regraId: string | null;
   data: Date;
   historico: string;
   partidas: PartidaSugerida[];
@@ -551,8 +552,10 @@ export interface SugestaoLancamento {
 
 /**
  * Sugere o lançamento que contabilizaria um movimento bancário sem contrapartida,
- * pela primeira regra configurada que case. Não cria nada: criar o lançamento é
- * acto do utilizador, pelo `criarLancamento` (gate-periodo). `null` = sem regra.
+ * pela primeira regra configurada que case. Sem regra, sugere na mesma a partida
+ * do banco — o lançamento fica meio feito em vez de o utilizador ficar sem caminho.
+ * Não cria nada: criar o lançamento é acto do utilizador, pelo `criarLancamento`
+ * (gate-periodo). `null` = o movimento já não está por contabilizar.
  */
 export async function sugerirLancamento(movimentoBancarioId: string, ctx: Ctx): Promise<SugestaoLancamento | null> {
   const m = await prisma.movimentoBancario.findFirst({
@@ -570,12 +573,14 @@ export async function sugerirLancamento(movimentoBancarioId: string, ctx: Ctx): 
     { descricao: m.descricao, natureza: m.natureza as Natureza, contaBancariaId: conta.id },
     regras.map((r) => ({ ...r, natureza: r.natureza as Natureza })),
   );
-  if (!regra) return null;
+  const movimento = { valor: m.valor, natureza: m.natureza as Natureza };
   return {
-    regraId: regra.id,
+    regraId: regra?.id ?? null,
     data: m.dataMovimento,
     historico: m.descricao,
-    partidas: sugerirPartidas({ valor: m.valor, natureza: m.natureza as Natureza }, conta.contaContabilId, regra.contaContrapartidaId),
+    partidas: regra
+      ? sugerirPartidas(movimento, conta.contaContabilId, regra.contaContrapartidaId)
+      : [{ contaId: conta.contaContabilId, tipo: movimento.natureza, valor: movimento.valor }],
   };
 }
 
