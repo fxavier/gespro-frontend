@@ -87,6 +87,22 @@ O `e2e:funil` espera `NEXT_PUBLIC_APP_URL=http://localhost:3000`; um `.env` com 
 
 Na suite E2E completa (`workers: 1`, `timeout: 30_000`) cai quase sempre **um** teste por corrida, e nem sempre o mesmo: com o `pnpm dev` a compilar rotas à medida, uma rota fria estoura o tecto. Antes de culpar uma alteração, corre o ficheiro sozinho. Falha conhecida e alheia ao código: `e2e/07-sessao.spec.ts:60` precisa de `AUTH_SESSION_MAX_AGE=8`, que só se aplica quando é o Playwright a arrancar o servidor (`reuseExistingServer`).
 
+**Golden fixture da spec 22** (`src/server/services/financas/__tests__/projecao.golden.test.ts`) corre dentro do
+`pnpm check` contra a **base local** e falha de propósito quando o tenant `demo` não é o do seed: basta um
+compromisso de tesouraria criado à mão, ou um lançamento gravado na conta 123 (Standard Bank), para o `check`
+ficar vermelho sem nenhuma alteração de código. A mensagem diz «a base tem resíduos»: limpa o resíduo, ou
+re-deriva a fixture à mão (handoff da spec 22) — nunca `vitest -u`.
+
+**Scripts ad-hoc de smoke** (Playwright fora da suite): o pacote instalado é `@playwright/test` (não
+`playwright`), e o script tem de viver dentro de `apps/erp/` para o resolver. Em `pnpm dev`, espera
+`networkidle` antes de escrever num campo: preencher antes da hidratação muda o DOM e não o estado do React,
+e o teste afirma sobre valores que a página nunca usou.
+
+**Shell do agente é zsh**: `$VAR` sem aspas **não** se parte em palavras (`vitest run $FICHEIROS` passa um
+único argumento) — usa um array `F=(a b); … "${F[@]}"`. O `psql` não está instalado no host e o utilizador
+do Postgres não é `postgres`:
+`docker exec gespro-db psql -U "$(docker exec gespro-db printenv POSTGRES_USER)" -d "$(docker exec gespro-db printenv POSTGRES_DB)" -c '…'`.
+
 ### Migrations — só o orquestrador, e **não-interativas**
 `pnpm db:migrate:dev` (`prisma migrate dev`) exige TTY e **rebenta em ambiente não-interactivo**. Para gerar uma migration a partir do delta schema↔DB sem prompts:
 ```bash
@@ -95,6 +111,13 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --scr
 npx prisma migrate deploy
 ```
 Renomear (valor de enum **ou coluna**): o `migrate diff` gera **drop+create** e perde os dados — escreve à mão `ALTER TYPE "X" RENAME VALUE 'A' TO 'B';` ou `ALTER TABLE "T" RENAME COLUMN "a" TO "b";` (renomeia também a constraint: `ALTER TABLE "T" RENAME CONSTRAINT …`, senão o próximo `migrate diff` vê deriva) e marca com `prisma migrate resolve --applied <migration>`. Confirma no fim que `migrate diff --from-config-datasource --to-schema prisma/schema --script` devolve *empty migration*. Em produção usa **sempre** `migrate deploy`, nunca `migrate dev`.
+
+**Não corras `prisma format`**: reformata os onze ficheiros de `prisma/schema/` inteiros e o diff deixa de ser
+revisível. Edita o schema à mão e valida com `npx prisma validate`.
+
+Configuração por tenant nova (ex.: `ContaNaturezaNotaDebito`) precisa de omissão em **dois** sítios: em
+`tenant-bootstrap.ts` para os tenants futuros e, na própria migração, um `INSERT … SELECT … ON CONFLICT DO NOTHING`
+para os que já existem — o `pnpm db:seed` não chega a tenants de produção.
 
 Depois de `prisma generate`, **reinicia o `pnpm dev`** (`touch apps/erp/next.config.ts` chega): o processo em memória continua com o cliente antigo e as páginas afectadas passam a devolver o cartão de erro do `catch` — parece bug de código e é só o processo desactualizado.
 
@@ -240,6 +263,10 @@ falhar, o defeito está no JSON, não no teste. (A classe 4 continua toda `DEVED
 - Mapas, balancete, razão e DRE filtram lançamentos por `FILTRO_LANCAMENTO_MAPA`
   (`LANCADO` + `ESTORNADO`), exportado do serviço — nunca um literal local, que foi como quatro cópias
   divergiram.
+- Uma data `aaaa-mm-dd` que entra por `z.coerce.date()` fica à **meia-noite UTC**; como `dataFim` num
+  `lte`, deixa de fora os lançamentos do próprio último dia. A página `/contabilidade/balancete` ainda tem este
+  defeito (fim a 31/10 não apanha um lançamento de 31/10 ao meio-dia). O fim de um período pedido pelo
+  utilizador é `new Date(dia + 'T23:59:59.999+02:00')`.
 
 **Datas de `<input type="date">`** — `new Date('aaaa-mm-dd')` lê como UTC e, a leste de Greenwich, cai no dia
 anterior — muda o período fiscal. Parte a string e constrói `new Date(ano, mes - 1, dia, 12)`.
@@ -297,6 +324,17 @@ ADR-0026 §5). Localmente é o serviço `cron` do compose (perfil `full`); o con
 horários, `CRON_SECRET` — está em `docs/runbooks/agendador.md`. Uma rota `/api/cron/*` nova entra
 nos dois sítios ou não corre em lado nenhum.
 
+**Auditoria só vê escritas singulares** — a `audit-extension` intercepta `create`/`update`/`delete` de
+**uma** linha. `upsert`, `createMany`, `updateMany` e `deleteMany` passam **sem `AuditLog`**, mesmo em
+modelos listados em `AUDIT_MODELS`. Uma escrita que tem de ficar no trilho usa `findFirst` + a operação
+singular (ex.: `definirContaNaturezaNotaDebito`).
+
+**Páginas-protótipo que parecem reais** — algumas páginas antigas são `'use client'` e leem/escrevem
+`localStorage` em vez da base (tabelas vazias, «guardado» que ninguém lê). Antes de corrigir um sintoma numa
+página, confirma que ela chega ao servidor: `git grep -l localStorage -- 'apps/erp/src/app/**/page.tsx'`
+(hoje: `balancete/nova` — «Salvar» ainda é fictício — e `projetos/lista/{novo,[id]/editar}`). Os tipos de
+`src/types/contabilidade.ts` são desse protótipo; os reais estão nos `*.interface.ts` dos serviços.
+
 **Gates de CI** (`pnpm gates`, `apps/erp/scripts/gate-*.mjs`) — cinco, e falham o merge se houver: `Dialog` fora de `AlertDialog`, `'use client'` em `page.tsx` de listagem/detalhe, imports de `@/data/` em `src/app`, Server Actions que não declarem o que fazem em Leitura, ou escrita directa em `Lancamento`/`PartidaLancamento` fora do `contabilidade.service.ts` (`gate-periodo`, que varre `src/` **e** `prisma/`). Manter a zero.
 
 ## Convenções detalhadas (normativas)
@@ -350,3 +388,11 @@ implementação, e um agente autor que altere `__tests__/` ou `fixtures/` é BLO
 
 Primeiro grafo a seguir a doutrina: `docs/agentic/grafo-22-fluxo-de-caixa.md` (spec 22), com os
 prompts literais em `docs/agentic/prompts-22-fluxo-de-caixa.md`.
+
+Grafos por ADR vivem em `.claude/grafos/<grafo>.md` (tabela de nós com estado e dependências, «Leitura
+obrigatória» e âmbito por nó) e correm-se com `/no <grafo> <nó>` (`.claude/commands/no.md`: INSPECT → PLAN →
+IMPLEMENT → TEST → REVIEW em subagente sem contexto → FIX → VERIFY → DONE, com relatório de INSPECT ao
+utilizador antes do PLAN). Handoff de cada nó em `docs/handoff/<grafo>-<nó>.md`; o de ADR-0038 usa
+`docs/handoff/adr-0038-*.md`. A skill `estado-com-escritor`, citada pelo `/no` e por vários ADRs, **não
+existe** — aplica a definição por extenso: estado lido por um predicado de decisão tem escritor em produção e
+teste da transição nos dois sentidos, contra um duplo com estado.
