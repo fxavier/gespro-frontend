@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { gerarBalancetePeriodo } from '@/lib/contabilidade/balancete';
-import type { Balancete } from '@/types/contabilidade';
+import { gerarBalancete } from '@/server/actions/contabilidade.actions';
+import { formatMZN } from '@/lib/format-currency';
+import { formatarData } from '@/lib/format-date';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import {
@@ -20,6 +21,17 @@ import {
   Eye,
   FileText
 } from 'lucide-react';
+
+/** O balancete calculado no servidor, já serializado (Decimal → string). */
+type Balancete = Extract<Awaited<ReturnType<typeof gerarBalancete>>, { ok: true }>['data'];
+
+/**
+ * `aaaa-mm-dd` → instante no dia civil de Maputo (UTC+2, sem hora de Verão).
+ * O fim vai até às 23:59:59.999: com meia-noite, os lançamentos do último dia
+ * ficavam de fora do `lte`.
+ */
+const inicioDoDia = (dia: string) => new Date(`${dia}T00:00:00.000+02:00`);
+const fimDoDia = (dia: string) => new Date(`${dia}T23:59:59.999+02:00`);
 
 interface BalanceteRegistro extends Balancete {
   id: string;
@@ -36,8 +48,10 @@ interface BalanceteRegistro extends Balancete {
 export default function NovoBalancetePage() {
   const router = useRouter();
   const hoje = new Date();
-  const inicioAno = new Date(hoje.getFullYear(), 0, 1).toISOString().split('T')[0];
-  const hojeStr = hoje.toISOString().split('T')[0];
+  // Do dia LOCAL: `toISOString()` passa a UTC, e a leste de Greenwich a meia-noite
+  // de 1 de Janeiro ainda é 31 de Dezembro — o formulário abria no ano anterior.
+  const inicioAno = `${hoje.getFullYear()}-01-01`;
+  const hojeStr = `${inicioAno.slice(0, 4)}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
   const [formData, setFormData] = useState({
     nome: `Balancete ${hoje.getFullYear()}`,
@@ -49,30 +63,29 @@ export default function NovoBalancetePage() {
     gerarAnalitico: true
   });
   const [preview, setPreview] = useState<Balancete | null>(null);
-  const [gerando, setGerando] = useState(false);
+  const [gerando, iniciarGeracao] = useTransition();
   const [salvando, setSalvando] = useState(false);
 
   const handleChange = (field: keyof typeof formData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const gerarPreview = () => {
-    setGerando(true);
-    try {
-      const resultado = gerarBalancetePeriodo({
-        dataInicio: formData.dataInicio,
-        dataFim: formData.dataFim,
-        incluirZeradas: formData.incluirZeradas
+  // Calculado no servidor, a partir dos lançamentos — o mesmo serviço da página
+  // /contabilidade/balancete. Antes lia o localStorage do protótipo, sempre vazio.
+  const gerarPreview = () =>
+    iniciarGeracao(async () => {
+      const r = await gerarBalancete({
+        dataInicio: inicioDoDia(formData.dataInicio),
+        dataFim: fimDoDia(formData.dataFim),
+        incluirZeradas: formData.incluirZeradas,
       });
-      setPreview(resultado);
-      toast.success('Pré-visualização atualizada');
-    } catch (error) {
-      console.error(error);
-      toast.error('Não foi possível gerar o balancete');
-    } finally {
-      setGerando(false);
-    }
-  };
+      if (!r.ok) {
+        toast.error(r.error.message ?? 'Não foi possível gerar o balancete');
+        return;
+      }
+      setPreview(r.data);
+      toast.success('Pré-visualização actualizada');
+    });
 
   const salvarBalancete = () => {
     if (!preview) {
@@ -241,23 +254,26 @@ export default function NovoBalancetePage() {
       {preview && (
         <Card>
           <CardHeader>
-            <CardTitle>Pré-visualização ({preview.periodo})</CardTitle>
+            <CardTitle>
+              Pré-visualização ({formatarData(preview.dataInicio)} – {formatarData(preview.dataFim)})
+            </CardTitle>
             <CardDescription>Total de contas: {preview.contas.length}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="border rounded-lg p-3">
                 <p className="text-xs text-muted-foreground">Total Débitos</p>
-                <p className="text-2xl font-bold">MT {preview.totalDebitos.toLocaleString('pt-MZ')}</p>
+                <p className="text-2xl font-bold">{formatMZN(preview.totalDebitos)}</p>
               </div>
               <div className="border rounded-lg p-3">
                 <p className="text-xs text-muted-foreground">Total Créditos</p>
-                <p className="text-2xl font-bold">MT {preview.totalCreditos.toLocaleString('pt-MZ')}</p>
+                <p className="text-2xl font-bold">{formatMZN(preview.totalCreditos)}</p>
               </div>
               <div className="border rounded-lg p-3">
                 <p className="text-xs text-muted-foreground">Diferença</p>
-                <p className={`text-2xl font-bold ${Math.abs(preview.totalDebitos - preview.totalCreditos) < 0.01 ? 'text-emerald-600' : 'text-destructive'}`}>
-                  MT {(preview.totalDebitos - preview.totalCreditos).toLocaleString('pt-MZ')}
+                <p className={`text-2xl font-bold ${preview.totalDebitos === preview.totalCreditos ? 'text-success' : 'text-destructive'}`}>
+                  {/* ponytail: Number só para mostrar a diferença; os totais vêm exactos do servidor */}
+                  {formatMZN(Number(preview.totalDebitos) - Number(preview.totalCreditos))}
                 </p>
               </div>
             </div>
@@ -274,17 +290,25 @@ export default function NovoBalancetePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {preview.contas.map((conta) => (
-                    <TableRow key={conta.codigo}>
-                      <TableCell className="font-mono">{conta.codigo}</TableCell>
-                      <TableCell>{conta.nome}</TableCell>
-                      <TableCell className="text-right font-mono">MT {conta.debitos.toLocaleString('pt-MZ')}</TableCell>
-                      <TableCell className="text-right font-mono">MT {conta.creditos.toLocaleString('pt-MZ')}</TableCell>
-                      <TableCell className={`text-right font-mono ${conta.saldoAtual < 0 ? 'text-destructive' : ''}`}>
-                        MT {conta.saldoAtual.toLocaleString('pt-MZ')}
+                  {preview.contas.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        Nenhum lançamento no período escolhido.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    preview.contas.map((linha) => (
+                      <TableRow key={linha.conta.codigo}>
+                        <TableCell className="font-mono">{linha.conta.codigo}</TableCell>
+                        <TableCell>{linha.conta.nome}</TableCell>
+                        <TableCell className="text-right font-mono">{formatMZN(linha.debitos)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatMZN(linha.creditos)}</TableCell>
+                        <TableCell className={`text-right font-mono ${Number(linha.saldoAtual) < 0 ? 'text-destructive' : ''}`}>
+                          {formatMZN(linha.saldoAtual)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
