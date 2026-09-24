@@ -3,6 +3,7 @@ import {
   DIARIOS_INICIAIS,
   SERIES_INICIAIS,
   bootstrapContabilidade,
+  bootstrapContasNaturezaNotaDebito,
   bootstrapDiarios,
   bootstrapPlanoContas,
   bootstrapRbac,
@@ -11,6 +12,7 @@ import {
   derivarTipoConta,
   garantirCatalogoPermissoes,
 } from '../tenant-bootstrap';
+import { CONTA_PADRAO_NATUREZA_ND } from '@/lib/nota-debito';
 
 interface Linha {
   id: string;
@@ -33,7 +35,18 @@ function fakeTx() {
   const createMany = () =>
     vi.fn(async ({ data }: ArgsCreateMany) => ({ count: data.length }));
   return {
-    contaPGC: { createMany: createMany() },
+    contaPGC: {
+      createMany: createMany(),
+      // O plano semeado tem as três contas por omissão das naturezas de ND.
+      findMany: vi.fn(async () => [
+        { id: 'c711', codigo: '711', classe: 'CLASSE_7' },
+        { id: 'c781', codigo: '781', classe: 'CLASSE_7' },
+        { id: 'c769', codigo: '769', classe: 'CLASSE_7' },
+      ]),
+    },
+    contaNaturezaNotaDebito: {
+      createMany: vi.fn(async ({ data }: { data: unknown[]; skipDuplicates?: boolean }) => ({ count: data.length })),
+    },
     diario: { createMany: createMany() },
     serieDocumento: { createMany: createMany() },
     permission: {
@@ -159,6 +172,46 @@ describe('diários e séries', () => {
     expect(r.contas).toBeGreaterThan(0);
     expect(r.diarios).toBe(DIARIOS_INICIAIS.length);
     expect(r.series).toBe(SERIES_INICIAIS.length);
+    expect(tx.contaNaturezaNotaDebito.createMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('conta de crédito por natureza de ND (ADR-0039 §1)', () => {
+  it('semeia ACERTO_PRECO→711, JUROS_MORA→781, PENALIZACAO→769, pelo id da conta do tenant', async () => {
+    const n = await bootstrapContasNaturezaNotaDebito(tx as never, 'tenant-1');
+    const args = tx.contaNaturezaNotaDebito.createMany.mock.calls[0][0];
+    expect(n).toBe(3);
+    expect(args.skipDuplicates).toBe(true); // não substitui o que o tenant já escolheu
+    expect(args.data).toEqual([
+      { tenantId: 'tenant-1', natureza: 'ACERTO_PRECO', contaId: 'c711' },
+      { tenantId: 'tenant-1', natureza: 'JUROS_MORA', contaId: 'c781' },
+      { tenantId: 'tenant-1', natureza: 'PENALIZACAO', contaId: 'c769' },
+    ]);
+    const where = (tx.contaPGC.findMany.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
+    expect(where).toMatchObject({ tenantId: 'tenant-1', aceitaLancamento: true, ativo: true });
+  });
+
+  it('DESPESAS_REPERCUTIDAS e OUTRO ficam sem omissão (escolhe-se no acto)', () => {
+    expect(Object.keys(CONTA_PADRAO_NATUREZA_ND)).not.toContain('DESPESAS_REPERCUTIDAS');
+    expect(Object.keys(CONTA_PADRAO_NATUREZA_ND)).not.toContain('OUTRO');
+  });
+
+  it('conta em falta no plano do tenant → a natureza fica sem linha, nunca com uma conta inventada', async () => {
+    tx.contaPGC.findMany.mockResolvedValueOnce([{ id: 'c711', codigo: '711', classe: 'CLASSE_7' }]);
+    await bootstrapContasNaturezaNotaDebito(tx as never, 'tenant-1');
+    expect(tx.contaNaturezaNotaDebito.createMany.mock.calls[0][0].data).toEqual([
+      { tenantId: 'tenant-1', natureza: 'ACERTO_PRECO', contaId: 'c711' },
+    ]);
+  });
+
+  it('conta com o código certo mas classe errada (plano divergente) → também fica sem linha', async () => {
+    tx.contaPGC.findMany.mockResolvedValueOnce([
+      { id: 'c711', codigo: '711', classe: 'CLASSE_7' },
+      { id: 'c781', codigo: '781', classe: 'CLASSE_6' },
+    ]);
+    await bootstrapContasNaturezaNotaDebito(tx as never, 'tenant-1');
+    expect((tx.contaNaturezaNotaDebito.createMany.mock.calls[0][0].data as Array<{ natureza: string }>).map((l) => l.natureza))
+      .toEqual(['ACERTO_PRECO']);
   });
 });
 

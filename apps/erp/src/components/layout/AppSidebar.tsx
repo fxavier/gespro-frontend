@@ -11,7 +11,7 @@ import {
   BookText, Tag, MapPin, Fuel, User, FolderKanban, CheckSquare,
   Clock, Wallet, Ticket, UserCog, Calendar,
   Award, GraduationCap, Factory, FileBarChart2, PackageSearch, LineChart,
-  RotateCcw, AlertCircle, BookMarked as JournalIcon, CreditCard,
+  RotateCcw, FilePlus2, AlertCircle, BookMarked as JournalIcon, CreditCard,
   PanelLeftClose, PanelLeftOpen, Settings, PercentCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -98,6 +98,7 @@ const menuItems: MenuItem[] = [
       { title: 'POS', href: '/pos', icon: Store },
       { title: 'Faturas', href: '/vendas/faturas', icon: Receipt },
       { title: 'Notas de Crédito', href: '/vendas/notas-credito', icon: RotateCcw },
+      { title: 'Notas de Débito', href: '/vendas/notas-debito', icon: FilePlus2 },
       { title: 'Clientes', href: '/clientes', icon: Users },
     ],
   },

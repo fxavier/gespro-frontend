@@ -434,10 +434,18 @@ describe('sugerirLancamento — RF §9', () => {
     expect(db.regraSugestaoLancamento.findMany.mock.calls[0][0].where).toMatchObject({ tenantId: 'tenant-a', ativo: true });
   });
 
-  it('sem regra que case, ou movimento que não é BANCO_SEM_CONTABILIZACAO → null', async () => {
-    db.movimentoBancario.findFirst.mockResolvedValue(mov);
-    db.regraSugestaoLancamento.findMany.mockResolvedValue([]);
-    expect(await sugerirLancamento('b1', ctx)).toBeNull();
+  it('sem regra que case → sugere só a partida do banco, e a contrapartida fica ao utilizador', async () => {
+    db.movimentoBancario.findFirst.mockResolvedValue({ ...mov, descricao: 'Processamento de salários', natureza: 'CREDITO' });
+    db.regraSugestaoLancamento.findMany.mockResolvedValue([
+      { id: 'r1', contaBancariaId: null, padrao: 'COMISSAO|ENCARGO', natureza: 'CREDITO', contaContrapartidaId: 'pgc-6981', prioridade: 100 },
+    ]);
+    const s = await sugerirLancamento('b1', ctx);
+    expect(s!.regraId).toBeNull();
+    expect(s!.historico).toBe('Processamento de salários');
+    expect(s!.partidas.map((p) => [p.contaId, p.tipo, p.valor.toFixed(2)])).toEqual([['pgc-121', 'CREDITO', '500.00']]);
+  });
+
+  it('movimento que já não é BANCO_SEM_CONTABILIZACAO → null', async () => {
     db.movimentoBancario.findFirst.mockResolvedValue({ ...mov, estado: 'RECONCILIADO' });
     expect(await sugerirLancamento('b1', ctx)).toBeNull();
   });

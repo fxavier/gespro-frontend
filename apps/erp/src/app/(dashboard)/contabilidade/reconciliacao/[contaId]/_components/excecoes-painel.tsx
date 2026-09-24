@@ -56,7 +56,8 @@ export function ExcecoesPainel({ contaBancariaId, bancarios, contabilisticos, cu
     iniciar(async () => {
       const r = await sugerirLancamentoAction({ movimentoBancarioId: m.id });
       if (!r.ok) return void toast.error(r.error.message);
-      if (!r.data) return void toast.info('Nenhuma regra de sugestão se aplica a este movimento.');
+      if (!r.data) return void toast.info('Este movimento já não está por contabilizar.');
+      if (!r.data.regraId) toast.info('Nenhuma regra de sugestão se aplica: escolha a conta de contrapartida.');
       // O movimento está ao meio-dia do dia civil: os componentes locais dão esse dia em qualquer fuso de ±11h.
       const d = new Date(r.data.data);
       const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

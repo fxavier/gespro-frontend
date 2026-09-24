@@ -158,6 +158,16 @@ enum StatusNotaDebito {
   CANCELADA
 }
 
+/// Porque é que o cliente passa a dever mais (ADR-0039 §1). Decide a conta de
+/// crédito do lançamento: só ACERTO_PRECO é volume de negócios.
+enum NaturezaNotaDebito {
+  ACERTO_PRECO
+  JUROS_MORA
+  DESPESAS_REPERCUTIDAS
+  PENALIZACAO
+  OUTRO
+}
+
 enum StatusProforma {
   RASCUNHO
   ENVIADA
@@ -672,6 +682,7 @@ model LinhaFatura {
   precoUnitario  Decimal @db.Decimal(18, 2)
   desconto       Decimal @db.Decimal(18, 2) @default(0)
   taxaIva        Decimal @db.Decimal(9, 6)  @default(0.16) // 16% padrão MZ
+  motivoIsencao String? // obrigatório quando taxaIva = 0 (ADR-0039 §4)
   subtotal       Decimal @db.Decimal(18, 2)
   ivaItem        Decimal @db.Decimal(18, 2)
   total          Decimal @db.Decimal(18, 2)
@@ -699,6 +710,7 @@ model NotaCredito {
   status           StatusNotaCredito @default(RASCUNHO)
   dataEmissao      DateTime
   observacoes      String?
+  motivoCancelamento String?         // ADR-0039 §3 — nunca por cima de observacoes
   lancamentoId     String?           // FK Lancamento de estorno (escalar)
   emitidoPorId     String            // FK User (escalar)
   createdAt        DateTime          @default(now())
@@ -725,6 +737,7 @@ model LinhaNotaCredito {
   precoUnitario Decimal @db.Decimal(18, 2)
   desconto      Decimal @db.Decimal(18, 2) @default(0)
   taxaIva       Decimal @db.Decimal(9, 6)
+  motivoIsencao String? // obrigatório quando taxaIva = 0 (ADR-0039 §4)
   subtotal      Decimal @db.Decimal(18, 2)
   ivaItem       Decimal @db.Decimal(18, 2)
   total         Decimal @db.Decimal(18, 2)
@@ -745,6 +758,11 @@ model NotaDebito {
   clienteId          String           // FK cross-domínio (WS C) — escalar
   faturaReferenciaId String?          // FK Fatura referenciada (se existir) — escalar
   motivo             String
+  /// ACERTO_PRECO por omissão: é o comportamento anterior ao ADR-0039, e as ND
+  /// já emitidas ficam assim (não há backfill possível — ADR-0039, risco a).
+  natureza           NaturezaNotaDebito @default(ACERTO_PRECO)
+  /// Conta PGC creditada no acto (FK escalar ContaPGC). Nula nas ND anteriores.
+  contaCreditoId     String?
   moeda              String           @default("MZN")
   subtotal           Decimal          @db.Decimal(18, 2)
   descontoTotal      Decimal          @db.Decimal(18, 2) @default(0)
@@ -753,6 +771,7 @@ model NotaDebito {
   status             StatusNotaDebito @default(RASCUNHO)
   dataEmissao        DateTime
   observacoes        String?
+  motivoCancelamento String?          // ADR-0039 §3 — nunca por cima de observacoes
   lancamentoId       String?          // FK Lancamento (escalar)
   emitidoPorId       String           // FK User (escalar)
   createdAt          DateTime         @default(now())
@@ -779,6 +798,7 @@ model LinhaNotaDebito {
   precoUnitario Decimal @db.Decimal(18, 2)
   desconto    Decimal @db.Decimal(18, 2) @default(0)
   taxaIva     Decimal @db.Decimal(9, 6)
+  motivoIsencao String? // obrigatório quando taxaIva = 0 (ADR-0039 §4)
   subtotal    Decimal @db.Decimal(18, 2)
   ivaItem     Decimal @db.Decimal(18, 2)
   total       Decimal @db.Decimal(18, 2)
@@ -788,6 +808,21 @@ model LinhaNotaDebito {
   notaDebito NotaDebito @relation(fields: [notaDebitoId], references: [id])
 
   @@index([tenantId, notaDebitoId])
+}
+
+/// Conta de crédito por omissão de cada natureza de ND, por tenant (ADR-0039 §1).
+/// Sem linha = a natureza não tem omissão e a conta escolhe-se no acto
+/// (DESPESAS_REPERCUTIDAS, OUTRO). Semeada no provisionamento; escrita por
+/// `definirContaNaturezaNotaDebito`.
+model ContaNaturezaNotaDebito {
+  id        String             @id @default(cuid())
+  tenantId  String
+  natureza  NaturezaNotaDebito
+  contaId   String             // FK escalar ContaPGC (folha, classe admitida)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([tenantId, natureza])
 }
 
 /// Proforma: proposta comercial antes de emitir factura fiscal.

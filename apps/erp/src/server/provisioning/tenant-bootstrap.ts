@@ -17,6 +17,7 @@
 import type { Prisma } from '@prisma/client';
 import planoContasJson from '../../../prisma/seed/data/plano-contas-pgc.json';
 import { PERMISSIONS, SYSTEM_ROLES } from '../../../prisma/seed/rbac';
+import { CONTA_PADRAO_NATUREZA_ND, classeAdmitidaParaNatureza } from '../../lib/nota-debito';
 
 /** Cliente aceite: `Prisma.TransactionClient` ou um `PrismaClient` completo. */
 export type BootstrapClient = Prisma.TransactionClient;
@@ -218,6 +219,36 @@ export async function bootstrapSeriesDocumento(
 }
 
 // ---------------------------------------------------------------------------
+// Conta de crédito por natureza de nota de débito (ADR-0039 §1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Semeia a omissão natureza → conta PGC. Corre depois do plano de contas (lê as
+ * contas pelo código). Idempotente: não substitui o que o tenant já escolheu.
+ */
+export async function bootstrapContasNaturezaNotaDebito(
+  tx: BootstrapClient,
+  tenantId: string,
+): Promise<number> {
+  const padrao = Object.entries(CONTA_PADRAO_NATUREZA_ND);
+  const contas = await tx.contaPGC.findMany({
+    where: { tenantId, codigo: { in: padrao.map(([, codigo]) => codigo) }, aceitaLancamento: true, ativo: true },
+    select: { id: true, codigo: true, classe: true },
+  });
+  // Só a conta que o serviço também aceitaria: um plano que divirja do canónico
+  // deixa a natureza sem omissão, em vez de lhe dar uma conta da classe errada.
+  const valida = (natureza: string, codigo: string) =>
+    contas.find((c) => c.codigo === codigo && c.classe === classeAdmitidaParaNatureza(natureza as never));
+  const r = await tx.contaNaturezaNotaDebito.createMany({
+    data: padrao
+      .filter(([natureza, codigo]) => valida(natureza, codigo))
+      .map(([natureza, codigo]) => ({ tenantId, natureza: natureza as never, contaId: valida(natureza, codigo)!.id })),
+    skipDuplicates: true,
+  });
+  return r.count;
+}
+
+// ---------------------------------------------------------------------------
 // RBAC — catálogo global de permissões + roles de sistema do tenant
 // ---------------------------------------------------------------------------
 
@@ -289,5 +320,6 @@ export async function bootstrapContabilidade(
   const contas = await bootstrapPlanoContas(tx, tenantId);
   const diarios = await bootstrapDiarios(tx, tenantId);
   const series = await bootstrapSeriesDocumento(tx, tenantId);
+  await bootstrapContasNaturezaNotaDebito(tx, tenantId);
   return { contas, diarios, series };
 }

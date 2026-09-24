@@ -143,6 +143,14 @@ enum StatusRecebimento {
 
 // ---- Enums: Contas a Pagar ----
 
+/// ADR-0039 §2: ContaPagar é «documento de dívida a fornecedor», não só factura.
+/// Listagens e agregações de facturas filtram por FACTURA.
+enum TipoDocumentoContaPagar {
+  FACTURA
+  NOTA_DEBITO
+  NOTA_CREDITO
+}
+
 enum StatusContaPagar {
   ABERTA
   PARCIALMENTE_PAGA
@@ -762,6 +770,10 @@ model ContaPagar {
   taxaIva          Decimal?          @db.Decimal(9, 6)
   valorIva         Decimal?          @db.Decimal(18, 2)
   tipoAquisicao    TipoAquisicaoIva?
+  // ADR-0039 §2 — ND/NC de fornecedor: nova ContaPagar ligada à original, que não é tocada.
+  tipoDocumento      TipoDocumentoContaPagar @default(FACTURA)
+  contaPagarOrigemId String?                 // FK escalar para a ContaPagar original
+  motivo             String?                 // obrigatório quando não é FACTURA
   observacoes    String?
   currency       String           @default("MZN")
   createdAt      DateTime         @default(now())
@@ -778,6 +790,8 @@ model ContaPagar {
   @@index([pedidoCompraId])
   @@index([centroCustoId])
   @@index([contaContabilId])
+  @@index([tenantId, tipoDocumento])
+  @@index([contaPagarOrigemId])
 }
 
 /// Liquidação de uma conta a pagar. Gera lançamento contabilístico em WS D (lancamentoId).

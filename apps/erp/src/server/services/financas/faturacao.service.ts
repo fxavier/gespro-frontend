@@ -747,7 +747,7 @@ export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx):
   const nc = await prisma.notaCredito.findFirst({ where: { id, tenantId: ctx.tenantId } });
   if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
   transitarNC(nc.status as StatusNotaCredito, 'CANCELADA');
-  return prisma.notaCredito.update({ where: { id }, data: { status: 'CANCELADA', observacoes: motivo } }) as unknown as NotaCredito;
+  return prisma.notaCredito.update({ where: { id }, data: { status: 'CANCELADA', motivoCancelamento: motivo } }) as unknown as NotaCredito;
 }
 
 // ---------------------------------------------------------------------------
@@ -887,7 +887,7 @@ export async function cancelarNotaDebito(id: string, motivo: string, ctx: Ctx): 
   const nd = await prisma.notaDebito.findFirst({ where: { id, tenantId: ctx.tenantId } });
   if (!nd) throw new NotFoundError('Nota de débito não encontrada');
   transitarND(nd.status as StatusNotaDebito, 'CANCELADA');
-  return prisma.notaDebito.update({ where: { id }, data: { status: 'CANCELADA', observacoes: motivo } }) as unknown as NotaDebito;
+  return prisma.notaDebito.update({ where: { id }, data: { status: 'CANCELADA', motivoCancelamento: motivo } }) as unknown as NotaDebito;
 }
 
 // ---------------------------------------------------------------------------
