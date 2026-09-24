@@ -1,3 +1,9 @@
+> **Documento histórico — não descreve o sistema actual.** Retrata o GestPro **antes** da migração
+> das Waves 0–3 (julho de 2026): Next.js 15, dados mock, acesso por PostgREST, serviços em
+> `src/services`, assistente conversacional entretanto removido. Movido para aqui pelo
+> [ADR-0023](../decisions/ADR-0023-governacao-documentacao.md) em 2026-09-24. Documentação corrente:
+> [`docs/sistema/`](../sistema/README.md) e [`docs/manual/`](../manual/README.md).
+
 # Documentação Funcional do GestPro ERP (PT)
 
 ## Sumário

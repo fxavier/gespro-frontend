@@ -62,6 +62,16 @@ export default defineConfig({
       },
       dependencies: ['setup'],
     },
+    /* Capturas do Manual de Utilizador (docs/manual/img) — só a pedido: --project=manual */
+    {
+      name: 'manual',
+      testMatch: /.*\.manual\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'playwright/.auth/admin.json',
+      },
+      dependencies: ['setup'],
+    },
     /* Testes de A11y — mesmo browser, dependem do setup */
     {
       name: 'a11y',

@@ -1,3 +1,5 @@
+> **Documentação:** comece por [`docs/README.md`](docs/README.md) — sistema, manual de utilizador, ADRs e runbooks.
+
 # GestPro — Pacote de Specs e Agentes
 
 Copiar o conteúdo deste pacote para a raiz do repositório `gespro/`:

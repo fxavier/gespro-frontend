@@ -1,5 +1,14 @@
 # Estado do Programa de Modernização — GestPro ERP
 
+## 📚 Documentação do sistema e manual de utilizador (2026-09-24)
+
+ADR-0023 §2–3 executado: `docs/README.md` é o ponto de entrada; `docs/sistema/` (8 capítulos, incl.
+[referência da API](sistema/05-api.md)) e `docs/manual/` (12 capítulos, 121 capturas marcadas) descrevem
+`3ea52bd`; `DOCUMENTACAO.md` movido para `docs/historico/`. Capturas geradas por `pnpm --filter erp e2e:manual`. O levantamento encontrou ~120 lacunas, consolidadas por gravidade em
+[`sistema/08-lacunas-conhecidas.md`](sistema/08-lacunas-conhecidas.md) — o padrão dominante é
+*last-mile* (serviço sem ecrã) e estado sem escritor; as 128 lacunas foram abertas como issues
+(`needs-triage` + `gravidade:A|M|B`); as 24 de gravidade **A**: #76, #77, #78, #79, #80, #81, #82, #83, #84, #85, #86, #87, #88, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98, #99.
+
 ## 🔄 Ciclo contabilístico e fiscal (ADR-0033/0034/0035) — Fases 0 e 1 feitas (2026-09-19)
 
 Ramo `ciclo-contabilistico`. Os três ADRs estão **`Proposto`** — passá-los a `Aceite` é acto humano, e
