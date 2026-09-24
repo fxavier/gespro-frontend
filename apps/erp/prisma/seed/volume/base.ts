@@ -11,6 +11,7 @@ import {
   bootstrapPlanoContas,
   bootstrapDiarios,
   bootstrapSeriesDocumento,
+  bootstrapContasNaturezaNotaDebito,
 } from '../../../src/server/provisioning/tenant-bootstrap';
 import { cuidLike, chave } from './id';
 
@@ -126,6 +127,7 @@ export async function seedTenantBase(
   await bootstrapPlanoContas(prisma, tenant.id);
   await bootstrapDiarios(prisma, tenant.id);
   await bootstrapSeriesDocumento(prisma, tenant.id);
+  await bootstrapContasNaturezaNotaDebito(prisma, tenant.id);
 
   // ── PGC mínimo adicional (contas-folha determinísticas para as partidas) ──
   for (const c of CONTAS_PERF) {

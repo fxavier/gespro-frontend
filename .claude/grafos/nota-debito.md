@@ -10,7 +10,7 @@
 
 | Nó | Estado | Depende de |
 |---|---|---|
-| `modelo` | por fazer | — |
+| `modelo` | FEITO ([handoff](../../docs/handoff/nota-debito-modelo.md)) | — |
 | `contabilizacao` | por fazer | modelo |
 | `fornecedor` | por fazer | modelo |
 | `documento` | por fazer | contabilizacao, fornecedor |

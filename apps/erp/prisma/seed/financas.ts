@@ -16,6 +16,7 @@ import {
   bootstrapPlanoContas,
   bootstrapDiarios,
   bootstrapSeriesDocumento,
+  bootstrapContasNaturezaNotaDebito,
 } from '../../src/server/provisioning/tenant-bootstrap';
 
 const ANO = new Date().getFullYear();
@@ -46,6 +47,8 @@ export async function seedFinancas(prisma: PrismaClient, tenantId: string): Prom
 async function seedPlanoContas(prisma: PrismaClient, tenantId: string): Promise<void> {
   const criadas = await bootstrapPlanoContas(prisma, tenantId);
   console.log(`[WS-D] ContaPGC: ${criadas} criadas (restantes já existiam).`);
+  const naturezas = await bootstrapContasNaturezaNotaDebito(prisma, tenantId);
+  console.log(`[WS-D] ContaNaturezaNotaDebito: ${naturezas} criadas.`);
 }
 
 async function seedDiarios(prisma: PrismaClient, tenantId: string): Promise<void> {

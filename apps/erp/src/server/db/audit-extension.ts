@@ -15,6 +15,8 @@ export const AUDIT_MODELS = new Set<string>([
   // passam aqui — o trilho delas é a própria CorrespondenciaBancaria, append-only.
   'CorrespondenciaBancaria', 'PeriodoReconciliacao', 'ImportacaoExtracto',
   'MovimentoBancario', 'MovimentoContabilistico', 'RegraSugestaoLancamento',
+  // ADR-0039 §1 — mudar a conta de uma natureza muda onde as ND seguintes creditam.
+  'ContaNaturezaNotaDebito',
 ]);
 
 /**
