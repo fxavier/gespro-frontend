@@ -16,6 +16,7 @@
     "check": "prisma validate && tsc --noEmit && eslint . && vitest run",
     "e2e": "playwright test --project=e2e",
     "e2e:a11y": "playwright test --project=a11y",
+    "e2e:manual": "playwright test --project=manual",
     "e2e:all": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:report": "playwright show-report",
