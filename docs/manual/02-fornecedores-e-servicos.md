@@ -146,14 +146,20 @@ A tabela mostra Número, Fornecedor, Descrição, Vencimento, Estado e Restante.
 1. Abra a conta e clique em **Registar pagamento**. Na lista, use **⋯ › Registar pagamento**.
 2. Em **Pagamento**, confirme ou altere o **Valor (MZN)**. Vem preenchido com o valor restante. Para um pagamento parcial, escreva um valor menor.
 3. Indique a **Data do pagamento** e a **Forma de pagamento**: Transferência bancária, Cheque, M-Pesa, e-Mola ou Numerário.
+   - Em **Transferência bancária** e **Cheque**, escolha a **Conta bancária** de onde sai o dinheiro (contas correntes, de poupança ou a prazo).
+   - Em **M-Pesa** e **e-Mola**, escolha a **Conta bancária** da carteira móvel. A carteira cria-se em **Contabilidade › Contas bancárias**, com o tipo **Carteira móvel (M-Pesa, e-Mola)**.
+   - Em **Numerário**, o formulário mostra a **Sessão de caixa aberta** de onde sai o dinheiro. Tem de ser uma sessão aberta por si: se não tiver nenhuma, aparece «Não há sessão de caixa aberta. Para pagar em numerário, abra o caixa em Caixa › Abertura antes de continuar.» e o botão **Registar pagamento** fica inactivo.
 4. Se quiser, preencha a **Referência** (n.º da transferência, cheque…) e as **Observações**.
 5. Clique em **Registar pagamento**.
 
 **Resultado:** aparece a mensagem «Pagamento registado.» e volta ao detalhe da conta. O pagamento surge no separador **Pagamentos** (Número, Data, Valor, Forma e referência, Lançamento). A conta passa a **Paga**, se ficou liquidada, ou a **Parcialmente Paga**. Uma conta Vencida continua Vencida até ser paga na totalidade.
 
 **Efeitos noutros módulos:**
-- **Contabilidade:** cada pagamento gera um lançamento no diário de Banco, a débito de *421 Fornecedores c/c* e a crédito de *121 Depósitos à ordem*. O lançamento é o mesmo qualquer que seja a forma de pagamento, incluindo Numerário. Para o abrir, use **Ver lançamento** na linha do pagamento. Veja [Contabilidade](05-contabilidade.md).
-- **Caixa:** o pagamento **não** cria movimento na caixa. Se pagou em numerário a partir da caixa, registe também a saída no módulo de Caixa (ver [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md)).
+- **Contabilidade:** cada pagamento gera um lançamento a débito de *421 Fornecedores c/c*. A conta a crédito e o diário dependem da forma de pagamento:
+  - **Numerário:** crédito em *111 Caixa*, no diário de Caixa.
+  - **Transferência bancária, Cheque, M-Pesa e e-Mola:** crédito na conta do plano de contas associada à conta bancária escolhida, no diário de Banco.
+  Para abrir o lançamento, use **Ver lançamento** na linha do pagamento. Veja [Contabilidade](05-contabilidade.md).
+- **Caixa:** um pagamento em **Numerário** cria uma saída do tipo **Pagamento** na sua sessão de caixa aberta, que conta para o saldo esperado no fecho. As outras formas não mexem na caixa. Veja [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md).
 
 <!-- captura: 02-fornecedores-e-servicos/conta-pagar-detalhe.png | /fornecedores/contas-pagar >primeiro -->
 ![Detalhe de uma conta a pagar](img/02-fornecedores-e-servicos/conta-pagar-detalhe.png)
