@@ -4,6 +4,8 @@
  * Partilhado cliente/servidor. Sem imports de @prisma/client.
  */
 import { z } from 'zod';
+import { idEntidade } from './common';
+import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 
 // ---- Enums ----
 
@@ -385,14 +387,29 @@ export type FilterContaPagarInput = z.infer<typeof FilterContaPagarSchema>;
 // PAGAMENTO (liquidação de conta a pagar)
 // =====================================================================
 
-export const CreatePagamentoSchema = z.object({
-  contaPagarId: z.string().cuid(),
-  dataPagamento: z.coerce.date(),
-  valor: positivoDecimal,
-  formaPagamento: z.string().min(1, 'Forma de pagamento obrigatória').max(100),
-  referencia: z.string().max(200).optional(),
-  observacoes: z.string().max(1000).optional(),
-});
+export const FormaPagamentoEnum = z.enum(
+  FORMAS_PAGAMENTO.map((f) => f.value) as [FormaPagamento, ...FormaPagamento[]],
+);
+
+export const CreatePagamentoSchema = z
+  .object({
+    contaPagarId: idEntidade(),
+    dataPagamento: z.coerce.date(),
+    valor: positivoDecimal,
+    formaPagamento: FormaPagamentoEnum,
+    contaBancariaId: idEntidade().optional(),
+    referencia: z.string().max(200).optional(),
+    observacoes: z.string().max(1000).optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.formaPagamento !== 'NUMERARIO' && !d.contaBancariaId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['contaBancariaId'],
+        message: 'A conta bancária é obrigatória para esta forma de pagamento.',
+      });
+    }
+  });
 
 export type CreatePagamentoInput = z.infer<typeof CreatePagamentoSchema>;
 

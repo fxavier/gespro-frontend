@@ -1,10 +1,18 @@
 /**
  * Registar pagamento de uma conta a pagar — Server Component (shell).
  *
- * Rota dedicada e não modal (regra da casa): recolhe valor, data, forma e
- * referência. Só contas com valor por pagar chegam ao formulário; as pagas e
+ * Rota dedicada e não modal (regra da casa): recolhe valor, data, forma,
+ * conta bancária (para formas não numerário) e referência.
+ * Só contas com valor por pagar chegam ao formulário; as pagas e
  * as canceladas recebem a explicação em vez do ecrã — o serviço recusaria na
  * mesma, mas o utilizador não tem de descobrir isso a submeter.
+ *
+ * O comportamento do pagamento depende da forma escolhida:
+ * - NUMERARIO             → D 421 / C 111 Caixa, diário CAIXA, movimento PAGAMENTO
+ *                           na sessão de caixa do utilizador.
+ * - TRANSFERENCIA_BANCARIA / CHEQUE → D 421 / C <PGC da ContaBancaria CORRENTE/POUPANCA/DEPOSITO_PRAZO>,
+ *                           diário BANCO, sem movimento de caixa.
+ * - M-PESA / E-MOLA       → idem, mas ContaBancaria tem de ser CARTEIRA_MOVEL.
  */
 
 import Link from 'next/link';
@@ -12,6 +20,9 @@ import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { contaPagarService } from '@/server/services/compras/conta-pagar.service';
+import { listarContasBancarias } from '@/server/services/financas/contabilidade.service';
+import type { ContaBancaria } from '@/server/services/financas/contabilidade.interface';
+import { obterSessaoAtual } from '@/server/services/financas/caixa.service';
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
@@ -72,6 +83,27 @@ export default async function RegistarPagamentoPage({
     );
   }
 
+  // Carregar contas bancárias activas do tenant e sessão de caixa do utilizador
+  const [contasBancarias, sessaoCaixa] = await runWithTenantContext(ctx, () =>
+    Promise.all([
+      listarContasBancarias(ctx),
+      obterSessaoAtual(ctx),
+    ]),
+  );
+
+  // Serializar para o cliente: só os campos necessários
+  const contasBancariasOpts = contasBancarias
+    .filter((c: ContaBancaria) => c.ativo)
+    .map((c: ContaBancaria) => ({
+      id: c.id,
+      label: `${c.banco} — ${c.numeroConta}`,
+      tipoConta: c.tipoConta,
+    }));
+
+  const sessaoCaixaInfo = sessaoCaixa
+    ? { id: sessaoCaixa.id as string, numero: sessaoCaixa.numero as string }
+    : null;
+
   return (
     <div className="p-6 space-y-6">
       {cabecalho}
@@ -83,12 +115,17 @@ export default async function RegistarPagamentoPage({
         <p className="mt-1 text-muted-foreground">
           Original {formatMZN(conta.valorOriginal)} · pago {formatMZN(conta.valorPago)} ·{' '}
           <span className="font-medium text-foreground">restante {formatMZN(conta.valorRestante)}</span>.
-          O pagamento gera o lançamento contabilístico (421 Fornecedores c/c a débito, 121 Depósitos
-          à ordem a crédito) no diário de banco.
+          O pagamento gera um lançamento contabilístico (421 Fornecedores c/c a débito) no
+          diário correspondente à forma de pagamento escolhida.
         </p>
       </div>
 
-      <RegistarPagamentoForm contaPagarId={conta.id} valorRestante={conta.valorRestante} />
+      <RegistarPagamentoForm
+        contaPagarId={conta.id}
+        valorRestante={conta.valorRestante}
+        contasBancarias={contasBancariasOpts}
+        sessaoCaixa={sessaoCaixaInfo}
+      />
     </div>
   );
 }

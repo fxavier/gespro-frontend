@@ -68,7 +68,7 @@ afterAll(async () => {
 });
 
 describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
-  // O bootstrap do PGC (502 contas + diários + séries) demora mais do que os
+  // O bootstrap do PGC (503 contas + diários + séries) demora mais do que os
   // 5 s por omissão numa DB partilhada — timeout explícito, não sintoma.
   it('cria o tenant completo numa única transacção, Keycloak primeiro', { timeout: 90_000 }, async () => {
     const r = await provisionarTenant({
@@ -105,7 +105,7 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
     // é primeiroAcessoEm null até ao primeiro login (ADR-0013 §5-bis).
     expect(user?.keycloakSub).toBe(r.keycloakSub);
     expect(user?.primeiroAcessoEm).toBeNull();
-    expect(contas).toBe(502); // 504 entradas no JSON, 2 duplicadas
+    expect(contas).toBe(503); // 505 entradas no JSON, 2 duplicadas
     expect(series).toBeGreaterThan(15);
     expect(diarios).toBe(9);
     // Boas-vindas é in-app: o ÚNICO e-mail do registo é o de acções do Keycloak.

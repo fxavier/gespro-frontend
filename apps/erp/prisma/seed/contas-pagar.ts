@@ -26,6 +26,16 @@ import type { PrismaClient } from '@prisma/client';
 import { runWithTenantContext } from '../../src/server/db/tenant-extension';
 import { contaPagarService } from '../../src/server/services/compras/conta-pagar.service';
 
+/** Procura uma conta bancária pela chave natural (banco + numeroConta) e falha com mensagem clara. */
+async function obterContaBancaria(prisma: PrismaClient, tenantId: string, banco: string, numeroConta: string): Promise<string> {
+  const conta = await prisma.contaBancaria.findFirst({
+    where: { tenantId, banco, numeroConta },
+    select: { id: true },
+  });
+  if (!conta) throw new Error(`[WS-B] ContaBancaria "${banco}" / "${numeroConta}" não existe — correr o seed de finanças antes.`);
+  return conta.id;
+}
+
 const DIA = 24 * 60 * 60 * 1000;
 const dias = (n: number) => new Date(Date.now() + n * DIA);
 
@@ -35,6 +45,8 @@ interface Pagamento {
   valor: number;
   forma: 'TRANSFERENCIA_BANCARIA' | 'CHEQUE' | 'M-PESA';
   referencia: string;
+  /** Chave natural da ContaBancaria: [banco, numeroConta]. */
+  banco?: [string, string];
 }
 
 interface Conta {
@@ -72,14 +84,14 @@ const CONTAS: Conta[] = [
     fornecedor: 'FOR-0001',
     descricao: 'Factura FT 2026/097 — mercadoria para revenda (Junho)',
     valor: 246_000, emissao: -40, vencimento: 5, conta: '6112',
-    pagamentos: [{ em: -20, valor: 120_000, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-06-27/0412' }],
+    pagamentos: [{ em: -20, valor: 120_000, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-06-27/0412', banco: ['Millennium bim', '178903456'] as [string, string] }],
   },
   {
     fornecedor: 'FOR-0002',
     descricao: 'Factura IMP-4402 — equipamento de refrigeração',
     valor: 318_000, emissao: -35, vencimento: 10,
     observacoes: 'Acordado em três prestações.',
-    pagamentos: [{ em: -30, valor: 106_000, forma: 'CHEQUE', referencia: 'CHQ 000871' }],
+    pagamentos: [{ em: -30, valor: 106_000, forma: 'CHEQUE', referencia: 'CHQ 000871', banco: ['Millennium bim', '178903456'] as [string, string] }],
   },
 
   // ── Pagas ───────────────────────────────────────────────────────────────
@@ -87,15 +99,15 @@ const CONTAS: Conta[] = [
     fornecedor: 'FOR-0003',
     descricao: 'Recibo 0275 — limpeza de tanques (Abril)',
     valor: 9_800, emissao: -90, vencimento: -75,
-    pagamentos: [{ em: -78, valor: 9_800, forma: 'M-PESA', referencia: 'MP 7F3K2Q1' }],
+    pagamentos: [{ em: -78, valor: 9_800, forma: 'M-PESA', referencia: 'MP 7F3K2Q1', banco: ['M-Pesa', '841234567'] as [string, string] }],
   },
   {
     fornecedor: 'FOR-0001',
     descricao: 'Factura FT 2026/064 — mercadoria para revenda (Abril)',
     valor: 152_300, emissao: -100, vencimento: -70, conta: '6112',
     pagamentos: [
-      { em: -85, valor: 80_000, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-04-23/0177' },
-      { em: -71, valor: 72_300, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-05-07/0203' },
+      { em: -85, valor: 80_000, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-04-23/0177', banco: ['Millennium bim', '178903456'] as [string, string] },
+      { em: -71, valor: 72_300, forma: 'TRANSFERENCIA_BANCARIA', referencia: 'TRF 2026-05-07/0203', banco: ['Millennium bim', '178903456'] as [string, string] },
     ],
   },
 ];
@@ -153,6 +165,11 @@ export async function seedContasPagar(
       );
 
       for (const p of c.pagamentos ?? []) {
+        // Resolver contaBancariaId a partir da chave natural (banco + numeroConta)
+        const contaBancariaId = p.banco
+          ? await obterContaBancaria(prisma, tenantId, p.banco[0], p.banco[1])
+          : undefined;
+
         await contaPagarService.registarPagamento(
           {
             contaPagarId: conta.id,
@@ -160,6 +177,7 @@ export async function seedContasPagar(
             valor: p.valor,
             formaPagamento: p.forma,
             referencia: p.referencia,
+            ...(contaBancariaId ? { contaBancariaId } : {}),
           },
           ctx,
         );

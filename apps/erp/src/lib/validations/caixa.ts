@@ -19,6 +19,7 @@ export const TipoMovimentoCaixaEnum = z.enum([
   'DEVOLUCAO',
   'FECHAMENTO',
   'AJUSTE',
+  'PAGAMENTO',
 ]);
 
 // ---------------------------------------------------------------------------

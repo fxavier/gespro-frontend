@@ -20,6 +20,16 @@
     "natureza": "DEVEDORA"
   },
   {
+    "codigo": "111",
+    "codigoOriginal": "1.1.1",
+    "nome": "Caixa",
+    "classe": 1,
+    "nivel": 3,
+    "contaMaeCodigo": "11",
+    "aceitaLancamento": true,
+    "natureza": "DEVEDORA"
+  },
+  {
     "codigo": "12",
     "codigoOriginal": "1.2",
     "nome": "Bancos",

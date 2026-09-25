@@ -13,6 +13,7 @@ import { DataTable, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { formatarDataHora } from '@/lib/format-date';
+import { MOVIMENTOS_ENTRADA, MOVIMENTOS_SAIDA } from '@/lib/caixa-movimentos';
 
 export interface MovimentoCaixaResumo {
   id: string;
@@ -32,10 +33,12 @@ export const TIPO_MOVIMENTO_LABEL: Record<string, string> = {
   DEVOLUCAO: 'Devolução',
   FECHAMENTO: 'Fecho',
   AJUSTE: 'Ajuste',
+  PAGAMENTO: 'Pagamento',
 };
 
-const SAIDAS = new Set(['SANGRIA', 'DEVOLUCAO']);
-const ENTRADAS = new Set(['VENDA', 'RECEBIMENTO', 'REFORCO', 'ABERTURA']);
+/** Tipos que contam como saída (espelha caixa.service.ts resumoSessao/fecharSessao). */
+const SAIDAS = new Set<string>(MOVIMENTOS_SAIDA);
+const ENTRADAS = new Set<string>(MOVIMENTOS_ENTRADA);
 
 const columns: TableColumn<MovimentoCaixaResumo>[] = [
   {

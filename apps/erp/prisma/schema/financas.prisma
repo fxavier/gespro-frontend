@@ -24,6 +24,7 @@ enum TipoMovimentoCaixa {
   DEVOLUCAO
   FECHAMENTO
   AJUSTE
+  PAGAMENTO // pagamento a fornecedor em numerário (issue #78) — conta como saída
 }
 
 enum ClassePGC {
@@ -93,6 +94,7 @@ enum TipoContaBancaria {
   CORRENTE
   POUPANCA
   DEPOSITO_PRAZO
+  CARTEIRA_MOVEL // M-Pesa, e-Mola (issue #78)
 }
 
 enum TipoCentroCusto {
