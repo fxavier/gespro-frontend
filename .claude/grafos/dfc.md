@@ -25,7 +25,7 @@ adr ─► contratos⚙ ─► oraculos ─► nucleo ─► seed-v ─► seed�
 | Nó | Ticket | Dono | Depende de | Verificador externo (gate) | Veto | Estado |
 |---|---|---|---|---|---|---|
 | `adr` | 0 | agente redige · **tu aceitas** | — | `grep -c "Estado\*\*: Aceite"` == 1 e `grep -c "Emenda 2026-09-25"` ≥ 1 | **humano** | FEITO |
-| `contratos` | 1 | `feat-dfc` + ⚙ `22b` | adr | `prisma validate` · `migrate diff` vazio · `pnpm check` | code-reviewer | por fazer |
+| `contratos` | 1 | `feat-dfc` + ⚙ `22b` | adr | `prisma validate` · `migrate diff` vazio · `pnpm check` | code-reviewer | FEITO |
 | `oraculos` | 2 | `verificador-fluxo-caixa` | contratos | os 3 ficheiros falham **só** por import em falta | orquestrador | por fazer |
 | `nucleo` | 3 | `feat-dfc` | oraculos | ticket 2 verde **sem alterações** + 3 mutações mortas | verificador (adulteração) | por fazer |
 | `seed-v` | 4.4 | `verificador-fluxo-caixa` | nucleo | casos novos de `tenant-bootstrap.test.ts` a falhar | orquestrador | por fazer |
@@ -51,6 +51,10 @@ adr ─► contratos⚙ ─► oraculos ─► nucleo ─► seed-v ─► seed�
    das issues #78 e #77.
 3. **Os testes que julgam um ticket são escritos pelo verificador**, também nos tickets 4, 5, 7, 9 e 10, e não
    só no 2 (doutrina §5). Daí os nós `-v`.
+4. **`desmapearConta(contaId, ctx)` entra no nó `config` (ticket 7.1)**, decidido pelo orquestrador depois da revisão
+   do `contratos` (m4). É uma escrita singular, com `NotFoundError` cross-tenant e versão n+1 (V2). Sem ela, o E2E
+   10.1 («desmapear uma conta com movimento») só podia retirar contas de caixa e nunca exercitava o I7 numa
+   actividade. Custa uma action e a linha «Desmapear» na UI de rubricas. O oráculo do `config-v` cobre-a.
 
 ## Regras deste grafo (prevalecem sobre `/no` quando colidem)
 

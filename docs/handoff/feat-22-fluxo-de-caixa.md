@@ -357,7 +357,10 @@ Oráculos intocados. Decisões deste nó:
 
 ## Contratos WS-2 (DFC)
 
-_A preencher pelo nó L9._
+Fixados pelo nó `contratos` do grafo `dfc` (issue #153, 2026-09-25): ver
+[`dfc-contratos.md`](dfc-contratos.md) — schema (4 enums, 3 modelos, relação em
+`CompromissoTesouraria.rubricaId`), `validations/fluxo-caixa.ts` e `dfc.interface.ts`, com as decisões e o que
+os nós `oraculos` e `seed` assumem.
 
 ## Dependências de leitura noutros domínios
 

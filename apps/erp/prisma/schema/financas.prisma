@@ -229,6 +229,42 @@ enum RecorrenciaCompromisso {
   ANUAL
 }
 
+/// Actividade de uma rubrica da DFC (ADR-0037 §2, emenda E2).
+/// `CAIXA` não é uma secção do mapa: é a rubrica «Caixa e equivalentes de
+/// caixa». As contas mapeadas a ela são as que definem o Δcaixa da articulação
+/// (I6) — nunca se deduz pela classe 1 nem por prefixo de código.
+enum AtividadeFluxo {
+  OPERACIONAL
+  INVESTIMENTO
+  FINANCIAMENTO
+  CAIXA
+}
+
+/// Sinal de uma rubrica da DFC (ADR-0037 §2).
+/// ENTRADA/SAIDA: o fluxo é apresentado com esse sentido fixo.
+/// VARIACAO: a rubrica agrega variações de capital circulante, cujo sentido
+/// depende da natureza de cada conta (método indirecto).
+enum SinalFluxo {
+  ENTRADA
+  SAIDA
+  VARIACAO
+}
+
+/// Origem de uma rubrica (ADR-0037 §3): as `SISTEMA` são semeadas pelo
+/// tenant-bootstrap e não se apagam (`RUBRICA_DE_SISTEMA`); as `TENANT` são
+/// criadas pelo próprio tenant com `financas:fluxo-caixa:configurar`.
+enum OrigemRubrica {
+  SISTEMA
+  TENANT
+}
+
+/// Estado de uma versão do mapeamento (ADR-0037 emenda E1/E6). Nomes em
+/// inglês por decisão humana; na UI «Por validar» / «Validado».
+enum EstadoVersaoMapeamento {
+  PENDING
+  VALIDATED
+}
+
 // ---------------------------------------------------------------------------
 // CAIXA
 // ---------------------------------------------------------------------------
@@ -377,6 +413,7 @@ model ContaPGC {
   subContas   ContaPGC[]        @relation("ContaPGCHierarquia")
   partidas    PartidaLancamento[]
   contasBancarias ContaBancaria[]
+  mapeamentosFluxo MapeamentoContaFluxo[] // DFC (ADR-0037): no máximo um por tenant
 
   @@unique([tenantId, codigo])
   @@index([tenantId, classe])
@@ -943,7 +980,7 @@ model LinhaCotacaoComercial {
 /// NÃO é um lançamento — nada aqui toca a contabilidade.
 /// As outras três origens de compromisso (Fatura, ContaPagar, Payroll) são lidas
 /// nos seus próprios modelos; este é apenas o lugar do que falta (ADR-0036 §3-4).
-/// `rubricaId` → RubricaFluxoCaixa (WS-2; escalar e nulo até à migração 22b).
+/// `rubricaId` → RubricaFluxoCaixa (relação desde a migração 22b, WS-2; opcional).
 /// `contaContabilId` → ContaPGC (escalar).
 /// Soft delete: entidade de referência editável, não documento transaccional.
 model CompromissoTesouraria {
@@ -955,7 +992,7 @@ model CompromissoTesouraria {
   dataPrevista       DateTime
   recorrencia        RecorrenciaCompromisso @default(UNICA)
   dataFimRecorrencia DateTime?
-  rubricaId          String?                // → RubricaFluxoCaixa (WS-2; nulo até lá)
+  rubricaId          String?                // FK RubricaFluxoCaixa (relação abaixo)
   contaContabilId    String?                // → ContaPGC (escalar)
   ativo              Boolean                @default(true)
   observacoes        String?
@@ -964,6 +1001,88 @@ model CompromissoTesouraria {
   updatedAt          DateTime               @updatedAt
   deletedAt          DateTime?
 
+  rubrica            RubricaFluxoCaixa?     @relation(fields: [rubricaId], references: [id])
+
   @@index([tenantId, dataPrevista, ativo])
   @@index([tenantId, deletedAt])
+}
+
+// ---------------------------------------------------------------------------
+// DEMONSTRAÇÃO DE FLUXOS DE CAIXA (spec 22 · WS-2 · ADR-0037 + emenda 2026-09-25)
+// ---------------------------------------------------------------------------
+
+/// Rubrica da DFC: uma linha do mapa, com actividade e sinal (ADR-0037 §2).
+/// NÃO é uma conta PGC — a ligação conta→rubrica vive em MapeamentoContaFluxo.
+/// As `SISTEMA` são semeadas por `semearRubricasFluxo` (tenant-bootstrap) e a
+/// eliminação recusa com `RUBRICA_DE_SISTEMA`; `deletedAt` só serve às `TENANT`.
+/// Qualquer alteração cria uma VersaoMapeamentoFluxo nova (V2).
+model RubricaFluxoCaixa {
+  id          String          @id @default(cuid())
+  tenantId    String
+  codigo      String          // OP-01, INV-02, FIN-03, CX-01
+  designacao  String
+  atividade   AtividadeFluxo
+  sinal       SinalFluxo
+  ordem       Int
+  origem      OrigemRubrica
+  ativo       Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  mapeamentos  MapeamentoContaFluxo[]
+  compromissos CompromissoTesouraria[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, atividade, ordem])
+}
+
+/// Mapeamento conta PGC → rubrica da DFC (ADR-0037 §2).
+/// `@@unique([tenantId, contaId])` é a decisão estrutural: uma conta pertence a
+/// UMA rubrica, logo não pode ser contada em duas actividades. As contas de
+/// caixa são as mapeadas a rubricas `CAIXA` (E2) — nunca se deduzem por código.
+/// Escritas SINGULARES (create/update/delete de uma linha) para ficarem no
+/// trilho da audit-extension; nunca `upsert`/`*Many` fora do seed.
+/// Relações a ContaPGC e RubricaFluxoCaixa porque são do MESMO domínio
+/// (precedente: ContaBancaria.contaContabil): a FK na base garante que uma
+/// conta mapeada aponta sempre para uma rubrica existente — um `rubricaId`
+/// pendurado faria a conta desaparecer do mapa em silêncio, que é exactamente
+/// o defeito que a §4 do ADR proíbe.
+model MapeamentoContaFluxo {
+  id        String   @id @default(cuid())
+  tenantId  String
+  contaId   String   // FK ContaPGC (relação abaixo)
+  rubricaId String   // FK RubricaFluxoCaixa (relação abaixo)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conta   ContaPGC          @relation(fields: [contaId], references: [id])
+  rubrica RubricaFluxoCaixa @relation(fields: [rubricaId], references: [id])
+
+  @@unique([tenantId, contaId])
+  @@index([tenantId, rubricaId])
+}
+
+/// Versão do mapeamento da DFC (ADR-0037 emenda E1). APPEND-ONLY: uma versão
+/// por alteração, criada na mesma $transaction da escrita (V2); a única
+/// escrita permitida sobre uma versão é a transição PENDING → VALIDATED da
+/// versão mais recente (V3, `VERSAO_DESACTUALIZADA`). Nunca se apaga.
+/// `instantaneo` é o InstantaneoMapeamento (dfc.interface.ts): rubricas +
+/// {contaId, rubricaId}[] — as contas de caixa deduzem-se daí (rubricas CAIXA).
+/// JSON de propósito: não duplica centenas de linhas por versão; o preço é não
+/// se consultar por SQL (passa a tabela filha se um dia for preciso).
+/// `validadoPorId` → User (escalar, outro domínio).
+model VersaoMapeamentoFluxo {
+  id            String                 @id @default(cuid())
+  tenantId      String
+  numero        Int                    // 1, 2, 3… por tenant
+  estado        EstadoVersaoMapeamento @default(PENDING)
+  instantaneo   Json
+  validadoPorId String?                // FK User (escalar)
+  validadoEm    DateTime?
+  observacao    String?
+  createdAt     DateTime               @default(now())
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, estado])
 }
