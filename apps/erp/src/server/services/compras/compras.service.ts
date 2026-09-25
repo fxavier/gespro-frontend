@@ -46,7 +46,7 @@ import type {
   CreateConfiguracaoWorkflowInput,
 } from '@/lib/validations/compras';
 import type { Ctx } from '@/server/services/types';
-import { TAXA_IVA_NORMAL } from '@/lib/iva';
+import { TAXA_IVA_NORMAL, lerTaxaIva } from '@/lib/iva';
 import type { z } from 'zod';
 import type { FilterCotacaoSchema } from '@/lib/validations/compras';
 
@@ -784,7 +784,20 @@ export const comprasService: IComprasService = {
     const produtos = produtoIds.length > 0
       ? await db.produto.findMany({ where: { id: { in: produtoIds }, tenantId: ctx.tenantId } })
       : [];
-    const taxaPorProduto = new Map(produtos.map((p: any) => [p.id as string, Number(p.taxaIva)]));
+    const taxaPorProduto = new Map(
+      produtos.map((p: any) => {
+        let taxa;
+        try {
+          taxa = lerTaxaIva(p.taxaIva.toString());
+        } catch {
+          throw new BusinessRuleError(
+            'TAXA_IVA_PRODUTO_INVALIDA',
+            `Produto ${p.id as string} tem taxa de IVA inválida: ${String(p.taxaIva)}`,
+          );
+        }
+        return [p.id as string, taxa] as const;
+      }),
+    );
 
     const itensPedido = req.itens.map((item: any) => ({
       produtoId: item.produtoId,

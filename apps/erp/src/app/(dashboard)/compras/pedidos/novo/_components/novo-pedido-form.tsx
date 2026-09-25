@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select';
 import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
 import { criarPedidoCompraAction } from '@/server/actions/compras.actions';
-import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, type TaxaIva } from '@/lib/iva';
+import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
 
 const ItemFormSchema = z.object({
@@ -82,12 +82,14 @@ export function NovoPedidoForm() {
   const itens = useWatch({ control, name: 'itens' }) ?? [];
 
   const { base: _subtotal, iva: _iva, total: _total } = calcularTotais(
-    itens.map((l) => ({
-      quantidade: Number(l.quantidade) || 0,
-      precoUnitario: Number(l.precoUnitario) || 0,
-      desconto: Number(l.desconto) || 0,
-      taxaIva: (l.taxaIva === 0 || l.taxaIva === 0.16 ? l.taxaIva : TAXA_IVA_NORMAL) as TaxaIva,
-    }))
+    itens
+      .filter((l): l is typeof l & { taxaIva: TaxaIva } => ehTaxaIva(l.taxaIva))
+      .map((l) => ({
+        quantidade: Number(l.quantidade) || 0,
+        precoUnitario: Number(l.precoUnitario) || 0,
+        desconto: Number(l.desconto) || 0,
+        taxaIva: l.taxaIva,
+      }))
   );
   const totais = { subtotal: _subtotal, iva: _iva, total: _total };
 
@@ -246,8 +248,10 @@ export function NovoPedidoForm() {
             const q = Number(itens[i]?.quantidade) || 0;
             const p = Number(itens[i]?.precoUnitario) || 0;
             const d = Number(itens[i]?.desconto) || 0;
-            const taxaAtual = (itens[i]?.taxaIva === 0 || itens[i]?.taxaIva === 0.16 ? itens[i]!.taxaIva : TAXA_IVA_NORMAL) as TaxaIva;
-            const { total } = calcularLinha({ quantidade: q, precoUnitario: p, desconto: d, taxaIva: taxaAtual });
+            const taxaAtual = itens[i]?.taxaIva;
+            const { total } = ehTaxaIva(taxaAtual)
+              ? calcularLinha({ quantidade: q, precoUnitario: p, desconto: d, taxaIva: taxaAtual })
+              : { total: 0 };
 
             return (
               <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
@@ -288,11 +292,11 @@ export function NovoPedidoForm() {
                 <div className="col-span-4 md:col-span-1 space-y-1">
                   <Label className="md:hidden text-xs">IVA %</Label>
                   <Select
-                    value={String(itens[i]?.taxaIva ?? TAXA_IVA_NORMAL)}
-                    onValueChange={(v) => setValue(`itens.${i}.taxaIva`, parseFloat(v) as TaxaIva, { shouldValidate: true })}
+                    value={ehTaxaIva(itens[i]?.taxaIva) ? String(itens[i]!.taxaIva) : ''}
+                    onValueChange={(v) => setValue(`itens.${i}.taxaIva`, lerTaxaIva(v), { shouldValidate: true })}
                   >
                     <SelectTrigger className="h-9" aria-label={`Taxa IVA item ${i + 1}`}>
-                      <SelectValue>{ROTULOS_TAXA_IVA[`${(itens[i]?.taxaIva ?? TAXA_IVA_NORMAL) as TaxaIva}`]}</SelectValue>
+                      <SelectValue>{ehTaxaIva(itens[i]?.taxaIva) ? ROTULOS_TAXA_IVA[`${itens[i]!.taxaIva}`] : null}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {TAXAS_IVA.map((taxa) => (

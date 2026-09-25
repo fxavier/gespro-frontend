@@ -6,6 +6,11 @@ export const TAXA_IVA_NORMAL: TaxaIva = 0.16;
 export const ROTULOS_TAXA_IVA: Record<`${TaxaIva}`, string> = { '0': '0% (isento)', '0.16': '16%' };
 export const MENSAGEM_TAXA_IVA_INVALIDA = 'Taxa de IVA inválida — use 0.16 (16%) ou 0 (isento)';
 
+/** Guarda de tipo: verifica se `v` é um valor válido de `TaxaIva`. */
+export function ehTaxaIva(v: unknown): v is TaxaIva {
+  return typeof v === 'number' && (TAXAS_IVA as readonly number[]).includes(v);
+}
+
 /**
  * Lê uma taxa de IVA de um valor desconhecido.
  *
@@ -28,10 +33,10 @@ export function lerTaxaIva(v: unknown): TaxaIva {
   } else {
     throw new Error(MENSAGEM_TAXA_IVA_INVALIDA);
   }
-  if (Number.isNaN(n) || !(TAXAS_IVA as readonly number[]).includes(n)) {
+  if (Number.isNaN(n) || !ehTaxaIva(n)) {
     throw new Error(MENSAGEM_TAXA_IVA_INVALIDA);
   }
-  return n as TaxaIva;
+  return n;
 }
 
 /**
@@ -39,7 +44,7 @@ export function lerTaxaIva(v: unknown): TaxaIva {
  *
  * Aceita os mesmos valores que `lerTaxaIva`. Recusa '' antes de converter
  * (z.coerce.number() converteria '' em 0, que seria válido). Sem .default().
- * Acrescenter 0.05 no futuro requer só alterar TAXAS_IVA e ROTULOS_TAXA_IVA.
+ * Acrescentar 0.05 no futuro requer só alterar TAXAS_IVA e ROTULOS_TAXA_IVA.
  */
 export function taxaIvaSchema(
   mensagem = MENSAGEM_TAXA_IVA_INVALIDA,
@@ -57,6 +62,6 @@ export function taxaIvaSchema(
     },
     z
       .number({ required_error: mensagem, invalid_type_error: mensagem })
-      .refine((n) => (TAXAS_IVA as readonly number[]).includes(n), mensagem),
+      .refine((n): n is TaxaIva => ehTaxaIva(n), mensagem),
   ) as z.ZodType<number, z.ZodTypeDef, unknown>;
 }

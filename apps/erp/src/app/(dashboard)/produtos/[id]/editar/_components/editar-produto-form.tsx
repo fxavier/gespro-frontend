@@ -16,10 +16,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FormPage, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { actualizarProdutoAction } from '@/server/actions/inventario.actions';
 import type { CategoriaProdutoDto } from '@/server/services/inventario/catalogo.interface';
-import { taxaIvaSchema } from '@/lib/iva';
+import { taxaIvaSchema, TAXAS_IVA, ROTULOS_TAXA_IVA, lerTaxaIva, ehTaxaIva } from '@/lib/iva';
 
 const Schema = z.object({
   nome: z.string().min(1, 'Nome obrigatório').max(200),
@@ -91,7 +92,7 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
       unidadeMedida: defaultValues.unidadeMedida,
       precoVenda: Number(defaultValues.precoVenda),
       precoCompra: Number(defaultValues.precoCompra),
-      taxaIva: Number(defaultValues.taxaIva) as 0 | 0.16,
+      taxaIva: lerTaxaIva(defaultValues.taxaIva),
       stockMinimo: Number(defaultValues.stockMinimo),
       stockMaximo: defaultValues.stockMaximo ? Number(defaultValues.stockMaximo) : undefined,
       ativo: defaultValues.ativo,
@@ -100,6 +101,7 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
 
   const isDirty = form.formState.isDirty;
   const errors = form.formState.errors;
+  const taxaIvaAtual = form.watch('taxaIva');
 
   useEffect(() => {
     if (!state) return;
@@ -174,8 +176,25 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="taxaIva">Taxa IVA (0–1)</Label>
-            <Input type="number" min="0" max="1" step="0.01" id="taxaIva" {...form.register('taxaIva')} placeholder="Ex.: 0.17" />
+            <Label>Taxa de IVA <span className="text-destructive">*</span></Label>
+            <Select
+              value={ehTaxaIva(taxaIvaAtual) ? String(taxaIvaAtual) : ''}
+              onValueChange={(v) => form.setValue('taxaIva', lerTaxaIva(v), { shouldValidate: true })}
+            >
+              <SelectTrigger aria-label="Taxa de IVA">
+                <SelectValue>
+                  {ehTaxaIva(taxaIvaAtual) ? ROTULOS_TAXA_IVA[`${taxaIvaAtual}`] : null}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {TAXAS_IVA.map((taxa) => (
+                  <SelectItem key={String(taxa)} value={String(taxa)}>
+                    {ROTULOS_TAXA_IVA[`${taxa}`]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.taxaIva && <p className="text-xs text-destructive">{errors.taxaIva.message as string}</p>}
           </div>
 
           <div className="space-y-1.5">
