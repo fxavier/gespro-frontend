@@ -24,12 +24,12 @@ adr ─► contratos⚙ ─► oraculos ─► nucleo ─► seed-v ─► seed�
 
 | Nó | Ticket | Dono | Depende de | Verificador externo (gate) | Veto | Estado |
 |---|---|---|---|---|---|---|
-| `adr` | 0 | agente redige · **tu aceitas** | — | `grep -c "Estado\*\*: Aceite"` == 1 e `grep -c "Emenda 2026-09-25"` ≥ 1 | **humano** | por fazer |
+| `adr` | 0 | agente redige · **tu aceitas** | — | `grep -c "Estado\*\*: Aceite"` == 1 e `grep -c "Emenda 2026-09-25"` ≥ 1 | **humano** | FEITO |
 | `contratos` | 1 | `feat-dfc` + ⚙ `22b` | adr | `prisma validate` · `migrate diff` vazio · `pnpm check` | code-reviewer | por fazer |
 | `oraculos` | 2 | `verificador-fluxo-caixa` | contratos | os 3 ficheiros falham **só** por import em falta | orquestrador | por fazer |
 | `nucleo` | 3 | `feat-dfc` | oraculos | ticket 2 verde **sem alterações** + 3 mutações mortas | verificador (adulteração) | por fazer |
 | `seed-v` | 4.4 | `verificador-fluxo-caixa` | nucleo | casos novos de `tenant-bootstrap.test.ts` a falhar | orquestrador | por fazer |
-| `seed` | 4.1–4.3 | `feat-dfc` + ⚙ `22c` | seed-v | teste verde · `psql`: 0 folhas sem mapeamento, 1 versão PENDENTE | verificador | por fazer |
+| `seed` | 4.1–4.3 | `feat-dfc` + ⚙ `22c` | seed-v | teste verde · `psql`: 0 folhas sem mapeamento, 1 versão PENDING | verificador | por fazer |
 | `servico-v` | 5.3 | `verificador-fluxo-caixa` | seed | golden `dfc-seed-demo.json` + I9 + I10 a falhar | orquestrador | por fazer |
 | `servico` | 5.1–5.2 | `feat-dfc` | servico-v | golden ao cêntimo · articula · impedimento sem mapa · `pnpm check` | verificador | por fazer |
 | `fatia` | 6 | `feat-dfc` | servico | `pnpm build` + smoke autenticado (0,00 · faixa · «Sem permissão» ao operador) | code-reviewer | por fazer |
@@ -40,7 +40,7 @@ adr ─► contratos⚙ ─► oraculos ─► nucleo ─► seed-v ─► seed�
 | `pagina` | 8 + 9.2 | `feat-dfc` | config, export | `pnpm build` · `e2e:a11y` AA nos 2 temas · smoke: resultado = DRE | code-reviewer | por fazer |
 | `e2e-v` | 10.1 | `verificador-fluxo-caixa` | pagina | `e2e/18-dfc.spec.ts` escrito e verde a correr sozinho | orquestrador | por fazer |
 | `fecho` | 10.2–10.3 | `feat-dfc` | e2e-v | `pnpm check && pnpm gates` · `gate-periodo` a zero · handoff | orquestrador | por fazer |
-| `parecer` | 11 | **contabilista** | fecho | nenhum automático: parecer escrito + versão VALIDADO | **humano** | por fazer |
+| `parecer` | 11 | **contabilista** | fecho | nenhum automático: parecer escrito + versão VALIDATED | **humano** | por fazer |
 
 ## Ajustes aos tickets (decididos neste grafo)
 

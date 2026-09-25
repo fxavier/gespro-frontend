@@ -1,6 +1,6 @@
 # ADR-0037 — Demonstração de Fluxos de Caixa (método indirecto)
 
-- **Estado**: Proposto
+- **Estado**: Aceite
 - **Data**: 2026-09-21
 - **Contexto**: Spec 22 (Fluxo de Caixa) · Épico WS-2
 - **Depende de**: [ADR-0033](./ADR-0033-exercicio-contabilistico.md) (período, `FILTRO_LANCAMENTO_MAPA`), [ADR-0035](./ADR-0035-encerramento-exercicio.md) (saldos de abertura transportados), [ADR-0036](./ADR-0036-projecao-tesouraria.md) (`RubricaFluxoCaixa` nasce lá)
@@ -161,6 +161,99 @@ validação humana da tabela de mapeamento semeada, fora do ciclo agêntico. Est
 - `I9` — Coerência com a DRE: o resultado líquido que abre a secção operacional é, ao cêntimo, o
   `resultadoLiquido` de `gerarDRE` para o mesmo período.
 - `I10` — Isolamento: rubricas e mapeamentos de outro tenant nunca entram; cross-tenant → `NotFoundError`.
+
+## Emenda 2026-09-25
+
+Origem: sessão de grooming da issue #153, de 2026-09-25 (`docs/agentic/issue-153/intent.md`, decisões Q2, Q4 e
+Q6, e uma decisão de produto sobre a exportação). A emenda entra no próprio texto, e não num ADR novo, porque o
+ADR ainda estava em `Proposto`. Os parágrafos originais ficam como estavam: esta secção prevalece sobre eles onde
+colidem.
+
+**Altera**: §5 (o que é caixa), §6 (limites e comparativo), §7 (formato da exportação) e a definição de `I6`.
+**Acrescenta** `V1`–`V4` aos invariantes que trancam a implementação.
+
+**E1. O mapeamento é versionado, e cada versão é validada (Q2).** O parecer do contabilista fica associado à
+versão concreta do mapeamento que produziu a DFC. Modelo novo:
+
+```prisma
+enum AtividadeFluxo { OPERACIONAL INVESTIMENTO FINANCIAMENTO CAIXA }   // CAIXA: Q6
+enum EstadoVersaoMapeamento { PENDING VALIDATED }                        // Q2; nomes em E6
+
+model VersaoMapeamentoFluxo {          // append-only; uma por alteração
+  id            String   @id @default(cuid())
+  tenantId      String
+  numero        Int                    // 1, 2, 3… por tenant
+  estado        EstadoVersaoMapeamento @default(PENDING)
+  instantaneo   Json                   // rubricas + {contaId, rubricaId}[] desta versão
+  validadoPorId String?
+  validadoEm    DateTime?
+  observacao    String?
+  createdAt     DateTime @default(now())
+  @@unique([tenantId, numero])
+}
+```
+
+- `RubricaFluxoCaixa` e `MapeamentoContaFluxo` ficam como na §2 e continuam a ser a cópia de trabalho que o
+  `gerarDFC` lê. A versão guarda o instantâneo, para o histórico e para a auditoria.
+- O instantâneo é JSON para não duplicar centenas de linhas de mapeamento a cada alteração. O preço é que não se
+  consulta por SQL; se um dia for preciso comparar versões na base, passa a tabela filha.
+- Cada versão fixa o conjunto de rubricas, a atribuição conta→rubrica e as contas de caixa (E2).
+- A DFC diz com que versão foi produzida: o número aparece no ecrã e no PDF.
+- Uma versão `PENDING` não impede a DFC. O mapa sai na mesma, com a faixa «Mapeamento por validar».
+- Versões e validações nunca se apagam.
+
+Invariantes novos:
+
+- `V1` — O instantâneo da versão mais recente é igual, ao elemento, ao mapeamento vivo.
+- `V2` — Qualquer escrita no mapeamento cria a versão `n+1` em `PENDING`, na mesma `$transaction`. Uma escrita
+  que não muda nada não cria versão.
+- `V3` — Só se valida a versão mais recente. Uma versão anterior recusa com `VERSAO_DESACTUALIZADA`. Validar é a
+  **única** escrita permitida sobre uma versão.
+- `V4` — Um intervalo com início e fim em exercícios diferentes recusa com `DFC_ENTRE_EXERCICIOS`. (E3)
+
+**E2. Caixa é uma rubrica, não a classe 1 (Q6). Altera §5 e `I6`.** A §5 definia `saldoCaixa(d)` sobre «as contas
+de classe 1 mapeadas como meios líquidos», que é uma classificação por código, rejeitada pela §Contexto 3. A Q6
+decidiu que não se assume a classe 1 inteira como caixa.
+
+- `AtividadeFluxo` ganha `CAIXA`. A rubrica «Caixa e equivalentes de caixa» tem actividade `CAIXA`.
+- As contas de caixa são as contas mapeadas a rubricas de actividade `CAIXA`. É configuração do tenant, registada
+  explicitamente. **Nunca se deduz por prefixo**, nem se assume a classe 1 inteira.
+- Nova definição: `saldoCaixa(d)` = soma de `saldoContabilAte(d)` sobre as contas mapeadas a rubricas de
+  actividade `CAIXA`.
+- `I6` passa a ler-se: `OP + INV + FIN == Δcaixa` do período, em `Decimal` exacto, com `Δcaixa` calculado só
+  sobre essas contas.
+- Como uma conta tem uma só rubrica (§2), uma conta de caixa fica fora das três actividades.
+- Coerência com o plano de contas, verificada pelo serviço:
+  - **nenhuma** conta `CAIXA` ⇒ **impedimento**: sem elas não há `Δcaixa` e não há articulação;
+  - conta `CAIXA` fora da classe 1, de agregação ou inactiva ⇒ **aviso**, que não bloqueia.
+- As contas de caixa fazem parte da versão (E1). Alterá-las cria uma versão nova e invalida a validação anterior.
+
+**E3. Limites no mesmo exercício, comparativo homólogo (Q4). Refina §6.**
+
+- O intervalo é um período ou um intervalo de períodos do **mesmo** `ExercicioContabil`. Início e fim em
+  exercícios diferentes recusam com `DFC_ENTRE_EXERCICIOS` (`V4`).
+- Comparativo N-1: o **período homólogo do exercício anterior**, com a mesma granularidade e o mesmo intervalo
+  relativo. 01/04/2026–30/06/2026 compara com 01/04/2025–30/06/2025.
+- Sem exercício anterior, a coluna N-1 mostra «—». Não se calcula um N-1 parcial a partir dos saldos de abertura
+  do ADR-0035.
+
+**E4. Exportação só em PDF. Altera §7.** O CSV sai. Decisão de produto na sessão de grooming. O PDF, pelo motor do
+ADR-0005, leva as colunas N e N-1, o número da versão do mapeamento e as marcas «Provisório» e «Mapeamento por
+validar» quando se aplicam. Havendo impedimentos, a rota responde 422 com a lista e sem PDF. O resto da §7
+mantém-se: `withApi` em `/api/contabilidade/dfc/export`, `financas:exportar`.
+
+**E5. Quem valida a versão: permissão própria, `financas:fluxo-caixa:validar`.** Decisão do humano na aceitação,
+para segregar funções: quem configura o mapeamento não é, por omissão, quem o valida.
+
+- `financas:fluxo-caixa:configurar` cria e altera rubricas, mapeamentos e contas de caixa.
+- `financas:fluxo-caixa:validar` valida uma versão (a mais recente, `V3`), com observação opcional.
+- Por omissão só o ADMIN, que tem acesso total, recebe `:validar`. O contabilista recebe um papel que a inclua.
+
+**E6. Nomes do estado da versão: `PENDING`/`VALIDATED`.** Decisão do humano na aceitação: é um enum técnico, e
+os nomes ficam em inglês como o código. Na UI, «Por validar» e «Validado».
+
+**Invariantes que trancam a implementação, depois desta emenda**: `I6` (com a definição de E2), `I7`, `I8`, `I9`,
+`I10`, e `V1`–`V4`.
 
 ## Fontes
 

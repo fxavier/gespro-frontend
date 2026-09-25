@@ -106,7 +106,7 @@ o histórico).
 | ADR | Título | Estado | Depende de |
 |---|---|---|---|
 | [0036](./ADR-0036-projecao-tesouraria.md) | **Projecção de tesouraria** | Proposto | 0033, 0032; cruza 0018 |
-| [0037](./ADR-0037-demonstracao-fluxos-caixa.md) | **Demonstração de fluxos de caixa (método indirecto)** | Proposto | 0033, 0036 |
+| [0037](./ADR-0037-demonstracao-fluxos-caixa.md) | **Demonstração de fluxos de caixa (método indirecto)** | Aceite | 0033, 0036 |
 | [0038](./ADR-0038-reconciliacao-bancaria-automatica.md) | **Reconciliação bancária automática** | Proposto | 0033, 0015, 0011; cruza 0018, 0036 |
 | [0039](./ADR-0039-nota-debito-contabilidade.md) | **Nota de débito em contabilidade e finanças** | Proposto | 0033, 0034, 0015; cruza 0036 |
 

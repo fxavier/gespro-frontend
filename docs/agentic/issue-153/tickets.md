@@ -17,13 +17,13 @@ implementação: `feat-dfc`, na worktree `wt/feat-dfc`. Oráculos: `verificador-
 
 ```prisma
 enum AtividadeFluxo { OPERACIONAL INVESTIMENTO FINANCIAMENTO CAIXA }   // CAIXA: Q6
-enum EstadoVersaoMapeamento { PENDENTE VALIDADO }                        // Q2 (nomes: Open Question 2)
+enum EstadoVersaoMapeamento { PENDING VALIDATED }                        // Q2; nomes: ADR-0037 E6
 
 model VersaoMapeamentoFluxo {          // append-only; uma por alteração
   id            String   @id @default(cuid())
   tenantId      String
   numero        Int                    // 1, 2, 3… por tenant
-  estado        EstadoVersaoMapeamento @default(PENDENTE)
+  estado        EstadoVersaoMapeamento @default(PENDING)
   instantaneo   Json                   // rubricas + {contaId, rubricaId}[] desta versão
   validadoPorId String?
   validadoEm    DateTime?
@@ -39,7 +39,7 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
   O limite é que não se consulta por SQL. Se um dia for preciso comparar versões na base, passa a tabela filha.
 - **Invariantes novos**, que se juntam aos I6 a I10 do ADR:
   - **V1**: o instantâneo da versão mais recente é igual, ao elemento, ao mapeamento vivo.
-  - **V2**: qualquer escrita no mapeamento cria a versão `n+1` em `PENDENTE`, na mesma `$transaction`. Uma escrita
+  - **V2**: qualquer escrita no mapeamento cria a versão `n+1` em `PENDING`, na mesma `$transaction`. Uma escrita
     que não muda nada não cria versão.
   - **V3**: só se valida a versão mais recente. Uma versão anterior recusa com `VERSAO_DESACTUALIZADA`. Validar é a
     **única** escrita permitida sobre uma versão.
@@ -50,7 +50,7 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
 - [ ] **0. Emendar e aceitar o ADR-0037** `[HUMANO]` `[BLOCKING]`
   - [ ] 0.1 Um agente redige a secção «Emenda 2026-09-25» em `docs/decisions/ADR-0037-demonstracao-fluxos-caixa.md`.
     Cobre o modelo acima, V1 a V4, a rubrica `CAIXA` (que substitui a «classe 1 mapeada como meios líquidos»), a
-    exportação só em PDF (o CSV sai) e a permissão de validar (Open Question 5).
+    exportação só em PDF (o CSV sai) e a permissão de validar (`:validar`, E5).
   - [ ] 0.2 **Humano**: rever a emenda, responder às Open Questions 2 e 5 e mudar o estado para `Aceite`. Nenhum gate
     verde substitui este passo.
   - ✅ Gate: `grep -c "Estado\*\*: Aceite" docs/decisions/ADR-0037-*.md` == 1 e `grep -c "Emenda 2026-09-25"` ≥ 1.
@@ -109,7 +109,7 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
     rubrica.
   - [ ] 4.2 `semearRubricasFluxo(tx, tenantId)` em `src/server/provisioning/tenant-bootstrap.ts`:
     - idempotente, com `createMany` e `skipDuplicates`;
-    - cria a versão 1 em `PENDENTE` com o instantâneo;
+    - cria a versão 1 em `PENDING` com o instantâneo;
     - é chamada por `bootstrapContabilidade`, `prisma/seed/financas.ts` e `seed/volume/base.ts`.
   - [ ] 4.3 ⚙ **Orquestrador**: migração `22c_semear_rubricas_fluxo`, com um `INSERT … SELECT … ON CONFLICT DO
     NOTHING` para os tenants que já existem, mais a versão 1 de cada um.
@@ -118,7 +118,7 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
     - correr duas vezes não duplica nada;
     - a versão 1 existe.
   - ✅ Gate: `npx vitest run src/server/provisioning/__tests__/tenant-bootstrap.test.ts` verde. Na base local, via
-    `docker exec gespro-db psql`, o tenant `demo` tem 0 contas folha sem mapeamento e 1 versão `PENDENTE`.
+    `docker exec gespro-db psql`, o tenant `demo` tem 0 contas folha sem mapeamento e 1 versão `PENDING`.
   - ⏸ **[HUMANO]**: o conteúdo de 4.1 só está certo depois do parecer (ticket 11). O gate verde prova que a tabela
     **cobre** todas as contas, não que cada conta está na **actividade certa**.
 
@@ -141,7 +141,8 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
 
 - [ ] **6. Mostrar a DFC de ponta a ponta** (a primeira fatia visível)
   - [ ] 6.1 `prisma/seed/rbac.ts`: `financas:fluxo-caixa:leitura` para ADMIN, GESTOR, FINANCEIRO e LEITURA, e
-    `financas:fluxo-caixa:configurar` para ADMIN e FINANCEIRO. Depois, `pnpm db:seed`.
+    `financas:fluxo-caixa:configurar` para ADMIN e FINANCEIRO, e `financas:fluxo-caixa:validar` só para ADMIN
+    (ADR-0037 E5). Depois, `pnpm db:seed`.
   - [ ] 6.2 `src/server/actions/fluxo-caixa.actions.ts`: `gerarDFCAction`, com `permiteEmLeitura: true`.
   - [ ] 6.3 `src/app/(dashboard)/contabilidade/dfc/page.tsx`, Server Component:
     - o `seletor-periodo` em intervalo;
@@ -162,7 +163,7 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
     - `validarVersao` bloqueia a versão com `FOR UPDATE` e recusa com `VERSAO_DESACTUALIZADA` (V3).
     - Apagar uma rubrica `SISTEMA` recusa com `RUBRICA_DE_SISTEMA`.
     - Os modelos entram em `AUDIT_MODELS`.
-  - [ ] 7.2 As actions, com `financas:fluxo-caixa:configurar` e `revalidate` de `/contabilidade/dfc` e
+  - [ ] 7.2 As actions, com `financas:fluxo-caixa:configurar` (a de validar com `financas:fluxo-caixa:validar`) e `revalidate` de `/contabilidade/dfc` e
     `/contabilidade/fluxo-caixa/rubricas`.
   - [ ] 7.3 A UI em `/contabilidade/fluxo-caixa/rubricas`, com rotas dedicadas e sem modais:
     - a lista das rubricas por actividade;
@@ -174,8 +175,8 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
       num `AlertDialog`.
   - ✅ Gate:
     - os testes do ticket 2.2 verdes contra o serviço real;
-    - um teste de transição **nos dois sentidos**: validada → alterar → `PENDENTE` e faixa de volta → validar →
-      `VALIDADO` e faixa fora;
+    - um teste de transição **nos dois sentidos**: validada → alterar → `PENDING` e faixa de volta → validar →
+      `VALIDATED` e faixa fora;
     - um teste a garantir que nenhuma escrita usa `upsert` ou `*Many`;
     - `pnpm gates` verde.
 
@@ -200,7 +201,7 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
     - Se houver impedimentos, responde 422 com a lista, sem PDF.
   - [ ] 9.2 O botão «Exportar PDF» na página.
   - ✅ Gate: o teste da rota responde `application/pdf`, com o texto «Mapeamento por validar» quando a versão está
-    `PENDENTE`, e responde 422 quando há impedimentos. O `GET` passa em modo Leitura.
+    `PENDING`, e responde 422 quando há impedimentos. O `GET` passa em modo Leitura.
 
 - [ ] **10. Fechar o WS-2 com o E2E**
   - [ ] 10.1 `e2e/15-dfc.spec.ts`:
@@ -221,7 +222,7 @@ model VersaoMapeamentoFluxo {          // append-only; uma por alteração
     `vitest -u`.
   - [ ] 11.3 O parecer fica registado na UI (ticket 7, «Validar versão actual») de cada tenant real, com observação.
   - ✅ Gate: nenhum automático. Este ticket **não se fecha** com gates verdes: fecha-se com o parecer escrito no
-    handoff e a versão em `VALIDADO`. Até lá, qualquer cliente real vê a faixa.
+    handoff e a versão em `VALIDATED`. Até lá, qualquer cliente real vê a faixa.
 
 ## Leitura dos gates, de cima a baixo
 

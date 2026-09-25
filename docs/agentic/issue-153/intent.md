@@ -103,13 +103,13 @@ O âmbito é o **WS-2 inteiro**. Parte-se em tickets tracer-bullet (skill `trace
 
 ## Affected Users
 
-| Perfil | `financas:fluxo-caixa:leitura` | `financas:fluxo-caixa:configurar` |
-|---|---|---|
-| ADMIN | sim | sim |
-| FINANCEIRO | sim | sim |
-| GESTOR | sim | não |
-| LEITURA | sim | não |
-| OPERADOR | não | não |
+| Perfil | `financas:fluxo-caixa:leitura` | `financas:fluxo-caixa:configurar` | `financas:fluxo-caixa:validar` |
+|---|---|---|---|
+| ADMIN | sim | sim | sim |
+| FINANCEIRO | sim | sim | não |
+| GESTOR | sim | não | não |
+| LEITURA | sim | não | não |
+| OPERADOR | não | não | não |
 
 - A exportação reutiliza `financas:exportar`.
 - Em modo Leitura (ADR-0032), a consulta e a exportação funcionam: a action declara `permiteEmLeitura: true` e o
@@ -133,7 +133,7 @@ Fora do sistema: o contabilista que dá o parecer da task 15.3, e o revisor de c
   - a reatribuição e a criação de rubricas usam escritas singulares, com os modelos em `AUDIT_MODELS`, porque
     `upsert` e `*Many` não ficam no trilho;
   - as versões do mapeamento são **append-only**: nenhum `UPDATE` nem `DELETE` de uma versão, excepto a transição
-    `PENDENTE → VALIDADO` da própria versão;
+    `PENDING → VALIDATED` da própria versão;
   - a alteração do mapeamento e a versão nova nascem na **mesma `$transaction`**.
 - **UI**:
   - `page.tsx` é Server Component;
@@ -161,16 +161,12 @@ proposta, e os tickets seguem-na até alguém dizer o contrário.
    - só PDF, em vez de CSV e PDF.
 
    A emenda e a aceitação são actos humanos. *Omissão*: é o ticket 0, e bloqueia o resto.
-2. **Nomes do estado da versão**: `PENDING`/`VALIDATED` foram os nomes dados na resposta. A casa usa enums em
-   português (`EMITIDA`, `LANCADO`). *Omissão*: `PENDENTE`/`VALIDADO` no enum, e «Por validar»/«Validado» na UI.
-   Corrige-se na emenda do ADR se não for isto.
+2. **Nomes do estado da versão**: decidido na aceitação do ADR-0037 (E6): `PENDING`/`VALIDATED`; na UI «Por validar»/«Validado».
 3. **N-1 sem exercício anterior**: *omissão* «—». Não se calcula um N-1 parcial a partir dos saldos de abertura do
    ADR-0035.
 4. **Gráfico**: *omissão* barras por actividade (OP, INV, FIN e Δcaixa), que o `recharts` faz nativamente. A cascata
    fica como melhoria.
-5. **Quem pode validar a versão**: *omissão* só `financas:fluxo-caixa:configurar` (ADMIN e FINANCEIRO). O
-   contabilista externo precisaria de um utilizador com esse perfil. É preciso uma permissão própria, por exemplo
-   `:validar`?
+5. **Quem pode validar a versão**: decidido na aceitação do ADR-0037 (E5): permissão própria `financas:fluxo-caixa:validar`, por omissão só no ADMIN.
 6. **Conteúdo da tabela de mapeamento semeada**: quais rubricas `SISTEMA` e qual conta do PGC padrão vai para cada
    uma. Não existe em lado nenhum: o spec 22 só diz «mapear todas as contas folha». Um agente propõe, e o parecer
    é que a valida.
