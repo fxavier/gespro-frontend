@@ -75,7 +75,7 @@ export type OrigemLancamento =
 
 export type TipoPartida = 'DEBITO' | 'CREDITO';
 export type TipoCentroCusto = 'DEPARTAMENTO' | 'PROJETO' | 'FILIAL' | 'OUTRO';
-export type TipoContaBancaria = 'CORRENTE' | 'POUPANCA' | 'DEPOSITO_PRAZO';
+export type TipoContaBancaria = 'CORRENTE' | 'POUPANCA' | 'DEPOSITO_PRAZO' | 'CARTEIRA_MOVEL';
 
 export interface ContaPGC {
   id: string;

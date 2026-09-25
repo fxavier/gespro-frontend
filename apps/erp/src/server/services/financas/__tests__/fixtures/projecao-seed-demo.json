@@ -17,13 +17,13 @@
     "cenario": "BASE"
   },
   "sentinelasDoSeed": {
-    "$nota": "Pré-condições que detectam um seed divergente ANTES de comparar números. totalFaturas=106: 104 do funil de demo-vendas + 2 do seed clássico de finanças (ambas PAGA — não tocam na projecção). contasBancarias=3: BCI e Millennium bim ancoradas na MESMA conta PGC 121, Standard Bank na 123 (seed financas.ts).",
+    "$nota": "Pré-condições que detectam um seed divergente ANTES de comparar números. totalFaturas=106: 104 do funil de demo-vendas + 2 do seed clássico de finanças (ambas PAGA — não tocam na projecção). contasBancarias=4: BCI, Millennium bim e a carteira M-Pesa 841234567 (CARTEIRA_MOVEL, issue #78 / decisão C2) ancoradas na MESMA conta PGC 121, Standard Bank na 123 (seed financas.ts). A M-Pesa não acrescenta conta PGC distinta nem partidas: nenhum número de `esperado` muda (ADR-0036 §2-bis).",
     "totalFaturas": 106,
     "faturasEmAberto": 20,
     "contasPagarEmAberto": 10,
     "payrollProcessado": 0,
     "compromissosManuais": 0,
-    "contasBancarias": 3,
+    "contasBancarias": 4,
     "sessoesAbertas": 1,
     "vencimentoCivilDaFAT92": "2026-09-27"
   },

@@ -101,6 +101,14 @@ const CONTAS_BANCARIAS = [
     moeda: 'MZN',
     contaPgc: '123',
   },
+  {
+    banco: 'M-Pesa',
+    agencia: 'Vodacom',
+    numeroConta: '841234567',
+    tipoConta: 'CARTEIRA_MOVEL',
+    moeda: 'MZN',
+    contaPgc: '121',
+  },
 ] as const;
 
 async function seedContasBancarias(prisma: PrismaClient, tenantId: string): Promise<void> {

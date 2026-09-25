@@ -67,6 +67,7 @@ export const TipoContaBancariaEnum = z.enum([
   'CORRENTE',
   'POUPANCA',
   'DEPOSITO_PRAZO',
+  'CARTEIRA_MOVEL',
 ]);
 
 // ---------------------------------------------------------------------------

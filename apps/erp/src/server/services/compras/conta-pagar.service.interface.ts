@@ -165,9 +165,11 @@ export interface IContaPagarService {
    *   4. Wave 3: chama registarLancamentoContabilistico(tx, input, ctx) de WS D
    *      e preenche Pagamento.lancamentoId.
    *      Partidas: [
-   *        { contaCodigo: '2211', tipo: 'DEBITO', valor },    // Fornecedores
-   *        { contaCodigo: '1121', tipo: 'CREDITO', valor },   // Banco/Caixa
+   *        { contaCodigo: '421', tipo: 'DEBITO', valor },                // Fornecedores c/c
+   *        { contaCodigo: <PGC do meio>, tipo: 'CREDITO', valor },       // 111 Caixa / conta bancária
    *      ]
+   *      Diário: CAIXA (numerário) ou BANCO (bancário/carteira).
+   *      Em NUMERARIO: regista também MovimentoCaixa PAGAMENTO na sessão do utilizador.
    */
   registarPagamento(input: CreatePagamentoInput, ctx: Ctx): Promise<PagamentoDto>;
 

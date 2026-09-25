@@ -17,6 +17,7 @@ const TIPO_LABEL: Record<string, string> = {
   CORRENTE: 'Corrente',
   POUPANCA: 'Poupança',
   DEPOSITO_PRAZO: 'Depósito a prazo',
+  CARTEIRA_MOVEL: 'Carteira móvel',
 };
 
 const colunas: TableColumn<ContaBancariaRow>[] = [

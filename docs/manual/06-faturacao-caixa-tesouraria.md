@@ -38,7 +38,7 @@ A emissão de faturas feita a partir de uma venda, e as notas de crédito e de d
 | Proforma | Documento preliminar com os valores da futura fatura. Não é documento fiscal. |
 | Sessão de caixa | Um turno de caixa, de um utilizador, entre a abertura e o fecho. Tem número próprio (`CXS/…`). |
 | Fundo inicial | O dinheiro que está na gaveta quando a sessão é aberta. |
-| Movimento de caixa | Cada entrada ou saída de dinheiro na sessão: Abertura, Venda, Recebimento, Sangria, Reforço, Devolução, Fecho, Ajuste. |
+| Movimento de caixa | Cada entrada ou saída de dinheiro na sessão: Abertura, Venda, Recebimento, Sangria, Reforço, Devolução, Pagamento, Fecho, Ajuste. **Pagamento** é uma saída: um pagamento a fornecedor feito em numerário a partir da sessão. |
 | Sangria / Reforço | Retirar dinheiro da gaveta (sangria) ou juntar dinheiro à gaveta (reforço) a meio do turno. |
 | Diferença | No fecho: o dinheiro contado menos o dinheiro que devia estar. Positiva é excedente; negativa é falta. |
 | Projecção de tesouraria | Cálculo, feito na hora, do saldo previsto ao longo de um horizonte. Não fica gravado: cada vez que abre a página, é recalculado com os dados desse momento. |

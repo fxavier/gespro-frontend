@@ -42,6 +42,7 @@ const TIPOS_CONTA = [
   { value: 'CORRENTE', label: 'Corrente' },
   { value: 'POUPANCA', label: 'Poupança' },
   { value: 'DEPOSITO_PRAZO', label: 'Depósito a prazo' },
+  { value: 'CARTEIRA_MOVEL', label: 'Carteira móvel (M-Pesa, e-Mola)' },
 ] as const;
 
 export function ContaBancariaForm({

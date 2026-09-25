@@ -72,6 +72,33 @@ const pagamentoMock = {
   status: 'CONCLUIDO', lancamentoId: null, createdAt: new Date(),
 };
 
+// #78 — o pagamento passa a sair do meio escolhido: forma do enum + contaBancariaId,
+// e o crédito é a conta PGC da ContaBancaria (aqui 123), não um 121 fixo.
+const CONTA_BANCARIA_ID = '1c7d9a5e-2f4b-4c1e-9a0b-3d5e6f7a8b9c';
+const contaPGCBancoMock = { id: 'pgc-123', tenantId: 'tenant-test', codigo: '123', ativo: true, aceitaLancamento: true };
+const contaBancariaMock = {
+  id: CONTA_BANCARIA_ID, tenantId: 'tenant-test', tipoConta: 'CORRENTE', ativo: true,
+  contaContabilId: contaPGCBancoMock.id, contaContabil: contaPGCBancoMock,
+};
+function meioBancario() {
+  return {
+    contaBancaria: {
+      findFirst: vi.fn(async () => contaBancariaMock),
+      findUnique: vi.fn(async () => contaBancariaMock),
+      findFirstOrThrow: vi.fn(async () => contaBancariaMock),
+      findUniqueOrThrow: vi.fn(async () => contaBancariaMock),
+    },
+    contaPGC: {
+      findFirst: vi.fn(async () => contaPGCBancoMock),
+      findUnique: vi.fn(async () => contaPGCBancoMock),
+    },
+  };
+}
+const inputPagamento = {
+  contaPagarId: 'cp-001', valor: 5000,
+  formaPagamento: 'TRANSFERENCIA_BANCARIA', contaBancariaId: CONTA_BANCARIA_ID,
+} as const;
+
 // Itens actualizados após a recepção (todos recebidos)
 const itensActualizados = [
   { id: 'item-1', quantidade: new Prisma.Decimal('10'), quantidadeRecebida: new Prisma.Decimal('8') },
@@ -81,6 +108,7 @@ const itensActualizados = [
 vi.mock('@/server/db/client', () => ({
   prisma: {
     $transaction: vi.fn(async (fn: any) => fn({
+      ...meioBancario(),
       pedidoCompra: {
         findUnique: vi.fn().mockResolvedValue(pedidoMock),
         update: vi.fn(),
@@ -226,7 +254,7 @@ describe('Wave 3 — ContaPagar liquidada → lançamento contabilístico (WS D)
     const { contaPagarService } = await import('../conta-pagar.service');
 
     await contaPagarService.registarPagamento(
-      { contaPagarId: 'cp-001', dataPagamento: new Date(), valor: 5000, formaPagamento: 'Transferência' },
+      { ...inputPagamento, dataPagamento: new Date() } as any,
       ctx,
     );
 
@@ -251,7 +279,7 @@ describe('Wave 3 — ContaPagar liquidada → lançamento contabilístico (WS D)
     const { contaPagarService } = await import('../conta-pagar.service');
 
     await contaPagarService.registarPagamento(
-      { contaPagarId: 'cp-001', dataPagamento: new Date(), valor: 5000, formaPagamento: 'Transferência' },
+      { ...inputPagamento, dataPagamento: new Date() } as any,
       ctx,
     );
 
@@ -260,24 +288,26 @@ describe('Wave 3 — ContaPagar liquidada → lançamento contabilístico (WS D)
     expect(debito?.contaCodigo).toBe('421');
   });
 
-  it('lançamento usa conta 121 (Depósitos à ordem) como CRÉDITO', async () => {
+  // #78: era «usa conta 121 como CRÉDITO». O crédito passa a ser a conta PGC da
+  // ContaBancaria por onde se pagou (decisão humana C1).
+  it('lançamento credita a conta PGC da ContaBancaria escolhida (123 no mock)', async () => {
     const { contaPagarService } = await import('../conta-pagar.service');
 
     await contaPagarService.registarPagamento(
-      { contaPagarId: 'cp-001', dataPagamento: new Date(), valor: 5000, formaPagamento: 'Transferência' },
+      { ...inputPagamento, dataPagamento: new Date() } as any,
       ctx,
     );
 
     const [, input] = mockRegistarLancamento.mock.calls[0];
     const credito = input.partidas.find((p: any) => p.tipo === 'CREDITO');
-    expect(credito?.contaCodigo).toBe('121');
+    expect(credito?.contaCodigo).toBe(contaPGCBancoMock.codigo);
   });
 
   it('lançamento tem origem PAGAMENTO e diário BANCO', async () => {
     const { contaPagarService } = await import('../conta-pagar.service');
 
     await contaPagarService.registarPagamento(
-      { contaPagarId: 'cp-001', dataPagamento: new Date(), valor: 5000, formaPagamento: 'Transferência' },
+      { ...inputPagamento, dataPagamento: new Date() } as any,
       ctx,
     );
 
@@ -294,6 +324,7 @@ describe('Wave 3 — ContaPagar liquidada → lançamento contabilístico (WS D)
     const mockPagUpdate = vi.fn().mockResolvedValue({});
 
     db.$transaction.mockImplementationOnce(async (fn: any) => fn({
+      ...meioBancario(),
       contaPagar: {
         findUnique: vi.fn().mockResolvedValue(contaMock),
         update: vi.fn(),
@@ -306,7 +337,7 @@ describe('Wave 3 — ContaPagar liquidada → lançamento contabilístico (WS D)
 
     const { contaPagarService } = await import('../conta-pagar.service');
     await contaPagarService.registarPagamento(
-      { contaPagarId: 'cp-001', dataPagamento: new Date(), valor: 5000, formaPagamento: 'Transferência' },
+      { ...inputPagamento, dataPagamento: new Date() } as any,
       ctx,
     );
 
