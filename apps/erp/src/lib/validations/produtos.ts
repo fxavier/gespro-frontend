@@ -2,6 +2,7 @@
 // Partilhado cliente/servidor. Nunca importar lógica server-only aqui.
 
 import { z } from 'zod';
+import { taxaIvaSchema } from '@/lib/iva';
 
 // ─── Categoria de Produto ─────────────────────────────────────────────────────
 
@@ -31,8 +32,6 @@ export type CategoriaProdutoFilter = z.infer<typeof CategoriaProdutoFilterSchema
 
 // ─── Produto ──────────────────────────────────────────────────────────────────
 
-const IVA_RATES = [0, 0.16] as const;
-
 export const ProdutoCreateSchema = z.object({
   sku: z.string().min(1, 'SKU é obrigatório').max(50),
   codigoBarras: z.string().max(50).optional(),
@@ -43,13 +42,7 @@ export const ProdutoCreateSchema = z.object({
   unidadeMedida: z.string().min(1, 'Unidade de medida é obrigatória').max(20),
   precoVenda: z.coerce.number().nonnegative('Preço de venda deve ser positivo'),
   precoCompra: z.coerce.number().nonnegative('Preço de compra deve ser positivo'),
-  taxaIva: z.coerce
-    .number()
-    .refine(
-      (v) => IVA_RATES.includes(v as 0 | 0.16),
-      'Taxa de IVA deve ser 0 (isento) ou 0.16 (16%)',
-    )
-    .default(0.16),
+  taxaIva: taxaIvaSchema('Taxa de IVA deve ser 0 (isento) ou 0.16 (16%)'),
   stockMinimo: z.coerce.number().nonnegative().default(0),
   stockMaximo: z.coerce.number().positive().optional(),
   dataValidade: z.coerce.date().optional(),

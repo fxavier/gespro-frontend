@@ -99,11 +99,9 @@ Para um ano novo, as séries são criadas quando se **abre o exercício contabil
 1. Vá a **Faturação** e clique em **Nova Fatura**.
 2. Em **Série e Cliente**, escolha a **Série de Faturação** e o **Cliente**. Pode escrever parte do nome ou do código do cliente para o encontrar.
 3. Preencha a **Data de Emissão** e a **Data de Vencimento**. O vencimento não pode ser anterior à emissão.
-4. Em **Linhas da Fatura**, preencha cada linha: **Descrição**, **Qtd**, **Preço Unit.**, **Desc.** (desconto em valor) e **IVA %** (16% ou 0%). Use **Adicionar linha** para mais linhas. O **Subtotal**, o **IVA** e o **Total** são actualizados à medida que escreve.
+4. Em **Linhas da Fatura**, preencha cada linha: **Descrição**, **Qtd**, **Preço Unit.**, **Desc.** (desconto em valor) e **IVA %** (16% ou 0% (isento)). Use **Adicionar linha** para mais linhas. O **Subtotal**, o **IVA** e o **Total** são actualizados à medida que escreve.
 5. Se quiser, escreva notas para o cliente em **Observações**.
 6. Clique em **Emitir Fatura**.
-
-> **Atenção:** neste formulário, uma linha com **IVA %** em **0%** é hoje gravada com 16%. Até isto ser corrigido, não use este formulário para faturar bens ou serviços isentos. Confirme sempre o IVA no detalhe da fatura depois de a emitir.
 
 **Resultado**
 Aparece a mensagem «Fatura emitida com sucesso.» e volta à lista. A fatura fica no estado **Emitida**, com o número seguinte da série (por exemplo `FAT/2026/000105`). A partir daqui não pode ser alterada.

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { taxaIvaSchema } from '@/lib/iva';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -59,9 +60,6 @@ export const TipoSerieDocumentoEnum = z.enum([
 // Helpers de linha (partilhado por Fatura, NC, ND, Proforma, Cotacao)
 // ---------------------------------------------------------------------------
 
-/** IVA moçambicano: 16% padrão ou 0% isento. */
-const taxaIvaValida = (taxa: number) => taxa === 0 || Math.abs(taxa - 0.16) < 0.0001;
-
 export const LinhaDocumentoSchema = z
   .object({
     produtoId: z.string().cuid().optional(),
@@ -74,10 +72,7 @@ export const LinhaDocumentoSchema = z
       .nonnegative('Preço não pode ser negativo')
       .multipleOf(0.01),
     desconto: z.number().nonnegative().multipleOf(0.01).default(0),
-    taxaIva: z
-      .number()
-      .refine(taxaIvaValida, 'Taxa de IVA inválida — use 0.16 (16%) ou 0 (isento)')
-      .default(0.16),
+    taxaIva: taxaIvaSchema(),
     ordemLinha: z.number().int().nonnegative().default(0),
   })
   .transform((l) => {

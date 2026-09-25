@@ -22,7 +22,6 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 | G | Lacuna | Onde |
 |---|---|---|
 | A | Visibilidade não filtrada por permissão de consulta: menu e páginas abrem para qualquer perfil (ex.: Operador vê Utilizadores e Auditoria) ([#76](https://github.com/fxavier/gespro-frontend/issues/76)) | `AppSidebar.tsx` (só «Subscrição» filtra), `page.tsx` |
-| A | IVA 0% gravado como 16% (`Number(taxaIva) \|\| 0.16`) em fatura, cotação, proforma, nota de crédito (/faturacao) e pedido de compra ([#77](https://github.com/fxavier/gespro-frontend/issues/77)) | formulários em `faturacao/*`, `novo-pedido-form.tsx` |
 | M | Grupo «Compras & Procurement» invisível para todos: permissões `compras:requisicao:ver`, `compras:cotacao:ver`, `compras:pedido:ver` não existem em `rbac.ts` ([#100](https://github.com/fxavier/gespro-frontend/issues/100)) | `AppSidebar.tsx` |
 | M | Muitos formulários pedem o **id interno** (CUID) em vez de pesquisa: ausências, benefícios, devoluções, cotação/proforma/NC, BOM/ordens, orçamento de projecto, contagens de stock, contratos ([#101](https://github.com/fxavier/gespro-frontend/issues/101)) | vários |
 | B | `StatusBadge`: `FECHADA` mapeada para «Acesso Fechado» (colide em caixa, vaga, qualidade); estados sem etiqueta (`ACTIVO`, `FERIAS`, `AFASTADO`, `EM_PRODUCAO`, `SUBSTITUIDO`, `PREFERENCIAL`, `TRANSFERENCIA_*`) ([#102](https://github.com/fxavier/gespro-frontend/issues/102)) ([#103](https://github.com/fxavier/gespro-frontend/issues/103)) | `patterns/status-badge.tsx` |

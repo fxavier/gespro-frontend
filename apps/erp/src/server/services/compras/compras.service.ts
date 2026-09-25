@@ -46,6 +46,7 @@ import type {
   CreateConfiguracaoWorkflowInput,
 } from '@/lib/validations/compras';
 import type { Ctx } from '@/server/services/types';
+import { TAXA_IVA_NORMAL, lerTaxaIva } from '@/lib/iva';
 import type { z } from 'zod';
 import type { FilterCotacaoSchema } from '@/lib/validations/compras';
 
@@ -775,13 +776,42 @@ export const comprasService: IComprasService = {
     }
 
     const fornecedorVencedor = cotacao.fornecedores.find((f: any) => f.fornecedorId === vencedorFornecedorId);
+
+    // Carrega a taxa de IVA dos produtos com tenantId explícito (ADR issue #77).
+    const produtoIds: string[] = req.itens
+      .map((i) => i.produtoId)
+      .filter((id): id is string => id != null);
+    const produtos = produtoIds.length > 0
+      ? await db.produto.findMany({
+          where: { id: { in: produtoIds }, tenantId: ctx.tenantId },
+          select: { id: true, taxaIva: true },
+        })
+      : [];
+    const taxaPorProduto = new Map(
+      produtos.map((p) => {
+        let taxa;
+        try {
+          taxa = lerTaxaIva(p.taxaIva.toString());
+        } catch {
+          throw new BusinessRuleError(
+            'TAXA_IVA_PRODUTO_INVALIDA',
+            `Produto ${p.id} tem taxa de IVA inválida: ${String(p.taxaIva)}`,
+          );
+        }
+        return [p.id, taxa] as const;
+      }),
+    );
+
     const itensPedido = req.itens.map((item: any) => ({
       produtoId: item.produtoId,
       descricao: item.descricao,
       quantidade: Number(item.quantidade),
       unidadeMedida: item.unidadeMedida,
       precoUnitario: Number(item.precoEstimado),
-      desconto: 0, taxaIva: 0.16,
+      desconto: 0,
+      taxaIva: item.produtoId != null
+        ? (taxaPorProduto.get(item.produtoId) ?? TAXA_IVA_NORMAL)
+        : TAXA_IVA_NORMAL,
     }));
 
     const totais = calcularTotaisPedido(itensPedido);

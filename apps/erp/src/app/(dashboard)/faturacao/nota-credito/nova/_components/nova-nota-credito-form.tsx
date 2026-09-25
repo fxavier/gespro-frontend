@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/select';
 import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { emitirNotaCredito } from '@/server/actions/faturacao.actions';
+import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
+import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
 
 // Mesmo bloco de linhas da fatura (LinhaDocumentoSchema)
 const LinhaFormSchema = z.object({
@@ -27,7 +29,7 @@ const LinhaFormSchema = z.object({
   quantidade: z.coerce.number().positive('Quantidade positiva'),
   precoUnitario: z.coerce.number().nonnegative('Preço não negativo'),
   desconto: z.coerce.number().nonnegative().default(0),
-  taxaIva: z.coerce.number().default(0.16),
+  taxaIva: taxaIvaSchema(),
 });
 
 const FormSchema = z.object({
@@ -65,7 +67,7 @@ export function NovaNotaCreditoForm({ series }: Props) {
       motivo: '',
       dataEmissao: today,
       observacoes: '',
-      linhas: [{ descricao: '', quantidade: 1, precoUnitario: 0, desconto: 0, taxaIva: 0.16 }],
+      linhas: [{ descricao: '', quantidade: 1, precoUnitario: 0, desconto: 0, taxaIva: TAXA_IVA_NORMAL }],
     },
   });
 
@@ -74,18 +76,17 @@ export function NovaNotaCreditoForm({ series }: Props) {
   const serieId = useWatch({ control, name: 'serieDocumentoId' });
   const serieEscolhida = series.find((s) => s.id === serieId);
 
-  const totais = linhas.reduce(
-    (acc, l) => {
-      const q = Number(l.quantidade) || 0;
-      const p = Number(l.precoUnitario) || 0;
-      const d = Number(l.desconto) || 0;
-      const taxa = Number(l.taxaIva) || 0.16;
-      const base = q * p - d;
-      const iva = base * taxa;
-      return { subtotal: acc.subtotal + base, iva: acc.iva + iva, total: acc.total + base + iva };
-    },
-    { subtotal: 0, iva: 0, total: 0 }
+  const { base: _subtotal, iva: _iva, total: _total } = calcularTotais(
+    linhas
+      .filter((l): l is typeof l & { taxaIva: TaxaIva } => ehTaxaIva(l.taxaIva))
+      .map((l) => ({
+        quantidade: Number(l.quantidade) || 0,
+        precoUnitario: Number(l.precoUnitario) || 0,
+        desconto: Number(l.desconto) || 0,
+        taxaIva: l.taxaIva,
+      }))
   );
+  const totais = { subtotal: _subtotal, iva: _iva, total: _total };
 
   const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
 
@@ -103,7 +104,7 @@ export function NovaNotaCreditoForm({ series }: Props) {
           quantidade: Number(l.quantidade),
           precoUnitario: Number(l.precoUnitario),
           desconto: Number(l.desconto) || 0,
-          taxaIva: Number(l.taxaIva) || 0.16,
+          taxaIva: lerTaxaIva(l.taxaIva),
           ordemLinha: i,
         })),
       } as any);
@@ -200,9 +201,10 @@ export function NovaNotaCreditoForm({ series }: Props) {
             const q = Number(linhas[i]?.quantidade) || 0;
             const p = Number(linhas[i]?.precoUnitario) || 0;
             const d = Number(linhas[i]?.desconto) || 0;
-            const taxa = Number(linhas[i]?.taxaIva) || 0.16;
-            const base = q * p - d;
-            const total = base + base * taxa;
+            const taxaAtual = linhas[i]?.taxaIva;
+            const { total } = ehTaxaIva(taxaAtual)
+              ? calcularLinha({ quantidade: q, precoUnitario: p, desconto: d, taxaIva: taxaAtual })
+              : { total: 0 };
 
             return (
               <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
@@ -228,17 +230,23 @@ export function NovaNotaCreditoForm({ series }: Props) {
                 <div className="col-span-4 md:col-span-1 space-y-1">
                   <Label className="md:hidden text-xs">IVA %</Label>
                   <Select
-                    defaultValue="0.16"
-                    onValueChange={(v) => setValue(`linhas.${i}.taxaIva`, parseFloat(v))}
+                    value={ehTaxaIva(linhas[i]?.taxaIva) ? String(linhas[i]!.taxaIva) : ''}
+                    onValueChange={(v) => setValue(`linhas.${i}.taxaIva`, lerTaxaIva(v), { shouldValidate: true, shouldDirty: true })}
                   >
                     <SelectTrigger className="h-9" aria-label={`Taxa IVA linha ${i + 1}`}>
-                      <SelectValue />
+                      <SelectValue>{ehTaxaIva(linhas[i]?.taxaIva) ? ROTULOS_TAXA_IVA[`${linhas[i]!.taxaIva}`] : null}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="0.16">16%</SelectItem>
-                      <SelectItem value="0">0%</SelectItem>
+                      {TAXAS_IVA.map((taxa) => (
+                        <SelectItem key={String(taxa)} value={String(taxa)}>
+                          {ROTULOS_TAXA_IVA[`${taxa}`]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {errors.linhas?.[i]?.taxaIva && (
+                    <p className="text-xs text-destructive">{errors.linhas[i]?.taxaIva?.message as string}</p>
+                  )}
                 </div>
                 <div className="col-span-3 md:col-span-1 flex items-center justify-end pt-1">
                   <span className="text-sm tabular-nums font-medium">{fmtMZN.format(total)}</span>
@@ -271,7 +279,7 @@ export function NovaNotaCreditoForm({ series }: Props) {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => append({ descricao: '', quantidade: 1, precoUnitario: 0, desconto: 0, taxaIva: 0.16 })}
+            onClick={() => append({ descricao: '', quantidade: 1, precoUnitario: 0, desconto: 0, taxaIva: TAXA_IVA_NORMAL })}
           >
             <Plus className="h-4 w-4 mr-2" />
             Adicionar linha
