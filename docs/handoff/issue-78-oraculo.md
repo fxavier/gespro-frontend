@@ -107,6 +107,47 @@ Alterados (decisão humana C1, só estes dois):
    - `npx vitest run src/server/services/plataforma/__tests__/provisionamento-integracao.test.ts`:
      **1 ficheiro, 3/3 verdes** (nenhum saltado).
 
+### `financas/__tests__/fixtures/projecao-seed-demo.json` — golden fixture da spec 22 (BLOCKER B1 da revisão)
+
+1. **A sentinela `contasBancarias` passa de `3` para `4`.** A `$nota` das sentinelas acrescenta a M-Pesa na
+   121. Mais nada mudou (diff: 2 linhas).
+   - É consequência directa da decisão humana C2: o seed cria no tenant demo a ContaBancaria «M-Pesa»
+     841234567, CARTEIRA_MOVEL, ancorada na conta PGC **121**.
+   - Derivei à mão, só com SELECT, na base local `gespro` (a 25/09, depois do seed novo). Resultado: **nenhum
+     número de `esperado` muda.**
+   - Contas bancárias do demo, as 4 activas:
+     - Millennium bim → 121;
+     - BCI → 121;
+     - Standard Bank (DEPOSITO_PRAZO) → 123;
+     - M-Pesa (CARTEIRA_MOVEL, criada a 2026-09-25 10:54) → 121.
+   - Contas PGC distintas: continuam a ser {121, 123}. A soma do saldo é por conta PGC distinta
+     (`saldoTesourariaAte`, §2-bis), portanto a 121 continua a contar **uma** vez.
+   - A M-Pesa não tem nenhuma linha própria: 0 em `MovimentoBancario`, `MovimentoContabilistico`,
+     `CorrespondenciaBancaria`, `PeriodoReconciliacao`, `ImportacaoExtracto` e `RegraSugestaoLancamento`.
+   - PGC 121: 99 partidas, todas LANCADO, com datas entre 2026-01-20 e 2026-09-17, todas ≤
+     `instanteReferencia` (2026-09-23T16:30Z). Dão 4 624 081,20 D − 388 100,00 C = **4 235 981,20**, igual à
+     fixture.
+   - PGC 123: 3 partidas, todas fora do filtro. Duas vêm de lançamentos RASCUNHO, que estão fora de
+     `FILTRO_LANCAMENTO_MAPA`. A terceira é LANCADO mas tem data 2026-10-31, depois do instante. Saldo:
+     **0,00**, igual à fixture.
+     - São resíduos manuais de 23–24/09 («Comissão de manutenção…», «Juros credores»). Hoje não afectam a
+       fixture, mas convém limpá-los.
+   - PGC 111: 0 partidas.
+   - Sessão ABERTA CXS/2026/000008: 5 000,00 + 719 106,60 − 0,00 = **724 106,60**, lido de `totalEntradas`/
+     `totalSaidas` gravados. Igual à fixture.
+   - `saldoAbertura` = 4 235 981,20 + 0,00 + 724 106,60 = **4 960 087,80**, inalterado.
+2. `npx vitest run src/server/services/financas/__tests__/projecao.golden.test.ts`: falha no `beforeAll`
+   das sentinelas, e a **única** divergência restante é `compromissosManuais`:
+   ```
+   observado: {"totalFaturas":106,"faturasEmAberto":20,"contasPagarEmAberto":10,"payrollProcessado":0,"compromissosManuais":1,"contasBancarias":4,"sessoesAbertas":1,"vencimentoCivilDaFAT92":"2026-09-27"}
+   fixture:   {"totalFaturas":106,"faturasEmAberto":20,"contasPagarEmAberto":10,"payrollProcessado":0,"compromissosManuais":0,"contasBancarias":4,"sessoesAbertas":1,"vencimentoCivilDaFAT92":"2026-09-27"}
+   Test Files 1 failed (1) · Tests 3 skipped (3)
+   ```
+   - O compromisso «Pagamento da Internet» foi criado à mão em 2026-09-24 01:20 e não está apagado. É um
+     resíduo alheio a esta issue, e cabe ao humano limpá-lo.
+   - Enquanto existir, os 3 testes numéricos ficam saltados. A igualdade de `esperado` está provada pela
+     derivação acima, **não** por uma corrida verde. Volta a correr o golden depois da limpeza.
+
 ## Saída VERMELHA
 
 Comando, a partir de `apps/erp`:
