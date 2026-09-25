@@ -170,8 +170,6 @@ A lista de cotações tem os indicadores **Total de cotações**, **Em aberto**,
 
 **Resultado:** aparece a mensagem «Pedido de compra criado com sucesso.». O pedido fica em **Rascunho**, com número automático.
 
-> **Atenção:** nesta versão, uma linha com IVA a **0%** é gravada com 16%. Confirme o valor do IVA do pedido. Se a compra for isenta, fale com o administrador antes de a usar como referência.
-
 A lista de pedidos tem os indicadores **Total de Pedidos**, **Em Andamento**, **Recebidos** e **Valor Total**, a pesquisa por número ou fornecedor e o filtro **Estado**. As colunas são Número, Data, Fornecedor, Estado, Valor Total e Entrega Prevista.
 
 <!-- captura: 01-compras/pedidos-lista.png | /compras/pedidos -->
