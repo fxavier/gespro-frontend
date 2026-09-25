@@ -4,6 +4,7 @@
  * Partilhado cliente/servidor. Sem imports de @prisma/client.
  */
 import { z } from 'zod';
+import { taxaIvaSchema } from '@/lib/iva';
 
 // ---- Enums ----
 
@@ -247,7 +248,7 @@ export const CreateItemPedidoCompraSchema = z.object({
   unidadeMedida: z.string().min(1).max(30),
   precoUnitario: positivoDecimal,
   desconto: naoNegativoDecimal.default(0),
-  taxaIva: z.number().min(0).max(1).default(0.16),
+  taxaIva: taxaIvaSchema(),
   observacoes: z.string().max(500).optional(),
 });
 

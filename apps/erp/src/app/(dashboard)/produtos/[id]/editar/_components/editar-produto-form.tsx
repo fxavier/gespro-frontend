@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { FormPage, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { actualizarProdutoAction } from '@/server/actions/inventario.actions';
 import type { CategoriaProdutoDto } from '@/server/services/inventario/catalogo.interface';
+import { taxaIvaSchema } from '@/lib/iva';
 
 const Schema = z.object({
   nome: z.string().min(1, 'Nome obrigatório').max(200),
@@ -28,7 +29,7 @@ const Schema = z.object({
   unidadeMedida: z.string().min(1).max(20),
   precoVenda: z.coerce.number().nonnegative(),
   precoCompra: z.coerce.number().nonnegative(),
-  taxaIva: z.coerce.number().min(0).max(1),
+  taxaIva: taxaIvaSchema('Taxa de IVA deve ser 0 (isento) ou 0.16 (16%)'),
   stockMinimo: z.coerce.number().nonnegative(),
   stockMaximo: z.coerce.number().nonnegative().optional(),
   ativo: z.boolean().default(true),
@@ -90,7 +91,7 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
       unidadeMedida: defaultValues.unidadeMedida,
       precoVenda: Number(defaultValues.precoVenda),
       precoCompra: Number(defaultValues.precoCompra),
-      taxaIva: Number(defaultValues.taxaIva),
+      taxaIva: Number(defaultValues.taxaIva) as 0 | 0.16,
       stockMinimo: Number(defaultValues.stockMinimo),
       stockMaximo: defaultValues.stockMaximo ? Number(defaultValues.stockMaximo) : undefined,
       ativo: defaultValues.ativo,
