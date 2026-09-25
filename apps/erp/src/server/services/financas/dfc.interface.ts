@@ -272,11 +272,15 @@ export interface ColunaDFC {
   periodoFim: PeriodoRef;
   seccoes: SeccoesDFC;
   /**
-   * Σ `saldoAtual` das contas mapeadas a rubricas `CAIXA` no balancete do dia
+   * Saldo das contas mapeadas a rubricas `CAIXA` no balancete do dia
    * anterior ao início — o MESMO balancete (mesmo `FILTRO_LANCAMENTO_MAPA`,
-   * mesma data) que alimenta `classificarVariacoes`. Sinal pela natureza da
-   * conta, como em `VariacaoClassificada`: uma conta `CAIXA` CREDORA (um
-   * descoberto bancário) entra negativa, não com o sinal trocado.
+   * mesma data) que alimenta `classificarVariacoes` — em TERMOS DE DÉBITO
+   * (débitos − créditos), via `saldoCaixaDe` de `dfc.model.ts`: DEVEDORA
+   * `saldoAtual`, CREDORA `saldoAtual.negated()`. NÃO é Σ `saldoAtual` tal
+   * qual: esse vem assinado pela natureza, e numa conta `CAIXA` CREDORA (um
+   * descoberto bancário) ficaria com o sinal trocado face ao `efeitoCaixa`
+   * das variações — um descoberto de 100 e um depósito de 100 dariam +200
+   * em vez de 0, e `DFC_NAO_ARTICULA` sem nenhum erro de classificação.
    * NUNCA `saldoContabilAte` (só `LANCADO`): com um estorno numa conta de
    * caixa, os dois lados do I6 divergiriam sem nenhum erro de classificação.
    */
