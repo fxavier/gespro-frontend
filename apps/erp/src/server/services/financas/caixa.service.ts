@@ -124,7 +124,7 @@ export async function fecharSessao(
     .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
 
   const totalSaidas = movimentos
-    .filter((m) => ['SANGRIA', 'DEVOLUCAO'].includes(m.tipo))
+    .filter((m) => ['SANGRIA', 'DEVOLUCAO', 'PAGAMENTO'].includes(m.tipo))
     .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
 
   const fundoFinal = new Prisma.Decimal(String(input.fundoFinal));
@@ -332,7 +332,7 @@ export async function resumoSessao(sessaoCaixaId: string, ctx: Ctx): Promise<Res
     .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
 
   const totalSaidas = sessao.movimentos
-    .filter((m) => ['SANGRIA', 'DEVOLUCAO'].includes(m.tipo))
+    .filter((m) => ['SANGRIA', 'DEVOLUCAO', 'PAGAMENTO'].includes(m.tipo))
     .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
 
   const saldoEsperado = sessao.fundoInicial.plus(totalEntradas).minus(totalSaidas);

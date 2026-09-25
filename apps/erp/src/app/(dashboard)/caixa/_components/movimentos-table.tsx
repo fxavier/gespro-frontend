@@ -32,9 +32,11 @@ export const TIPO_MOVIMENTO_LABEL: Record<string, string> = {
   DEVOLUCAO: 'Devolução',
   FECHAMENTO: 'Fecho',
   AJUSTE: 'Ajuste',
+  PAGAMENTO: 'Pagamento',
 };
 
-const SAIDAS = new Set(['SANGRIA', 'DEVOLUCAO']);
+/** Tipos que contam como saída (espelha caixa.service.ts resumoSessao/fecharSessao). */
+export const SAIDAS = new Set(['SANGRIA', 'DEVOLUCAO', 'PAGAMENTO']);
 const ENTRADAS = new Set(['VENDA', 'RECEBIMENTO', 'REFORCO', 'ABERTURA']);
 
 const columns: TableColumn<MovimentoCaixaResumo>[] = [

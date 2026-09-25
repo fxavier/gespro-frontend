@@ -10,6 +10,8 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
 import { registarLancamentoContabilistico } from '@/server/services/financas/contabilidade.service';
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
+import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
+import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
 import type {
   IContaPagarService,
   ContaPagarDetalhe,
@@ -336,6 +338,17 @@ export const contaPagarService: IContaPagarService = {
   async registarPagamento(input: CreatePagamentoInput, ctx: Ctx): Promise<PagamentoDto> {
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as PrismaClient;
+      const txClient = rawTx as unknown as Prisma.TransactionClient;
+
+      // 1. Resolver o meio de pagamento ANTES de qualquer escrita: se a
+      //    validação falhar (sessão fechada, conta inactiva, etc.) não fica
+      //    nada a meio.
+      const meio = await resolverContaMeioPagamento(
+        txClient,
+        { forma: input.formaPagamento as any, contaBancariaId: input.contaBancariaId },
+        ctx,
+      );
+
       const conta = await tx.contaPagar.findUnique({
         where: { id: input.contaPagarId },
         include: { pagamentos: true },
@@ -347,24 +360,25 @@ export const contaPagarService: IContaPagarService = {
         throw new BusinessRuleError('ESTADO_INVALIDO', 'Conta a pagar já liquidada ou cancelada');
       }
 
-      const valorRestante = Number(conta.valorRestante ?? conta.valorOriginal);
-      if (input.valor > valorRestante + 0.001) {
+      const valorRestante = new Prisma.Decimal(String(conta.valorRestante ?? conta.valorOriginal));
+      const valorPagamento = new Prisma.Decimal(String(input.valor));
+      if (valorPagamento.greaterThan(valorRestante.plus(new Prisma.Decimal('0.001')))) {
         throw new BusinessRuleError(
           'PAGAMENTO_EXCEDIDO',
-          `Valor do pagamento (${input.valor}) excede o valor restante (${valorRestante})`,
+          `Valor do pagamento (${valorPagamento.toFixed(2)}) excede o valor restante (${valorRestante.toFixed(2)})`,
         );
       }
 
-      const txClient = tx as unknown as Prisma.TransactionClient;
       const numero = await proximoNumeroSerie(txClient, 'PAGAMENTO', ctx, input.dataPagamento);
 
-      // Criar pagamento primeiro para ter o id disponível para o lançamento
+      // 2. Criar pagamento primeiro para ter o id disponível para o lançamento
+      //    e para o MovimentoCaixa (documentoOrigemId)
       const pagamento = await tx.pagamento.create({
         data: {
           tenantId: ctx.tenantId, numero,
           contaPagarId: conta.id,
           dataPagamento: input.dataPagamento,
-          valor: input.valor,
+          valor: valorPagamento,
           formaPagamento: input.formaPagamento,
           referencia: input.referencia,
           observacoes: input.observacoes,
@@ -372,41 +386,57 @@ export const contaPagarService: IContaPagarService = {
         },
       });
 
-      // Wave 3: registar lançamento contabilístico em WS D.
-      // PGC: 421 Fornecedores c/c (DÉBITO — reduz passivo); 121 Depósitos à ordem (CRÉDITO — reduz caixa/banco).
-      // Fallback para códigos PGC padrão (sem ConfiguracaoContabil no schema actual).
+      // 3. Lançamento contabilístico: D 421 / C <contaCodigo> no diário resolvido
       const lancamento = await registarLancamentoContabilistico(
         txClient,
         {
           data: input.dataPagamento,
-          diarioTipo: 'BANCO',
+          diarioTipo: meio.diarioTipo,
           origem: 'PAGAMENTO',
           documentoOrigemId: pagamento.id,
           documentoOrigemTipo: 'Pagamento',
           historico: `Pagamento ${numero} — ${conta.descricao}`,
           partidas: [
-            { contaCodigo: '421', tipo: 'DEBITO', valor: String(input.valor) },
-            { contaCodigo: '121', tipo: 'CREDITO', valor: String(input.valor) },
+            { contaCodigo: '421',           tipo: 'DEBITO',  valor: valorPagamento.toFixed(2) },
+            { contaCodigo: meio.contaCodigo, tipo: 'CREDITO', valor: valorPagamento.toFixed(2) },
           ],
         },
         ctx,
       );
 
-      // Actualizar pagamento com o lancamentoId real
+      // 4. Gravar lancamentoId no Pagamento
       await tx.pagamento.update({
         where: { id: pagamento.id },
         data: { lancamentoId: lancamento.id },
       });
 
-      const novoValorPago = Number(conta.valorPago ?? 0) + input.valor;
-      const novoValorRestante = Number(conta.valorOriginal) - novoValorPago;
+      // 5. Em numerário: registar MovimentoCaixa PAGAMENTO na sessão do utilizador
+      if (meio.sessaoCaixaId) {
+        await registarMovimentoCaixa(
+          txClient,
+          {
+            sessaoCaixaId: meio.sessaoCaixaId,
+            tipo: 'PAGAMENTO',
+            valor: valorPagamento.toFixed(2),
+            descricao: `Pagamento ${numero} — ${conta.descricao}`,
+            documentoOrigemTipo: 'Pagamento',
+            documentoOrigemId: pagamento.id,
+          },
+          ctx,
+        );
+      }
+
+      // 6. Actualizar ContaPagar — manter VENCIDA quando o pagamento é parcial
+      const novoValorPago = new Prisma.Decimal(String(conta.valorPago ?? 0)).plus(valorPagamento);
+      const novoValorRestante = new Prisma.Decimal(String(conta.valorOriginal)).minus(novoValorPago);
+
       // Um pagamento parcial numa conta VENCIDA não a «desvence»: continua por
       // pagar e fora de prazo, e VENCIDA → PARCIALMENTE_PAGA nem é transição
       // válida — rebentava com «Transição inválida» (500) no caso mais comum
       // do mundo real, o fornecedor a receber por prestações depois do prazo.
       // Só a liquidação total muda o estado.
       const novoStatus: StatusContaPagar =
-        novoValorRestante <= 0.001
+        novoValorRestante.lessThanOrEqualTo(new Prisma.Decimal('0.001'))
           ? 'PAGA'
           : conta.status === 'VENCIDA'
             ? 'VENCIDA'
@@ -419,8 +449,8 @@ export const contaPagarService: IContaPagarService = {
       await tx.contaPagar.update({
         where: { id: conta.id },
         data: {
-          valorPago: novoValorPago,
-          valorRestante: Math.max(0, novoValorRestante),
+          valorPago: novoValorPago.toNumber(),
+          valorRestante: novoValorRestante.lessThan(0) ? 0 : novoValorRestante.toNumber(),
           status: novoStatus,
         },
       });

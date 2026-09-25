@@ -245,7 +245,7 @@ export async function kpiFinancasImpl(tenantId: string): Promise<KpiFinancas> {
     prismaBase.movimentoCaixa.aggregate({
       where: {
         tenantId,
-        tipo: { in: ['SANGRIA', 'DEVOLUCAO'] },
+        tipo: { in: ['SANGRIA', 'DEVOLUCAO', 'PAGAMENTO'] },
         dataMovimento: { gte: som },
       },
       _sum: { valor: true },

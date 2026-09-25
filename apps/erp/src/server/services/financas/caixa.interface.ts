@@ -32,7 +32,8 @@ export type TipoMovimentoCaixa =
   | 'REFORCO'
   | 'DEVOLUCAO'
   | 'FECHAMENTO'
-  | 'AJUSTE';
+  | 'AJUSTE'
+  | 'PAGAMENTO';
 
 export interface SessaoCaixa {
   id: string;
