@@ -95,6 +95,18 @@ Alterados (decisão humana C1, só estes dois):
 4. Os `pagamentoMock` que o mock *devolve* ainda dizem `'Transferência'`/`'TRF'`. São dados de retorno, não
    de entrada, e ficaram como estavam.
 
+### `plataforma/__tests__/provisionamento-integracao.test.ts` (pedido do coordenador, depois do N2)
+
+1. **`expect(contas).toBe(502)` passa a `toBe(503)`.** Os comentários mudam em conformidade: linha 71,
+   «502 contas» → «503 contas»; linha 108, «504 entradas no JSON» → «505 entradas».
+   - É consequência directa da decisão humana D1: o N2 acrescentou a conta `111 Caixa` (filha de `11`) a
+     `prisma/seed/data/plano-contas-pgc.json`.
+   - Confirmei o ficheiro: tem 505 entradas e 503 códigos distintos.
+   - O número conta as linhas do plano que o bootstrap cria. Não é comportamento do pagamento, e a
+     alteração não enfraquece nada: continua a ser uma igualdade exacta.
+   - `npx vitest run src/server/services/plataforma/__tests__/provisionamento-integracao.test.ts`:
+     **1 ficheiro, 3/3 verdes** (nenhum saltado).
+
 ## Saída VERMELHA
 
 Comando, a partir de `apps/erp`:
