@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { idEntidade } from './common';
-import { FORMAS_PAGAMENTO } from '@/lib/meios-pagamento';
+import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 
 // ---- Enums ----
 
@@ -388,7 +388,7 @@ export type FilterContaPagarInput = z.infer<typeof FilterContaPagarSchema>;
 // =====================================================================
 
 export const FormaPagamentoEnum = z.enum(
-  FORMAS_PAGAMENTO.map((f) => f.value) as [string, ...string[]],
+  FORMAS_PAGAMENTO.map((f) => f.value) as [FormaPagamento, ...FormaPagamento[]],
 );
 
 export const CreatePagamentoSchema = z

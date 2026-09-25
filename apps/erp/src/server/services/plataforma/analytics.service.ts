@@ -1,6 +1,7 @@
 import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { prismaBase } from '@/server/db/client';
+import { MOVIMENTOS_SAIDA } from '@/lib/caixa-movimentos';
 import type { Ctx } from '@/server/services/types';
 import {
   ANALYTICS_TAGS,
@@ -245,7 +246,7 @@ export async function kpiFinancasImpl(tenantId: string): Promise<KpiFinancas> {
     prismaBase.movimentoCaixa.aggregate({
       where: {
         tenantId,
-        tipo: { in: ['SANGRIA', 'DEVOLUCAO', 'PAGAMENTO'] },
+        tipo: { in: [...MOVIMENTOS_SAIDA] },
         dataMovimento: { gte: som },
       },
       _sum: { valor: true },

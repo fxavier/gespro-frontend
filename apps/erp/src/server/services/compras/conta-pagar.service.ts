@@ -345,7 +345,7 @@ export const contaPagarService: IContaPagarService = {
       //    nada a meio.
       const meio = await resolverContaMeioPagamento(
         txClient,
-        { forma: input.formaPagamento as any, contaBancariaId: input.contaBancariaId },
+        { forma: input.formaPagamento, contaBancariaId: input.contaBancariaId },
         ctx,
       );
 

@@ -178,7 +178,7 @@ export async function seedContasPagar(
             formaPagamento: p.forma,
             referencia: p.referencia,
             ...(contaBancariaId ? { contaBancariaId } : {}),
-          } as any,
+          },
           ctx,
         );
       }

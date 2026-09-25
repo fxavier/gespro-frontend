@@ -21,6 +21,7 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { contaPagarService } from '@/server/services/compras/conta-pagar.service';
 import { listarContasBancarias } from '@/server/services/financas/contabilidade.service';
+import type { ContaBancaria } from '@/server/services/financas/contabilidade.interface';
 import { obterSessaoAtual } from '@/server/services/financas/caixa.service';
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge } from '@/components/patterns';
@@ -92,11 +93,11 @@ export default async function RegistarPagamentoPage({
 
   // Serializar para o cliente: só os campos necessários
   const contasBancariasOpts = contasBancarias
-    .filter((c: any) => c.ativo)
-    .map((c: any) => ({
-      id: c.id as string,
-      label: `${c.banco} — ${c.numeroConta}` as string,
-      tipoConta: c.tipoConta as string,
+    .filter((c: ContaBancaria) => c.ativo)
+    .map((c: ContaBancaria) => ({
+      id: c.id,
+      label: `${c.banco} — ${c.numeroConta}`,
+      tipoConta: c.tipoConta,
     }));
 
   const sessaoCaixaInfo = sessaoCaixa

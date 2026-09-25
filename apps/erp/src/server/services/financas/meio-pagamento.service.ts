@@ -86,6 +86,9 @@ export async function resolverContaMeioPagamento(
 
   // Verificar compatibilidade do tipo de conta com a forma de pagamento
   const tiposAceites = TIPOS_CONTA_POR_FORMA[forma];
+  if (!tiposAceites) {
+    throw new BusinessRuleError('FORMA_PAGAMENTO_INVALIDA', `Forma de pagamento desconhecida: "${forma}".`);
+  }
   if (!tiposAceites.includes(conta.tipoConta)) {
     throw new BusinessRuleError(
       'CONTA_BANCARIA_INCOMPATIVEL',

@@ -1,6 +1,7 @@
 import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
+import { MOVIMENTOS_ENTRADA, MOVIMENTOS_SAIDA } from '@/lib/caixa-movimentos';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
 import type {
@@ -120,11 +121,11 @@ export async function fecharSessao(
   });
 
   const totalEntradas = movimentos
-    .filter((m) => ['VENDA', 'RECEBIMENTO', 'REFORCO', 'ABERTURA'].includes(m.tipo))
+    .filter((m) => (MOVIMENTOS_ENTRADA as readonly string[]).includes(m.tipo))
     .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
 
   const totalSaidas = movimentos
-    .filter((m) => ['SANGRIA', 'DEVOLUCAO', 'PAGAMENTO'].includes(m.tipo))
+    .filter((m) => (MOVIMENTOS_SAIDA as readonly string[]).includes(m.tipo))
     .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
 
   const fundoFinal = new Prisma.Decimal(String(input.fundoFinal));
@@ -328,11 +329,11 @@ export async function resumoSessao(sessaoCaixaId: string, ctx: Ctx): Promise<Res
   if (!sessao) throw new NotFoundError('Sessão não encontrada');
 
   const totalEntradas = sessao.movimentos
-    .filter((m) => ['VENDA', 'RECEBIMENTO', 'REFORCO', 'ABERTURA'].includes(m.tipo))
+    .filter((m) => (MOVIMENTOS_ENTRADA as readonly string[]).includes(m.tipo))
     .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
 
   const totalSaidas = sessao.movimentos
-    .filter((m) => ['SANGRIA', 'DEVOLUCAO', 'PAGAMENTO'].includes(m.tipo))
+    .filter((m) => (MOVIMENTOS_SAIDA as readonly string[]).includes(m.tipo))
     .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
 
   const saldoEsperado = sessao.fundoInicial.plus(totalEntradas).minus(totalSaidas);
