@@ -293,7 +293,7 @@ export function NovoPedidoForm() {
                   <Label className="md:hidden text-xs">IVA %</Label>
                   <Select
                     value={ehTaxaIva(itens[i]?.taxaIva) ? String(itens[i]!.taxaIva) : ''}
-                    onValueChange={(v) => setValue(`itens.${i}.taxaIva`, lerTaxaIva(v), { shouldValidate: true })}
+                    onValueChange={(v) => setValue(`itens.${i}.taxaIva`, lerTaxaIva(v), { shouldValidate: true, shouldDirty: true })}
                   >
                     <SelectTrigger className="h-9" aria-label={`Taxa IVA item ${i + 1}`}>
                       <SelectValue>{ehTaxaIva(itens[i]?.taxaIva) ? ROTULOS_TAXA_IVA[`${itens[i]!.taxaIva}`] : null}</SelectValue>

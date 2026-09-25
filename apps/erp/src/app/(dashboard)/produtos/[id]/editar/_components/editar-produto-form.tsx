@@ -7,7 +7,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -92,7 +92,7 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
       unidadeMedida: defaultValues.unidadeMedida,
       precoVenda: Number(defaultValues.precoVenda),
       precoCompra: Number(defaultValues.precoCompra),
-      taxaIva: lerTaxaIva(defaultValues.taxaIva),
+      taxaIva: (() => { const t = Number(defaultValues.taxaIva); return ehTaxaIva(t) ? t : undefined; })(),
       stockMinimo: Number(defaultValues.stockMinimo),
       stockMaximo: defaultValues.stockMaximo ? Number(defaultValues.stockMaximo) : undefined,
       ativo: defaultValues.ativo,
@@ -101,7 +101,7 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
 
   const isDirty = form.formState.isDirty;
   const errors = form.formState.errors;
-  const taxaIvaAtual = form.watch('taxaIva');
+  const taxaIvaAtual = useWatch({ control: form.control, name: 'taxaIva' });
 
   useEffect(() => {
     if (!state) return;
@@ -179,7 +179,7 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
             <Label>Taxa de IVA <span className="text-destructive">*</span></Label>
             <Select
               value={ehTaxaIva(taxaIvaAtual) ? String(taxaIvaAtual) : ''}
-              onValueChange={(v) => form.setValue('taxaIva', lerTaxaIva(v), { shouldValidate: true })}
+              onValueChange={(v) => form.setValue('taxaIva', lerTaxaIva(v), { shouldValidate: true, shouldDirty: true })}
             >
               <SelectTrigger aria-label="Taxa de IVA">
                 <SelectValue>

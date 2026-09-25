@@ -779,23 +779,26 @@ export const comprasService: IComprasService = {
 
     // Carrega a taxa de IVA dos produtos com tenantId explícito (ADR issue #77).
     const produtoIds: string[] = req.itens
-      .map((i: any) => i.produtoId)
-      .filter((id: unknown): id is string => id != null);
+      .map((i) => i.produtoId)
+      .filter((id): id is string => id != null);
     const produtos = produtoIds.length > 0
-      ? await db.produto.findMany({ where: { id: { in: produtoIds }, tenantId: ctx.tenantId } })
+      ? await db.produto.findMany({
+          where: { id: { in: produtoIds }, tenantId: ctx.tenantId },
+          select: { id: true, taxaIva: true },
+        })
       : [];
     const taxaPorProduto = new Map(
-      produtos.map((p: any) => {
+      produtos.map((p) => {
         let taxa;
         try {
           taxa = lerTaxaIva(p.taxaIva.toString());
         } catch {
           throw new BusinessRuleError(
             'TAXA_IVA_PRODUTO_INVALIDA',
-            `Produto ${p.id as string} tem taxa de IVA inválida: ${String(p.taxaIva)}`,
+            `Produto ${p.id} tem taxa de IVA inválida: ${String(p.taxaIva)}`,
           );
         }
-        return [p.id as string, taxa] as const;
+        return [p.id, taxa] as const;
       }),
     );
 

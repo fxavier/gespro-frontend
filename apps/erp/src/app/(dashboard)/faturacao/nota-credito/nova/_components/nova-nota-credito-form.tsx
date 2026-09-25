@@ -231,7 +231,7 @@ export function NovaNotaCreditoForm({ series }: Props) {
                   <Label className="md:hidden text-xs">IVA %</Label>
                   <Select
                     value={ehTaxaIva(linhas[i]?.taxaIva) ? String(linhas[i]!.taxaIva) : ''}
-                    onValueChange={(v) => setValue(`linhas.${i}.taxaIva`, lerTaxaIva(v), { shouldValidate: true })}
+                    onValueChange={(v) => setValue(`linhas.${i}.taxaIva`, lerTaxaIva(v), { shouldValidate: true, shouldDirty: true })}
                   >
                     <SelectTrigger className="h-9" aria-label={`Taxa IVA linha ${i + 1}`}>
                       <SelectValue>{ehTaxaIva(linhas[i]?.taxaIva) ? ROTULOS_TAXA_IVA[`${linhas[i]!.taxaIva}`] : null}</SelectValue>
