@@ -213,8 +213,24 @@ describe('gerarDFC — comparativo N-1 homólogo (E3)', () => {
     expect(r.impedimentos[0]).toContain('comparativo N-1');
     expect('atual' in r).toBe(false);
 
+    // MINOR-1: os valores são do N-1, e o contrato di-lo.
+    expect(r.contasNaoMapeadas.map((c) => c.comparativo)).toEqual([true]);
+
     const lista = await contasNaoMapeadas(filtroJan26, ctx);
     expect(lista.map((c) => c.conta.codigo)).toEqual(['2999']);
+    expect(lista.map((c) => c.comparativo)).toEqual([true]);
+  });
+
+  it('conta sem mapeamento que se move no N e no N-1 aparece uma vez, com os valores do N e comparativo false', async () => {
+    estado.razao.push(...lanc(2025, 1, 'c999', 'c121', '10'));
+    estado.razao.push(...lanc(2026, 1, 'c999', 'c121', '7'));
+    const r = await gerarDFC(filtroJan26, ctx);
+    expect(temImpedimentos(r)).toBe(true);
+    if (!temImpedimentos(r)) return;
+    expect(r.contasNaoMapeadas.map((c) => [c.conta.codigo, c.movimento.toFixed(), c.comparativo])).toEqual([
+      ['2999', '7', false],
+    ]);
+    expect(r.impedimentos[0]).not.toContain('comparativo N-1');
   });
 
   it('conta sem mapeamento com saldo mas SEM movimento no intervalo não impede (variação zero)', async () => {

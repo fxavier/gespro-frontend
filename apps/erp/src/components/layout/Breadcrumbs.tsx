@@ -30,6 +30,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   'razao-geral': 'Razão Geral',
   diarios: 'Diários',
   balancete: 'Balancete',
+  dfc: 'Fluxos de Caixa',
   reconciliacao: 'Reconciliação',
   caixa: 'Caixa',
   abertura: 'Abertura',

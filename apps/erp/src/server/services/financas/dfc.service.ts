@@ -237,7 +237,12 @@ interface NaoMapeadaApurada {
  * Uma conta com saldo e sem movimento não é impedimento: a variação dela é zero
  * e não mexe na articulação.
  */
-async function apurarNaoMapeadas(saldos: Saldos, cfg: Configuracao, ctx: Ctx): Promise<NaoMapeadaApurada[]> {
+async function apurarNaoMapeadas(
+  saldos: Saldos,
+  cfg: Configuracao,
+  comparativo: boolean,
+  ctx: Ctx,
+): Promise<NaoMapeadaApurada[]> {
   const semMapa = saldos.movimento.filter((l) => !cfg.mapa.has(l.conta.id));
   if (semMapa.length === 0) return [];
   const classes = await prisma.contaPGC.findMany({
@@ -255,6 +260,7 @@ async function apurarNaoMapeadas(saldos: Saldos, cfg: Configuracao, ctx: Ctx): P
         conta: { id: l.conta.id, codigo: l.conta.codigo, nome: l.conta.nome, classe, natureza: l.conta.natureza },
         movimento: l.saldoAtual,
         saldoFinal: saldoFinalPorId.get(l.conta.id) ?? ZERO,
+        comparativo,
       },
       rubricaInexistente: cfg.rubricaInexistente.has(l.conta.id),
     };
@@ -333,11 +339,12 @@ export async function contasNaoMapeadas(filtro: FiltroDFCInput, ctx: Ctx): Promi
   const homologo = await resolverHomologo(intervalo, ctx);
   const cfg = await lerConfiguracao(ctx);
   const { todas } = await apurarTodas(intervalo, homologo, cfg, ctx);
-  return todas.map((n) => n.apurada.item);
+  return todas.map((n) => n.item);
 }
 
 interface Apuramento {
-  todas: Array<{ apurada: NaoMapeadaApurada; comparativo: boolean }>;
+  /** Por código. `apurada.item.comparativo` diz de que coluna são os valores. */
+  todas: NaoMapeadaApurada[];
   saldosN: Saldos;
   saldosH: Saldos | null;
 }
@@ -352,13 +359,10 @@ async function apurarTodas(
     lerSaldos(intervalo, ctx),
     homologo ? lerSaldos(homologo, ctx) : Promise.resolve(null),
   ]);
-  const doN = await apurarNaoMapeadas(saldosN, cfg, ctx);
+  const doN = await apurarNaoMapeadas(saldosN, cfg, false, ctx);
   const vistas = new Set(doN.map((n) => n.item.conta.id));
-  const doH = saldosH ? (await apurarNaoMapeadas(saldosH, cfg, ctx)).filter((n) => !vistas.has(n.item.conta.id)) : [];
-  const todas = [
-    ...doN.map((apurada) => ({ apurada, comparativo: false })),
-    ...doH.map((apurada) => ({ apurada, comparativo: true })),
-  ].sort((a, b) => (a.apurada.item.conta.codigo < b.apurada.item.conta.codigo ? -1 : 1));
+  const doH = saldosH ? (await apurarNaoMapeadas(saldosH, cfg, true, ctx)).filter((n) => !vistas.has(n.item.conta.id)) : [];
+  const todas = [...doN, ...doH].sort((a, b) => (a.item.conta.codigo < b.item.conta.codigo ? -1 : 1));
   return { todas, saldosN, saldosH };
 }
 
@@ -392,10 +396,12 @@ export async function gerarDFC(filtro: FiltroDFCInput, ctx: Ctx): Promise<Result
   if (todas.length > 0 || coerencia.impedimentos.length > 0) {
     const impedimentos: ImpedimentosDFC = {
       impedimentos: [
-        ...todas.map((n) => fraseNaoMapeada(n.apurada, n.comparativo && homologo ? homologo : intervalo, n.comparativo)),
+        ...todas.map((n) =>
+          fraseNaoMapeada(n, n.item.comparativo && homologo ? homologo : intervalo, n.item.comparativo),
+        ),
         ...coerencia.impedimentos,
       ],
-      contasNaoMapeadas: todas.map((n) => n.apurada.item),
+      contasNaoMapeadas: todas.map((n) => n.item),
       avisos,
     };
     return impedimentos;

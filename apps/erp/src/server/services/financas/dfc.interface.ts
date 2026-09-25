@@ -163,6 +163,15 @@ export interface ContaNaoMapeada {
   movimento: Prisma.Decimal;
   /** Saldo (pela natureza) no fim do intervalo. */
   saldoFinal: Prisma.Decimal;
+  /**
+   * `true` quando a conta só tem movimento no comparativo N-1 (o intervalo
+   * homólogo do exercício anterior, E3) e não no intervalo pedido: então
+   * `movimento` e `saldoFinal` são os do HOMÓLOGO. `false` ⇒ são do intervalo
+   * pedido. Uma conta que se move nos dois aparece uma vez só, com `false`.
+   * A frase correspondente em `impedimentos` já o diz («no comparativo N-1»);
+   * este campo é para a tabela da UI não ter de a interpretar.
+   */
+  comparativo: boolean;
 }
 
 /** Códigos dos avisos de coerência da configuração de caixa (E2). Avisam, não bloqueiam. */

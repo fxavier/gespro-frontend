@@ -32,7 +32,7 @@ adr ─► contratos⚙ ─► oraculos ─► nucleo ─► seed-v ─► seed�
 | `seed` | 4.1–4.3 | `feat-dfc` + ⚙ `22c` | seed-v | teste verde · `psql`: 0 folhas sem mapeamento, 1 versão PENDING | verificador | FEITO |
 | `servico-v` | 5.3 | `verificador-fluxo-caixa` | seed | golden `dfc-seed-demo.json` + I9 + I10 a falhar | orquestrador | FEITO |
 | `servico` | 5.1–5.2 | `feat-dfc` | servico-v | golden ao cêntimo · articula · impedimento sem mapa · `pnpm check` | verificador | FEITO |
-| `fatia` | 6 | `feat-dfc` | servico | `pnpm build` + smoke autenticado (0,00 · faixa · «Sem permissão» ao operador) | code-reviewer | por fazer |
+| `fatia` | 6 | `feat-dfc` | servico | `pnpm build` + smoke autenticado (0,00 · faixa · «Sem permissão» ao operador) | code-reviewer | FEITO |
 | `config-v` | gate de 7 | `verificador-fluxo-caixa` | fatia | V1–V3 contra o serviço real, transição nos dois sentidos, sem `upsert`/`*Many` — a falhar | orquestrador | por fazer |
 | `config` | 7 | `feat-dfc` | config-v | oráculo verde · `pnpm gates` | verificador + code-reviewer | por fazer |
 | `export-v` | gate de 9 | `verificador-fluxo-caixa` | fatia | teste da rota: PDF com marca, 422 com impedimentos, GET em Leitura — a falhar | orquestrador | por fazer |

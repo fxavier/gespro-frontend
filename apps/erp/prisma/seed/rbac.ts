@@ -110,6 +110,16 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   // isReadOnly; FINANCEIRO e GESTOR levam as duas; ADMIN leva tudo.
   { code: 'financas:tesouraria:leitura',    descricao: 'Consultar a projecção de tesouraria e os compromissos' },
   { code: 'financas:tesouraria:escrita',    descricao: 'Criar e editar compromissos de tesouraria' },
+  // Demonstração de Fluxos de Caixa (spec 22 · WS-2, ADR-0037 E5). A ligação
+  // aos papéis NÃO segue o padrão acima e é explícita em ROLE_PERMISSIONS:
+  //  - `:leitura` para ADMIN, GESTOR, FINANCEIRO e LEITURA — e não OPERADOR,
+  //    que a apanharia pelo sufixo `:leitura` do isReadOnly;
+  //  - `:configurar` para ADMIN e FINANCEIRO (o GESTOR não a leva);
+  //  - `:validar` SÓ para ADMIN (E5, segregação de funções: quem configura o
+  //    mapeamento não é, por omissão, quem o valida).
+  { code: 'financas:fluxo-caixa:leitura',     descricao: 'Consultar a Demonstração de Fluxos de Caixa' },
+  { code: 'financas:fluxo-caixa:configurar',  descricao: 'Configurar rubricas, mapeamento e contas de caixa da DFC' },
+  { code: 'financas:fluxo-caixa:validar',     descricao: 'Validar a versão actual do mapeamento da DFC' },
 
   // ── Caixa / PDV ───────────────────────────────────────────────────────────
   { code: 'caixa:ver',             descricao: 'Consultar movimentos de caixa' },
@@ -422,6 +432,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   FINANCEIRO: allCodes().filter((code) => {
     // Permissões sensíveis que o FINANCEIRO não tem: só ADMIN/roles específicos
     if (['financas:periodo:reabrir', 'financas:exercicio:abrir'].includes(code)) return false;
+    // ADR-0037 E5: validar a versão do mapeamento da DFC é só do ADMIN.
+    if (code === 'financas:fluxo-caixa:validar') return false;
     if (code.startsWith('financas:')) return true;
     if (code.startsWith('faturacao:')) return true;
     if (code.startsWith('caixa:')) return true;
@@ -435,6 +447,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
   // OPERADOR — operacional (armazém, produção, transporte, suporte, caixa)
   OPERADOR: allCodes().filter((code) => {
+    // A DFC não é operacional: o `:leitura` dela não entra pelo isReadOnly.
+    if (code.startsWith('financas:fluxo-caixa:')) return false;
     if (isReadOnly(code)) return true;
     // Inventário
     if (code.startsWith('inventario:')) return true;
@@ -479,6 +493,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
       'financas:periodo:reabrir',
       'financas:iva:declarar',
       'financas:lancamentos:estornar',
+      'financas:fluxo-caixa:configurar',
+      'financas:fluxo-caixa:validar',
       'faturacao:series:escrita',
       'rh:colaboradores:delete',
       'ativos:admin',
