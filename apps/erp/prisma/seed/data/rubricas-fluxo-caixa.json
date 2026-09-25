@@ -1,0 +1,2315 @@
+{
+  "$schema": "rubricas-fluxo-caixa.json — spec 22 WS-2, ADR-0037 §3 + emenda E2. Rubricas SISTEMA da DFC (método indirecto, IAS 7 §18(b), PGC-NIRF Decreto 70/2009) e a rubrica de CADA conta folha de plano-contas-pgc.json. Uma conta, uma rubrica. As contas CAIXA são as mapeadas a rubricas de actividade CAIXA — nunca a classe 1 inteira nem um prefixo. Justificação conta a conta: docs/handoff/dfc-seed.md. Conteúdo sujeito ao parecer do contabilista (ticket 11).",
+  "rubricas": [
+    {
+      "codigo": "CX-01",
+      "designacao": "Caixa e equivalentes de caixa",
+      "atividade": "CAIXA",
+      "sinal": "VARIACAO",
+      "ordem": 1
+    },
+    {
+      "codigo": "OP-00",
+      "designacao": "Contas de resultados (incluídas no resultado líquido)",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 0
+    },
+    {
+      "codigo": "OP-01",
+      "designacao": "Amortizações e depreciações",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 1
+    },
+    {
+      "codigo": "OP-02",
+      "designacao": "Imparidades, ajustamentos e provisões",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 2
+    },
+    {
+      "codigo": "OP-03",
+      "designacao": "Variação de inventários e activos biológicos",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 3
+    },
+    {
+      "codigo": "OP-04",
+      "designacao": "Variação de clientes",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 4
+    },
+    {
+      "codigo": "OP-05",
+      "designacao": "Variação de fornecedores",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 5
+    },
+    {
+      "codigo": "OP-06",
+      "designacao": "Variação do Estado e outros entes públicos",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 6
+    },
+    {
+      "codigo": "OP-07",
+      "designacao": "Imposto sobre o rendimento",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 7
+    },
+    {
+      "codigo": "OP-08",
+      "designacao": "Variação de pessoal",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 8
+    },
+    {
+      "codigo": "OP-09",
+      "designacao": "Variação de outros devedores e credores",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 9
+    },
+    {
+      "codigo": "OP-10",
+      "designacao": "Variação de acréscimos e diferimentos",
+      "atividade": "OPERACIONAL",
+      "sinal": "VARIACAO",
+      "ordem": 10
+    },
+    {
+      "codigo": "INV-01",
+      "designacao": "Activos tangíveis e investimentos em curso",
+      "atividade": "INVESTIMENTO",
+      "sinal": "VARIACAO",
+      "ordem": 1
+    },
+    {
+      "codigo": "INV-02",
+      "designacao": "Activos intangíveis",
+      "atividade": "INVESTIMENTO",
+      "sinal": "VARIACAO",
+      "ordem": 2
+    },
+    {
+      "codigo": "INV-03",
+      "designacao": "Investimentos financeiros e empréstimos concedidos",
+      "atividade": "INVESTIMENTO",
+      "sinal": "VARIACAO",
+      "ordem": 3
+    },
+    {
+      "codigo": "INV-04",
+      "designacao": "Subsídios ao investimento",
+      "atividade": "INVESTIMENTO",
+      "sinal": "VARIACAO",
+      "ordem": 4
+    },
+    {
+      "codigo": "FIN-01",
+      "designacao": "Financiamentos obtidos",
+      "atividade": "FINANCIAMENTO",
+      "sinal": "VARIACAO",
+      "ordem": 1
+    },
+    {
+      "codigo": "FIN-02",
+      "designacao": "Capital próprio e reservas",
+      "atividade": "FINANCIAMENTO",
+      "sinal": "VARIACAO",
+      "ordem": 2
+    },
+    {
+      "codigo": "FIN-03",
+      "designacao": "Dividendos e outras operações com sócios",
+      "atividade": "FINANCIAMENTO",
+      "sinal": "VARIACAO",
+      "ordem": 3
+    }
+  ],
+  "mapeamentos": [
+    {
+      "conta": "111",
+      "nome": "Caixa",
+      "rubrica": "CX-01"
+    },
+    {
+      "conta": "121",
+      "nome": "Depósitos à ordem",
+      "rubrica": "CX-01"
+    },
+    {
+      "conta": "122",
+      "nome": "Depósitos com pré-aviso",
+      "rubrica": "CX-01"
+    },
+    {
+      "conta": "123",
+      "nome": "Depósitos à prazo",
+      "rubrica": "CX-01"
+    },
+    {
+      "conta": "131",
+      "nome": "Derivados",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "132",
+      "nome": "Detidos para negociação",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "133",
+      "nome": "Outros instrumentos financeiros ao justo valor através dos resultados",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "211",
+      "nome": "Mercadorias",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "212",
+      "nome": "Matérias primas, auxiliares e materiais",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2121",
+      "nome": "Matérias primas",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2122",
+      "nome": "Matérias auxiliares",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2123",
+      "nome": "Materiais",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "21231",
+      "nome": "Combustíveis e lubrificantes",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "21232",
+      "nome": "Embalagens comerciais",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "21233",
+      "nome": "Peças e sobressalentes",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "21239",
+      "nome": "Materiais diversos",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "217",
+      "nome": "Devoluções de compras",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "218",
+      "nome": "Descontos e abatimentos em compras",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "221",
+      "nome": "Mercadorias em trânsito",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "222",
+      "nome": "Mercadorias em poder de terceiros",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "231",
+      "nome": "Produtos acabados em poder de terceiros",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "241",
+      "nome": "Subprodutos",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "242",
+      "nome": "Desperdícios, resíduos e refugos",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "261",
+      "nome": "Matérias primas",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "262",
+      "nome": "Matérias auxiliares",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "263",
+      "nome": "Materiais",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2631",
+      "nome": "Combustíveis e lubrificantes",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2632",
+      "nome": "Embalagens comerciais",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2633",
+      "nome": "Peças e sobressalentes",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2639",
+      "nome": "Materiais diversos",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "264",
+      "nome": "Matérias primas, auxiliares e materiais em trânsito",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "271",
+      "nome": "De produção",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2711",
+      "nome": "Animais",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2712",
+      "nome": "Plantas",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "272",
+      "nome": "Consumíveis",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2721",
+      "nome": "Animais",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "2722",
+      "nome": "Plantas",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "282",
+      "nome": "Mercadorias",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "283",
+      "nome": "Produtos acabados e intermédios",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "284",
+      "nome": "Subprodutos, desperdícios, resíduos e refugos",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "285",
+      "nome": "Produtos ou serviços em curso",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "286",
+      "nome": "Matérias primas, auxiliares e materiais",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "287",
+      "nome": "Activos biológicos",
+      "rubrica": "OP-03"
+    },
+    {
+      "conta": "292",
+      "nome": "Mercadorias",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "293",
+      "nome": "Produtos acabados e intermédios",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "294",
+      "nome": "Subprodutos, desperdícios, resíduos ou refugos",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "295",
+      "nome": "Produtos ou serviços em curso",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "296",
+      "nome": "Matérias primas, auxiliares e materiais",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "297",
+      "nome": "Activos biológicos",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "311",
+      "nome": "Investimentos em subsidiárias",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "312",
+      "nome": "Investimentos em associadas",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "313",
+      "nome": "Investimentos em entidades conjuntamente controladas",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "314",
+      "nome": "Outros investimentos financeiros",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "315",
+      "nome": "Investimentos detidos até à maturidade",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "316",
+      "nome": "Outros investimentos disponíveis para venda",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "321",
+      "nome": "Construções",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "3211",
+      "nome": "Edifícios industriais",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "3212",
+      "nome": "Edifícios administrativos e comerciais",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "3213",
+      "nome": "Edifícios para habitação e outros fins sociais",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "3216",
+      "nome": "Vias de comunicação e construções afins",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "322",
+      "nome": "Equipamento básico",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "323",
+      "nome": "Mobiliário e equipamento administrativo social",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "324",
+      "nome": "Equipamento de transporte",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "325",
+      "nome": "Taras e vasilhame",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "326",
+      "nome": "Ferramentas e utensílios",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "327",
+      "nome": "Activos de exploração e avaliação de recursos minerais",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "329",
+      "nome": "Outros activos tangíveis",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "331",
+      "nome": "Despesas de desenvolvimento",
+      "rubrica": "INV-02"
+    },
+    {
+      "conta": "332",
+      "nome": "Propriedade industrial e outros direitos",
+      "rubrica": "INV-02"
+    },
+    {
+      "conta": "333",
+      "nome": "Goodwill",
+      "rubrica": "INV-02"
+    },
+    {
+      "conta": "334",
+      "nome": "Activos de exploração e avaliação de recursos minerais",
+      "rubrica": "INV-02"
+    },
+    {
+      "conta": "342",
+      "nome": "Activos tangíveis",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "343",
+      "nome": "Activos intangíveis",
+      "rubrica": "INV-02"
+    },
+    {
+      "conta": "382",
+      "nome": "Activos tangíveis",
+      "rubrica": "OP-01"
+    },
+    {
+      "conta": "383",
+      "nome": "Activos intangíveis",
+      "rubrica": "OP-01"
+    },
+    {
+      "conta": "386",
+      "nome": "Activos tangíveis de investimento",
+      "rubrica": "OP-01"
+    },
+    {
+      "conta": "387",
+      "nome": "Activos de exploração e avaliação de recursos minerais",
+      "rubrica": "OP-01"
+    },
+    {
+      "conta": "391",
+      "nome": "Investimentos financeiros",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "392",
+      "nome": "Activos tangíveis",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "393",
+      "nome": "Activos intangíveis",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "395",
+      "nome": "Activos não correntes detidos para venda",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "396",
+      "nome": "Activos tangíveis de investimento",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "397",
+      "nome": "Activos de exploração e avaliação de recursos minerais",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "411",
+      "nome": "Clientes c/c",
+      "rubrica": "OP-04"
+    },
+    {
+      "conta": "412",
+      "nome": "Clientes - títulos a receber",
+      "rubrica": "OP-04"
+    },
+    {
+      "conta": "418",
+      "nome": "Clientes de cobrança duvidosa",
+      "rubrica": "OP-04"
+    },
+    {
+      "conta": "419",
+      "nome": "Adiantamentos de clientes",
+      "rubrica": "OP-04"
+    },
+    {
+      "conta": "421",
+      "nome": "Fornecedores c/c",
+      "rubrica": "OP-05"
+    },
+    {
+      "conta": "422",
+      "nome": "Fornecedores - Títulos a pagar",
+      "rubrica": "OP-05"
+    },
+    {
+      "conta": "429",
+      "nome": "Adiantamentos a fornecedores",
+      "rubrica": "OP-05"
+    },
+    {
+      "conta": "431",
+      "nome": "Empréstimos bancários",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4311",
+      "nome": "de curto prazo",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4312",
+      "nome": "de médio e longo prazo",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "432",
+      "nome": "Empréstimos por obrigações",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4321",
+      "nome": "Convertíveis",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4322",
+      "nome": "Não convertíveis",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "433",
+      "nome": "Empréstimos por títulos de participação",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "439",
+      "nome": "Outros empréstimos obtidos",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "441",
+      "nome": "Imposto sobre o rendimento",
+      "rubrica": "OP-07"
+    },
+    {
+      "conta": "4411",
+      "nome": "Estimativa de imposto",
+      "rubrica": "OP-07"
+    },
+    {
+      "conta": "4412",
+      "nome": "Pagamentos por conta",
+      "rubrica": "OP-07"
+    },
+    {
+      "conta": "4413",
+      "nome": "Pagamento especial por conta",
+      "rubrica": "OP-07"
+    },
+    {
+      "conta": "442",
+      "nome": "Impostos retidos na fonte",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4421",
+      "nome": "Rendimentos de trabalho dependente",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4422",
+      "nome": "Rendimentos profissionais",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4423",
+      "nome": "Rendimentos de capitais",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4424",
+      "nome": "Rendimentos prediais",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4425",
+      "nome": "Outros rendimentos",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "443",
+      "nome": "Imposto sobre o valor acrescentado",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4431",
+      "nome": "IVA suportado",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44311",
+      "nome": "Inventários",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44312",
+      "nome": "Activos tangíveis e intangíveis",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44313",
+      "nome": "Outros bens e serviços",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4432",
+      "nome": "IVA dedutível",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44321",
+      "nome": "Inventários",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44322",
+      "nome": "Activos tangíveis e intangíveis",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44323",
+      "nome": "Outros bens e serviços",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4433",
+      "nome": "IVA liquidado",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44331",
+      "nome": "Operações gerais",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44332",
+      "nome": "Autoconsumos e operações gratuitas",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44333",
+      "nome": "Operações especiais",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4434",
+      "nome": "IVA regularizações",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44341",
+      "nome": "Mensais a favor do sujeito passivo",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44342",
+      "nome": "Mensais a favor do Estado",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "44343",
+      "nome": "Anuais por cálculo do pro rata definitivo",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4435",
+      "nome": "IVA apuramento",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4436",
+      "nome": "IVA liquidações oficiosas",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4437",
+      "nome": "IVA a pagar",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4438",
+      "nome": "IVA a recuperar",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4439",
+      "nome": "IVA reembolsos pedidos",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "444",
+      "nome": "Restantes impostos",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4441",
+      "nome": "Imposto de selo",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "4442",
+      "nome": "Impostos autárquicos",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "445",
+      "nome": "Rectificações de impostos, contribuições e outros tributos",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "446",
+      "nome": "Impostos diferidos",
+      "rubrica": "OP-07"
+    },
+    {
+      "conta": "4461",
+      "nome": "Activos por impostos diferidos",
+      "rubrica": "OP-07"
+    },
+    {
+      "conta": "4462",
+      "nome": "Passivos por impostos diferidos",
+      "rubrica": "OP-07"
+    },
+    {
+      "conta": "449",
+      "nome": "Contribuições para o INSS",
+      "rubrica": "OP-06"
+    },
+    {
+      "conta": "451",
+      "nome": "Pessoal",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4511",
+      "nome": "Adiantamentos aos órgãos sociais",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4512",
+      "nome": "Adiantamentos aos trabalhadores",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4513",
+      "nome": "Benefícios pós-emprego",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4518",
+      "nome": "Outras operações com órgãos sociais",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4519",
+      "nome": "Outras operações com trabalhadores",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "452",
+      "nome": "Subscritores de capital",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "4521",
+      "nome": "Estado e outros organismos públicos",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "4522",
+      "nome": "Entidades privadas",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "4529",
+      "nome": "Outras entidades",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "453",
+      "nome": "Obrigacionistas",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "454",
+      "nome": "Devedores - sócios, accionistas ou proprietários",
+      "rubrica": "FIN-03"
+    },
+    {
+      "conta": "4541",
+      "nome": "Empréstimos concedidos",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "4542",
+      "nome": "Adiantamento por conta de lucros",
+      "rubrica": "FIN-03"
+    },
+    {
+      "conta": "4543",
+      "nome": "Resultados atribuídos",
+      "rubrica": "FIN-03"
+    },
+    {
+      "conta": "4544",
+      "nome": "Lucros disponíveis",
+      "rubrica": "FIN-03"
+    },
+    {
+      "conta": "4549",
+      "nome": "Outras operações",
+      "rubrica": "FIN-03"
+    },
+    {
+      "conta": "455",
+      "nome": "Subsídios a receber",
+      "rubrica": "OP-09"
+    },
+    {
+      "conta": "4551",
+      "nome": "Estado e outros organismos públicos",
+      "rubrica": "OP-09"
+    },
+    {
+      "conta": "4552",
+      "nome": "Entidades privadas",
+      "rubrica": "OP-09"
+    },
+    {
+      "conta": "459",
+      "nome": "Devedores diversos",
+      "rubrica": "OP-09"
+    },
+    {
+      "conta": "461",
+      "nome": "Fornecedores de investimentos de capital",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "4611",
+      "nome": "Fornecedores de investimentos de capital c/c",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "4612",
+      "nome": "Fornecedores de investimentos de capital - Títulos a pagar",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "4613",
+      "nome": "Fornecedores de investimentos de capital - Adiantamentos",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "4614",
+      "nome": "Fornecedores de investimentos de capital - Locação Financeira",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4619",
+      "nome": "Outras operações",
+      "rubrica": "INV-01"
+    },
+    {
+      "conta": "462",
+      "nome": "Pessoal",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4621",
+      "nome": "Remunerações a pagar aos órgãos sociais",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4622",
+      "nome": "Remunerações a pagar aos trabalhadores",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4623",
+      "nome": "Benefícios pós-emprego",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4628",
+      "nome": "Outras operações com os órgãos sociais",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "4629",
+      "nome": "Outras operações com os trabalhadores",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "463",
+      "nome": "Sindicatos",
+      "rubrica": "OP-08"
+    },
+    {
+      "conta": "464",
+      "nome": "Credores por subscrições não liberadas",
+      "rubrica": "INV-03"
+    },
+    {
+      "conta": "465",
+      "nome": "Obrigacionistas",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "466",
+      "nome": "Consultores, assessores e intermediários",
+      "rubrica": "OP-09"
+    },
+    {
+      "conta": "467",
+      "nome": "Credores - sócios, accionistas ou proprietários",
+      "rubrica": "FIN-03"
+    },
+    {
+      "conta": "4671",
+      "nome": "Empréstimos obtidos",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4673",
+      "nome": "Resultados atribuídos",
+      "rubrica": "FIN-03"
+    },
+    {
+      "conta": "4674",
+      "nome": "Lucros disponíveis",
+      "rubrica": "FIN-03"
+    },
+    {
+      "conta": "469",
+      "nome": "Credores diversos",
+      "rubrica": "OP-09"
+    },
+    {
+      "conta": "471",
+      "nome": "Clientes",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "472",
+      "nome": "Outros devedores",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "481",
+      "nome": "Processos judiciais em curso",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "482",
+      "nome": "Acidentes no trabalho e doenças profissionais",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "483",
+      "nome": "Impostos",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "484",
+      "nome": "Reestruturação de negócios",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "485",
+      "nome": "Contratos onerosos",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "486",
+      "nome": "Garantias a clientes",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "487",
+      "nome": "Perdas em contratos de construção",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "489",
+      "nome": "Outras provisões",
+      "rubrica": "OP-02"
+    },
+    {
+      "conta": "491",
+      "nome": "Acréscimos de gastos",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4911",
+      "nome": "Juros a pagar",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4912",
+      "nome": "Remunerações a pagar",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4919",
+      "nome": "Outros acréscimos de gastos",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "492",
+      "nome": "Rendimentos diferidos",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4921",
+      "nome": "Prémios de emissão de obrigações",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4922",
+      "nome": "Prémios de emissão de títulos de participação",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4923",
+      "nome": "Réditos de contratos de construção",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4924",
+      "nome": "Subsídios para investimentos",
+      "rubrica": "INV-04"
+    },
+    {
+      "conta": "4929",
+      "nome": "Outros rendimentos diferidos",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "493",
+      "nome": "Acréscimos de rendimentos",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4931",
+      "nome": "Juros a receber",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4933",
+      "nome": "Réditos de contratos de construção",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4939",
+      "nome": "Outros acréscimos de rendimentos",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "494",
+      "nome": "Gastos diferidos",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "4941",
+      "nome": "Desconto de emissão de obrigações",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4942",
+      "nome": "Desconto de emissão de títulos de participação",
+      "rubrica": "FIN-01"
+    },
+    {
+      "conta": "4949",
+      "nome": "Outros gastos diferidos",
+      "rubrica": "OP-10"
+    },
+    {
+      "conta": "521",
+      "nome": "Valor nominal",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "522",
+      "nome": "Descontos e prémios",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "551",
+      "nome": "Reservas legais",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "552",
+      "nome": "Reservas estatutárias",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "553",
+      "nome": "Reservas livres",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "561",
+      "nome": "Revalorizações legais",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "5611",
+      "nome": "Antes de impostos diferidos",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "5612",
+      "nome": "Impostos diferidos",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "562",
+      "nome": "Outros excessos",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "581",
+      "nome": "Variações no justo valor de instrumentos financeiros disponíveis para venda",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "582",
+      "nome": "Ajustamentos por impostos diferidos",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "589",
+      "nome": "Outras variações",
+      "rubrica": "FIN-02"
+    },
+    {
+      "conta": "611",
+      "nome": "Custo dos inventários vendidos ou consumidos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6112",
+      "nome": "De mercadorias",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6116",
+      "nome": "De matérias primas, auxiliares e materiais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "61161",
+      "nome": "Matérias primas",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "61162",
+      "nome": "Matérias auxiliares",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "61163",
+      "nome": "Materiais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6117",
+      "nome": "Activos biológicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "612",
+      "nome": "Variação da produção",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6121",
+      "nome": "Produtos acabados e intermédios",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6122",
+      "nome": "Subprodutos, desperdícios, resíduos e refugos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6123",
+      "nome": "Produtos e serviços em curso",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "621",
+      "nome": "Remunerações dos órgãos sociais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "622",
+      "nome": "Remunerações dos trabalhadores",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "623",
+      "nome": "Encargos sobre remunerações",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "624",
+      "nome": "Benefícios pós-emprego",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "625",
+      "nome": "Ajudas de custo",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6251",
+      "nome": "Ajudas de custo tributáveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6252",
+      "nome": "Ajudas de custo não tributáveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "626",
+      "nome": "Indemnizações",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6261",
+      "nome": "Indemnizações – Risco segurável",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6262",
+      "nome": "Indemnizações - Outras",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "627",
+      "nome": "Seguros de acidentes no trabalho e doenças profissionais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "628",
+      "nome": "Gastos de acção social",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "629",
+      "nome": "Outros gastos com pessoal",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "631",
+      "nome": "Subcontratos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632",
+      "nome": "Fornecimentos e serviços",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63211",
+      "nome": "Água",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63212",
+      "nome": "Electricidade",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63213",
+      "nome": "Combustíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632131",
+      "nome": "Gasóleo",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6321311",
+      "nome": "Gasóleo – Viaturas ligeiras de passageiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6321312",
+      "nome": "Gasóleo - Outros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632132",
+      "nome": "Restantes combustíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6321321",
+      "nome": "Restantes combustíveis – Viaturas ligeiras de passageiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6321322",
+      "nome": "Restantes combustíveis - Outros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632133",
+      "nome": "Lubrificantes",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6321331",
+      "nome": "Lubrificantes - Viaturas ligeiras de passageiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6321332",
+      "nome": "Lubrificantes - Outros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63214",
+      "nome": "Ferramentas e utensílios de desgaste rápido",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63215",
+      "nome": "Material de manutenção e reparação",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632151",
+      "nome": "Material de manutenção e reparação - Viaturas ligeiras de passageiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632152",
+      "nome": "Material de manutenção e reparação - Outros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63216",
+      "nome": "Material de escritório",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63217",
+      "nome": "Livros e documentação técnica",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63218",
+      "nome": "Artigos para oferta",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63221",
+      "nome": "Manutenção e reparação",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63222",
+      "nome": "Transportes de carga",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63223",
+      "nome": "Transportes de pessoal",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63224",
+      "nome": "Comunicações",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63225",
+      "nome": "Honorários",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63226",
+      "nome": "Comissões a intermediários",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63227",
+      "nome": "Publicidade e propaganda",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632271",
+      "nome": "Publicidade e propaganda – Campanhas publicitárias",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632272",
+      "nome": "Publicidade e propaganda - Outros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63228",
+      "nome": "Deslocações e estadias",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632281",
+      "nome": "Deslocações e estadias – Em serviço",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632282",
+      "nome": "Deslocações e estadias – Outras deslocações",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63229",
+      "nome": "Despesas de representação",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63231",
+      "nome": "Contencioso e notariado",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63232",
+      "nome": "Rendas e alugueres",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632321",
+      "nome": "Rendas e alugueres – Locação financeira",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63233",
+      "nome": "Seguros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "632331",
+      "nome": "Seguro de vida, acidentes pessoais e doença",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63234",
+      "nome": "Royalties",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63235",
+      "nome": "Limpeza, higiene e conforto",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63236",
+      "nome": "Vigilância e segurança",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63237",
+      "nome": "Trabalhos especializados",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "63299",
+      "nome": "Outros fornecimentos e serviços",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "641",
+      "nome": "Ajustamentos de inventários para o valor realizável líquido",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "642",
+      "nome": "Investimentos financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "643",
+      "nome": "Activos tangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "644",
+      "nome": "Activos intangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "645",
+      "nome": "Activos não correntes detidos para venda",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "646",
+      "nome": "Activos tangíveis de investimento",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "647",
+      "nome": "Activos de exploração e avaliação de recursos minerais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "648",
+      "nome": "Contas a receber",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6481",
+      "nome": "Contas a receber – ajustamentos dentro dos limites fiscais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6482",
+      "nome": "Contas a receber – ajustamentos para além dos limites fiscais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "651",
+      "nome": "Activos tangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "652",
+      "nome": "Activos intangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "653",
+      "nome": "Activos tangíveis de investimento",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "654",
+      "nome": "Activos de exploração e avaliação de recursos minerais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "661",
+      "nome": "Processos judiciais em curso",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "662",
+      "nome": "Acidentes no trabalho e doenças profissionais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "663",
+      "nome": "Impostos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "664",
+      "nome": "Reestruturação de negócios",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "665",
+      "nome": "Contratos onerosos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "666",
+      "nome": "Garantias a clientes",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "667",
+      "nome": "Perdas em contratos de construção",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "669",
+      "nome": "Outras provisões",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "671",
+      "nome": "Instrumentos financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "672",
+      "nome": "Activos tangíveis de investimento",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "673",
+      "nome": "Activos biológicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "681",
+      "nome": "Despesas de investigação e pesquisa",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "682",
+      "nome": "Impostos e taxas",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6821",
+      "nome": "Direitos aduaneiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6822",
+      "nome": "Imposto sobre o Valor Acrescentado",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6823",
+      "nome": "Imposto de selo",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6824",
+      "nome": "Impostos sobre veículos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6825",
+      "nome": "Impostos autárquicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "683",
+      "nome": "Perdas em Investimentos de capital",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6831",
+      "nome": "Alienação",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6832",
+      "nome": "Abates",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6833",
+      "nome": "Sinistros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "684",
+      "nome": "Perdas em inventários e activos biológicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6841",
+      "nome": "Sinistros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6842",
+      "nome": "Quebras",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6849",
+      "nome": "Outras",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "689",
+      "nome": "Outros gastos operacionais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6891",
+      "nome": "Quotizações",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6892",
+      "nome": "Despesas confidenciais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6893",
+      "nome": "Ofertas e amostras de inventários",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6894",
+      "nome": "Programas de responsabilidade social",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6895",
+      "nome": "Donativos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "68951",
+      "nome": "Donativos ao Estado",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "68952",
+      "nome": "Outros donativos no âmbito do Mecenato",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6896",
+      "nome": "Multas e penalidades",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6899",
+      "nome": "Outros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "691",
+      "nome": "Juros suportados",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6911",
+      "nome": "Empréstimos bancários",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6912",
+      "nome": "Empréstimos obrigacionistas e títulos de participação",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6913",
+      "nome": "Empréstimos de sócios, accionistas ou proprietários",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6914",
+      "nome": "Outros empréstimos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6915",
+      "nome": "Desconto de títulos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6916",
+      "nome": "Juros de mora e compensatórios",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "69161",
+      "nome": "Juros de mora",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "69162",
+      "nome": "Juros compensatórios",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6919",
+      "nome": "Outros juros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "694",
+      "nome": "Diferenças de câmbio desfavoráveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6941",
+      "nome": "Realizadas",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6942",
+      "nome": "Não realizadas",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "695",
+      "nome": "Descontos de pronto pagamento concedidos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "698",
+      "nome": "Outros gastos e perdas financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6981",
+      "nome": "Serviços bancários",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "6989",
+      "nome": "Diversos não especificados",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "711",
+      "nome": "Mercadorias",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "712",
+      "nome": "Produtos acabados e intermédios",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "713",
+      "nome": "Subprodutos, desperdícios, resíduos e refugos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "714",
+      "nome": "Activos biológicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "715",
+      "nome": "IVA das vendas com imposto incluído",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "716",
+      "nome": "Devolução de vendas",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "717",
+      "nome": "Descontos e abatimentos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "721",
+      "nome": "IVA da prestação de serviços com imposto incluído",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "726",
+      "nome": "Descontos e abatimentos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "731",
+      "nome": "Investimentos financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "732",
+      "nome": "Activos tangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "733",
+      "nome": "Activos intangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "734",
+      "nome": "Investimentos em curso",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "741",
+      "nome": "De perdas por imparidade",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7411",
+      "nome": "Ajustamentos de inventários para o valor realizável líquido",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7412",
+      "nome": "Investimentos financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7413",
+      "nome": "Activos tangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7414",
+      "nome": "Activos intangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7415",
+      "nome": "Activos não correntes detidos para venda",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7416",
+      "nome": "Activos tangíveis de investimento",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7417",
+      "nome": "Activos de exploração e avaliação de recursos minerais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7418",
+      "nome": "Contas a receber",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "742",
+      "nome": "De amortizações",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7421",
+      "nome": "Activos tangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7422",
+      "nome": "Activos intangíveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7423",
+      "nome": "Activos tangíveis de investimento",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7424",
+      "nome": "Activos de exploração e avaliação de recursos minerais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "743",
+      "nome": "De provisões",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7431",
+      "nome": "Processos judiciais em curso",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7432",
+      "nome": "Acidentes no trabalho e doenças profissionais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7433",
+      "nome": "Impostos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7434",
+      "nome": "Reestruturação de negócios",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7435",
+      "nome": "Contratos onerosos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7436",
+      "nome": "Garantias a clientes",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7437",
+      "nome": "Perdas em contratos de construção",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7439",
+      "nome": "Outras provisões",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "751",
+      "nome": "Serviços sociais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "752",
+      "nome": "Aluguer de equipamento",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "753",
+      "nome": "Venda de energia",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "754",
+      "nome": "Estudos, projectos pesquisas e investigações",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "755",
+      "nome": "Assistência técnica",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "756",
+      "nome": "Royalties",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "757",
+      "nome": "Cargos sociais exercidos noutras empresas",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "759",
+      "nome": "Outros rendimentos suplementares inerentes ao valor acrescentado",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "761",
+      "nome": "Subsídios para investimentos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7611",
+      "nome": "Do Estado e outros organismos públicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7619",
+      "nome": "De outras entidades",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "762",
+      "nome": "Subsídios à exploração",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7621",
+      "nome": "Do Estado e outros organismos públicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7629",
+      "nome": "De outras entidades",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "763",
+      "nome": "Ganhos em investimentos de capital",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7631",
+      "nome": "Alienação",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7632",
+      "nome": "Sinistros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "764",
+      "nome": "Ganhos em inventários e activos biológicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7641",
+      "nome": "Sinistros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7642",
+      "nome": "Sobras",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7649",
+      "nome": "Outros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "769",
+      "nome": "Outros rendimentos alheios ao valor acrescentado",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7691",
+      "nome": "Restituição de impostos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7692",
+      "nome": "Benefícios de penalidades contratuais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7693",
+      "nome": "Excesso de estimativa para impostos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7699",
+      "nome": "Outros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "781",
+      "nome": "Juros obtidos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7811",
+      "nome": "Depósitos bancários",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7812",
+      "nome": "Empréstimos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7813",
+      "nome": "Obrigações e títulos de participação",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7814",
+      "nome": "Outras aplicações de tesouraria",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7819",
+      "nome": "Outros juros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "782",
+      "nome": "Rendimentos de activos tangíveis de investimento",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "783",
+      "nome": "Rendimentos de instrumentos financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "784",
+      "nome": "Diferenças de câmbio favoráveis",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7841",
+      "nome": "Realizadas",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "7842",
+      "nome": "Não realizadas",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "785",
+      "nome": "Descontos de pronto pagamento obtidos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "789",
+      "nome": "Outros rendimentos e ganhos financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "791",
+      "nome": "Instrumentos financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "792",
+      "nome": "Activos tangíveis de investimento",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "793",
+      "nome": "Activos biológicos",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "851",
+      "nome": "Imposto corrente",
+      "rubrica": "OP-07"
+    },
+    {
+      "conta": "852",
+      "nome": "Imposto diferido",
+      "rubrica": "OP-07"
+    }
+  ]
+}

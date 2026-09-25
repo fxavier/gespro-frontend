@@ -17,6 +17,7 @@ import {
   bootstrapDiarios,
   bootstrapSeriesDocumento,
   bootstrapContasNaturezaNotaDebito,
+  semearRubricasFluxo,
 } from '../../src/server/provisioning/tenant-bootstrap';
 
 const ANO = new Date().getFullYear();
@@ -49,6 +50,15 @@ async function seedPlanoContas(prisma: PrismaClient, tenantId: string): Promise<
   console.log(`[WS-D] ContaPGC: ${criadas} criadas (restantes já existiam).`);
   const naturezas = await bootstrapContasNaturezaNotaDebito(prisma, tenantId);
   console.log(`[WS-D] ContaNaturezaNotaDebito: ${naturezas} criadas.`);
+  // DFC (spec 22 WS-2, ADR-0037 §3): rubricas SISTEMA + mapeamento de todas as
+  // folhas + versão 1. Tenant que já tem versão não é tocado: o mapeamento é
+  // dele, e a 2.ª corrida do seed não escreve nada.
+  const dfc = await semearRubricasFluxo(prisma, tenantId);
+  console.log(
+    dfc.versaoCriada
+      ? `[WS-D] DFC: ${dfc.rubricas} rubricas e ${dfc.mapeamentos} mapeamentos criados; versão 1 do mapeamento criada.`
+      : '[WS-D] DFC: o tenant já tem versão do mapeamento — nada escrito.',
+  );
 }
 
 async function seedDiarios(prisma: PrismaClient, tenantId: string): Promise<void> {

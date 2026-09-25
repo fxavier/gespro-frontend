@@ -7,8 +7,9 @@
  * contas PGC-NIRF, dos diários e das séries de documento.
  *
  * NÃO tem `import 'server-only'` de propósito: além do provisionamento
- * (Route Handler), corre no script de seed (`tsx prisma/seed/index.ts`), fora do
- * contexto react-server.
+ * (Route Handler), corre nos scripts de seed. Esses correm SEMPRE com
+ * `tsx -C react-server` (`pnpm db:seed`, `pnpm db:seed:volume`) — um `npx tsx`
+ * sem a condição rebenta no import transitivo de `server-only` abaixo.
  *
  * Todas as escritas recebem `tenantId` **explícito** — o cliente passado é um
  * `Prisma.TransactionClient` cru (sem a extensão de tenant), porque o tenant
@@ -16,8 +17,12 @@
  */
 import type { Prisma } from '@prisma/client';
 import planoContasJson from '../../../prisma/seed/data/plano-contas-pgc.json';
+import rubricasFluxoJson from '../../../prisma/seed/data/rubricas-fluxo-caixa.json';
 import { PERMISSIONS, SYSTEM_ROLES } from '../../../prisma/seed/rbac';
 import { CONTA_PADRAO_NATUREZA_ND, classeAdmitidaParaNatureza } from '../../lib/nota-debito';
+// `mapeamento-versao.model.ts` importa `server-only`: fora do Next só resolve com
+// `tsx -C react-server` (é assim que `db:seed` e `db:seed:volume` correm).
+import { instantaneoDe } from '../services/financas/mapeamento-versao.model';
 
 /** Cliente aceite: `Prisma.TransactionClient` ou um `PrismaClient` completo. */
 export type BootstrapClient = Prisma.TransactionClient;
@@ -249,6 +254,125 @@ export async function bootstrapContasNaturezaNotaDebito(
 }
 
 // ---------------------------------------------------------------------------
+// Rubricas da DFC e mapeamento conta → rubrica (ADR-0037 §3 + emenda E1/E2)
+// ---------------------------------------------------------------------------
+
+interface RubricaJSON {
+  codigo: string;
+  designacao: string;
+  atividade: string;
+  sinal: string;
+  ordem: number;
+}
+
+interface MapeamentoJSON {
+  conta: string;
+  rubrica: string;
+}
+
+/**
+ * Semeia as rubricas `SISTEMA` da Demonstração de Fluxos de Caixa, o
+ * mapeamento de cada conta folha do plano e a versão 1 (`PENDING`) do
+ * mapeamento. Corre depois do plano de contas (lê as folhas pelo código).
+ *
+ * **Não é uma escrita do mapeamento** no sentido do V2: se o tenant já tiver
+ * uma versão qualquer, devolve sem escrever nada (nem rubricas SISTEMA novas,
+ * nem mapeamentos que o tenant desmapeou) — a versão n+1 é do serviço de
+ * configuração, não do seed. Sem versão, é idempotente por construção
+ * (`createMany` + `skipDuplicates` sobre os `@@unique` da migração 22b).
+ * Precedente de forma: `bootstrapContasNaturezaNotaDebito`.
+ *
+ * Duas guardas deliberadas:
+ *  - tenant **sem** plano de contas ⇒ lança, antes de escrever o que quer que
+ *    seja. Gravar a versão 1 com zero mapeamentos e depois ser idempotente por
+ *    «a versão 1 já existe» deixava o tenant sem mapeamento para sempre;
+ *  - conta do JSON **ausente** do plano do tenant (plano parcial ou divergente)
+ *    ⇒ fica sem linha, nunca uma conta inventada. A DFC dirá o resto como
+ *    impedimento (I7).
+ *
+ * Os ids das rubricas são uuid atribuídos aqui (como no plano de contas):
+ * `createMany` não devolve linhas, e na segunda corrida as rubricas
+ * **releem-se** pelo código para obter os ids que os mapeamentos precisam.
+ */
+export async function semearRubricasFluxo(
+  tx: BootstrapClient,
+  tenantId: string,
+): Promise<{ rubricas: number; mapeamentos: number; versaoCriada: boolean }> {
+  const folhas = await tx.contaPGC.findMany({
+    where: { tenantId, aceitaLancamento: true, ativo: true },
+    select: { id: true, codigo: true },
+  });
+  if (folhas.length === 0) {
+    throw new Error(
+      `Tenant ${tenantId} sem plano de contas: semeia o plano (bootstrapPlanoContas) antes das rubricas da DFC.`,
+    );
+  }
+
+  // Tenant que JÁ TEM versão: o mapeamento é dele (V1/V2 são do serviço de
+  // configuração). Nada se escreve — nem rubricas SISTEMA novas do JSON, nem
+  // mapeamentos que o tenant tenha desmapeado. Recriar qualquer deles sem
+  // versão n+1 violaria o V2 e deixaria a última versão a divergir do vivo (V1).
+  // Lida ANTES de qualquer escrita; a guarda do plano vem primeiro porque um
+  // tenant sem plano é um defeito de ordem de bootstrap, seja qual for a versão.
+  const jaVersionado = await tx.versaoMapeamentoFluxo.findFirst({ where: { tenantId }, select: { id: true } });
+  if (jaVersionado) return { rubricas: 0, mapeamentos: 0, versaoCriada: false };
+
+  const rubricasJson = rubricasFluxoJson.rubricas as RubricaJSON[];
+  const criadas = await tx.rubricaFluxoCaixa.createMany({
+    data: rubricasJson.map((r) => ({
+      id: novoId(),
+      tenantId,
+      codigo: r.codigo,
+      designacao: r.designacao,
+      atividade: r.atividade as never,
+      sinal: r.sinal as never,
+      ordem: r.ordem,
+      origem: 'SISTEMA' as never,
+      ativo: true,
+    })),
+    skipDuplicates: true,
+  });
+
+  // Reler pelo código: na 2.ª corrida os ids são os que já existem, não os
+  // acabados de gerar (que o `skipDuplicates` descartou).
+  const rubricas = await tx.rubricaFluxoCaixa.findMany({ where: { tenantId, deletedAt: null } });
+  const idRubricaPorCodigo = new Map(rubricas.map((r) => [r.codigo, r.id]));
+  const idContaPorCodigo = new Map(folhas.map((c) => [c.codigo, c.id]));
+
+  const linhas: Array<{ tenantId: string; contaId: string; rubricaId: string }> = [];
+  for (const m of rubricasFluxoJson.mapeamentos as MapeamentoJSON[]) {
+    const contaId = idContaPorCodigo.get(m.conta);
+    if (!contaId) continue; // plano divergente: sem linha, nunca uma conta inventada
+    const rubricaId = idRubricaPorCodigo.get(m.rubrica);
+    if (!rubricaId) {
+      // Defeito do JSON (rubrica referida que não consta das rubricas SISTEMA),
+      // não do tenant: rebenta em vez de deixar a conta sem mapeamento em silêncio.
+      throw new Error(`rubricas-fluxo-caixa.json: a conta ${m.conta} aponta para a rubrica ${m.rubrica}, que não existe.`);
+    }
+    linhas.push({ tenantId, contaId, rubricaId });
+  }
+  const mapeados = await tx.mapeamentoContaFluxo.createMany({ data: linhas, skipDuplicates: true });
+
+  // O instantâneo lê-se DEPOIS dos mapeamentos: é o que o V1 exige («igual ao
+  // elemento ao mapeamento vivo»). `instantaneoDe` lança se houver uma conta
+  // repetida ou uma rubrica não viva — o seed não congela lixo com número de versão.
+  const mapeamentos = await tx.mapeamentoContaFluxo.findMany({
+    where: { tenantId },
+    select: { contaId: true, rubricaId: true },
+  });
+  const instantaneo = instantaneoDe(rubricas, mapeamentos);
+  await tx.versaoMapeamentoFluxo.create({
+    data: {
+      tenantId,
+      numero: 1,
+      estado: 'PENDING' as never,
+      instantaneo: instantaneo as unknown as Prisma.InputJsonValue,
+    },
+  });
+  return { rubricas: criadas.count, mapeamentos: mapeados.count, versaoCriada: true };
+}
+
+// ---------------------------------------------------------------------------
 // RBAC — catálogo global de permissões + roles de sistema do tenant
 // ---------------------------------------------------------------------------
 
@@ -310,7 +434,7 @@ export async function bootstrapRbac(
 }
 
 // ---------------------------------------------------------------------------
-// Bootstrap completo de contabilidade (PGC + diários + séries)
+// Bootstrap completo de contabilidade (PGC + diários + séries + DFC)
 // ---------------------------------------------------------------------------
 
 export async function bootstrapContabilidade(
@@ -321,5 +445,7 @@ export async function bootstrapContabilidade(
   const diarios = await bootstrapDiarios(tx, tenantId);
   const series = await bootstrapSeriesDocumento(tx, tenantId);
   await bootstrapContasNaturezaNotaDebito(tx, tenantId);
+  // Um tenant novo nasce com zero contas folha sem mapeamento na DFC (ADR-0037 §3).
+  await semearRubricasFluxo(tx, tenantId);
   return { contas, diarios, series };
 }

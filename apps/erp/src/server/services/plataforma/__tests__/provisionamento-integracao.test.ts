@@ -47,6 +47,11 @@ async function limpar(tenantId: string) {
   await prismaBase.assinatura.deleteMany({ where: { tenantId } });
   await prismaBase.serieDocumento.deleteMany({ where: { tenantId } });
   await prismaBase.diario.deleteMany({ where: { tenantId } });
+  // DFC (migração 22b): o mapeamento referencia ContaPGC e RubricaFluxoCaixa com
+  // FK RESTRICT — sai antes das contas, e a rubrica depois do mapeamento.
+  await prismaBase.mapeamentoContaFluxo.deleteMany({ where: { tenantId } });
+  await prismaBase.versaoMapeamentoFluxo.deleteMany({ where: { tenantId } });
+  await prismaBase.rubricaFluxoCaixa.deleteMany({ where: { tenantId } });
   // As contas PGC referenciam-se entre si — apagar folhas primeiro.
   for (const nivel of [4, 3, 2, 1]) {
     await prismaBase.contaPGC.deleteMany({ where: { tenantId, nivel } });

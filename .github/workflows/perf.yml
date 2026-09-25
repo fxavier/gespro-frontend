@@ -79,7 +79,7 @@ jobs:
 
       - name: Seed de volume (perfil ci — subconjunto)
         working-directory: apps/erp
-        run: VOLUME_PROFILE=ci npx tsx prisma/seed/volume/index.ts
+        run: VOLUME_PROFILE=ci pnpm db:seed:volume
 
       - name: Build de produção
         working-directory: apps/erp
