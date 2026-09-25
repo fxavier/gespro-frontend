@@ -56,6 +56,30 @@ vi.mock('@/server/db/client', () => ({
 
 const ctx = { tenantId: 'tenant-test', userId: 'user-test' };
 
+// #78 — registarPagamento passa a exigir o meio: forma do enum + contaBancariaId, e a
+// ContaBancaria (com a sua ContaPGC) tem de existir no tenant. Delegados lenientes
+// (findFirst/findUnique) para não ditar a query da implementação.
+const CONTA_BANCARIA_ID = '1c7d9a5e-2f4b-4c1e-9a0b-3d5e6f7a8b9c';
+const contaPGCBancoMock = { id: 'pgc-123', tenantId: 'tenant-test', codigo: '123', ativo: true, aceitaLancamento: true };
+const contaBancariaMock = {
+  id: CONTA_BANCARIA_ID, tenantId: 'tenant-test', tipoConta: 'CORRENTE', ativo: true,
+  contaContabilId: contaPGCBancoMock.id, contaContabil: contaPGCBancoMock,
+};
+function meioBancario() {
+  return {
+    contaBancaria: {
+      findFirst: vi.fn(async () => contaBancariaMock),
+      findUnique: vi.fn(async () => contaBancariaMock),
+      findFirstOrThrow: vi.fn(async () => contaBancariaMock),
+      findUniqueOrThrow: vi.fn(async () => contaBancariaMock),
+    },
+    contaPGC: {
+      findFirst: vi.fn(async () => contaPGCBancoMock),
+      findUnique: vi.fn(async () => contaPGCBancoMock),
+    },
+  };
+}
+
 // =====================================================================
 // calcularDiasAtraso
 // =====================================================================
@@ -245,6 +269,7 @@ describe('registarPagamento() — validação', () => {
     // Mock da transacção para retornar a conta
     db.$transaction.mockImplementation(async (fn: any) =>
       fn({
+        ...meioBancario(), // #78: meio bancário real (ContaBancaria CORRENTE → PGC 123)
         contaPagar: {
           findUnique: vi.fn().mockResolvedValue(contaMock),
           update: vi.fn(),
@@ -256,7 +281,7 @@ describe('registarPagamento() — validação', () => {
     const { contaPagarService } = await import('../conta-pagar.service');
     await expect(
       contaPagarService.registarPagamento(
-        { contaPagarId: 'cp-1', dataPagamento: new Date(), valor: 1000, formaPagamento: 'TRF' },
+        { contaPagarId: 'cp-1', dataPagamento: new Date(), valor: 1000, formaPagamento: 'TRANSFERENCIA_BANCARIA', contaBancariaId: CONTA_BANCARIA_ID } as any,
         ctx,
       ),
     ).rejects.toThrow(BusinessRuleError);
@@ -284,6 +309,7 @@ describe('registarPagamento() — validação', () => {
     const mockPagamentoUpdate = vi.fn().mockResolvedValue({ ...pagamentoMock, lancamentoId: 'lan-001' });
     db.$transaction.mockImplementation(async (fn: any) =>
       fn({
+        ...meioBancario(), // #78: meio bancário real (ContaBancaria CORRENTE → PGC 123)
         contaPagar: {
           findUnique: vi.fn().mockResolvedValue(contaMock),
           update: mockContaPagarUpdate,
@@ -294,7 +320,7 @@ describe('registarPagamento() — validação', () => {
 
     const { contaPagarService } = await import('../conta-pagar.service');
     const pag = await contaPagarService.registarPagamento(
-      { contaPagarId: 'cp-1', dataPagamento: new Date(), valor: 500, formaPagamento: 'TRF' },
+      { contaPagarId: 'cp-1', dataPagamento: new Date(), valor: 500, formaPagamento: 'TRANSFERENCIA_BANCARIA', contaBancariaId: CONTA_BANCARIA_ID } as any,
       ctx,
     );
 
@@ -371,6 +397,7 @@ describe('registarPagamento() — conta VENCIDA', () => {
     const mockContaPagarUpdate = vi.fn().mockResolvedValue({ ...contaMock });
     db.$transaction.mockImplementation(async (fn: any) =>
       fn({
+        ...meioBancario(), // #78: meio bancário real (ContaBancaria CORRENTE → PGC 123)
         contaPagar: { findUnique: vi.fn().mockResolvedValue(contaMock), update: mockContaPagarUpdate },
         pagamento: { create: vi.fn().mockResolvedValue(pagamentoMock), update: vi.fn().mockResolvedValue(pagamentoMock) },
       }),
@@ -379,7 +406,7 @@ describe('registarPagamento() — conta VENCIDA', () => {
     const { contaPagarService } = await import('../conta-pagar.service');
     await expect(
       contaPagarService.registarPagamento(
-        { contaPagarId: 'cp-v', dataPagamento: new Date(), valor: 200, formaPagamento: 'TRF' },
+        { contaPagarId: 'cp-v', dataPagamento: new Date(), valor: 200, formaPagamento: 'TRANSFERENCIA_BANCARIA', contaBancariaId: CONTA_BANCARIA_ID } as any,
         ctx,
       ),
     ).resolves.toBeDefined();
@@ -402,6 +429,7 @@ describe('registarPagamento() — conta VENCIDA', () => {
     const mockContaPagarUpdate = vi.fn().mockResolvedValue({ ...contaMock, status: 'PAGA' });
     db.$transaction.mockImplementation(async (fn: any) =>
       fn({
+        ...meioBancario(), // #78: meio bancário real (ContaBancaria CORRENTE → PGC 123)
         contaPagar: { findUnique: vi.fn().mockResolvedValue(contaMock), update: mockContaPagarUpdate },
         pagamento: {
           create: vi.fn().mockResolvedValue({ id: 'pag-v2', numero: 'PAG-2026-V2', dataPagamento: new Date(), valor: 300, formaPagamento: 'TRF', referencia: null, status: 'CONCLUIDO', lancamentoId: null }),
@@ -412,7 +440,7 @@ describe('registarPagamento() — conta VENCIDA', () => {
 
     const { contaPagarService } = await import('../conta-pagar.service');
     await contaPagarService.registarPagamento(
-      { contaPagarId: 'cp-v2', dataPagamento: new Date(), valor: 300, formaPagamento: 'TRF' },
+      { contaPagarId: 'cp-v2', dataPagamento: new Date(), valor: 300, formaPagamento: 'TRANSFERENCIA_BANCARIA', contaBancariaId: CONTA_BANCARIA_ID } as any,
       ctx,
     );
     expect(mockContaPagarUpdate).toHaveBeenCalledWith(
@@ -562,7 +590,10 @@ describe('contaPagarService.criar() — reconhecimento (ADR-0034 §1)', () => {
     expect(chamada.data).not.toEqual(dataEmissao);
   });
 
-  it('liquidação (registarPagamento) continua D 421 / C 121 sem tocar em IVA', async () => {
+  // #78 (decisão humana C1): substitui «liquidação continua D 421 / C 121». O crédito deixa
+  // de ser um 121 fixo e passa a ser a conta PGC da ContaBancaria escolhida (aqui 123), no
+  // diário BANCO. Mantém-se a intenção original: a liquidação não toca em IVA (4432x).
+  it('liquidação (registarPagamento) por transferência: D 421 / C <PGC da conta bancária>, sem tocar em IVA', async () => {
     const { prisma } = await import('@/server/db/client');
     const db = prisma as any;
 
@@ -573,10 +604,11 @@ describe('contaPagarService.criar() — reconhecimento (ADR-0034 §1)', () => {
     };
     const pagamentoMock = {
       id: 'pag-liq', numero: 'PAG-2026-LIQ', dataPagamento: new Date(),
-      valor: 116, formaPagamento: 'TRF', referencia: null, status: 'CONCLUIDO', lancamentoId: null,
+      valor: 116, formaPagamento: 'TRANSFERENCIA_BANCARIA', referencia: null, status: 'CONCLUIDO', lancamentoId: null,
     };
     db.$transaction.mockImplementation(async (fn: any) =>
       fn({
+        ...meioBancario(),
         contaPagar: {
           findUnique: vi.fn().mockResolvedValue(contaMock),
           update: vi.fn().mockResolvedValue({ ...contaMock, status: 'PAGA' }),
@@ -594,17 +626,20 @@ describe('contaPagarService.criar() — reconhecimento (ADR-0034 §1)', () => {
     mockLan.mockResolvedValue({ id: 'lan-pag' });
 
     await contaPagarService.registarPagamento(
-      { contaPagarId: 'cp-liq', dataPagamento: new Date(), valor: 116, formaPagamento: 'TRF' },
+      { contaPagarId: 'cp-liq', dataPagamento: new Date(), valor: 116, formaPagamento: 'TRANSFERENCIA_BANCARIA', contaBancariaId: CONTA_BANCARIA_ID } as any,
       ctx,
     );
 
     expect(mockLan).toHaveBeenCalledOnce();
-    const partidas = mockLan.mock.calls[0][1].partidas;
-    // Apenas D 421 / C 121 — sem contas 4432x
+    const chamada = mockLan.mock.calls[0][1];
+    const partidas = chamada.partidas;
+    // Apenas D 421 / C 123 (PGC da conta bancária) — sem contas 4432x, nem o 121 antigo
     expect(partidas).toHaveLength(2);
     expect(partidas.find((p: any) => p.contaCodigo === '421' && p.tipo === 'DEBITO')).toBeDefined();
-    expect(partidas.find((p: any) => p.contaCodigo === '121' && p.tipo === 'CREDITO')).toBeDefined();
+    expect(partidas.find((p: any) => p.contaCodigo === contaPGCBancoMock.codigo && p.tipo === 'CREDITO')).toBeDefined();
+    expect(partidas.find((p: any) => p.contaCodigo === '121')).toBeUndefined();
     expect(partidas.find((p: any) => p.contaCodigo.startsWith('4432'))).toBeUndefined();
+    expect(chamada.diarioTipo).toBe('BANCO');
   });
 });
 
