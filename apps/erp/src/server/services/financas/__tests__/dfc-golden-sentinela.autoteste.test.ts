@@ -21,6 +21,11 @@ import {
 } from './helpers/dfc-golden';
 
 const hasDB = Boolean(process.env.DATABASE_URL);
+// Só na base LOCAL (issue #237): estes oráculos comparam a base semeada do tenant `demo` com
+// uma fixture derivada do seed num dia civil fixo. No CI a base é semeada no dia da corrida e a
+// fixture nunca bate, por isso não correm lá (o GitHub Actions define CI=true em todos os passos).
+// Localmente continuam a correr dentro do `pnpm check`, com as mesmas asserções.
+const noCI = Boolean(process.env.CI);
 
 const RUB = (id: string, codigo: string, atividade: string, ordem: number) => ({
   id,
@@ -106,7 +111,7 @@ describe('sentinela de versões da golden — pura', () => {
   });
 });
 
-describe.skipIf(!hasDB)('sentinela de versões da golden — a partir do estado REAL da base (só leitura, injecção em memória)', () => {
+describe.skipIf(!hasDB || noCI)('sentinela de versões da golden — a partir do estado REAL da base (só leitura, injecção em memória)', () => {
   afterAll(async () => {
     await prismaBase.$disconnect();
   });

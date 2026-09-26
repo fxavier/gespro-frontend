@@ -63,6 +63,10 @@ export async function setup(): Promise<void> {
   }
 
   // ── 2. Arrancar o container Postgres ────────────────────────────────────────
+  // Instante anterior ao arranque do container: tudo o que a base tiver foi criado por ESTE run
+  // (usado pelo teste «stateless» de tenant-isolation.test.ts).
+  process.env.INTEGRATION_RUN_START = String(Date.now());
+
   try {
     const container = await new PostgreSqlContainer('postgres:17-alpine')
       .withDatabase('gespro_test')

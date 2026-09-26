@@ -72,7 +72,6 @@ describe.skipIf(skip)('Reprodutibilidade do apuramento IVA — DB efémera', () 
         email: `repro-${TS}@test.mz`,
         nome: 'Utilizador Reprodutibilidade',
         keycloakSub: `kc-repro-${TS}`,
-        role: 'ADMIN',
       },
     });
 
@@ -124,11 +123,12 @@ describe.skipIf(skip)('Reprodutibilidade do apuramento IVA — DB efémera', () 
         data: {
           tenantId: TENANT_ID,
           codigo: c.codigo,
-          descricao: c.descricao,
+          nome: c.descricao,
           nivel: c.codigo.length,
-          classe: c.codigo[0],
+          classe: `CLASSE_${c.codigo[0]}`,
           natureza: c.natureza,
-          tipo: 'MOVIMENTO',
+          // Regra do tenant-bootstrap (derivarTipoConta): classes 1–4 → tipo pela natureza.
+          tipo: c.natureza === 'DEVEDORA' ? 'ATIVO' : 'PASSIVO',
           aceitaLancamento: true,
           ativo: true,
         },
@@ -160,7 +160,7 @@ describe.skipIf(skip)('Reprodutibilidade do apuramento IVA — DB efémera', () 
         numero: '000001',
         data: new Date('2026-06-15T12:00:00Z'),
         tipo: 'AUTOMATICO',
-        origem: 'FATURA',
+        origem: 'VENDA', // a origem que a faturacao.service grava
         diarioId: diarioOp.id,
         periodoId,
         periodoFiscal: '2026-06',
@@ -178,15 +178,15 @@ describe.skipIf(skip)('Reprodutibilidade do apuramento IVA — DB efémera', () 
     //  inserimos directamente sem resolver a conta, o que é válido no teste)
     const contaReceitasId = (await db.contaPGC.create({
       data: {
-        tenantId: TENANT_ID, codigo: '71-REPRO', descricao: 'Vendas Repro',
-        nivel: 2, classe: '7', natureza: 'CREDORA', tipo: 'MOVIMENTO',
+        tenantId: TENANT_ID, codigo: '71-REPRO', nome: 'Vendas Repro',
+        nivel: 2, classe: 'CLASSE_7', natureza: 'CREDORA', tipo: 'RENDIMENTO',
         aceitaLancamento: true, ativo: true,
       },
     })).id;
     const contaFornId = (await db.contaPGC.create({
       data: {
-        tenantId: TENANT_ID, codigo: '22-REPRO', descricao: 'Clientes Repro',
-        nivel: 2, classe: '2', natureza: 'DEVEDORA', tipo: 'MOVIMENTO',
+        tenantId: TENANT_ID, codigo: '22-REPRO', nome: 'Clientes Repro',
+        nivel: 2, classe: 'CLASSE_2', natureza: 'DEVEDORA', tipo: 'ATIVO',
         aceitaLancamento: true, ativo: true,
       },
     })).id;
@@ -242,6 +242,8 @@ describe.skipIf(skip)('Reprodutibilidade do apuramento IVA — DB efémera', () 
       });
 
       // Passo 3 — re-agregar as partidas IVA do período fechado (mesmo algoritmo do serviço)
+      // O serviço agrega ANTES de gravar o seu lançamento de apuramento (que salda 4433x/4432x);
+      // esse lançamento é a saída do cálculo, não a entrada — fica de fora da re-agregação.
       const FILTRO_LANCADO = { in: ['LANCADO', 'ESTORNADO'] };
       const agregados = await db.partidaLancamento.groupBy({
         by: ['contaId', 'tipo'],
@@ -250,6 +252,7 @@ describe.skipIf(skip)('Reprodutibilidade do apuramento IVA — DB efémera', () 
           lancamento: {
             periodoId,
             status: FILTRO_LANCADO,
+            ...(apuramentoGravado.lancamentoId ? { id: { not: apuramentoGravado.lancamentoId } } : {}),
           },
           conta: { codigo: { in: CONTAS_IVA_FILTRO } },
         },
@@ -259,13 +262,13 @@ describe.skipIf(skip)('Reprodutibilidade do apuramento IVA — DB efémera', () 
       const contasIdsSet = [...new Set(agregados.map((a: { contaId: string }) => a.contaId))];
       const contasDb = await db.contaPGC.findMany({
         where: { tenantId: TENANT_ID, id: { in: contasIdsSet } },
-        select: { id: true, codigo: true, nome: true, descricao: true },
+        select: { id: true, codigo: true, nome: true },
       });
-      // O serviço usa `nome` (que o Prisma client expõe como `descricao` no modelo actual — confirmar)
+      // O serviço lê `ContaPGC.nome` (apuramento-iva.service.ts, passo 6)
       const contasMap = new Map<string, { codigo: string; nome: string }>(
-        contasDb.map((c: { id: string; codigo: string; descricao: string }) => [
+        contasDb.map((c: { id: string; codigo: string; nome: string }) => [
           c.id,
-          { codigo: c.codigo, nome: c.descricao },
+          { codigo: c.codigo, nome: c.nome },
         ]),
       );
 
@@ -384,7 +387,7 @@ describe.skipIf(skip)('Reprodutibilidade do apuramento IVA — DB efémera', () 
           tenantId: TENANT_ID,
           numero: '000001',
           data: new Date('2026-07-15T12:00:00Z'),
-          tipo: 'AUTOMATICO', origem: 'FATURA',
+          tipo: 'AUTOMATICO', origem: 'VENDA', // a origem que a faturacao.service grava
           diarioId: diarioVd.id,
           periodoId: periodoSeteId,
           periodoFiscal: '2026-07',
