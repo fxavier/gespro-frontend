@@ -65,6 +65,7 @@ import {
   periodosPorCodigo,
   resolverTenantDemo,
   verificarSentinelas,
+  versaoMaisRecente,
   type PeriodoSeed,
 } from './helpers/dfc-golden';
 import {
@@ -113,7 +114,7 @@ describe.skipIf(!hasDB)('DFC no serviço — I7, I10, V4 e I9 contra um duplo de
   let ctx: { tenantId: string; userId: string };
   let periodos: Map<string, PeriodoSeed>;
   let contas: Map<string, string>;
-  let versaoIdDoSeed: string;
+  let versaoDoSeed: { id: string; numero: number; estado: string };
 
   const P = (codigo: string): PeriodoSeed => {
     const p = periodos.get(codigo);
@@ -133,11 +134,9 @@ describe.skipIf(!hasDB)('DFC no serviço — I7, I10, V4 e I9 contra um duplo de
     await verificarSentinelas(ctx.tenantId); // «a base tem resíduos», antes de qualquer número
     periodos = await periodosPorCodigo(ctx.tenantId);
     contas = await contaPorCodigo(ctx.tenantId, POOL);
-    const v = await prismaBase.versaoMapeamentoFluxo.findFirst({
-      where: { tenantId: ctx.tenantId, numero: 1 },
-      select: { id: true },
-    });
-    versaoIdDoSeed = v!.id;
+    // A mais recente, lida da base — não a n.º 1: versões posteriores com o
+    // conteúdo do seed são aceites (a sentinela acima garante o conteúdo).
+    versaoDoSeed = await versaoMaisRecente(ctx.tenantId);
   });
 
   afterEach(() => {
@@ -239,7 +238,7 @@ describe.skipIf(!hasDB)('DFC no serviço — I7, I10, V4 e I9 contra um duplo de
       definirCenario({ tipo: 'desmapear', contaIds: ids(['111', '122', '123']) });
       const caso = fixture.casos[0]!;
       const r = await noTenant(() => gerarDFC(filtro(caso.periodoInicio, caso.periodoFim), ctx));
-      compararDFC(exigirMapa(r, caso.nome), caso, { inicio: P(caso.periodoInicio), fim: P(caso.periodoFim) }, versaoIdDoSeed);
+      compararDFC(exigirMapa(r, caso.nome), caso, { inicio: P(caso.periodoInicio), fim: P(caso.periodoFim) }, versaoDoSeed);
     });
 
     it('«Mapeamento da DFC não semeado» — TEM de recusar: tenant sem versão ⇒ impedimento, contasNaoMapeadas [], nenhum mapa, sem lançar', async () => {
@@ -265,7 +264,7 @@ describe.skipIf(!hasDB)('DFC no serviço — I7, I10, V4 e I9 contra um duplo de
       const caso = fixture.casos[0]!;
       const r = await noTenant(() => gerarDFC(filtro(caso.periodoInicio, caso.periodoFim), ctx));
       const dfc = exigirMapa(r, caso.nome);
-      compararDFC(dfc, caso, { inicio: P(caso.periodoInicio), fim: P(caso.periodoFim) }, versaoIdDoSeed);
+      compararDFC(dfc, caso, { inicio: P(caso.periodoInicio), fim: P(caso.periodoFim) }, versaoDoSeed);
       const json = JSON.stringify(dfc);
       for (const alheio of [RUBRICA_ALHEIA_ID, RUBRICA_ALHEIA_CODIGO, VERSAO_ALHEIA_ID, MAPEAMENTO_ALHEIO_ID, TENANT_ALHEIO]) {
         expect(json.includes(alheio), `«${alheio}» (de outro tenant) entrou na DFC`).toBe(false);

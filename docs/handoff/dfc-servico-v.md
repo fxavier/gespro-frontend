@@ -277,3 +277,51 @@ revisor deve apontá-lo na mesma (é código frágil).
 - Conta CAIXA CREDORA (descoberto): o seed não tem; coberto por `dfc-saldo-caixa.test.ts` (acessório do `nucleo`).
 - Errata humana ao ADR-0037 E2 (`saldoContabilAte` → saldos dos mesmos balancetes), pendente desde o `contratos`.
 - Nenhum código de produção, nenhuma escrita na base, grafo não marcado.
+
+## Revisão da sentinela, 2026-09-26
+
+Decisão do humano, executada pelo verificador-fluxo-caixa. Os números da golden **não mudaram** (nenhum valor
+monetário da fixture tocado).
+
+**Porquê.** A sentinela exigia `versoes == [{1, PENDING}]`. Um smoke de configuração ou o E2E 10.1 criam versões por
+construção (cada escrita que muda o mapa cria a n+1; validar passa-a a `VALIDATED`), e isso punha a golden vermelha
+sem mudar um cêntimo da DFC — um alarme que ensina a ignorá-lo.
+
+**O que passa a exigir** (`verificarVersoesDoMapeamento`, pura, em `__tests__/helpers/dfc-golden.ts`), por
+`mudou() === false` (`mapeamento-versao.model.ts`):
+1. existe a versão de referência — `sentinelasDoSeed.versoesDoMapeamento.referencia = 1`, a que a migração `22c`
+   semeou com o instantâneo do mapeamento vivo na forma canónica;
+2. a versão **mais recente** do tenant (a que o `gerarDFC` carimba) tem o instantâneo da de referência;
+3. o **mapeamento vivo** (`instantaneoDe` das rubricas + mapeamentos da base) é esse instantâneo (V1). Um vivo que
+   nem se deixa congelar (conta em dois mapeamentos, rubrica apagada) também diverge.
+
+Versões posteriores, `PENDING` ou `VALIDATED`, são aceites. A referência é a v1 e não um instantâneo reconstruído do
+JSON do seed porque o instantâneo leva ids (uuid da migração, cuid das contas) que só existem na base; a ancoragem ao
+seed continua a ser das sentinelas de `mapeamento` (19 rubricas vivas, 435 mapeamentos, contas CAIXA, rubrica das
+contas com movimento), que o vivo tem de cumprir — logo a v1 também, por 3. Qualquer divergência cai em
+`falharResiduos`, com a mesma mensagem «…a base tem resíduos…» e as divergências todas numa linha.
+
+**Mudanças na fixture e na golden** (`fixtures/dfc-seed-demo.json`, `dfc.golden.test.ts`,
+`dfc.impedimentos-isolamento.test.ts`):
+- `sentinelasDoSeed.mapeamento.versoes` saiu; entrou `sentinelasDoSeed.versoesDoMapeamento` (`referencia` + `$nota`).
+- `casos[].esperado.versao` (`{numero: 1, estado: PENDING}`) saiu dos três casos. `compararDFC` recebe agora a
+  versão esperada `{id, numero, estado}` lida da base (`versaoMaisRecente`) e exige `dfc.versao` **igual** a ela —
+  antes comparava o id com a n.º 1 e número/estado com a fixture. A asserção não enfraqueceu: continua a fixar os três
+  campos, agora contra a versão que o serviço tem de escolher (a mais recente), não contra um número fixo.
+
+**Autoteste** (`__tests__/dfc-golden-sentinela.autoteste.test.ts`, 11 casos, sem escrever na base): aceita só-v1,
+v7 `VALIDATED` desordenada e v2 `PENDING` iguais ao seed; recusa vivo com mapeamento movido, rubrica com designação
+mudada, recente diferente do seed com vivo igual, falta da v1, e vivo inconsistente. Contra a base real: o estado
+actual passa; uma v9 `VALIDATED` injectada com o instantâneo semeado passa; o vivo real com um mapeamento movido
+falha; e pelo caminho inteiro, com a leitura `mapeamentoContaFluxo.findMany` adulterada por `vi.spyOn`,
+`verificarSentinelas` lança «a base tem resíduos … mapeamento vivo é diferente do instantâneo da versão 1 semeada».
+
+**`voltarSeguro` sob custódia.** `apps/erp/src/lib/__tests__/dfc-voltar.test.ts` passou a oráculo do verificador
+(protegido). Casos novos — recusa, ou normalização que resolvida **e** descodificada fica em `/contabilidade/` sem
+segmento de pontos: `%2e%2e`, `%2E%2E`, `%2e%2E`, `.%2e`, `..%2f..%2f`, `%2e%2e%2f`, as duas formas com
+`//evil.example`, e `%252e%252e` (duplo encoding — **acrescento do verificador além do achado do revisor**: um salto
+que descodifique uma vez devolve `%2e%2e`, que o browser resolve como `..`; se o orquestrador o achar excessivo,
+cai por decisão dele, não por adaptação do autor). O predicado tem autoteste próprio.
+Estado: contra a versão anterior do autor (inline num ficheiro temporário, apagado) 8 dos 9 falham por asserção
+(`..%2f..%2fvendas` já era recusado pelo `includes('..')`); contra a correcção em curso na árvore, a meio da tarefa só falhava o
+`%252e%252e`; na verificação final os 33 casos passam (o autor recusa também o duplo encoding).

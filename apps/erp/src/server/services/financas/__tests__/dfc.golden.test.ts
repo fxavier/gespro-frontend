@@ -35,6 +35,7 @@ import {
   periodosPorCodigo,
   resolverTenantDemo,
   verificarSentinelas,
+  versaoMaisRecente,
   type PeriodoSeed,
 } from './helpers/dfc-golden';
 
@@ -54,7 +55,7 @@ function exigirMapa(r: ResultadoDFC, onde: string): DFC {
 describe.skipIf(!hasDB)('DFC do seed demo — golden, I9, I10, V4 (contra a base local)', () => {
   let ctx: { tenantId: string; userId: string };
   let periodos: Map<string, PeriodoSeed>;
-  let versaoIdDoSeed: string;
+  let versaoDoSeed: { id: string; numero: number; estado: string };
 
   const P = (codigo: string): PeriodoSeed => {
     const p = periodos.get(codigo);
@@ -71,11 +72,9 @@ describe.skipIf(!hasDB)('DFC do seed demo — golden, I9, I10, V4 (contra a base
     ctx = await resolverTenantDemo();
     await verificarSentinelas(ctx.tenantId); // «a base tem resíduos», antes de qualquer número
     periodos = await periodosPorCodigo(ctx.tenantId);
-    const v = await prismaBase.versaoMapeamentoFluxo.findFirst({
-      where: { tenantId: ctx.tenantId, numero: 1 },
-      select: { id: true },
-    });
-    versaoIdDoSeed = v!.id;
+    // A mais recente, lida da base — não a n.º 1: versões posteriores com o
+    // conteúdo do seed são aceites (a sentinela acima garante o conteúdo).
+    versaoDoSeed = await versaoMaisRecente(ctx.tenantId);
   });
 
   afterAll(async () => {
@@ -94,7 +93,7 @@ describe.skipIf(!hasDB)('DFC do seed demo — golden, I9, I10, V4 (contra a base
           dfc,
           caso,
           { inicio: P(caso.periodoInicio), fim: P(caso.periodoFim) },
-          versaoIdDoSeed,
+          versaoDoSeed,
         );
       });
     }

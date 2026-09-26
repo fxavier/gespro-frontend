@@ -6,6 +6,9 @@
 // Três coisas, e só estas:
 //  1. `verificarSentinelas` — o tenant demo está no estado que a fixture
 //     assume? Se não, falha com «a base tem resíduos» ANTES de qualquer número.
+//     Versões do mapeamento: NÃO se contam (revisão 2026-09-26) — exige-se que
+//     a mais recente e o vivo tenham o instantâneo da versão de referência do
+//     seed (`verificarVersoesDoMapeamento`, pura, com autoteste próprio).
 //  2. `compararColuna` — compara uma `ColunaDFC` com a fixture, dinheiro só por
 //     `Decimal.equals`, sem tolerância.
 //  3. `periodosPorCodigo` / `contaPorCodigo` — traduzem os códigos legíveis da
@@ -16,7 +19,14 @@ import { expect } from 'vitest';
 import { Prisma } from '@prisma/client';
 import { prismaBase } from '@/server/db/client';
 import { FILTRO_LANCAMENTO_MAPA } from '../../contabilidade.service';
-import type { ColunaDFC, ContaNaoMapeada, DFC, SeccaoDFC } from '../../dfc.interface';
+import type {
+  ColunaDFC,
+  ContaNaoMapeada,
+  DFC,
+  InstantaneoMapeamento,
+  SeccaoDFC,
+} from '../../dfc.interface';
+import { instantaneoDe, mudou } from '../../mapeamento-versao.model';
 import fixture from '../fixtures/dfc-seed-demo.json';
 
 export { fixture };
@@ -90,6 +100,99 @@ export async function contaPorCodigo(
   return m;
 }
 
+/** Uma versão do mapeamento tal como a sentinela a lê da base. */
+export interface VersaoLida {
+  id: string;
+  numero: number;
+  estado: string;
+  instantaneo: InstantaneoMapeamento;
+}
+
+/** O que a sentinela das versões precisa: a de referência, a mais recente e o vivo. */
+export interface EstadoVersoesMapeamento {
+  /** A versão `versoesDoMapeamento.referencia` da fixture (a semeada), ou null se não existir. */
+  referencia: VersaoLida | null;
+  /** A versão de maior `numero` do tenant, ou null se não houver nenhuma. */
+  recente: VersaoLida | null;
+  /** `instantaneoDe` das rubricas + mapeamentos vivos; `Error` se o vivo nem se deixa congelar. */
+  vivo: InstantaneoMapeamento | Error;
+}
+
+function falharResiduos(detalhe: string): never {
+  throw new Error(
+    'O estado do tenant demo diverge do que a golden da DFC assume — o seed foi ' +
+      're-corrido noutro dia civil ou a base tem resíduos (um lançamento a mais, ' +
+      'um período fechado, um mapeamento alterado). Limpa o resíduo ou RE-DERIVA ' +
+      'a fixture À MÃO (docs/handoff/dfc-servico-v.md); NUNCA vitest -u.\n' +
+      detalhe,
+  );
+}
+
+/**
+ * Sentinela das versões do mapeamento (pura). NÃO conta versões: smokes de
+ * configuração e o E2E 10.1 criam versões por construção, e uma versão n+1 com
+ * o conteúdo do seed não muda um cêntimo da DFC. Exige, por `mudou() === false`:
+ *  - que exista a versão de referência (a semeada);
+ *  - que a versão MAIS RECENTE tenha o instantâneo da de referência (é a que o
+ *    `gerarDFC` carimba no mapa);
+ *  - que o mapeamento VIVO seja esse instantâneo (V1) — é o vivo que o mapa usa.
+ * Devolve TODAS as divergências (lista vazia = aceite).
+ */
+export function verificarVersoesDoMapeamento(e: EstadoVersoesMapeamento): string[] {
+  const numeroRef = fixture.sentinelasDoSeed.versoesDoMapeamento.referencia;
+  const div: string[] = [];
+  if (!e.referencia) {
+    div.push(`a versão ${numeroRef} do mapeamento (a semeada) não existe`);
+    return div;
+  }
+  if (!e.recente) {
+    div.push('o tenant não tem versão nenhuma do mapeamento');
+  } else if (mudou(e.referencia.instantaneo, e.recente.instantaneo)) {
+    div.push(
+      `a versão mais recente (${e.recente.numero}, ${e.recente.estado}) tem um instantâneo diferente do da versão ${e.referencia.numero} semeada`,
+    );
+  }
+  if (e.vivo instanceof Error) {
+    div.push(`o mapeamento vivo não se deixa congelar: ${e.vivo.message}`);
+  } else if (mudou(e.referencia.instantaneo, e.vivo)) {
+    div.push(`o mapeamento vivo é diferente do instantâneo da versão ${e.referencia.numero} semeada (V1)`);
+  }
+  return div;
+}
+
+export async function lerVersoesDoMapeamento(tenantId: string): Promise<EstadoVersoesMapeamento> {
+  const numeroRef = fixture.sentinelasDoSeed.versoesDoMapeamento.referencia;
+  const sel = { id: true, numero: true, estado: true, instantaneo: true } as const;
+  const [referencia, recente, rubricas, mapeamentos] = await Promise.all([
+    prismaBase.versaoMapeamentoFluxo.findFirst({ where: { tenantId, numero: numeroRef }, select: sel }),
+    prismaBase.versaoMapeamentoFluxo.findFirst({ where: { tenantId }, orderBy: { numero: 'desc' }, select: sel }),
+    prismaBase.rubricaFluxoCaixa.findMany({ where: { tenantId } }),
+    prismaBase.mapeamentoContaFluxo.findMany({ where: { tenantId }, select: { contaId: true, rubricaId: true } }),
+  ]);
+  const lida = (v: typeof referencia): VersaoLida | null =>
+    v ? { ...v, instantaneo: v.instantaneo as unknown as InstantaneoMapeamento } : null;
+  let vivo: InstantaneoMapeamento | Error;
+  try {
+    vivo = instantaneoDe(rubricas, mapeamentos);
+  } catch (err) {
+    vivo = err instanceof Error ? err : new Error(String(err));
+  }
+  return { referencia: lida(referencia), recente: lida(recente), vivo };
+}
+
+/** A versão que o `gerarDFC` tem de carimbar no mapa: a mais recente do tenant (a sentinela garante que é a do seed). */
+export async function versaoMaisRecente(
+  tenantId: string,
+): Promise<{ id: string; numero: number; estado: string }> {
+  const v = await prismaBase.versaoMapeamentoFluxo.findFirst({
+    where: { tenantId },
+    orderBy: { numero: 'desc' },
+    select: { id: true, numero: true, estado: true },
+  });
+  if (!v) falharResiduos('o tenant demo não tem versão nenhuma do mapeamento');
+  return v;
+}
+
 /**
  * O estado do tenant demo é o que a fixture assume? Falha AQUI, com mensagem
  * clara, em vez de deixar os números divergir asserções abaixo.
@@ -152,13 +255,9 @@ export async function verificarSentinelas(tenantId: string): Promise<void> {
       })
     : -1;
 
-  const [versoes, rubricasVivas, mapeamentos, mapeamentosCaixa, mapeamentosMovimento] =
+  const [estadoVersoes, rubricasVivas, mapeamentos, mapeamentosCaixa, mapeamentosMovimento] =
     await Promise.all([
-      prismaBase.versaoMapeamentoFluxo.findMany({
-        where: { tenantId },
-        select: { numero: true, estado: true },
-        orderBy: { numero: 'asc' },
-      }),
+      lerVersoesDoMapeamento(tenantId),
       prismaBase.rubricaFluxoCaixa.count({ where: { tenantId, deletedAt: null } }),
       prismaBase.mapeamentoContaFluxo.count({ where: { tenantId } }),
       prismaBase.mapeamentoContaFluxo.findMany({
@@ -182,7 +281,6 @@ export async function verificarSentinelas(tenantId: string): Promise<void> {
     movimentoPorPeriodo,
     contasComMovimentoPorPeriodo,
     mapeamento: {
-      versoes,
       rubricasVivas,
       mapeamentos,
       contasCaixa: mapeamentosCaixa.map((m) => m.conta.codigo).sort(),
@@ -210,12 +308,10 @@ export async function verificarSentinelas(tenantId: string): Promise<void> {
       ),
     },
   };
-  if (JSON.stringify(observado) !== JSON.stringify(esperado)) {
-    throw new Error(
-      'O estado do tenant demo diverge do que a golden da DFC assume — o seed foi ' +
-        're-corrido noutro dia civil ou a base tem resíduos (um lançamento a mais, ' +
-        'um período fechado, um mapeamento alterado). Limpa o resíduo ou RE-DERIVA ' +
-        'a fixture À MÃO (docs/handoff/dfc-servico-v.md); NUNCA vitest -u.\n' +
+  const divergenciasVersoes = verificarVersoesDoMapeamento(estadoVersoes);
+  if (JSON.stringify(observado) !== JSON.stringify(esperado) || divergenciasVersoes.length > 0) {
+    falharResiduos(
+      (divergenciasVersoes.length > 0 ? `versões do mapeamento: ${divergenciasVersoes.join('; ')}\n` : '') +
         `observado: ${JSON.stringify(observado)}\nfixture:   ${JSON.stringify(esperado)}`,
     );
   }
@@ -280,16 +376,17 @@ export function compararDFC(
   dfc: DFC,
   caso: CasoGolden,
   periodos: { inicio: PeriodoSeed; fim: PeriodoSeed },
-  versaoIdDoSeed: string,
+  versaoEsperada: { id: string; numero: number; estado: string },
 ): void {
   const e = caso.esperado;
   compararColuna(dfc.atual, e, periodos, caso.nome);
   // E3: sem exercício anterior, N-1 é null («—» na UI) — nunca um parcial.
   expect(dfc.homologo, `${caso.nome}: homologo`).toBe(e.homologo);
   expect(dfc.provisorio, `${caso.nome}: provisorio (todos os períodos ABERTO)`).toBe(e.provisorio);
-  expect(dfc.versao.id, `${caso.nome}: versão do mapeamento é a do tenant demo`).toBe(versaoIdDoSeed);
-  expect(dfc.versao.numero).toBe(e.versao.numero);
-  expect(dfc.versao.estado).toBe(e.versao.estado);
+  // A versão carimbada é a MAIS RECENTE do tenant, lida da base (não um número
+  // fixo: versões posteriores com o conteúdo do seed são aceites — a sentinela
+  // garante que o conteúdo é o do seed).
+  expect(dfc.versao, `${caso.nome}: versão do mapeamento é a mais recente do tenant demo`).toEqual(versaoEsperada);
   expect(dfc.avisos, `${caso.nome}: avisos (contas CAIXA 111/121/122/123 — classe 1, folhas, activas)`).toEqual(
     e.avisos,
   );
