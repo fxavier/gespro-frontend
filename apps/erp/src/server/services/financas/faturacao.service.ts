@@ -638,7 +638,6 @@ async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
 export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta> {
   await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
-
     // W9: validar FKs cross-domínio contra tenant
     const cliente = await tx.cliente.findFirst({
       where: { id: input.clienteId, tenantId: ctx.tenantId },
@@ -822,7 +821,6 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
       throw new BusinessRuleError('FATURA_CANCELADA', 'Não é possível emitir NC para factura cancelada');
     }
 
-
     const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_CREDITO', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
@@ -957,7 +955,6 @@ export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx):
 export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): Promise<NotaDebitoCompleta> {
   await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
-
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
@@ -1092,7 +1089,6 @@ export async function cancelarNotaDebito(id: string, motivo: string, ctx: Ctx): 
 
 export async function criarProforma(input: CriarProformaInput, ctx: Ctx): Promise<ProformaCompleta> {
   return prismaBase.$transaction(async (tx) => {
-
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
@@ -1275,7 +1271,6 @@ export async function listarProformas(filtro: FiltroProformaInput, ctx: Ctx): Pr
 
 export async function criarCotacaoComercial(input: CriarCotacaoComercialInput, ctx: Ctx): Promise<CotacaoComercialCompleta> {
   return prismaBase.$transaction(async (tx) => {
-
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
