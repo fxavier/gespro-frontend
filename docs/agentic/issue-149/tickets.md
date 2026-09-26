@@ -6,7 +6,7 @@ termina num gate executável. Ordem por qualidade do oráculo — contratos → 
 ## Desenho fixado
 
 - **Rotas**: `/faturacao/series` (lista), `/faturacao/series/nova`, `/faturacao/series/[id]/editar`.
-- **Tipos no ecrã**: os 6 de `TipoSerieDocumentoEnum` (sujeito ao ticket 0, Q1).
+- **Tipos no ecrã**: os 6 de `TipoSerieDocumentoEnum`, RECIBO incluído (Q1 decidida).
 - **Invariantes do serviço**
   - **S1** — no máximo uma série `ativo = true` por `(tenantId, tipo, ano)`, para escritas da UI.
   - **S2** — `proximoNumero ≥ numeroInicial` sempre; «usada» ⇔ `proximoNumero > numeroInicial`.
@@ -21,7 +21,7 @@ termina num gate executável. Ordem por qualidade do oráculo — contratos → 
 ---
 
 - [ ] 0. [HUMANO] [BLOCKING] Responder às Open Questions do `intent.md`
-  - [ ] 0.1 Q1 — RECIBO no ecrã ou fora até haver emissor? (sugestão: dentro; a série existe e o bootstrap cria-a)
+  - [x] 0.1 Q1 — RECIBO no ecrã ou fora até haver emissor? **Decidido: entra no ecrã** (2026-09-26)
   - [ ] 0.2 Q3 — anos anteriores: basta reactivar? (sugestão: sim; S5 só limita a criação)
   - [ ] 0.3 Q4 — «documentos emitidos» = `proximoNumero − numeroInicial` (sugestão: sim)
   - [ ] 0.4 Q2 e Q5 ficam fora deste épico (sugestão: abrir issues próprias)

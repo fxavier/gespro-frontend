@@ -126,9 +126,9 @@ Todas vivem no serviço, com códigos estáveis em `BusinessRuleError`.
 
 ## Open Questions
 
-1. **RECIBO sem consumidor.** Existe série de RECIBO no bootstrap, mas nenhum serviço chama
-   `proximoNumeroSerie('RECIBO')`. Mostra-se no ecrã uma série que nunca numera nada, ou o RECIBO fica
-   fora até existir emissão de recibos?
+1. ~~**RECIBO sem consumidor.**~~ **Decidido (2026-09-26): o RECIBO entra no ecrã.** Os 6 tipos
+   ficam todos. A série existe e o bootstrap cria-a, embora nenhum serviço chame ainda
+   `proximoNumeroSerie('RECIBO')`: a coluna «emitidos» mostra 0 até existir emissão de recibos.
 2. **Elegibilidade na emissão.** Os selectores de série dos formulários de emissão (`listarSeriesParaSelecao`)
    filtram só por `ativo`, e não pelo ano da data do documento. Com uma só activa por tipo+ano, alinha-se
    o selector com o ano de `dataEmissao`? Está fora do âmbito, mas é adjacente.
