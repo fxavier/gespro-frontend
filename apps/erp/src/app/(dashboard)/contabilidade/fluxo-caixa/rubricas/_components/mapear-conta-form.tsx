@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { navegarDepoisDaAccao } from '@/lib/navegar-depois-da-accao';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,8 +66,7 @@ export function MapearContaForm({
       }
       toast.success('Conta mapeada. O mapeamento passou a uma versão nova, por validar.');
       form.reset(dados);
-      router.push(destino);
-      router.refresh();
+      await navegarDepoisDaAccao(router, destino);
     });
   });
 

@@ -13,6 +13,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
+import { navegarDepoisDaAccao } from '@/lib/navegar-depois-da-accao';
 import { ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,8 +50,7 @@ export function ValidarVersaoForm({ versaoId, numero, voltar }: { versaoId: stri
       }
       toast.success(`Versão ${numero} do mapeamento validada.`);
       form.reset(valores);
-      router.push(destino);
-      router.refresh();
+      await navegarDepoisDaAccao(router, destino);
     });
   });
 

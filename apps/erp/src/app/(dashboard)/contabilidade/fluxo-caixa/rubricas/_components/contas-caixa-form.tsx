@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { navegarDepoisDaAccao } from '@/lib/navegar-depois-da-accao';
 import { Plus, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Form, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -80,8 +81,7 @@ export function ContasCaixaForm({
       }
       toast.success('Contas de caixa gravadas. O mapeamento passou a uma versão nova, por validar.');
       form.reset(dados);
-      router.push(destino);
-      router.refresh();
+      await navegarDepoisDaAccao(router, destino);
     });
   });
 

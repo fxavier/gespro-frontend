@@ -3,7 +3,7 @@
 /**
  * Formulário de rubrica (nova / editar). O MESMO schema do servidor
  * (`CriarRubricaSchema`, mais `ativo` na edição). Submissão por
- * `useTransition` + `router.push` (CLAUDE.md: formulário cuja action muda o
+ * `useTransition` + `navegarDepoisDaAccao` (CLAUDE.md: formulário cuja action muda o
  * que a página mostra; `handleSubmit` fora de transição).
  *
  * Na edição: o código de uma rubrica SISTEMA e a actividade da rubrica de
@@ -15,6 +15,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
+import { navegarDepoisDaAccao } from '@/lib/navegar-depois-da-accao';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,8 +102,7 @@ export function RubricaForm({ rubrica, voltar }: { rubrica?: RubricaEditavel; vo
       }
       toast.success(rubrica ? 'Rubrica actualizada.' : 'Rubrica criada.');
       form.reset(valores);
-      router.push(destino);
-      router.refresh();
+      await navegarDepoisDaAccao(router, destino);
     });
   });
 

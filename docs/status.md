@@ -9,6 +9,50 @@ ADR-0023 §2–3 executado: `docs/README.md` é o ponto de entrada; `docs/sistem
 *last-mile* (serviço sem ecrã) e estado sem escritor; as 128 lacunas foram abertas como issues
 (`needs-triage` + `gravidade:A|M|B`); as 24 de gravidade **A**: #76, #77, #78, #79, #80, #81, #82, #83, #84, #85, #86, #87, #88, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98, #99.
 
+## 💧 Demonstração de Fluxos de Caixa (spec 22 · WS-2 · issue #153) — entregue, à espera do parecer (2026-09-26)
+
+Grafo [`.claude/grafos/dfc.md`](../.claude/grafos/dfc.md), ramo `ws-2-dfc` (worktree `wt/feat-dfc`), sob o
+[ADR-0037](decisions/ADR-0037-demonstracao-fluxos-caixa.md) `Aceite`. Nós `adr` a `fecho` entregues, e o `fecho` está
+à espera da revisão do orquestrador.
+
+- **Entregue**: `/contabilidade/dfc` (método indirecto) e `/contabilidade/fluxo-caixa/rubricas`, com o mapeamento
+  versionado e a validação por versão.
+- **Regras**:
+  - uma conta com movimento e sem mapeamento é **impedimento**, e o mapa não sai;
+  - `DFC_NAO_ARTICULA` corre em produção;
+  - a DFC só lê `Lancamento` (`gate-periodo` a zero).
+- **Saídas**: PDF em `GET /api/contabilidade/dfc/export` e E2E `18-dfc`.
+- **Handoff**: [`handoff/feat-22-fluxo-de-caixa.md`](handoff/feat-22-fluxo-de-caixa.md), secção «WS-2».
+
+**Por fazer:**
+
+- **Parecer contabilístico `[HUMANO]`** (ticket 11): até lá, qualquer cliente real vê «Mapeamento por validar».
+- **Bloqueio aberto**: «Validar» às vezes grava e não sai do ecrã. O botão fica em «A validar…» em ~1 de cada 10
+  submissões; diagnóstico e três voltas no handoff, em «Bloqueios».
+
+**Dívida declarada** (detalhe no handoff):
+
+- errata humana ao ADR-0037 E2 (`saldoContabilAte` → saldos dos mesmos balancetes), com o registo de
+  `RUBRICA_CAIXA_UNICA`;
+- período 13 na DFC (ADR-0035);
+- `AuditLog` fora da transacção;
+- histórico de versões sem paginação;
+- `CommandPalette` sem filtro por permissão;
+- emitente (nome e NUIT) no PDF, por decidir;
+- balancete ainda com o defeito do último dia;
+- tenants `perf-*` com impedimento na DFC (contas `9.n` por mapear de propósito).
+
+**Dívida transversal de acessibilidade — contraste AA a 4,47:1 em tabelas com negativos a vermelho.** Com o rato
+sobre uma linha, o `text-destructive` de um valor negativo sobre o `hover:bg-muted/50` da `TableRow` fica a
+**4,47:1** no tema claro (#e7000b sobre #f4f8ff), abaixo dos 4,5:1 do AA. Afecta **a DRE, o razão e o balancete** (e
+qualquer tabela da casa com negativos a vermelho e hover). O axe só o apanha se o rato ficar sobre a linha.
+
+- Na DFC foi contornado: retirou-se o hover das tabelas do mapa (`[&_tr:hover]:bg-transparent`).
+- A correcção de raiz é de marca: um token de hover mais claro ou um vermelho mais escuro em `packages/brand/tokens.css`,
+  seguida do axe nas duas apps.
+
+Origem: revisão do nó `pagina`, MINOR 2 ([`handoff/dfc-pagina.md`](handoff/dfc-pagina.md)).
+
 ## 🔄 Ciclo contabilístico e fiscal (ADR-0033/0034/0035) — Fases 0 e 1 feitas (2026-09-19)
 
 Ramo `ciclo-contabilistico`. Os três ADRs estão **`Proposto`** — passá-los a `Aceite` é acto humano, e

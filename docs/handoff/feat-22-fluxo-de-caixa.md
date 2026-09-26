@@ -9,7 +9,7 @@
 | Épico | Agente | Worktree | Nó actual | Estado |
 |---|---|---|---|---|
 | WS-1 Projecção de Tesouraria | `feat-tesouraria` | `wt/feat-tesouraria` | L2 **fechado** → L3 | Núcleo puro entregue; oráculo `projecao.property.test.ts` 11/11 verde, intocado; cobertura do módulo 97,9 % linhas / 96,2 % ramos; caso canónico §4.1-bis confirmado por script |
-| WS-2 DFC | `feat-dfc` | `wt/feat-dfc` | L9 | Bloqueado por WS-1 |
+| WS-2 DFC | `feat-dfc` | `wt/feat-dfc` | `fecho` entregue ao orquestrador (REVIEW dele por fazer) → `parecer` `[HUMANO]` | Entregue até ao 10.3; ver «WS-2 — … entrega». Falta o parecer contabilístico (ticket 11) e fica um bloqueio aberto na validação da versão (ver «Bloqueios») |
 
 ## Mapa de conflitos
 
@@ -362,6 +362,101 @@ Fixados pelo nó `contratos` do grafo `dfc` (issue #153, 2026-09-25): ver
 `CompromissoTesouraria.rubricaId`), `validations/fluxo-caixa.ts` e `dfc.interface.ts`, com as decisões e o que
 os nós `oraculos` e `seed` assumem.
 
+## WS-2 — Demonstração de Fluxos de Caixa (issue #153): entrega
+
+> Grafo [`.claude/grafos/dfc.md`](../../.claude/grafos/dfc.md), worktree `wt/feat-dfc`, ramo `ws-2-dfc`. Decisão
+> vinculativa: [ADR-0037](../decisions/ADR-0037-demonstracao-fluxos-caixa.md), com a «Emenda 2026-09-25».
+> Consolidado pelo nó `fecho` (tickets 10.2 e 10.3) em 2026-09-26, à espera da revisão do orquestrador. **Falta o nó `parecer` `[HUMANO]`**: até lá, qualquer
+> cliente real vê a faixa «Mapeamento por validar», e a #153 não fecha.
+
+### O que foi entregue, por nó
+
+Os commits vêm de `git log --oneline 07b814e..HEAD`. O `13c64c2 fix(compras)` está nesse intervalo, mas é alheio à
+DFC: repõe dois imports que o merge do #206 deixou cair. Cada nó tem handoff próprio em `docs/handoff/dfc-<nó>.md`.
+
+| Nó | Ticket | Commits | O que ficou |
+|---|---|---|---|
+| `adr` | 0 | `87aa7b0` | ADR-0037 `Aceite`, com a emenda de 2026-09-25 (acto humano). |
+| `contratos` | 1 | `a865604` · ⚙ `e837870` (`22b`) | 4 enums e 3 modelos (`RubricaFluxoCaixa`, `MapeamentoContaFluxo` com `@@unique([tenantId, contaId])`, `VersaoMapeamentoFluxo`), `validations/fluxo-caixa.ts`, `dfc.interface.ts`. |
+| `oraculos` | 2 | `cd48052` · `16a22a3` | Oráculos do núcleo (I6, I8, I10 no puro). |
+| `nucleo` | 3 | `fe5a78f` | `classificarVariacoes`, `montarSeccoesDFC`, `verificarArticulacao`: puras, sem Prisma nem `Date.now()`. |
+| `seed-v` | 4.4 | `aab9176` · `02b2f17` | Casos DFC de `tenant-bootstrap.test.ts`: um tenant novo fica com zero contas folha por mapear. |
+| `seed` | 4.1–4.3 | `496481e` · ⚙ `542e845` (`22c`) | `rubricas-fluxo-caixa.json`; `semearRubricasFluxo()` em função própria, chamada pelo `tenant-bootstrap.ts`, idempotente; versão 1 `PENDING`. |
+| `servico-v` | 5.3 | `49588cd` · `1cecdff` | Golden `dfc-seed-demo.json`, I9 (coerência com a DRE), I10 (isolamento), impedimentos. |
+| `servico` | 5.1–5.2 | `81cd84b` | `gerarDFC` (impedimentos primeiro, sem mapa; `DFC_NAO_ARTICULA` com o delta em produção) e `contasNaoMapeadas`. |
+| `fatia` | 6 | `1f6989e` | `/contabilidade/dfc` mínima, actions, permissões `financas:fluxo-caixa:{leitura,configurar,validar}`, entradas no menu, paleta e fio de Ariadne. |
+| `config-v` | gate de 7 | `e9c2466` · `55a15e3` | V1–V3 contra o serviço real e o duplo com estado; sentinela da golden por instantâneo; `voltarSeguro`. |
+| `export-v` · `export` | 9.1 | `f45795c` · `4a32121` · merge `f927ff3` · `7a89e07` | Route Handler `GET /api/contabilidade/dfc/export` (PDF com as marcas; 422 com impedimentos; passa em Leitura). |
+| `config` | 7 | `5d8cc2f` | `/contabilidade/fluxo-caixa/rubricas` (+ `nova`, `[id]/editar`, `mapear`, `contas-caixa`, `validar`, `versoes`); cada escrita cria a versão n+1 `PENDING`; `desmapearConta`. |
+| — | 8.3/8.4 | `5944213` | DRE e razão lêem o dia civil de Maputo e incluem o último dia (a DFC liga para as duas «do mesmo intervalo»). |
+| `pagina` | 8 + 9.2 | `dc6f411` | Página completa: secções, painel de impedimentos com «Mapear», articulação, faixa, gráfico, «Exportar PDF»; AA nos dois temas. |
+| `e2e-v` | 10.1 | `7ef5500` · `4914221` | `e2e/18-dfc.spec.ts`, com o fluxo inteiro pela UI. |
+| `fecho` | 10.2–10.3 | por commitar (o orquestrador faz) | Regresso depois de gravar (achado 1 do `e2e-v`, só em parte: ver «Bloqueios»); `rubricas/[id]/page.tsx`; este handoff; `status.md`; lacunas. Detalhe em [`dfc-fecho.md`](dfc-fecho.md). |
+
+### Invariantes e onde vivem os oráculos
+
+Todos foram escritos pelo `verificador-fluxo-caixa` e estão **protegidos**: um nó de autor que lhes toque é BLOCKER.
+
+| Invariante / regra | Oráculo |
+|---|---|
+| I6 articulação · I8 aditividade · I10 no núcleo | `src/server/services/financas/__tests__/dfc.property.test.ts` |
+| Versões do mapeamento (V1–V3) | `__tests__/mapeamento-versao.property.test.ts`, `__tests__/dfc-config.test.ts`, `helpers/duplo-config-dfc.ts` (+ `duplo-config-dfc.autoteste.test.ts`) |
+| Golden do seed, ao cêntimo | `__tests__/dfc.golden.test.ts` + `fixtures/dfc-seed-demo.json` + `helpers/dfc-golden.ts` (+ `dfc-golden-sentinela.autoteste.test.ts`) |
+| I7 impedimentos (todos de uma vez, sem mapa) · I10 isolamento | `__tests__/dfc.impedimentos-isolamento.test.ts` |
+| I9 coerência com a DRE · saldo de caixa pelos mesmos balancetes | `__tests__/dfc-coerencia-caixa.test.ts`, `__tests__/dfc-saldo-caixa.test.ts`, `__tests__/dfc-servico-homologo.test.ts` |
+| Permissões | `__tests__/dfc-permissoes.test.ts` |
+| Tenant novo sem contas por mapear | `src/server/provisioning/__tests__/tenant-bootstrap.test.ts` (casos DFC), `rubricas-fluxo-caixa.json.test.ts`, `semear-rubricas-versionado.test.ts` |
+| `?voltar=` sem redireccionamento aberto | `src/lib/__tests__/dfc-voltar.test.ts` |
+| PDF com marcas, 422, GET em Leitura | `src/app/api/contabilidade/dfc/export/__tests__/export-dfc-handler.test.ts` |
+| Fluxo inteiro pela UI | `e2e/18-dfc.spec.ts` |
+| A DFC não escreve em `Lancamento`/`PartidaLancamento` | `gate-periodo` (em `pnpm gates`): **a zero** no fecho (ticket 10.2) |
+
+### Como correr
+
+```bash
+# da raiz da worktree
+pnpm check && pnpm gates        # inclui a golden e as sentinelas contra a base local
+cd apps/erp
+npx vitest run src/server/services/financas/__tests__/dfc.golden.test.ts \
+               src/server/services/financas/__tests__/dfc.impedimentos-isolamento.test.ts
+# E2E, sozinho, com o servidor desta worktree numa porta livre (não a 3000)
+pnpm --filter erp build
+KEYCLOAK_CLIENT_SECRET="$(docker exec gespro-keycloak printenv GESPRO_ERP_CLIENT_SECRET)" \
+  NEXTAUTH_URL=http://localhost:3010 AUTH_URL=http://localhost:3010 APP_URL=http://localhost:3010 \
+  npx next start -p 3010 &
+BASE_URL=http://localhost:3010 npx playwright test e2e/18-dfc.spec.ts --project=setup --project=e2e
+pkill -f "next start -p 3010"; git checkout -- apps/erp/playwright/.auth/admin.json
+```
+
+A golden e as sentinelas lêem a base local: o mapeamento vivo do tenant `demo` tem de estar igual ao do seed. Versões
+posteriores (append-only) são aceites; a mais recente tem de ter o instantâneo da v1.
+
+### Dívida aberta
+
+| Dívida | Onde nasceu | Quem fecha |
+|---|---|---|
+| **Errata ao ADR-0037 E2.** A letra diz `saldoContabilAte`; o código e os oráculos usam os saldos dos **mesmos balancetes** (`FILTRO_LANCAMENTO_MAPA`), porque `saldoContabilAte` filtra só `LANCADO` e numa conta com estornos guarda a metade invertida. Registar também `RUBRICA_CAIXA_UNICA` (uma só rubrica `CAIXA` por tenant; não se cria outra nem se muda a actividade de ou para `CAIXA`), ratificada pelo orquestrador. | `dfc-contratos.md` M2; `dfc-config.md` | humano (o ADR está `Aceite`) |
+| **Período 13 (encerramento).** Os limites da DFC são por data, e o período 13 coincide em data com o 12: os lançamentos de encerramento entram no intervalo de dezembro. | `dfc-servico.md` MINOR-3 | ADR-0035 |
+| **`AuditLog` fora da transacção.** A `audit-extension` grava o trilho fora da tx da escrita: um rollback deixa trilho de uma escrita que não aconteceu. Transversal, não é da DFC. | `dfc-config.md` m2 | transversal |
+| **Histórico de versões sem paginação.** `/rubricas/versoes` carrega todas as versões com o `instantaneo` JSON inteiro para contar rubricas e contas. Com o `e2e-v` e o `fecho`, o `demo` local já passa de 500 versões. | `dfc-config.md` m5 | nó seguinte da DFC |
+| **`CommandPalette` sem filtro por permissão.** Anterior à DFC, afecta todas as entradas. | `dfc-fatia.md`, `dfc-pagina.md` | transversal |
+| **Emitente (nome e NUIT) no PDF.** O cabeçalho do PDF não tem o emitente. Por decidir. | `dfc-export.md` MINOR | humano |
+| **Balancete ainda com o defeito do último dia.** `/contabilidade/balancete` converte `aaaa-mm-dd` por meia-noite UTC; a DRE e o razão foram corrigidos em `5944213`, o balancete não. | `5944213`; CLAUDE.md | transversal |
+| **Tenants `perf-*` com impedimento na DFC.** As contas `9.n` do `seed:volume` ficam por mapear de propósito; `gerarDFC` num `perf-*` devolve impedimentos. Quando a DFC entrar nos cenários k6, o cenário tem de as mapear primeiro. | `dfc-seed.md` NIT (a) | quem escrever o cenário k6 |
+| **Contraste AA a 4,47:1** em tabelas com negativos a vermelho sob `hover:bg-muted/50` (DRE, razão, balancete). Na DFC foi contornado retirando o hover. | `dfc-pagina.md` MINOR 2 | transversal (`docs/status.md`) |
+| **A validação da versão às vezes não regressa** (e deixa o botão em «A validar…»). Ver «Bloqueios». | `fecho`, achado A | orquestrador |
+
+### O que o nó `parecer` `[HUMANO]` precisa
+
+- **O material**: a tabela 4.1, conta a conta, com as dúvidas marcadas ⚠, em
+  [`dfc-seed.md` § «Tabela 4.1 — justificação conta a conta»](dfc-seed.md#tabela-41--justificação-conta-a-conta-material-do-nó-parecer),
+  e a nota sobre a estrutura do plano logo a seguir (contas-mãe que aceitam lançamento; 51 e 59 sem folhas).
+- **O pedido ao contabilista**: o prompt **PH** de [`docs/agentic/issue-153/prompts.md`](../agentic/issue-153/prompts.md).
+  Junta a tabela exportada, a DFC do exercício de demonstração, e a DRE e o balancete do mesmo período.
+- **Depois do parecer**: um PR com as correcções ao 4.1 e a golden 5.3 re-derivada **à mão** (nunca `vitest -u`).
+  Depois, «Validar versão actual» com observação em cada tenant real. Só então o `parecer` fica FEITO e a #153 fecha.
+  O registo fica na secção «Parecer contabilístico» abaixo.
+
 ## Dependências de leitura noutros domínios
 
 Só leitura, sem alteração de schema fora de `financas.prisma`:
@@ -555,6 +650,46 @@ leia o ADR primeiro.
 
 _Um nó que falhe três vezes a mesma verificação escreve aqui: o que tentou, o caso mínimo que
 reproduz, e as três hipóteses de causa. Não continua a iterar._
+
+### `fecho` (grafo `dfc`), 2026-09-26: a validação da versão às vezes não regressa
+
+**Sintoma.** Em `/contabilidade/fluxo-caixa/rubricas/validar`, «Validar» grava e mostra o toast «Versão N do
+mapeamento validada.», mas o botão fica em «A validar…» para sempre, a página continua a mostrar «Por validar» e o
+URL não muda. Acontece em cerca de 1 validação em 10 (entre 1/20 e 5/20 por corrida, em `next start`). Recarregar a
+página mostra a versão validada: **a escrita acontece, o ecrã é que não sai do sítio.**
+
+**Caso mínimo.** Pela UI, 20 vezes seguidas: mapear a 411 alternadamente em OP-05 e OP-04, abrir `/validar`,
+preencher a observação e clicar em «Validar». O script é ad-hoc: está em [`dfc-fecho.md`](dfc-fecho.md) e foi
+apagado.
+
+**O que foi tentado. Três voltas, nenhuma verde:**
+
+1. Tirar o `router.refresh()` a seguir ao `router.push`: não mudou nada.
+2. `navegarDepoisDaAccao`, que espera uma macrotarefa antes do `push`. Corrigiu a edição de rubrica (de 4/18 para 0/40),
+   mas a validação não mudou (2/20, 1/20, 2/20).
+3. `redirect()` no servidor, com uma action `validarVersaoEVoltarAction`, para a resposta trazer a árvore do destino
+   numa só entrada da fila. Deu 5/60, e foi revertido.
+
+**O que se sabe, por instrumentação temporária do Next (já removida):**
+
+- A fila do router está sã. A action é aplicada e sai da fila, o `navigate` é despachado com a fila vazia e é
+  resolvido.
+- O que não chega a acontecer é o **commit do React**.
+- O defeito **reproduz-se sem `push` nenhum** (1/40): a transição da própria action pendura.
+- A navegação simples `/editar → /rubricas` («Cancelar») deu 0/60, e o «mapear» nunca falhou (0/40 antes da correcção, 0 em mais de 200 gravações depois).
+
+**Hipóteses que ficam (por ordem):**
+
+- **(a)** A árvore que a resposta da action traz suspende numa promessa que nunca se cumpre. Na `/validar`, a página
+  muda de ramo e desmonta o formulário dono da transição; no «mapear» isso não acontece.
+- **(b)** Defeito do React 19 ou do Next 16.0.10 ao aplicar a árvore revalidada de uma action cuja página muda de
+  ramo. Nesse caso reproduz-se num projecto mínimo, e a saída é actualizar o Next ou abrir uma issue a montante.
+- **(c)** Um componente do layout com `use()` sobre dados que a revalidação invalida.
+
+O passo seguinte é instrumentar o React (o `thenable` em que a raiz suspende), não o Next.
+
+**Impacto.** O E2E `18-dfc` passa na mesma: valida uma vez por corrida. Em uso real, quem valida pode ficar a olhar
+para «A validar…» e recarregar a página. O mapeamento fica validado.
 
 ## Parecer contabilístico (task 15.3, `[HUMANO]`)
 
