@@ -134,7 +134,6 @@ export type IdSerieDocumentoInput = z.infer<typeof IdSerieDocumentoSchema>;
 
 export const EmitirFaturaSchema = z
   .object({
-    serieDocumentoId: z.string().cuid('ID de série inválido'),
     clienteId: z.string().min(1, 'Cliente obrigatório'),
     vendaId: z.string().optional(),
     moeda: z.string().length(3).default('MZN'),
@@ -182,7 +181,6 @@ export type FiltroFaturaInput = z.infer<typeof FiltroFaturaSchema>;
 // ---------------------------------------------------------------------------
 
 export const EmitirNotaCreditoSchema = z.object({
-  serieDocumentoId: z.string().cuid('ID de série inválido'),
   faturaOriginalId: z.string().cuid('ID de factura original inválido'),
   motivo: z.string().min(1, 'Motivo obrigatório').max(500),
   moeda: z.string().length(3).default('MZN'),
@@ -209,7 +207,6 @@ export type FiltroNotaCreditoInput = z.infer<typeof FiltroNotaCreditoSchema>;
 // ---------------------------------------------------------------------------
 
 export const EmitirNotaDebitoSchema = z.object({
-  serieDocumentoId: z.string().cuid('ID de série inválido'),
   clienteId: z.string().min(1, 'Cliente obrigatório'),
   faturaReferenciaId: z.string().cuid().optional(),
   motivo: z.string().min(1, 'Motivo obrigatório').max(500),
@@ -238,7 +235,6 @@ export type FiltroNotaDebitoInput = z.infer<typeof FiltroNotaDebitoSchema>;
 
 export const CriarProformaSchema = z
   .object({
-    serieDocumentoId: z.string().cuid('ID de série inválido'),
     clienteId: z.string().min(1, 'Cliente obrigatório'),
     moeda: z.string().length(3).default('MZN'),
     dataEmissao: z.coerce.date(),
@@ -270,7 +266,6 @@ export type FiltroProformaInput = z.infer<typeof FiltroProformaSchema>;
 
 export const CriarCotacaoComercialSchema = z
   .object({
-    serieDocumentoId: z.string().cuid('ID de série inválido'),
     clienteId: z.string().min(1, 'Cliente obrigatório'),
     moeda: z.string().length(3).default('MZN'),
     dataEmissao: z.coerce.date(),

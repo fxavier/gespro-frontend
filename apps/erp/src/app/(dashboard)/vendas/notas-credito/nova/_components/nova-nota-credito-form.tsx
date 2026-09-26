@@ -35,11 +35,9 @@ import { EmitirNotaCreditoSchema, type EmitirNotaCreditoInput } from '@/lib/vali
 
 type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
 
-interface SerieOption { id: string; label: string }
 interface FaturaOption { id: string; numero: string; total: string }
 
 interface NovaNotaCreditoFormProps {
-  series: SerieOption[];
   faturas: FaturaOption[];
 }
 
@@ -54,7 +52,7 @@ const MOTIVOS = [
   'Outro motivo',
 ];
 
-export function NovaNotaCreditoForm({ series, faturas }: NovaNotaCreditoFormProps) {
+export function NovaNotaCreditoForm({ faturas }: NovaNotaCreditoFormProps) {
   const router = useRouter();
   const [state, dispatch, isPending] = useActionState<FormState, EmitirNotaCreditoInput>(
     (_prev, data) => emitirNotaCredito(data),
@@ -118,25 +116,6 @@ export function NovaNotaCreditoForm({ series, faturas }: NovaNotaCreditoFormProp
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="serieDocumentoId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Série de documento *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Seleccionar série…"
-                      options={series.map((s) => ({ value: s.id, label: s.label }))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
               name="faturaOriginalId"
               render={({ field }) => (
                 <FormItem>
@@ -165,6 +144,9 @@ export function NovaNotaCreditoForm({ series, faturas }: NovaNotaCreditoFormProp
                       onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)} />
                   </FormControl>
                   <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    Numerada na série activa de nota de crédito do ano da data de emissão.
+                  </p>
                 </FormItem>
               )}
             />

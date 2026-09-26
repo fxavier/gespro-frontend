@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
 import { criarCotacaoComercial } from '@/server/actions/faturacao.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
@@ -34,7 +34,6 @@ const LinhaFormSchema = z.object({
 
 const FormSchema = z
   .object({
-    serieDocumentoId: z.string().min(1, 'Série obrigatória'),
     clienteId: z.string().min(1, 'Cliente obrigatório'),
     dataEmissao: z.string().min(1, 'Data obrigatória'),
     dataValidade: z.string().min(1, 'Data obrigatória'),
@@ -49,13 +48,9 @@ const FormSchema = z
 
 type FormValues = z.infer<typeof FormSchema>;
 
-interface Props {
-  series: Array<{ id: string; codigo: string; nome: string }>;
-}
-
 const today = new Date().toISOString().split('T')[0];
 
-export function NovaCotacaoForm({ series }: Props) {
+export function NovaCotacaoForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -68,7 +63,6 @@ export function NovaCotacaoForm({ series }: Props) {
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      serieDocumentoId: series[0]?.id ?? '',
       clienteId: '',
       dataEmissao: today,
       dataValidade: '',
@@ -80,8 +74,6 @@ export function NovaCotacaoForm({ series }: Props) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'linhas' });
   const linhas = useWatch({ control, name: 'linhas' }) ?? [];
-  const serieId = useWatch({ control, name: 'serieDocumentoId' });
-  const serieEscolhida = series.find((s) => s.id === serieId);
 
   const { base: _subtotal, iva: _iva, total: _total } = calcularTotais(
     linhas
@@ -100,7 +92,6 @@ export function NovaCotacaoForm({ series }: Props) {
   const onSubmit = handleSubmit((values) => {
     startTransition(async () => {
       const result = await criarCotacaoComercial({
-        serieDocumentoId: values.serieDocumentoId,
         clienteId: values.clienteId,
         moeda: 'MZN',
         dataEmissao: values.dataEmissao,
@@ -143,28 +134,8 @@ export function NovaCotacaoForm({ series }: Props) {
           </>
         }
       >
-        <FormSection title="Série e Cliente" description="Identifique a série e o destinatário da cotação">
+        <FormSection title="Cliente e datas" description="Identifique o destinatário da cotação">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="serie-cotacao">Série de Documento *</Label>
-              <Combobox
-                id="serie-cotacao"
-                aria-label="Série de Documento"
-                value={serieId}
-                disabled={series.length === 0}
-                onChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
-                placeholder="Seleccione a série"
-                options={series.map((s) => ({ value: s.id, label: s.nome }))}
-              />
-              {series.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Sem séries activas deste tipo — configure uma antes de emitir.
-                </p>
-              )}
-              {errors.serieDocumentoId && (
-                <p className="text-sm text-destructive">{errors.serieDocumentoId.message}</p>
-              )}
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="cliente-id">ID do Cliente *</Label>
@@ -180,6 +151,9 @@ export function NovaCotacaoForm({ series }: Props) {
             <div className="space-y-2">
               <Label htmlFor="data-emissao">Data de Emissão *</Label>
               <Input id="data-emissao" type="date" {...register('dataEmissao')} />
+              <p className="text-xs text-muted-foreground">
+                Numerada na série activa de cotação do ano da data de emissão.
+              </p>
               {errors.dataEmissao && (
                 <p className="text-sm text-destructive">{errors.dataEmissao.message}</p>
               )}

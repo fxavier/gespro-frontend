@@ -30,7 +30,6 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import {
-  Combobox,
   ComboboxRemoto,
   FormPage,
   FormSection,
@@ -44,11 +43,9 @@ import { EmitirFaturaSchema, type EmitirFaturaInput } from '@/lib/validations/fa
 // Tipos inline — evita importar server-only num Client Component.
 type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
 
-interface SerieOption { id: string; label: string }
 interface ClienteOption { id: string; codigo: string; nome: string }
 
 interface NovaFaturaFormProps {
-  series: SerieOption[];
   clientes: ClienteOption[];
 }
 
@@ -75,7 +72,7 @@ const DEFAULT_VALUES: Partial<EmitirFaturaInput> = {
 
 const rotuloCliente = (c: { codigo: string; nome: string }) => `${c.codigo} — ${c.nome}`;
 
-export function NovaFaturaForm({ series, clientes }: NovaFaturaFormProps) {
+export function NovaFaturaForm({ clientes }: NovaFaturaFormProps) {
   // A pesquisa de clientes vai ao servidor: há mais do que cabe numa lista.
   const opcoesClientes: ComboboxOption[] = clientes.map((c) => ({ value: c.id, label: rotuloCliente(c) }));
   const buscarClientes = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
@@ -150,27 +147,6 @@ export function NovaFaturaForm({ series, clientes }: NovaFaturaFormProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="serieDocumentoId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Série de documento *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Seleccione a série"
-                      searchPlaceholder="Pesquisar série…"
-                      emptyText="Nenhuma série encontrada."
-                      options={series.map((s) => ({ value: s.id, label: s.label }))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
               name="clienteId"
               render={({ field }) => (
                 <FormItem>
@@ -205,6 +181,9 @@ export function NovaFaturaForm({ series, clientes }: NovaFaturaFormProps) {
                     />
                   </FormControl>
                   <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    Numerada na série activa de fatura do ano da data de emissão.
+                  </p>
                 </FormItem>
               )}
             />

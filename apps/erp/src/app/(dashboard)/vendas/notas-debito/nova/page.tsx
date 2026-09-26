@@ -1,12 +1,12 @@
 /**
  * Nova Nota de Débito — Server Component.
- * Pré-carrega séries e clientes para o formulário (sem Dialog).
+ * Pré-carrega os clientes para o formulário (sem Dialog). A série não se
+ * escolhe (#93): é a activa de NOTA_DEBITO no ano da data de emissão.
  */
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { listarSeries } from '@/server/services/financas/faturacao.service';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { PageHeader } from '@/components/patterns';
 import { NovaNotaDebitoForm } from './_components/nova-nota-debito-form';
@@ -18,16 +18,9 @@ export default async function NovaNotaDebitoPage() {
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 
-  const [todasSeries, paginaClientes] = await Promise.all([
-    runWithTenantContext(ctx, () => listarSeries(ctx)),
-    runWithTenantContext(ctx, () =>
-      clienteService.listar({ status: 'ATIVO', take: 200, orderBy: 'nome', order: 'asc' }, ctx)
-    ),
-  ]);
-
-  const series = todasSeries
-    .filter((s) => s.tipo === 'NOTA_DEBITO' && s.ativo)
-    .map((s) => ({ id: s.id, label: `${s.prefixo}/${s.ano} — ND` }));
+  const paginaClientes = await runWithTenantContext(ctx, () =>
+    clienteService.listar({ status: 'ATIVO', take: 200, orderBy: 'nome', order: 'asc' }, ctx)
+  );
 
   const clientes = paginaClientes.items.map((c) => ({ id: c.id, nome: c.nome }));
 
@@ -42,7 +35,7 @@ export default async function NovaNotaDebitoPage() {
           { label: 'Nova Nota de Débito' },
         ]}
       />
-      <NovaNotaDebitoForm series={series} clientes={clientes} />
+      <NovaNotaDebitoForm clientes={clientes} />
     </div>
   );
 }

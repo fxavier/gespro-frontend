@@ -203,11 +203,12 @@ limpá-lo; `+`/`-` — aumentar ou diminuir a última linha.
 - Precisa da permissão de emitir faturas (Administrador, Gestor, Financeiro).
 - O seu **e-mail tem de estar confirmado** (ver a caixa no início do capítulo).
 - Tem de existir uma série de fatura activa para o ano da data de emissão (normalmente `FAT/<ano>`, criada
-  automaticamente).
+  automaticamente). A série não se escolhe: a fatura é numerada na série activa de faturas do ano da data de
+  emissão.
 
 **Passos**
 1. Abra **Vendas & POS › Faturas** e clique **Nova Fatura**.
-2. Em **Dados da Fatura**, escolha a **Série de documento \*** (por exemplo «FAT/2026 — FATURA») e o **Cliente \***.
+2. Em **Dados da Fatura**, escolha o **Cliente \***.
 3. Indique a **Data de emissão \*** e a **Data de vencimento \*** (não pode ser anterior à de emissão), a **Moeda**
    (MZN — Metical, USD — Dólar ou EUR — Euro) e, se quiser, **Observações**.
 4. Em **Linhas da Fatura**, para cada linha preencha **Descrição \***, **Quantidade \***, **Preço Unit. (MT) \***,
@@ -247,9 +248,10 @@ mais, venda cancelada ou desconto concedido depois.
 
 **Passos**
 1. Abra **Vendas & POS › Notas de Crédito** e clique **Nova Nota de Crédito**.
-2. Em **Dados da Nota de Crédito**, escolha a **Série de documento \*** (por exemplo «NC/2026 — NC»), a **Fatura
-   original \*** (aparece com número e total), a **Data de emissão \*** e o **Motivo \***: Devolução de mercadoria,
-   Produto com defeito, Erro no valor cobrado, Cancelamento de venda, Desconto posterior ou Outro motivo.
+2. Em **Dados da Nota de Crédito**, escolha a **Fatura original \*** (aparece com número e total), a **Data de
+   emissão \*** e o **Motivo \***: Devolução de mercadoria, Produto com defeito, Erro no valor cobrado, Cancelamento
+   de venda, Desconto posterior ou Outro motivo. A nota é numerada na série activa de notas de crédito do ano da
+   data de emissão.
 3. Em **Itens a Creditar**, descreva cada item (**Descrição \***, **Quantidade**, **Preço (MT)**, **Desconto (MT)**,
    **IVA**). Credite só o que está a corrigir, não a fatura inteira, a menos que seja esse o caso.
 4. Clique **Emitir Nota de Crédito**.
@@ -278,9 +280,10 @@ contratual, uma correcção de preço ou custos logísticos adicionais.
 
 **Passos**
 1. Abra **Vendas & POS › Notas de Débito** e clique **Nova Nota de Débito**.
-2. Em **Dados da Nota de Débito**, escolha a **Série de documento \*** (por exemplo «ND/2026 — ND»), o
-   **Cliente \***, a **Data de emissão \*** e o **Motivo \***: Serviços adicionais não faturados, Actualização
-   contratual, Correcção de preço, Custos logísticos adicionais ou Outro. Acrescente **Observações** se precisar.
+2. Em **Dados da Nota de Débito**, escolha o **Cliente \***, a **Data de emissão \*** e o **Motivo \***: Serviços
+   adicionais não faturados, Actualização contratual, Correcção de preço, Custos logísticos adicionais ou Outro.
+   Acrescente **Observações** se precisar. A nota é numerada na série activa de notas de débito do ano da data de
+   emissão.
 3. Em **Ajustes / Serviços**, descreva cada valor (**Descrição \***, **Quantidade**, **Preço (MT)**,
    **Desconto (MT)**, **IVA** 16% ou 0% (isento)). Para um valor único (por exemplo juros), use quantidade 1 e o valor
    no preço.

@@ -293,12 +293,19 @@ function anoFiscalDe(data: Date): number {
   return parseInt(partes.find((p) => p.type === 'year')!.value, 10);
 }
 
-export async function proximoNumeroSerie(
+/**
+ * Numera um documento e devolve também a série que o numerou (#93).
+ *
+ * A série de um documento não se escolhe: é a activa do tipo no ano (Maputo)
+ * da data do documento — com a #149 há no máximo uma. Quem emite grava
+ * `serieDocumentoId` = o id devolvido aqui, nunca um id vindo do input.
+ */
+export async function numerarDocumento(
   tx: Prisma.TransactionClient,
   tipo: TipoSerieDocumento,
   ctx: Ctx,
   data: Date,
-): Promise<string> {
+): Promise<{ numero: string; serieDocumentoId: string }> {
   // ADR-0033 §4: filtra pelo ano do documento (em Africa/Maputo) em vez de ORDER BY ano DESC.
   // O modo de falha anterior era silencioso: a 1 de Janeiro de 2027, com só a série de 2026
   // activa, continuava a emitir FAT/2026/000487 para documentos de 2027. Agora lança
@@ -308,7 +315,7 @@ export async function proximoNumeroSerie(
   // Incrementa atomicamente e devolve o número anterior (que irá usar o documento).
   // FOR UPDATE na subquery garante serialização sem lacunas mesmo com transacções concorrentes.
   const rows = await tx.$queryRaw<
-    Array<{ numero: number; prefixo: string; ano: number; formatoNumero: string }>
+    Array<{ id: string; numero: number; prefixo: string; ano: number; formatoNumero: string }>
   >`
     UPDATE "SerieDocumento"
     SET "proximoNumero" = "proximoNumero" + 1
@@ -322,7 +329,7 @@ export async function proximoNumeroSerie(
       LIMIT 1
       FOR UPDATE
     )
-    RETURNING "proximoNumero" - 1 AS numero, prefixo, ano, "formatoNumero"
+    RETURNING id, "proximoNumero" - 1 AS numero, prefixo, ano, "formatoNumero"
   `;
 
   if (!rows.length) {
@@ -332,8 +339,18 @@ export async function proximoNumeroSerie(
     );
   }
 
-  const { numero, prefixo, ano, formatoNumero } = rows[0];
-  return formatarNumero(formatoNumero, { prefixo, ano, numero });
+  const { id, numero, prefixo, ano, formatoNumero } = rows[0];
+  return { numero: formatarNumero(formatoNumero, { prefixo, ano, numero }), serieDocumentoId: id };
+}
+
+/** Contrato dos outros domínios: só o número (a série fica por conta de `numerarDocumento`). */
+export async function proximoNumeroSerie(
+  tx: Prisma.TransactionClient,
+  tipo: TipoSerieDocumento,
+  ctx: Ctx,
+  data: Date,
+): Promise<string> {
+  return (await numerarDocumento(tx, tipo, ctx, data)).numero;
 }
 
 // ---------------------------------------------------------------------------
@@ -621,10 +638,6 @@ async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
 export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta> {
   await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de documento não encontrada ou inactiva');
 
     // W9: validar FKs cross-domínio contra tenant
     const cliente = await tx.cliente.findFirst({
@@ -641,13 +654,13 @@ export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<
       if (!venda) throw new NotFoundError('Venda não encontrada');
     }
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'FATURA', ctx, input.dataEmissao);
     const totais = calcularTotaisLinhas(input.linhas);
 
     const fatura = await tx.fatura.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         clienteId: input.clienteId,
         vendaId: input.vendaId ?? null,
@@ -809,12 +822,8 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
       throw new BusinessRuleError('FATURA_CANCELADA', 'Não é possível emitir NC para factura cancelada');
     }
 
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de NC não encontrada');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_CREDITO', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -826,7 +835,7 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
     const nc = await tx.notaCredito.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         faturaOriginalId: input.faturaOriginalId,
         motivo: input.motivo,
@@ -948,16 +957,12 @@ export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx):
 export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): Promise<NotaDebitoCompleta> {
   await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de ND não encontrada');
 
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_DEBITO', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -969,7 +974,7 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
     const nd = await tx.notaDebito.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         clienteId: input.clienteId,
         faturaReferenciaId: input.faturaReferenciaId ?? null,
@@ -1087,16 +1092,12 @@ export async function cancelarNotaDebito(id: string, motivo: string, ctx: Ctx): 
 
 export async function criarProforma(input: CriarProformaInput, ctx: Ctx): Promise<ProformaCompleta> {
   return prismaBase.$transaction(async (tx) => {
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de Proforma não encontrada');
 
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'PROFORMA', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -1108,7 +1109,7 @@ export async function criarProforma(input: CriarProformaInput, ctx: Ctx): Promis
     const proforma = await tx.proforma.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         clienteId: input.clienteId,
         moeda: input.moeda ?? 'MZN',
@@ -1166,11 +1167,7 @@ export async function aceitarProforma(id: string, ctx: Ctx): Promise<Proforma> {
   return prisma.proforma.update({ where: { id }, data: { status: 'ACEITE' } }) as unknown as Proforma;
 }
 
-export async function converterProformaEmFatura(
-  id: string,
-  serieDocumentoId: string,
-  ctx: Ctx,
-): Promise<FaturaCompleta> {
+export async function converterProformaEmFatura(id: string, ctx: Ctx): Promise<FaturaCompleta> {
   // Converter uma proforma cria uma Factura já EMITIDA — é emissão de
   // documento fiscal por outra porta, e o travão tem de a cobrir também.
   await exigirEmailConfirmadoParaEmitir();
@@ -1182,12 +1179,8 @@ export async function converterProformaEmFatura(
     if (!proforma) throw new NotFoundError('Proforma não encontrada');
     transitarProforma(proforma.status as StatusProforma, 'CONVERTIDA');
 
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de factura não encontrada');
-
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, new Date());
+    const dataEmissao = new Date();
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'FATURA', ctx, dataEmissao);
 
     const fatura = await tx.fatura.create({
       data: {
@@ -1203,8 +1196,8 @@ export async function converterProformaEmFatura(
         total: proforma.total,
         totalPago: new Prisma.Decimal(0),
         status: 'EMITIDA',
-        dataEmissao: new Date(),
-        dataVencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+        dataEmissao,
+        dataVencimento: new Date(dataEmissao.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 dias
         emitidoPorId: ctx.userId,
       },
     });
@@ -1282,16 +1275,12 @@ export async function listarProformas(filtro: FiltroProformaInput, ctx: Ctx): Pr
 
 export async function criarCotacaoComercial(input: CriarCotacaoComercialInput, ctx: Ctx): Promise<CotacaoComercialCompleta> {
   return prismaBase.$transaction(async (tx) => {
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de cotação não encontrada');
 
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'COTACAO_COMERCIAL', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -1303,7 +1292,7 @@ export async function criarCotacaoComercial(input: CriarCotacaoComercialInput, c
     const cotacao = await tx.cotacaoComercial.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         clienteId: input.clienteId,
         moeda: input.moeda ?? 'MZN',
@@ -1369,11 +1358,7 @@ export async function rejeitarCotacaoComercial(id: string, motivo: string, ctx: 
   return prisma.cotacaoComercial.update({ where: { id }, data: { status: 'REJEITADA', observacoes: motivo } }) as unknown as CotacaoComercial;
 }
 
-export async function converterCotacaoEmProforma(
-  id: string,
-  serieProformaId: string,
-  ctx: Ctx,
-): Promise<ProformaCompleta> {
+export async function converterCotacaoEmProforma(id: string, ctx: Ctx): Promise<ProformaCompleta> {
   return prismaBase.$transaction(async (tx) => {
     const cotacao = await tx.cotacaoComercial.findFirst({
       where: { id, tenantId: ctx.tenantId },
@@ -1382,17 +1367,13 @@ export async function converterCotacaoEmProforma(
     if (!cotacao) throw new NotFoundError('Cotação não encontrada');
     transitarCotacao(cotacao.status as StatusCotacaoComercial, 'CONVERTIDA');
 
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: serieProformaId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de proforma não encontrada');
-
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, new Date());
+    const dataEmissao = new Date();
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'PROFORMA', ctx, dataEmissao);
 
     const proforma = await tx.proforma.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: serieProformaId,
+        serieDocumentoId,
         numero,
         clienteId: cotacao.clienteId,
         moeda: cotacao.moeda,
@@ -1401,7 +1382,7 @@ export async function converterCotacaoEmProforma(
         ivaTotal: cotacao.ivaTotal,
         total: cotacao.total,
         status: 'RASCUNHO',
-        dataEmissao: new Date(),
+        dataEmissao,
         dataValidade: cotacao.dataValidade,
         criadoPorId: ctx.userId,
       },
@@ -1475,6 +1456,7 @@ export const faturacaoService = {
   criarSerie,
   listarSeries,
   proximoNumeroSerie,
+  numerarDocumento,
   emitirFatura,
   obterFatura,
   listarFaturas,

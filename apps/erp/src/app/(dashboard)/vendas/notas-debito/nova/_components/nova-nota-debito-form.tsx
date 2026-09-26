@@ -35,11 +35,9 @@ import { EmitirNotaDebitoSchema, type EmitirNotaDebitoInput } from '@/lib/valida
 
 type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
 
-interface SerieOption { id: string; label: string }
 interface ClienteOption { id: string; nome: string }
 
 interface NovaNotaDebitoFormProps {
-  series: SerieOption[];
   clientes: ClienteOption[];
 }
 
@@ -53,7 +51,7 @@ const MOTIVOS = [
   'Outro',
 ];
 
-export function NovaNotaDebitoForm({ series, clientes }: NovaNotaDebitoFormProps) {
+export function NovaNotaDebitoForm({ clientes }: NovaNotaDebitoFormProps) {
   const router = useRouter();
   const [state, dispatch, isPending] = useActionState<FormState, EmitirNotaDebitoInput>(
     (_prev, data) => emitirNotaDebito(data),
@@ -117,25 +115,6 @@ export function NovaNotaDebitoForm({ series, clientes }: NovaNotaDebitoFormProps
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="serieDocumentoId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Série de documento *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Seleccionar série…"
-                      options={series.map((s) => ({ value: s.id, label: s.label }))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
               name="clienteId"
               render={({ field }) => (
                 <FormItem>
@@ -164,6 +143,9 @@ export function NovaNotaDebitoForm({ series, clientes }: NovaNotaDebitoFormProps
                       onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)} />
                   </FormControl>
                   <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    Numerada na série activa de nota de débito do ano da data de emissão.
+                  </p>
                 </FormItem>
               )}
             />
