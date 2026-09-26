@@ -32,7 +32,7 @@ const SEGMENTOS_ESTATICOS = new Set(['novo']);
 
 export default async function RequisicaoPanelPage({ params }: Props) {
   const { id } = await params;
-  if (SEGMENTOS_ESTATICOS.has(id)) return <AbrirRotaReal />;
+  if (SEGMENTOS_ESTATICOS.has(id)) return <AbrirRotaReal href={`/compras/requisicoes/${id}`} />;
 
   const session = await auth();
   if (!session?.user) redirect('/auth/login');

@@ -29,6 +29,8 @@ test.describe('Requisição de Compra', () => {
     await expect(page.getByRole('heading', { name: 'Nova Requisição de Compra' })).toBeVisible({
       timeout: 10_000,
     });
+    // Preencher antes da hidratação muda o DOM e não o estado do React.
+    await page.waitForLoadState('networkidle');
 
     // Preenche o formulário
     const departamentoInput = page.getByLabel('Departamento');

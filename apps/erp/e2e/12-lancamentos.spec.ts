@@ -15,6 +15,19 @@
  * (spec 22) contam. Corre contra uma base descartável (a da CI) ou limpa-o
  * depois (histórico «E2E #237»). Não se semeia no `demo`: mudaria as
  * sentinelas da golden em todas as bases.
+ *
+ * Limpeza na base local (partidas, depois o estorno — que aponta para o
+ * original —, depois o original; a numeração dos lançamentos é por contagem e
+ * volta sozinha):
+ *
+ *   docker exec gespro-db psql -U "$(docker exec gespro-db printenv POSTGRES_USER)" \
+ *     -d "$(docker exec gespro-db printenv POSTGRES_DB)" -c "
+ *     BEGIN;
+ *     DELETE FROM \"PartidaLancamento\" WHERE \"lancamentoId\" IN
+ *       (SELECT id FROM \"Lancamento\" WHERE historico LIKE '%E2E #237%');
+ *     DELETE FROM \"Lancamento\" WHERE historico LIKE '%E2E #237%' AND tipo = 'ESTORNO';
+ *     DELETE FROM \"Lancamento\" WHERE historico LIKE '%E2E #237%';
+ *     COMMIT;"
  */
 
 import { test, expect, type Page } from '@playwright/test';

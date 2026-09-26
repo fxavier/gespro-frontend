@@ -13,9 +13,10 @@
 
 import { useEffect } from 'react';
 
-export function AbrirRotaReal() {
+/** `href`: o URL que o interceptor apanhou (ex.: `/compras/requisicoes/novo`). */
+export function AbrirRotaReal({ href }: { href: string }) {
   useEffect(() => {
-    window.location.replace(window.location.href);
-  }, []);
+    window.location.replace(href);
+  }, [href]);
   return null;
 }
