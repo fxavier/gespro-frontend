@@ -3,11 +3,20 @@ import { Prisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
+import {
+  FORMATO_NUMERO_SERIE,
+  ROTULO_TIPO_SERIE,
+  anosPermitidos,
+  formatarNumero,
+  serieUsada,
+} from '@/lib/series-documento';
 import type { IFaturacaoService } from './faturacao.interface';
 import { registarLancamentoContabilistico } from './contabilidade.service';
 import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
   CriarSerieDocumentoInput,
+  EditarSerieDocumentoInput,
+  IdSerieDocumentoInput,
   EmitirFaturaInput,
   RegistarPagamentoFaturaInput,
   FiltroFaturaInput,
@@ -84,14 +93,6 @@ function transitarCotacao(atual: StatusCotacaoComercial, alvo: StatusCotacaoCome
   if (!permitidas.includes(alvo)) {
     throw new BusinessRuleError('TRANSICAO_INVALIDA', `CotacaoComercial: transição inválida ${atual} → ${alvo}`);
   }
-}
-
-/** Substitui o template de numeração: {prefixo}/{ano}/{numero:06} */
-function formatarNumero(template: string, vars: { prefixo: string; ano: number; numero: number }): string {
-  return template
-    .replace('{prefixo}', vars.prefixo)
-    .replace('{ano}', String(vars.ano))
-    .replace(/\{numero(?::(\d+))?\}/, (_, w) => String(vars.numero).padStart(w ? parseInt(w, 10) : 1, '0'));
 }
 
 /** Calcula subtotais de linhas (input já transformado pelo Zod) */
@@ -338,28 +339,164 @@ export async function proximoNumeroSerie(
 // Séries de documento
 // ---------------------------------------------------------------------------
 
-export async function criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
-  // TipoSerieDocumentoEnum (Zod) é subconjunto do enum Prisma — cast seguro
-  return prisma.serieDocumento.create({
-    data: {
-      tenantId: ctx.tenantId,
-      tipo: input.tipo as unknown as Parameters<typeof prisma.serieDocumento.create>[0]['data']['tipo'],
-      prefixo: input.prefixo.toUpperCase(),
-      ano: input.ano,
-      numeroInicial: input.numeroInicial,
-      proximoNumero: input.numeroInicial,
-    },
-  }) as unknown as SerieDocumento;
+// Invariantes (#149): S1 uma activa por tenant+tipo+ano · S2/S3 usada ⇔
+// proximoNumero > numeroInicial, e usada não se edita nem elimina · S4 formato
+// fixo · S5 criação só no ano corrente ou no seguinte (Africa/Maputo).
+//
+// Tudo corre no cliente ESTENDIDO (a auditoria só vê o que passa por ele) e com
+// escritas singulares. O estado que decide é lido DEPOIS da tranca. Um P2002
+// aborta a transacção no Postgres: traduz-se fora do `$transaction`.
+
+type TxSeries = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+const rotuloTipo = (tipo: string) => ROTULO_TIPO_SERIE[tipo] ?? tipo;
+
+function erroActivaExistente(tipo: string, ano: number): BusinessRuleError {
+  return new BusinessRuleError(
+    'SERIE_ACTIVA_EXISTENTE',
+    `Já existe uma série activa de ${rotuloTipo(tipo)} para ${ano}. Desactive-a primeiro.`,
+  );
 }
 
-// ponytail: esqueletos do contrato (#227) — implementação no ticket 4 (#229).
-const naoImplementado = (nome: string) => async (): Promise<never> => {
-  throw new Error(`${nome}: não implementado (#229)`);
-};
-export const editarSerie: IFaturacaoService['editarSerie'] = naoImplementado('editarSerie');
-export const activarSerie: IFaturacaoService['activarSerie'] = naoImplementado('activarSerie');
-export const desactivarSerie: IFaturacaoService['desactivarSerie'] = naoImplementado('desactivarSerie');
-export const eliminarSerie: IFaturacaoService['eliminarSerie'] = naoImplementado('eliminarSerie');
+function erroDuplicada(): BusinessRuleError {
+  return new BusinessRuleError(
+    'SERIE_DUPLICADA',
+    'Já existe uma série com este prefixo para o mesmo tipo e ano. Escolha outro prefixo.',
+  );
+}
+
+function erroUsada(): BusinessRuleError {
+  return new BusinessRuleError(
+    'SERIE_USADA',
+    'Esta série já numerou documentos: não pode ser alterada nem eliminada. Desactive-a e crie uma nova.',
+  );
+}
+
+const eUnicidade = (e: unknown): boolean =>
+  e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
+
+/** Serializa quem cria ou activa séries do mesmo tenant+tipo+ano (S1). */
+async function trancarTipoAno(tx: TxSeries, tenantId: string, tipo: string, ano: number): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('series:' || ${tenantId}::text || ':' || ${tipo}::text || ':' || ${String(ano)}::text, 0))`;
+}
+
+/** Tranca a linha da série (só se for do tenant) e lê-a depois da tranca. */
+async function trancarSerie(tx: TxSeries, id: string, tenantId: string) {
+  await tx.$queryRaw`SELECT id FROM "SerieDocumento" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE`;
+  const serie = await tx.serieDocumento.findFirst({ where: { id, tenantId } });
+  if (!serie) throw new NotFoundError('Série de documento não encontrada.');
+  return serie;
+}
+
+async function outraActiva(tx: TxSeries, tenantId: string, tipo: string, ano: number, excluirId?: string) {
+  return tx.serieDocumento.findFirst({
+    where: {
+      tenantId,
+      tipo: tipo as never,
+      ano,
+      ativo: true,
+      ...(excluirId ? { id: { not: excluirId } } : {}),
+    },
+    select: { id: true },
+  });
+}
+
+export async function criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  if (!anosPermitidos(new Date()).includes(input.ano)) {
+    const [corrente, seguinte] = anosPermitidos(new Date());
+    throw new BusinessRuleError(
+      'SERIE_ANO_INVALIDO',
+      `Só é possível criar séries para ${corrente} ou ${seguinte}.`,
+    );
+  }
+  const prefixo = input.prefixo.toUpperCase();
+  try {
+    return (await prisma.$transaction(async (tx) => {
+      await trancarTipoAno(tx, ctx.tenantId, input.tipo, input.ano);
+      if (await outraActiva(tx, ctx.tenantId, input.tipo, input.ano)) {
+        throw erroActivaExistente(input.tipo, input.ano);
+      }
+      return tx.serieDocumento.create({
+        data: {
+          tenantId: ctx.tenantId,
+          // TipoSerieDocumentoEnum (Zod) é subconjunto do enum Prisma — cast seguro
+          tipo: input.tipo as never,
+          prefixo,
+          ano: input.ano,
+          formatoNumero: FORMATO_NUMERO_SERIE,
+          numeroInicial: input.numeroInicial,
+          proximoNumero: input.numeroInicial,
+          ativo: true,
+        },
+      });
+    })) as unknown as SerieDocumento;
+  } catch (e) {
+    if (eUnicidade(e)) throw erroDuplicada();
+    throw e;
+  }
+}
+
+export async function editarSerie(input: EditarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  try {
+    return (await prisma.$transaction(async (tx) => {
+      const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+      if (serieUsada(serie)) throw erroUsada();
+      return tx.serieDocumento.update({
+        where: { id: serie.id, tenantId: ctx.tenantId },
+        data: {
+          prefixo: input.prefixo.toUpperCase(),
+          numeroInicial: input.numeroInicial,
+          proximoNumero: input.numeroInicial,
+        },
+      });
+    })) as unknown as SerieDocumento;
+  } catch (e) {
+    if (eUnicidade(e)) throw erroDuplicada();
+    throw e;
+  }
+}
+
+export async function activarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  try {
+    return (await prisma.$transaction(async (tx) => {
+      const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+      if (serie.ativo) return serie;
+      // A chave da tranca depende do tipo+ano, que só se conhece lendo a linha já trancada.
+      await trancarTipoAno(tx, ctx.tenantId, serie.tipo, serie.ano);
+      if (await outraActiva(tx, ctx.tenantId, serie.tipo, serie.ano, serie.id)) {
+        throw erroActivaExistente(serie.tipo, serie.ano);
+      }
+      // S5 só limita a criação: reactivar uma série de um ano antigo é permitido.
+      return tx.serieDocumento.update({
+        where: { id: serie.id, tenantId: ctx.tenantId },
+        data: { ativo: true },
+      });
+    })) as unknown as SerieDocumento;
+  } catch (e) {
+    // Só o índice parcial `SerieDocumento_activa_unica` pode recusar este update.
+    if (eUnicidade(e)) throw new BusinessRuleError('SERIE_ACTIVA_EXISTENTE', 'Já existe uma série activa para este tipo e ano. Desactive-a primeiro.');
+    throw e;
+  }
+}
+
+export async function desactivarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  return (await prisma.$transaction(async (tx) => {
+    const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+    if (!serie.ativo) return serie;
+    return tx.serieDocumento.update({
+      where: { id: serie.id, tenantId: ctx.tenantId },
+      data: { ativo: false },
+    });
+  })) as unknown as SerieDocumento;
+}
+
+export async function eliminarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+    if (serieUsada(serie)) throw erroUsada();
+    await tx.serieDocumento.delete({ where: { id: serie.id, tenantId: ctx.tenantId } });
+  });
+}
 
 export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {
   return prisma.serieDocumento.findMany({
