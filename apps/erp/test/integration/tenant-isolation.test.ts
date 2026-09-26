@@ -28,6 +28,9 @@ describe.skipIf(skip)('Isolamento multi-tenant — DB efémera (Testcontainers)'
 
   const TENANT_A = `tenant-a-${Date.now()}`;
   const TENANT_B = `tenant-b-${Date.now()}`;
+  // NUIT único (`Tenant.nuit` é @unique) e válido (9 dígitos, não todos iguais — validarNUIT).
+  // `String(Date.now()).slice(0, 9)` dava o MESMO valor a A e a B (só muda a cada ~17 min).
+  const NUIT_BASE = 500_000_000 + Math.floor(Math.random() * 400_000_000);
 
   beforeAll(async () => {
     // PrismaClient fresco — lê INTEGRATION_DB_URL do processo (definido pelo globalSetup)
@@ -62,7 +65,7 @@ describe.skipIf(skip)('Isolamento multi-tenant — DB efémera (Testcontainers)'
         id: TENANT_A,
         nome: 'Empresa Alpha Lda.',
         slug: `alpha-${now}`,
-        nuit: String(now).slice(0, 9),
+        nuit: String(NUIT_BASE),
       },
     });
     const tenantB = await db.tenant.create({
@@ -70,7 +73,7 @@ describe.skipIf(skip)('Isolamento multi-tenant — DB efémera (Testcontainers)'
         id: TENANT_B,
         nome: 'Empresa Beta Lda.',
         slug: `beta-${now}`,
-        nuit: String(now + 1).slice(0, 9),
+        nuit: String(NUIT_BASE + 1),
       },
     });
     expect(tenantA.id).toBe(TENANT_A);
@@ -85,7 +88,8 @@ describe.skipIf(skip)('Isolamento multi-tenant — DB efémera (Testcontainers)'
         tenantId: TENANT_A,
         nome: 'Admin Alpha',
         email: `admin-alpha-${Date.now()}@alpha.test`,
-        passwordHash: 'hash-ficticio',
+        // A identidade vive no Keycloak (ADR-0013): `keycloakSub` é obrigatório e não há senha local.
+        keycloakSub: `kc-alpha-${Date.now()}`,
       },
     });
 
@@ -102,18 +106,24 @@ describe.skipIf(skip)('Isolamento multi-tenant — DB efémera (Testcontainers)'
   it('DB está limpa no início — sem dados de runs anteriores (stateless)', async () => {
     // Com Testcontainers (container efémero), a DB é sempre nova a cada run.
     // Se houvesse estado partilhado, apareceriam tenants de runs anteriores.
-    const allTenants = await db.tenant.findMany();
+    // O container é UM por corrida e partilhado pelos ficheiros (fileParallelism: false),
+    // por isso os outros ficheiros DESTE run também criam tenants: o critério não é «só A e B»,
+    // é «nenhum tenant anterior ao arranque do container» (marca gravada no globalSetup).
+    const inicioRun = Number(process.env.INTEGRATION_RUN_START);
+    expect(Number.isFinite(inicioRun) && inicioRun > 0).toBe(true);
+
+    const allTenants = await db.tenant.findMany({ select: { id: true, createdAt: true } });
     const ids: string[] = allTenants.map((t: { id: string }) => t.id);
 
-    // Só existem os tenants criados por ESTE run
+    // Os tenants criados por este ficheiro estão lá
     expect(ids).toContain(TENANT_A);
     expect(ids).toContain(TENANT_B);
 
-    // Nenhum tenant desconhecido (de outros runs ou seeds)
-    const unknownTenants = allTenants.filter(
-      (t: { id: string }) => t.id !== TENANT_A && t.id !== TENANT_B,
+    // Nenhum tenant de outros runs ou seeds — tudo foi criado depois do arranque do container
+    const anteriores = allTenants.filter(
+      (t: { createdAt: Date }) => t.createdAt.getTime() < inicioRun,
     );
-    expect(unknownTenants).toHaveLength(0);
+    expect(anteriores).toHaveLength(0);
   });
 });
 
