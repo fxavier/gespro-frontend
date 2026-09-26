@@ -372,7 +372,17 @@ jobs:
             ${{ runner.os }}-nextjs-a11y-
 
       - name: Run accessibility tests
-        run: pnpm e2e:a11y
+        # Só o ERP (`pnpm --filter erp`, sem turbo). Duas razões, ambas vistas
+        # na #237:
+        #   1. O turbo corre em modo de env estrito e a tarefa `e2e:a11y` não
+        #      declara variáveis: AUTH_SECRET/DATABASE_URL não chegavam ao
+        #      `next dev` ⇒ Auth.js MissingSecret ⇒ login em
+        #      /auth/erro?error=Configuration.
+        #   2. `turbo run e2e:a11y` também corria o do site, cujo webServer faz
+        #      `next build` com o NODE_ENV=development deste job (globalEnv do
+        #      turbo) ⇒ prerender de /en/contacto rebenta em useContext null.
+        # O axe do site continua a correr — no job `site`, com o seu ambiente.
+        run: pnpm e2e:a11y:erp
 
       - name: Upload axe report
         uses: actions/upload-artifact@v4
