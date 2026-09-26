@@ -129,8 +129,8 @@ Todas vivem no serviço, com códigos estáveis em `BusinessRuleError`.
 1. ~~**RECIBO sem consumidor.**~~ **Decidido (2026-09-26): o RECIBO entra no ecrã.** Os 6 tipos
    ficam todos. A série existe e o bootstrap cria-a, embora nenhum serviço chame ainda
    `proximoNumeroSerie('RECIBO')`: a coluna «emitidos» mostra 0 até existir emissão de recibos.
-2. ~~**Elegibilidade na emissão.**~~ **Decidido: fora do âmbito**, aberta como
-   [#234](https://github.com/fxavier/gespro-frontend/issues/234). Os selectores de emissão
+2. ~~**Elegibilidade na emissão.**~~ **Decidido: fora do âmbito**; já existia como
+   [#93](https://github.com/fxavier/gespro-frontend/issues/93) (a #234, aberta por engano, fechou como duplicado). Os selectores de emissão
    (`listarSeriesParaSelecao`) filtram só por `ativo`, não pelo ano de `dataEmissao`.
 3. ~~**Anos anteriores.**~~ **Decidido: basta reactivar a série antiga.** O limite de ano (corrente e
    seguinte) aplica-se só à criação; activar/desactivar aceita qualquer ano, sujeito à regra de uma

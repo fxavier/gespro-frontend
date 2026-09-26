@@ -24,7 +24,7 @@ termina num gate executável. Ordem por qualidade do oráculo — contratos → 
   - [x] 0.1 Q1 — RECIBO no ecrã ou fora até haver emissor? **Decidido: entra no ecrã** (2026-09-26)
   - [x] 0.2 Q3 — anos anteriores: **basta reactivar** (S5 só limita a criação)
   - [x] 0.3 Q4 — «documentos emitidos» = **`proximoNumero − numeroInicial`**
-  - [x] 0.4 Q2 e Q5 **fora deste épico**: #234 e #235
+  - [x] 0.4 Q2 e Q5 **fora deste épico**: #93 (a #234 era duplicado) e #235
   ✅ Gate: respostas escritas no `intent.md` (secção Open Questions → «Decididas»). Nenhum gate verde substitui este.
 
 - [ ] 1. [BLOCKING] Migração `numeroInicial` + índice parcial — **só o orquestrador**
