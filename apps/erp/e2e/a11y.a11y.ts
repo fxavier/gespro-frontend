@@ -444,3 +444,35 @@ test.describe('A11y: Tesouraria — Compromissos', () => {
     });
   }
 });
+
+// ─── Spec 22 · WS-2: Demonstração de Fluxos de Caixa (issue #153, ticket 8) ──
+// Gate do ticket 8: AA em /contabilidade/dfc nos DOIS temas. Corre com uma
+// rubrica expandida, para o axe ver também as linhas das contas e as ligações
+// ao razão (o `aria-expanded`/`aria-controls` do botão só existe aberto).
+
+test.describe('A11y: Contabilidade — Demonstração de Fluxos de Caixa', () => {
+  for (const tema of TEMAS) {
+    test(`sem violações AA na DFC — tema ${tema === 'light' ? 'claro' : 'escuro'}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      await page.goto('/contabilidade/dfc');
+      await page.waitForLoadState('domcontentloaded');
+
+      await expect(
+        page.getByRole('heading', { name: 'Demonstração de Fluxos de Caixa' })
+      ).toBeVisible({ timeout: 20_000 });
+      // Sai do skeleton: o mapa (ou o painel de impedimentos) tem de estar lá.
+      await expect(
+        page.getByTestId('dfc-articulacao').or(page.getByTestId('dfc-impedimentos'))
+      ).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+
+      const expandir = page.locator('[data-testid$="-expandir"]').first();
+      if ((await expandir.count()) > 0) {
+        await expandir.click();
+        await expect(expandir).toHaveAttribute('aria-expanded', 'true');
+      }
+
+      await checkA11y(page, `DFC (${tema})`);
+    });
+  }
+});

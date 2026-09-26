@@ -9,6 +9,8 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { FiltroRazaoSchema } from '@/lib/validations/contabilidade';
+import { intervaloDoDiaMaputo } from '@/lib/periodo-fiscal';
+import { formatarData } from '@/lib/format-date';
 import { SeletorConta } from './_components/seletor-conta';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -92,7 +94,7 @@ async function RazaoSection({ filtros, tenantId, userId }: { filtros: FiltroUrl;
               return (
                 <TableRow key={i}>
                   <TableCell className="text-sm">
-                    {l.data ? new Date(l.data).toLocaleDateString('pt-PT') : '—'}
+                    {l.data ? formatarData(l.data) : '—'}
                   </TableCell>
                   <TableCell className="text-sm">{l.historico ?? '—'}</TableCell>
                   <TableCell className="text-right tabular-nums text-sm">
@@ -130,7 +132,9 @@ export default async function RazaoGeralPage({ searchParams }: PageProps) {
   // Sem fallback silencioso: filtros inválidos mostram a instrução. O default
   // anterior mandava `contaId: ''` ao serviço e produzia a página de erro-200
   // que escondeu o D2.
-  const parseResult = FiltroUrlSchema.safeParse(flat);
+  // Datas `aaaa-mm-dd` ⇒ dia civil de Maputo inteiro, senão o último dia do
+  // intervalo ficava de fora (a DFC liga aqui com as datas de um período).
+  const parseResult = FiltroUrlSchema.safeParse(intervaloDoDiaMaputo(flat));
 
   // `arvoreContas` e não `listarContas`: o plano tem 434 contas de movimento e
   // a listagem pagina a 200 — as restantes ficavam inalcançáveis na caixa de

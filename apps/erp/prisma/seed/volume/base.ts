@@ -12,6 +12,7 @@ import {
   bootstrapDiarios,
   bootstrapSeriesDocumento,
   bootstrapContasNaturezaNotaDebito,
+  semearRubricasFluxo,
 } from '../../../src/server/provisioning/tenant-bootstrap';
 import { cuidLike, chave } from './id';
 
@@ -128,6 +129,10 @@ export async function seedTenantBase(
   await bootstrapDiarios(prisma, tenant.id);
   await bootstrapSeriesDocumento(prisma, tenant.id);
   await bootstrapContasNaturezaNotaDebito(prisma, tenant.id);
+  // DFC (ADR-0037 §3): as contas `9.n` abaixo ficam de fora do mapeamento de
+  // propósito — não são do plano canónico e a DFC dos tenants perf dirá isso
+  // como impedimento, que é o comportamento correcto para contas do tenant.
+  await semearRubricasFluxo(prisma, tenant.id);
 
   // ── PGC mínimo adicional (contas-folha determinísticas para as partidas) ──
   for (const c of CONTAS_PERF) {

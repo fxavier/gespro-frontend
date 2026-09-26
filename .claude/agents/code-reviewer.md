@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Revisor de código do GestPro. Usar após qualquer conjunto de alterações de um agente de domínio ou UI, e obrigatoriamente nos gates de wave (tasks BLOCKING, contratos da Wave 1, golden standard UI-0). Revê segurança, consistência inter-domínio, convenções e qualidade.
-model: claude-fable-5
+model: fable
 tools: Read, Grep, Glob, Bash
 ---
 

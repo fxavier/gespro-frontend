@@ -27,7 +27,7 @@
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx -C react-server prisma/seed/index.ts",
-    "db:seed:volume": "tsx prisma/seed/volume/index.ts",
+    "db:seed:volume": "tsx -C react-server prisma/seed/volume/index.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

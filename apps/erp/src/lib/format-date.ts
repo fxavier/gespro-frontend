@@ -72,3 +72,22 @@ export function formatarDiaMes(v: Entrada): string {
   const d = asDate(v);
   return d ? diaMes.format(d) : '—';
 }
+
+const partesDia = new Intl.DateTimeFormat('en-CA', {
+  timeZone: FUSO,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * 2026-07-24 — o dia civil em Maputo, no formato que `<input type="date">` lê e
+ * escreve. Um `toISOString().slice(0, 10)` dá o dia em UTC: o início de um
+ * período (00h00 em Maputo = 22h00 UTC da véspera) sairia no dia anterior.
+ */
+export function formatarDiaIso(v: Entrada): string {
+  const d = asDate(v);
+  if (!d) return '';
+  const p = Object.fromEntries(partesDia.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}

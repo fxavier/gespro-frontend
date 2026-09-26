@@ -5,6 +5,8 @@
  */
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
+import { idEntidade } from './common';
+import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 
 // ---- Enums ----
 

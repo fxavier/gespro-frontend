@@ -296,6 +296,11 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   DIVERGENCIA: 'destructive',
   IGNORADO: 'secondary',
   EM_RECONCILIACAO: 'info',
+  // DFC — ADR-0037 E1/E6: estado da versão do mapeamento, e a marca de um mapa
+  // sobre períodos por fechar (§6). Avisos, não erros: a DFC sai na mesma.
+  PENDING: 'warning',
+  VALIDATED: 'success',
+  PROVISORIO: 'warning',
 };
 
 const badgeVariants = cva(
@@ -518,6 +523,10 @@ export const STATUS_LABELS: Record<string, string> = {
   DIVERGENCIA: 'Divergência',
   IGNORADO: 'Ignorado',
   EM_RECONCILIACAO: 'Em reconciliação',
+  // DFC — na UI «Por validar» / «Validado» (ADR-0037 E6)
+  PENDING: 'Por validar',
+  VALIDATED: 'Validado',
+  PROVISORIO: 'Provisório',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {

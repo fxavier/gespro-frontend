@@ -1,0 +1,181 @@
+{
+  "$descricao": [
+    "Golden fixture da DFC (método indirecto) sobre o TENANT DEMO do pnpm db:seed de 2026-09-23 (ADR-0037 + Emenda 2026-09-25).",
+    "Números apurados À MÃO a partir do balancete (gerarBalancete/montarLinhasBalancete) e da DRE (gerarDRE) existentes,",
+    "conferidos contra SQL independente sobre PartidaLancamento (LANCADO+ESTORNADO), e da tabela de mapeamento semeada",
+    "(prisma/seed/data/rubricas-fluxo-caixa.json, versão 1 PENDING). NUNCA a partir de gerarDFC, que não existia quando isto",
+    "foi escrito (nó servico-v do grafo dfc). Derivação completa, conta a conta, em docs/handoff/dfc-servico-v.md.",
+    "Se gerarDFC discordar, o defeito é da implementação até prova documentada em contrário. NUNCA `vitest -u`.",
+    "O seed gera datas RELATIVAS ao dia em que corre: re-semear noutro dia muda os números — as sentinelas acusam-no",
+    "(«a base tem resíduos») e a fixture tem de ser RE-DERIVADA à mão."
+  ],
+  "tenant": "demo",
+  "sentinelasDoSeed": {
+    "$nota": "Pré-condições sobre TUDO aquilo de que os números dependem: movimento LANCADO+ESTORNADO por período (por data do lançamento, como os mapas filtram), nada antes do exercício, um só exercício sem anterior (N-1 = null), 13 períodos ABERTO (provisorio = true) e o mapeamento semeado. Resíduos conhecidos e ALHEIOS a esta fixture: o compromisso manual «Pagamento da Internet» (compromissos não são lançamentos — a DFC não os lê) e os lançamentos MANUAL de 2026-10 (123/6981, fora de todos os intervalos da fixture) e os RASCUNHO (fora do FILTRO_LANCAMENTO_MAPA).",
+    "exercicios": [{ "codigo": "2026", "temAnterior": false }],
+    "periodos": 13,
+    "periodosAbertos": 13,
+    "lancamentosAntesDoExercicio": 0,
+    "movimentoPorPeriodo": {
+      "2026-01": { "lancamentos": 8, "partidas": 20, "debitos": "395023.20", "creditos": "395023.20" },
+      "2026-02": { "lancamentos": 21, "partidas": 54, "debitos": "908846.96", "creditos": "908846.96" },
+      "2026-03": { "lancamentos": 27, "partidas": 67, "debitos": "1823633.32", "creditos": "1823633.32" },
+      "2026-04": { "lancamentos": 27, "partidas": 68, "debitos": "1070123.64", "creditos": "1070123.64" },
+      "2026-05": { "lancamentos": 20, "partidas": 51, "debitos": "878274.88", "creditos": "878274.88" },
+      "2026-06": { "lancamentos": 21, "partidas": 52, "debitos": "1228254.72", "creditos": "1228254.72" },
+      "2026-07": { "lancamentos": 35, "partidas": 86, "debitos": "2555248.22", "creditos": "2555248.22" },
+      "2026-08": { "lancamentos": 30, "partidas": 71, "debitos": "1935273.42", "creditos": "1935273.42" },
+      "2026-09": { "lancamentos": 28, "partidas": 67, "debitos": "1650424.68", "creditos": "1650424.68" }
+    },
+    "contasComMovimentoPorPeriodo": {
+      "$nota": "Contas com partidas LANCADO/ESTORNADO em cada período. Serve à propriedade de I7 (lista completa) no duplo.",
+      "2026-01": ["121", "411", "44331", "711"],
+      "2026-02": ["121", "411", "44331", "711"],
+      "2026-03": ["121", "411", "44331", "711"],
+      "2026-04": ["121", "411", "44331", "711"],
+      "2026-05": ["121", "411", "44331", "711"],
+      "2026-06": ["121", "411", "421", "44331", "6112", "63299", "711"],
+      "2026-07": ["121", "411", "421", "44331", "6112", "711"],
+      "2026-08": ["121", "411", "421", "44331", "6112", "63299", "711"],
+      "2026-09": ["121", "411", "421", "44331", "6112", "63299", "711"]
+    },
+    "versoesDoMapeamento": {
+      "$nota": "Revisão da sentinela, 2026-09-26 (decisão do humano): NÃO se contam versões. Smokes de configuração e o E2E 10.1 criam versões por construção, e uma versão n+1 cujo conteúdo é igual ao seed não muda um cêntimo da DFC. A referência é o instantâneo da versão `referencia` (a que a migração 22c semeou a partir do mapeamento vivo, na forma canónica de instantaneoDe); exige-se, por mudou() === false, que (a) a versão MAIS RECENTE do tenant tenha esse instantâneo e (b) o mapeamento vivo (instantaneoDe das rubricas + mapeamentos da base) seja esse instantâneo (V1). Versões posteriores, PENDING ou VALIDATED, são aceites. O conteúdo do seed fica ancorado pelas sentinelas de `mapeamento` abaixo, que o vivo tem de cumprir.",
+      "referencia": 1
+    },
+    "mapeamento": {
+      "rubricasVivas": 19,
+      "mapeamentos": 435,
+      "contasCaixa": ["111", "121", "122", "123"],
+      "rubricaDasContasComMovimento": {
+        "121": "CX-01",
+        "411": "OP-04",
+        "421": "OP-05",
+        "44331": "OP-06",
+        "6112": "OP-00",
+        "63299": "OP-00",
+        "711": "OP-00"
+      }
+    }
+  },
+  "casos": [
+    {
+      "nome": "mês — 2026-09",
+      "periodoInicio": "2026-09",
+      "periodoFim": "2026-09",
+      "$derivacao": "Balancete acumulado a 31/08 (véspera) e a 30/09. DRE 01/09–30/09: 711 314704.00 − 6112 413550.00 − 63299 428500.00 = −527346.00. OP = −527346.00 − 32161.00 + 722050.00 + 45563.84 = 208106.84 = Δcaixa (121: 4235981.20 − 4027874.36).",
+      "esperado": {
+        "exercicio": "2026",
+        "provisorio": true,
+        "homologo": null,
+        "avisos": [],
+        "resultadoLiquido": "-527346.00",
+        "operacional": {
+          "total": "208106.84",
+          "rubricas": [
+            { "codigo": "OP-04", "valor": "-32161.00", "contas": [
+              { "codigo": "411", "saldoInicial": "1063029.64", "saldoFinal": "1095190.64", "variacao": "32161.00", "efeitoCaixa": "-32161.00" }
+            ] },
+            { "codigo": "OP-05", "valor": "722050.00", "contas": [
+              { "codigo": "421", "saldoInicial": "-603500.00", "saldoFinal": "-1325550.00", "variacao": "-722050.00", "efeitoCaixa": "722050.00" }
+            ] },
+            { "codigo": "OP-06", "valor": "45563.84", "contas": [
+              { "codigo": "44331", "saldoInicial": "-658550.00", "saldoFinal": "-704113.84", "variacao": "-45563.84", "efeitoCaixa": "45563.84" }
+            ] }
+          ]
+        },
+        "investimento": { "total": "0", "rubricas": [] },
+        "financiamento": { "total": "0", "rubricas": [] },
+        "somaAtividades": "208106.84",
+        "caixaInicial": "4027874.36",
+        "caixaFinal": "4235981.20",
+        "variacaoCaixa": "208106.84"
+      }
+    },
+    {
+      "nome": "exercício até à data — 2026-01..2026-09",
+      "periodoInicio": "2026-01",
+      "periodoFim": "2026-09",
+      "$derivacao": "Nada antes de 01/01/2026 ⇒ balancete da véspera vazio, caixaInicial 0. DRE 01/01–30/09: 5015158.00 − 944950.00 − 768700.00 = 3301508.00. OP = 3301508.00 − 1095190.64 + 1325550.00 + 704113.84 = 4235981.20 = Δcaixa.",
+      "esperado": {
+        "exercicio": "2026",
+        "provisorio": true,
+        "homologo": null,
+        "avisos": [],
+        "resultadoLiquido": "3301508.00",
+        "operacional": {
+          "total": "4235981.20",
+          "rubricas": [
+            { "codigo": "OP-04", "valor": "-1095190.64", "contas": [
+              { "codigo": "411", "saldoInicial": "0", "saldoFinal": "1095190.64", "variacao": "1095190.64", "efeitoCaixa": "-1095190.64" }
+            ] },
+            { "codigo": "OP-05", "valor": "1325550.00", "contas": [
+              { "codigo": "421", "saldoInicial": "0", "saldoFinal": "-1325550.00", "variacao": "-1325550.00", "efeitoCaixa": "1325550.00" }
+            ] },
+            { "codigo": "OP-06", "valor": "704113.84", "contas": [
+              { "codigo": "44331", "saldoInicial": "0", "saldoFinal": "-704113.84", "variacao": "-704113.84", "efeitoCaixa": "704113.84" }
+            ] }
+          ]
+        },
+        "investimento": { "total": "0", "rubricas": [] },
+        "financiamento": { "total": "0", "rubricas": [] },
+        "somaAtividades": "4235981.20",
+        "caixaInicial": "0",
+        "caixaFinal": "4235981.20",
+        "variacaoCaixa": "4235981.20"
+      }
+    },
+    {
+      "nome": "trimestre — 2026-04..2026-06 (abertura não nula; 421 sem saldo na véspera)",
+      "periodoInicio": "2026-04",
+      "periodoFim": "2026-06",
+      "$derivacao": "Véspera 31/03: 121 1325889.20, 411 475725.08, 44331 −227729.28, 421 ausente (0). Fim 30/06: 121 2454248.29, 411 993560.14, 421 −82100.00, 44331 −442404.68. DRE 01/04–30/06: 1511518.75 − 152300.00 − 9800.00 = 1349418.75. OP = 1349418.75 − 517835.06 + 82100.00 + 214675.40 = 1128359.09 = Δcaixa.",
+      "esperado": {
+        "exercicio": "2026",
+        "provisorio": true,
+        "homologo": null,
+        "avisos": [],
+        "resultadoLiquido": "1349418.75",
+        "operacional": {
+          "total": "1128359.09",
+          "rubricas": [
+            { "codigo": "OP-04", "valor": "-517835.06", "contas": [
+              { "codigo": "411", "saldoInicial": "475725.08", "saldoFinal": "993560.14", "variacao": "517835.06", "efeitoCaixa": "-517835.06" }
+            ] },
+            { "codigo": "OP-05", "valor": "82100.00", "contas": [
+              { "codigo": "421", "saldoInicial": "0", "saldoFinal": "-82100.00", "variacao": "-82100.00", "efeitoCaixa": "82100.00" }
+            ] },
+            { "codigo": "OP-06", "valor": "214675.40", "contas": [
+              { "codigo": "44331", "saldoInicial": "-227729.28", "saldoFinal": "-442404.68", "variacao": "-214675.40", "efeitoCaixa": "214675.40" }
+            ] }
+          ]
+        },
+        "investimento": { "total": "0", "rubricas": [] },
+        "financiamento": { "total": "0", "rubricas": [] },
+        "somaAtividades": "1128359.09",
+        "caixaInicial": "1325889.20",
+        "caixaFinal": "2454248.29",
+        "variacaoCaixa": "1128359.09"
+      }
+    }
+  ],
+  "impedimentos": {
+    "$nota": "I7 no serviço, contra o duplo de leitura (a base não se toca): desmapeadas 411, 421, 44331, 711 (com movimento em 2026-09) e 131 (nunca teve movimento — NÃO pode aparecer). movimento = Σ D − Σ C em 2026-09 (DEVEDORA) ou o inverso (CREDORA); saldoFinal = saldo acumulado a 30/09 pela natureza.",
+    "periodoInicio": "2026-09",
+    "periodoFim": "2026-09",
+    "desmapear": ["131", "411", "421", "44331", "711"],
+    "contasNaoMapeadas": [
+      { "codigo": "411", "movimento": "32161.00", "saldoFinal": "1095190.64" },
+      { "codigo": "421", "movimento": "-722050.00", "saldoFinal": "-1325550.00" },
+      { "codigo": "44331", "movimento": "-45563.84", "saldoFinal": "-704113.84" },
+      { "codigo": "711", "movimento": "314704.00", "saldoFinal": "5015158.00" }
+    ],
+    "rubricaAlheia": {
+      "$nota": "I10: o mapeamento de 411 do demo aponta para uma rubrica de OUTRO tenant (as FKs da 22b não são tenant-scoped). A rubrica alheia não pode entrar: 411 fica sem mapeamento ⇒ impedimento só com ela.",
+      "conta": "411",
+      "contasNaoMapeadas": [
+        { "codigo": "411", "movimento": "32161.00", "saldoFinal": "1095190.64" }
+      ]
+    }
+  }
+}

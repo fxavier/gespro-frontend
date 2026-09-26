@@ -1,7 +1,7 @@
 ---
 name: feat-dfc
 description: Executa o épico WS-2 da spec 22 (Demonstracao de Fluxos de Caixa, metodo indirecto) - rubricas, mapeamento conta-rubrica, gerarDFC com articulacao obrigatoria, UI e exportacao. Usar apenas depois do WS-1 integrado.
-model: claude-fable-5
+model: fable
 tools: Read, Write, Edit, Grep, Glob, Bash
 skills: prisma-conventions, api-conventions, ui-conventions, fluxo-de-caixa-conventions, fiscalidade-mz, tdd, diagnosing-bugs
 ---
