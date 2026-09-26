@@ -346,10 +346,20 @@ export async function criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Pro
       tipo: input.tipo as unknown as Parameters<typeof prisma.serieDocumento.create>[0]['data']['tipo'],
       prefixo: input.prefixo.toUpperCase(),
       ano: input.ano,
-      formatoNumero: input.formatoNumero ?? '{prefixo}/{ano}/{numero:06}',
+      numeroInicial: input.numeroInicial,
+      proximoNumero: input.numeroInicial,
     },
   }) as unknown as SerieDocumento;
 }
+
+// ponytail: esqueletos do contrato (#227) — implementação no ticket 4 (#229).
+const naoImplementado = (nome: string) => async (): Promise<never> => {
+  throw new Error(`${nome}: não implementado (#229)`);
+};
+export const editarSerie: IFaturacaoService['editarSerie'] = naoImplementado('editarSerie');
+export const activarSerie: IFaturacaoService['activarSerie'] = naoImplementado('activarSerie');
+export const desactivarSerie: IFaturacaoService['desactivarSerie'] = naoImplementado('desactivarSerie');
+export const eliminarSerie: IFaturacaoService['eliminarSerie'] = naoImplementado('eliminarSerie');
 
 export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {
   return prisma.serieDocumento.findMany({
@@ -1313,4 +1323,8 @@ export const faturacaoService = {
   converterCotacaoEmProforma,
   obterCotacaoComercial,
   listarCotacoesComerciais,
+  editarSerie,
+  activarSerie,
+  desactivarSerie,
+  eliminarSerie,
 } satisfies IFaturacaoService;

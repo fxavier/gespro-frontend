@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
+import { idEntidade } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -89,14 +90,43 @@ export type LinhaDocumentoInput = z.infer<typeof LinhaDocumentoSchema>;
 // SerieDocumento
 // ---------------------------------------------------------------------------
 
+// #149: o formato é fixo ({prefixo}/{ano}/{numero:06}) — não entra pelo cliente.
+// O ano (corrente ou seguinte, Africa/Maputo) é verificado no serviço: depende do relógio.
+const prefixoSerie = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .min(1, 'Prefixo obrigatório')
+  .max(10, 'Máximo 10 caracteres')
+  .regex(/^[A-Z0-9-]+$/, 'Só letras, algarismos e hífen');
+
+const numeroInicialSerie = z
+  .number({ required_error: 'Número inicial obrigatório', invalid_type_error: 'Número inválido' })
+  .int('Tem de ser inteiro')
+  .min(1, 'Mínimo 1')
+  .max(999_999, 'Máximo 999999');
+
 export const CriarSerieDocumentoSchema = z.object({
   tipo: TipoSerieDocumentoEnum,
-  prefixo: z.string().min(1).max(10).toUpperCase(),
+  prefixo: prefixoSerie,
   ano: z.number().int().min(2020).max(2100),
-  formatoNumero: z.string().max(100).optional(),
+  numeroInicial: numeroInicialSerie.default(1),
 });
 
 export type CriarSerieDocumentoInput = z.infer<typeof CriarSerieDocumentoSchema>;
+
+/** Só enquanto a série não numerou nenhum documento (S3). */
+export const EditarSerieDocumentoSchema = z.object({
+  id: idEntidade(),
+  prefixo: prefixoSerie,
+  numeroInicial: numeroInicialSerie,
+});
+
+export type EditarSerieDocumentoInput = z.infer<typeof EditarSerieDocumentoSchema>;
+
+export const IdSerieDocumentoSchema = z.object({ id: idEntidade() });
+
+export type IdSerieDocumentoInput = z.infer<typeof IdSerieDocumentoSchema>;
 
 // ---------------------------------------------------------------------------
 // Fatura
