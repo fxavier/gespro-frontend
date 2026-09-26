@@ -129,14 +129,16 @@ Todas vivem no serviço, com códigos estáveis em `BusinessRuleError`.
 1. ~~**RECIBO sem consumidor.**~~ **Decidido (2026-09-26): o RECIBO entra no ecrã.** Os 6 tipos
    ficam todos. A série existe e o bootstrap cria-a, embora nenhum serviço chame ainda
    `proximoNumeroSerie('RECIBO')`: a coluna «emitidos» mostra 0 até existir emissão de recibos.
-2. **Elegibilidade na emissão.** Os selectores de série dos formulários de emissão (`listarSeriesParaSelecao`)
-   filtram só por `ativo`, e não pelo ano da data do documento. Com uma só activa por tipo+ano, alinha-se
-   o selector com o ano de `dataEmissao`? Está fora do âmbito, mas é adjacente.
-3. **Anos anteriores.** Um documento retroactivo de um ano sem série (por exemplo, uma série desactivada
-   por engano em 2025) não tem saída se o formulário só aceitar o ano corrente e o seguinte. Basta
-   reactivar a série antiga, ou é preciso abrir anos com exercício contabilístico ainda aberto (ADR-0033)?
-4. **Coluna «documentos emitidos».** Mostra-se `proximoNumero − numeroInicial`, que é o que a sequência
-   diz, ou a contagem real das relações? A contagem real não existe para o RECIBO.
-5. **Criação em lote para o ano seguinte.** O cron de 1/12 já cria as séries do ano seguinte. Vale a pena
-   um botão «Criar séries de <ano+1>», que chame `bootstrapSeriesDocumento`, para quando o cron não correu?
-   Como não há agendador em produção (ADR-0026 §5), talvez seja o único caminho.
+2. ~~**Elegibilidade na emissão.**~~ **Decidido: fora do âmbito**, aberta como
+   [#234](https://github.com/fxavier/gespro-frontend/issues/234). Os selectores de emissão
+   (`listarSeriesParaSelecao`) filtram só por `ativo`, não pelo ano de `dataEmissao`.
+3. ~~**Anos anteriores.**~~ **Decidido: basta reactivar a série antiga.** O limite de ano (corrente e
+   seguinte) aplica-se só à criação; activar/desactivar aceita qualquer ano, sujeito à regra de uma
+   activa por tipo+ano.
+4. ~~**Coluna «documentos emitidos».**~~ **Decidido: `proximoNumero − numeroInicial`.** É o que a
+   sequência diz e funciona para os 6 tipos, RECIBO incluído.
+5. ~~**Criação em lote para o ano seguinte.**~~ **Decidido: fora do âmbito**, aberta como
+   [#235](https://github.com/fxavier/gespro-frontend/issues/235). Sem agendador em produção
+   (ADR-0026 §5), é o caminho de recurso quando o cron de 1/12 não corre.
+
+Todas as questões decididas a 2026-09-26.

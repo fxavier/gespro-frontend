@@ -20,11 +20,11 @@ termina num gate executável. Ordem por qualidade do oráculo — contratos → 
 
 ---
 
-- [ ] 0. [HUMANO] [BLOCKING] Responder às Open Questions do `intent.md`
+- [x] 0. [HUMANO] [BLOCKING] Responder às Open Questions do `intent.md`
   - [x] 0.1 Q1 — RECIBO no ecrã ou fora até haver emissor? **Decidido: entra no ecrã** (2026-09-26)
-  - [ ] 0.2 Q3 — anos anteriores: basta reactivar? (sugestão: sim; S5 só limita a criação)
-  - [ ] 0.3 Q4 — «documentos emitidos» = `proximoNumero − numeroInicial` (sugestão: sim)
-  - [ ] 0.4 Q2 e Q5 ficam fora deste épico (sugestão: abrir issues próprias)
+  - [x] 0.2 Q3 — anos anteriores: **basta reactivar** (S5 só limita a criação)
+  - [x] 0.3 Q4 — «documentos emitidos» = **`proximoNumero − numeroInicial`**
+  - [x] 0.4 Q2 e Q5 **fora deste épico**: #234 e #235
   ✅ Gate: respostas escritas no `intent.md` (secção Open Questions → «Decididas»). Nenhum gate verde substitui este.
 
 - [ ] 1. [BLOCKING] Migração `numeroInicial` + índice parcial — **só o orquestrador**
