@@ -476,3 +476,41 @@ test.describe('A11y: Contabilidade — Demonstração de Fluxos de Caixa', () =>
     });
   }
 });
+
+// ─── Issue #149: Séries de documento (ticket 8.2) ────────────────────────────
+// Lista e formulário de criação, nos dois temas, como admin (vê «Nova série»
+// e as acções por linha — a superfície maior).
+
+test.describe('A11y: Faturação — Séries de documento', () => {
+  for (const tema of TEMAS) {
+    const nomeTema = tema === 'light' ? 'claro' : 'escuro';
+
+    test(`sem violações AA na lista de séries — tema ${nomeTema}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      await page.goto('/faturacao/series');
+      await page.waitForLoadState('domcontentloaded');
+
+      await expect(
+        page.getByRole('heading', { name: 'Séries de documento', level: 1 })
+      ).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('#main-content').getByRole('table')).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+
+      await checkA11y(page, `lista de séries (${tema})`);
+    });
+
+    test(`sem violações AA no formulário de nova série — tema ${nomeTema}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      await page.goto('/faturacao/series/nova');
+      await page.waitForLoadState('domcontentloaded');
+
+      await expect(
+        page.getByRole('heading', { name: 'Nova série', level: 1 })
+      ).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('serie-previsualizacao')).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+
+      await checkA11y(page, `nova série (${tema})`);
+    });
+  }
+});
