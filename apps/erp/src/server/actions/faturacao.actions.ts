@@ -197,10 +197,10 @@ export const aceitarProforma = createSafeAction({
 });
 
 export const converterProformaEmFatura = createSafeAction({
-  schema: z.object({ id: z.string().cuid(), serieDocumentoId: z.string().cuid() }),
+  schema: z.object({ id: z.string().cuid() }),
   permission: 'faturacao:proforma:converter',
   revalidate: { tags: ['faturacao', 'proformas', 'faturas'] },
-  handler: (input, ctx) => faturacao.converterProformaEmFatura(input.id, input.serieDocumentoId, ctx),
+  handler: (input, ctx) => faturacao.converterProformaEmFatura(input.id, ctx),
 });
 
 export const cancelarProforma = createSafeAction({
@@ -248,10 +248,10 @@ export const rejeitarCotacaoComercial = createSafeAction({
 });
 
 export const converterCotacaoEmProforma = createSafeAction({
-  schema: z.object({ id: z.string().cuid(), serieProformaId: z.string().cuid() }),
+  schema: z.object({ id: z.string().cuid() }),
   permission: 'faturacao:cotacao:converter',
   revalidate: { tags: ['faturacao', 'cotacoes', 'proformas'] },
-  handler: (input, ctx) => faturacao.converterCotacaoEmProforma(input.id, input.serieProformaId, ctx),
+  handler: (input, ctx) => faturacao.converterCotacaoEmProforma(input.id, ctx),
 });
 
 export const listarCotacoesComerciais = createSafeAction({

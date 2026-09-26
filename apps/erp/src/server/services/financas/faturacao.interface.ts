@@ -512,6 +512,20 @@ export interface IFaturacaoService {
     data: Date,
   ): Promise<string>;
 
+  /**
+   * #93 — o mesmo `UPDATE … RETURNING` de `proximoNumeroSerie`, mas devolve
+   * também o id da série que numerou (a activa do tipo no ano, em Maputo, da
+   * `data`). As portas de emissão gravam esse id; nunca um id vindo do input.
+   *
+   * @throws BusinessRuleError('SERIE_NAO_ENCONTRADA') se não existir série activa.
+   */
+  numerarDocumento(
+    tx: Prisma.TransactionClient,
+    tipo: TipoSerieDocumento,
+    ctx: Ctx,
+    data: Date,
+  ): Promise<{ numero: string; serieDocumentoId: string }>;
+
   // --- Facturas ---
   emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta>;
   obterFatura(id: string, ctx: Ctx): Promise<FaturaCompleta | null>;
@@ -549,7 +563,7 @@ export interface IFaturacaoService {
   criarProforma(input: CriarProformaInput, ctx: Ctx): Promise<ProformaCompleta>;
   enviarProforma(id: string, ctx: Ctx): Promise<Proforma>;
   aceitarProforma(id: string, ctx: Ctx): Promise<Proforma>;
-  converterProformaEmFatura(id: string, serieDocumentoId: string, ctx: Ctx): Promise<FaturaCompleta>;
+  converterProformaEmFatura(id: string, ctx: Ctx): Promise<FaturaCompleta>;
   cancelarProforma(id: string, motivo: string, ctx: Ctx): Promise<Proforma>;
   obterProforma(id: string, ctx: Ctx): Promise<ProformaCompleta | null>;
   listarProformas(
@@ -565,11 +579,7 @@ export interface IFaturacaoService {
   enviarCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercial>;
   aceitarCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercial>;
   rejeitarCotacaoComercial(id: string, motivo: string, ctx: Ctx): Promise<CotacaoComercial>;
-  converterCotacaoEmProforma(
-    id: string,
-    serieProformaId: string,
-    ctx: Ctx,
-  ): Promise<ProformaCompleta>;
+  converterCotacaoEmProforma(id: string, ctx: Ctx): Promise<ProformaCompleta>;
   obterCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercialCompleta | null>;
   listarCotacoesComerciais(
     filtro: FiltroCotacaoComercialInput,

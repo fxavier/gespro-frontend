@@ -23,7 +23,8 @@ import {
   FormPage,
   FormSection,
   UnsavedChangesGuard,
-  type ComboboxOption, Combobox } from '@/components/patterns';
+  type ComboboxOption,
+} from '@/components/patterns';
 import { emitirFatura } from '@/server/actions/faturacao.actions';
 import { procurarClientes } from '@/server/actions/clientes.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
@@ -39,7 +40,6 @@ const LinhaFormSchema = z.object({
 });
 
 const FormSchema = z.object({
-  serieDocumentoId: z.string().min(1, 'Série obrigatória'),
   clienteId: z.string().min(1, 'Cliente obrigatório'),
   dataEmissao: z.string().min(1, 'Data obrigatória'),
   dataVencimento: z.string().min(1, 'Data obrigatória'),
@@ -56,14 +56,13 @@ export interface ClienteOpcao {
 }
 
 interface Props {
-  series: Array<{ id: string; codigo: string; nome: string }>;
   /** Primeira página de clientes; a partir daí a combobox pesquisa no servidor. */
   clientesIniciais: ClienteOpcao[];
 }
 
 const today = new Date().toISOString().split('T')[0];
 
-export function NovaFaturaForm({ series, clientesIniciais }: Props) {
+export function NovaFaturaForm({ clientesIniciais }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -89,7 +88,6 @@ export function NovaFaturaForm({ series, clientesIniciais }: Props) {
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      serieDocumentoId: series[0]?.id ?? '',
       clienteId: '',
       dataEmissao: today,
       dataVencimento: '',
@@ -101,8 +99,6 @@ export function NovaFaturaForm({ series, clientesIniciais }: Props) {
   const { fields, append, remove } = useFieldArray({ control, name: 'linhas' });
   const linhas = useWatch({ control, name: 'linhas' }) ?? [];
   const clienteId = useWatch({ control, name: 'clienteId' });
-  const serieId = useWatch({ control, name: 'serieDocumentoId' });
-  const serieEscolhida = series.find((s) => s.id === serieId);
 
   // Live totals — linhas com taxa inválida são ignoradas (erro do campo aparece)
   const { base: _subtotal, iva: _iva, total: _total } = calcularTotais(
@@ -122,7 +118,6 @@ export function NovaFaturaForm({ series, clientesIniciais }: Props) {
   const onSubmit = handleSubmit((values) => {
     startTransition(async () => {
       const result = await emitirFatura({
-        serieDocumentoId: values.serieDocumentoId,
         clienteId: values.clienteId,
         moeda: 'MZN',
         dataEmissao: values.dataEmissao,
@@ -164,28 +159,8 @@ export function NovaFaturaForm({ series, clientesIniciais }: Props) {
           </>
         }
       >
-        <FormSection title="Série e Cliente" description="Identifique a série e o destinatário da fatura">
+        <FormSection title="Cliente e datas" description="Identifique o destinatário da fatura">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="serie-faturacao">Série de Faturação *</Label>
-              <Combobox
-                id="serie-faturacao"
-                aria-label="Série de Faturação"
-                value={serieId}
-                disabled={series.length === 0}
-                onChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
-                placeholder="Seleccione a série"
-                options={series.map((s) => ({ value: s.id, label: s.nome }))}
-              />
-              {series.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Sem séries de factura activas — configure uma antes de emitir.
-                </p>
-              )}
-              {errors.serieDocumentoId && (
-                <p className="text-sm text-destructive">{errors.serieDocumentoId.message}</p>
-              )}
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="cliente-id">Cliente *</Label>
@@ -209,6 +184,9 @@ export function NovaFaturaForm({ series, clientesIniciais }: Props) {
             <div className="space-y-2">
               <Label htmlFor="data-emissao">Data de Emissão *</Label>
               <Input id="data-emissao" type="date" {...register('dataEmissao')} />
+              <p className="text-xs text-muted-foreground">
+                Numerada na série activa de fatura do ano da data de emissão.
+              </p>
               {errors.dataEmissao && (
                 <p className="text-sm text-destructive">{errors.dataEmissao.message}</p>
               )}
