@@ -71,8 +71,8 @@ const SERIE = { id: ID, tipo: 'FATURA', prefixo: 'FT', ano: 2026, formatoNumero:
 function novaTx() {
   const doc = (id: string) => async () => ({ id, numero: 'FT/2026/000001', status: 'EMITIDA', linhas: [] });
   return {
-    $queryRaw: vi.fn(async () => [{ numero: 1, prefixo: 'FT', ano: 2026, formatoNumero: SERIE.formatoNumero }]),
-    serieDocumento: { findFirst: vi.fn(async () => SERIE) },
+    // #93: a numeração devolve o id da série que numerou; não há pré-verificação de série escolhida.
+    $queryRaw: vi.fn(async () => [{ id: SERIE.id, numero: 1, prefixo: 'FT', ano: 2026, formatoNumero: SERIE.formatoNumero }]),
     cliente: { findFirst: vi.fn(async () => ({ id: 'cli-1' })) },
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-1' })) },
     fatura: {
@@ -117,35 +117,30 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 const FATURA = EmitirFaturaSchema.parse({
-  serieDocumentoId: ID,
   clienteId: 'cli-1',
   dataEmissao: new Date('2026-09-01'),
   dataVencimento: new Date('2026-10-01'),
   linhas: [LINHA],
 });
 const NOTA_CREDITO = EmitirNotaCreditoSchema.parse({
-  serieDocumentoId: ID,
   faturaOriginalId: ID,
   motivo: 'Devolução',
   dataEmissao: new Date('2026-09-01'),
   linhas: [LINHA],
 });
 const NOTA_DEBITO = EmitirNotaDebitoSchema.parse({
-  serieDocumentoId: ID,
   clienteId: 'cli-1',
   motivo: 'Juros de mora',
   dataEmissao: new Date('2026-09-01'),
   linhas: [LINHA],
 });
 const PROFORMA = CriarProformaSchema.parse({
-  serieDocumentoId: ID,
   clienteId: 'cli-1',
   dataEmissao: new Date('2026-09-01'),
   dataValidade: new Date('2026-09-30'),
   linhas: [LINHA],
 });
 const COTACAO = CriarCotacaoComercialSchema.parse({
-  serieDocumentoId: ID,
   clienteId: 'cli-1',
   dataEmissao: new Date('2026-09-01'),
   dataValidade: new Date('2026-09-30'),
@@ -157,7 +152,7 @@ const PORTAS: Array<[string, () => Promise<unknown>]> = [
   ['emitirFatura', () => emitirFatura(FATURA, CTX)],
   ['emitirNotaCredito', () => emitirNotaCredito(NOTA_CREDITO, CTX)],
   ['emitirNotaDebito', () => emitirNotaDebito(NOTA_DEBITO, CTX)],
-  ['converterProformaEmFatura', () => converterProformaEmFatura('pf-1', ID, CTX)],
+  ['converterProformaEmFatura', () => converterProformaEmFatura('pf-1', CTX)],
 ];
 
 // ---------------------------------------------------------------------------

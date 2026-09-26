@@ -219,8 +219,7 @@ test.describe('/vendas/faturas/nova — linha isenta', () => {
     await expect(page.getByRole('heading', { name: 'Nova Fatura' })).toBeVisible({ timeout: 30_000 });
     await page.waitForLoadState('networkidle');
 
-    await page.getByRole('combobox', { name: /Série de documento/ }).click();
-    await page.getByRole('option').first().click();
+    // #93: a série já não se escolhe — é a activa do tipo no ano da data de emissão.
     await escolherCliente(page);
     await teclarData(page.getByLabel(/Data de emissão/), diaMaputo(0));
     await teclarData(page.getByLabel(/Data de vencimento/), diaMaputo(30));

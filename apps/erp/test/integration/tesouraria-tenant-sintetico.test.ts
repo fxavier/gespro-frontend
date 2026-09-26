@@ -360,6 +360,8 @@ describe.skipIf(skip)('spec 22 — tenant sintético semeado pelos serviços (or
         ctx,
       ),
     );
+    // #93: a emissão já não recebe série — usa a activa do ano. Esta leitura só
+    // falha cedo, com mensagem clara, se o bootstrap não a tiver criado.
     const serieFatura = await db.serieDocumento.findFirst({
       where: { tenantId: ctx.tenantId, tipo: 'FATURA', ano: anoHoje, ativo: true },
     });
@@ -369,7 +371,6 @@ describe.skipIf(skip)('spec 22 — tenant sintético semeado pelos serviços (or
       runCtx(ctx, () =>
         fat.emitirFatura(
           EmitirFaturaSchema.parse({
-            serieDocumentoId: serieFatura.id,
             clienteId: cliente.id,
             dataEmissao,
             dataVencimento,
