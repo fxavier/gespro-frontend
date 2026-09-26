@@ -22,8 +22,9 @@
  * outro erro propaga para o `error.tsx` (≠ 200), como no balancete e na DRE.
  */
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { TriangleAlert } from 'lucide-react';
+import { Settings2, TriangleAlert } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { BusinessRuleError } from '@/lib/errors';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -33,11 +34,13 @@ import { ERROS_DFC, temImpedimentos } from '@/server/services/financas/dfc.inter
 import { resolverIntervaloDFC } from '@/lib/dfc-intervalo';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { SeletorPeriodo } from '../_components/seletor-periodo';
 import { MapaDFC } from './_components/mapa-dfc';
 import { ImpedimentosDFC } from './_components/impedimentos-dfc';
 
 const PERMISSAO = 'financas:fluxo-caixa:leitura';
+const PERMISSAO_CONFIGURAR = 'financas:fluxo-caixa:configurar';
 
 const CABECALHO = {
   title: 'Demonstração de Fluxos de Caixa',
@@ -133,7 +136,20 @@ export default async function DfcPage({ searchParams }: PageProps) {
 
   return (
     <div className="p-6 space-y-6">
-      <PageHeader {...CABECALHO} />
+      {/* Aqui já há `:leitura`, que chega para ver o painel de rubricas (só de
+          leitura para quem não configura): a ligação aparece sempre, e o
+          rótulo diz o que o utilizador lá pode fazer. */}
+      <PageHeader
+        {...CABECALHO}
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/contabilidade/fluxo-caixa/rubricas" data-testid="dfc-configurar-rubricas">
+              <Settings2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
+              {permissions.includes(PERMISSAO_CONFIGURAR) ? 'Configurar rubricas' : 'Rubricas'}
+            </Link>
+          </Button>
+        }
+      />
 
       <Suspense fallback={null}>
         <SeletorPeriodo

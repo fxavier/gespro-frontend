@@ -64,8 +64,32 @@ export const ERROS_DFC = {
   DFC_INTERVALO_INVERTIDO: 'DFC_INTERVALO_INVERTIDO',
   /** V3: tentativa de validar uma versão que não é a mais recente. */
   VERSAO_DESACTUALIZADA: 'VERSAO_DESACTUALIZADA',
-  /** §3: tentativa de apagar uma rubrica `origem: SISTEMA`. */
+  /** V3: a versão indicada é a mais recente mas já está `VALIDATED` (validar é uma vez só). */
+  VERSAO_JA_VALIDADA: 'VERSAO_JA_VALIDADA',
+  /** §3: tentativa de apagar uma rubrica `origem: SISTEMA`, ou de lhe mudar o código. */
   RUBRICA_DE_SISTEMA: 'RUBRICA_DE_SISTEMA',
+  /**
+   * MINOR-2 do `servico` (código fixado pelo oráculo do `config-v`): desactivar
+   * ou apagar uma rubrica que ainda tem contas mapeadas. Reatribuir ou
+   * desmapear primeiro — o `gerarDFC` só lê `deletedAt: null`.
+   */
+  RUBRICA_COM_CONTAS: 'RUBRICA_COM_CONTAS',
+  /** Mapear uma conta (ou definir contas de caixa) numa rubrica desactivada. */
+  RUBRICA_INATIVA: 'RUBRICA_INATIVA',
+  /** Código de rubrica já usado no tenant (também por uma rubrica eliminada: o `@@unique` mantém-se). */
+  RUBRICA_CODIGO_DUPLICADO: 'RUBRICA_CODIGO_DUPLICADO',
+  /**
+   * E2: há UMA rubrica de caixa por tenant (a semeada). Criar outra, ou mudar a
+   * actividade de/para `CAIXA`, recusa — as contas de caixa definem-se por
+   * `definirContasCaixa`.
+   */
+  RUBRICA_CAIXA_UNICA: 'RUBRICA_CAIXA_UNICA',
+  /**
+   * Rede de segurança da concorrência: dois escritores tentaram criar a mesma
+   * versão n+1 (P2002 no `@@unique([tenantId, numero])`). Com a tranca consultiva
+   * do tenant não deve acontecer; se acontecer, o utilizador tenta de novo.
+   */
+  MAPEAMENTO_ALTERADO_EM_SIMULTANEO: 'MAPEAMENTO_ALTERADO_EM_SIMULTANEO',
 } as const;
 
 export type CodigoErroDFC = (typeof ERROS_DFC)[keyof typeof ERROS_DFC];
@@ -434,6 +458,26 @@ export type MudouFn = (
 // Interface do serviço (I/O — implementação em dfc.service.ts, nós `servico` e `config`)
 // ---------------------------------------------------------------------------
 
+/** Uma conta PGC tal como aparece no painel de configuração. */
+export type ContaResumoDFC = Pick<ContaPGC, 'id' | 'codigo' | 'nome'>;
+
+/**
+ * O painel de configuração do mapeamento (UI `/contabilidade/fluxo-caixa/rubricas`):
+ * todas as rubricas não apagadas (activas e inactivas), com as contas de cada
+ * uma, e as contas folha activas sem mapeamento.
+ */
+export interface PainelConfiguracaoDFC {
+  rubricas: Array<{ rubrica: RubricaFluxoCaixa; contas: ContaResumoDFC[] }>;
+  contasSemMapeamento: ContaResumoDFC[];
+}
+
+/** Uma versão com o nome de quem a validou e o tamanho do instantâneo (histórico na UI). */
+export interface VersaoComValidador extends VersaoMapeamentoFluxo {
+  validadoPorNome: string | null;
+  contas: number;
+  rubricas: number;
+}
+
 /**
  * IDfcService — contrato do serviço da DFC.
  *
@@ -481,6 +525,14 @@ export interface IDfcService {
   listarMapeamentos(ctx: Ctx): Promise<MapeamentoContaFluxo[]>;
 
   mapearConta(input: MapearContaInput, ctx: Ctx): Promise<MapeamentoContaFluxo>;
+
+  /**
+   * Ajuste 4 do grafo `dfc`: retira o mapeamento da conta (escrita singular,
+   * versão n+1 se mudou). A conta fica NÃO mapeada — com movimento, é
+   * impedimento da DFC até ser reatribuída. Conta sem mapeamento ⇒ `null`, sem
+   * escrita nem versão. Conta de outro tenant ⇒ `NotFoundError` sem escrita.
+   */
+  desmapearConta(contaId: string, ctx: Ctx): Promise<MapeamentoContaFluxo | null>;
 
   /** Nasce `origem: TENANT`. */
   criarRubrica(input: CriarRubricaInput, ctx: Ctx): Promise<RubricaFluxoCaixa>;

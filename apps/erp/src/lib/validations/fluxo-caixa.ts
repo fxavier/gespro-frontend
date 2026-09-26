@@ -80,6 +80,13 @@ export const MapearContaSchema = z.object({
 
 export type MapearContaInput = z.infer<typeof MapearContaSchema>;
 
+/** Retira o mapeamento de uma conta (fica não mapeada: impedimento se tiver movimento). */
+export const DesmapearContaSchema = z.object({
+  contaId: idEntidade('ID de conta inválido'),
+});
+
+export type DesmapearContaInput = z.infer<typeof DesmapearContaSchema>;
+
 /**
  * Código de rubrica: prefixo alfabético, hífen, dígitos (`OP-01`, `INV-02`,
  * `FIN-03`, `CX-01`). Maiúsculas obrigatórias — o `@@unique([tenantId,
@@ -115,6 +122,13 @@ export const EditarRubricaSchema = RubricaCamposSchema.partial().extend({
 });
 
 export type EditarRubricaInput = z.infer<typeof EditarRubricaSchema>;
+
+/** Elimina (soft delete) uma rubrica `TENANT` sem contas. */
+export const EliminarRubricaSchema = z.object({
+  id: idEntidade('ID de rubrica inválido'),
+});
+
+export type EliminarRubricaInput = z.infer<typeof EliminarRubricaSchema>;
 
 /**
  * Define o conjunto das contas de caixa e equivalentes (E2): as contas
@@ -159,3 +173,55 @@ export const ValidarVersaoSchema = z.object({
 });
 
 export type ValidarVersaoInput = z.infer<typeof ValidarVersaoSchema>;
+
+// ---------------------------------------------------------------------------
+// UI de configuração
+// ---------------------------------------------------------------------------
+
+/** Pesquisa de contas para o `ComboboxRemoto` (código ou nome). */
+export const ProcurarContasDFCSchema = z.object({
+  q: z.string().trim().max(100).default(''),
+});
+
+export type ProcurarContasDFCInput = z.infer<typeof ProcurarContasDFCSchema>;
+
+/**
+ * Destino depois de gravar (`?voltar=`). Só caminhos internos da
+ * contabilidade: um `voltar` arbitrário seria um redireccionamento aberto
+ * (`//evil.example`, `https://…`, `/\evil`). Devolve `null` se não for seguro.
+ *
+ * Duas camadas, porque a verificação textual sozinha não chega: o browser e o
+ * router normalizam o caminho DEPOIS de o validarmos, e `%2e%2e` é um `..`
+ * para o parser de URL (WHATWG) — `/contabilidade/%2e%2e/vendas` passava no
+ * `startsWith` e aterrava em `/vendas`.
+ *  1. texto em bruto: prefixo, sem `\`, sem `://`, sem `..`, sem caracteres de
+ *     controlo (o parser de URL apaga CR/LF/TAB em silêncio, por isso vêm antes);
+ *  2. normalizado: `new URL(voltar, base)` tem de ficar na mesma origem, com o
+ *     caminho resolvido ainda dentro de `/contabilidade/`, e o caminho não pode
+ *     trazer percent-encoding NENHUM: um `..%2f..%2fvendas` é inofensivo para o
+ *     parser mas não para quem o descodificar a seguir, e `%252e%252e` só vira
+ *     `..` à segunda descodificação. Nenhuma rota da contabilidade precisa de
+ *     `%` no caminho (ids são cuid/uuid); a query-string pode tê-lo.
+ * Devolve o caminho normalizado (`pathname + search`, sem fragmento).
+ */
+export function voltarSeguro(voltar: string | null | undefined): string | null {
+  if (!voltar) return null;
+  if (!voltar.startsWith('/contabilidade/')) return null;
+  if (voltar.includes('\\') || voltar.includes('://') || voltar.includes('..')) return null;
+  for (let i = 0; i < voltar.length; i++) {
+    const c = voltar.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) return null;
+  }
+
+  const BASE = 'http://gespro.invalido';
+  let url: URL;
+  try {
+    url = new URL(voltar, BASE);
+  } catch {
+    return null;
+  }
+  if (url.origin !== BASE) return null;
+  if (!url.pathname.startsWith('/contabilidade/') || url.pathname.includes('//')) return null;
+  if (url.pathname.includes('%')) return null;
+  return url.pathname + url.search;
+}

@@ -34,7 +34,7 @@ adr ─► contratos⚙ ─► oraculos ─► nucleo ─► seed-v ─► seed�
 | `servico` | 5.1–5.2 | `feat-dfc` | servico-v | golden ao cêntimo · articula · impedimento sem mapa · `pnpm check` | verificador | FEITO |
 | `fatia` | 6 | `feat-dfc` | servico | `pnpm build` + smoke autenticado (0,00 · faixa · «Sem permissão» ao operador) | code-reviewer | FEITO |
 | `config-v` | gate de 7 | `verificador-fluxo-caixa` | fatia | V1–V3 contra o serviço real, transição nos dois sentidos, sem `upsert`/`*Many` — a falhar | orquestrador | FEITO |
-| `config` | 7 | `feat-dfc` | config-v | oráculo verde · `pnpm gates` | verificador + code-reviewer | por fazer |
+| `config` | 7 | `feat-dfc` | config-v | oráculo verde · `pnpm gates` | verificador + code-reviewer | FEITO |
 | `export-v` | gate de 9 | `verificador-fluxo-caixa` | fatia | teste da rota: PDF com marca, 422 com impedimentos, GET em Leitura — a falhar | orquestrador | FEITO |
 | `export` | 9.1 | `feat-dfc` (worktree própria) | export-v | oráculo verde · `pnpm check` | verificador + code-reviewer | FEITO |
 | `pagina` | 8 + 9.2 | `feat-dfc` | config, export | `pnpm build` · `e2e:a11y` AA nos 2 temas · smoke: resultado = DRE | code-reviewer | por fazer |
