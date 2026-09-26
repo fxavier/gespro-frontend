@@ -32,15 +32,17 @@ import { listarPeriodos } from '@/server/services/financas/contabilidade.service
 import { gerarDFC } from '@/server/services/financas/dfc.service';
 import { ERROS_DFC, temImpedimentos } from '@/server/services/financas/dfc.interface';
 import { resolverIntervaloDFC } from '@/lib/dfc-intervalo';
+import { formatMZN } from '@/lib/format-currency';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { SeletorPeriodo } from '../_components/seletor-periodo';
 import { MapaDFC } from './_components/mapa-dfc';
-import { ImpedimentosDFC } from './_components/impedimentos-dfc';
+import { ImpedimentosPainel } from './_components/impedimentos-painel';
 
 const PERMISSAO = 'financas:fluxo-caixa:leitura';
 const PERMISSAO_CONFIGURAR = 'financas:fluxo-caixa:configurar';
+const PERMISSAO_EXPORTAR = 'financas:exportar';
 
 const CABECALHO = {
   title: 'Demonstração de Fluxos de Caixa',
@@ -69,11 +71,18 @@ async function SeccaoDFC({
   periodoFimId,
   tenantId,
   userId,
+  podeConfigurar,
+  podeExportar,
+  voltar,
 }: {
   periodoInicioId: string;
   periodoFimId: string;
   tenantId: string;
   userId: string;
+  podeConfigurar: boolean;
+  podeExportar: boolean;
+  /** Esta DFC com o mesmo intervalo — o `voltar` do «Mapear». */
+  voltar: string;
 }) {
   const ctx = { tenantId, userId };
   let resultado;
@@ -83,7 +92,7 @@ async function SeccaoDFC({
     if (e instanceof BusinessRuleError && CODIGOS_MOSTRAVEIS.has(e.code)) {
       const delta =
         e.code === ERROS_DFC.DFC_NAO_ARTICULA && e.details && typeof e.details === 'object' && 'delta' in e.details
-          ? String((e.details as { delta: unknown }).delta)
+          ? formatMZN(String((e.details as { delta: unknown }).delta))
           : null;
       return (
         <Recusa titulo={e.code === ERROS_DFC.DFC_NAO_ARTICULA ? 'A DFC não articula' : 'Intervalo recusado'}>
@@ -101,8 +110,10 @@ async function SeccaoDFC({
     throw e;
   }
 
-  if (temImpedimentos(resultado)) return <ImpedimentosDFC resultado={resultado} />;
-  return <MapaDFC dfc={resultado} />;
+  if (temImpedimentos(resultado)) {
+    return <ImpedimentosPainel resultado={resultado} podeConfigurar={podeConfigurar} voltar={voltar} />;
+  }
+  return <MapaDFC dfc={resultado} podeExportar={podeExportar} />;
 }
 
 interface PageProps {
@@ -182,6 +193,9 @@ export default async function DfcPage({ searchParams }: PageProps) {
               periodoFimId={intervalo.fim.id}
               tenantId={tenantId}
               userId={userId}
+              podeConfigurar={permissions.includes(PERMISSAO_CONFIGURAR)}
+              podeExportar={permissions.includes(PERMISSAO_EXPORTAR)}
+              voltar={`/contabilidade/dfc?${new URLSearchParams({ dataInicio: intervalo.dataInicio, dataFim: intervalo.dataFim }).toString()}`}
             />
           </Suspense>
         </>

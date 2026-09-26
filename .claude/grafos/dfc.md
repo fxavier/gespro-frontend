@@ -37,7 +37,7 @@ adr ─► contratos⚙ ─► oraculos ─► nucleo ─► seed-v ─► seed�
 | `config` | 7 | `feat-dfc` | config-v | oráculo verde · `pnpm gates` | verificador + code-reviewer | FEITO |
 | `export-v` | gate de 9 | `verificador-fluxo-caixa` | fatia | teste da rota: PDF com marca, 422 com impedimentos, GET em Leitura — a falhar | orquestrador | FEITO |
 | `export` | 9.1 | `feat-dfc` (worktree própria) | export-v | oráculo verde · `pnpm check` | verificador + code-reviewer | FEITO |
-| `pagina` | 8 + 9.2 | `feat-dfc` | config, export | `pnpm build` · `e2e:a11y` AA nos 2 temas · smoke: resultado = DRE | code-reviewer | por fazer |
+| `pagina` | 8 + 9.2 | `feat-dfc` | config, export | `pnpm build` · `e2e:a11y` AA nos 2 temas · smoke: resultado = DRE | code-reviewer | FEITO |
 | `e2e-v` | 10.1 | `verificador-fluxo-caixa` | pagina | `e2e/18-dfc.spec.ts` escrito e verde a correr sozinho | orquestrador | por fazer |
 | `fecho` | 10.2–10.3 | `feat-dfc` | e2e-v | `pnpm check && pnpm gates` · `gate-periodo` a zero · handoff | orquestrador | por fazer |
 | `parecer` | 11 | **contabilista** | fecho | nenhum automático: parecer escrito + versão VALIDATED | **humano** | por fazer |

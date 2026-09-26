@@ -16,6 +16,7 @@ import {
   Plus,
   BarChart3,
   CreditCard,
+  Waves,
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -128,6 +129,12 @@ const MODULOS = [
     description: 'Demonstração de Resultados por Exercício (DRE)',
     href: '/contabilidade/dre',
     icon: TrendingUp,
+  },
+  {
+    title: 'Fluxos de Caixa',
+    description: 'Demonstração de Fluxos de Caixa (método indirecto), com comparativo N-1',
+    href: '/contabilidade/dfc',
+    icon: Waves,
   },
   {
     title: 'Razão Geral',

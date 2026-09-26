@@ -80,7 +80,10 @@ export function resolverIntervaloDFC<P extends PeriodoParaIntervalo>(
   hoje: Date,
 ): IntervaloDFC<P> {
   if (periodos.length === 0) {
-    return { ok: false, motivo: 'Não há exercício contabilístico aberto: sem períodos não há DFC.' };
+    return {
+      ok: false,
+      motivo: 'O tenant ainda não tem nenhum exercício contabilístico, e sem períodos não há DFC. Crie o exercício em Contabilidade › Exercícios.',
+    };
   }
   for (const [campo, valor] of [
     ['inicial', pedido.dataInicio],

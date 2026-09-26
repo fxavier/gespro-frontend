@@ -74,3 +74,12 @@ describe('resolverIntervaloDFC', () => {
     expect(resolverIntervaloDFC([], {}, HOJE)).toMatchObject({ ok: false });
   });
 });
+
+describe('resolverIntervaloDFC — sem exercício (nó `pagina`, NIT do `fatia`)', () => {
+  it('diz que não há exercício nenhum (não «aberto»: a lista inclui períodos de qualquer estado)', () => {
+    const r = resolverIntervaloDFC([], {}, HOJE);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.motivo).toMatch(/ainda não tem nenhum exercício contabilístico/);
+    expect(!r.ok && r.motivo).not.toMatch(/aberto/);
+  });
+});
