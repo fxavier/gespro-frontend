@@ -1,5 +1,5 @@
 import 'server-only';
-import { Prisma } from '@prisma/client';
+import { Prisma, type TipoSerieDocumento as TipoSeriePrisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
@@ -29,6 +29,7 @@ import type {
   CriarCotacaoComercialInput,
   FiltroCotacaoComercialInput,
 } from '@/lib/validations/faturacao';
+import { TipoSerieDocumentoEnum } from '@/lib/validations/faturacao';
 import {
   TRANSICOES_FATURA,
   TRANSICOES_NOTA_CREDITO,
@@ -349,9 +350,10 @@ export async function proximoNumeroSerie(
 
 type TxSeries = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
-const rotuloTipo = (tipo: string) => ROTULO_TIPO_SERIE[tipo] ?? tipo;
+const rotuloTipo = (tipo: TipoSeriePrisma): string =>
+  (ROTULO_TIPO_SERIE as Partial<Record<TipoSeriePrisma, string>>)[tipo] ?? tipo;
 
-function erroActivaExistente(tipo: string, ano: number): BusinessRuleError {
+function erroActivaExistente(tipo: TipoSeriePrisma, ano: number): BusinessRuleError {
   return new BusinessRuleError(
     'SERIE_ACTIVA_EXISTENTE',
     `Já existe uma série activa de ${rotuloTipo(tipo)} para ${ano}. Desactive-a primeiro.`,
@@ -372,11 +374,43 @@ function erroUsada(): BusinessRuleError {
   );
 }
 
-const eUnicidade = (e: unknown): boolean =>
-  e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
+const erroPrisma = (e: unknown, code: string): e is Prisma.PrismaClientKnownRequestError =>
+  e instanceof Prisma.PrismaClientKnownRequestError && e.code === code;
+
+const eUnicidade = (e: unknown) => erroPrisma(e, 'P2002');
+
+const INDICE_ACTIVA_UNICA = 'SerieDocumento_activa_unica';
+const CAMPOS_ACTIVA_UNICA = 'ano,tenantId,tipo';
+
+/**
+ * O P2002 veio do índice parcial `SerieDocumento_activa_unica`?
+ *
+ * Forma REAL no Prisma 7 + `@prisma/adapter-pg` (observada contra o Postgres
+ * local): sem `meta.target`; o nome só aparece em
+ * `meta.driverAdapterError.cause.originalMessage` («…violates unique constraint
+ * "SerieDocumento_activa_unica"») e os campos em
+ * `meta.driverAdapterError.cause.constraint.fields` (`['"tenantId"','tipo','ano']`,
+ * com aspas quando o identificador as exige). Aceita-se também `meta.target`
+ * (nome ou lista de campos) e o nome na mensagem. O `@@unique` concorrente
+ * inclui `prefixo`, por isso o conjunto exacto {tenantId,tipo,ano} só pode ser
+ * o índice parcial.
+ */
+function eActivaUnica(e: Prisma.PrismaClientKnownRequestError): boolean {
+  const meta = (e.meta ?? {}) as Record<string, unknown>;
+  const causa = (meta.driverAdapterError as { cause?: Record<string, unknown> } | undefined)?.cause;
+  const textos = [e.message, meta.target, causa?.originalMessage, (causa?.constraint as { index?: unknown } | undefined)?.index];
+  if (textos.some((t) => typeof t === 'string' && t.includes(INDICE_ACTIVA_UNICA))) return true;
+  const campos = [meta.target, (causa?.constraint as { fields?: unknown } | undefined)?.fields].find(Array.isArray);
+  if (!campos) return false;
+  const norm = (campos as unknown[]).map((c) => String(c).replace(/"/g, '')).sort().join(',');
+  return norm === CAMPOS_ACTIVA_UNICA;
+}
+
+/** Tipos operacionais (VENDA, ENCOMENDA…) não se gerem pelo ecrã: são 404. */
+const eTipoGerivel = (tipo: TipoSeriePrisma): boolean => TipoSerieDocumentoEnum.safeParse(tipo).success;
 
 /** Serializa quem cria ou activa séries do mesmo tenant+tipo+ano (S1). */
-async function trancarTipoAno(tx: TxSeries, tenantId: string, tipo: string, ano: number): Promise<void> {
+async function trancarTipoAno(tx: TxSeries, tenantId: string, tipo: TipoSeriePrisma, ano: number): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('series:' || ${tenantId}::text || ':' || ${tipo}::text || ':' || ${String(ano)}::text, 0))`;
 }
 
@@ -384,15 +418,16 @@ async function trancarTipoAno(tx: TxSeries, tenantId: string, tipo: string, ano:
 async function trancarSerie(tx: TxSeries, id: string, tenantId: string) {
   await tx.$queryRaw`SELECT id FROM "SerieDocumento" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE`;
   const serie = await tx.serieDocumento.findFirst({ where: { id, tenantId } });
-  if (!serie) throw new NotFoundError('Série de documento não encontrada.');
+  // Outro tenant ou tipo fora do ecrã: para quem pede, a série não existe.
+  if (!serie || !eTipoGerivel(serie.tipo)) throw new NotFoundError('Série de documento não encontrada.');
   return serie;
 }
 
-async function outraActiva(tx: TxSeries, tenantId: string, tipo: string, ano: number, excluirId?: string) {
+async function outraActiva(tx: TxSeries, tenantId: string, tipo: TipoSeriePrisma, ano: number, excluirId?: string) {
   return tx.serieDocumento.findFirst({
     where: {
       tenantId,
-      tipo: tipo as never,
+      tipo,
       ano,
       ativo: true,
       ...(excluirId ? { id: { not: excluirId } } : {}),
@@ -419,8 +454,7 @@ export async function criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Pro
       return tx.serieDocumento.create({
         data: {
           tenantId: ctx.tenantId,
-          // TipoSerieDocumentoEnum (Zod) é subconjunto do enum Prisma — cast seguro
-          tipo: input.tipo as never,
+          tipo: input.tipo,
           prefixo,
           ano: input.ano,
           formatoNumero: FORMATO_NUMERO_SERIE,
@@ -431,7 +465,7 @@ export async function criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Pro
       });
     })) as unknown as SerieDocumento;
   } catch (e) {
-    if (eUnicidade(e)) throw erroDuplicada();
+    if (eUnicidade(e)) throw eActivaUnica(e) ? erroActivaExistente(input.tipo, input.ano) : erroDuplicada();
     throw e;
   }
 }
@@ -457,9 +491,12 @@ export async function editarSerie(input: EditarSerieDocumentoInput, ctx: Ctx): P
 }
 
 export async function activarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  // Guardado para traduzir o P2002 fora da transacção com o rótulo do tipo.
+  let alvo: { tipo: TipoSeriePrisma; ano: number } | undefined;
   try {
     return (await prisma.$transaction(async (tx) => {
       const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+      alvo = { tipo: serie.tipo, ano: serie.ano };
       if (serie.ativo) return serie;
       // A chave da tranca depende do tipo+ano, que só se conhece lendo a linha já trancada.
       await trancarTipoAno(tx, ctx.tenantId, serie.tipo, serie.ano);
@@ -474,7 +511,7 @@ export async function activarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Prom
     })) as unknown as SerieDocumento;
   } catch (e) {
     // Só o índice parcial `SerieDocumento_activa_unica` pode recusar este update.
-    if (eUnicidade(e)) throw new BusinessRuleError('SERIE_ACTIVA_EXISTENTE', 'Já existe uma série activa para este tipo e ano. Desactive-a primeiro.');
+    if (eUnicidade(e) && alvo) throw erroActivaExistente(alvo.tipo, alvo.ano);
     throw e;
   }
 }
@@ -491,11 +528,18 @@ export async function desactivarSerie(input: IdSerieDocumentoInput, ctx: Ctx): P
 }
 
 export async function eliminarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    const serie = await trancarSerie(tx, input.id, ctx.tenantId);
-    if (serieUsada(serie)) throw erroUsada();
-    await tx.serieDocumento.delete({ where: { id: serie.id, tenantId: ctx.tenantId } });
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+      if (serieUsada(serie)) throw erroUsada();
+      await tx.serieDocumento.delete({ where: { id: serie.id, tenantId: ctx.tenantId } });
+    });
+  } catch (e) {
+    // FK Restrict: há documentos a apontar para a série, mesmo sem S2 a dizer
+    // «usada» (p.ex. emitidos por outra via). Aborta a tx: traduz-se aqui fora.
+    if (erroPrisma(e, 'P2003')) throw erroUsada();
+    throw e;
+  }
 }
 
 export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {

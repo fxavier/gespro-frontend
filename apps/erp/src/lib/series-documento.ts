@@ -5,13 +5,21 @@
  * a MESMA função que `proximoNumeroSerie` usa para o emitir — a pré-visualização
  * não pode divergir do número que sai no documento.
  */
+import type { z } from 'zod';
 import { formatarDiaIso } from '@/lib/format-date';
+import type { TipoSerieDocumentoEnum } from '@/lib/validations/faturacao';
+
+/** Tipos de série que o ecrã gere (subconjunto do enum Prisma). */
+export type TipoSerieGerivel = z.infer<typeof TipoSerieDocumentoEnum>;
 
 /** S4 — formato fixo de toda a série criada pela UI. */
 export const FORMATO_NUMERO_SERIE = '{prefixo}/{ano}/{numero:06}';
 
-/** Rótulos pt-PT dos tipos de série que o ecrã gere. */
-export const ROTULO_TIPO_SERIE: Record<string, string> = {
+/**
+ * Rótulos pt-PT dos tipos de série que o ecrã gere. Fonte única: a designação
+ * do documento fiscal (`fatura-model.ts`) lê daqui.
+ */
+export const ROTULO_TIPO_SERIE: Record<TipoSerieGerivel, string> = {
   FATURA: 'Factura',
   NOTA_CREDITO: 'Nota de Crédito',
   NOTA_DEBITO: 'Nota de Débito',
