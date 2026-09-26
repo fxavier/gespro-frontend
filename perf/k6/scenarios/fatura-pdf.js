@@ -12,7 +12,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, carregarManifesto, opcoesCarga, cuidLike, chave } from '../lib/util.js';
-import { garantirSessao } from '../lib/session.js';
+import { garantirSessao, iniciarSessao } from '../lib/session.js';
 import { chamarAction } from '../lib/actions.js';
 
 const { manifesto, tenant } = carregarManifesto(
@@ -30,8 +30,12 @@ export const options = Object.assign(opcoesCarga({ vus: Number(__ENV.VUS || 10) 
   },
 });
 
-export default function () {
-  const sessao = garantirSessao(tenant);
+export function setup() {
+  return iniciarSessao(tenant);
+}
+
+export default function (data) {
+  const sessao = garantirSessao(data);
 
   const hoje = new Date().toISOString().slice(0, 10);
   const cliente = tenant.clienteIds[(__VU + __ITER) % tenant.clienteIds.length];

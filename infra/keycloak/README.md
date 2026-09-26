@@ -30,6 +30,12 @@
   `apps/erp/prisma/seed/demo-users.ts`; o teste
   `apps/erp/src/server/auth/__tests__/realm-demo-sync.test.ts` falha no
   `pnpm check` se os dois ficheiros divergirem.
+- **`perf-users.json`** (não é importado no arranque) — admins dos tenants de
+  carga que o gate de CI usa (#240), com `id` = `keycloakSub` do seed de volume
+  (`perf-<slug>-admin`) e palavra-passe `perf1234`. O `perf.yml` aplica-o por
+  `partialImport` na Admin API; fica fora do realm porque o
+  `realm-demo-sync.test.ts` exige os cinco demo e só esses. O Keycloak avisa
+  que o `id` não é UUID («future migration might fail») — aceitável em CI.
 - **`plataforma-admin`** — único papel que vive no Keycloak (ADR-0011 §5):
   administra identidades, não dá acesso a dados de nenhum cliente. Sem membros
   neste ficheiro.

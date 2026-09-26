@@ -14,7 +14,7 @@ e é propriedade do fluxo `w8-desempenho`.
 ```
 perf/
 ├── k6/
-│   ├── lib/               # sessão (login Credentials), server actions, utilitários
+│   ├── lib/               # sessão (login pelo Keycloak), server actions, utilitários
 │   ├── scenarios/         # os 6 cenários da fase 1 (ADR-0018 §3)
 │   └── ci-smoke.js        # cenário reduzido do gate de CI (10 VUs, 2 min)
 ├── scripts/
@@ -45,6 +45,11 @@ perf/
    escreve `perf/.generated/seed-manifest.json` com credenciais e amostras de
    IDs para os cenários. Os tenants de carga chamam-se `perf-001`…`perf-NNN`
    (`admin@perf-001.mz` / `perf1234`).
+
+   **Autenticação:** o k6 entra pelo login real (Direct Access Grant contra o
+   Keycloak, ADR-0029), uma vez por corrida no `setup()`. Só os admins de
+   `infra/keycloak/perf-users.json` existem no realm — o `perf.yml` importa-os;
+   localmente, o mesmo `partialImport` pela Admin API (ver o passo no workflow).
 
    **Nota de honestidade:** os valores financeiros são sintéticos e sem
    consistência cruzada garantida — servem para medir desempenho, nunca para

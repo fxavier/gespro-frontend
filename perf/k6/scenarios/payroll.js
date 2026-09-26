@@ -12,7 +12,7 @@
 import { sleep } from 'k6';
 import exec from 'k6/execution';
 import { carregarManifesto, opcoesCarga } from '../lib/util.js';
-import { garantirSessao } from '../lib/session.js';
+import { garantirSessao, iniciarSessao } from '../lib/session.js';
 import { chamarAction } from '../lib/actions.js';
 
 const { tenant } = carregarManifesto(
@@ -31,8 +31,12 @@ export const options = Object.assign(
   },
 );
 
-export default function () {
-  const sessao = garantirSessao(tenant);
+export function setup() {
+  return iniciarSessao(tenant);
+}
+
+export default function (data) {
+  const sessao = garantirSessao(data);
 
   // Mês único por iteração global; RUN_OFFSET evita colisão entre campanhas
   // na mesma base de dados (ex.: RUN_OFFSET=100 na segunda execução).

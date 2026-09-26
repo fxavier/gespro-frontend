@@ -5,6 +5,8 @@
  *
  * Idempotente: upsert por chave natural em tudo.
  */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import { seedRbac } from '../rbac';
 import {
@@ -63,10 +65,9 @@ export async function seedTenantBase(
   if (!adminRole) throw new Error('Role ADMIN não criada pelo seedRbac');
 
   const adminEmail = `admin@${slug}.mz`;
-  // `keycloakSub` sintético e determinístico: estes utilizadores de carga NÃO
-  // existem no Keycloak (por decisão — o gerador é set-based e local). O
-  // cenário k6 de autenticação da re-medição pós-Keycloak usa os utilizadores
-  // demo do realm, não estes. Ver handoff do w8-identidade.
+  // `keycloakSub` sintético e determinístico. Só os tenants que o gate de CI
+  // usa têm identidade no Keycloak, com este mesmo `sub` fixo, em
+  // infra/keycloak/perf-users.json (#240); os restantes não entram.
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {},
@@ -380,7 +381,15 @@ export async function seedTenantBase(
   };
 }
 
-// Desde o ADR-0013 os utilizadores de carga não têm palavra-passe local nem
-// identidade no Keycloak: o campo `senha` do manifesto perde o significado.
-// Mantém-se o export para o manifesto não mudar de forma; o valor assinala-o.
-export const SENHA_PERF_EXPORT = 'sem-palavra-passe-local (ADR-0013)';
+// Desde o ADR-0013 não há palavra-passe local: a do manifesto é a que o
+// Keycloak conhece, lida do ficheiro que a importa (#240) — uma só fonte. Um
+// tenant sem identidade no Keycloak leva um marcador, e o login k6 falha.
+const PERF_USERS = path.resolve(__dirname, '../../../../../infra/keycloak/perf-users.json');
+
+export function senhaPerf(adminEmail: string): string {
+  const { users } = JSON.parse(readFileSync(PERF_USERS, 'utf8')) as {
+    users: Array<{ email: string; credentials: Array<{ value: string }> }>;
+  };
+  const u = users.find((x) => x.email === adminEmail);
+  return u?.credentials[0]?.value ?? 'sem-identidade-no-keycloak (#240)';
+}
