@@ -12,7 +12,7 @@ import {
   Clock, Wallet, Ticket, UserCog, Calendar,
   Award, GraduationCap, Factory, FileBarChart2, PackageSearch, LineChart,
   RotateCcw, FilePlus2, AlertCircle, BookMarked as JournalIcon, CreditCard,
-  PanelLeftClose, PanelLeftOpen, Settings, PercentCircle,
+  PanelLeftClose, PanelLeftOpen, Settings, PercentCircle, ListOrdered,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -126,6 +126,8 @@ const menuItems: MenuItem[] = [
       { title: 'Exercícios', href: '/contabilidade/exercicios', icon: Calendar },
       { title: 'Apuramento de IVA', href: '/contabilidade/iva', icon: PercentCircle },
       { title: 'Faturação', href: '/faturacao/dashboard', icon: Receipt },
+      // #149 — numeração dos documentos; quem só lê vê a lista sem acções.
+      { title: 'Séries de documento', href: '/faturacao/series', icon: ListOrdered, permission: 'faturacao:leitura' },
       { title: 'Caixa', href: '/caixa', icon: Wallet },
       { title: 'Tesouraria', href: '/tesouraria', icon: LineChart },
       { title: 'Compromissos', href: '/tesouraria/compromissos', icon: ClipboardList },

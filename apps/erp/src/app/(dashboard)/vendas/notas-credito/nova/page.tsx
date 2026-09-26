@@ -1,12 +1,13 @@
 /**
  * Nova Nota de Crédito — Server Component.
- * Pré-carrega séries e faturas elegíveis (sem Dialog).
+ * Pré-carrega as faturas elegíveis (sem Dialog). A série não se escolhe (#93):
+ * é a activa de NOTA_CREDITO no ano da data de emissão.
  */
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { listarSeries, listarFaturas } from '@/server/services/financas/faturacao.service';
+import { listarFaturas } from '@/server/services/financas/faturacao.service';
 import { PageHeader } from '@/components/patterns';
 import { NovaNotaCreditoForm } from './_components/nova-nota-credito-form';
 
@@ -17,16 +18,9 @@ export default async function NovaNotaCreditoPage() {
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 
-  const [todasSeries, paginaFaturas] = await Promise.all([
-    runWithTenantContext(ctx, () => listarSeries(ctx)),
-    runWithTenantContext(ctx, () =>
-      listarFaturas({ status: 'EMITIDA', take: 100 }, ctx)
-    ),
-  ]);
-
-  const series = todasSeries
-    .filter((s) => s.tipo === 'NOTA_CREDITO' && s.ativo)
-    .map((s) => ({ id: s.id, label: `${s.prefixo}/${s.ano} — NC` }));
+  const paginaFaturas = await runWithTenantContext(ctx, () =>
+    listarFaturas({ status: 'EMITIDA', take: 100 }, ctx)
+  );
 
   // Apenas faturas emitidas ou pagas podem ter nota de crédito
   const faturas = paginaFaturas.items.map((f) => ({
@@ -46,7 +40,7 @@ export default async function NovaNotaCreditoPage() {
           { label: 'Nova Nota de Crédito' },
         ]}
       />
-      <NovaNotaCreditoForm series={series} faturas={faturas} />
+      <NovaNotaCreditoForm faturas={faturas} />
     </div>
   );
 }

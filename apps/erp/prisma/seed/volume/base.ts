@@ -198,6 +198,19 @@ export async function seedTenantBase(
     { tipo: 'RECIBO', prefixo: 'PRC' },
     { tipo: 'NOTA_CREDITO', prefixo: 'PNC' },
   ];
+  // #149 (S1): uma só série activa por tipo+ano. As do bootstrap cedem o lugar
+  // às de perf — antes, era o `ORDER BY createdAt DESC` do proximoNumeroSerie
+  // que as escolhia em silêncio; agora o índice parcial recusaria as duas.
+  await prisma.serieDocumento.updateMany({
+    where: {
+      tenantId: tenant.id,
+      tipo: { in: series.map((s) => s.tipo) },
+      ano,
+      prefixo: { notIn: series.map((s) => s.prefixo) },
+      ativo: true,
+    },
+    data: { ativo: false },
+  });
   let serieFaturaId = '';
   for (const s of series) {
     const serie = await prisma.serieDocumento.upsert({

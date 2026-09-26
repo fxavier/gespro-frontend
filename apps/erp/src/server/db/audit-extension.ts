@@ -20,6 +20,8 @@ export const AUDIT_MODELS = new Set<string>([
   // ADR-0037 E1 (nó `config` do grafo dfc) — a classificação da DFC e as suas
   // versões/validações. As escritas do serviço são singulares de propósito.
   'RubricaFluxoCaixa', 'MapeamentoContaFluxo', 'VersaoMapeamentoFluxo',
+  // #149 — criar, editar, (des)activar e eliminar séries muda a numeração fiscal.
+  'SerieDocumento',
 ]);
 
 /**

@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { formatarData } from '@/lib/format-date';
-import { listarSeriesParaSelecao } from '../../../_lib/series';
 import { ConverterDocumentoForm } from '../../../_components/converter-documento-form';
 
 export default async function ConverterCotacaoPage({
@@ -67,8 +66,6 @@ export default async function ConverterCotacaoPage({
     );
   }
 
-  const series = await runWithTenantContext(ctx, () => listarSeriesParaSelecao('PROFORMA', ctx));
-
   return (
     <div className="p-6 space-y-6">
       {cabecalho}
@@ -88,7 +85,6 @@ export default async function ConverterCotacaoPage({
         tipo="cotacao"
         documentoId={cotacao.id}
         numero={cotacao.numero}
-        series={series}
         voltarHref={detalhe}
       />
     </div>

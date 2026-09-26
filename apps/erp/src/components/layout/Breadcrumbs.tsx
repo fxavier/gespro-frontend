@@ -24,6 +24,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   pos: 'POS',
   clientes: 'Clientes',
   faturacao: 'Faturação',
+  series: 'Séries',
   contabilidade: 'Contabilidade',
   lancamentos: 'Lançamentos',
   'plano-contas': 'Plano de Contas',

@@ -10,6 +10,7 @@
  * (fixtures de teste) — sempre serializado lossless via `toString()`.
  */
 import { type DecimalLike, displayCell, serializeCell } from '@/lib/reporting/dataset';
+import { ROTULO_TIPO_SERIE } from '@/lib/series-documento';
 
 // ---------------------------------------------------------------------------
 // Entradas (estruturais — não importam módulos server-only)
@@ -118,14 +119,7 @@ export interface DocumentoFiscalModel {
 // Designação por tipo de série
 // ---------------------------------------------------------------------------
 
-const DESIGNACAO: Record<string, string> = {
-  FATURA: 'Factura',
-  RECIBO: 'Recibo',
-  NOTA_CREDITO: 'Nota de Crédito',
-  NOTA_DEBITO: 'Nota de Débito',
-  PROFORMA: 'Factura Pró-forma',
-  COTACAO_COMERCIAL: 'Cotação',
-};
+const DESIGNACAO: Partial<Record<string, string>> = ROTULO_TIPO_SERIE;
 
 function fracaoParaPercent(taxa: DecimalLike): string {
   const n = Number(taxa.toString());

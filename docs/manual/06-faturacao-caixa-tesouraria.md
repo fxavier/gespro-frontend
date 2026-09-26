@@ -81,9 +81,26 @@ Não precisa de criar séries para começar: quando a empresa é registada, o si
 
 Para um ano novo, as séries são criadas quando se **abre o exercício contabilístico** desse ano, em **Contabilidade › Exercícios** (ou automaticamente, na data configurada em **Configurações**). Veja [Contabilidade](05-contabilidade.md). A mensagem de confirmação diz quantas séries foram criadas.
 
-> **Atenção:** não existe hoje um ecrã para criar, editar ou desactivar séries à mão. Se o exercício do ano ainda não estiver aberto, a emissão pára com a mensagem «Série activa para tipo … no ano … não encontrada. Crie a série … primeiro.» A solução é abrir o exercício desse ano.
+#### Gerir as séries de faturação
 
-> **Atenção:** a caixa **Série de Faturação** mostra todas as séries de faturas activas, de qualquer ano. Seja qual for a escolhida, o número é sempre atribuído pela série do ano da **Data de Emissão**.
+<!-- captura: 06-faturacao-caixa-tesouraria/series.png | /faturacao/series -->
+
+Em **Faturação › Séries de documento** (`/faturacao/series`) vê as séries dos seis documentos de faturação — Factura, Nota de Crédito, Nota de Débito, Factura Pró-forma, Cotação e Recibo — com o **próximo número** que cada uma vai emitir, o estado (**Activa**/**Inactiva**) e quantos documentos já numerou. Por omissão mostra o ano corrente; filtre por tipo, ano ou estado.
+
+**Quem pode:** todos os que vêem a faturação consultam a lista. Criar, editar, activar, desactivar e eliminar exige a permissão *Configurar séries de faturação* (por omissão, Administrador e Financeiro).
+
+**Regras:**
+- Só pode haver **uma série activa por tipo de documento e por ano**. Para mudar de prefixo, desactive primeiro a série actual e depois crie (ou active) a nova.
+- Uma série nova só pode ser do **ano corrente ou do seguinte**. O formato do número é sempre `PREFIXO/ANO/000001`.
+- O **número inicial** serve para continuar a numeração de outro sistema (por exemplo, começar em 488).
+- Enquanto a série não numerou nenhum documento, pode corrigir o prefixo e o número inicial, ou eliminá-la. Depois do primeiro documento, só a pode activar ou desactivar.
+- Desactivar a única série activa de um tipo no ano corrente trava a emissão desse documento até activar outra — o ecrã avisa antes de confirmar.
+
+**Como criar uma série:** clique em **Nova série**, escolha o **Tipo**, o **Ano**, o **Prefixo** (até 10 letras, algarismos ou hífen) e o **Número inicial**. A pré-visualização mostra o primeiro número que vai sair. Clique em **Guardar**.
+
+As séries de outros documentos (vendas, compras, caixa, stock, transporte…) continuam a ser criadas só automaticamente, e não aparecem neste ecrã.
+
+> **Nota:** a série não se escolhe nos formulários de emissão. Cada documento é numerado na série **activa** do seu tipo no ano da **Data de Emissão** (hora de Maputo) — e é essa a série que fica gravada no documento.
 
 ### Como emitir uma fatura
 
@@ -97,8 +114,8 @@ Para um ano novo, as séries são criadas quando se **abre o exercício contabil
 
 **Passos**
 1. Vá a **Faturação** e clique em **Nova Fatura**.
-2. Em **Série e Cliente**, escolha a **Série de Faturação** e o **Cliente**. Pode escrever parte do nome ou do código do cliente para o encontrar.
-3. Preencha a **Data de Emissão** e a **Data de Vencimento**. O vencimento não pode ser anterior à emissão.
+2. Em **Cliente e datas**, escolha o **Cliente**. Pode escrever parte do nome ou do código do cliente para o encontrar.
+3. Preencha a **Data de Emissão** e a **Data de Vencimento**. O vencimento não pode ser anterior à emissão. A fatura é numerada na série activa de faturas do ano da data de emissão.
 4. Em **Linhas da Fatura**, preencha cada linha: **Descrição**, **Qtd**, **Preço Unit.**, **Desc.** (desconto em valor) e **IVA %** (16% ou 0% (isento)). Use **Adicionar linha** para mais linhas. O **Subtotal**, o **IVA** e o **Total** são actualizados à medida que escreve.
 5. Se quiser, escreva notas para o cliente em **Observações**.
 6. Clique em **Emitir Fatura**.
@@ -139,13 +156,12 @@ O detalhe mostra o **Número**, **Cliente**, **Data de Emissão**, **Vencimento*
 
 **Passos**
 1. Em **Faturação**, clique em **Cotações** e depois em **Nova Cotação**.
-2. Escolha a **Série de Documento**.
-3. Em **ID do Cliente**, cole o identificador interno do cliente.
-4. Preencha a **Data de Emissão** e a **Data de Validade** (a validade tem de ser posterior à emissão).
-5. Preencha as **Linhas da Cotação** como numa fatura.
-6. Se quiser, preencha **Condições Comerciais** (prazo de entrega, forma de pagamento, garantias) e **Observações**.
-7. Clique em **Criar Cotação**.
-8. Abra a cotação na lista e clique em **Enviar** quando a entregar ao cliente.
+2. Em **ID do Cliente**, cole o identificador interno do cliente.
+3. Preencha a **Data de Emissão** e a **Data de Validade** (a validade tem de ser posterior à emissão). A cotação é numerada na série activa de cotações do ano da data de emissão.
+4. Preencha as **Linhas da Cotação** como numa fatura.
+5. Se quiser, preencha **Condições Comerciais** (prazo de entrega, forma de pagamento, garantias) e **Observações**.
+6. Clique em **Criar Cotação**.
+7. Abra a cotação na lista e clique em **Enviar** quando a entregar ao cliente.
 
 > **Atenção:** os formulários **Nova Cotação**, **Nova Fatura Proforma** e **Nova Nota de Crédito** deste módulo pedem o identificador interno do cliente ou da fatura, em vez de o deixar escolher numa lista. Para notas de crédito, use de preferência **Vendas & POS › Notas de Crédito** (ver [Vendas e POS](04-vendas-e-pos.md)).
 
@@ -161,8 +177,7 @@ A cotação nasce em **Rascunho**. Depois de **Enviar**, fica **Enviada**, e apa
 ### Como converter uma cotação em proforma
 
 1. Abra a cotação (estado **Aceite**) e clique em **Converter em proforma**.
-2. Escolha a **Série de proforma**.
-3. Clique em **Converter em proforma**.
+2. Confirme em **Converter em proforma**. A proforma tem a data de hoje e é numerada na série activa de proformas do ano corrente.
 
 **Resultado**
 É criada uma proforma com as mesmas linhas e valores, em **Rascunho**, e abre-se o seu detalhe. A cotação fica **Convertida** e não volta atrás. Se a cotação ainda não estiver aceite, o ecrã diz «Só uma cotação aceite pelo cliente se converte em proforma. Envie-a e registe a aceitação primeiro.»
@@ -170,10 +185,10 @@ A cotação nasce em **Rascunho**. Depois de **Enviar**, fica **Enviada**, e apa
 ### Como criar uma proforma e convertê-la em fatura
 
 1. Em **Faturação**, clique em **Proformas** e depois em **Nova Proforma**, ou converta uma cotação (ver acima).
-2. Preencha **Série de Documento**, **ID do Cliente**, **Data de Emissão**, **Data de Validade** e as **Linhas da Proforma**. Clique em **Criar Proforma**.
+2. Preencha **ID do Cliente**, **Data de Emissão**, **Data de Validade** e as **Linhas da Proforma**. Clique em **Criar Proforma**. A proforma é numerada na série activa de proformas do ano da data de emissão.
 3. Abra a proforma e clique em **Enviar** quando a entregar ao cliente.
 4. Quando o cliente aceitar, clique em **Aceitar**.
-5. Clique em **Converter em factura**, escolha a **Série de factura** e confirme em **Converter em factura**.
+5. Clique em **Converter em factura** e confirme em **Converter em factura**. A fatura tem a data de hoje e é numerada na série activa de faturas do ano corrente.
 
 **Resultado**
 É emitida uma fatura com as mesmas linhas e valores, já no estado **Emitida**, com data de hoje e **vencimento a 30 dias**. A proforma fica **Convertida**. A mensagem é «<proforma> convertido — <número da fatura>.» e abre-se o detalhe da fatura.
@@ -183,8 +198,8 @@ A cotação nasce em **Rascunho**. Depois de **Enviar**, fica **Enviada**, e apa
 ### Como emitir uma nota de crédito
 
 1. Em **Faturação**, clique em **Notas de Crédito** e depois em **Nova Nota de Crédito**.
-2. Escolha a **Série de Documento** e cole em **ID da Factura a Creditar** o identificador da fatura original.
-3. Preencha a **Data de Emissão** e o **Motivo**.
+2. Cole em **ID da Factura a Creditar** o identificador da fatura original.
+3. Preencha a **Data de Emissão** e o **Motivo**. A nota de crédito é numerada na série activa de notas de crédito do ano da data de emissão.
 4. Em **Linhas da Nota de Crédito**, indique os itens e valores a creditar.
 5. Clique em **Emitir Nota de Crédito**.
 
@@ -436,15 +451,16 @@ Para eliminar, clique no botão de eliminar na linha e confirme em **Eliminar co
 | Mensagem mostrada | Porquê | O que fazer |
 |---|---|---|
 | «Para emitir documentos fiscais é preciso confirmar o endereço de e-mail da conta…» | O seu e-mail ainda não foi confirmado. Faturas, notas de crédito e conversões de proforma em fatura são documentos fiscais e ficam bloqueados | Abra a ligação de confirmação que recebeu por e-mail (o aviso no painel reenvia-a). Se já confirmou há pouco, termine a sessão e entre de novo |
-| «Série activa para tipo "…" no ano … não encontrada. Crie a série … primeiro.» | Não há série para o ano da data do documento | Abra o exercício desse ano em **Contabilidade › Exercícios** (ver [Contabilidade](05-contabilidade.md)) |
-| «Série de documento não encontrada ou inactiva» | A série escolhida foi desactivada | Escolha outra série |
+| «Série activa para tipo "…" no ano … não encontrada. Crie a série … primeiro.» | Não há série activa para o ano da data do documento | Abra o exercício desse ano em **Contabilidade › Exercícios** (ver [Contabilidade](05-contabilidade.md)); para documentos de faturação, pode também criar ou activar a série em **Faturação › Séries de documento** |
+| «Já existe uma série activa de … para …. Desactive-a primeiro.» | Tentou criar ou activar uma segunda série do mesmo tipo e ano | Desactive a série actual em **Séries de documento** e repita |
+| «Já existe uma série com este prefixo para o mesmo tipo e ano.» | Já há uma série (activa ou não) com o mesmo tipo, ano e prefixo | Escolha outro prefixo, ou active a série existente |
+| «Esta série já numerou documentos: não pode ser alterada nem eliminada.» (ou a série não mostra **Editar** nem **Eliminar**) | A série já numerou documentos | Só pode activá-la ou desactivá-la; para mudar de prefixo, desactive-a e crie uma nova |
 | «Cliente não encontrado» | O cliente não existe nesta empresa (ou o identificador colado está errado) | Confirme o cliente em **Clientes** |
 | «Data de vencimento não pode ser anterior à data de emissão» | Datas trocadas na fatura | Corrija a **Data de Vencimento** |
 | «Data de validade deve ser posterior à data de emissão» | Datas trocadas na cotação ou proforma | Corrija a **Data de Validade** |
 | «Taxa de IVA inválida — use 0.16 (16%) ou 0 (isento)» | Taxa de IVA fora das permitidas | Escolha 16% ou 0% |
 | «Não é possível emitir NC para factura cancelada» | A fatura original está cancelada | Confirme a fatura a creditar |
 | «Factura original não encontrada» | O identificador da fatura na nota de crédito está errado | Confirme o identificador ou use **Vendas & POS › Notas de Crédito** |
-| «Escolha a série de destino.» | Clicou em converter sem escolher a série | Escolha a série e confirme |
 | «Só uma cotação aceite pelo cliente se converte em proforma…» / «Só uma proforma aceite pelo cliente se converte em factura…» | O documento ainda não foi aceite | Clique em **Enviar** e depois em **Aceitar** |
 | «Já existe uma sessão de caixa aberta (CXS/…)» | Já tem um caixa aberto | Use a sessão aberta ou feche-a primeiro |
 | «Sem Sessão Activa» / «É necessário ter uma sessão de caixa aberta para efectuar o fecho.» | Não tem nenhuma sessão aberta em seu nome | Clique em **Abrir Caixa** |

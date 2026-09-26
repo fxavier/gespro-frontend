@@ -1,12 +1,12 @@
 /**
  * Nova Fatura — Server Component.
- * Pré-carrega séries e clientes para o formulário CC (sem Dialog).
+ * Pré-carrega os clientes para o formulário CC (sem Dialog). A série não se
+ * escolhe (#93): é a activa de FATURA no ano da data de emissão.
  */
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { listarSeries } from '@/server/services/financas/faturacao.service';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { PageHeader } from '@/components/patterns';
 import { NovaFaturaForm } from './_components/nova-fatura-form';
@@ -18,19 +18,11 @@ export default async function NovaFaturaPage() {
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 
-  const [todasSeries, paginaClientes] = await Promise.all([
-    runWithTenantContext(ctx, () => listarSeries(ctx)),
-    runWithTenantContext(ctx, () =>
-      // Só a primeira página: a partir daí a combobox pesquisa no servidor
-      // (`procurarClientes`) — o molde de /servicos/agendamentos/novo.
-      clienteService.listar({ status: 'ATIVO', take: 20, orderBy: 'nome', order: 'asc' }, ctx)
-    ),
-  ]);
-
-  // Serializar: só campos necessários, sem Date/Decimal
-  const series = todasSeries
-    .filter((s) => s.tipo === 'FATURA' && s.ativo)
-    .map((s) => ({ id: s.id, label: `${s.prefixo}/${s.ano} — ${s.tipo}` }));
+  const paginaClientes = await runWithTenantContext(ctx, () =>
+    // Só a primeira página: a partir daí a combobox pesquisa no servidor
+    // (`procurarClientes`) — o molde de /servicos/agendamentos/novo.
+    clienteService.listar({ status: 'ATIVO', take: 20, orderBy: 'nome', order: 'asc' }, ctx)
+  );
 
   const clientes = paginaClientes.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
 
@@ -45,7 +37,7 @@ export default async function NovaFaturaPage() {
           { label: 'Nova Fatura' },
         ]}
       />
-      <NovaFaturaForm series={series} clientes={clientes} />
+      <NovaFaturaForm clientes={clientes} />
     </div>
   );
 }

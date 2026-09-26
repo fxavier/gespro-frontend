@@ -2,31 +2,27 @@
 
 /**
  * Converter cotação→proforma e proforma→factura. É o mesmo gesto duas vezes
- * (escolher a série de destino e confirmar), por isso é um componente só com
- * um ramo, e não duas cópias de noventa linhas.
+ * (confirmar), por isso é um componente só com um ramo, e não duas cópias.
  *
- * A série é uma escolha real: um tenant pode ter mais do que uma activa do
- * mesmo tipo, e é ela que fixa o número do documento que vai nascer.
+ * A série não se escolhe (#93): o documento que nasce é datado de hoje e
+ * numerado na série activa do seu tipo no ano corrente (Maputo).
  */
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { FileCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Combobox, FormPage, FormSection } from '@/components/patterns';
+import { FormPage, FormSection } from '@/components/patterns';
 import {
   converterCotacaoEmProforma,
   converterProformaEmFatura,
 } from '@/server/actions/faturacao.actions';
-import type { SerieOpcao } from '../_lib/series';
 
 interface Props {
   tipo: 'cotacao' | 'proforma';
   documentoId: string;
   numero: string;
-  series: SerieOpcao[];
   voltarHref: string;
 }
 
@@ -34,7 +30,7 @@ const TEXTOS = {
   cotacao: {
     botao: 'Converter em proforma',
     aCorrer: 'A converter…',
-    rotuloSerie: 'Série de proforma',
+    tipoDestino: 'proforma',
     titulo: 'Proforma a criar',
     descricao:
       'As linhas e os valores passam tal e qual. A proforma nasce em RASCUNHO e a cotação fica CONVERTIDA — não volta atrás.',
@@ -42,30 +38,24 @@ const TEXTOS = {
   proforma: {
     botao: 'Converter em factura',
     aCorrer: 'A emitir…',
-    rotuloSerie: 'Série de factura',
+    tipoDestino: 'factura',
     titulo: 'Factura a emitir',
     descricao:
       'A factura nasce já EMITIDA, com vencimento a 30 dias, e a proforma fica CONVERTIDA. É um documento fiscal: não se apaga, corrige-se por nota de crédito.',
   },
 } as const;
 
-export function ConverterDocumentoForm({ tipo, documentoId, numero, series, voltarHref }: Props) {
+export function ConverterDocumentoForm({ tipo, documentoId, numero, voltarHref }: Props) {
   const router = useRouter();
   const [aCorrer, iniciarTransicao] = useTransition();
-  const [serieId, setSerieId] = useState(series.length === 1 ? series[0].id : '');
   const t = TEXTOS[tipo];
 
   const confirmar = () => {
-    if (!serieId) {
-      toast.error('Escolha a série de destino.');
-      return;
-    }
-
     iniciarTransicao(async () => {
       const res =
         tipo === 'cotacao'
-          ? await converterCotacaoEmProforma({ id: documentoId, serieProformaId: serieId })
-          : await converterProformaEmFatura({ id: documentoId, serieDocumentoId: serieId });
+          ? await converterCotacaoEmProforma({ id: documentoId })
+          : await converterProformaEmFatura({ id: documentoId });
 
       if (!res.ok) {
         toast.error(res.error.message ?? 'Não foi possível converter o documento.');
@@ -97,7 +87,7 @@ export function ConverterDocumentoForm({ tipo, documentoId, numero, series, volt
           <Button
             type="button"
             size="sm"
-            disabled={aCorrer || series.length === 0}
+            disabled={aCorrer}
             onClick={confirmar}
           >
             <FileCheck className="h-4 w-4 mr-1.5" />
@@ -107,23 +97,9 @@ export function ConverterDocumentoForm({ tipo, documentoId, numero, series, volt
       }
     >
       <FormSection title={t.titulo} description={t.descricao}>
-        <div className="max-w-sm space-y-2">
-          <Label htmlFor="serie-destino">{t.rotuloSerie} *</Label>
-          <Combobox
-            id="serie-destino"
-            aria-label={t.rotuloSerie}
-            value={serieId}
-            disabled={series.length === 0 || aCorrer}
-            onChange={setSerieId}
-            placeholder="Seleccione a série"
-            options={series.map((s) => ({ value: s.id, label: s.nome }))}
-          />
-          {series.length === 0 && (
-            <p className="text-sm text-destructive">
-              Sem séries activas deste tipo. Configure uma em Faturação → Séries antes de converter.
-            </p>
-          )}
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Numerada na série activa de {t.tipoDestino} do ano da data de emissão (hoje).
+        </p>
       </FormSection>
     </FormPage>
   );

@@ -82,24 +82,6 @@ test.describe('Faturação', () => {
     }
   });
 
-  test('numeração sequencial: séries de documentos existem', async ({ page }) => {
-    await page.goto('/faturacao/nova');
-    await page.waitForLoadState('domcontentloaded');
-
-    await expect(page.getByRole('heading', { name: 'Nova Fatura' })).toBeVisible({
-      timeout: 15_000,
-    });
-
-    // Verifica se existe select de série de documento
-    const serieSelect = page.getByRole('combobox').filter({ hasText: /Série|FT|FR/i });
-    if (await serieSelect.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      // A série deve ter sido pre-selecionada pelo servidor
-      const serieValue = await serieSelect.textContent();
-      expect(serieValue).toBeTruthy();
-      expect(serieValue).not.toBe('');
-    }
-  });
-
   test('fatura emitida aparece na listagem com número sequencial', async ({ page }) => {
     await page.goto('/faturacao');
     await page.waitForLoadState('domcontentloaded');
@@ -121,19 +103,20 @@ test.describe('Faturação', () => {
     }
   });
   /**
-   * A série mostrava um «—» solitário: as páginas liam `codigo`/`nome`, campos
-   * que o modelo SerieDocumento não tem. E mesmo com o rótulo certo o campo
-   * ficava em branco até alguém abrir a lista — o Radix só resolve o texto do
-   * item depois de montar o conteúdo.
+   * #93: a série deixou de se escolher. O selector listava séries de qualquer
+   * ano, mas o número saía sempre da série activa do tipo no ano (Maputo) da
+   * data do documento — e o documento gravava a escolhida. Agora a série é a
+   * que numera; o formulário não tem campo de série nenhum.
    */
-  test('a série de facturação aparece preenchida sem abrir a lista', async ({ page }) => {
+  test('o formulário de nova fatura não pede série', async ({ page }) => {
     await page.goto('/faturacao/nova');
     await expect(page.getByRole('heading', { name: 'Nova Fatura' })).toBeVisible({
       timeout: 15_000,
     });
+    await page.waitForLoadState('networkidle');
 
-    const serie = page.getByLabel('Série de Faturação');
-    await expect(serie).toHaveText(/^[A-Z]+\/\d{4}$/);
+    await expect(page.getByLabel(/S[ée]rie/i)).toHaveCount(0);
+    await expect(page.getByRole('combobox', { name: /S[ée]rie/i })).toHaveCount(0);
   });
 
   test('o cliente escolhe-se por combobox, com código e nome', async ({ page }) => {

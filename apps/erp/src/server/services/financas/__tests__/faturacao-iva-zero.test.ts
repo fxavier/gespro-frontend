@@ -66,10 +66,10 @@ function criarTx() {
   });
   const tx: any = {
     criados,
+    // #93: a numeração devolve também o id da série que numerou (é o que o documento grava).
     $queryRaw: vi.fn(async () => [
-      { numero: 1, prefixo: 'DOC', ano: 2026, formatoNumero: '{prefixo}/{ano}/{numero:06}' },
+      { id: SERIE, numero: 1, prefixo: 'DOC', ano: 2026, formatoNumero: '{prefixo}/{ano}/{numero:06}' },
     ]),
-    serieDocumento: { findFirst: vi.fn(async () => ({ id: SERIE, tipo: 'FATURA', ativo: true })) },
     cliente: { findFirst: vi.fn(async () => ({ id: 'cli-77' })) },
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-77' })) },
     fatura: modelo('fatura', {
@@ -126,7 +126,6 @@ beforeEach(() => {
 describe('emitirFatura com linha a 0% — verde já hoje (não discriminante)', () => {
   it('LinhaFatura.taxaIva = 0, ivaItem = 0; Fatura.ivaTotal = 0; lançamento sem 44331 e equilibrado', async () => {
     const input = EmitirFaturaSchema.parse({
-      serieDocumentoId: SERIE,
       clienteId: 'cli-77',
       dataEmissao: '2026-09-25',
       dataVencimento: '2026-10-25',
@@ -150,7 +149,6 @@ describe('emitirFatura com linha a 0% — verde já hoje (não discriminante)', 
 
   it('linha a 0% + linha a 16%: só a de 16% tem IVA (160), total 2160', async () => {
     const input = EmitirFaturaSchema.parse({
-      serieDocumentoId: SERIE,
       clienteId: 'cli-77',
       dataEmissao: '2026-09-25',
       dataVencimento: '2026-10-25',
@@ -171,9 +169,7 @@ describe('emitirFatura com linha a 0% — verde já hoje (não discriminante)', 
 
 describe('emitirNotaCredito com linha a 0% — verde já hoje (não discriminante)', () => {
   it('LinhaNotaCredito.taxaIva = 0, ivaTotal = 0; lançamento sem estorno de 44331 e equilibrado', async () => {
-    h.tx.serieDocumento.findFirst.mockResolvedValue({ id: SERIE, tipo: 'NOTA_CREDITO', ativo: true });
     const input = EmitirNotaCreditoSchema.parse({
-      serieDocumentoId: SERIE,
       faturaOriginalId: FATURA_ORIGINAL,
       motivo: 'Devolução',
       dataEmissao: '2026-09-25',
@@ -196,9 +192,7 @@ describe('emitirNotaCredito com linha a 0% — verde já hoje (não discriminant
 
 describe('proforma e cotação comercial com linha a 0% — verde já hoje (não discriminante)', () => {
   it('criarProforma grava LinhaProforma.taxaIva = 0 e ivaTotal 0', async () => {
-    h.tx.serieDocumento.findFirst.mockResolvedValue({ id: SERIE, tipo: 'PROFORMA', ativo: true });
     const input = CriarProformaSchema.parse({
-      serieDocumentoId: SERIE,
       clienteId: 'cli-77',
       dataEmissao: '2026-09-25',
       dataValidade: '2026-10-25',
@@ -213,9 +207,7 @@ describe('proforma e cotação comercial com linha a 0% — verde já hoje (não
   });
 
   it('criarCotacaoComercial grava LinhaCotacaoComercial.taxaIva = 0 e ivaTotal 0', async () => {
-    h.tx.serieDocumento.findFirst.mockResolvedValue({ id: SERIE, tipo: 'COTACAO_COMERCIAL', ativo: true });
     const input = CriarCotacaoComercialSchema.parse({
-      serieDocumentoId: SERIE,
       clienteId: 'cli-77',
       dataEmissao: '2026-09-25',
       dataValidade: '2026-10-25',

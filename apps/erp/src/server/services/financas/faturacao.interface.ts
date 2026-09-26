@@ -2,6 +2,8 @@ import 'server-only'; // A5: serviços são server-only
 import type { Prisma } from '@prisma/client';
 import type {
   CriarSerieDocumentoInput,
+  EditarSerieDocumentoInput,
+  IdSerieDocumentoInput,
   EmitirFaturaInput,
   RegistarPagamentoFaturaInput,
   FiltroFaturaInput,
@@ -92,6 +94,8 @@ export interface SerieDocumento {
   prefixo: string;
   ano: number;
   proximoNumero: number;
+  /** #149: «usada» ⇔ proximoNumero > numeroInicial. */
+  numeroInicial: number;
   formatoNumero: string;
   ativo: boolean;
   createdAt: Date;
@@ -474,8 +478,19 @@ export interface PaginacaoFaturacao<T> {
 
 export interface IFaturacaoService {
   // --- Séries de documento ---
+  /**
+   * #149. Recusa: SERIE_ANO_INVALIDO (S5: só o ano corrente e o seguinte, Africa/Maputo),
+   * SERIE_ACTIVA_EXISTENTE (S1), SERIE_DUPLICADA (tipo+ano+prefixo). proximoNumero = numeroInicial.
+   */
   criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento>;
   listarSeries(ctx: Ctx): Promise<SerieDocumento[]>;
+  /** #149. SERIE_USADA se já numerou (S3); SERIE_DUPLICADA; proximoNumero acompanha numeroInicial. */
+  editarSerie(input: EditarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento>;
+  /** #149. SERIE_ACTIVA_EXISTENTE se outra do mesmo tipo+ano estiver activa (S1). Qualquer ano. */
+  activarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento>;
+  desactivarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento>;
+  /** #149. SERIE_USADA se já numerou (S3). */
+  eliminarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<void>;
 
   /**
    * Obtém o próximo número de série dentro de uma transacção,
@@ -496,6 +511,20 @@ export interface IFaturacaoService {
     ctx: Ctx,
     data: Date,
   ): Promise<string>;
+
+  /**
+   * #93 — o mesmo `UPDATE … RETURNING` de `proximoNumeroSerie`, mas devolve
+   * também o id da série que numerou (a activa do tipo no ano, em Maputo, da
+   * `data`). As portas de emissão gravam esse id; nunca um id vindo do input.
+   *
+   * @throws BusinessRuleError('SERIE_NAO_ENCONTRADA') se não existir série activa.
+   */
+  numerarDocumento(
+    tx: Prisma.TransactionClient,
+    tipo: TipoSerieDocumento,
+    ctx: Ctx,
+    data: Date,
+  ): Promise<{ numero: string; serieDocumentoId: string }>;
 
   // --- Facturas ---
   emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta>;
@@ -534,7 +563,7 @@ export interface IFaturacaoService {
   criarProforma(input: CriarProformaInput, ctx: Ctx): Promise<ProformaCompleta>;
   enviarProforma(id: string, ctx: Ctx): Promise<Proforma>;
   aceitarProforma(id: string, ctx: Ctx): Promise<Proforma>;
-  converterProformaEmFatura(id: string, serieDocumentoId: string, ctx: Ctx): Promise<FaturaCompleta>;
+  converterProformaEmFatura(id: string, ctx: Ctx): Promise<FaturaCompleta>;
   cancelarProforma(id: string, motivo: string, ctx: Ctx): Promise<Proforma>;
   obterProforma(id: string, ctx: Ctx): Promise<ProformaCompleta | null>;
   listarProformas(
@@ -550,11 +579,7 @@ export interface IFaturacaoService {
   enviarCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercial>;
   aceitarCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercial>;
   rejeitarCotacaoComercial(id: string, motivo: string, ctx: Ctx): Promise<CotacaoComercial>;
-  converterCotacaoEmProforma(
-    id: string,
-    serieProformaId: string,
-    ctx: Ctx,
-  ): Promise<ProformaCompleta>;
+  converterCotacaoEmProforma(id: string, ctx: Ctx): Promise<ProformaCompleta>;
   obterCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercialCompleta | null>;
   listarCotacoesComerciais(
     filtro: FiltroCotacaoComercialInput,

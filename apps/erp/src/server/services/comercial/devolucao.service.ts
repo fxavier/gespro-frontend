@@ -345,7 +345,6 @@ export class DevolucaoService {
       // 2a. Emitir NC (tx própria do faturacaoService — não pode ser aninhada)
       const nc = await this.faturacaoService.emitirNotaCredito(
         {
-          serieDocumentoId: options.serieNotaCreditoId,
           faturaOriginalId: devolucao.faturaId,
           motivo: `Devolução ${devolucao.numero}: ${devolucao.motivo}`,
           moeda: 'MZN',

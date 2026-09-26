@@ -1,8 +1,8 @@
 /**
  * Converter proforma em factura — Server Component (shell).
  *
- * Do outro lado nasce um documento fiscal já EMITIDO, numerado pela série
- * escolhida. Só uma proforma ACEITE se converte.
+ * Do outro lado nasce um documento fiscal já EMITIDO, numerado na série
+ * activa de FATURA do ano corrente (#93). Só uma proforma ACEITE se converte.
  */
 
 import Link from 'next/link';
@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { formatarData } from '@/lib/format-date';
-import { listarSeriesParaSelecao } from '../../../_lib/series';
 import { ConverterDocumentoForm } from '../../../_components/converter-documento-form';
 
 export default async function ConverterProformaPage({
@@ -65,8 +64,6 @@ export default async function ConverterProformaPage({
     );
   }
 
-  const series = await runWithTenantContext(ctx, () => listarSeriesParaSelecao('FATURA', ctx));
-
   return (
     <div className="p-6 space-y-6">
       {cabecalho}
@@ -86,7 +83,6 @@ export default async function ConverterProformaPage({
         tipo="proforma"
         documentoId={proforma.id}
         numero={proforma.numero}
-        series={series}
         voltarHref={detalhe}
       />
     </div>

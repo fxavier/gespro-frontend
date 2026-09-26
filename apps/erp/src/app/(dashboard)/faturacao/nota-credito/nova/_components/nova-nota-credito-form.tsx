@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
 import { emitirNotaCredito } from '@/server/actions/faturacao.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
@@ -33,7 +33,6 @@ const LinhaFormSchema = z.object({
 });
 
 const FormSchema = z.object({
-  serieDocumentoId: z.string().min(1, 'Série obrigatória'),
   faturaOriginalId: z.string().min(1, 'Factura original obrigatória'),
   motivo: z.string().min(1, 'Motivo obrigatório'),
   dataEmissao: z.string().min(1, 'Data obrigatória'),
@@ -43,13 +42,9 @@ const FormSchema = z.object({
 
 type FormValues = z.infer<typeof FormSchema>;
 
-interface Props {
-  series: Array<{ id: string; codigo: string; nome: string }>;
-}
-
 const today = new Date().toISOString().split('T')[0];
 
-export function NovaNotaCreditoForm({ series }: Props) {
+export function NovaNotaCreditoForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -62,7 +57,6 @@ export function NovaNotaCreditoForm({ series }: Props) {
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      serieDocumentoId: series[0]?.id ?? '',
       faturaOriginalId: '',
       motivo: '',
       dataEmissao: today,
@@ -73,8 +67,6 @@ export function NovaNotaCreditoForm({ series }: Props) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'linhas' });
   const linhas = useWatch({ control, name: 'linhas' }) ?? [];
-  const serieId = useWatch({ control, name: 'serieDocumentoId' });
-  const serieEscolhida = series.find((s) => s.id === serieId);
 
   const { base: _subtotal, iva: _iva, total: _total } = calcularTotais(
     linhas
@@ -93,7 +85,6 @@ export function NovaNotaCreditoForm({ series }: Props) {
   const onSubmit = handleSubmit((values) => {
     startTransition(async () => {
       const result = await emitirNotaCredito({
-        serieDocumentoId: values.serieDocumentoId,
         faturaOriginalId: values.faturaOriginalId,
         motivo: values.motivo,
         moeda: 'MZN',
@@ -135,28 +126,8 @@ export function NovaNotaCreditoForm({ series }: Props) {
           </>
         }
       >
-        <FormSection title="Série e Factura Original" description="Identifique a série e a factura a creditar">
+        <FormSection title="Factura original" description="Identifique a factura a creditar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="serie-nc">Série de Documento *</Label>
-              <Combobox
-                id="serie-nc"
-                aria-label="Série de Documento"
-                value={serieId}
-                disabled={series.length === 0}
-                onChange={(v) => setValue('serieDocumentoId', v, { shouldDirty: true })}
-                placeholder="Seleccione a série"
-                options={series.map((s) => ({ value: s.id, label: s.nome }))}
-              />
-              {series.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Sem séries activas deste tipo — configure uma antes de emitir.
-                </p>
-              )}
-              {errors.serieDocumentoId && (
-                <p className="text-sm text-destructive">{errors.serieDocumentoId.message}</p>
-              )}
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="fatura-original-id">ID da Factura a Creditar *</Label>
@@ -172,6 +143,9 @@ export function NovaNotaCreditoForm({ series }: Props) {
             <div className="space-y-2">
               <Label htmlFor="data-emissao">Data de Emissão *</Label>
               <Input id="data-emissao" type="date" {...register('dataEmissao')} />
+              <p className="text-xs text-muted-foreground">
+                Numerada na série activa de nota de crédito do ano da data de emissão.
+              </p>
               {errors.dataEmissao && (
                 <p className="text-sm text-destructive">{errors.dataEmissao.message}</p>
               )}

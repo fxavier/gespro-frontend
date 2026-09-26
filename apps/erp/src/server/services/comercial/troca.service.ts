@@ -101,7 +101,6 @@ export class TrocaService {
     if (devolucao.faturaId && input.serieNotaCreditoId && !notaCreditoId) {
       const nc = await this.faturacaoService.emitirNotaCredito(
         {
-          serieDocumentoId: input.serieNotaCreditoId,
           faturaOriginalId: devolucao.faturaId,
           motivo: `Troca — devolução ${devolucao.numero}`,
           moeda: 'MZN',

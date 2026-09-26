@@ -1,13 +1,22 @@
 import 'server-only';
-import { Prisma } from '@prisma/client';
+import { Prisma, type TipoSerieDocumento as TipoSeriePrisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
+import {
+  FORMATO_NUMERO_SERIE,
+  ROTULO_TIPO_SERIE,
+  anosPermitidos,
+  formatarNumero,
+  serieUsada,
+} from '@/lib/series-documento';
 import type { IFaturacaoService } from './faturacao.interface';
 import { registarLancamentoContabilistico } from './contabilidade.service';
 import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
   CriarSerieDocumentoInput,
+  EditarSerieDocumentoInput,
+  IdSerieDocumentoInput,
   EmitirFaturaInput,
   RegistarPagamentoFaturaInput,
   FiltroFaturaInput,
@@ -20,6 +29,7 @@ import type {
   CriarCotacaoComercialInput,
   FiltroCotacaoComercialInput,
 } from '@/lib/validations/faturacao';
+import { TipoSerieDocumentoEnum } from '@/lib/validations/faturacao';
 import {
   TRANSICOES_FATURA,
   TRANSICOES_NOTA_CREDITO,
@@ -84,14 +94,6 @@ function transitarCotacao(atual: StatusCotacaoComercial, alvo: StatusCotacaoCome
   if (!permitidas.includes(alvo)) {
     throw new BusinessRuleError('TRANSICAO_INVALIDA', `CotacaoComercial: transição inválida ${atual} → ${alvo}`);
   }
-}
-
-/** Substitui o template de numeração: {prefixo}/{ano}/{numero:06} */
-function formatarNumero(template: string, vars: { prefixo: string; ano: number; numero: number }): string {
-  return template
-    .replace('{prefixo}', vars.prefixo)
-    .replace('{ano}', String(vars.ano))
-    .replace(/\{numero(?::(\d+))?\}/, (_, w) => String(vars.numero).padStart(w ? parseInt(w, 10) : 1, '0'));
 }
 
 /** Calcula subtotais de linhas (input já transformado pelo Zod) */
@@ -291,12 +293,19 @@ function anoFiscalDe(data: Date): number {
   return parseInt(partes.find((p) => p.type === 'year')!.value, 10);
 }
 
-export async function proximoNumeroSerie(
+/**
+ * Numera um documento e devolve também a série que o numerou (#93).
+ *
+ * A série de um documento não se escolhe: é a activa do tipo no ano (Maputo)
+ * da data do documento — com a #149 há no máximo uma. Quem emite grava
+ * `serieDocumentoId` = o id devolvido aqui, nunca um id vindo do input.
+ */
+export async function numerarDocumento(
   tx: Prisma.TransactionClient,
   tipo: TipoSerieDocumento,
   ctx: Ctx,
   data: Date,
-): Promise<string> {
+): Promise<{ numero: string; serieDocumentoId: string }> {
   // ADR-0033 §4: filtra pelo ano do documento (em Africa/Maputo) em vez de ORDER BY ano DESC.
   // O modo de falha anterior era silencioso: a 1 de Janeiro de 2027, com só a série de 2026
   // activa, continuava a emitir FAT/2026/000487 para documentos de 2027. Agora lança
@@ -306,7 +315,7 @@ export async function proximoNumeroSerie(
   // Incrementa atomicamente e devolve o número anterior (que irá usar o documento).
   // FOR UPDATE na subquery garante serialização sem lacunas mesmo com transacções concorrentes.
   const rows = await tx.$queryRaw<
-    Array<{ numero: number; prefixo: string; ano: number; formatoNumero: string }>
+    Array<{ id: string; numero: number; prefixo: string; ano: number; formatoNumero: string }>
   >`
     UPDATE "SerieDocumento"
     SET "proximoNumero" = "proximoNumero" + 1
@@ -320,7 +329,7 @@ export async function proximoNumeroSerie(
       LIMIT 1
       FOR UPDATE
     )
-    RETURNING "proximoNumero" - 1 AS numero, prefixo, ano, "formatoNumero"
+    RETURNING id, "proximoNumero" - 1 AS numero, prefixo, ano, "formatoNumero"
   `;
 
   if (!rows.length) {
@@ -330,25 +339,224 @@ export async function proximoNumeroSerie(
     );
   }
 
-  const { numero, prefixo, ano, formatoNumero } = rows[0];
-  return formatarNumero(formatoNumero, { prefixo, ano, numero });
+  const { id, numero, prefixo, ano, formatoNumero } = rows[0];
+  return { numero: formatarNumero(formatoNumero, { prefixo, ano, numero }), serieDocumentoId: id };
+}
+
+/** Contrato dos outros domínios: só o número (a série fica por conta de `numerarDocumento`). */
+export async function proximoNumeroSerie(
+  tx: Prisma.TransactionClient,
+  tipo: TipoSerieDocumento,
+  ctx: Ctx,
+  data: Date,
+): Promise<string> {
+  return (await numerarDocumento(tx, tipo, ctx, data)).numero;
 }
 
 // ---------------------------------------------------------------------------
 // Séries de documento
 // ---------------------------------------------------------------------------
 
-export async function criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
-  // TipoSerieDocumentoEnum (Zod) é subconjunto do enum Prisma — cast seguro
-  return prisma.serieDocumento.create({
-    data: {
-      tenantId: ctx.tenantId,
-      tipo: input.tipo as unknown as Parameters<typeof prisma.serieDocumento.create>[0]['data']['tipo'],
-      prefixo: input.prefixo.toUpperCase(),
-      ano: input.ano,
-      formatoNumero: input.formatoNumero ?? '{prefixo}/{ano}/{numero:06}',
+// Invariantes (#149): S1 uma activa por tenant+tipo+ano · S2/S3 usada ⇔
+// proximoNumero > numeroInicial, e usada não se edita nem elimina · S4 formato
+// fixo · S5 criação só no ano corrente ou no seguinte (Africa/Maputo).
+//
+// Tudo corre no cliente ESTENDIDO (a auditoria só vê o que passa por ele) e com
+// escritas singulares. O estado que decide é lido DEPOIS da tranca. Um P2002
+// aborta a transacção no Postgres: traduz-se fora do `$transaction`.
+
+type TxSeries = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+const rotuloTipo = (tipo: TipoSeriePrisma): string =>
+  (ROTULO_TIPO_SERIE as Partial<Record<TipoSeriePrisma, string>>)[tipo] ?? tipo;
+
+function erroActivaExistente(tipo: TipoSeriePrisma, ano: number): BusinessRuleError {
+  return new BusinessRuleError(
+    'SERIE_ACTIVA_EXISTENTE',
+    `Já existe uma série activa de ${rotuloTipo(tipo)} para ${ano}. Desactive-a primeiro.`,
+  );
+}
+
+function erroDuplicada(): BusinessRuleError {
+  return new BusinessRuleError(
+    'SERIE_DUPLICADA',
+    'Já existe uma série com este prefixo para o mesmo tipo e ano. Escolha outro prefixo.',
+  );
+}
+
+function erroUsada(): BusinessRuleError {
+  return new BusinessRuleError(
+    'SERIE_USADA',
+    'Esta série já numerou documentos: não pode ser alterada nem eliminada. Desactive-a e crie uma nova.',
+  );
+}
+
+const erroPrisma = (e: unknown, code: string): e is Prisma.PrismaClientKnownRequestError =>
+  e instanceof Prisma.PrismaClientKnownRequestError && e.code === code;
+
+const eUnicidade = (e: unknown) => erroPrisma(e, 'P2002');
+
+const INDICE_ACTIVA_UNICA = 'SerieDocumento_activa_unica';
+const CAMPOS_ACTIVA_UNICA = 'ano,tenantId,tipo';
+
+/**
+ * O P2002 veio do índice parcial `SerieDocumento_activa_unica`?
+ *
+ * Forma REAL no Prisma 7 + `@prisma/adapter-pg` (observada contra o Postgres
+ * local): sem `meta.target`; o nome só aparece em
+ * `meta.driverAdapterError.cause.originalMessage` («…violates unique constraint
+ * "SerieDocumento_activa_unica"») e os campos em
+ * `meta.driverAdapterError.cause.constraint.fields` (`['"tenantId"','tipo','ano']`,
+ * com aspas quando o identificador as exige). Aceita-se também `meta.target`
+ * (nome ou lista de campos) e o nome na mensagem. O `@@unique` concorrente
+ * inclui `prefixo`, por isso o conjunto exacto {tenantId,tipo,ano} só pode ser
+ * o índice parcial.
+ */
+function eActivaUnica(e: Prisma.PrismaClientKnownRequestError): boolean {
+  const meta = (e.meta ?? {}) as Record<string, unknown>;
+  const causa = (meta.driverAdapterError as { cause?: Record<string, unknown> } | undefined)?.cause;
+  const textos = [e.message, meta.target, causa?.originalMessage, (causa?.constraint as { index?: unknown } | undefined)?.index];
+  if (textos.some((t) => typeof t === 'string' && t.includes(INDICE_ACTIVA_UNICA))) return true;
+  const campos = [meta.target, (causa?.constraint as { fields?: unknown } | undefined)?.fields].find(Array.isArray);
+  if (!campos) return false;
+  const norm = (campos as unknown[]).map((c) => String(c).replace(/"/g, '')).sort().join(',');
+  return norm === CAMPOS_ACTIVA_UNICA;
+}
+
+/** Tipos operacionais (VENDA, ENCOMENDA…) não se gerem pelo ecrã: são 404. */
+const eTipoGerivel = (tipo: TipoSeriePrisma): boolean => TipoSerieDocumentoEnum.safeParse(tipo).success;
+
+/** Serializa quem cria ou activa séries do mesmo tenant+tipo+ano (S1). */
+async function trancarTipoAno(tx: TxSeries, tenantId: string, tipo: TipoSeriePrisma, ano: number): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('series:' || ${tenantId}::text || ':' || ${tipo}::text || ':' || ${String(ano)}::text, 0))`;
+}
+
+/** Tranca a linha da série (só se for do tenant) e lê-a depois da tranca. */
+async function trancarSerie(tx: TxSeries, id: string, tenantId: string) {
+  await tx.$queryRaw`SELECT id FROM "SerieDocumento" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE`;
+  const serie = await tx.serieDocumento.findFirst({ where: { id, tenantId } });
+  // Outro tenant ou tipo fora do ecrã: para quem pede, a série não existe.
+  if (!serie || !eTipoGerivel(serie.tipo)) throw new NotFoundError('Série de documento não encontrada.');
+  return serie;
+}
+
+async function outraActiva(tx: TxSeries, tenantId: string, tipo: TipoSeriePrisma, ano: number, excluirId?: string) {
+  return tx.serieDocumento.findFirst({
+    where: {
+      tenantId,
+      tipo,
+      ano,
+      ativo: true,
+      ...(excluirId ? { id: { not: excluirId } } : {}),
     },
-  }) as unknown as SerieDocumento;
+    select: { id: true },
+  });
+}
+
+export async function criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  if (!anosPermitidos(new Date()).includes(input.ano)) {
+    const [corrente, seguinte] = anosPermitidos(new Date());
+    throw new BusinessRuleError(
+      'SERIE_ANO_INVALIDO',
+      `Só é possível criar séries para ${corrente} ou ${seguinte}.`,
+    );
+  }
+  const prefixo = input.prefixo.toUpperCase();
+  try {
+    return (await prisma.$transaction(async (tx) => {
+      await trancarTipoAno(tx, ctx.tenantId, input.tipo, input.ano);
+      if (await outraActiva(tx, ctx.tenantId, input.tipo, input.ano)) {
+        throw erroActivaExistente(input.tipo, input.ano);
+      }
+      return tx.serieDocumento.create({
+        data: {
+          tenantId: ctx.tenantId,
+          tipo: input.tipo,
+          prefixo,
+          ano: input.ano,
+          formatoNumero: FORMATO_NUMERO_SERIE,
+          numeroInicial: input.numeroInicial,
+          proximoNumero: input.numeroInicial,
+          ativo: true,
+        },
+      });
+    })) as unknown as SerieDocumento;
+  } catch (e) {
+    if (eUnicidade(e)) throw eActivaUnica(e) ? erroActivaExistente(input.tipo, input.ano) : erroDuplicada();
+    throw e;
+  }
+}
+
+export async function editarSerie(input: EditarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  try {
+    return (await prisma.$transaction(async (tx) => {
+      const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+      if (serieUsada(serie)) throw erroUsada();
+      return tx.serieDocumento.update({
+        where: { id: serie.id, tenantId: ctx.tenantId },
+        data: {
+          prefixo: input.prefixo.toUpperCase(),
+          numeroInicial: input.numeroInicial,
+          proximoNumero: input.numeroInicial,
+        },
+      });
+    })) as unknown as SerieDocumento;
+  } catch (e) {
+    if (eUnicidade(e)) throw erroDuplicada();
+    throw e;
+  }
+}
+
+export async function activarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  // Guardado para traduzir o P2002 fora da transacção com o rótulo do tipo.
+  let alvo: { tipo: TipoSeriePrisma; ano: number } | undefined;
+  try {
+    return (await prisma.$transaction(async (tx) => {
+      const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+      alvo = { tipo: serie.tipo, ano: serie.ano };
+      if (serie.ativo) return serie;
+      // A chave da tranca depende do tipo+ano, que só se conhece lendo a linha já trancada.
+      await trancarTipoAno(tx, ctx.tenantId, serie.tipo, serie.ano);
+      if (await outraActiva(tx, ctx.tenantId, serie.tipo, serie.ano, serie.id)) {
+        throw erroActivaExistente(serie.tipo, serie.ano);
+      }
+      // S5 só limita a criação: reactivar uma série de um ano antigo é permitido.
+      return tx.serieDocumento.update({
+        where: { id: serie.id, tenantId: ctx.tenantId },
+        data: { ativo: true },
+      });
+    })) as unknown as SerieDocumento;
+  } catch (e) {
+    // Só o índice parcial `SerieDocumento_activa_unica` pode recusar este update.
+    if (eUnicidade(e) && alvo) throw erroActivaExistente(alvo.tipo, alvo.ano);
+    throw e;
+  }
+}
+
+export async function desactivarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento> {
+  return (await prisma.$transaction(async (tx) => {
+    const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+    if (!serie.ativo) return serie;
+    return tx.serieDocumento.update({
+      where: { id: serie.id, tenantId: ctx.tenantId },
+      data: { ativo: false },
+    });
+  })) as unknown as SerieDocumento;
+}
+
+export async function eliminarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<void> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const serie = await trancarSerie(tx, input.id, ctx.tenantId);
+      if (serieUsada(serie)) throw erroUsada();
+      await tx.serieDocumento.delete({ where: { id: serie.id, tenantId: ctx.tenantId } });
+    });
+  } catch (e) {
+    // FK Restrict: há documentos a apontar para a série, mesmo sem S2 a dizer
+    // «usada» (p.ex. emitidos por outra via). Aborta a tx: traduz-se aqui fora.
+    if (erroPrisma(e, 'P2003')) throw erroUsada();
+    throw e;
+  }
 }
 
 export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {
@@ -430,11 +638,6 @@ async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
 export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta> {
   await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de documento não encontrada ou inactiva');
-
     // W9: validar FKs cross-domínio contra tenant
     const cliente = await tx.cliente.findFirst({
       where: { id: input.clienteId, tenantId: ctx.tenantId },
@@ -450,13 +653,13 @@ export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<
       if (!venda) throw new NotFoundError('Venda não encontrada');
     }
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'FATURA', ctx, input.dataEmissao);
     const totais = calcularTotaisLinhas(input.linhas);
 
     const fatura = await tx.fatura.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         clienteId: input.clienteId,
         vendaId: input.vendaId ?? null,
@@ -618,12 +821,7 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
       throw new BusinessRuleError('FATURA_CANCELADA', 'Não é possível emitir NC para factura cancelada');
     }
 
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de NC não encontrada');
-
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_CREDITO', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -635,7 +833,7 @@ export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx)
     const nc = await tx.notaCredito.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         faturaOriginalId: input.faturaOriginalId,
         motivo: input.motivo,
@@ -757,16 +955,11 @@ export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx):
 export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): Promise<NotaDebitoCompleta> {
   await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de ND não encontrada');
-
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_DEBITO', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -778,7 +971,7 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
     const nd = await tx.notaDebito.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         clienteId: input.clienteId,
         faturaReferenciaId: input.faturaReferenciaId ?? null,
@@ -896,16 +1089,11 @@ export async function cancelarNotaDebito(id: string, motivo: string, ctx: Ctx): 
 
 export async function criarProforma(input: CriarProformaInput, ctx: Ctx): Promise<ProformaCompleta> {
   return prismaBase.$transaction(async (tx) => {
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de Proforma não encontrada');
-
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'PROFORMA', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -917,7 +1105,7 @@ export async function criarProforma(input: CriarProformaInput, ctx: Ctx): Promis
     const proforma = await tx.proforma.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         clienteId: input.clienteId,
         moeda: input.moeda ?? 'MZN',
@@ -975,11 +1163,7 @@ export async function aceitarProforma(id: string, ctx: Ctx): Promise<Proforma> {
   return prisma.proforma.update({ where: { id }, data: { status: 'ACEITE' } }) as unknown as Proforma;
 }
 
-export async function converterProformaEmFatura(
-  id: string,
-  serieDocumentoId: string,
-  ctx: Ctx,
-): Promise<FaturaCompleta> {
+export async function converterProformaEmFatura(id: string, ctx: Ctx): Promise<FaturaCompleta> {
   // Converter uma proforma cria uma Factura já EMITIDA — é emissão de
   // documento fiscal por outra porta, e o travão tem de a cobrir também.
   await exigirEmailConfirmadoParaEmitir();
@@ -991,12 +1175,8 @@ export async function converterProformaEmFatura(
     if (!proforma) throw new NotFoundError('Proforma não encontrada');
     transitarProforma(proforma.status as StatusProforma, 'CONVERTIDA');
 
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de factura não encontrada');
-
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, new Date());
+    const dataEmissao = new Date();
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'FATURA', ctx, dataEmissao);
 
     const fatura = await tx.fatura.create({
       data: {
@@ -1012,8 +1192,8 @@ export async function converterProformaEmFatura(
         total: proforma.total,
         totalPago: new Prisma.Decimal(0),
         status: 'EMITIDA',
-        dataEmissao: new Date(),
-        dataVencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+        dataEmissao,
+        dataVencimento: new Date(dataEmissao.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 dias
         emitidoPorId: ctx.userId,
       },
     });
@@ -1091,16 +1271,11 @@ export async function listarProformas(filtro: FiltroProformaInput, ctx: Ctx): Pr
 
 export async function criarCotacaoComercial(input: CriarCotacaoComercialInput, ctx: Ctx): Promise<CotacaoComercialCompleta> {
   return prismaBase.$transaction(async (tx) => {
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: input.serieDocumentoId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de cotação não encontrada');
-
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
 
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, input.dataEmissao);
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'COTACAO_COMERCIAL', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
     let ivaTotal = new Prisma.Decimal(0);
@@ -1112,7 +1287,7 @@ export async function criarCotacaoComercial(input: CriarCotacaoComercialInput, c
     const cotacao = await tx.cotacaoComercial.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: input.serieDocumentoId,
+        serieDocumentoId,
         numero,
         clienteId: input.clienteId,
         moeda: input.moeda ?? 'MZN',
@@ -1178,11 +1353,7 @@ export async function rejeitarCotacaoComercial(id: string, motivo: string, ctx: 
   return prisma.cotacaoComercial.update({ where: { id }, data: { status: 'REJEITADA', observacoes: motivo } }) as unknown as CotacaoComercial;
 }
 
-export async function converterCotacaoEmProforma(
-  id: string,
-  serieProformaId: string,
-  ctx: Ctx,
-): Promise<ProformaCompleta> {
+export async function converterCotacaoEmProforma(id: string, ctx: Ctx): Promise<ProformaCompleta> {
   return prismaBase.$transaction(async (tx) => {
     const cotacao = await tx.cotacaoComercial.findFirst({
       where: { id, tenantId: ctx.tenantId },
@@ -1191,17 +1362,13 @@ export async function converterCotacaoEmProforma(
     if (!cotacao) throw new NotFoundError('Cotação não encontrada');
     transitarCotacao(cotacao.status as StatusCotacaoComercial, 'CONVERTIDA');
 
-    const serie = await tx.serieDocumento.findFirst({
-      where: { id: serieProformaId, tenantId: ctx.tenantId, ativo: true },
-    });
-    if (!serie) throw new NotFoundError('Série de proforma não encontrada');
-
-    const numero = await proximoNumeroSerie(tx, serie.tipo as TipoSerieDocumento, ctx, new Date());
+    const dataEmissao = new Date();
+    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'PROFORMA', ctx, dataEmissao);
 
     const proforma = await tx.proforma.create({
       data: {
         tenantId: ctx.tenantId,
-        serieDocumentoId: serieProformaId,
+        serieDocumentoId,
         numero,
         clienteId: cotacao.clienteId,
         moeda: cotacao.moeda,
@@ -1210,7 +1377,7 @@ export async function converterCotacaoEmProforma(
         ivaTotal: cotacao.ivaTotal,
         total: cotacao.total,
         status: 'RASCUNHO',
-        dataEmissao: new Date(),
+        dataEmissao,
         dataValidade: cotacao.dataValidade,
         criadoPorId: ctx.userId,
       },
@@ -1284,6 +1451,7 @@ export const faturacaoService = {
   criarSerie,
   listarSeries,
   proximoNumeroSerie,
+  numerarDocumento,
   emitirFatura,
   obterFatura,
   listarFaturas,
@@ -1313,4 +1481,8 @@ export const faturacaoService = {
   converterCotacaoEmProforma,
   obterCotacaoComercial,
   listarCotacoesComerciais,
+  editarSerie,
+  activarSerie,
+  desactivarSerie,
+  eliminarSerie,
 } satisfies IFaturacaoService;
