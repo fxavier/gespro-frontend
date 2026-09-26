@@ -81,7 +81,24 @@ Não precisa de criar séries para começar: quando a empresa é registada, o si
 
 Para um ano novo, as séries são criadas quando se **abre o exercício contabilístico** desse ano, em **Contabilidade › Exercícios** (ou automaticamente, na data configurada em **Configurações**). Veja [Contabilidade](05-contabilidade.md). A mensagem de confirmação diz quantas séries foram criadas.
 
-> **Atenção:** não existe hoje um ecrã para criar, editar ou desactivar séries à mão. Se o exercício do ano ainda não estiver aberto, a emissão pára com a mensagem «Série activa para tipo … no ano … não encontrada. Crie a série … primeiro.» A solução é abrir o exercício desse ano.
+#### Gerir as séries de faturação
+
+<!-- captura: 06-faturacao-caixa-tesouraria/series.png | /faturacao/series -->
+
+Em **Faturação › Séries de documento** (`/faturacao/series`) vê as séries dos seis documentos de faturação — Factura, Nota de Crédito, Nota de Débito, Factura Pró-forma, Cotação e Recibo — com o **próximo número** que cada uma vai emitir, o estado (**Activa**/**Inactiva**) e quantos documentos já numerou. Por omissão mostra o ano corrente; filtre por tipo, ano ou estado.
+
+**Quem pode:** todos os que vêem a faturação consultam a lista. Criar, editar, activar, desactivar e eliminar exige a permissão *Configurar séries de faturação* (por omissão, Administrador e Financeiro).
+
+**Regras:**
+- Só pode haver **uma série activa por tipo de documento e por ano**. Para mudar de prefixo, desactive primeiro a série actual e depois crie (ou active) a nova.
+- Uma série nova só pode ser do **ano corrente ou do seguinte**. O formato do número é sempre `PREFIXO/ANO/000001`.
+- O **número inicial** serve para continuar a numeração de outro sistema (por exemplo, começar em 488).
+- Enquanto a série não numerou nenhum documento, pode corrigir o prefixo e o número inicial, ou eliminá-la. Depois do primeiro documento, só a pode activar ou desactivar.
+- Desactivar a única série activa de um tipo no ano corrente trava a emissão desse documento até activar outra — o ecrã avisa antes de confirmar.
+
+**Como criar uma série:** clique em **Nova série**, escolha o **Tipo**, o **Ano**, o **Prefixo** (até 10 letras, algarismos ou hífen) e o **Número inicial**. A pré-visualização mostra o primeiro número que vai sair. Clique em **Guardar**.
+
+As séries de outros documentos (vendas, compras, caixa, stock, transporte…) continuam a ser criadas só automaticamente, e não aparecem neste ecrã.
 
 > **Atenção:** a caixa **Série de Faturação** mostra todas as séries de faturas activas, de qualquer ano. Seja qual for a escolhida, o número é sempre atribuído pela série do ano da **Data de Emissão**.
 
@@ -436,8 +453,11 @@ Para eliminar, clique no botão de eliminar na linha e confirme em **Eliminar co
 | Mensagem mostrada | Porquê | O que fazer |
 |---|---|---|
 | «Para emitir documentos fiscais é preciso confirmar o endereço de e-mail da conta…» | O seu e-mail ainda não foi confirmado. Faturas, notas de crédito e conversões de proforma em fatura são documentos fiscais e ficam bloqueados | Abra a ligação de confirmação que recebeu por e-mail (o aviso no painel reenvia-a). Se já confirmou há pouco, termine a sessão e entre de novo |
-| «Série activa para tipo "…" no ano … não encontrada. Crie a série … primeiro.» | Não há série para o ano da data do documento | Abra o exercício desse ano em **Contabilidade › Exercícios** (ver [Contabilidade](05-contabilidade.md)) |
+| «Série activa para tipo "…" no ano … não encontrada. Crie a série … primeiro.» | Não há série activa para o ano da data do documento | Abra o exercício desse ano em **Contabilidade › Exercícios** (ver [Contabilidade](05-contabilidade.md)); para documentos de faturação, pode também criar ou activar a série em **Faturação › Séries de documento** |
 | «Série de documento não encontrada ou inactiva» | A série escolhida foi desactivada | Escolha outra série |
+| «Já existe uma série activa de … para …. Desactive-a primeiro.» | Tentou criar ou activar uma segunda série do mesmo tipo e ano | Desactive a série actual em **Séries de documento** e repita |
+| «Já existe uma série com este prefixo para o mesmo tipo e ano.» | Já há uma série (activa ou não) com o mesmo tipo, ano e prefixo | Escolha outro prefixo, ou active a série existente |
+| «Esta série já numerou documentos: não pode ser alterada nem eliminada.» (ou a série não mostra **Editar** nem **Eliminar**) | A série já numerou documentos | Só pode activá-la ou desactivá-la; para mudar de prefixo, desactive-a e crie uma nova |
 | «Cliente não encontrado» | O cliente não existe nesta empresa (ou o identificador colado está errado) | Confirme o cliente em **Clientes** |
 | «Data de vencimento não pode ser anterior à data de emissão» | Datas trocadas na fatura | Corrija a **Data de Vencimento** |
 | «Data de validade deve ser posterior à data de emissão» | Datas trocadas na cotação ou proforma | Corrija a **Data de Validade** |
