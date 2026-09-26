@@ -12,8 +12,8 @@
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, carregarManifesto, opcoesCarga } from '../lib/util.js';
-import { garantirSessao } from '../lib/session.js';
+import { BASE_URL, carregarManifesto, opcoesCarga } from './lib/util.js';
+import { garantirSessao } from './lib/session.js';
 
 const { tenant } = carregarManifesto(
   open(__ENV.SEED_MANIFEST || '../.generated/seed-manifest.json'),
