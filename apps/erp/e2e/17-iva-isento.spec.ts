@@ -94,14 +94,15 @@ async function escolherTaxa(page: Page, seletor: Locator, rotulo: RegExp) {
 }
 
 /**
- * Escreve uma data tecla a tecla (dd mm aaaa, locale pt-PT). Nos campos de data
- * controlados só por `onChange` (sem `value`), o `fill` não chega ao estado do
- * formulário e o zod recusa «Invalid date».
+ * Preenche um `<input type="date">` com `aaaa-mm-dd` pelo `fill`, que fixa o
+ * valor e dispara `input`/`change` de uma vez. Escrever `ddmmaaaa` tecla a tecla
+ * dependia do locale e da ordem dos segmentos do browser: no Chromium/Linux da
+ * CI o cursor não saltava do mês e o ano ficava `92026` (#237). Confirma-se o
+ * valor que o campo ficou a ter antes de seguir.
  */
 async function teclarData(campo: Locator, iso: string) {
-  const [ano, mes, dia] = iso.split('-');
-  await campo.focus();
-  await campo.page().keyboard.type(`${dia}${mes}${ano}`);
+  await campo.fill(iso);
+  await expect(campo).toHaveValue(iso);
 }
 
 async function abrirNovaFatura(page: Page) {

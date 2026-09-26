@@ -49,8 +49,24 @@ interface NovaFaturaFormProps {
   clientes: ClienteOption[];
 }
 
-const hoje = new Date().toISOString().split('T')[0]!;
-const em30 = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]!;
+/** `aaaa-mm-dd` do dia civil de Maputo, com deslocamento em dias. */
+const diaMaputo = (deslocamentoDias = 0) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Maputo' }).format(
+    new Date(Date.now() + deslocamentoDias * 86_400_000),
+  );
+
+/**
+ * `aaaa-mm-dd` → meio-dia local, pelos componentes: `new Date('aaaa-mm-dd')` lê
+ * UTC e, fora de Maputo, pode cair no dia anterior (CLAUDE.md §Datas). Um ano
+ * de cinco algarismos passa daqui como está — quem o recusa é o schema.
+ */
+function diaParaData(dia: string): Date {
+  const [ano, mes, d] = dia.split('-').map(Number);
+  return new Date(ano!, mes! - 1, d!, 12);
+}
+
+const hoje = diaMaputo(0);
+const em30 = diaMaputo(30);
 
 /** Linha vazia com campos computados em zero (schema usa .transform). */
 const linhaVazia = () => ({
@@ -65,8 +81,12 @@ const linhaVazia = () => ({
   total: 0,
 });
 
+// As datas que o campo mostra têm de estar também no estado do formulário: sem
+// isto, quem não lhes tocasse via o campo preenchido e a emissão recusada.
 const DEFAULT_VALUES: Partial<EmitirFaturaInput> = {
   moeda: 'MZN',
+  dataEmissao: diaParaData(hoje),
+  dataVencimento: diaParaData(em30),
   linhas: [linhaVazia()],
 };
 
@@ -177,7 +197,7 @@ export function NovaFaturaForm({ clientes }: NovaFaturaFormProps) {
                     <Input
                       type="date"
                       defaultValue={hoje}
-                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                      onChange={(e) => field.onChange(e.target.value ? diaParaData(e.target.value) : undefined)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -198,7 +218,7 @@ export function NovaFaturaForm({ clientes }: NovaFaturaFormProps) {
                     <Input
                       type="date"
                       defaultValue={em30}
-                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                      onChange={(e) => field.onChange(e.target.value ? diaParaData(e.target.value) : undefined)}
                     />
                   </FormControl>
                   <FormMessage />
