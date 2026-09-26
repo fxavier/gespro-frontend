@@ -43,6 +43,11 @@ const gerarDFC: IDfcService['gerarDFC'] = gerarDFCImpl;
 const contasNaoMapeadas: IDfcService['contasNaoMapeadas'] = contasNaoMapeadasImpl;
 
 const hasDB = Boolean(process.env.DATABASE_URL);
+// Só na base LOCAL (issue #237): estes oráculos comparam a base semeada do tenant `demo` com
+// uma fixture derivada do seed num dia civil fixo. No CI a base é semeada no dia da corrida e a
+// fixture nunca bate, por isso não correm lá (o GitHub Actions define CI=true em todos os passos).
+// Localmente continuam a correr dentro do `pnpm check`, com as mesmas asserções.
+const noCI = Boolean(process.env.CI);
 
 /** O mapa saiu (não impedimentos). Falha com a lista, se não saiu. */
 function exigirMapa(r: ResultadoDFC, onde: string): DFC {
@@ -52,7 +57,7 @@ function exigirMapa(r: ResultadoDFC, onde: string): DFC {
   return r;
 }
 
-describe.skipIf(!hasDB)('DFC do seed demo — golden, I9, I10, V4 (contra a base local)', () => {
+describe.skipIf(!hasDB || noCI)('DFC do seed demo — golden, I9, I10, V4 (contra a base local)', () => {
   let ctx: { tenantId: string; userId: string };
   let periodos: Map<string, PeriodoSeed>;
   let versaoDoSeed: { id: string; numero: number; estado: string };

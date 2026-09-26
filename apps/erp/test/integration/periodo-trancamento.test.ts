@@ -131,11 +131,11 @@ describe.skipIf(skip)('Trancamento de período — DB efémera (Testcontainers)'
       data: {
         tenantId: TENANT_ID,
         codigo: '11-CONC',
-        descricao: 'Caixa Concorrência',
+        nome: 'Caixa Concorrência',
         nivel: 2,
-        classe: '1',
+        classe: 'CLASSE_1',
         natureza: 'DEVEDORA',
-        tipo: 'MOVIMENTO',
+        tipo: 'ATIVO',
         aceitaLancamento: true,
         ativo: true,
       },
@@ -146,11 +146,11 @@ describe.skipIf(skip)('Trancamento de período — DB efémera (Testcontainers)'
       data: {
         tenantId: TENANT_ID,
         codigo: '31-CONC',
-        descricao: 'Fornecedores Concorrência',
+        nome: 'Fornecedores Concorrência',
         nivel: 2,
-        classe: '3',
+        classe: 'CLASSE_3',
         natureza: 'CREDORA',
-        tipo: 'MOVIMENTO',
+        tipo: 'PASSIVO',
         aceitaLancamento: true,
         ativo: true,
       },
@@ -297,6 +297,12 @@ describe.skipIf(skip)('Trancamento de período — DB efémera (Testcontainers)'
       const conn2 = await abrirCliente(); // T2: fechador
 
       try {
+        // O Caso 1 deixa um lançamento válido no período (entrou antes do fecho) e o
+        // beforeEach só repõe o estado do período — a linha de base é a contagem de agora.
+        const lancamentosAntes = await db.lancamento.count({
+          where: { tenantId: TENANT_ID, periodoId },
+        });
+
         // ── T2: fechar o período completamente antes de T1 tentar ──
         await conn2.query('BEGIN');
         await conn2.query(
@@ -328,9 +334,9 @@ describe.skipIf(skip)('Trancamento de período — DB efémera (Testcontainers)'
           where: { tenantId: TENANT_ID, periodoId },
         });
         // Pode haver o lançamento do Caso 1 (que entrou validamente antes do fecho do Caso 1).
-        // O invariante é que não há lançamentos criados NESTE CASO (após o fecho do Caso 2).
-        // Como cada caso faz reset via beforeEach, a contagem deve ser 0 aqui.
-        expect(lancamentosNoPeriodo).toBe(0);
+        // O invariante é que não há lançamentos criados NESTE CASO (após o fecho do Caso 2):
+        // zero lançamentos novos em relação à linha de base.
+        expect(lancamentosNoPeriodo - lancamentosAntes).toBe(0);
 
         // Asserção central: nenhum lançamento acaba dentro de um período fechado sem
         // ter sido criado antes do fecho. O estado da linha bloqueada é o árbitro —
