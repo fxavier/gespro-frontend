@@ -29,7 +29,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox, CampoDia } from '@/components/patterns';
+import { diaIsoParaData } from '@/lib/format-date';
 import { emitirNotaDebito } from '@/server/actions/faturacao.actions';
 import { EmitirNotaDebitoSchema, type EmitirNotaDebitoInput } from '@/lib/validations/faturacao';
 
@@ -39,9 +40,9 @@ interface ClienteOption { id: string; nome: string }
 
 interface NovaNotaDebitoFormProps {
   clientes: ClienteOption[];
+  /** Dia civil de Maputo (`aaaa-mm-dd`), calculado no servidor (#242). */
+  hoje: string;
 }
-
-const hoje = new Date().toISOString().split('T')[0]!;
 
 const MOTIVOS = [
   'Serviços adicionais não faturados',
@@ -51,7 +52,7 @@ const MOTIVOS = [
   'Outro',
 ];
 
-export function NovaNotaDebitoForm({ clientes }: NovaNotaDebitoFormProps) {
+export function NovaNotaDebitoForm({ clientes, hoje }: NovaNotaDebitoFormProps) {
   const router = useRouter();
   const [state, dispatch, isPending] = useActionState<FormState, EmitirNotaDebitoInput>(
     (_prev, data) => emitirNotaDebito(data),
@@ -62,6 +63,8 @@ export function NovaNotaDebitoForm({ clientes }: NovaNotaDebitoFormProps) {
     resolver: zodResolver(EmitirNotaDebitoSchema),
     defaultValues: {
       moeda: 'MZN',
+      // O dia que o campo mostra está no estado desde o início (#242).
+      dataEmissao: diaIsoParaData(hoje),
       linhas: [{ descricao: '', quantidade: 1, precoUnitario: 0, desconto: 0, taxaIva: 0.16, ordemLinha: 0, subtotal: 0, ivaItem: 0, total: 0 }],
     },
     mode: 'onBlur',
@@ -139,8 +142,7 @@ export function NovaNotaDebitoForm({ clientes }: NovaNotaDebitoFormProps) {
                 <FormItem>
                   <FormLabel>Data de emissão *</FormLabel>
                   <FormControl>
-                    <Input type="date" defaultValue={hoje}
-                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)} />
+                    <CampoDia value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
                   </FormControl>
                   <FormMessage />
                   <p className="text-xs text-muted-foreground">

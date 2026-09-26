@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { PageHeader } from '@/components/patterns';
 import { NovaProformaForm } from './_components/nova-proforma-form';
+import { diaIsoMaputo } from '@/lib/format-date';
 
 export default async function NovaProformaPage() {
   const session = await auth();
@@ -23,7 +24,7 @@ export default async function NovaProformaPage() {
           { label: 'Nova Proforma' },
         ]}
       />
-      <NovaProformaForm />
+      <NovaProformaForm hoje={diaIsoMaputo()} />
     </div>
   );
 }

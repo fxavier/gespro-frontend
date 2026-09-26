@@ -22,6 +22,7 @@ import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/pattern
 import { criarCotacaoComercial } from '@/server/actions/faturacao.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
+import { diaIsoParaData } from '@/lib/format-date';
 
 // ponytail: schema do formulário (client-safe); o servidor revalida com CriarCotacaoComercialSchema.
 const LinhaFormSchema = z.object({
@@ -48,9 +49,7 @@ const FormSchema = z
 
 type FormValues = z.infer<typeof FormSchema>;
 
-const today = new Date().toISOString().split('T')[0];
-
-export function NovaCotacaoForm() {
+export function NovaCotacaoForm({ hoje }: { hoje: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -64,7 +63,7 @@ export function NovaCotacaoForm() {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       clienteId: '',
-      dataEmissao: today,
+      dataEmissao: hoje,
       dataValidade: '',
       condicoesComerciais: '',
       observacoes: '',
@@ -94,8 +93,8 @@ export function NovaCotacaoForm() {
       const result = await criarCotacaoComercial({
         clienteId: values.clienteId,
         moeda: 'MZN',
-        dataEmissao: values.dataEmissao,
-        dataValidade: values.dataValidade,
+        dataEmissao: diaIsoParaData(values.dataEmissao),
+        dataValidade: diaIsoParaData(values.dataValidade),
         condicoesComerciais: values.condicoesComerciais || undefined,
         observacoes: values.observacoes || undefined,
         linhas: values.linhas.map((l, i) => ({

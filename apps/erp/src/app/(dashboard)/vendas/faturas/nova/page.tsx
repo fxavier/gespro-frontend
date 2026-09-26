@@ -10,6 +10,7 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { PageHeader } from '@/components/patterns';
 import { NovaFaturaForm } from './_components/nova-fatura-form';
+import { diaIsoMaputo } from '@/lib/format-date';
 
 export default async function NovaFaturaPage() {
   const session = await auth();
@@ -37,7 +38,7 @@ export default async function NovaFaturaPage() {
           { label: 'Nova Fatura' },
         ]}
       />
-      <NovaFaturaForm clientes={clientes} />
+      <NovaFaturaForm clientes={clientes} hoje={diaIsoMaputo()} vencimento={diaIsoMaputo(30)} />
     </div>
   );
 }

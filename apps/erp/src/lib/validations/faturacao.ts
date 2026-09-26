@@ -1,7 +1,6 @@
-import { dataDocumento } from './common';
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
-import { idEntidade } from './common';
+import { dataDocumento, idEntidade } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums

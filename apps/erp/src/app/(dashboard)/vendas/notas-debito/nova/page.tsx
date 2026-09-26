@@ -10,6 +10,7 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { PageHeader } from '@/components/patterns';
 import { NovaNotaDebitoForm } from './_components/nova-nota-debito-form';
+import { diaIsoMaputo } from '@/lib/format-date';
 
 export default async function NovaNotaDebitoPage() {
   const session = await auth();
@@ -35,7 +36,7 @@ export default async function NovaNotaDebitoPage() {
           { label: 'Nova Nota de Débito' },
         ]}
       />
-      <NovaNotaDebitoForm clientes={clientes} />
+      <NovaNotaDebitoForm clientes={clientes} hoje={diaIsoMaputo()} />
     </div>
   );
 }

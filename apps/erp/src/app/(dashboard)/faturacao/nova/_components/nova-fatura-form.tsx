@@ -29,6 +29,7 @@ import { emitirFatura } from '@/server/actions/faturacao.actions';
 import { procurarClientes } from '@/server/actions/clientes.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
+import { diaIsoParaData } from '@/lib/format-date';
 
 // ponytail: simplified schema for the form
 const LinhaFormSchema = z.object({
@@ -58,11 +59,11 @@ export interface ClienteOpcao {
 interface Props {
   /** Primeira página de clientes; a partir daí a combobox pesquisa no servidor. */
   clientesIniciais: ClienteOpcao[];
+  /** Dia civil de Maputo (`aaaa-mm-dd`), calculado no servidor (#242). */
+  hoje: string;
 }
 
-const today = new Date().toISOString().split('T')[0];
-
-export function NovaFaturaForm({ clientesIniciais }: Props) {
+export function NovaFaturaForm({ clientesIniciais, hoje }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -89,7 +90,7 @@ export function NovaFaturaForm({ clientesIniciais }: Props) {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       clienteId: '',
-      dataEmissao: today,
+      dataEmissao: hoje,
       dataVencimento: '',
       observacoes: '',
       linhas: [{ descricao: '', quantidade: 1, precoUnitario: 0, desconto: 0, taxaIva: TAXA_IVA_NORMAL }],
@@ -120,8 +121,8 @@ export function NovaFaturaForm({ clientesIniciais }: Props) {
       const result = await emitirFatura({
         clienteId: values.clienteId,
         moeda: 'MZN',
-        dataEmissao: values.dataEmissao,
-        dataVencimento: values.dataVencimento,
+        dataEmissao: diaIsoParaData(values.dataEmissao),
+        dataVencimento: diaIsoParaData(values.dataVencimento),
         observacoes: values.observacoes,
         linhas: values.linhas.map((l, i) => ({
           descricao: l.descricao,

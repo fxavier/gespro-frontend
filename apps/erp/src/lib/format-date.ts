@@ -91,3 +91,30 @@ export function formatarDiaIso(v: Entrada): string {
   const p = Object.fromEntries(partesDia.formatToParts(d).map((x) => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day}`;
 }
+
+const UM_DIA_MS = 86_400_000;
+
+/**
+ * O dia civil de Maputo, `aaaa-mm-dd`, com deslocamento em dias — a data por
+ * omissão de um documento. Calcula-se no Server Component e desce por prop:
+ * num módulo `'use client'` o SSR usaria o relógio do arranque do processo e o
+ * browser o seu, e o ecrã e o documento emitido divergiriam (#242).
+ */
+export function diaIsoMaputo(deslocamentoDias = 0, agora: Date = new Date()): string {
+  return formatarDiaIso(new Date(agora.getTime() + deslocamentoDias * UM_DIA_MS));
+}
+
+/**
+ * `aaaa-mm-dd` → o meio-dia desse dia em Maputo, independente do fuso do
+ * browser. `new Date('aaaa-mm-dd')` lê meia-noite UTC; o meio-dia fixo em +02:00
+ * mantém o dia civil (e o período fiscal) de qualquer lado. Uma string que não
+ * seja um dia válido devolve `Invalid Date` — quem a recusa é o schema.
+ */
+export function diaIsoParaData(dia: string): Date {
+  return new Date(`${dia}T12:00:00+02:00`);
+}
+
+/** O inverso de `diaIsoParaData` para o `value` de um `<input type="date">`; '' se não houver data válida. */
+export function dataParaDiaIso(v: Date | undefined | null): string {
+  return v instanceof Date && !Number.isNaN(v.getTime()) ? formatarDiaIso(v) : '';
+}

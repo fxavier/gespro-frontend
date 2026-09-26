@@ -10,6 +10,7 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarFaturas } from '@/server/services/financas/faturacao.service';
 import { PageHeader } from '@/components/patterns';
 import { NovaNotaCreditoForm } from './_components/nova-nota-credito-form';
+import { diaIsoMaputo } from '@/lib/format-date';
 
 export default async function NovaNotaCreditoPage() {
   const session = await auth();
@@ -40,7 +41,7 @@ export default async function NovaNotaCreditoPage() {
           { label: 'Nova Nota de Crédito' },
         ]}
       />
-      <NovaNotaCreditoForm faturas={faturas} />
+      <NovaNotaCreditoForm faturas={faturas} hoje={diaIsoMaputo()} />
     </div>
   );
 }
