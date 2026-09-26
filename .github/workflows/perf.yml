@@ -115,7 +115,10 @@ jobs:
           echo "App não ficou pronta" && exit 1
 
       - name: Cenário reduzido k6 (10 VUs, 2 min)
+        # perf/results/ é ignorado pelo git: o k6 não cria o directório do
+        # --summary-export e o compare-baseline ficava sem ficheiro.
         run: |
+          mkdir -p perf/results
           PROFILE=ci BASE_URL=http://localhost:3000 \
             k6 run --summary-export perf/results/ci-smoke.summary.json perf/k6/ci-smoke.js
 
