@@ -86,9 +86,22 @@ function corresponde(row: Row, where: Row | undefined): boolean {
   return true;
 }
 
+function p2003(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError(
+    'Foreign key constraint violated on the constraint: `Fatura_serieDocumentoId_fkey`',
+    {
+      code: 'P2003',
+      clientVersion: 'duplo',
+      meta: { modelName: 'SerieDocumento', constraint: 'Fatura_serieDocumentoId_fkey' },
+    },
+  );
+}
+
 class DuploSeries {
   series: Row[] = [];
   registo: Entrada[] = [];
+  /** Séries com documentos a apontar para elas (FK `serieDocumentoId`, onDelete: Restrict). */
+  referenciadas = new Set<string>();
   escritasTentadas = 0;
   private seq = 0;
 
@@ -212,6 +225,7 @@ class DuploSeries {
           clientVersion: 'duplo',
         });
       }
+      if (this.referenciadas.has(this.series[i].id)) throw p2003();
       const [r] = this.series.splice(i, 1);
       return { ...r };
     },
@@ -692,5 +706,105 @@ describe('eliminarSerie', () => {
 describe('auditoria (ticket 4.3)', () => {
   it("AUDIT_MODELS contém 'SerieDocumento'", () => {
     expect(AUDIT_MODELS.has('SerieDocumento')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Achados da revisão (decididos pelo orquestrador)
+// ---------------------------------------------------------------------------
+
+describe('MAJOR 2 — tipos operacionais ficam fora do ecrã (404, como se não existissem)', () => {
+  it.each(['VENDA', 'ENCOMENDA'])('%s: editar/activar/desactivar/eliminar ⇒ NotFoundError, sem escrever', async (tipo) => {
+    const inactiva = d.semear({ tenantId: TA, tipo, ano: 2026, prefixo: 'OPI', ativo: false, numeroInicial: 1, proximoNumero: 1 });
+    const activa = d.semear({ tenantId: TA, tipo, ano: 2027, prefixo: 'OPA', ativo: true, numeroInicial: 1, proximoNumero: 1 });
+    const foto = d.fotografia();
+
+    const eEditar = await erroDe(editarSerie({ id: activa.id, prefixo: 'X', numeroInicial: 5 }, CTX_A));
+    expect(eEditar).toBeInstanceOf(NotFoundError);
+    expect(eEditar.status).toBe(404);
+    await esperarNaoEncontrada(activarSerie({ id: inactiva.id }, CTX_A));
+    await esperarNaoEncontrada(desactivarSerie({ id: activa.id }, CTX_A));
+    await esperarNaoEncontrada(eliminarSerie({ id: inactiva.id }, CTX_A));
+    await esperarNaoEncontrada(eliminarSerie({ id: activa.id }, CTX_A));
+
+    esperarNadaEscrito(foto);
+    expect(d.obter(inactiva.id)).toMatchObject({ ativo: false, prefixo: 'OPI' });
+    expect(d.obter(activa.id)).toMatchObject({ ativo: true, prefixo: 'OPA', numeroInicial: 1, proximoNumero: 1 });
+  });
+
+  it('o mesmo tenant continua a gerir os tipos do ecrã (controlo)', async () => {
+    d.semear({ tenantId: TA, tipo: 'VENDA', ano: 2026, prefixo: 'VD', ativo: true });
+    const f = d.semear({ tenantId: TA, tipo: 'FATURA', ano: 2026, prefixo: 'FAT', ativo: true });
+    const r = await desactivarSerie({ id: f.id }, CTX_A);
+    expect(r).toMatchObject({ id: f.id, ativo: false });
+  });
+});
+
+describe('MAJOR 1 — eliminar série não usada mas referenciada (FK Restrict)', () => {
+  it('delete lança P2003 ⇒ SERIE_USADA, e a série continua no estado', async () => {
+    // proximoNumero == numeroInicial (não «usada» por S2), mas há documentos a
+    // apontar para ela — p.ex. emitidos noutro ano pelo selector sem filtro (#234).
+    const s = d.semear({ tenantId: TA, tipo: 'FATURA', ano: 2026, prefixo: 'FAT', numeroInicial: 1, proximoNumero: 1 });
+    d.referenciadas.add(s.id);
+    const foto = d.fotografia();
+
+    const e = await erroDe(eliminarSerie({ id: s.id }, CTX_A));
+    expect(e).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+    expect(e).toBeInstanceOf(BusinessRuleError);
+    expect(e.code).toBe('SERIE_USADA');
+
+    expect(d.fotografia()).toBe(foto);
+    expect(d.obter(s.id)).toMatchObject({ id: s.id, prefixo: 'FAT', numeroInicial: 1, proximoNumero: 1, ativo: true });
+  });
+
+  it('controlo: sem referências, a mesma série elimina-se', async () => {
+    const s = d.semear({ tenantId: TA, tipo: 'FATURA', ano: 2026, prefixo: 'FAT', numeroInicial: 1, proximoNumero: 1 });
+    await eliminarSerie({ id: s.id }, CTX_A);
+    expect(d.obter(s.id)).toBeUndefined();
+  });
+});
+
+describe('MINOR 1 — criarSerie distingue o índice parcial do @@unique', () => {
+  function p2002Indice(nome: string, alvo: unknown): Prisma.PrismaClientKnownRequestError {
+    return new Prisma.PrismaClientKnownRequestError(`Unique constraint failed on the constraint: \`${nome}\``, {
+      code: 'P2002',
+      clientVersion: 'duplo',
+      meta: { modelName: 'SerieDocumento', target: alvo },
+    });
+  }
+
+  it('P2002 de SerieDocumento_activa_unica (activa inserida depois da leitura, p.ex. pelo cron) ⇒ SERIE_ACTIVA_EXISTENTE', async () => {
+    const original = d.serieDocumento.create;
+    (d.serieDocumento as any).create = async () => {
+      d.escritasTentadas += 1;
+      throw p2002Indice('SerieDocumento_activa_unica', 'SerieDocumento_activa_unica');
+    };
+    const foto = d.fotografia();
+    try {
+      // Nenhuma outra activa visível no findFirst: a recusa só pode vir da escrita.
+      await esperarRegra(
+        criarSerie({ tipo: 'FATURA', prefixo: 'FAT', ano: 2026, numeroInicial: 1 }, CTX_A),
+        'SERIE_ACTIVA_EXISTENTE',
+      );
+      expect(d.fotografia()).toBe(foto);
+    } finally {
+      (d.serieDocumento as any).create = original;
+    }
+  });
+
+  it('P2002 do @@unique([tenantId,tipo,ano,prefixo]) continua ⇒ SERIE_DUPLICADA', async () => {
+    const original = d.serieDocumento.create;
+    (d.serieDocumento as any).create = async () => {
+      d.escritasTentadas += 1;
+      throw p2002Indice('SerieDocumento_tenantId_tipo_ano_prefixo_key', ['tenantId', 'tipo', 'ano', 'prefixo']);
+    };
+    try {
+      await esperarRegra(
+        criarSerie({ tipo: 'FATURA', prefixo: 'FAT', ano: 2026, numeroInicial: 1 }, CTX_A),
+        'SERIE_DUPLICADA',
+      );
+    } finally {
+      (d.serieDocumento as any).create = original;
+    }
   });
 });
