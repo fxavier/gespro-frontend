@@ -29,10 +29,20 @@ test('cliente, vendedor e produto escolhem-se por pesquisa', async ({ page }) =>
   await opcaoCliente.click();
   await expect(page.getByRole('combobox', { name: 'Cliente *' })).toHaveText(/Maria/);
 
-  // Vendedor — não há nenhum registado: caixa desactivada e o motivo à vista,
-  // em vez de uma lista vazia que parece avariada.
-  await expect(page.getByRole('combobox', { name: 'Vendedor' })).toBeDisabled();
-  await expect(page.getByText(/Ainda não há vendedores activos/)).toBeVisible();
+  // Vendedor — o seed regista quatro (demo-vendas): escolhe-se por pesquisa no
+  // servidor, como o cliente. O ramo «sem vendedores» (caixa desactivada e o
+  // motivo à vista) já não é alcançável com a base do seed e não se prova aqui:
+  // exigia um tenant sem vendedores, e apagar os do demo partiria as encomendas
+  // e comissões que o seed lhes atribui.
+  const vendedor = page.getByRole('combobox', { name: 'Vendedor' });
+  await expect(vendedor).toBeEnabled();
+  await expect(page.getByText(/Ainda não há vendedores activos/)).toHaveCount(0);
+  await vendedor.click();
+  await page.getByPlaceholder(/Pesquisar por nome ou e-mail/).fill('Gestor');
+  const opcaoVendedor = page.getByRole('option', { name: /Gestor Demo/ });
+  await expect(opcaoVendedor).toBeVisible({ timeout: 15_000 });
+  await opcaoVendedor.click();
+  await expect(vendedor).toHaveText(/Gestor Demo/);
 
   // Produto — escolher preenche o preço a partir do catálogo.
   await page.getByRole('combobox', { name: 'Produto *' }).click();
