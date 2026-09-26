@@ -2,6 +2,8 @@
 import { createSafeAction } from '@/server/safe-action';
 import {
   CriarSerieDocumentoSchema,
+  EditarSerieDocumentoSchema,
+  IdSerieDocumentoSchema,
   EmitirFaturaSchema,
   RegistarPagamentoFaturaSchema,
   FiltroFaturaSchema,
@@ -24,6 +26,34 @@ export const criarSerieDocumento = createSafeAction({
   permission: 'faturacao:series:escrita',
   revalidate: { tags: ['faturacao', 'series'] },
   handler: (input, ctx) => faturacao.criarSerie(input, ctx),
+});
+
+export const editarSerieDocumento = createSafeAction({
+  schema: EditarSerieDocumentoSchema,
+  permission: 'faturacao:series:escrita',
+  revalidate: { tags: ['faturacao', 'series'] },
+  handler: (input, ctx) => faturacao.editarSerie(input, ctx),
+});
+
+export const activarSerieDocumento = createSafeAction({
+  schema: IdSerieDocumentoSchema,
+  permission: 'faturacao:series:escrita',
+  revalidate: { tags: ['faturacao', 'series'] },
+  handler: (input, ctx) => faturacao.activarSerie(input, ctx),
+});
+
+export const desactivarSerieDocumento = createSafeAction({
+  schema: IdSerieDocumentoSchema,
+  permission: 'faturacao:series:escrita',
+  revalidate: { tags: ['faturacao', 'series'] },
+  handler: (input, ctx) => faturacao.desactivarSerie(input, ctx),
+});
+
+export const eliminarSerieDocumento = createSafeAction({
+  schema: IdSerieDocumentoSchema,
+  permission: 'faturacao:series:escrita',
+  revalidate: { tags: ['faturacao', 'series'] },
+  handler: (input, ctx) => faturacao.eliminarSerie(input, ctx),
 });
 
 export const listarSeriesDocumento = createSafeAction({

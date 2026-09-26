@@ -2,6 +2,8 @@ import 'server-only'; // A5: serviços são server-only
 import type { Prisma } from '@prisma/client';
 import type {
   CriarSerieDocumentoInput,
+  EditarSerieDocumentoInput,
+  IdSerieDocumentoInput,
   EmitirFaturaInput,
   RegistarPagamentoFaturaInput,
   FiltroFaturaInput,
@@ -92,6 +94,8 @@ export interface SerieDocumento {
   prefixo: string;
   ano: number;
   proximoNumero: number;
+  /** #149: «usada» ⇔ proximoNumero > numeroInicial. */
+  numeroInicial: number;
   formatoNumero: string;
   ativo: boolean;
   createdAt: Date;
@@ -474,8 +478,19 @@ export interface PaginacaoFaturacao<T> {
 
 export interface IFaturacaoService {
   // --- Séries de documento ---
+  /**
+   * #149. Recusa: SERIE_ANO_INVALIDO (S5: só o ano corrente e o seguinte, Africa/Maputo),
+   * SERIE_ACTIVA_EXISTENTE (S1), SERIE_DUPLICADA (tipo+ano+prefixo). proximoNumero = numeroInicial.
+   */
   criarSerie(input: CriarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento>;
   listarSeries(ctx: Ctx): Promise<SerieDocumento[]>;
+  /** #149. SERIE_USADA se já numerou (S3); SERIE_DUPLICADA; proximoNumero acompanha numeroInicial. */
+  editarSerie(input: EditarSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento>;
+  /** #149. SERIE_ACTIVA_EXISTENTE se outra do mesmo tipo+ano estiver activa (S1). Qualquer ano. */
+  activarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento>;
+  desactivarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<SerieDocumento>;
+  /** #149. SERIE_USADA se já numerou (S3). */
+  eliminarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Promise<void>;
 
   /**
    * Obtém o próximo número de série dentro de uma transacção,

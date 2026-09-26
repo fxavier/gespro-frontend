@@ -34,6 +34,7 @@ import {
   Calendar,
   Settings,
   PercentCircle,
+  ListOrdered,
 } from 'lucide-react';
 
 interface NavItem {
@@ -64,6 +65,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Pedidos de Venda', href: '/vendas/pedidos', icon: ShoppingCart, group: 'Vendas' },
   { label: 'Clientes', href: '/clientes', icon: Users, group: 'Vendas' },
   { label: 'Faturação', href: '/faturacao/dashboard', icon: Receipt, group: 'Vendas' },
+  { label: 'Séries de documento', href: '/faturacao/series', icon: ListOrdered, group: 'Vendas' },
 
   // Finanças
   { label: 'Contabilidade', href: '/contabilidade', icon: Landmark, group: 'Finanças' },

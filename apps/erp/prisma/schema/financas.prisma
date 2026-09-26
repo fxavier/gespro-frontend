@@ -650,6 +650,7 @@ model SerieDocumento {
   prefixo        String             // ex.: "FAT", "NC", "ND", "PRO", "COT"
   ano            Int                // ano corrente; reset anual do proximoNumero
   proximoNumero  Int                @default(1)
+  numeroInicial  Int                @default(1) // #149: «usada» ⇔ proximoNumero > numeroInicial
   formatoNumero  String             @default("{prefixo}/{ano}/{numero:06}") // template
   ativo          Boolean            @default(true)
   createdAt      DateTime           @default(now())
