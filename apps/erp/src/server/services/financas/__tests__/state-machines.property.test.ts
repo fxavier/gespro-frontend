@@ -148,6 +148,55 @@ describe('máquina Lancamento', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Lancamento — ANULADO (issue #137, D1): rascunho deitado fora, terminal
+// ---------------------------------------------------------------------------
+
+describe('máquina Lancamento — ANULADO (#137)', () => {
+  // `as` porque o tipo só ganha ANULADO com a implementação (RED até lá).
+  const mapa = TRANSICOES_LANCAMENTO as unknown as Record<string, string[]>;
+
+  it('ANULADO é um estado da máquina', () => {
+    expect(mapa).toHaveProperty('ANULADO');
+  });
+
+  it('RASCUNHO → LANCADO e RASCUNHO → ANULADO são permitidas', () => {
+    expect(mapa['RASCUNHO']).toContain('LANCADO');
+    expect(mapa['RASCUNHO']).toContain('ANULADO');
+  });
+
+  it('ANULADO é terminal', () => {
+    expect(mapa['ANULADO']).toEqual([]);
+  });
+
+  it('só RASCUNHO chega a ANULADO (LANCADO e ESTORNADO não se anulam)', () => {
+    for (const [origem, destinos] of Object.entries(mapa)) {
+      if (origem === 'RASCUNHO') continue;
+      expect(destinos, `${origem} → ANULADO`).not.toContain('ANULADO');
+    }
+  });
+
+  it('[property] de ANULADO não sai transição nenhuma, para qualquer alvo', () => {
+    const estados = Object.keys(mapa);
+    expect(estados).toContain('ANULADO');
+    fc.assert(
+      fc.property(fc.constantFrom(...estados), (alvo) => {
+        expect(mapa['ANULADO'] ?? ['<estado inexistente>']).not.toContain(alvo);
+        return true;
+      }),
+      { numRuns: 1000 },
+    );
+  });
+
+  it('[property] os terminais são exactamente ESTORNADO e ANULADO', () => {
+    const terminais = Object.entries(mapa)
+      .filter(([, d]) => d.length === 0)
+      .map(([s]) => s)
+      .sort();
+    expect(terminais).toEqual(['ANULADO', 'ESTORNADO']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Fatura
 // ---------------------------------------------------------------------------
 

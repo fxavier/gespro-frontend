@@ -19,3 +19,12 @@ describe('audit-extension constants', () => {
     expect(CRITICAL_ENTITIES.has('Role')).toBe(true);
   });
 });
+
+describe('audit-extension — lançamentos (#137, D5)', () => {
+  it('AUDIT_MODELS inclui Lancamento e PartidaLancamento', () => {
+    // Editar e anular um rascunho escrevem pelo cliente estendido, com escritas
+    // singulares: sem estes dois modelos no conjunto, nada disso fica no trilho.
+    expect(AUDIT_MODELS.has('Lancamento')).toBe(true);
+    expect(AUDIT_MODELS.has('PartidaLancamento')).toBe(true);
+  });
+});
