@@ -42,6 +42,11 @@ A NC não tem página de detalhe. A lista liga para duas rotas que dão 404 (#15
   - na **mesma transacção**, estorna o lançamento da NC (`lancamentoId`) com a data do cancelamento e
     guarda o id do estorno em `lancamentoEstornoId`, numa coluna nova;
   - com o período da data fechado, recusa com `PERIODO_FECHADO` e não escreve nada.
+  - **decidido na revisão (2026-09-27)**: recusa com `NC_PERIODO_IVA_APURADO` se o período da `dataEmissao`
+    da NC tiver apuramento de IVA activo (não estornado) ou estiver fechado. O IVA é apurado pelos
+    documentos: cancelar mudaria para trás a base de um mês já apurado. A correcção é uma nota de débito.
+  - se o lançamento da NC já tiver sido estornado à mão, o cancelamento adopta esse estorno em vez de
+    falhar.
 - **Proforma**: pode cancelar-se em `RASCUNHO`, `ENVIADA` ou `ACEITE`, conforme `TRANSICOES_PROFORMA`.
 - **Cotação**: só em `RASCUNHO`, conforme `TRANSICOES_COTACAO_COMERCIAL`. Depois de enviada, o caminho é
   «Rejeitar», que já existe. O serviço novo é `cancelarCotacaoComercial(id, motivo, ctx)`.
@@ -67,6 +72,11 @@ A NC não tem página de detalhe. A lista liga para duas rotas que dão 404 (#15
     - abate o total da NC ao `totalPago` da factura e actualiza o estado dela como o `registarPagamento` faz;
     - **sem lançamento**: a 411 já foi creditada na emissão da NC;
     - com saldo insuficiente, recusa com `NC_COMPENSACAO_EXCEDE_SALDO`.
+    - factura `PAGA`, `CANCELADA` ou `RASCUNHO` ⇒ `FATURA_NAO_COMPENSAVEL`.
+- A data da liquidação não pode ser anterior à `dataEmissao` da NC (dia de Maputo) ⇒ `NC_DATA_ANTERIOR_EMISSAO`.
+- **Concorrência na factura** (revisão): `registarPagamento` e `marcarVencida` passam a trancar a factura
+  (`FOR UPDATE`) antes de a ler, tal como a compensação. Sem isso, um pagamento em simultâneo apagava a
+  compensação.
 - Grava-se a forma (`formaLiquidacao`: `DEVOLUCAO` | `COMPENSACAO`) e a data (`dataLiquidacao`). As duas
   colunas são novas.
 
