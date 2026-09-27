@@ -19,7 +19,7 @@
  * Determinístico: sem sleeps; usa expect auto-retry.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { esperarFormularioLogin } from './helpers/auth';
 
@@ -511,6 +511,88 @@ test.describe('A11y: Faturação — Séries de documento', () => {
       await page.waitForLoadState('networkidle');
 
       await checkA11y(page, `nova série (${tema})`);
+    });
+  }
+});
+
+// ─── Issue #148: Nota de crédito — detalhe, liquidar e cancelar (ticket 7) ───
+// Nos dois temas, como admin (vê as duas acções e as duas formas de
+// liquidação — a superfície maior). Só LÊ: usa uma NC EMITIDA que já exista
+// (o `21-nc-proforma-cotacao` cria e transita as suas; as do seed ficam
+// EMITIDAS). Corre, como o 21, contra a base isolada `gespro_e2e77`.
+// O detalhe corre também sobre uma NC LIQUIDADA e uma CANCELADA, se houver:
+// é aí que aparecem os blocos da liquidação e do cancelamento.
+
+async function hrefNotaCredito(
+  page: Page,
+  estado: 'Emitida' | 'Liquidada' | 'Cancelada',
+): Promise<string | null> {
+  await page.goto('/faturacao/nota-credito');
+  await expect(page.getByRole('heading', { name: 'Notas de Crédito', level: 1 })).toBeVisible({ timeout: 20_000 });
+  await page.waitForLoadState('networkidle');
+  const linha = page.locator('tbody tr').filter({ has: page.getByText(estado, { exact: true }) }).first();
+  if ((await linha.count()) === 0) return null;
+  await linha.getByRole('button').last().click();
+  const href = await page.getByRole('menuitem', { name: 'Ver detalhe' }).getAttribute('href');
+  await page.keyboard.press('Escape');
+  return href;
+}
+
+test.describe('A11y: Faturação — Nota de crédito (#148)', () => {
+  for (const tema of TEMAS) {
+    const nomeTema = tema === 'light' ? 'claro' : 'escuro';
+
+    test(`sem violações AA no detalhe da NC — tema ${nomeTema}`, async ({ page }) => {
+      test.setTimeout(90_000);
+      await page.emulateMedia({ colorScheme: tema });
+      const alvos = [] as Array<{ estado: string; href: string }>;
+      for (const estado of ['Emitida', 'Liquidada', 'Cancelada'] as const) {
+        const href = await hrefNotaCredito(page, estado);
+        if (href) alvos.push({ estado, href });
+      }
+      expect(alvos.find((a) => a.estado === 'Emitida'), 'sem NC EMITIDA na base').toBeTruthy();
+
+      for (const { estado, href } of alvos) {
+        await page.goto(href);
+        await expect(page.getByRole('heading', { name: /^Nota de crédito /, level: 1 })).toBeVisible({ timeout: 20_000 });
+        await page.waitForLoadState('networkidle');
+        if (estado !== 'Emitida') {
+          await expect(
+            page.getByTestId(estado === 'Liquidada' ? 'nc-liquidacao' : 'nc-cancelamento'),
+          ).toBeVisible({ timeout: 20_000 });
+        }
+        await checkA11y(page, `detalhe da NC ${estado} (${tema})`);
+      }
+    });
+
+    test(`sem violações AA em liquidar NC — tema ${nomeTema}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      const href = await hrefNotaCredito(page, 'Emitida');
+      expect(href, 'sem NC EMITIDA na base').toBeTruthy();
+      await page.goto(`${href}/liquidar`);
+      await expect(page.getByRole('heading', { name: /^Liquidar /, level: 1 })).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      // Com a devolução escolhida aparecem a forma de pagamento e a conta: a superfície maior.
+      const devolucao = page.getByRole('radio', { name: /Devolução ao cliente/ });
+      if ((await devolucao.count()) > 0) {
+        await devolucao.click();
+        await expect(page.getByRole('combobox', { name: 'Conta bancária' })).toBeVisible();
+      }
+      await checkA11y(page, `liquidar NC (${tema})`);
+    });
+
+    test(`sem violações AA em cancelar NC — tema ${nomeTema}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      const href = await hrefNotaCredito(page, 'Emitida');
+      expect(href, 'sem NC EMITIDA na base').toBeTruthy();
+      await page.goto(`${href}/cancelar`);
+      await expect(page.getByRole('heading', { name: /^Cancelar /, level: 1 })).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      // Com o erro do campo à vista (motivo curto), que é o estado que o axe mais precisa de ver.
+      await page.getByLabel('Motivo', { exact: true }).fill('ab');
+      await page.getByRole('button', { name: 'Cancelar nota de crédito' }).click();
+      await expect(page.getByText('Indique o motivo (mínimo 3 caracteres)')).toBeVisible();
+      await checkA11y(page, `cancelar NC (${tema})`);
     });
   }
 });
