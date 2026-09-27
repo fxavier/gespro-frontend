@@ -42,6 +42,8 @@ const PASSOS: StepperStep[] = [
 
 // Denominações MZN
 const DENOMINACOES = [
+  { label: 'Nota MT 1000', valor: 1000, tipo: 'nota' },
+  { label: 'Nota MT 500', valor: 500, tipo: 'nota' },
   { label: 'Nota MT 200', valor: 200, tipo: 'nota' },
   { label: 'Nota MT 100', valor: 100, tipo: 'nota' },
   { label: 'Nota MT 50', valor: 50, tipo: 'nota' },

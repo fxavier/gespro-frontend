@@ -273,15 +273,13 @@ Numa sessão **aberta**, é neste detalhe que vê os valores do momento (serve c
 **Passos**
 1. Em **Caixa**, clique em **⋯ › Fechar caixa** na sua sessão aberta, ou em **Fechar caixa** no detalhe dela.
 2. No passo **Sessão**, confira a **Sessão a Fechar** (Número, Estado, Abertura, Fundo Inicial) e clique em **Prosseguir para Contagem**.
-3. No passo **Contagem**, escreva quantas unidades tem de cada nota (**Nota MT 200** a **Nota MT 5**) e de cada moeda (**Moeda MT 10** a **Moeda MT 1**). O **Total Contado** é somado sozinho. Clique em **Prosseguir**.
+3. No passo **Contagem**, escreva quantas unidades tem de cada nota (**Nota MT 1000** a **Nota MT 5**) e de cada moeda (**Moeda MT 10** a **Moeda MT 1**). O **Total Contado** é somado sozinho. Clique em **Prosseguir**.
 4. No passo **Confirmação**, confira o **Resumo do Fecho**, escreva, se quiser, **Observações do Fecho** e clique em **Confirmar Fecho**.
 
 **Resultado**
 Aparece «Caixa fechado com sucesso!». A sessão fica **Fechada** (e não pode voltar a abrir). O sistema grava o total contado, os totais de entradas e saídas, a diferença, e regista um movimento **Fecho**.
 
 > **Atenção:** a **Diferença** mostrada no passo de confirmação compara o total contado só com o fundo inicial, sem as vendas do turno. A diferença que fica gravada na sessão é calculada pelo sistema a partir dos movimentos e pode não coincidir com a do ecrã. Confira sempre o detalhe da sessão depois de fechar e, se os valores não fizerem sentido, fale com o responsável financeiro antes de repetir a contagem.
-
-> **Atenção:** a contagem ainda não tem as notas de MT 500 e MT 1000. Se as tiver na gaveta, converta-as em notas de MT 200 ao contar (por exemplo, uma nota de MT 1000 = 5 notas de MT 200) ou registe-as nas **Observações do Fecho**.
 
 ### Reforço, sangria e cancelamento de sessão
 
