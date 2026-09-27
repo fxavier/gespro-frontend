@@ -48,8 +48,6 @@ const DENOMINACOES = [
   { label: 'Nota MT 100', valor: 100, tipo: 'nota' },
   { label: 'Nota MT 50', valor: 50, tipo: 'nota' },
   { label: 'Nota MT 20', valor: 20, tipo: 'nota' },
-  { label: 'Nota MT 10', valor: 10, tipo: 'nota' },
-  { label: 'Nota MT 5', valor: 5, tipo: 'nota' },
   { label: 'Moeda MT 10', valor: 10, tipo: 'moeda' },
   { label: 'Moeda MT 5', valor: 5, tipo: 'moeda' },
   { label: 'Moeda MT 2', valor: 2, tipo: 'moeda' },

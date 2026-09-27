@@ -273,7 +273,7 @@ Numa sessão **aberta**, é neste detalhe que vê os valores do momento (serve c
 **Passos**
 1. Em **Caixa**, clique em **⋯ › Fechar caixa** na sua sessão aberta, ou em **Fechar caixa** no detalhe dela.
 2. No passo **Sessão**, confira a **Sessão a Fechar** (Número, Estado, Abertura, Fundo Inicial) e clique em **Prosseguir para Contagem**.
-3. No passo **Contagem**, escreva quantas unidades tem de cada nota (**Nota MT 1000** a **Nota MT 5**) e de cada moeda (**Moeda MT 10** a **Moeda MT 1**). O **Total Contado** é somado sozinho. Clique em **Prosseguir**.
+3. No passo **Contagem**, escreva quantas unidades tem de cada nota (**Nota MT 1000** a **Nota MT 20**) e de cada moeda (**Moeda MT 10** a **Moeda MT 1**). O **Total Contado** é somado sozinho. Clique em **Prosseguir**.
 4. No passo **Confirmação**, confira o **Resumo do Fecho**, escreva, se quiser, **Observações do Fecho** e clique em **Confirmar Fecho**.
 
 **Resultado**
