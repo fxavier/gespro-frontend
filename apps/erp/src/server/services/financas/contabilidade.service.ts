@@ -851,39 +851,70 @@ export function montarLinhasBalancete(
   agregados: AgregadoPartida[],
   contas: Map<string, ContaBalancete['conta']>,
   incluirZeradas: boolean,
+  opcoes: {
+    /** Somas anteriores a `dataInicio` — dão o saldo anterior (#141). */
+    anteriores?: AgregadoPartida[];
+    /** Todas as contas de `contas` entram, mesmo sem movimento (com `incluirZeradas`). */
+    listarTodas?: boolean;
+    /** Código (prefixo) ou nome (contém); filtra linhas, não os totais. */
+    search?: string;
+  } = {},
 ): { contas: ContaBalancete[]; totalDebitos: Prisma.Decimal; totalCreditos: Prisma.Decimal } {
-  const mapa = new Map<string, { conta: ContaBalancete['conta']; debitos: Prisma.Decimal; creditos: Prisma.Decimal }>();
-
-  for (const a of agregados) {
-    const conta = contas.get(a.contaId);
+  const zero = () => new Prisma.Decimal(0);
+  type Soma = { conta: ContaBalancete['conta']; debitos: Prisma.Decimal; creditos: Prisma.Decimal; antD: Prisma.Decimal; antC: Prisma.Decimal };
+  const mapa = new Map<string, Soma>();
+  const entrada = (contaId: string): Soma | null => {
+    const conta = contas.get(contaId);
     // Uma partida cuja conta não existe neste tenant não é somável — e não é
     // silenciável noutro sítio: seria uma fuga cross-tenant a acontecer.
-    if (!conta) continue;
-    const e = mapa.get(a.contaId) ?? { conta, debitos: new Prisma.Decimal(0), creditos: new Prisma.Decimal(0) };
-    const valor = a._sum.valor ?? new Prisma.Decimal(0);
+    if (!conta) return null;
+    const e = mapa.get(contaId) ?? { conta, debitos: zero(), creditos: zero(), antD: zero(), antC: zero() };
+    mapa.set(contaId, e);
+    return e;
+  };
+
+  for (const a of agregados) {
+    const e = entrada(a.contaId);
+    if (!e) continue;
+    const valor = a._sum.valor ?? zero();
     if (a.tipo === 'DEBITO') e.debitos = e.debitos.plus(valor);
     else e.creditos = e.creditos.plus(valor);
-    mapa.set(a.contaId, e);
   }
+  for (const a of opcoes.anteriores ?? []) {
+    const e = entrada(a.contaId);
+    if (!e) continue;
+    const valor = a._sum.valor ?? zero();
+    if (a.tipo === 'DEBITO') e.antD = e.antD.plus(valor);
+    else e.antC = e.antC.plus(valor);
+  }
+  if (opcoes.listarTodas) for (const id of contas.keys()) entrada(id);
 
-  let totalDebitos = new Prisma.Decimal(0);
-  let totalCreditos = new Prisma.Decimal(0);
+  const pelaNatureza = (natureza: string, d: Prisma.Decimal, c: Prisma.Decimal) =>
+    natureza === 'DEVEDORA' ? d.minus(c) : c.minus(d);
+
+  let totalDebitos = zero();
+  let totalCreditos = zero();
 
   const linhas = Array.from(mapa.values())
-    .filter((e) => incluirZeradas || !e.debitos.equals(0) || !e.creditos.equals(0))
     .map((e) => {
-      totalDebitos = totalDebitos.plus(e.debitos);
-      totalCreditos = totalCreditos.plus(e.creditos);
-      const saldoAtual = e.conta.natureza === 'DEVEDORA'
-        ? e.debitos.minus(e.creditos)
-        : e.creditos.minus(e.debitos);
+      const saldoAnterior = pelaNatureza(e.conta.natureza, e.antD, e.antC);
       return {
         conta: e.conta,
-        saldoAnterior: new Prisma.Decimal(0),
+        saldoAnterior,
         debitos: e.debitos,
         creditos: e.creditos,
-        saldoAtual,
+        saldoAtual: saldoAnterior.plus(pelaNatureza(e.conta.natureza, e.debitos, e.creditos)),
       };
+    })
+    .filter((l) => incluirZeradas || !l.debitos.equals(0) || !l.creditos.equals(0) || !l.saldoAnterior.equals(0))
+    .map((l) => {
+      totalDebitos = totalDebitos.plus(l.debitos);
+      totalCreditos = totalCreditos.plus(l.creditos);
+      return l;
+    })
+    .filter((l) => {
+      const q = opcoes.search?.trim().toLowerCase();
+      return !q || l.conta.codigo.toLowerCase().startsWith(q) || l.conta.nome.toLowerCase().includes(q);
     })
     .sort((a, b) => a.conta.codigo.localeCompare(b.conta.codigo));
 
@@ -903,20 +934,24 @@ export function montarLinhasBalancete(
  * milhares.
  */
 export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Promise<Balancete> {
-  const agregados = await prisma.partidaLancamento.groupBy({
-    by: ['contaId', 'tipo'],
-    where: {
-      tenantId: ctx.tenantId,
-      lancamento: {
-        data: { gte: filtro.dataInicio, lte: filtro.dataFim },
-        status: FILTRO_LANCAMENTO_MAPA,
-      },
-    },
-    _sum: { valor: true },
-  });
+  const somas = (data: Prisma.DateTimeFilter) =>
+    prisma.partidaLancamento.groupBy({
+      by: ['contaId', 'tipo'],
+      where: { tenantId: ctx.tenantId, lancamento: { data, status: FILTRO_LANCAMENTO_MAPA } },
+      _sum: { valor: true },
+    });
+  // #141: o saldo anterior (só quando pedido) é tudo o que foi lançado antes do início.
+  const [agregados, anteriores] = await Promise.all([
+    somas({ gte: filtro.dataInicio, lte: filtro.dataFim }),
+    filtro.comSaldoAnterior ? somas({ lt: filtro.dataInicio }) : Promise.resolve([]),
+  ]);
 
+  // Com «Incluir zeradas» entram todas as contas movimentáveis; sem, só as que
+  // têm movimento no período ou saldo anterior.
   const contas = await prisma.contaPGC.findMany({
-    where: { tenantId: ctx.tenantId, id: { in: [...new Set(agregados.map((a) => a.contaId))] } },
+    where: filtro.incluirZeradas
+      ? { tenantId: ctx.tenantId, aceitaLancamento: true }
+      : { tenantId: ctx.tenantId, id: { in: [...new Set([...agregados, ...anteriores].map((a) => a.contaId))] } },
     select: { id: true, codigo: true, nome: true, tipo: true, natureza: true },
   });
 
@@ -924,10 +959,12 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
     agregados,
     new Map(contas.map((c) => [c.id, c])),
     filtro.incluirZeradas,
+    { anteriores, listarTodas: filtro.incluirZeradas, search: filtro.search },
   );
 
   return { dataInicio: filtro.dataInicio, dataFim: filtro.dataFim, contas: linhas, totalDebitos, totalCreditos };
 }
+
 
 export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<LinhaRazao[]> {
   const conta = await prisma.contaPGC.findFirst({ where: { id: filtro.contaId, tenantId: ctx.tenantId } });

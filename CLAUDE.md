@@ -264,9 +264,9 @@ falhar, o defeito está no JSON, não no teste. (A classe 4 continua toda `DEVED
   (`LANCADO` + `ESTORNADO`), exportado do serviço — nunca um literal local, que foi como quatro cópias
   divergiram.
 - Uma data `aaaa-mm-dd` que entra por `z.coerce.date()` fica à **meia-noite UTC**; como `dataFim` num
-  `lte`, deixa de fora os lançamentos do próprio último dia. A página `/contabilidade/balancete` ainda tem este
-  defeito (fim a 31/10 não apanha um lançamento de 31/10 ao meio-dia). O fim de um período pedido pelo
-  utilizador é `new Date(dia + 'T23:59:59.999+02:00')`.
+  `lte`, deixa de fora os lançamentos do próprio último dia. As páginas de mapas (balancete, DRE, razão)
+  passam as datas por `intervaloDoDiaMaputo` (`lib/periodo-fiscal.ts`) antes do schema: início às
+  00:00 e fim às 23:59:59.999 de Maputo.
 
 **Datas de `<input type="date">`** — `new Date('aaaa-mm-dd')` lê como UTC e, a leste de Greenwich, cai no dia
 anterior — muda o período fiscal. Parte a string e constrói `new Date(ano, mes - 1, dia, 12)`.

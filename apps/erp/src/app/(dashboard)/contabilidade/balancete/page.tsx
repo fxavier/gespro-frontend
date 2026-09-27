@@ -13,7 +13,8 @@ import { FiltroBalanceteSchema } from '@/lib/validations/contabilidade';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import { SeletorPeriodo } from '../_components/seletor-periodo';
-import { periodoPorOmissao } from '@/lib/periodo-fiscal';
+import { intervaloDoDiaMaputo, periodoPorOmissao } from '@/lib/periodo-fiscal';
+import { formatarData } from '@/lib/format-date';
 import type { FilterConfig } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -58,11 +59,11 @@ const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZ
  */
 async function BalanceteSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
   const result = await runWithTenantContext({ tenantId, userId }, () =>
-    contabilidadeService.gerarBalancete(filtros, { tenantId, userId })
+    contabilidadeService.gerarBalancete({ ...filtros, comSaldoAnterior: true }, { tenantId, userId })
   );
 
   const n = (v: any) => parseFloat(v?.toString() ?? '0');
-  const periodo = `${result.dataInicio ? new Date(result.dataInicio).toLocaleDateString('pt-PT') : '?'} – ${result.dataFim ? new Date(result.dataFim).toLocaleDateString('pt-PT') : '?'}`;
+  const periodo = `${formatarData(result.dataInicio)} – ${formatarData(result.dataFim)}`;
   const totalDeb = n(result.totalDebitos);
   const totalCred = n(result.totalCreditos);
   const diferenca = totalDeb - totalCred;
@@ -161,7 +162,10 @@ export default async function BalancetePage({ searchParams }: PageProps) {
     dataInicio: typeof flat.dataInicio === 'string' ? flat.dataInicio : omissao.dataInicio,
     dataFim: typeof flat.dataFim === 'string' ? flat.dataFim : omissao.dataFim,
   };
-  const parseResult = FiltroUrlSchema.safeParse({ ...flat, ...periodo });
+  // Datas `aaaa-mm-dd` ⇒ dia civil de Maputo inteiro, como na DRE: com a
+  // meia-noite UTC o último dia ficava de fora e o saldo anterior (#141)
+  // apanhava as primeiras duas horas do primeiro dia.
+  const parseResult = FiltroUrlSchema.safeParse(intervaloDoDiaMaputo({ ...flat, ...periodo }));
 
   return (
     <div className="p-6 space-y-6">

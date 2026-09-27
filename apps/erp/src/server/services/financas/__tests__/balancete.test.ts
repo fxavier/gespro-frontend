@@ -93,3 +93,56 @@ describe('montarLinhasBalancete', () => {
     expect(r.contas.map((l) => l.conta.codigo)).toEqual(['1.1', '2.1', '7.1']);
   });
 });
+
+// #141: «Saldo Anterior» estava fixo a 0 e «Incluir zeradas»/pesquisa não tinham efeito.
+describe('montarLinhasBalancete — saldo anterior, contas sem movimento e pesquisa (#141)', () => {
+  const periodo = [agregado('c1', 'DEBITO', '100'), agregado('c2', 'CREDITO', '40')];
+  const anteriores = [
+    agregado('c1', 'DEBITO', '1000'),
+    agregado('c1', 'CREDITO', '300'),
+    agregado('c3', 'DEBITO', '50'),
+  ];
+
+  it('saldo anterior pela natureza; saldo actual = anterior + movimento do período', () => {
+    const r = montarLinhasBalancete(periodo, CONTAS, false, { anteriores });
+    const c1 = r.contas.find((l) => l.conta.id === 'c1')!;
+    expect(c1.saldoAnterior.toString()).toBe('700');
+    expect(c1.debitos.toString()).toBe('100');
+    expect(c1.saldoAtual.toString()).toBe('800');
+  });
+
+  it('conta só com saldo anterior aparece mesmo sem zeradas, sem movimento no período', () => {
+    const r = montarLinhasBalancete(periodo, CONTAS, false, { anteriores });
+    const c3 = r.contas.find((l) => l.conta.id === 'c3')!;
+    expect(c3.saldoAnterior.toString()).toBe('50');
+    expect(c3.debitos.toString()).toBe('0');
+    expect(c3.saldoAtual.toString()).toBe('50');
+  });
+
+  it('os totais são só do período (o saldo anterior não entra)', () => {
+    const r = montarLinhasBalancete(periodo, CONTAS, false, { anteriores });
+    expect(r.totalDebitos.toString()).toBe('100');
+    expect(r.totalCreditos.toString()).toBe('40');
+  });
+
+  it('anterior que se anula e sem período: só com incluirZeradas', () => {
+    const anula = [agregado('c3', 'DEBITO', '50'), agregado('c3', 'CREDITO', '50')];
+    expect(montarLinhasBalancete([], CONTAS, false, { anteriores: anula }).contas).toHaveLength(0);
+    expect(montarLinhasBalancete([], CONTAS, true, { anteriores: anula }).contas).toHaveLength(1);
+  });
+
+  it('listarTodas: contas sem movimento nenhum entram a zeros', () => {
+    const r = montarLinhasBalancete(periodo, CONTAS, true, { listarTodas: true });
+    expect(r.contas.map((l) => l.conta.id).sort()).toEqual(['c1', 'c2', 'c3']);
+    const c3 = r.contas.find((l) => l.conta.id === 'c3')!;
+    expect(c3.saldoAtual.toString()).toBe('0');
+  });
+
+  it('pesquisa por código ou nome filtra as linhas, sem mexer nos totais', () => {
+    const r = montarLinhasBalancete(periodo, CONTAS, false, { search: '7.1' });
+    expect(r.contas.map((l) => l.conta.id)).toEqual(['c2']);
+    expect(r.totalDebitos.toString()).toBe('100');
+    const porNome = montarLinhasBalancete(periodo, CONTAS, false, { search: 'conta 1.1' });
+    expect(porNome.contas.map((l) => l.conta.id)).toEqual(['c1']);
+  });
+});
