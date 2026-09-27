@@ -20,6 +20,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { Client } from 'pg';
 
 const skip = process.env.SKIP_INTEGRATION === 'true' || !process.env.INTEGRATION_DB_URL;
 
@@ -45,12 +46,25 @@ describe.skipIf(skip)('Acções sobre notas de crédito — DB efémera (Testcon
     permissions: new Set(['faturacao:nc:liquidar', 'faturacao:nc:cancelar']),
   };
   let faturaId: string;
+  let clienteId: string;
 
   const noCtx = <T>(fn: () => Promise<T>) => runCtx(ctx, fn);
 
-  async function emitirNC(): Promise<{ id: string; lancamentoId: string; total: number }> {
+  async function emitirFatura(): Promise<string> {
+    const hoje = new Date();
+    const input = val.EmitirFaturaSchema.parse({
+      clienteId,
+      dataEmissao: hoje,
+      dataVencimento: new Date(hoje.getTime() + 30 * 86_400_000),
+      linhas: [{ descricao: 'Mercadoria', quantidade: 10, precoUnitario: 100, taxaIva: 0.16 }],
+    });
+    const f = await noCtx(() => fat.emitirFatura(input, ctx));
+    return f.id;
+  }
+
+  async function emitirNC(faturaOriginalId: string = faturaId): Promise<{ id: string; lancamentoId: string; total: number }> {
     const input = val.EmitirNotaCreditoSchema.parse({
-      faturaOriginalId: faturaId,
+      faturaOriginalId,
       motivo: 'Devolução parcial',
       dataEmissao: new Date(),
       linhas: [{ descricao: 'Artigo devolvido', quantidade: 1, precoUnitario: 100, taxaIva: 0.16 }],
@@ -94,15 +108,8 @@ describe.skipIf(skip)('Acções sobre notas de crédito — DB efémera (Testcon
       },
     });
 
-    const hoje = new Date();
-    const inputFatura = val.EmitirFaturaSchema.parse({
-      clienteId: cliente.id,
-      dataEmissao: hoje,
-      dataVencimento: new Date(hoje.getTime() + 30 * 86_400_000),
-      linhas: [{ descricao: 'Mercadoria', quantidade: 10, precoUnitario: 100, taxaIva: 0.16 }],
-    });
-    const fatura = await noCtx(() => fat.emitirFatura(inputFatura, ctx));
-    faturaId = fatura.id;
+    clienteId = cliente.id;
+    faturaId = await emitirFatura();
   });
 
   afterAll(async () => {
@@ -193,6 +200,84 @@ describe.skipIf(skip)('Acções sobre notas de crédito — DB efémera (Testcon
         expect(lancNC.status).toBe('ESTORNADO');
         expect(pagoDepois).toBeCloseTo(pagoAntes, 2);
       }
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // (c) compensação ‖ registarPagamento na mesma factura
+  // -------------------------------------------------------------------------
+
+  it('(c) compensação ‖ registarPagamento na mesma factura: o totalPago final é a soma dos dois', async () => {
+    // Três rondas, cada uma numa factura nova (total 1160): NC de 116 + pagamento de 200.
+    for (let ronda = 0; ronda < 3; ronda++) {
+      const idFatura = await emitirFatura();
+      const nc = await emitirNC(idFatura);
+
+      const [rl, rp] = await Promise.allSettled([
+        noCtx(() => fat.liquidarNotaCredito({ id: nc.id, forma: 'COMPENSACAO', data: new Date() }, ctx)),
+        noCtx(() => fat.registarPagamento({ faturaId: idFatura, valor: 200, dataPagamento: new Date() }, ctx)),
+      ]);
+
+      expect(rl.status, `ronda ${ronda}: ${rl.status === 'rejected' ? String(rl.reason) : ''}`).toBe('fulfilled');
+      expect(rp.status, `ronda ${ronda}: ${rp.status === 'rejected' ? String(rp.reason) : ''}`).toBe('fulfilled');
+
+      const f = await db.fatura.findFirst({ where: { id: idFatura, tenantId: TENANT } });
+      expect(Number(String(f.totalPago)), `ronda ${ronda}`).toBeCloseTo(nc.total + 200, 2);
+      expect(f.status).toBe('PARCIALMENTE_PAGA');
+
+      const ncFinal = await db.notaCredito.findFirst({ where: { id: nc.id, tenantId: TENANT } });
+      expect(ncFinal.status).toBe('LIQUIDADA');
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // (d) a mesma corrida, determinística
+  // -------------------------------------------------------------------------
+
+  it('(d) registarPagamento espera pela tranca de uma compensação em curso e soma por cima dela', async () => {
+    // (c) depende de as duas transacções se cruzarem de facto. Aqui a compensação é
+    // uma transacção à parte que tranca a factura (como a do serviço) e só faz commit
+    // depois de o pagamento estar à espera de um lock. Quem lê a factura antes de a
+    // trancar escreve 200 por cima dos 116 — perde a compensação.
+    const idFatura = await emitirFatura();
+    const conc = new Client({ connectionString: process.env.INTEGRATION_DB_URL! });
+    const monitor = new Client({ connectionString: process.env.INTEGRATION_DB_URL! });
+    await conc.connect();
+    await monitor.connect();
+    try {
+      await conc.query('BEGIN');
+      await conc.query('SELECT id FROM "Fatura" WHERE id = $1 AND "tenantId" = $2 FOR UPDATE', [idFatura, TENANT]);
+
+      const pagamento = noCtx(() =>
+        fat.registarPagamento({ faturaId: idFatura, valor: 200, dataPagamento: new Date() }, ctx),
+      );
+      const falhou = pagamento.then(
+        () => null,
+        (e: unknown) => e,
+      );
+
+      // Espera (com tecto) até o pagamento estar bloqueado num lock.
+      let bloqueado = false;
+      for (let i = 0; i < 60 && !bloqueado; i++) {
+        const r = await monitor.query(
+          `SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND state = 'active'`,
+        );
+        bloqueado = r.rows[0].n > 0;
+        if (!bloqueado) await new Promise((res) => setTimeout(res, 50));
+      }
+      expect(bloqueado, 'o pagamento nunca chegou a esperar por um lock da factura').toBe(true);
+
+      await conc.query('UPDATE "Fatura" SET "totalPago" = "totalPago" + 116, status = \'PARCIALMENTE_PAGA\' WHERE id = $1', [idFatura]);
+      await conc.query('COMMIT');
+
+      expect(await falhou).toBeNull();
+      const f = await db.fatura.findFirst({ where: { id: idFatura, tenantId: TENANT } });
+      expect(Number(String(f.totalPago))).toBeCloseTo(316, 2);
+      expect(f.status).toBe('PARCIALMENTE_PAGA');
+    } finally {
+      await conc.query('ROLLBACK').catch(() => undefined);
+      await conc.end();
+      await monitor.end();
     }
   });
 });

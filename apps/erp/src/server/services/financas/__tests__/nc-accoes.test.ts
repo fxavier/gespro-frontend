@@ -70,11 +70,11 @@ function corresponde(row: Row, where: Row | undefined): boolean {
   return true;
 }
 
-const MODELOS = ['notaCredito', 'fatura'] as const;
+const MODELOS = ['notaCredito', 'fatura', 'periodoContabil', 'apuramentoIva', 'lancamento'] as const;
 type Modelo = (typeof MODELOS)[number];
 
 class Duplo {
-  tabelas: Record<Modelo, Row[]> = { notaCredito: [], fatura: [] };
+  tabelas: Record<Modelo, Row[]> = { notaCredito: [], fatura: [], periodoContabil: [], apuramentoIva: [], lancamento: [] };
   registo: Entrada[] = [];
 
   semear(modelo: Modelo, r: Row): Row {
@@ -112,6 +112,14 @@ class Duplo {
         const r = this.tabelas[modelo].find((x) => corresponde(x, args.where));
         return r ? { ...r } : null;
       },
+      findMany: async (args: Row = {}) => {
+        ler('findMany');
+        return this.tabelas[modelo].filter((x) => corresponde(x, args.where)).map((x) => ({ ...x }));
+      },
+      count: async (args: Row = {}) => {
+        ler('count');
+        return this.tabelas[modelo].filter((x) => corresponde(x, args.where)).length;
+      },
       findFirstOrThrow: async (args: Row = {}) => {
         ler('findFirstOrThrow');
         const r = this.tabelas[modelo].find((x) => corresponde(x, args.where));
@@ -141,13 +149,18 @@ class Duplo {
 
   readonly notaCredito = this.tabela('notaCredito');
   readonly fatura = this.tabela('fatura');
+  readonly periodoContabil = this.tabela('periodoContabil');
+  readonly apuramentoIva = this.tabela('apuramentoIva');
+  readonly lancamento = this.tabela('lancamento');
 
   /** Devolve a linha trancada quando um id e o tenant dela aparecem nos valores do SQL. */
   private linhaTrancada(valores: unknown[]): Row[] {
     const vs = valores.map(String);
     for (const m of MODELOS) {
-      const r = this.tabelas[m].find((x) => vs.includes(x.id) && vs.includes(x.tenantId));
-      if (r) return [{ id: r.id, status: r.status, tenantId: r.tenantId }];
+      const r = this.tabelas[m].find(
+        (x) => (vs.includes(x.id) || (x.codigo !== undefined && vs.includes(x.codigo))) && vs.includes(x.tenantId),
+      );
+      if (r) return [{ ...r }];
     }
     return [];
   }
@@ -173,10 +186,9 @@ class Duplo {
   $transaction = async (fn: unknown) => {
     if (typeof fn !== 'function') throw new Error('duplo: só $transaction interactiva (callback)');
     // As escritas mutam as linhas vivas (Object.assign); as cópias rasas ficam intactas.
-    const antes = {
-      notaCredito: this.tabelas.notaCredito.map((r) => ({ ...r })),
-      fatura: this.tabelas.fatura.map((r) => ({ ...r })),
-    };
+    const antes = Object.fromEntries(
+      MODELOS.map((m) => [m, this.tabelas[m].map((r) => ({ ...r }))]),
+    ) as Record<Modelo, Row[]>;
     try {
       return await (fn as (tx: Duplo) => Promise<unknown>)(this);
     } catch (e) {
@@ -219,7 +231,10 @@ vi.mock('@/lib/auth', () => ({
   auth: vi.fn(async () => ({ user: { emailVerificado: true } })),
 }));
 
-vi.mock('../contabilidade.service', () => ({
+// Só as funções de contrato que escrevem são o seam; o resto (periodoFiscalDe,
+// diaCivilEmMaputo, resolverPeriodo…) corre a sério contra o duplo.
+vi.mock('../contabilidade.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../contabilidade.service')>()),
   estornarLancamentoEmTx: vi.fn(),
   registarLancamentoContabilistico: vi.fn(),
 }));
@@ -307,9 +322,34 @@ function semearFatura(extra: Row = {}): Row {
 
 const num = (v: unknown) => Number(String(v));
 
+/** Período contabilístico do tenant (código aaaa-mm do dia de Maputo). */
+function semearPeriodo(codigo: string, extra: Row = {}): Row {
+  return d.semear('periodoContabil', {
+    id: `per-${extra.tenantId ?? TA}-${codigo}`,
+    tenantId: TA,
+    codigo,
+    estado: 'ABERTO',
+    ...extra,
+  });
+}
+
+function semearApuramento(periodo: Row, estado: 'APURADO' | 'DECLARADO' | 'ESTORNADO', versao = 1): Row {
+  return d.semear('apuramentoIva', {
+    id: `apu-${periodo.id}-${versao}`,
+    tenantId: periodo.tenantId,
+    periodoId: periodo.id,
+    versao,
+    estado,
+  });
+}
+
 beforeEach(() => {
   d = new Duplo();
   h.duplo = d;
+  // Fundo comum: o período da emissão das NC semeadas (10/09/2026) aberto, sem apuramento,
+  // e o lançamento da NC vivo.
+  semearPeriodo('2026-09');
+  d.semear('lancamento', { id: 'lan-nc-1', tenantId: TA, tipo: 'AUTOMATICO', status: 'LANCADO', lancamentoEstornoId: null });
   vi.clearAllMocks();
   mEstornar.mockResolvedValue({ id: 'lan-estorno-1' } as any);
   mRegistarLanc.mockResolvedValue({ id: 'lan-liq-1' } as any);
@@ -831,5 +871,189 @@ describe('liquidarNotaCredito — estados e tenant', () => {
 
     expect(d.fotografia()).toBe(antes);
     expect(num(d.obter('fatura', ID_FAT).totalPago)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Correcções da revisão (#253): período com IVA apurado, estorno manual,
+// data de liquidação anterior à emissão
+// ---------------------------------------------------------------------------
+
+describe('cancelarNotaCredito — período da emissão com IVA apurado ou fechado', () => {
+  it.each(['APURADO', 'DECLARADO'] as const)(
+    'apuramento %s no período da emissão ⇒ NC_PERIODO_IVA_APURADO, sem estorno nem escrita',
+    async (estado) => {
+      semearNC();
+      semearApuramento(d.obter('periodoContabil', `per-${TA}-2026-09`), estado);
+      const antes = d.fotografia();
+
+      await esperarRegra(cancelarNotaCredito(ID_NC, 'Emitida por engano', CTX_A), 'NC_PERIODO_IVA_APURADO');
+
+      expect(mEstornar).not.toHaveBeenCalled();
+      expect(d.escritas()).toHaveLength(0);
+      expect(d.fotografia()).toBe(antes);
+    },
+  );
+
+  it('período da emissão FECHADO (sem apuramento) ⇒ BusinessRuleError, sem estorno nem escrita', async () => {
+    semearNC();
+    d.obter('periodoContabil', `per-${TA}-2026-09`).estado = 'FECHADO';
+    const antes = d.fotografia();
+
+    const e = await esperarRegra(cancelarNotaCredito(ID_NC, 'Emitida por engano', CTX_A));
+
+    // O pedido junta «apurado OU fechado» sob a mesma recusa; aceita-se também o código genérico.
+    expect(['NC_PERIODO_IVA_APURADO', 'PERIODO_FECHADO']).toContain(e.code);
+    expect(mEstornar).not.toHaveBeenCalled();
+    expect(d.escritas()).toHaveLength(0);
+    expect(d.fotografia()).toBe(antes);
+  });
+
+  it('apuramento ESTORNADO (sem versão activa) ⇒ cancela como antes, com estorno', async () => {
+    semearNC();
+    semearApuramento(d.obter('periodoContabil', `per-${TA}-2026-09`), 'ESTORNADO');
+
+    await cancelarNotaCredito(ID_NC, 'Emitida por engano', CTX_A);
+
+    expect(mEstornar).toHaveBeenCalledTimes(1);
+    const nc = d.obter('notaCredito', ID_NC);
+    expect(nc.status).toBe('CANCELADA');
+    expect(nc.lancamentoEstornoId).toBe('lan-estorno-1');
+  });
+
+  it('versão 1 estornada e versão 2 APURADA ⇒ recusa (há apuramento activo)', async () => {
+    semearNC();
+    const per = d.obter('periodoContabil', `per-${TA}-2026-09`);
+    semearApuramento(per, 'ESTORNADO', 1);
+    semearApuramento(per, 'APURADO', 2);
+
+    await esperarRegra(cancelarNotaCredito(ID_NC, 'Emitida por engano', CTX_A), 'NC_PERIODO_IVA_APURADO');
+    expect(mEstornar).not.toHaveBeenCalled();
+  });
+
+  it('o período é o do dia de MAPUTO da emissão: 31/08 22h30 UTC é 01/09 em Maputo', async () => {
+    // Emitida a 01/09/2026 00:30 em Maputo; agosto apurado, setembro aberto ⇒ cancela.
+    semearNC({ dataEmissao: new Date('2026-08-31T22:30:00Z') });
+    semearApuramento(semearPeriodo('2026-08'), 'APURADO');
+
+    await cancelarNotaCredito(ID_NC, 'Emitida por engano', CTX_A);
+
+    expect(d.obter('notaCredito', ID_NC).status).toBe('CANCELADA');
+  });
+
+  it('dia de Maputo, lado inverso: setembro apurado apanha a NC de 31/08 22h30 UTC', async () => {
+    semearNC({ dataEmissao: new Date('2026-08-31T22:30:00Z') });
+    semearPeriodo('2026-08');
+    semearApuramento(d.obter('periodoContabil', `per-${TA}-2026-09`), 'APURADO');
+
+    await esperarRegra(cancelarNotaCredito(ID_NC, 'Emitida por engano', CTX_A), 'NC_PERIODO_IVA_APURADO');
+    expect(mEstornar).not.toHaveBeenCalled();
+  });
+
+  it('apuramento activo noutro tenant, no mesmo código de período, não trava', async () => {
+    semearNC();
+    semearApuramento(semearPeriodo('2026-09', { tenantId: TB }), 'APURADO');
+
+    await cancelarNotaCredito(ID_NC, 'Emitida por engano', CTX_A);
+
+    expect(d.obter('notaCredito', ID_NC).status).toBe('CANCELADA');
+    expect(mEstornar).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('cancelarNotaCredito — lançamento da NC já estornado à mão', () => {
+  it('não volta a estornar: grava o estorno existente, CANCELADA e motivo (N1 mantém-se)', async () => {
+    semearNC();
+    d.obter('lancamento', 'lan-nc-1').status = 'ESTORNADO';
+    d.semear('lancamento', {
+      id: 'lan-estorno-manual',
+      tenantId: TA,
+      tipo: 'ESTORNO',
+      status: 'LANCADO',
+      lancamentoEstornoId: 'lan-nc-1', // o estorno aponta para o original
+    });
+
+    await cancelarNotaCredito(ID_NC, 'Já estornada na contabilidade', CTX_A);
+
+    expect(mEstornar).not.toHaveBeenCalled();
+    const nc = d.obter('notaCredito', ID_NC);
+    expect(nc.status).toBe('CANCELADA');
+    expect(nc.motivoCancelamento).toBe('Já estornada na contabilidade');
+    expect(nc.lancamentoEstornoId).toBe('lan-estorno-manual');
+    expect(nc.observacoes).toBe('Observação original do emissor');
+    expect(d.escritas('lancamento')).toHaveLength(0);
+  });
+
+  it('um estorno de OUTRO tenant com o mesmo lancamentoEstornoId não conta', async () => {
+    semearNC();
+    d.semear('lancamento', {
+      id: 'lan-estorno-alheio',
+      tenantId: TB,
+      tipo: 'ESTORNO',
+      status: 'LANCADO',
+      lancamentoEstornoId: 'lan-nc-1',
+    });
+
+    await cancelarNotaCredito(ID_NC, 'Emitida por engano', CTX_A);
+
+    expect(mEstornar).toHaveBeenCalledTimes(1);
+    expect(d.obter('notaCredito', ID_NC).lancamentoEstornoId).toBe('lan-estorno-1');
+  });
+});
+
+describe('liquidarNotaCredito — data anterior à emissão (dia de Maputo)', () => {
+  // Emitida a 10/09/2026 10:00 em Maputo (08:00 UTC).
+  const EMISSAO = new Date('2026-09-10T08:00:00Z');
+
+  it('COMPENSACAO com data do dia anterior ⇒ NC_DATA_ANTERIOR_EMISSAO, sem escrita', async () => {
+    semearNC({ dataEmissao: EMISSAO });
+    semearFatura();
+    const antes = d.fotografia();
+
+    // 09/09 23:30 em Maputo.
+    await esperarRegra(
+      liquidarNotaCredito({ id: ID_NC, forma: 'COMPENSACAO', data: new Date('2026-09-09T21:30:00Z') }, CTX_A),
+      'NC_DATA_ANTERIOR_EMISSAO',
+    );
+
+    expect(d.escritas()).toHaveLength(0);
+    expect(d.fotografia()).toBe(antes);
+  });
+
+  it('DEVOLUCAO com data do dia anterior ⇒ NC_DATA_ANTERIOR_EMISSAO, sem lançamento nem escrita', async () => {
+    semearNC({ dataEmissao: EMISSAO });
+    mResolver.mockResolvedValue({ contaCodigo: '1201', diarioTipo: 'BANCO' });
+    const antes = d.fotografia();
+
+    await esperarRegra(
+      liquidarNotaCredito(
+        {
+          id: ID_NC,
+          forma: 'DEVOLUCAO',
+          data: new Date('2026-09-09T21:30:00Z'),
+          formaPagamento: 'TRANSFERENCIA_BANCARIA',
+          contaBancariaId: ID_CONTA_BANCARIA,
+        },
+        ctxCom('financas:banca:escrita'),
+      ),
+      'NC_DATA_ANTERIOR_EMISSAO',
+    );
+
+    expect(mRegistarLanc).not.toHaveBeenCalled();
+    expect(mMovCaixa).not.toHaveBeenCalled();
+    expect(d.escritas()).toHaveLength(0);
+    expect(d.fotografia()).toBe(antes);
+  });
+
+  it('mesmo dia em Maputo, ainda que o instante UTC seja do dia anterior ⇒ aceite', async () => {
+    semearNC({ dataEmissao: EMISSAO });
+    semearFatura();
+    const data = new Date('2026-09-09T22:30:00Z'); // 10/09 00:30 em Maputo, antes da hora da emissão
+
+    await liquidarNotaCredito({ id: ID_NC, forma: 'COMPENSACAO', data }, CTX_A);
+
+    const nc = d.obter('notaCredito', ID_NC);
+    expect(nc.status).toBe('LIQUIDADA');
+    expect((nc.dataLiquidacao as Date).getTime()).toBe(data.getTime());
   });
 });
