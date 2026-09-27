@@ -15,8 +15,9 @@ oráculos não os implementa.
     da NC, e não há lançamento novo.
   - **N4** — `motivoCancelamento` preenchido em todo o documento `CANCELADA`; `observacoes` inalterado.
   - **N5** — liquidar e cancelar a mesma NC em simultâneo ⇒ exactamente uma operação passa.
-- **Códigos**: `NC_COMPENSACAO_EXCEDE_SALDO`, `PERIODO_FECHADO` (existente), `TRANSICAO_INVALIDA`
-  (existente), `MEIO_PAGAMENTO_SEM_PERMISSAO`.
+- **Códigos**: `NC_COMPENSACAO_EXCEDE_SALDO`, `FATURA_NAO_COMPENSAVEL`, `NC_PERIODO_IVA_APURADO`,
+  `NC_DATA_ANTERIOR_EMISSAO`, `PERIODO_FECHADO` (existente), `TRANSICAO_INVALIDA` (existente),
+  `MEIO_PAGAMENTO_SEM_PERMISSAO`.
 - **Permissões**: nenhuma nova (tabela no `intent.md`).
 
 ---
