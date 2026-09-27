@@ -8,9 +8,8 @@
  */
 
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { Undo2 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { Ban, Pencil, Undo2 } from 'lucide-react';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { Button } from '@/components/ui/button';
@@ -28,6 +27,7 @@ import { formatMZN } from '@/lib/format-currency';
 import { formatarData, formatarDataExtensa } from '@/lib/format-date';
 import { ConfirmarLancamento } from '../_components/confirmar-lancamento';
 import { OrigemDocumento } from '../_components/origem-documento';
+import { acessoLancamentos } from '../_lib/acesso';
 
 const ORIGEM_LABEL: Record<string, string> = {
   MANUAL: 'Manual',
@@ -46,11 +46,8 @@ export default async function LancamentoDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const { tenantId, id: userId } = session.user;
+  const { ctx, podeEscrever } = await acessoLancamentos();
   const { id } = await params;
-  const ctx = { tenantId, userId };
 
   const detalhe = await runWithTenantContext(ctx, () =>
     contabilidadeService.obterLancamentoDetalhe(id, ctx)
@@ -121,6 +118,22 @@ export default async function LancamentoDetalhePage({
         badge={<StatusBadge status={lancamento.status} />}
         actions={
           <>
+            {lancamento.status === 'RASCUNHO' && podeEscrever && (
+              <>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/contabilidade/lancamentos/${lancamento.id}/editar`}>
+                    <Pencil className="h-4 w-4 mr-1.5" />
+                    Editar
+                  </Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="text-destructive">
+                  <Link href={`/contabilidade/lancamentos/${lancamento.id}/anular`}>
+                    <Ban className="h-4 w-4 mr-1.5" />
+                    Anular
+                  </Link>
+                </Button>
+              </>
+            )}
             {lancamento.status === 'RASCUNHO' && (
               <ConfirmarLancamento id={lancamento.id} numero={lancamento.numero} />
             )}
@@ -135,6 +148,20 @@ export default async function LancamentoDetalhePage({
           </>
         }
       />
+
+      {lancamento.status === 'ANULADO' && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm">
+          <p className="font-medium text-foreground">Rascunho anulado</p>
+          <p className="mt-1">
+            <span className="text-muted-foreground">Motivo da anulação: </span>
+            {lancamento.motivoAnulacao ?? '—'}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Nunca produziu efeito contabilístico. A linha e o número ficam, para que a numeração
+            do diário continue sem lacunas.
+          </p>
+        </div>
+      )}
 
       {(original || estorno) && (
         <div className="rounded-lg border border-info/30 bg-info/10 p-4 text-sm">

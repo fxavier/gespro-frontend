@@ -23,26 +23,13 @@
 
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { loginAs, USERS } from './helpers/auth';
-
-const LISTA = '/contabilidade/lancamentos';
+import { criarRascunho, LISTA_LANCAMENTOS as LISTA } from './helpers/lancamentos-ui';
 
 // ─── utilitários ──────────────────────────────────────────────────────────────
-
-function marca(rotulo: string): string {
-  return `${rotulo} — E2E #137 ${Date.now()}-${Math.floor(Math.random() * 1e4)}`;
-}
 
 function paraNumero(texto: string | null): number {
   const limpo = (texto ?? '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
   return Number(limpo);
-}
-
-/** Escolhe uma opção num `Combobox` (filtro local) pelo início do rótulo. */
-async function escolher(page: Page, caixa: Locator, pesquisa: string, opcao: RegExp) {
-  await caixa.click();
-  await page.getByPlaceholder('Pesquisar…').fill(pesquisa);
-  await page.getByRole('option', { name: opcao }).first().click();
-  await expect(caixa).toHaveText(opcao);
 }
 
 /** «Editar»/«Anular» como ligação ou botão, dentro do conteúdo da página. */
@@ -51,49 +38,6 @@ function accao(page: Page, nome: 'Editar' | 'Anular'): Locator {
   return main
     .getByRole('link', { name: nome, exact: true })
     .or(main.getByRole('button', { name: nome, exact: true }));
-}
-
-interface Rascunho {
-  id: string;
-  numero: string;
-  historico: string;
-  detalhe: string;
-}
-
-/** Cria um rascunho pela UI (como o `12-lancamentos`) e abre o detalhe pela lista. */
-async function criarRascunho(page: Page, rotulo: string, valor = '2500'): Promise<Rascunho> {
-  const historico = marca(rotulo);
-
-  await page.goto(`${LISTA}/novo`);
-  await expect(page.getByRole('heading', { name: 'Novo Lançamento Contabilístico' })).toBeVisible({
-    timeout: 30_000,
-  });
-  await page.waitForLoadState('networkidle');
-
-  await escolher(page, page.getByRole('combobox', { name: /Diário/ }), 'Outros', /Outros/);
-  await page.getByPlaceholder('Descrição do lançamento').fill(historico);
-  const contas = page.getByRole('combobox', { name: 'Conta' });
-  await escolher(page, contas.nth(0), '2633', /^2633 /);
-  await escolher(page, contas.nth(1), '2632', /^2632 /);
-  await page.getByPlaceholder('0.00').nth(0).fill(valor);
-  await page.getByPlaceholder('0.00').nth(1).fill(valor);
-
-  await page.getByRole('button', { name: 'Guardar Lançamento' }).click();
-  await page.waitForURL(/\/contabilidade\/lancamentos$/, { timeout: 60_000 });
-
-  await page.goto(`${LISTA}?status=RASCUNHO`);
-  const linha = page.locator('tbody tr', { hasText: historico });
-  await expect(linha).toHaveCount(1, { timeout: 30_000 });
-  await page.waitForLoadState('networkidle');
-  await linha.click();
-  await page.waitForURL(/\/contabilidade\/lancamentos\/[a-z0-9-]+$/, { timeout: 60_000 });
-
-  const detalhe = new URL(page.url()).pathname;
-  const id = detalhe.split('/').pop()!;
-  const titulo = await page.getByRole('heading', { name: /^Lançamento / }).first().innerText();
-  const numero = titulo.replace(/^Lançamento\s+/, '').trim();
-  expect(numero).not.toBe('');
-  return { id, numero, historico, detalhe };
 }
 
 /** Confirma o rascunho aberto (fica LANCADO). */

@@ -11,6 +11,8 @@ import {
   FiltroCentroCustoSchema,
   CriarLancamentoSchema,
   EstornarLancamentoSchema,
+  EditarLancamentoSchema,
+  AnularLancamentoSchema,
   FiltroLancamentoSchema,
   CriarContaBancariaSchema,
   AtualizarContaBancariaSchema,
@@ -130,6 +132,20 @@ export const estornarLancamento = createSafeAction({
   permission: 'financas:lancamentos:estornar',
   revalidate: { tags: ['contabilidade', 'lancamentos'] },
   handler: (input, ctx) => contabilidade.estornarLancamento(input, ctx),
+});
+
+export const editarLancamento = createSafeAction({
+  schema: EditarLancamentoSchema,
+  permission: 'financas:lancamentos:escrita',
+  revalidate: { tags: ['contabilidade', 'lancamentos'] },
+  handler: (input, ctx) => contabilidade.editarLancamentoRascunho(input, ctx),
+});
+
+export const anularLancamento = createSafeAction({
+  schema: AnularLancamentoSchema,
+  permission: 'financas:lancamentos:escrita',
+  revalidate: { tags: ['contabilidade', 'lancamentos'] },
+  handler: (input, ctx) => contabilidade.anularLancamentoRascunho(input, ctx),
 });
 
 export const listarLancamentos = createSafeAction({

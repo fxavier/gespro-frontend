@@ -23,6 +23,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { esperarFormularioLogin } from './helpers/auth';
 import { emitirFatura, emitirNotaCredito } from './helpers/faturacao-ui';
+import { anularRascunho, criarRascunho, hrefLancamento } from './helpers/lancamentos-ui';
 
 // ─── Helper: executar axe e falhar em violações AA ────────────────────────────
 
@@ -621,6 +622,104 @@ test.describe('A11y: Faturação — Nota de crédito (#148)', () => {
       await page.getByRole('button', { name: 'Cancelar nota de crédito' }).click();
       await expect(page.getByText('Indique o motivo (mínimo 3 caracteres)')).toBeVisible();
       await checkA11y(page, `cancelar NC (${tema})`);
+    });
+  }
+});
+
+// ─── Issue #137: Lançamento em rascunho — detalhe, editar, anular, anulado ───
+// Nos dois temas, como admin (vê «Editar» e «Anular»). Um axe ad-hoc apanhou
+// `color-contrast` no bloco «Rascunho anulado» do detalhe (tema claro) e
+// nenhuma página de lançamentos estava coberta. Os testes só LEEM: usam um
+// RASCUNHO e um ANULADO que já existam (o `24-lancamento-rascunho` cria-os).
+// Corre, como o 24, contra a base isolada `gespro_e2e77`.
+
+/**
+ * Garante um RASCUNHO e um ANULADO. No CI a base é descartável: o que faltar
+ * cria-se pela UI (um rascunho; outro rascunho anulado com motivo). Fora do CI
+ * nunca escreve — um anulado fica para sempre na base (D1) —, por isso salta.
+ */
+async function garantirLancamentosRascunho(page: Page): Promise<void> {
+  const rascunho = await hrefLancamento(page, 'RASCUNHO');
+  const anulado = await hrefLancamento(page, 'ANULADO');
+  if (rascunho && anulado) return;
+  test.skip(
+    !process.env.CI,
+    'sem RASCUNHO e ANULADO nesta base — corre contra a base isolada gespro_e2e77 (ver 24-lancamento-rascunho)',
+  );
+  if (!rascunho) await criarRascunho(page, 'A11y rascunho', '700');
+  if (!anulado) {
+    const r = await criarRascunho(page, 'A11y rascunho a anular', '300');
+    await anularRascunho(page, r.detalhe, 'Criado para o gate de acessibilidade (#137).');
+  }
+}
+
+test.describe('A11y: Contabilidade — Lançamentos (#137)', () => {
+  test.beforeAll(async ({ browser }, testInfo) => {
+    test.setTimeout(240_000);
+    const { baseURL, storageState } = testInfo.project.use;
+    const page = await browser.newPage({ baseURL, storageState });
+    try {
+      await garantirLancamentosRascunho(page);
+    } finally {
+      await page.close();
+    }
+  });
+
+  for (const tema of TEMAS) {
+    const nomeTema = tema === 'light' ? 'claro' : 'escuro';
+
+    test(`sem violações AA no detalhe de um rascunho — tema ${nomeTema}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      const href = await hrefLancamento(page, 'RASCUNHO');
+      expect(href, 'sem RASCUNHO na base').toBeTruthy();
+      await page.goto(href!);
+      await expect(page.getByRole('heading', { name: /^Lançamento /, level: 1 })).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      await expect(
+        page.locator('#main-content').getByRole('link', { name: 'Editar', exact: true }),
+      ).toBeVisible({ timeout: 20_000 });
+      await checkA11y(page, `detalhe de lançamento RASCUNHO (${tema})`);
+    });
+
+    test(`sem violações AA em editar um rascunho — tema ${nomeTema}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      const href = await hrefLancamento(page, 'RASCUNHO');
+      expect(href, 'sem RASCUNHO na base').toBeTruthy();
+      await page.goto(`${href}/editar`);
+      await expect(page.getByRole('heading', { name: /^Editar lançamento /, level: 1 })).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      await expect(page.getByPlaceholder('Descrição do lançamento')).toBeVisible({ timeout: 20_000 });
+      await checkA11y(page, `editar lançamento (${tema})`);
+    });
+
+    test(`sem violações AA em anular um rascunho — tema ${nomeTema}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      const href = await hrefLancamento(page, 'RASCUNHO');
+      expect(href, 'sem RASCUNHO na base').toBeTruthy();
+      await page.goto(`${href}/anular`);
+      await expect(page.getByRole('heading', { name: /^Anular /, level: 1 })).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      // Com o erro do campo à vista (motivo curto), que é o estado que o axe mais precisa de ver.
+      // Não chega à action: a validação do cliente recusa antes.
+      await page.getByLabel('Motivo').fill('ab');
+      await page.getByRole('button', { name: 'Anular lançamento' }).click();
+      await expect(page.locator('#main-content [id$="-form-item-message"]').first()).toBeVisible({
+        timeout: 10_000,
+      });
+      expect(new URL(page.url()).pathname).toBe(`${href}/anular`);
+      await checkA11y(page, `anular lançamento (${tema})`);
+    });
+
+    test(`sem violações AA no detalhe de um anulado — tema ${nomeTema}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: tema });
+      const href = await hrefLancamento(page, 'ANULADO');
+      expect(href, 'sem ANULADO na base').toBeTruthy();
+      await page.goto(href!);
+      await expect(page.getByRole('heading', { name: /^Lançamento /, level: 1 })).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      // O bloco onde o axe apanhou o contraste.
+      await expect(page.locator('#main-content').getByText('Rascunho anulado')).toBeVisible({ timeout: 20_000 });
+      await checkA11y(page, `detalhe de lançamento ANULADO (${tema})`);
     });
   }
 });

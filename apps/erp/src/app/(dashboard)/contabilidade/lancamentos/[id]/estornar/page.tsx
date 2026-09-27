@@ -7,14 +7,14 @@
  */
 
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { formatarData } from '@/lib/format-date';
+import { acessoLancamentos } from '../../_lib/acesso';
 import { EstornarForm } from './_components/estornar-form';
 
 export default async function EstornarLancamentoPage({
@@ -22,11 +22,8 @@ export default async function EstornarLancamentoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const { tenantId, id: userId } = session.user;
+  const { ctx, podeEscrever } = await acessoLancamentos();
   const { id } = await params;
-  const ctx = { tenantId, userId };
 
   const lancamento = await runWithTenantContext(ctx, () =>
     contabilidadeService.obterLancamento(id, ctx)
@@ -53,11 +50,32 @@ export default async function EstornarLancamentoPage({
       <div className="p-6 space-y-6">
         {cabecalho}
         <div className="rounded-lg border border-warning/40 bg-warning/10 p-6 text-sm">
-          <p>
-            {lancamento.status === 'RASCUNHO'
-              ? 'Este lançamento ainda está em rascunho: não produziu efeito nenhum, por isso não há nada a estornar. Confirme-o primeiro, ou corrija-o à vontade enquanto não o confirmar.'
-              : 'Este lançamento já foi estornado. Um documento contabilístico só se anula uma vez — o contra-lançamento está no detalhe.'}
-          </p>
+          {lancamento.status === 'RASCUNHO' ? (
+            <p>
+              Este lançamento ainda está em rascunho: não produziu efeito nenhum, por isso não há
+              nada a estornar. Confirme-o primeiro ou, enquanto não o confirmar,{' '}
+              {podeEscrever ? (
+                <>
+                  <Link href={`${detalhe}/editar`} className="font-medium underline underline-offset-4">
+                    Editar
+                  </Link>{' '}
+                  as partidas, o histórico e a data, ou{' '}
+                  <Link href={`${detalhe}/anular`} className="font-medium underline underline-offset-4">
+                    Anular
+                  </Link>{' '}
+                  o rascunho com um motivo.
+                </>
+              ) : (
+                'pode ser editado ou anulado por quem tenha permissão de escrita nos lançamentos.'
+              )}
+            </p>
+          ) : (
+            <p>
+              {lancamento.status === 'ANULADO'
+                ? 'Este rascunho foi anulado: nunca produziu efeito, por isso não há nada a estornar.'
+                : 'Este lançamento já foi estornado. Um documento contabilístico só se anula uma vez — o contra-lançamento está no detalhe.'}
+            </p>
+          )}
           <Button asChild size="sm" variant="outline" className="mt-4">
             <Link href={detalhe}>Voltar ao lançamento</Link>
           </Button>
