@@ -16,7 +16,7 @@ export const ConfigReconciliacaoContaSchema = z.object({
   autoReconciliacao: z.boolean(),
   limiarConfianca: z.coerce.number().int().min(50).max(100),
   permitirAgregacao: z.boolean(),
-  maxMovimentosAgregacao: z.coerce.number().int().min(2).max(20),
+  maxMovimentosAgregacao: z.coerce.number().int().min(3).max(20),   // conta os dois lados (reconciliacao.service.ts:426); revisão de 2026-09-27
 });
 // CriarContaBancariaSchema = base.merge(ConfigReconciliacaoContaSchema.partial())
 // AtualizarContaBancariaSchema continua = Criar.partial().extend({ id, ativo })

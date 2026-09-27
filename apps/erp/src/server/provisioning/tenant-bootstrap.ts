@@ -254,6 +254,44 @@ export async function bootstrapContasNaturezaNotaDebito(
 }
 
 // ---------------------------------------------------------------------------
+// Regra de sugestão de lançamento por omissão (ADR-0038, issue #140)
+// ---------------------------------------------------------------------------
+
+/** Código PGC da contrapartida por omissão: 6981 Serviços bancários. */
+export const CODIGO_CONTA_SERVICOS_BANCARIOS = '6981';
+
+/**
+ * Uma regra por omissão: saídas bancárias cuja descrição fale de comissão,
+ * encargo, taxa, imposto de selo ou manutenção sugerem 6981 Serviços bancários.
+ * Só SUGERE — criar o lançamento é sempre acto do utilizador.
+ *
+ * Idempotente por contagem: se o tenant já tem regras (suas ou esta), não se
+ * mexe. Sem a 6981 folha e activa no plano do tenant, não escreve e não lança —
+ * um plano divergente fica sem regra em vez de ficar sem tenant.
+ */
+export async function bootstrapRegrasSugestao(tx: BootstrapClient, tenantId: string): Promise<boolean> {
+  if ((await tx.regraSugestaoLancamento.count({ where: { tenantId } })) > 0) return false;
+  const servicosBancarios = await tx.contaPGC.findFirst({
+    where: { tenantId, codigo: CODIGO_CONTA_SERVICOS_BANCARIOS, aceitaLancamento: true, ativo: true },
+    select: { id: true },
+  });
+  if (!servicosBancarios) return false;
+  await tx.regraSugestaoLancamento.create({
+    data: {
+      tenantId,
+      contaBancariaId: null,
+      padrao: 'COMISSAO|ENCARGO|TAXA|IMPOSTO DE SELO|MANUTENCAO',
+      natureza: 'CREDITO',
+      contaContrapartidaId: servicosBancarios.id,
+      descricao: 'Comissões e encargos bancários',
+      prioridade: 100,
+      ativo: true,
+    },
+  });
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Rubricas da DFC e mapeamento conta → rubrica (ADR-0037 §3 + emenda E1/E2)
 // ---------------------------------------------------------------------------
 
@@ -434,7 +472,7 @@ export async function bootstrapRbac(
 }
 
 // ---------------------------------------------------------------------------
-// Bootstrap completo de contabilidade (PGC + diários + séries + DFC)
+// Bootstrap completo de contabilidade (PGC + diários + séries + DFC + regra de sugestão)
 // ---------------------------------------------------------------------------
 
 export async function bootstrapContabilidade(
@@ -447,5 +485,7 @@ export async function bootstrapContabilidade(
   await bootstrapContasNaturezaNotaDebito(tx, tenantId);
   // Um tenant novo nasce com zero contas folha sem mapeamento na DFC (ADR-0037 §3).
   await semearRubricasFluxo(tx, tenantId);
+  // Um tenant do registo público nascia sem regra de sugestão nenhuma (issue #140).
+  await bootstrapRegrasSugestao(tx, tenantId);
   return { contas, diarios, series };
 }

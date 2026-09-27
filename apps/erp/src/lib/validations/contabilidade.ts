@@ -242,14 +242,52 @@ export type FiltroLancamentoInput = z.infer<typeof FiltroLancamentoSchema>;
 // ContaBancaria
 // ---------------------------------------------------------------------------
 
-export const CriarContaBancariaSchema = z.object({
-  banco: z.string().min(1).max(100),
-  agencia: z.string().min(1).max(20),
-  numeroConta: z.string().min(1).max(30),
-  tipoConta: TipoContaBancariaEnum,
-  moeda: z.string().length(3).default('MZN'),
-  contaContabilId: idEntidade('ID de conta contabilística inválido'),
+/**
+ * Configuração de reconciliação da conta (ADR-0038, issue #140). Limites
+ * fechados em cada campo e SEM `.default()`: um campo omitido fica omitido —
+ * o update não repõe omissões nos outros, e o create usa a omissão da BD.
+ */
+export const ConfigReconciliacaoContaSchema = z.object({
+  toleranciaDias: z.coerce
+    .number({ invalid_type_error: 'Indique um número de dias' })
+    .int('Use um número inteiro de dias')
+    .min(0, 'Mínimo 0 dias')
+    .max(60, 'Máximo 60 dias'),
+  /** Montante ≥ 0 com até 2 casas, como texto (vira `Prisma.Decimal` no serviço). */
+  toleranciaValor: z
+    .string()
+    .trim()
+    .regex(/^\d{1,16}(\.\d{1,2})?$/, 'Valor inválido (≥ 0, ponto decimal e até 2 casas)'),
+  permitirMatchPorReferencia: z.boolean(),
+  permitirMatchPorValor: z.boolean(),
+  permitirMatchPorDescricao: z.boolean(),
+  autoReconciliacao: z.boolean(),
+  limiarConfianca: z.coerce
+    .number({ invalid_type_error: 'Indique o limiar' })
+    .int('Use um número inteiro')
+    .min(50, 'Mínimo 50')
+    .max(100, 'Máximo 100'),
+  permitirAgregacao: z.boolean(),
+  maxMovimentosAgregacao: z.coerce
+    .number({ invalid_type_error: 'Indique o máximo' })
+    .int('Use um número inteiro')
+    // O motor conta os dois lados (banco + contabilidade): uma agregação tem pelo menos 3.
+    .min(3, 'Mínimo 3')
+    .max(20, 'Máximo 20'),
 });
+
+export type ConfigReconciliacaoContaInput = z.infer<typeof ConfigReconciliacaoContaSchema>;
+
+export const CriarContaBancariaSchema = z
+  .object({
+    banco: z.string().min(1).max(100),
+    agencia: z.string().min(1).max(20),
+    numeroConta: z.string().min(1).max(30),
+    tipoConta: TipoContaBancariaEnum,
+    moeda: z.string().length(3).default('MZN'),
+    contaContabilId: idEntidade('ID de conta contabilística inválido'),
+  })
+  .merge(ConfigReconciliacaoContaSchema.partial());
 
 export type CriarContaBancariaInput = z.infer<typeof CriarContaBancariaSchema>;
 

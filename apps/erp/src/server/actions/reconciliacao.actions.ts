@@ -8,15 +8,21 @@ import {
   ConfirmarCorrespondenciasSchema,
   ContaBancariaIdSchema,
   DefinirIgnoradoSchema,
+  EditarRegraSugestaoSchema,
   FecharPeriodoSchema,
   ImportarExtractoSchema,
   MovimentoBancarioIdSchema,
   PeriodoIdSchema,
+  ProcurarContrapartidaSchema,
   ReconciliarManualmenteSchema,
+  RegraSugestaoIdSchema,
+  RegraSugestaoSchema,
   ReverterCorrespondenciaSchema,
 } from '@/lib/validations/reconciliacao';
 import { importarExtracto } from '@/server/services/reconciliacao/importacao.service';
 import * as reconciliacao from '@/server/services/reconciliacao/reconciliacao.service';
+import * as regrasSugestao from '@/server/services/reconciliacao/regras-sugestao.service';
+import { listarContas } from '@/server/services/financas/contabilidade.service';
 
 // ADR-0038 — Server Actions da reconciliação bancária automática. Todas com
 // `financas:banca:reconciliacao` (RF §19 «Segurança»); as leituras declaram
@@ -129,4 +135,51 @@ export const sugerirLancamentoAction = createSafeAction({
   permission: PERMISSAO,
   permiteEmLeitura: true,
   handler: ({ movimentoBancarioId }, ctx) => reconciliacao.sugerirLancamento(movimentoBancarioId, ctx),
+});
+
+// --- Regras de sugestão de lançamento (issue #140) ---------------------------
+// Escrita só com `financas:banca:reconciliacao`; não há eliminar (só desactivar).
+
+const REVALIDATE_REGRAS = {
+  tags: ['reconciliacao'],
+  paths: ['/contabilidade/reconciliacao/regras', '/contabilidade/reconciliacao'],
+};
+
+export const criarRegraSugestaoAction = createSafeAction({
+  schema: RegraSugestaoSchema,
+  permission: PERMISSAO,
+  revalidate: REVALIDATE_REGRAS,
+  handler: (input, ctx) => regrasSugestao.criarRegraSugestao(input, ctx),
+});
+
+export const editarRegraSugestaoAction = createSafeAction({
+  schema: EditarRegraSugestaoSchema,
+  permission: PERMISSAO,
+  revalidate: REVALIDATE_REGRAS,
+  handler: (input, ctx) => regrasSugestao.editarRegraSugestao(input, ctx),
+});
+
+export const activarRegraSugestaoAction = createSafeAction({
+  schema: RegraSugestaoIdSchema,
+  permission: PERMISSAO,
+  revalidate: REVALIDATE_REGRAS,
+  handler: ({ id }, ctx) => regrasSugestao.activarRegraSugestao(id, ctx),
+});
+
+export const desactivarRegraSugestaoAction = createSafeAction({
+  schema: RegraSugestaoIdSchema,
+  permission: PERMISSAO,
+  revalidate: REVALIDATE_REGRAS,
+  handler: ({ id }, ctx) => regrasSugestao.desactivarRegraSugestao(id, ctx),
+});
+
+/** Pesquisa da contrapartida no formulário da regra: o plano tem mais folhas do que cabe numa lista. */
+export const procurarContrapartidaRegraAction = createSafeAction({
+  schema: ProcurarContrapartidaSchema,
+  permission: PERMISSAO,
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await listarContas({ search: q, aceitaLancamento: true, ativo: true, take: 30 }, ctx);
+    return pagina.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
+  },
 });

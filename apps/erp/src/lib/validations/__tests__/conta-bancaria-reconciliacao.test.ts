@@ -66,10 +66,10 @@ describe('ConfigReconciliacaoContaSchema — limites', () => {
     expect(ok({ limiarConfianca: 90.5 })).toBe(false);
   });
 
-  it('maxMovimentosAgregacao: 2..20 inteiro', () => {
-    expect(ok({ maxMovimentosAgregacao: 2 })).toBe(true);
+  it('maxMovimentosAgregacao: 3..20 inteiro (o motor conta os dois lados; 1+2 é a menor agregação)', () => {
+    expect(ok({ maxMovimentosAgregacao: 3 })).toBe(true);
     expect(ok({ maxMovimentosAgregacao: 20 })).toBe(true);
-    expect(ok({ maxMovimentosAgregacao: 1 })).toBe(false);
+    expect(ok({ maxMovimentosAgregacao: 2 })).toBe(false);
     expect(ok({ maxMovimentosAgregacao: 21 })).toBe(false);
   });
 
