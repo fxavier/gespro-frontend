@@ -50,7 +50,7 @@ test.describe('/faturacao/nota-credito — liquidar e cancelar (#148)', () => {
   }) => {
     test.setTimeout(240_000);
     const fatura = await emitirFatura(page);
-    const nc = await emitirNotaCredito(page, fatura.id);
+    const nc = await emitirNotaCredito(page, fatura.numero);
     const detalhe = await abrirNCPelaLista(page, nc);
     await esperarEstado(page, 'Emitida');
 
@@ -86,7 +86,7 @@ test.describe('/faturacao/nota-credito — liquidar e cancelar (#148)', () => {
   }) => {
     test.setTimeout(240_000);
     const fatura = await emitirFatura(page);
-    const nc = await emitirNotaCredito(page, fatura.id);
+    const nc = await emitirNotaCredito(page, fatura.numero);
     const detalhe = await abrirNCPelaLista(page, nc);
 
     await page.getByRole('link', { name: 'Cancelar', exact: true }).click();
@@ -144,7 +144,7 @@ test.describe('/faturacao/nota-credito — liquidar e cancelar (#148)', () => {
   test('liquidar por devolução em transferência bancária: NC LIQUIDADA com ligação ao lançamento', async ({ page }) => {
     test.setTimeout(240_000);
     const fatura = await emitirFatura(page);
-    const nc = await emitirNotaCredito(page, fatura.id);
+    const nc = await emitirNotaCredito(page, fatura.numero);
     const detalhe = await abrirNCPelaLista(page, nc);
 
     await page.goto(`${detalhe}/liquidar`);

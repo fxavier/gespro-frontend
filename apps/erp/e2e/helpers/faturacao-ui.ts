@@ -38,6 +38,9 @@ export async function esperarValor(loc: Locator, esperado: number, descricao: st
     .toBe(esperado);
 }
 
+/** Escapa um texto literal para dentro de uma RegExp (números de documento têm `/`). */
+export const escaparRegex = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** Marca única por corrida, para encontrar o que ESTE teste criou. */
 export const marca = (rotulo: string) => `E2E #148 ${rotulo} ${Date.now().toString(36)}`;
 
@@ -121,12 +124,27 @@ export async function emitirFatura(page: Page): Promise<{ id: string; numero: st
   return { id: id!, numero: numero! };
 }
 
+/**
+ * Escolhe a factura a creditar na combobox «Factura a creditar» (#258): abre-a,
+ * pesquisa no servidor por uma PARTE do número (os últimos 6 dígitos) e clica na
+ * opção cujo texto começa pelo número completo.
+ */
+export async function escolherFaturaACreditar(page: Page, faturaNumero: string) {
+  const combobox = page.getByRole('combobox', { name: /Factura a creditar/ });
+  await combobox.click();
+  await page.getByPlaceholder('Pesquisar pelo número…').fill(faturaNumero.slice(-6));
+  const opcao = page.getByRole('option').filter({ hasText: new RegExp(`^\\s*${escaparRegex(faturaNumero)}`) });
+  await expect(opcao, `a factura ${faturaNumero} não aparece na pesquisa`).toHaveCount(1, { timeout: 15_000 });
+  await opcao.click();
+  await expect(combobox).toHaveText(new RegExp(escaparRegex(faturaNumero)));
+}
+
 /** Emite uma NC de 1 × 100 a 16% (total 116) sobre a factura; devolve o número. */
-export async function emitirNotaCredito(page: Page, faturaId: string): Promise<string> {
+export async function emitirNotaCredito(page: Page, faturaNumero: string): Promise<string> {
   const m = marca('NC');
   await abrir(page, '/faturacao/nota-credito/nova', 'Nova Nota de Crédito');
 
-  await page.getByLabel(/ID da Factura a Creditar/).fill(faturaId);
+  await escolherFaturaACreditar(page, faturaNumero);
   await page.getByLabel('Motivo *').fill(`Devolução parcial — ${m}`);
   await page.getByLabel('Descrição da linha 1').fill(m);
   await page.getByLabel('Preço unitário linha 1').fill('100');
