@@ -22,6 +22,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { esperarFormularioLogin } from './helpers/auth';
+import { emitirFatura, emitirNotaCredito } from './helpers/faturacao-ui';
 
 // ─── Helper: executar axe e falhar em violações AA ────────────────────────────
 
@@ -538,7 +539,34 @@ async function hrefNotaCredito(
   return href;
 }
 
+/**
+ * Garante uma NC EMITIDA. No CI a base é semeada de fresco e descartável: sem NC,
+ * cria uma pela UI (factura + NC, como o `21-nc-proforma-cotacao`). Fora do CI
+ * nunca escreve — a base local é a do demo e alimenta goldens —, por isso salta
+ * e aponta para a base isolada `gespro_e2e77`.
+ */
+async function garantirNCEmitida(page: Page): Promise<void> {
+  if (await hrefNotaCredito(page, 'Emitida')) return;
+  test.skip(
+    !process.env.CI,
+    'sem NC EMITIDA nesta base — corre contra a base isolada gespro_e2e77 (ver 21-nc-proforma-cotacao)',
+  );
+  const fatura = await emitirFatura(page);
+  await emitirNotaCredito(page, fatura.id);
+}
+
 test.describe('A11y: Faturação — Nota de crédito (#148)', () => {
+  test.beforeAll(async ({ browser }, testInfo) => {
+    test.setTimeout(180_000);
+    const { baseURL, storageState } = testInfo.project.use;
+    const page = await browser.newPage({ baseURL, storageState });
+    try {
+      await garantirNCEmitida(page);
+    } finally {
+      await page.close();
+    }
+  });
+
   for (const tema of TEMAS) {
     const nomeTema = tema === 'light' ? 'claro' : 'escuro';
 
