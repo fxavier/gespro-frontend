@@ -80,7 +80,8 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 | M | Rascunhos de lançamento sem editar nem eliminar ([#137](https://github.com/fxavier/gespro-frontend/issues/137)) |
 | M | Encerramento do exercício (ADR-0035) não implementado; período 13 sem lançamentos mas exige apuramento ([#138](https://github.com/fxavier/gespro-frontend/issues/138)) |
 | M | Sem ecrã para conta por natureza de ND, regras de sugestão da reconciliação e tolerâncias da conta bancária ([#139](https://github.com/fxavier/gespro-frontend/issues/139)) ([#140](https://github.com/fxavier/gespro-frontend/issues/140)) |
-| B | Balancete: «Saldo Anterior» sempre 0, «Incluir zeradas» e pesquisa sem efeito; etiquetas de classes 2–4 erradas no formulário de conta; GESTOR abre exercício e FINANCEIRO não ([#141](https://github.com/fxavier/gespro-frontend/issues/141)) ([#142](https://github.com/fxavier/gespro-frontend/issues/142)) ([#143](https://github.com/fxavier/gespro-frontend/issues/143)) |
+| B | Etiquetas de classes 2–4 erradas no formulário de conta; GESTOR abre exercício e FINANCEIRO não ([#142](https://github.com/fxavier/gespro-frontend/issues/142)) ([#143](https://github.com/fxavier/gespro-frontend/issues/143)) |
+| — | ~~Balancete: «Saldo Anterior» sempre 0, «Incluir zeradas» e pesquisa sem efeito, último dia de fora~~ — **deixou de ser lacuna** (2026-09-27, [#141](https://github.com/fxavier/gespro-frontend/issues/141)) |
 | B | Mensagens de recusa sugerem acções que não resolvem ([#144](https://github.com/fxavier/gespro-frontend/issues/144)) |
 | B | DRE, Centros de Custo e Contas Bancárias fora do menu lateral ([#145](https://github.com/fxavier/gespro-frontend/issues/145)) |
 

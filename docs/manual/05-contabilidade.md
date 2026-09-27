@@ -163,8 +163,6 @@ Um lançamento **Lançado** nunca se edita. Para o anular, estorna-se.
 
 > **Nota:** o saldo acumulado começa em zero na data «De» — não inclui o saldo de antes do intervalo. Para ver o saldo desde o início do ano, comece em 1 de Janeiro.
 
-> **Atenção:** o mesmo defeito da data «Até» descrito no Balancete aplica-se aqui — ver abaixo.
-
 ### Como gerar o Balancete
 
 1. Abra **Balancete**. Por omissão, mostra o ano civil corrente.
@@ -172,9 +170,7 @@ Um lançamento **Lançado** nunca se edita. Para o anular, estorna-se.
 
 **Resultado:** o quadro «Balancete — dd/mm/aaaa – dd/mm/aaaa» com Código, Conta, Saldo Anterior, Débitos, Créditos e Saldo Actual por conta de movimento, a linha **TOTAIS** e a linha **DIFERENÇA (deve ser zero)**. Se a diferença não for zero, há lançamentos desequilibrados — e o período não fecha.
 
-> **Atenção — defeito conhecido na data «Até»:** os lançamentos com data **no próprio dia indicado em «Até»** ficam de fora do balancete (e também do Razão Geral e da DRE). Por exemplo, com Até = 31/12/2026, os lançamentos de 31 de Dezembro não aparecem. Até ser corrigido, **indique em «Até» o dia seguinte** ao último dia que quer incluir (ex.: 01/01/2027 para fechar em 31/12/2026, ou 01/04/2026 para um balancete até 31/03/2026).
-
-> **Atenção:** a coluna **Saldo Anterior** mostra sempre zero — o balancete conta só os movimentos do intervalo escolhido. Para saldos acumulados, comece em 1 de Janeiro. A caixa «Pesquisar por conta…» e a opção «Incluir zeradas» não alteram, hoje, o resultado.
+O **Saldo Anterior** é o saldo da conta antes de «De» (todos os lançamentos anteriores), e o **Saldo Actual** soma-lhe os débitos e créditos do intervalo. «De» e «Até» contam o dia inteiro, em hora de Maputo. **Excluir zeradas** mostra só as contas com movimento no intervalo ou saldo anterior; **Incluir zeradas** mostra todas as contas de movimento. A caixa **Pesquisar por conta…** filtra por código (início) ou nome; as linhas **TOTAIS** e **DIFERENÇA** continuam a ser as do balancete inteiro.
 
 > **Atenção:** o botão **Registar Balancete Oficial** (`/contabilidade/balancete/nova`) é um protótipo: o balancete «registado» fica guardado só no seu browser, não na base de dados da empresa, e não é visto por mais ninguém. Não o use como registo oficial.
 
@@ -470,7 +466,7 @@ Se o período da data do documento estiver fechado, a operação no outro módul
 
 **Enganei-me num lançamento que ainda está em rascunho. Posso corrigi-lo?** Hoje não há forma de editar nem de eliminar um rascunho. Confirme-o e estorne-o, e depois crie o lançamento correcto.
 
-**Porque é que o balancete não mostra os lançamentos do último dia?** É o defeito conhecido da data «Até». Indique o dia seguinte.
+**O «Saldo Anterior» conta desde quando?** Desde o primeiro lançamento da empresa até ao dia antes de «De». «Até» inclui o próprio dia.
 
 **Posso lançar em Janeiro de 2027 antes de o exercício 2027 abrir?** Sim: se o exercício ainda não existir, é criado automaticamente no primeiro lançamento com essa data.
 

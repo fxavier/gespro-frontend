@@ -284,6 +284,14 @@ export const FiltroBalanceteSchema = z.object({
   dataFim: z.coerce.date(),
   incluirZeradas: z.boolean().default(false),
   classe: ClassePGCEnum.optional(),
+  /** Código (prefixo) ou nome da conta; filtra linhas, não os totais (#141). */
+  search: z.string().trim().max(100).optional(),
+  /**
+   * Balancete com saldos (#141): saldo anterior = tudo antes de `dataInicio`, e o
+   * saldo actual soma-o. Sem ele é um balancete de MOVIMENTO (saldo actual = só o
+   * período, contas só com partidas no período) — o contrato de que a DFC depende.
+   */
+  comSaldoAnterior: z.boolean().optional(),
 });
 
 export type FiltroBalanceteInput = z.infer<typeof FiltroBalanceteSchema>;
