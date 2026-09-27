@@ -10,3 +10,19 @@
  */
 export const COOKIE_BARRA_LATERAL = 'gespro-barra-lateral';
 export const VALOR_RECOLHIDA = 'recolhida';
+
+/**
+ * O único item do menu que fica activo para `pathname`: o de maior prefixo, por
+ * segmento inteiro (#203). Sem isto o «Dashboard» de um grupo, que aponta para a
+ * raiz do módulo (`/contabilidade`), ficava activo ao lado do ecrã actual.
+ * `/` conta como `/dashboard`. `null` quando nenhum item corresponde.
+ */
+export function hrefActivo(pathname: string, hrefs: readonly string[]): string | null {
+  const caminho = pathname === '/' ? '/dashboard' : pathname;
+  let melhor: string | null = null;
+  for (const href of hrefs) {
+    const casa = caminho === href || caminho.startsWith(href + '/');
+    if (casa && (!melhor || href.length > melhor.length)) melhor = href;
+  }
+  return melhor;
+}
