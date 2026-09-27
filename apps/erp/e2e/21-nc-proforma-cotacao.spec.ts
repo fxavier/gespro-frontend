@@ -39,7 +39,7 @@ import {
   emitirFatura,
   emitirNotaCredito,
   abrirNCPelaLista,
-  obterClienteId,
+  escolherCliente,
 } from './helpers/faturacao-ui';
 
 // ─── testes ───────────────────────────────────────────────────────────────────
@@ -190,12 +190,11 @@ test.describe('/faturacao/nota-credito — liquidar e cancelar (#148)', () => {
 test.describe('/faturacao/proforma e /faturacao/cotacoes — cancelar (#148)', () => {
   test('cancelar uma proforma (menu ⋯ da lista): CANCELADA com motivo, observações intactas', async ({ page }) => {
     test.setTimeout(180_000);
-    const clienteId = await obterClienteId(page);
     const m = marca('proforma');
     const observacoes = `Observação original — ${m}`;
 
     await abrir(page, '/faturacao/proforma/nova', 'Nova Fatura Proforma');
-    await page.getByLabel(/ID do Cliente/).fill(clienteId);
+    await escolherCliente(page, 'Maria');
     await page.getByLabel(/Data de Validade/).fill(diaMaputo(30));
     await page.getByLabel('Descrição da linha 1').fill(m);
     await page.getByLabel('Preço unitário linha 1').fill('500');
@@ -232,12 +231,11 @@ test.describe('/faturacao/proforma e /faturacao/cotacoes — cancelar (#148)', (
     page,
   }) => {
     test.setTimeout(180_000);
-    const clienteId = await obterClienteId(page);
     const m = marca('cotação');
     const observacoes = `Observação original — ${m}`;
 
     await abrir(page, '/faturacao/cotacoes/nova', 'Nova Cotação');
-    await page.getByLabel(/ID do Cliente/).fill(clienteId);
+    await escolherCliente(page, 'Maria');
     await page.getByLabel(/Data de Validade/).fill(diaMaputo(30));
     await page.getByLabel('Descrição da linha 1').fill(m);
     await page.getByLabel('Preço unitário linha 1').fill('500');

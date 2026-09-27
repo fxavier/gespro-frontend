@@ -106,3 +106,31 @@ test.describe('/faturacao/nota-credito/nova — escolher a factura pelo número 
     await expect(combobox).not.toHaveText(/Seleccionar factura/);
   });
 });
+
+// Só leitura: abre os formulários e pesquisa, não grava nada.
+test.describe('/faturacao/proforma/nova e /faturacao/cotacoes/nova — escolher o cliente (#258)', () => {
+  for (const { url, titulo } of [
+    { url: '/faturacao/proforma/nova', titulo: 'Nova Fatura Proforma' },
+    { url: '/faturacao/cotacoes/nova', titulo: 'Nova Cotação' },
+  ]) {
+    test(`${url}: o cliente escolhe-se numa combobox com pesquisa no servidor, não por id`, async ({ page }) => {
+      test.setTimeout(90_000);
+      await abrir(page, url, titulo);
+
+      await expect(page.getByRole('textbox', { name: /ID\s+do\s+Cliente/i })).toHaveCount(0);
+      await expect(page.getByLabel(/ID\s+do\s+Cliente/i)).toHaveCount(0);
+      await expect(page.getByText('Pesquisa de clientes disponível após integração comercial.')).toHaveCount(0);
+
+      const combobox = page.getByRole('combobox', { name: /Cliente/ });
+      await expect(combobox).toBeVisible();
+      await expect(combobox).toHaveText(/Seleccione o cliente/);
+
+      await combobox.click();
+      await page.getByPlaceholder('Pesquisar por código, nome ou NUIT…').fill('maria');
+      const opcoes = page.getByRole('option').filter({ hasText: 'Maria' }).filter({ hasText: ' — ' });
+      await expect(opcoes.first(), 'pesquisar «maria» não mostrou nenhum cliente «<código> — Maria…»').toBeVisible({
+        timeout: 15_000,
+      });
+    });
+  }
+});

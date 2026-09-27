@@ -100,17 +100,27 @@ export async function esperarEstado(page: Page, rotulo: string) {
 
 // ─── fluxos de criação pela UI ────────────────────────────────────────────────
 
+/**
+ * Escolhe o cliente na combobox «Cliente» (factura, proforma, cotação — #258):
+ * abre-a, pesquisa `termo` no servidor, clica na primeira opção que o contém e
+ * afirma que o trigger passou a mostrá-lo.
+ */
+export async function escolherCliente(page: Page, termo: string) {
+  const combobox = page.getByRole('combobox', { name: /Cliente/ });
+  await combobox.click();
+  await page.getByPlaceholder(/Pesquisar por código/).fill(termo);
+  const opcao = page.getByRole('option', { name: new RegExp(escaparRegex(termo)) }).first();
+  await expect(opcao).toBeVisible({ timeout: 15_000 });
+  await opcao.click();
+  await expect(combobox).toHaveText(new RegExp(escaparRegex(termo)));
+}
+
 /** Emite uma factura de 1 × 1000 a 16% (total 1160) e devolve o id e o número. */
 export async function emitirFatura(page: Page): Promise<{ id: string; numero: string }> {
   const m = marca('factura');
   await abrir(page, '/faturacao/nova', 'Nova Fatura');
 
-  await page.getByRole('combobox', { name: /Cliente/ }).click();
-  await page.getByPlaceholder(/Pesquisar por código/).fill('Maria');
-  const opcao = page.getByRole('option', { name: /Maria/ }).first();
-  await expect(opcao).toBeVisible({ timeout: 15_000 });
-  await opcao.click();
-  await expect(page.getByRole('combobox', { name: /Cliente/ })).toHaveText(/Maria/);
+  await escolherCliente(page, 'Maria');
 
   await page.getByLabel('Data de Vencimento').fill(diaMaputo(30));
   await page.getByLabel('Descrição da linha 1').fill(m);
@@ -172,16 +182,5 @@ export async function abrirNCPelaLista(page: Page, numero: string): Promise<stri
   });
   await page.waitForLoadState('networkidle');
   return new URL(page.url()).pathname;
-}
-
-/** Id de um cliente, tirado da UI (lista de clientes → primeira linha). */
-export async function obterClienteId(page: Page): Promise<string> {
-  await page.goto('/clientes/lista');
-  const primeira = page.locator('tbody tr').first();
-  await expect(primeira).toBeVisible({ timeout: 30_000 });
-  await page.waitForLoadState('networkidle');
-  await primeira.click();
-  await page.waitForURL(/\/clientes\/c[a-z0-9]{20,}$/, { timeout: 30_000 });
-  return new URL(page.url()).pathname.split('/').pop()!;
 }
 

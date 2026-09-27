@@ -8,10 +8,12 @@ import { auth } from '@/lib/auth';
 import { PageHeader } from '@/components/patterns';
 import { NovaProformaForm } from './_components/nova-proforma-form';
 import { diaIsoMaputo } from '@/lib/format-date';
+import { clientesIniciais } from '../../_components/clientes-iniciais';
 
 export default async function NovaProformaPage() {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
+  const clientes = await clientesIniciais({ tenantId: session.user.tenantId, userId: session.user.id });
 
   return (
     <div className="p-6 space-y-6">
@@ -24,7 +26,7 @@ export default async function NovaProformaPage() {
           { label: 'Nova Proforma' },
         ]}
       />
-      <NovaProformaForm hoje={diaIsoMaputo()} />
+      <NovaProformaForm hoje={diaIsoMaputo()} clientesIniciais={clientes} />
     </div>
   );
 }
