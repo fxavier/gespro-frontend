@@ -936,7 +936,10 @@ export async function listarNotasCredito(filtro: FiltroNotaCreditoInput, ctx: Ct
 }
 
 // ponytail: esqueleto do contrato (#251) — implementação no #253.
-export async function liquidarNotaCredito(_input: LiquidarNotaCreditoInput, _ctx: Ctx): Promise<NotaCredito> {
+export async function liquidarNotaCredito(
+  _input: LiquidarNotaCreditoInput,
+  _ctx: Ctx & { permissions?: ReadonlySet<string> },
+): Promise<NotaCredito> {
   throw new Error('liquidarNotaCredito: não implementado (#253)');
 }
 

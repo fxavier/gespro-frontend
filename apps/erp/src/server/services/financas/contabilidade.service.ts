@@ -681,13 +681,19 @@ export async function confirmarLancamento(id: string, ctx: Ctx): Promise<Lancame
 }
 
 export async function estornarLancamento(input: EstornarLancamentoInput, ctx: Ctx): Promise<Lancamento> {
-  return prismaBase.$transaction((tx) => estornarLancamentoEmTx(tx, input, ctx));
+  return prismaBase.$transaction(async (tx) => {
+    await estornarLancamentoEmTx(tx, input, ctx);
+    return tx.lancamento.findFirst({
+      where: { id: input.lancamentoId, tenantId: ctx.tenantId },
+    }) as unknown as Lancamento;
+  });
 }
 
 /**
  * O estorno dentro de uma transacção alheia (#148: cancelar uma NC estorna o
  * lançamento dela na MESMA transacção). Mesmo comportamento que `estornarLancamento`,
  * incluindo o `FOR SHARE` do período — vive aqui por causa do `gate-periodo`.
+ * Devolve o lançamento de ESTORNO criado (o original fica `ESTORNADO`).
  */
 export async function estornarLancamentoEmTx(
   tx: Prisma.TransactionClient,
@@ -752,10 +758,11 @@ export async function estornarLancamentoEmTx(
     });
   }
 
-  return tx.lancamento.update({
+  await tx.lancamento.update({
     where: { id: lancamento.id },
     data: { status: 'ESTORNADO' },
-  }) as unknown as Lancamento;
+  });
+  return estorno as unknown as Lancamento;
 }
 
 export async function obterLancamento(id: string, ctx: Ctx): Promise<LancamentoComPartidas | null> {

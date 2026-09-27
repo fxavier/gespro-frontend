@@ -561,9 +561,14 @@ export interface IFaturacaoService {
   /**
    * #148 — liquidação total. DEVOLUCAO: lançamento 411 → meio (e movimento de caixa em
    * numerário); COMPENSACAO: abate ao `totalPago` da factura original, sem lançamento.
-   * Recusa: NC_COMPENSACAO_EXCEDE_SALDO, MEIO_PAGAMENTO_SEM_PERMISSAO, transição inválida.
+   * Recusa: NC_COMPENSACAO_EXCEDE_SALDO, FATURA_NAO_COMPENSAVEL, MEIO_PAGAMENTO_SEM_PERMISSAO
+   * (DEVOLUCAO: NUMERARIO exige `caixa:operar`, as outras formas `financas:banca:escrita`;
+   * sem `permissions` no ctx, recusa), transição inválida. Movimento de caixa: DEVOLUCAO.
    */
-  liquidarNotaCredito(input: LiquidarNotaCreditoInput, ctx: Ctx): Promise<NotaCredito>;
+  liquidarNotaCredito(
+    input: LiquidarNotaCreditoInput,
+    ctx: Ctx & { permissions?: ReadonlySet<string> },
+  ): Promise<NotaCredito>;
   /** #148 — estorna o lançamento da NC na mesma transacção; PERIODO_FECHADO sem escrita. */
   cancelarNotaCredito(id: string, motivo: string, ctx: Ctx): Promise<NotaCredito>;
 
