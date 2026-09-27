@@ -1,16 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { MoreHorizontal, Eye, CheckCircle } from 'lucide-react';
+import { MoreHorizontal, Eye, CheckCircle, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
+import { formatarData } from '@/lib/format-date';
 
 export interface NotaCreditoResumo {
   id: string;
@@ -20,9 +22,12 @@ export interface NotaCreditoResumo {
   dataEmissao: string;
   total: string;
   status: string;
+  /** Transição permitida E permissão — decidido no servidor. */
+  podeLiquidar: boolean;
+  podeCancelar: boolean;
 }
 
-const fmtDate = (s: string) => s ? new Date(s).toLocaleDateString('pt-PT') : '—';
+const fmtDate = (s: string) => (s ? formatarData(s) : '—');
 const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
 
 const columns: TableColumn<NotaCreditoResumo>[] = [
@@ -78,13 +83,24 @@ const columns: TableColumn<NotaCreditoResumo>[] = [
               Ver detalhe
             </Link>
           </DropdownMenuItem>
-          {row.status === 'EMITIDA' && (
+          {row.podeLiquidar && (
             <DropdownMenuItem asChild>
               <Link href={`/faturacao/nota-credito/${row.id}/liquidar`}>
                 <CheckCircle className="mr-2 h-4 w-4" />
                 Liquidar
               </Link>
             </DropdownMenuItem>
+          )}
+          {row.podeCancelar && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/faturacao/nota-credito/${row.id}/cancelar`} className="text-destructive">
+                  <Ban className="mr-2 h-4 w-4" />
+                  Cancelar
+                </Link>
+              </DropdownMenuItem>
+            </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

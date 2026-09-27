@@ -10,6 +10,7 @@ import { Plus } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
+import { TRANSICOES_COTACAO_COMERCIAL } from '@/server/services/financas/faturacao.interface';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { FiltroCotacaoComercialSchema } from '@/lib/validations/faturacao';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,17 @@ const FiltroUrlSchema = FiltroCotacaoComercialSchema.extend({
 type FiltroUrl = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: FiltroUrl = { take: 25 };
 
-async function CotacoesSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
+async function CotacoesSection({
+  filtros,
+  tenantId,
+  userId,
+  podeCancelar,
+}: {
+  filtros: FiltroUrl;
+  tenantId: string;
+  userId: string;
+  podeCancelar: boolean;
+}) {
   try {
     const ctx = { tenantId, userId };
     const result = await runWithTenantContext(ctx, () =>
@@ -45,6 +56,8 @@ async function CotacoesSection({ filtros, tenantId, userId }: { filtros: FiltroU
       dataValidade: c.dataValidade,
       total: parseFloat(c.total?.toString() ?? '0').toFixed(2),
       status: c.status,
+      // Mesma regra do detalhe: transição permitida E permissão.
+      podeCancelar: podeCancelar && (TRANSICOES_COTACAO_COMERCIAL[c.status as keyof typeof TRANSICOES_COTACAO_COMERCIAL] ?? []).includes('CANCELADA'),
     }));
 
     return <CotacoesTable data={items} nextCursor={result.nextCursor} />;
@@ -80,7 +93,8 @@ interface PageProps {
 export default async function CotacoesPage({ searchParams }: PageProps) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
+  const podeCancelar = permissions.includes('faturacao:cotacao:gerir');
 
   const rawParams = await searchParams;
   const flat = Object.fromEntries(
@@ -115,7 +129,7 @@ export default async function CotacoesPage({ searchParams }: PageProps) {
       />
 
       <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton rows={8} cols={6} />}>
-        <CotacoesSection filtros={filtros} tenantId={tenantId} userId={userId} />
+        <CotacoesSection filtros={filtros} tenantId={tenantId} userId={userId} podeCancelar={podeCancelar} />
       </Suspense>
     </div>
   );

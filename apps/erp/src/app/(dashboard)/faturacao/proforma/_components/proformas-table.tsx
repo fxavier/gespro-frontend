@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { MoreHorizontal, Eye, FileCheck } from 'lucide-react';
+import { MoreHorizontal, Eye, FileCheck, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
@@ -20,6 +21,8 @@ export interface ProformaResumo {
   dataValidade: string;
   total: string;
   status: string;
+  /** Transição permitida E permissão — decidido no servidor. */
+  podeCancelar: boolean;
 }
 
 const fmtDate = (s: string) => s ? new Date(s).toLocaleDateString('pt-PT') : '—';
@@ -84,6 +87,17 @@ const columns: TableColumn<ProformaResumo>[] = [
               Converter em Fatura
             </Link>
           </DropdownMenuItem>
+          {row.podeCancelar && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/faturacao/proforma/${row.id}/cancelar`} className="text-destructive">
+                  <Ban className="mr-2 h-4 w-4" />
+                  Cancelar
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     ),

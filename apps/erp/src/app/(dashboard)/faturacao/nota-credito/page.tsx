@@ -11,6 +11,7 @@ import { Plus } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
+import { TRANSICOES_NOTA_CREDITO } from '@/server/services/financas/faturacao.interface';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { FiltroNotaCreditoSchema } from '@/lib/validations/faturacao';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,22 @@ const FiltroUrlSchema = FiltroNotaCreditoSchema.extend({
 type FiltroUrl = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: FiltroUrl = { take: 25 };
 
-async function NotasCreditoSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
+interface Acesso {
+  liquidar: boolean;
+  cancelar: boolean;
+}
+
+async function NotasCreditoSection({
+  filtros,
+  tenantId,
+  userId,
+  acesso,
+}: {
+  filtros: FiltroUrl;
+  tenantId: string;
+  userId: string;
+  acesso: Acesso;
+}) {
   try {
     const ctx = { tenantId, userId };
     const result = await runWithTenantContext(ctx, () =>
@@ -49,6 +65,9 @@ async function NotasCreditoSection({ filtros, tenantId, userId }: { filtros: Fil
       dataEmissao: nc.dataEmissao,
       total: parseFloat(nc.total?.toString() ?? '0').toFixed(2),
       status: nc.status,
+      // Mesma regra do detalhe: transição permitida E permissão.
+      podeLiquidar: acesso.liquidar && (TRANSICOES_NOTA_CREDITO[nc.status as keyof typeof TRANSICOES_NOTA_CREDITO] ?? []).includes('LIQUIDADA'),
+      podeCancelar: acesso.cancelar && (TRANSICOES_NOTA_CREDITO[nc.status as keyof typeof TRANSICOES_NOTA_CREDITO] ?? []).includes('CANCELADA'),
     }));
 
     return <NotasCreditoTable data={items} nextCursor={result.nextCursor} />;
@@ -82,7 +101,11 @@ interface PageProps {
 export default async function NotaCreditoPage({ searchParams }: PageProps) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
+  const acesso: Acesso = {
+    liquidar: permissions.includes('faturacao:nc:liquidar'),
+    cancelar: permissions.includes('faturacao:nc:cancelar'),
+  };
 
   const rawParams = await searchParams;
   const flat = Object.fromEntries(
@@ -117,7 +140,7 @@ export default async function NotaCreditoPage({ searchParams }: PageProps) {
       />
 
       <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton rows={8} cols={6} />}>
-        <NotasCreditoSection filtros={filtros} tenantId={tenantId} userId={userId} />
+        <NotasCreditoSection filtros={filtros} tenantId={tenantId} userId={userId} acesso={acesso} />
       </Suspense>
     </div>
   );
