@@ -552,7 +552,7 @@ async function garantirNCEmitida(page: Page): Promise<void> {
     'sem NC EMITIDA nesta base — corre contra a base isolada gespro_e2e77 (ver 21-nc-proforma-cotacao)',
   );
   const fatura = await emitirFatura(page);
-  await emitirNotaCredito(page, fatura.id);
+  await emitirNotaCredito(page, fatura.numero);
 }
 
 test.describe('A11y: Faturação — Nota de crédito (#148)', () => {

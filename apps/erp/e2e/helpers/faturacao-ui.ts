@@ -38,6 +38,9 @@ export async function esperarValor(loc: Locator, esperado: number, descricao: st
     .toBe(esperado);
 }
 
+/** Escapa um texto literal para dentro de uma RegExp (números de documento têm `/`). */
+export const escaparRegex = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** Marca única por corrida, para encontrar o que ESTE teste criou. */
 export const marca = (rotulo: string) => `E2E #148 ${rotulo} ${Date.now().toString(36)}`;
 
@@ -97,17 +100,27 @@ export async function esperarEstado(page: Page, rotulo: string) {
 
 // ─── fluxos de criação pela UI ────────────────────────────────────────────────
 
+/**
+ * Escolhe o cliente na combobox «Cliente» (factura, proforma, cotação — #258):
+ * abre-a, pesquisa `termo` no servidor, clica na primeira opção que o contém e
+ * afirma que o trigger passou a mostrá-lo.
+ */
+export async function escolherCliente(page: Page, termo: string) {
+  const combobox = page.getByRole('combobox', { name: /Cliente/ });
+  await combobox.click();
+  await page.getByPlaceholder(/Pesquisar por código/).fill(termo);
+  const opcao = page.getByRole('option', { name: new RegExp(escaparRegex(termo)) }).first();
+  await expect(opcao).toBeVisible({ timeout: 15_000 });
+  await opcao.click();
+  await expect(combobox).toHaveText(new RegExp(escaparRegex(termo)));
+}
+
 /** Emite uma factura de 1 × 1000 a 16% (total 1160) e devolve o id e o número. */
 export async function emitirFatura(page: Page): Promise<{ id: string; numero: string }> {
   const m = marca('factura');
   await abrir(page, '/faturacao/nova', 'Nova Fatura');
 
-  await page.getByRole('combobox', { name: /Cliente/ }).click();
-  await page.getByPlaceholder(/Pesquisar por código/).fill('Maria');
-  const opcao = page.getByRole('option', { name: /Maria/ }).first();
-  await expect(opcao).toBeVisible({ timeout: 15_000 });
-  await opcao.click();
-  await expect(page.getByRole('combobox', { name: /Cliente/ })).toHaveText(/Maria/);
+  await escolherCliente(page, 'Maria');
 
   await page.getByLabel('Data de Vencimento').fill(diaMaputo(30));
   await page.getByLabel('Descrição da linha 1').fill(m);
@@ -121,12 +134,27 @@ export async function emitirFatura(page: Page): Promise<{ id: string; numero: st
   return { id: id!, numero: numero! };
 }
 
+/**
+ * Escolhe a factura a creditar na combobox «Factura a creditar» (#258): abre-a,
+ * pesquisa no servidor por uma PARTE do número (os últimos 6 dígitos) e clica na
+ * opção cujo texto começa pelo número completo.
+ */
+export async function escolherFaturaACreditar(page: Page, faturaNumero: string) {
+  const combobox = page.getByRole('combobox', { name: /Factura a creditar/ });
+  await combobox.click();
+  await page.getByPlaceholder('Pesquisar pelo número…').fill(faturaNumero.slice(-6));
+  const opcao = page.getByRole('option').filter({ hasText: new RegExp(`^\\s*${escaparRegex(faturaNumero)}`) });
+  await expect(opcao, `a factura ${faturaNumero} não aparece na pesquisa`).toHaveCount(1, { timeout: 15_000 });
+  await opcao.click();
+  await expect(combobox).toHaveText(new RegExp(escaparRegex(faturaNumero)));
+}
+
 /** Emite uma NC de 1 × 100 a 16% (total 116) sobre a factura; devolve o número. */
-export async function emitirNotaCredito(page: Page, faturaId: string): Promise<string> {
+export async function emitirNotaCredito(page: Page, faturaNumero: string): Promise<string> {
   const m = marca('NC');
   await abrir(page, '/faturacao/nota-credito/nova', 'Nova Nota de Crédito');
 
-  await page.getByLabel(/ID da Factura a Creditar/).fill(faturaId);
+  await escolherFaturaACreditar(page, faturaNumero);
   await page.getByLabel('Motivo *').fill(`Devolução parcial — ${m}`);
   await page.getByLabel('Descrição da linha 1').fill(m);
   await page.getByLabel('Preço unitário linha 1').fill('100');
@@ -154,16 +182,5 @@ export async function abrirNCPelaLista(page: Page, numero: string): Promise<stri
   });
   await page.waitForLoadState('networkidle');
   return new URL(page.url()).pathname;
-}
-
-/** Id de um cliente, tirado da UI (lista de clientes → primeira linha). */
-export async function obterClienteId(page: Page): Promise<string> {
-  await page.goto('/clientes/lista');
-  const primeira = page.locator('tbody tr').first();
-  await expect(primeira).toBeVisible({ timeout: 30_000 });
-  await page.waitForLoadState('networkidle');
-  await primeira.click();
-  await page.waitForURL(/\/clientes\/c[a-z0-9]{20,}$/, { timeout: 30_000 });
-  return new URL(page.url()).pathname.split('/').pop()!;
 }
 

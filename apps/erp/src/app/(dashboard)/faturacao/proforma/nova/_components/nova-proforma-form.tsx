@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
+import { CampoCliente } from '../../../_components/campo-cliente';
 import { criarProforma } from '@/server/actions/faturacao.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
@@ -48,7 +50,7 @@ const FormSchema = z
 
 type FormValues = z.infer<typeof FormSchema>;
 
-export function NovaProformaForm({ hoje }: { hoje: string }) {
+export function NovaProformaForm({ hoje, clientesIniciais }: { hoje: string; clientesIniciais: ComboboxOption[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -70,6 +72,7 @@ export function NovaProformaForm({ hoje }: { hoje: string }) {
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'linhas' });
+  const clienteId = useWatch({ control, name: 'clienteId' });
   const linhas = useWatch({ control, name: 'linhas' }) ?? [];
 
   const { base: _subtotal, iva: _iva, total: _total } = calcularTotais(
@@ -133,14 +136,12 @@ export function NovaProformaForm({ hoje }: { hoje: string }) {
         <FormSection title="Cliente e datas" description="Identifique o destinatário da proforma">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            <div className="space-y-2">
-              <Label htmlFor="cliente-id">ID do Cliente *</Label>
-              <Input id="cliente-id" {...register('clienteId')} placeholder="ID do cliente (CUID)" />
-              <p className="text-xs text-muted-foreground">Pesquisa de clientes disponível após integração comercial.</p>
-              {errors.clienteId && (
-                <p className="text-sm text-destructive">{errors.clienteId.message}</p>
-              )}
-            </div>
+            <CampoCliente
+              opcoesIniciais={clientesIniciais}
+              value={clienteId}
+              onChange={(v) => setValue('clienteId', v, { shouldDirty: true, shouldValidate: true })}
+              erro={errors.clienteId?.message}
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

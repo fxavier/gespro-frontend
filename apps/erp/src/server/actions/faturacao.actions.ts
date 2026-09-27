@@ -20,6 +20,7 @@ import {
 } from '@/lib/validations/faturacao';
 import * as faturacao from '@/server/services/financas/faturacao.service';
 import { z } from 'zod';
+import { rotuloFaturaCreditavel } from '@/lib/documentos/rotulo-fatura';
 
 // --- Séries ---
 
@@ -108,6 +109,18 @@ export const emitirNotaCredito = createSafeAction({
   permission: 'faturacao:nc:emitir',
   revalidate: { tags: ['faturacao', 'notas-credito'] },
   handler: (input, ctx) => faturacao.emitirNotaCredito(input, ctx),
+});
+
+/** Combobox «Factura a creditar» (#258): pesquisa pelo número, no servidor. */
+export const procurarFaturasParaNotaCredito = createSafeAction({
+  schema: z.object({ q: z.string().max(50).optional() }),
+  permission: 'faturacao:nc:emitir',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) =>
+    (await faturacao.procurarFaturasCreditaveis(q, ctx)).map((f) => ({
+      id: f.id,
+      rotulo: rotuloFaturaCreditavel(f),
+    })),
 });
 
 export const listarNotasCredito = createSafeAction({

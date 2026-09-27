@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,8 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
-import { emitirNotaCredito } from '@/server/actions/faturacao.actions';
+import { ComboboxRemoto, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
+import { emitirNotaCredito, procurarFaturasParaNotaCredito } from '@/server/actions/faturacao.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
 import { diaIsoParaData } from '@/lib/format-date';
@@ -43,9 +44,15 @@ const FormSchema = z.object({
 
 type FormValues = z.infer<typeof FormSchema>;
 
-export function NovaNotaCreditoForm({ hoje }: { hoje: string }) {
+export function NovaNotaCreditoForm({ hoje, faturasIniciais }: { hoje: string; faturasIniciais: ComboboxOption[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  // Pesquisa pelo número no servidor: há mais facturas do que cabe numa lista.
+  const buscarFaturas = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
+    const res = await procurarFaturasParaNotaCredito({ q });
+    return res.ok ? res.data.map((f) => ({ value: f.id, label: f.rotulo })) : null;
+  }, []);
 
   const {
     register,
@@ -66,6 +73,7 @@ export function NovaNotaCreditoForm({ hoje }: { hoje: string }) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'linhas' });
   const linhas = useWatch({ control, name: 'linhas' }) ?? [];
+  const faturaOriginalId = useWatch({ control, name: 'faturaOriginalId' });
 
   const { base: _subtotal, iva: _iva, total: _total } = calcularTotais(
     linhas
@@ -129,9 +137,17 @@ export function NovaNotaCreditoForm({ hoje }: { hoje: string }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
             <div className="space-y-2">
-              <Label htmlFor="fatura-original-id">ID da Factura a Creditar *</Label>
-              <Input id="fatura-original-id" {...register('faturaOriginalId')} placeholder="ID da factura (CUID)" />
-              <p className="text-xs text-muted-foreground">Pesquisa de facturas disponível após integração comercial.</p>
+              <Label htmlFor="fatura-original-id">Factura a creditar *</Label>
+              <ComboboxRemoto
+                id="fatura-original-id"
+                opcoesIniciais={faturasIniciais}
+                procurar={buscarFaturas}
+                value={faturaOriginalId}
+                onChange={(v) => setValue('faturaOriginalId', v, { shouldValidate: true, shouldDirty: true })}
+                placeholder="Seleccionar factura"
+                searchPlaceholder="Pesquisar pelo número…"
+                emptyText="Nenhuma factura com esse número."
+              />
               {errors.faturaOriginalId && (
                 <p className="text-sm text-destructive">{errors.faturaOriginalId.message}</p>
               )}
