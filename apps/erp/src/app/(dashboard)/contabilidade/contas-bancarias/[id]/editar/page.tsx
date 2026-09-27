@@ -55,6 +55,15 @@ export default async function EditarContaBancariaPage({
           tipoConta: conta.tipoConta,
           moeda: conta.moeda,
           contaContabilId: conta.contaContabilId,
+          toleranciaDias: conta.toleranciaDias,
+          toleranciaValor: conta.toleranciaValor.toFixed(2),
+          permitirMatchPorReferencia: conta.permitirMatchPorReferencia,
+          permitirMatchPorValor: conta.permitirMatchPorValor,
+          permitirMatchPorDescricao: conta.permitirMatchPorDescricao,
+          autoReconciliacao: conta.autoReconciliacao,
+          limiarConfianca: conta.limiarConfianca,
+          permitirAgregacao: conta.permitirAgregacao,
+          maxMovimentosAgregacao: conta.maxMovimentosAgregacao,
         }}
       />
     </div>

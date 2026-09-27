@@ -1184,14 +1184,26 @@ export async function criarContaBancaria(input: CriarContaBancariaInput, ctx: Ct
       `Já existe a conta ${input.numeroConta} no banco ${input.banco}`,
     );
   }
-  // saldoAtual nunca é editável manualmente — derivado dos movimentos (append-only)
+  // saldoAtual nunca é editável manualmente — derivado dos movimentos (append-only).
+  // Tolerâncias omitidas ficam com a omissão da BD (issue #140).
+  const { toleranciaValor, ...resto } = input;
   return prisma.contaBancaria.create({
-    data: { tenantId: ctx.tenantId, ...input, saldoAtual: new Prisma.Decimal(0) },
+    data: {
+      tenantId: ctx.tenantId,
+      ...resto,
+      ...(toleranciaValor !== undefined ? { toleranciaValor: new Prisma.Decimal(toleranciaValor) } : {}),
+      saldoAtual: new Prisma.Decimal(0),
+    },
   }) as unknown as ContaBancaria;
 }
 
 export async function atualizarContaBancaria(input: AtualizarContaBancariaInput, ctx: Ctx): Promise<ContaBancaria> {
-  const { id, ...data } = input;
+  const { id, toleranciaValor, ...resto } = input;
+  // Só os campos fornecidos: um update parcial não repõe omissões (issue #140).
+  const data = {
+    ...resto,
+    ...(toleranciaValor !== undefined ? { toleranciaValor: new Prisma.Decimal(toleranciaValor) } : {}),
+  };
   const cb = await prisma.contaBancaria.findFirst({ where: { id, tenantId: ctx.tenantId } });
   if (!cb) throw new NotFoundError('Conta bancária não encontrada');
   if (data.contaContabilId && data.contaContabilId !== cb.contaContabilId) {

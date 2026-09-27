@@ -6,7 +6,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Landmark } from 'lucide-react';
+import { Landmark, ListChecks } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarContasReconciliacao, VISTAS } from '@/server/services/reconciliacao/consulta.service';
@@ -49,12 +49,20 @@ export default async function ReconciliacaoPage() {
         description="O que a contabilidade registou já apareceu no banco? O que o banco mostra já foi registado?"
         breadcrumbs={[{ label: 'Contabilidade', href: '/contabilidade' }, { label: 'Reconciliação Bancária' }]}
         actions={
-          <Button asChild size="sm" variant="outline">
-            <Link href="/contabilidade/contas-bancarias">
-              <Landmark className="h-4 w-4 mr-2" />
-              Contas Bancárias
-            </Link>
-          </Button>
+          <>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/contabilidade/reconciliacao/regras">
+                <ListChecks className="h-4 w-4 mr-2" aria-hidden="true" />
+                Regras de sugestão
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/contabilidade/contas-bancarias">
+                <Landmark className="h-4 w-4 mr-2" />
+                Contas Bancárias
+              </Link>
+            </Button>
+          </>
         }
       />
       <Suspense fallback={<TableSkeleton rows={4} cols={5} />}>

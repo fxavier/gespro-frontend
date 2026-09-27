@@ -56,3 +56,45 @@ export const ImportarExtractoSchema = z.object({
   contaBancariaId: idEntidade(),
   ficheiro: z.instanceof(File, { message: 'Escolha um ficheiro' }).refine((f) => f.size > 0, 'O ficheiro está vazio'),
 });
+
+// ---------------------------------------------------------------------------
+// Regras de sugestão de lançamento (issue #140)
+// ---------------------------------------------------------------------------
+
+/**
+ * Natureza do movimento no extracto, do ponto de vista do banco:
+ * `CREDITO` = saída da conta (o banco credita-nos a dívida), `DEBITO` = entrada.
+ */
+export const NaturezaRegraSugestaoEnum = z.enum(['DEBITO', 'CREDITO']);
+export type NaturezaRegraSugestao = z.infer<typeof NaturezaRegraSugestaoEnum>;
+
+export const RegraSugestaoSchema = z.object({
+  /** `null` = a regra vale para todas as contas bancárias do tenant. */
+  contaBancariaId: idEntidade().nullable(),
+  /** Palavras separadas por «|»; basta uma aparecer na descrição do movimento. */
+  padrao: z
+    .string()
+    .trim()
+    .min(1, 'Indique pelo menos uma palavra')
+    .max(200, 'Máximo 200 caracteres')
+    .refine((p) => p.split('|').some((s) => s.trim().length > 0), 'Indique pelo menos uma palavra entre «|»'),
+  natureza: NaturezaRegraSugestaoEnum,
+  contaContrapartidaId: idEntidade('Escolha a conta de contrapartida'),
+  descricao: z.string().trim().max(200, 'Máximo 200 caracteres').optional(),
+  prioridade: z.coerce
+    .number({ invalid_type_error: 'Indique a prioridade' })
+    .int('Use um número inteiro')
+    .min(1, 'Mínimo 1')
+    .max(999, 'Máximo 999'),
+});
+export type RegraSugestaoInput = z.infer<typeof RegraSugestaoSchema>;
+
+export const EditarRegraSugestaoSchema = RegraSugestaoSchema.extend({ id: idEntidade() });
+export type EditarRegraSugestaoInput = z.infer<typeof EditarRegraSugestaoSchema>;
+
+export const RegraSugestaoIdSchema = z.object({ id: idEntidade() });
+
+/** Pesquisa de contas PGC folha para a contrapartida (código ou nome). */
+export const ProcurarContrapartidaSchema = z.object({
+  q: z.string().trim().max(100).default(''),
+});

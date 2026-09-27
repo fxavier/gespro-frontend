@@ -197,6 +197,16 @@ export interface ContaBancaria {
   saldoAtual: Prisma.Decimal;
   contaContabilId: string;
   ativo: boolean;
+  // Configuração de reconciliação (ADR-0038, issue #140)
+  toleranciaDias: number;
+  toleranciaValor: Prisma.Decimal;
+  permitirMatchPorReferencia: boolean;
+  permitirMatchPorValor: boolean;
+  permitirMatchPorDescricao: boolean;
+  autoReconciliacao: boolean;
+  limiarConfianca: number;
+  permitirAgregacao: boolean;
+  maxMovimentosAgregacao: number;
   createdAt: Date;
   updatedAt: Date;
 }

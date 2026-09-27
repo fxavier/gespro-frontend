@@ -18,6 +18,7 @@ import {
   bootstrapSeriesDocumento,
   bootstrapContasNaturezaNotaDebito,
   semearRubricasFluxo,
+  bootstrapRegrasSugestao,
 } from '../../src/server/provisioning/tenant-bootstrap';
 
 const ANO = new Date().getFullYear();
@@ -33,7 +34,18 @@ export async function seedFinancas(prisma: PrismaClient, tenantId: string): Prom
   await seedDiarios(prisma, tenantId);
   await seedSeriesDocumento(prisma, tenantId);
   await seedContasBancarias(prisma, tenantId);
-  await seedRegrasSugestao(prisma, tenantId);
+  // Regra de sugestão por omissão (ADR-0038, RF §9): a mesma do registo
+  // público, pelo bootstrap partilhado (issue #140). Idempotente por contagem.
+  const regraCriada = await bootstrapRegrasSugestao(prisma, tenantId);
+  // No seed um plano sem 6981 é defeito, não uma escolha do tenant: falha alto.
+  if (!regraCriada && (await prisma.regraSugestaoLancamento.count({ where: { tenantId } })) === 0) {
+    throw new Error('[WS-D] ContaPGC 6981 em falta — plano de contas não semeado.');
+  }
+  console.log(
+    regraCriada
+      ? '[WS-D] RegraSugestaoLancamento: regra por omissão criada.'
+      : '[WS-D] RegraSugestaoLancamento: o tenant já tem regras (ou não tem 6981) — nada escrito.',
+  );
   await seedFaturasDemo(prisma, tenantId);
 
   console.log('[WS-D] Seed financas concluído.');
@@ -153,35 +165,6 @@ async function seedContasBancarias(prisma: PrismaClient, tenantId: string): Prom
   }
 
   console.log(`[WS-D] ContaBancaria: ${criadas} criadas (restantes já existiam).`);
-}
-
-// ---------------------------------------------------------------------------
-// 4-bis. Regras de sugestão de lançamento (ADR-0038, RF §9)
-//
-// Uma regra por omissão: saídas bancárias cuja descrição fale de comissão,
-// encargo, taxa, imposto de selo ou manutenção sugerem 6981 Serviços bancários.
-// Só SUGERE — criar o lançamento é sempre acto do utilizador. Idempotente por
-// contagem: se o tenant já tem regras (suas ou esta), não se mexe.
-// ---------------------------------------------------------------------------
-
-async function seedRegrasSugestao(prisma: PrismaClient, tenantId: string): Promise<void> {
-  if ((await prisma.regraSugestaoLancamento.count({ where: { tenantId } })) > 0) return;
-  const servicosBancarios = await prisma.contaPGC.findFirst({
-    where: { tenantId, codigo: '6981' },
-    select: { id: true },
-  });
-  if (!servicosBancarios) throw new Error('[WS-D] ContaPGC 6981 em falta — plano de contas não semeado.');
-  await prisma.regraSugestaoLancamento.create({
-    data: {
-      tenantId,
-      padrao: 'COMISSAO|ENCARGO|TAXA|IMPOSTO DE SELO|MANUTENCAO',
-      natureza: 'CREDITO',
-      contaContrapartidaId: servicosBancarios.id,
-      descricao: 'Comissões e encargos bancários',
-      prioridade: 100,
-    },
-  });
-  console.log('[WS-D] RegraSugestaoLancamento: regra por omissão criada.');
 }
 
 // ---------------------------------------------------------------------------
