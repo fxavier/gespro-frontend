@@ -2,6 +2,7 @@ import 'server-only'; // A5: serviços são server-only
 import type { Prisma } from '@prisma/client';
 import type {
   CriarSerieDocumentoInput,
+  LiquidarNotaCreditoInput,
   EditarSerieDocumentoInput,
   IdSerieDocumentoInput,
   EmitirFaturaInput,
@@ -162,7 +163,14 @@ export interface NotaCredito {
   status: StatusNotaCredito;
   dataEmissao: Date;
   observacoes: string | null;
+  motivoCancelamento: string | null;
   lancamentoId: string | null;
+  /** #148 — estorno do lançamento da NC, gravado ao cancelar. */
+  lancamentoEstornoId: string | null;
+  /** #148 — lançamento 411 → meio, só na liquidação por DEVOLUCAO. */
+  lancamentoLiquidacaoId: string | null;
+  formaLiquidacao: 'DEVOLUCAO' | 'COMPENSACAO' | null;
+  dataLiquidacao: Date | null;
   emitidoPorId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -240,6 +248,8 @@ export interface Proforma {
   dataValidade: Date;
   faturaId: string | null;
   observacoes: string | null;
+  /** #148 — nunca por cima de `observacoes`. */
+  motivoCancelamento: string | null;
   criadoPorId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -279,6 +289,8 @@ export interface CotacaoComercial {
   proformaId: string | null;
   faturaId: string | null;
   observacoes: string | null;
+  /** #148 — nunca por cima de `observacoes`. */
+  motivoCancelamento: string | null;
   condicoesComerciais: string | null;
   criadoPorId: string;
   createdAt: Date;
@@ -546,7 +558,13 @@ export interface IFaturacaoService {
     filtro: FiltroNotaCreditoInput,
     ctx: Ctx,
   ): Promise<PaginacaoFaturacao<NotaCreditoCompleta>>;
-  liquidarNotaCredito(id: string, ctx: Ctx): Promise<NotaCredito>;
+  /**
+   * #148 — liquidação total. DEVOLUCAO: lançamento 411 → meio (e movimento de caixa em
+   * numerário); COMPENSACAO: abate ao `totalPago` da factura original, sem lançamento.
+   * Recusa: NC_COMPENSACAO_EXCEDE_SALDO, MEIO_PAGAMENTO_SEM_PERMISSAO, transição inválida.
+   */
+  liquidarNotaCredito(input: LiquidarNotaCreditoInput, ctx: Ctx): Promise<NotaCredito>;
+  /** #148 — estorna o lançamento da NC na mesma transacção; PERIODO_FECHADO sem escrita. */
   cancelarNotaCredito(id: string, motivo: string, ctx: Ctx): Promise<NotaCredito>;
 
   // --- Notas de débito ---
@@ -579,6 +597,8 @@ export interface IFaturacaoService {
   enviarCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercial>;
   aceitarCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercial>;
   rejeitarCotacaoComercial(id: string, motivo: string, ctx: Ctx): Promise<CotacaoComercial>;
+  /** #148 — só RASCUNHO → CANCELADA; motivo em `motivoCancelamento`. */
+  cancelarCotacaoComercial(id: string, motivo: string, ctx: Ctx): Promise<CotacaoComercial>;
   converterCotacaoEmProforma(id: string, ctx: Ctx): Promise<ProformaCompleta>;
   obterCotacaoComercial(id: string, ctx: Ctx): Promise<CotacaoComercialCompleta | null>;
   listarCotacoesComerciais(

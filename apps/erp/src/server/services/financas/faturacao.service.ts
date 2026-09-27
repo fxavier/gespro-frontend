@@ -15,6 +15,7 @@ import { registarLancamentoContabilistico } from './contabilidade.service';
 import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
   CriarSerieDocumentoInput,
+  LiquidarNotaCreditoInput,
   EditarSerieDocumentoInput,
   IdSerieDocumentoInput,
   EmitirFaturaInput,
@@ -934,11 +935,9 @@ export async function listarNotasCredito(filtro: FiltroNotaCreditoInput, ctx: Ct
   ) as unknown as Promise<PaginacaoFaturacao<NotaCreditoCompleta>>;
 }
 
-export async function liquidarNotaCredito(id: string, ctx: Ctx): Promise<NotaCredito> {
-  const nc = await prisma.notaCredito.findFirst({ where: { id, tenantId: ctx.tenantId } });
-  if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
-  transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
-  return prisma.notaCredito.update({ where: { id }, data: { status: 'LIQUIDADA' } }) as unknown as NotaCredito;
+// ponytail: esqueleto do contrato (#251) — implementação no #253.
+export async function liquidarNotaCredito(_input: LiquidarNotaCreditoInput, _ctx: Ctx): Promise<NotaCredito> {
+  throw new Error('liquidarNotaCredito: não implementado (#253)');
 }
 
 export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx): Promise<NotaCredito> {
@@ -1353,6 +1352,11 @@ export async function rejeitarCotacaoComercial(id: string, motivo: string, ctx: 
   return prisma.cotacaoComercial.update({ where: { id }, data: { status: 'REJEITADA', observacoes: motivo } }) as unknown as CotacaoComercial;
 }
 
+// ponytail: esqueleto do contrato (#251) — implementação no #253.
+export async function cancelarCotacaoComercial(_id: string, _motivo: string, _ctx: Ctx): Promise<CotacaoComercial> {
+  throw new Error('cancelarCotacaoComercial: não implementado (#253)');
+}
+
 export async function converterCotacaoEmProforma(id: string, ctx: Ctx): Promise<ProformaCompleta> {
   return prismaBase.$transaction(async (tx) => {
     const cotacao = await tx.cotacaoComercial.findFirst({
@@ -1478,6 +1482,7 @@ export const faturacaoService = {
   enviarCotacaoComercial,
   aceitarCotacaoComercial,
   rejeitarCotacaoComercial,
+  cancelarCotacaoComercial,
   converterCotacaoEmProforma,
   obterCotacaoComercial,
   listarCotacoesComerciais,

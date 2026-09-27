@@ -2,6 +2,7 @@
 import { createSafeAction } from '@/server/safe-action';
 import {
   CriarSerieDocumentoSchema,
+  LiquidarNotaCreditoSchema,
   EditarSerieDocumentoSchema,
   IdSerieDocumentoSchema,
   EmitirFaturaSchema,
@@ -123,10 +124,10 @@ export const obterNotaCredito = createSafeAction({
 });
 
 export const liquidarNotaCredito = createSafeAction({
-  schema: z.object({ id: z.string().cuid() }),
+  schema: LiquidarNotaCreditoSchema,
   permission: 'faturacao:nc:liquidar',
-  revalidate: { tags: ['faturacao', 'notas-credito'] },
-  handler: (input, ctx) => faturacao.liquidarNotaCredito(input.id, ctx),
+  revalidate: { tags: ['faturacao', 'notas-credito', 'faturas'] },
+  handler: (input, ctx) => faturacao.liquidarNotaCredito(input, ctx),
 });
 
 export const cancelarNotaCredito = createSafeAction({
