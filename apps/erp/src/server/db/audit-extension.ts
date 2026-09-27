@@ -22,6 +22,8 @@ export const AUDIT_MODELS = new Set<string>([
   'RubricaFluxoCaixa', 'MapeamentoContaFluxo', 'VersaoMapeamentoFluxo',
   // #149 — criar, editar, (des)activar e eliminar séries muda a numeração fiscal.
   'SerieDocumento',
+  // #148 — cancelar/liquidar NC e cancelar proforma/cotação são escritas singulares.
+  'NotaCredito', 'Proforma', 'CotacaoComercial',
 ]);
 
 /**

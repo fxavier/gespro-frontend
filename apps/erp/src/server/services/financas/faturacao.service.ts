@@ -11,7 +11,9 @@ import {
   serieUsada,
 } from '@/lib/series-documento';
 import type { IFaturacaoService } from './faturacao.interface';
-import { registarLancamentoContabilistico } from './contabilidade.service';
+import { estornarLancamentoEmTx, registarLancamentoContabilistico } from './contabilidade.service';
+import { resolverContaMeioPagamento } from './meio-pagamento.service';
+import { registarMovimentoCaixa } from './caixa.service';
 import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
   CriarSerieDocumentoInput,
@@ -935,19 +937,168 @@ export async function listarNotasCredito(filtro: FiltroNotaCreditoInput, ctx: Ct
   ) as unknown as Promise<PaginacaoFaturacao<NotaCreditoCompleta>>;
 }
 
-// ponytail: esqueleto do contrato (#251) — implementação no #253.
-export async function liquidarNotaCredito(
-  _input: LiquidarNotaCreditoInput,
-  _ctx: Ctx & { permissions?: ReadonlySet<string> },
-): Promise<NotaCredito> {
-  throw new Error('liquidarNotaCredito: não implementado (#253)');
+/** Tranca a linha (`FOR UPDATE`, id + tenant) ANTES de a ler: o estado que decide vem da leitura trancada. */
+async function trancarNotaCredito(tx: Prisma.TransactionClient, id: string, tenantId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "NotaCredito" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE`;
 }
 
+async function trancarFatura(tx: Prisma.TransactionClient, id: string, tenantId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM "Fatura" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE`;
+}
+
+const ESTADOS_FATURA_COMPENSAVEL: StatusFatura[] = ['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'];
+
+/**
+ * #148 — liquidação TOTAL da NC (EMITIDA → LIQUIDADA).
+ * DEVOLUCAO: 411 D / conta do meio C pelo total (e saída de caixa em numerário);
+ * COMPENSACAO: abate ao `totalPago` da factura original, sem lançamento — a 411 já
+ * foi creditada na emissão da NC.
+ */
+export async function liquidarNotaCredito(
+  input: LiquidarNotaCreditoInput,
+  ctx: Ctx & { permissions?: ReadonlySet<string> },
+): Promise<NotaCredito> {
+  // A devolução mexe em caixa/banca: a permissão confere-se antes de tudo o resto.
+  if (input.forma === 'DEVOLUCAO') {
+    const exigida = input.formaPagamento === 'NUMERARIO' ? 'caixa:operar' : 'financas:banca:escrita';
+    if (!ctx.permissions?.has(exigida)) {
+      throw new BusinessRuleError(
+        'MEIO_PAGAMENTO_SEM_PERMISSAO',
+        input.formaPagamento === 'NUMERARIO'
+          ? 'Não tem permissão para operar o caixa: a devolução em numerário não é possível.'
+          : 'Não tem permissão para movimentar contas bancárias: a devolução por esta forma não é possível.',
+      );
+    }
+  }
+
+  return prisma.$transaction(async (rawTx) => {
+    const tx = rawTx as unknown as Prisma.TransactionClient;
+
+    await trancarNotaCredito(tx, input.id, ctx.tenantId);
+    const nc = await tx.notaCredito.findFirst({ where: { id: input.id, tenantId: ctx.tenantId } });
+    if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
+    transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
+
+    let lancamentoLiquidacaoId: string | null = null;
+
+    if (input.forma === 'COMPENSACAO') {
+      await trancarFatura(tx, nc.faturaOriginalId, ctx.tenantId);
+      const fatura = await tx.fatura.findFirst({ where: { id: nc.faturaOriginalId, tenantId: ctx.tenantId } });
+      if (!fatura) throw new NotFoundError('Factura original não encontrada');
+      if (!ESTADOS_FATURA_COMPENSAVEL.includes(fatura.status as StatusFatura)) {
+        throw new BusinessRuleError(
+          'FATURA_NAO_COMPENSAVEL',
+          `A factura ${fatura.numero} está no estado ${fatura.status} e não admite compensação.`,
+        );
+      }
+
+      const total = new Prisma.Decimal(String(nc.total));
+      const totalPago = new Prisma.Decimal(String(fatura.totalPago));
+      const saldo = new Prisma.Decimal(String(fatura.total)).minus(totalPago);
+      if (saldo.lessThan(total)) {
+        throw new BusinessRuleError(
+          'NC_COMPENSACAO_EXCEDE_SALDO',
+          `O saldo em aberto da factura ${fatura.numero} (${saldo.toFixed(2)}) é inferior ao total da nota de crédito (${total.toFixed(2)}).`,
+        );
+      }
+
+      // Mesma regra de estado do registarPagamento.
+      const novoTotalPago = totalPago.plus(total);
+      const novoStatus: StatusFatura = saldo.minus(total).lessThanOrEqualTo(0) ? 'PAGA' : 'PARCIALMENTE_PAGA';
+      if (novoStatus !== fatura.status) transitarFatura(fatura.status as StatusFatura, novoStatus);
+
+      await tx.fatura.update({
+        where: { id: fatura.id },
+        data: {
+          totalPago: novoTotalPago,
+          status: novoStatus,
+          dataPagamento: novoStatus === 'PAGA' ? input.data : null,
+        },
+      });
+    } else {
+      const meio = await resolverContaMeioPagamento(
+        tx,
+        { forma: input.formaPagamento, contaBancariaId: input.contaBancariaId },
+        ctx,
+      );
+      const valor = new Prisma.Decimal(String(nc.total)).toFixed(2);
+      const descricao = `Devolução da nota de crédito ${nc.numero}`;
+
+      const lancamento = await registarLancamentoContabilistico(
+        tx,
+        {
+          data: input.data,
+          diarioTipo: meio.diarioTipo,
+          origem: 'PAGAMENTO',
+          documentoOrigemId: nc.id,
+          documentoOrigemTipo: 'NotaCredito',
+          historico: descricao,
+          partidas: [
+            { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor },
+            { contaCodigo: meio.contaCodigo, tipo: 'CREDITO', valor },
+          ],
+        },
+        ctx,
+      );
+      lancamentoLiquidacaoId = lancamento.id;
+
+      if (meio.sessaoCaixaId) {
+        await registarMovimentoCaixa(
+          tx,
+          {
+            sessaoCaixaId: meio.sessaoCaixaId,
+            tipo: 'DEVOLUCAO',
+            valor,
+            descricao,
+            documentoOrigemId: nc.id,
+            documentoOrigemTipo: 'NotaCredito',
+          },
+          ctx,
+        );
+      }
+    }
+
+    return tx.notaCredito.update({
+      where: { id: nc.id },
+      data: {
+        status: 'LIQUIDADA',
+        formaLiquidacao: input.forma,
+        dataLiquidacao: input.data,
+        lancamentoLiquidacaoId,
+      },
+    }) as unknown as NotaCredito;
+  });
+}
+
+/**
+ * #148 — cancela a NC (só EMITIDA) e estorna o lançamento dela na MESMA transacção,
+ * com a data do cancelamento. Período fechado ⇒ PERIODO_FECHADO e nada escrito.
+ */
 export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx): Promise<NotaCredito> {
-  const nc = await prisma.notaCredito.findFirst({ where: { id, tenantId: ctx.tenantId } });
-  if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
-  transitarNC(nc.status as StatusNotaCredito, 'CANCELADA');
-  return prisma.notaCredito.update({ where: { id }, data: { status: 'CANCELADA', motivoCancelamento: motivo } }) as unknown as NotaCredito;
+  return prisma.$transaction(async (rawTx) => {
+    const tx = rawTx as unknown as Prisma.TransactionClient;
+
+    await trancarNotaCredito(tx, id, ctx.tenantId);
+    const nc = await tx.notaCredito.findFirst({ where: { id, tenantId: ctx.tenantId } });
+    if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
+    transitarNC(nc.status as StatusNotaCredito, 'CANCELADA');
+
+    let lancamentoEstornoId: string | null = null;
+    if (nc.lancamentoId) {
+      const estorno = await estornarLancamentoEmTx(
+        tx,
+        { lancamentoId: nc.lancamentoId, motivo: `Cancelamento da nota de crédito ${nc.numero}: ${motivo}`, data: new Date() },
+        ctx,
+      );
+      lancamentoEstornoId = estorno.id;
+    }
+
+    return tx.notaCredito.update({
+      where: { id: nc.id },
+      // NC legada sem lançamento: nada a estornar, a coluna fica como está (null).
+      data: { status: 'CANCELADA', motivoCancelamento: motivo, ...(lancamentoEstornoId ? { lancamentoEstornoId } : {}) },
+    }) as unknown as NotaCredito;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1240,7 +1391,7 @@ export async function cancelarProforma(id: string, motivo: string, ctx: Ctx): Pr
   const p = await prisma.proforma.findFirst({ where: { id, tenantId: ctx.tenantId } });
   if (!p) throw new NotFoundError('Proforma não encontrada');
   transitarProforma(p.status as StatusProforma, 'CANCELADA');
-  return prisma.proforma.update({ where: { id }, data: { status: 'CANCELADA', observacoes: motivo } }) as unknown as Proforma;
+  return prisma.proforma.update({ where: { id }, data: { status: 'CANCELADA', motivoCancelamento: motivo } }) as unknown as Proforma;
 }
 
 export async function obterProforma(id: string, ctx: Ctx): Promise<ProformaCompleta | null> {
@@ -1355,9 +1506,15 @@ export async function rejeitarCotacaoComercial(id: string, motivo: string, ctx: 
   return prisma.cotacaoComercial.update({ where: { id }, data: { status: 'REJEITADA', observacoes: motivo } }) as unknown as CotacaoComercial;
 }
 
-// ponytail: esqueleto do contrato (#251) — implementação no #253.
-export async function cancelarCotacaoComercial(_id: string, _motivo: string, _ctx: Ctx): Promise<CotacaoComercial> {
-  throw new Error('cancelarCotacaoComercial: não implementado (#253)');
+/** #148 — só RASCUNHO → CANCELADA (depois de enviada, o caminho é «Rejeitar»). */
+export async function cancelarCotacaoComercial(id: string, motivo: string, ctx: Ctx): Promise<CotacaoComercial> {
+  const c = await prisma.cotacaoComercial.findFirst({ where: { id, tenantId: ctx.tenantId } });
+  if (!c) throw new NotFoundError('Cotação não encontrada');
+  transitarCotacao(c.status as StatusCotacaoComercial, 'CANCELADA');
+  return prisma.cotacaoComercial.update({
+    where: { id },
+    data: { status: 'CANCELADA', motivoCancelamento: motivo },
+  }) as unknown as CotacaoComercial;
 }
 
 export async function converterCotacaoEmProforma(id: string, ctx: Ctx): Promise<ProformaCompleta> {

@@ -3,6 +3,7 @@ import { createSafeAction } from '@/server/safe-action';
 import {
   CriarSerieDocumentoSchema,
   LiquidarNotaCreditoSchema,
+  CancelarDocumentoSchema,
   EditarSerieDocumentoSchema,
   IdSerieDocumentoSchema,
   EmitirFaturaSchema,
@@ -126,14 +127,14 @@ export const obterNotaCredito = createSafeAction({
 export const liquidarNotaCredito = createSafeAction({
   schema: LiquidarNotaCreditoSchema,
   permission: 'faturacao:nc:liquidar',
-  revalidate: { tags: ['faturacao', 'notas-credito', 'faturas'] },
+  revalidate: { tags: ['faturacao', 'notas-credito', 'faturas', 'contabilidade', 'caixa'] },
   handler: (input, ctx) => faturacao.liquidarNotaCredito(input, ctx),
 });
 
 export const cancelarNotaCredito = createSafeAction({
-  schema: z.object({ id: z.string().cuid(), motivo: z.string().min(1).max(500) }),
+  schema: CancelarDocumentoSchema,
   permission: 'faturacao:nc:cancelar',
-  revalidate: { tags: ['faturacao', 'notas-credito'] },
+  revalidate: { tags: ['faturacao', 'notas-credito', 'contabilidade'] },
   handler: (input, ctx) => faturacao.cancelarNotaCredito(input.id, input.motivo, ctx),
 });
 
@@ -205,7 +206,7 @@ export const converterProformaEmFatura = createSafeAction({
 });
 
 export const cancelarProforma = createSafeAction({
-  schema: z.object({ id: z.string().cuid(), motivo: z.string().min(1).max(500) }),
+  schema: CancelarDocumentoSchema,
   permission: 'faturacao:proforma:cancelar',
   revalidate: { tags: ['faturacao', 'proformas'] },
   handler: (input, ctx) => faturacao.cancelarProforma(input.id, input.motivo, ctx),
@@ -246,6 +247,13 @@ export const rejeitarCotacaoComercial = createSafeAction({
   permission: 'faturacao:cotacao:gerir',
   revalidate: { tags: ['faturacao', 'cotacoes'] },
   handler: (input, ctx) => faturacao.rejeitarCotacaoComercial(input.id, input.motivo, ctx),
+});
+
+export const cancelarCotacaoComercial = createSafeAction({
+  schema: CancelarDocumentoSchema,
+  permission: 'faturacao:cotacao:gerir',
+  revalidate: { tags: ['faturacao', 'cotacoes'] },
+  handler: (input, ctx) => faturacao.cancelarCotacaoComercial(input.id, input.motivo, ctx),
 });
 
 export const converterCotacaoEmProforma = createSafeAction({
