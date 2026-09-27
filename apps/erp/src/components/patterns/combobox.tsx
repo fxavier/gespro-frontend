@@ -105,10 +105,15 @@ export function Combobox({
   const [interno, setInterno] = useState(defaultValue ?? '');
   const controlado = value !== undefined;
   const actual = controlado ? value : interno;
-  const escolhida = options.find((o) => o.value === actual);
+  // Com pesquisa no servidor, a opção escolhida pode sair de `options` (nova
+  // pesquisa, termo apagado); o trigger continua a mostrar o que foi escolhido.
+  const [ultimaEscolhida, setUltimaEscolhida] = useState<ComboboxOption>();
+  const escolhida =
+    options.find((o) => o.value === actual) ?? (ultimaEscolhida?.value === actual ? ultimaEscolhida : undefined);
   const comPesquisa = Boolean(onSearchChange) || options.length >= pesquisaAPartirDe;
 
   const escolher = (v: string) => {
+    setUltimaEscolhida(options.find((o) => o.value === v));
     if (!controlado) setInterno(v);
     onChange?.(v);
     setAberto(false);

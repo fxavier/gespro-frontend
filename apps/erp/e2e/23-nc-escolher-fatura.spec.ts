@@ -20,6 +20,7 @@ import {
   emitirNotaCredito,
   abrirNCPelaLista,
   escaparRegex,
+  escolherFaturaACreditar,
   hojeFormatado,
 } from './helpers/faturacao-ui';
 
@@ -77,5 +78,31 @@ test.describe('/faturacao/nota-credito/nova — escolher a factura pelo número 
     const nc = await emitirNotaCredito(page, fatura.numero);
     await abrirNCPelaLista(page, nc);
     await expect(page.getByRole('link', { name: fatura.numero, exact: true })).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('reabrir, pesquisar algo inexistente e fechar com Escape não apaga o rótulo da factura escolhida', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const fatura = await emitirFatura(page);
+
+    await abrir(page, '/faturacao/nota-credito/nova', 'Nova Nota de Crédito');
+    await escolherFaturaACreditar(page, fatura.numero);
+
+    const combobox = page.getByRole('combobox', { name: /Factura a creditar/ });
+    const numero = new RegExp(escaparRegex(fatura.numero));
+    await expect(combobox).toHaveText(numero);
+
+    // Reabre e pesquisa algo que não existe: a lista esvazia (a opção escolhida
+    // deixa de estar em `options`).
+    await combobox.click();
+    await page.getByPlaceholder('Pesquisar pelo número…').fill('ZZZ/9999');
+    await expect(page.getByRole('option')).toHaveCount(0, { timeout: 15_000 });
+
+    // Fecha sem escolher: o valor continua escolhido, e o trigger tem de o dizer.
+    await page.keyboard.press('Escape');
+    await expect(page.getByPlaceholder('Pesquisar pelo número…')).toBeHidden();
+    await expect(combobox).toHaveText(numero);
+    await expect(combobox).not.toHaveText(/Seleccionar factura/);
   });
 });

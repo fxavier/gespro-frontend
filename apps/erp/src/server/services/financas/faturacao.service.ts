@@ -45,6 +45,7 @@ import {
   TRANSICOES_PROFORMA,
   TRANSICOES_COTACAO_COMERCIAL,
   ESTADOS_FATURA_COMPENSAVEL,
+  ESTADOS_FATURA_CREDITAVEL,
   type StatusFatura,
   type StatusNotaCredito,
   type StatusNotaDebito,
@@ -850,6 +851,27 @@ export async function marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura>
 // ---------------------------------------------------------------------------
 // Notas de crédito
 // ---------------------------------------------------------------------------
+
+/**
+ * Pesquisa da combobox «Factura a creditar» (#258): as 20 creditáveis mais
+ * recentes, filtradas por parte do número sem distinguir maiúsculas.
+ */
+export async function procurarFaturasCreditaveis(
+  q: string | undefined,
+  ctx: Ctx,
+): Promise<Array<{ id: string; numero: string; dataEmissao: Date; total: Prisma.Decimal }>> {
+  const termo = q?.trim();
+  return prisma.fatura.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      status: { in: [...ESTADOS_FATURA_CREDITAVEL] },
+      ...(termo ? { numero: { contains: termo, mode: 'insensitive' as const } } : {}),
+    },
+    orderBy: { dataEmissao: 'desc' },
+    take: 20,
+    select: { id: true, numero: true, dataEmissao: true, total: true },
+  });
+}
 
 export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx): Promise<NotaCreditoCompleta> {
   await exigirEmailConfirmadoParaEmitir();
