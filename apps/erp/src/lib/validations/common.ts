@@ -80,3 +80,29 @@ export const idEntidade = (mensagem = 'ID inválido') =>
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
     { message: mensagem },
   );
+
+// ---------------------------------------------------------------------------
+// Datas de documento
+// ---------------------------------------------------------------------------
+
+/** Intervalo de anos aceite numa data de documento (emissão, vencimento, validade). */
+export const ANO_DOCUMENTO_MIN = 2000;
+export const ANO_DOCUMENTO_MAX = 2100;
+
+/**
+ * Data de um documento emitido. Um `<input type="date">` aceita anos de cinco
+ * algarismos (`92026-09-26`) e o `z.coerce.date()` também: a emissão seguia até
+ * ao serviço e falhava com «série do ano 92026 não encontrada». Fora do
+ * intervalo o erro é do campo, antes de sair do formulário.
+ */
+export function dataDocumento(rotulo = 'Data') {
+  return z.coerce
+    .date({ errorMap: () => ({ message: `${rotulo} inválida` }) })
+    .refine(
+      (d) => {
+        const ano = d.getUTCFullYear();
+        return ano >= ANO_DOCUMENTO_MIN && ano <= ANO_DOCUMENTO_MAX;
+      },
+      { message: `${rotulo} inválida: o ano tem de estar entre ${ANO_DOCUMENTO_MIN} e ${ANO_DOCUMENTO_MAX}` },
+    );
+}

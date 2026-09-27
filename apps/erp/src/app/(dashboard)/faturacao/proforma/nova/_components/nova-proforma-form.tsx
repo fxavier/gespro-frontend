@@ -22,6 +22,7 @@ import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/pattern
 import { criarProforma } from '@/server/actions/faturacao.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
+import { diaIsoParaData } from '@/lib/format-date';
 
 // ponytail: schema do formulário (client-safe); o servidor revalida com CriarProformaSchema.
 const LinhaFormSchema = z.object({
@@ -47,9 +48,7 @@ const FormSchema = z
 
 type FormValues = z.infer<typeof FormSchema>;
 
-const today = new Date().toISOString().split('T')[0];
-
-export function NovaProformaForm() {
+export function NovaProformaForm({ hoje }: { hoje: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -63,7 +62,7 @@ export function NovaProformaForm() {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       clienteId: '',
-      dataEmissao: today,
+      dataEmissao: hoje,
       dataValidade: '',
       observacoes: '',
       linhas: [{ descricao: '', quantidade: 1, precoUnitario: 0, desconto: 0, taxaIva: TAXA_IVA_NORMAL }],
@@ -92,8 +91,8 @@ export function NovaProformaForm() {
       const result = await criarProforma({
         clienteId: values.clienteId,
         moeda: 'MZN',
-        dataEmissao: values.dataEmissao,
-        dataValidade: values.dataValidade,
+        dataEmissao: diaIsoParaData(values.dataEmissao),
+        dataValidade: diaIsoParaData(values.dataValidade),
         observacoes: values.observacoes || undefined,
         linhas: values.linhas.map((l, i) => ({
           descricao: l.descricao,

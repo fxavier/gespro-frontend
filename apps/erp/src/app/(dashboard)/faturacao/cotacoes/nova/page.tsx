@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { PageHeader } from '@/components/patterns';
 import { NovaCotacaoForm } from './_components/nova-cotacao-form';
+import { diaIsoMaputo } from '@/lib/format-date';
 
 export default async function NovaCotacaoPage() {
   const session = await auth();
@@ -23,7 +24,7 @@ export default async function NovaCotacaoPage() {
           { label: 'Nova Cotação' },
         ]}
       />
-      <NovaCotacaoForm />
+      <NovaCotacaoForm hoje={diaIsoMaputo()} />
     </div>
   );
 }

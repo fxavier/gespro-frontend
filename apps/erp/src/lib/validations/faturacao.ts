@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
-import { idEntidade } from './common';
+import { dataDocumento, idEntidade } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -137,8 +137,8 @@ export const EmitirFaturaSchema = z
     clienteId: z.string().min(1, 'Cliente obrigatório'),
     vendaId: z.string().optional(),
     moeda: z.string().length(3).default('MZN'),
-    dataEmissao: z.coerce.date(),
-    dataVencimento: z.coerce.date(),
+    dataEmissao: dataDocumento('Data de emissão'),
+    dataVencimento: dataDocumento('Data de vencimento'),
     linhas: z.array(LinhaDocumentoSchema).min(1, 'Mínimo 1 linha de factura'),
     observacoes: z.string().max(1000).optional(),
   })
@@ -184,7 +184,7 @@ export const EmitirNotaCreditoSchema = z.object({
   faturaOriginalId: z.string().cuid('ID de factura original inválido'),
   motivo: z.string().min(1, 'Motivo obrigatório').max(500),
   moeda: z.string().length(3).default('MZN'),
-  dataEmissao: z.coerce.date(),
+  dataEmissao: dataDocumento('Data de emissão'),
   linhas: z.array(LinhaDocumentoSchema).min(1, 'Mínimo 1 linha'),
   observacoes: z.string().max(1000).optional(),
 });
@@ -211,7 +211,7 @@ export const EmitirNotaDebitoSchema = z.object({
   faturaReferenciaId: z.string().cuid().optional(),
   motivo: z.string().min(1, 'Motivo obrigatório').max(500),
   moeda: z.string().length(3).default('MZN'),
-  dataEmissao: z.coerce.date(),
+  dataEmissao: dataDocumento('Data de emissão'),
   linhas: z.array(LinhaDocumentoSchema).min(1, 'Mínimo 1 linha'),
   observacoes: z.string().max(1000).optional(),
 });
@@ -237,8 +237,8 @@ export const CriarProformaSchema = z
   .object({
     clienteId: z.string().min(1, 'Cliente obrigatório'),
     moeda: z.string().length(3).default('MZN'),
-    dataEmissao: z.coerce.date(),
-    dataValidade: z.coerce.date(),
+    dataEmissao: dataDocumento('Data de emissão'),
+    dataValidade: dataDocumento('Data de validade'),
     linhas: z.array(LinhaDocumentoSchema).min(1, 'Mínimo 1 linha'),
     observacoes: z.string().max(1000).optional(),
   })
@@ -268,8 +268,8 @@ export const CriarCotacaoComercialSchema = z
   .object({
     clienteId: z.string().min(1, 'Cliente obrigatório'),
     moeda: z.string().length(3).default('MZN'),
-    dataEmissao: z.coerce.date(),
-    dataValidade: z.coerce.date(),
+    dataEmissao: dataDocumento('Data de emissão'),
+    dataValidade: dataDocumento('Data de validade'),
     linhas: z.array(LinhaDocumentoSchema).min(1, 'Mínimo 1 linha'),
     condicoesComerciais: z.string().max(2000).optional(),
     observacoes: z.string().max(1000).optional(),

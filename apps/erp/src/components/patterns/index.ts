@@ -45,3 +45,5 @@ export type {
   UploadDocumentoMeta,
   RegistoResultado,
 } from './upload-documento';
+
+export { CampoDia } from './campo-dia';

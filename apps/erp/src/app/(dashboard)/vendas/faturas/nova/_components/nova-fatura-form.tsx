@@ -30,6 +30,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import {
+  CampoDia,
   ComboboxRemoto,
   FormPage,
   FormSection,
@@ -39,6 +40,7 @@ import {
 import { procurarClientes } from '@/server/actions/clientes.actions';
 import { emitirFatura } from '@/server/actions/faturacao.actions';
 import { EmitirFaturaSchema, type EmitirFaturaInput } from '@/lib/validations/faturacao';
+import { diaIsoParaData } from '@/lib/format-date';
 
 // Tipos inline — evita importar server-only num Client Component.
 type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
@@ -47,10 +49,10 @@ interface ClienteOption { id: string; codigo: string; nome: string }
 
 interface NovaFaturaFormProps {
   clientes: ClienteOption[];
+  /** Dias civis de Maputo (`aaaa-mm-dd`), calculados no servidor (#242). */
+  hoje: string;
+  vencimento: string;
 }
-
-const hoje = new Date().toISOString().split('T')[0]!;
-const em30 = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]!;
 
 /** Linha vazia com campos computados em zero (schema usa .transform). */
 const linhaVazia = () => ({
@@ -65,14 +67,10 @@ const linhaVazia = () => ({
   total: 0,
 });
 
-const DEFAULT_VALUES: Partial<EmitirFaturaInput> = {
-  moeda: 'MZN',
-  linhas: [linhaVazia()],
-};
 
 const rotuloCliente = (c: { codigo: string; nome: string }) => `${c.codigo} — ${c.nome}`;
 
-export function NovaFaturaForm({ clientes }: NovaFaturaFormProps) {
+export function NovaFaturaForm({ clientes, hoje, vencimento }: NovaFaturaFormProps) {
   // A pesquisa de clientes vai ao servidor: há mais do que cabe numa lista.
   const opcoesClientes: ComboboxOption[] = clientes.map((c) => ({ value: c.id, label: rotuloCliente(c) }));
   const buscarClientes = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
@@ -88,7 +86,14 @@ export function NovaFaturaForm({ clientes }: NovaFaturaFormProps) {
 
   const form = useForm<EmitirFaturaInput>({
     resolver: zodResolver(EmitirFaturaSchema),
-    defaultValues: DEFAULT_VALUES,
+    // As datas vêm do servidor (dia de Maputo) e estão no estado desde o início:
+    // o que o campo mostra é o que a emissão leva, sem lhes tocar.
+    defaultValues: {
+      moeda: 'MZN',
+      dataEmissao: diaIsoParaData(hoje),
+      dataVencimento: diaIsoParaData(vencimento),
+      linhas: [linhaVazia()],
+    },
     mode: 'onBlur',
   });
 
@@ -174,11 +179,7 @@ export function NovaFaturaForm({ clientes }: NovaFaturaFormProps) {
                 <FormItem>
                   <FormLabel>Data de emissão *</FormLabel>
                   <FormControl>
-                    <Input
-                      type="date"
-                      defaultValue={hoje}
-                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
-                    />
+                    <CampoDia value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
                   </FormControl>
                   <FormMessage />
                   <p className="text-xs text-muted-foreground">
@@ -195,11 +196,7 @@ export function NovaFaturaForm({ clientes }: NovaFaturaFormProps) {
                 <FormItem>
                   <FormLabel>Data de vencimento *</FormLabel>
                   <FormControl>
-                    <Input
-                      type="date"
-                      defaultValue={em30}
-                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
-                    />
+                    <CampoDia value={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

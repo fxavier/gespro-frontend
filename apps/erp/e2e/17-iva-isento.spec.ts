@@ -94,14 +94,15 @@ async function escolherTaxa(page: Page, seletor: Locator, rotulo: RegExp) {
 }
 
 /**
- * Escreve uma data tecla a tecla (dd mm aaaa, locale pt-PT). Nos campos de data
- * controlados só por `onChange` (sem `value`), o `fill` não chega ao estado do
- * formulário e o zod recusa «Invalid date».
+ * Preenche um `<input type="date">` com `aaaa-mm-dd` pelo `fill`, que fixa o
+ * valor e dispara `input`/`change` de uma vez. Escrever `ddmmaaaa` tecla a tecla
+ * dependia do locale e da ordem dos segmentos do browser: no Chromium/Linux da
+ * CI o cursor não saltava do mês e o ano ficava `92026` (#237). Confirma-se o
+ * valor que o campo ficou a ter antes de seguir.
  */
-async function teclarData(campo: Locator, iso: string) {
-  const [ano, mes, dia] = iso.split('-');
-  await campo.focus();
-  await campo.page().keyboard.type(`${dia}${mes}${ano}`);
+async function preencherData(campo: Locator, iso: string) {
+  await campo.fill(iso);
+  await expect(campo).toHaveValue(iso);
 }
 
 async function abrirNovaFatura(page: Page) {
@@ -221,8 +222,8 @@ test.describe('/vendas/faturas/nova — linha isenta', () => {
 
     // #93: a série já não se escolhe — é a activa do tipo no ano da data de emissão.
     await escolherCliente(page);
-    await teclarData(page.getByLabel(/Data de emissão/), diaMaputo(0));
-    await teclarData(page.getByLabel(/Data de vencimento/), diaMaputo(30));
+    await preencherData(page.getByLabel(/Data de emissão/), diaMaputo(0));
+    await preencherData(page.getByLabel(/Data de vencimento/), diaMaputo(30));
     await page.getByLabel(/Descrição/).first().fill('Livro escolar (isento) — E2E #77 vendas');
     await page.getByLabel(/Preço Unit/).first().fill('1000');
     await escolherTaxa(page, page.getByRole('combobox', { name: /^IVA/ }).first(), /^0%/);
@@ -233,5 +234,32 @@ test.describe('/vendas/faturas/nova — linha isenta', () => {
     await page.goto(`/vendas/faturas/${id}`);
     await esperarValor(valorAoLado(page, 'IVA').first(), 0, 'IVA do documento emitido');
     await esperarValor(valorAoLado(page, 'Total').first(), 1000, 'Total do documento emitido');
+  });
+  /**
+   * #242: as datas por omissão vinham de `toISOString()` (dia UTC) num módulo
+   * cliente e nem entravam no estado do formulário. Sem tocar nos campos, o
+   * documento emitido tem de sair com a data de hoje em Maputo — a que decide
+   * a série e o período.
+   */
+  test('sem tocar nas datas: o documento sai com a data de hoje em Maputo', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto('/vendas/faturas/nova');
+    await expect(page.getByRole('heading', { name: 'Nova Fatura' })).toBeVisible({ timeout: 30_000 });
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByLabel(/Data de emissão/)).toHaveValue(diaMaputo(0));
+    await escolherCliente(page);
+    await page.getByLabel(/Descrição/).first().fill('Livro escolar (isento) — E2E #77 vendas, datas por omissão');
+    await page.getByLabel(/Preço Unit/).first().fill('1000');
+    await escolherTaxa(page, page.getByRole('combobox', { name: /^IVA/ }).first(), /^0%/);
+
+    const { id, corpo } = await submeterECapturar(page, page.getByRole('button', { name: 'Emitir Fatura' }));
+    expect(id, `a emissão não devolveu o documento: ${corpo.slice(0, 400)}`).not.toBeNull();
+
+    const [ano, mes, dia] = diaMaputo(0).split('-');
+    await page.goto(`/vendas/faturas/${id}`);
+    await expect(valorAoLado(page, 'Data de emissão').first()).toHaveText(`${dia}/${mes}/${ano}`, {
+      timeout: 15_000,
+    });
   });
 });

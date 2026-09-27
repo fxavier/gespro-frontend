@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { PageHeader } from '@/components/patterns';
 import { NovaNotaCreditoForm } from './_components/nova-nota-credito-form';
+import { diaIsoMaputo } from '@/lib/format-date';
 
 export default async function NovaNotaCreditoPage() {
   const session = await auth();
@@ -23,7 +24,7 @@ export default async function NovaNotaCreditoPage() {
           { label: 'Nova Nota de Crédito' },
         ]}
       />
-      <NovaNotaCreditoForm />
+      <NovaNotaCreditoForm hoje={diaIsoMaputo()} />
     </div>
   );
 }
