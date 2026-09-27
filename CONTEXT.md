@@ -159,3 +159,29 @@ usar o que tem e deixa de poder criar mais.
 Nunca se recusa a descida de Plano por causa disto, e nunca se desactiva ninguém em nome do
 cliente: escolher quais das pessoas dele perdem o acesso não é uma decisão nossa. Ver
 [[Utilizador]].
+
+## Contabilidade
+
+### Lançamento
+O registo contabilístico em partida dobrada: um conjunto de partidas a débito e a crédito
+que somam o mesmo, num diário, numa data e com um número da série desse diário e período.
+Só produz efeito — nos mapas, no balancete, no apuramento do IVA — depois de **confirmado**.
+Os lançamentos que outros módulos geram (venda, factura, nota de crédito) nascem já
+confirmados; só os manuais passam por [[Rascunho]].
+
+### Rascunho
+Um [[Lançamento]] manual ainda por confirmar. Não tem efeito contabilístico nenhum, por isso
+**corrige-se à vontade**: partidas, histórico, observações e a data — desde que continue no
+mesmo período. O diário e o período não mudam, porque o número pertence a essa série; para
+mudar de diário ou de mês, [[Anulado|anula-se]] e cria-se outro. Um período com rascunhos
+não fecha.
+
+### Anulado
+Um [[Rascunho]] que se deitou fora, com motivo obrigatório. A linha **fica**, com o seu
+número: apagá-la abriria um buraco na série do diário, que é o que um auditor pergunta
+primeiro. Não tem efeito contabilístico, não impede o fecho do período e não aparece nas
+listas por omissão.
+
+_Não confundir com_ **Estornado**: o estorno anula o efeito de um lançamento **confirmado**
+com outro lançamento de sinal contrário; a anulação só existe para o que nunca teve efeito.
+Decidido em 2026-09-27 (issue #137).
