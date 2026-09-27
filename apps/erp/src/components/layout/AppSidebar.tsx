@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Logotipo, Simbolo } from './Logotipo';
-import { COOKIE_BARRA_LATERAL, VALOR_RECOLHIDA } from '@/lib/barra-lateral';
+import { COOKIE_BARRA_LATERAL, VALOR_RECOLHIDA, hrefActivo } from '@/lib/barra-lateral';
 
 interface MenuItem {
   title: string;
@@ -220,6 +220,10 @@ const CLASSES_ITEM_CARRIL =
   'w-full justify-center h-10 px-0 rounded-lg hover:bg-sidebar-foreground/10 hover:text-sidebar-primary transition-colors';
 const CLASSES_ACTIVO = 'bg-sidebar-accent text-sidebar-accent-foreground font-medium';
 
+function todosOsHrefs(items: MenuItem[]): string[] {
+  return items.flatMap((i) => [...(i.href ? [i.href] : []), ...todosOsHrefs(i.children ?? [])]);
+}
+
 function SidebarContent({
   isCollapsed,
   userPermissions,
@@ -237,7 +241,7 @@ function SidebarContent({
       // Expandir o grupo que contém a rota actual
       const active = new Set<string>();
       items.forEach((item) => {
-        if (item.children?.some((child) => child.href && pathname.startsWith(child.href))) {
+        if (item.children?.some((child) => child.href === hrefActivo(pathname, todosOsHrefs(items)))) {
           active.add(item.title);
         }
       });
@@ -257,12 +261,8 @@ function SidebarContent({
     });
   };
 
-  const isActive = (href: string) => {
-    if (href === '/dashboard') {
-      return pathname === '/dashboard' || pathname === '/';
-    }
-    return pathname === href || pathname.startsWith(href + '/');
-  };
+  const activo = hrefActivo(pathname, todosOsHrefs(items));
+  const isActive = (href: string) => href === activo;
 
   const isParentActive = (children: MenuItem[]) =>
     children.some((child) => child.href && isActive(child.href));
