@@ -146,6 +146,11 @@ enum StatusFatura {
   CANCELADA
 }
 
+enum FormaLiquidacaoNC {
+  DEVOLUCAO   // dinheiro devolvido ao cliente (caixa ou banco) — lançamento 411 → meio
+  COMPENSACAO // abatido ao saldo em aberto da factura original — sem lançamento
+}
+
 enum StatusNotaCredito {
   RASCUNHO
   EMITIDA
@@ -752,6 +757,11 @@ model NotaCredito {
   observacoes      String?
   motivoCancelamento String?         // ADR-0039 §3 — nunca por cima de observacoes
   lancamentoId     String?           // FK Lancamento de estorno (escalar)
+  // #148 — cancelar estorna o lançamento da NC; liquidar é total, por devolução ou compensação.
+  lancamentoEstornoId    String?            // FK Lancamento que estornou o da NC (escalar)
+  lancamentoLiquidacaoId String?            // FK Lancamento da devolução (escalar)
+  formaLiquidacao        FormaLiquidacaoNC?
+  dataLiquidacao         DateTime?
   emitidoPorId     String            // FK User (escalar)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -882,6 +892,7 @@ model Proforma {
   dataValidade     DateTime
   faturaId         String?        // FK Fatura gerada após conversão (escalar)
   observacoes      String?
+  motivoCancelamento String?   // #148 — nunca por cima de observacoes
   criadoPorId      String         // FK User (escalar)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -936,6 +947,7 @@ model CotacaoComercial {
   proformaId       String?                // FK Proforma ou Fatura gerada (escalar)
   faturaId         String?                // FK Fatura (escalar)
   observacoes      String?
+  motivoCancelamento String?   // #148 — nunca por cima de observacoes
   condicoesComerciais String?
   criadoPorId      String                 // FK User (escalar)
   createdAt        DateTime               @default(now())
