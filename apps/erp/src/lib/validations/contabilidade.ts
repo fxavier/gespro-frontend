@@ -39,7 +39,7 @@ export const TipoDiarioEnum = z.enum([
   'OUTROS',
 ]);
 
-export const StatusLancamentoEnum = z.enum(['RASCUNHO', 'LANCADO', 'ESTORNADO']);
+export const StatusLancamentoEnum = z.enum(['RASCUNHO', 'LANCADO', 'ESTORNADO', 'ANULADO']);
 
 export const OrigemLancamentoEnum = z.enum([
   'MANUAL',
@@ -180,38 +180,44 @@ export const PartidaSchema = z
 
 export type PartidaInput = z.infer<typeof PartidaSchema>;
 
-/** Schema completo do lançamento; invariante débito=crédito validado em refinement. */
-export const CriarLancamentoSchema = z
-  .object({
-    data: z.coerce.date({ required_error: 'Data obrigatória' }),
-    diarioId: z.string().cuid('ID de diário inválido'),
-    origem: OrigemLancamentoEnum.default('MANUAL'),
-    documentoOrigemId: z.string().optional(),
-    documentoOrigemTipo: z.string().max(50).optional(),
-    historico: z.string().min(1, 'Histórico obrigatório').max(500),
-    partidas: z
-      .array(PartidaSchema)
-      .min(2, 'Mínimo de 2 partidas por lançamento'),
-    observacoes: z.string().max(1000).optional(),
-  })
-  .superRefine((data, ctx) => {
-    // Invariante: soma(débitos) == soma(créditos)
-    const debitos = data.partidas
-      .filter((p) => p.tipo === 'DEBITO')
-      .reduce((acc, p) => acc + p.valor, 0);
-    const creditos = data.partidas
-      .filter((p) => p.tipo === 'CREDITO')
-      .reduce((acc, p) => acc + p.valor, 0);
+/** Campos do lançamento sem o refinement — base partilhada por criar e editar. */
+const LancamentoBaseSchema = z.object({
+  data: z.coerce.date({ required_error: 'Data obrigatória' }),
+  diarioId: z.string().cuid('ID de diário inválido'),
+  origem: OrigemLancamentoEnum.default('MANUAL'),
+  documentoOrigemId: z.string().optional(),
+  documentoOrigemTipo: z.string().max(50).optional(),
+  historico: z.string().min(1, 'Histórico obrigatório').max(500),
+  partidas: z
+    .array(PartidaSchema)
+    .min(2, 'Mínimo de 2 partidas por lançamento'),
+  observacoes: z.string().max(1000).optional(),
+});
 
-    // Comparação com tolerância de centavo para aritmética de ponto flutuante
-    if (Math.abs(debitos - creditos) > 0.005) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['partidas'],
-        message: `Débitos (${debitos.toFixed(2)}) devem ser iguais a créditos (${creditos.toFixed(2)})`,
-      });
-    }
-  });
+/** Invariante: soma(débitos) == soma(créditos). */
+function refinarEquilibrio(
+  data: { partidas: { tipo: 'DEBITO' | 'CREDITO'; valor: number }[] },
+  ctx: z.RefinementCtx,
+) {
+  const debitos = data.partidas
+    .filter((p) => p.tipo === 'DEBITO')
+    .reduce((acc, p) => acc + p.valor, 0);
+  const creditos = data.partidas
+    .filter((p) => p.tipo === 'CREDITO')
+    .reduce((acc, p) => acc + p.valor, 0);
+
+  // Comparação com tolerância de centavo para aritmética de ponto flutuante
+  if (Math.abs(debitos - creditos) > 0.005) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['partidas'],
+      message: `Débitos (${debitos.toFixed(2)}) devem ser iguais a créditos (${creditos.toFixed(2)})`,
+    });
+  }
+}
+
+/** Schema completo do lançamento; invariante débito=crédito validado em refinement. */
+export const CriarLancamentoSchema = LancamentoBaseSchema.superRefine(refinarEquilibrio);
 
 export type CriarLancamentoInput = z.infer<typeof CriarLancamentoSchema>;
 
@@ -222,6 +228,34 @@ export const EstornarLancamentoSchema = z.object({
 });
 
 export type EstornarLancamentoInput = z.infer<typeof EstornarLancamentoSchema>;
+
+/**
+ * Editar um RASCUNHO (#137, D2): tudo menos o diário e a origem — o número
+ * pertence ao diário+período e nunca muda. A data pode mudar, mas só dentro do
+ * mesmo período (o serviço confirma, `LANCAMENTO_MUDA_PERIODO`).
+ */
+export const EditarLancamentoSchema = LancamentoBaseSchema.omit({
+  diarioId: true,
+  origem: true,
+  documentoOrigemId: true,
+  documentoOrigemTipo: true,
+})
+  .extend({ id: idEntidade('ID de lançamento inválido') })
+  .superRefine(refinarEquilibrio);
+
+export type EditarLancamentoInput = z.infer<typeof EditarLancamentoSchema>;
+
+/** Anular um RASCUNHO (#137, D3): o motivo fica no lançamento. */
+export const AnularLancamentoSchema = z.object({
+  id: idEntidade('ID de lançamento inválido'),
+  motivo: z
+    .string({ required_error: 'Motivo obrigatório' })
+    .trim()
+    .min(3, 'Indique o motivo (pelo menos 3 caracteres)')
+    .max(500, 'Máximo de 500 caracteres'),
+});
+
+export type AnularLancamentoInput = z.infer<typeof AnularLancamentoSchema>;
 
 export const FiltroLancamentoSchema = z.object({
   diarioId: z.string().cuid().optional(),

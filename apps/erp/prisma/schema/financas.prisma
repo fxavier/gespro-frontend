@@ -70,6 +70,7 @@ enum StatusLancamento {
   RASCUNHO
   LANCADO
   ESTORNADO
+  ANULADO   // rascunho deitado fora (#137): fica, com número, sem efeito
 }
 
 enum OrigemLancamento {
@@ -479,6 +480,7 @@ model Lancamento {
   historico           String
   valorTotal          Decimal          @db.Decimal(18, 2) // soma dos débitos = soma dos créditos
   status              StatusLancamento @default(RASCUNHO)
+  motivoAnulacao      String?          // obrigatório ao anular um rascunho (#137)
   // ATENÇÃO ao sentido: é o ESTORNO que guarda aqui o id do lançamento original.
   // O original não guarda nada — «quem estornou este?» é procura inversa.
   lancamentoEstornoId String?

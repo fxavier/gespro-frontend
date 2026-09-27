@@ -15,6 +15,8 @@ import type {
   FiltroCentroCustoInput,
   CriarLancamentoInput,
   EstornarLancamentoInput,
+  EditarLancamentoInput,
+  AnularLancamentoInput,
   FiltroLancamentoInput,
   CriarContaBancariaInput,
   AtualizarContaBancariaInput,
@@ -340,6 +342,89 @@ async function proximoNumeroLancamento(
   return String(count + 1).padStart(6, '0');
 }
 
+/**
+ * Invariante débito = crédito, em Decimal exacto a partir de `number`.
+ * Devolve o total a débito (que é o `valorTotal` do lançamento).
+ * Partilhado por criar e editar um rascunho (#137, I2).
+ */
+function totalDasPartidasEquilibradas(
+  partidas: ReadonlyArray<{ tipo: 'DEBITO' | 'CREDITO'; valor: number }>,
+): Prisma.Decimal {
+  let totalDebito = new Prisma.Decimal(0);
+  let totalCredito = new Prisma.Decimal(0);
+  for (const p of partidas) {
+    const v = new Prisma.Decimal(p.valor.toFixed(2));
+    if (p.tipo === 'DEBITO') totalDebito = totalDebito.plus(v);
+    else totalCredito = totalCredito.plus(v);
+  }
+  if (!totalDebito.equals(totalCredito)) {
+    throw new BusinessRuleError(
+      'PARTIDAS_DESEQUILIBRADAS',
+      `Débitos (${totalDebito}) ≠ Créditos (${totalCredito})`,
+    );
+  }
+  return totalDebito;
+}
+
+/** A conta existe no tenant e é de movimento (folha). Partilhado por criar e editar. */
+async function exigirContaDeMovimento(
+  tx: Prisma.TransactionClient,
+  contaId: string,
+  tenantId: string,
+): Promise<void> {
+  const conta = await tx.contaPGC.findFirst({
+    where: { id: contaId, tenantId },
+    select: { aceitaLancamento: true },
+  });
+  if (!conta) throw new NotFoundError(`Conta ${contaId} não encontrada`);
+  if (!conta.aceitaLancamento) {
+    throw new BusinessRuleError('CONTA_NAO_ACEITA_LANCAMENTO', `Conta ${contaId} não aceita lançamentos`);
+  }
+}
+
+/**
+ * Tranca (`FOR UPDATE`) a linha do lançamento no tenant e exige que seja
+ * RASCUNHO (#137, I1). O estado decide-se pela linha TRANCADA — uma leitura
+ * anterior à tranca deixaria passar uma confirmação concorrente.
+ */
+async function trancarRascunho(
+  tx: Prisma.TransactionClient,
+  id: string,
+  tenantId: string,
+): Promise<{ id: string; status: StatusLancamento; periodoId: string }> {
+  const [linha] = await tx.$queryRaw<Array<{ id: string; status: StatusLancamento; periodoId: string }>>`
+    SELECT id, status, "periodoId" FROM "Lancamento"
+    WHERE id = ${id} AND "tenantId" = ${tenantId}
+    FOR UPDATE
+  `;
+  if (!linha) throw new NotFoundError('Lançamento não encontrado');
+  if (linha.status !== 'RASCUNHO') {
+    throw new BusinessRuleError(
+      'LANCAMENTO_NAO_RASCUNHO',
+      'Só um lançamento em rascunho se edita ou anula. Um lançamento confirmado corrige-se por estorno.',
+    );
+  }
+  return linha;
+}
+
+/** Tranca o período (`FOR SHARE`, ADR-0033 §5) e exige que esteja ABERTO. */
+async function trancarPeriodoAberto(
+  tx: Prisma.TransactionClient,
+  periodoId: string,
+  tenantId: string,
+): Promise<{ id: string; codigo: string; estado: string }> {
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
+    SELECT id, codigo, estado FROM "PeriodoContabil"
+    WHERE id = ${periodoId} AND "tenantId" = ${tenantId}
+    FOR SHARE
+  `;
+  if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+  return periodo;
+}
+
 // ---------------------------------------------------------------------------
 // Plano de contas
 // ---------------------------------------------------------------------------
@@ -601,19 +686,7 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
     const numero = await proximoNumeroLancamento(tx, diario.id, periodoLocked.codigo, ctx.tenantId);
 
     // Invariante débito=crédito (Decimal exacto a partir de number)
-    let totalDebito = new Prisma.Decimal(0);
-    let totalCredito = new Prisma.Decimal(0);
-    for (const p of input.partidas) {
-      const v = new Prisma.Decimal(p.valor.toFixed(2));
-      if (p.tipo === 'DEBITO') totalDebito = totalDebito.plus(v);
-      else totalCredito = totalCredito.plus(v);
-    }
-    if (!totalDebito.equals(totalCredito)) {
-      throw new BusinessRuleError(
-        'PARTIDAS_DESEQUILIBRADAS',
-        `Débitos (${totalDebito}) ≠ Créditos (${totalCredito})`,
-      );
-    }
+    const totalDebito = totalDasPartidasEquilibradas(input.partidas);
 
     const lancamento = await tx.lancamento.create({
       data: {
@@ -637,14 +710,7 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
 
     for (const p of input.partidas) {
       // Verificar que a conta aceita lançamentos
-      const conta = await tx.contaPGC.findFirst({
-        where: { id: p.contaId, tenantId: ctx.tenantId },
-        select: { aceitaLancamento: true },
-      });
-      if (!conta) throw new NotFoundError(`Conta ${p.contaId} não encontrada`);
-      if (!conta.aceitaLancamento) {
-        throw new BusinessRuleError('CONTA_NAO_ACEITA_LANCAMENTO', `Conta ${p.contaId} não aceita lançamentos`);
-      }
+      await exigirContaDeMovimento(tx, p.contaId, ctx.tenantId);
       await tx.partidaLancamento.create({
         data: {
           tenantId: ctx.tenantId,
@@ -765,6 +831,106 @@ export async function estornarLancamentoEmTx(
   return estorno as unknown as Lancamento;
 }
 
+/**
+ * Editar um lançamento em RASCUNHO (#137, D2).
+ *
+ * Muda histórico, observações, partidas e a data — esta só dentro do mesmo
+ * período (I3). Número, diário, período e estado nunca mudam (I4). Escreve pelo
+ * cliente ESTENDIDO e só com escritas singulares, para o trilho de auditoria
+ * (D5): as partidas antigas saem uma a uma e as novas entram uma a uma.
+ */
+export async function editarLancamentoRascunho(
+  input: EditarLancamentoInput,
+  ctx: Ctx,
+): Promise<LancamentoComPartidas> {
+  return prisma.$transaction(async (txEstendido) => {
+    // Só o tipo muda: em runtime continua a ser o tx ESTENDIDO (auditoria, D5).
+    const tx = txEstendido as unknown as Prisma.TransactionClient;
+    const atual = await trancarRascunho(tx, input.id, ctx.tenantId);
+
+    const periodoDaData = await resolverPeriodo(tx, input.data, ctx.tenantId);
+    if (periodoDaData.id !== atual.periodoId) {
+      throw new BusinessRuleError(
+        'LANCAMENTO_MUDA_PERIODO',
+        `A data tem de ficar no período do lançamento; ${periodoDaData.codigo} é outro período. Para mudar de período, anule este rascunho e crie outro.`,
+      );
+    }
+    await trancarPeriodoAberto(tx, atual.periodoId, ctx.tenantId);
+
+    // Validar tudo antes da primeira escrita.
+    const valorTotal = totalDasPartidasEquilibradas(input.partidas);
+    for (const p of input.partidas) {
+      await exigirContaDeMovimento(tx, p.contaId, ctx.tenantId);
+    }
+
+    const antigas = await tx.partidaLancamento.findMany({
+      where: { tenantId: ctx.tenantId, lancamentoId: atual.id },
+      select: { id: true },
+    });
+    for (const antiga of antigas) {
+      await tx.partidaLancamento.delete({ where: { id: antiga.id, tenantId: ctx.tenantId } });
+    }
+    for (const p of input.partidas) {
+      await tx.partidaLancamento.create({
+        data: {
+          tenantId: ctx.tenantId,
+          lancamentoId: atual.id,
+          contaId: p.contaId,
+          centroCustoId: p.centroCustoId ?? null,
+          tipo: p.tipo,
+          valor: new Prisma.Decimal(p.valor.toFixed(2)),
+          historico: p.historico ?? null,
+        },
+      });
+    }
+
+    await tx.lancamento.update({
+      where: { id: atual.id, tenantId: ctx.tenantId },
+      data: {
+        data: input.data,
+        historico: input.historico,
+        observacoes: input.observacoes ?? null,
+        valorTotal,
+      },
+    });
+
+    return tx.lancamento.findFirst({
+      where: { id: atual.id, tenantId: ctx.tenantId },
+      include: {
+        partidas: {
+          include: {
+            conta: { select: { id: true, codigo: true, nome: true, natureza: true } },
+            centroCusto: { select: { id: true, codigo: true, nome: true } },
+          },
+        },
+        diario: { select: { id: true, codigo: true, nome: true, tipo: true } },
+      },
+    }) as unknown as LancamentoComPartidas;
+  });
+}
+
+/**
+ * Anular um lançamento em RASCUNHO (#137, D1/D3): passa a ANULADO com o
+ * motivo. A linha e o número ficam — um anulado continua a contar para a
+ * numeração do diário no período (I4) e fica fora dos mapas (I5).
+ */
+export async function anularLancamentoRascunho(
+  input: AnularLancamentoInput,
+  ctx: Ctx,
+): Promise<Lancamento> {
+  return prisma.$transaction(async (txEstendido) => {
+    const tx = txEstendido as unknown as Prisma.TransactionClient;
+    const atual = await trancarRascunho(tx, input.id, ctx.tenantId);
+    await trancarPeriodoAberto(tx, atual.periodoId, ctx.tenantId);
+    transitarEstado(atual.status, 'ANULADO');
+
+    return tx.lancamento.update({
+      where: { id: atual.id, tenantId: ctx.tenantId },
+      data: { status: 'ANULADO', motivoAnulacao: input.motivo },
+    }) as unknown as Lancamento;
+  });
+}
+
 export async function obterLancamento(id: string, ctx: Ctx): Promise<LancamentoComPartidas | null> {
   return prisma.lancamento.findFirst({
     where: { id, tenantId: ctx.tenantId },
@@ -825,7 +991,8 @@ export async function listarLancamentos(filtro: FiltroLancamentoInput, ctx: Ctx)
         where: {
           tenantId: ctx.tenantId,
           ...(filtro.diarioId ? { diarioId: filtro.diarioId } : {}),
-          ...(filtro.status ? { status: filtro.status } : {}),
+          // D6: os anulados só aparecem quando se pedem pelo filtro de estado.
+          status: filtro.status ?? { not: 'ANULADO' },
           ...(filtro.origem ? { origem: filtro.origem } : {}),
           ...(filtro.periodoFiscal ? { periodoFiscal: filtro.periodoFiscal } : {}),
           ...(filtro.dataInicio || filtro.dataFim
@@ -1728,6 +1895,8 @@ export const contabilidadeService = {
   criarLancamento,
   confirmarLancamento,
   estornarLancamento,
+  editarLancamentoRascunho,
+  anularLancamentoRascunho,
   obterLancamento,
   listarLancamentos,
   gerarBalancete,

@@ -11,6 +11,8 @@ import type {
   FiltroCentroCustoInput,
   CriarLancamentoInput,
   EstornarLancamentoInput,
+  EditarLancamentoInput,
+  AnularLancamentoInput,
   FiltroLancamentoInput,
   CriarContaBancariaInput,
   AtualizarContaBancariaInput,
@@ -60,7 +62,7 @@ export type TipoDiario =
   | 'ENCERRAMENTO'
   | 'OUTROS';
 
-export type StatusLancamento = 'RASCUNHO' | 'LANCADO' | 'ESTORNADO';
+export type StatusLancamento = 'RASCUNHO' | 'LANCADO' | 'ESTORNADO' | 'ANULADO';
 export type OrigemLancamento =
   | 'MANUAL'
   | 'VENDA'
@@ -169,6 +171,8 @@ export interface Lancamento {
   lancamentoEstornoId: string | null;
   periodoFiscal: string;
   observacoes: string | null;
+  /** Porque se anulou o rascunho (#137, D3) — só preenchido em ANULADO. */
+  motivoAnulacao: string | null;
   criadoPorId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -219,16 +223,19 @@ export interface ContaBancaria {
  * Mapa de transições válidas por estado.
  *
  * RASCUNHO  → LANCADO    (confirmação pelo utilizador)
+ * RASCUNHO  → ANULADO    (rascunho deitado fora, com motivo — #137; a linha e o número ficam)
  * LANCADO   → ESTORNADO  (geração de lançamento compensatório)
  * ESTORNADO → []         (terminal)
+ * ANULADO   → []         (terminal)
  *
  * Nota: lançamentos AUTOMATICOS passam directamente de RASCUNHO → LANCADO
  * dentro da transacção que os origina (não há interacção de utilizador).
  */
 export const TRANSICOES_LANCAMENTO: Record<StatusLancamento, StatusLancamento[]> = {
-  RASCUNHO: ['LANCADO'],
+  RASCUNHO: ['LANCADO', 'ANULADO'],
   LANCADO: ['ESTORNADO'],
   ESTORNADO: [],
+  ANULADO: [],
 };
 
 /** Valida transição de estado. Lança BusinessRuleError se inválida. */
@@ -434,6 +441,8 @@ export interface IContabilidadeService {
   criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Promise<LancamentoComPartidas>;
   confirmarLancamento(id: string, ctx: Ctx): Promise<Lancamento>;
   estornarLancamento(input: EstornarLancamentoInput, ctx: Ctx): Promise<Lancamento>;
+  editarLancamentoRascunho(input: EditarLancamentoInput, ctx: Ctx): Promise<LancamentoComPartidas>;
+  anularLancamentoRascunho(input: AnularLancamentoInput, ctx: Ctx): Promise<Lancamento>;
   obterLancamento(id: string, ctx: Ctx): Promise<LancamentoComPartidas | null>;
   listarLancamentos(
     filtro: FiltroLancamentoInput,

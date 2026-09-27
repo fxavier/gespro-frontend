@@ -1,24 +1,30 @@
 'use client';
 
 /**
- * Formulário de novo lançamento contabilístico com editor de partidas inline.
+ * Formulário de lançamento contabilístico com editor de partidas inline — cria
+ * um lançamento novo ou, com `edicao`, edita um RASCUNHO (#137).
  *
  * REGRAS:
  * - Débito = Crédito validado ao vivo ANTES de submeter (bloqueia submit se desequilibrado)
  * - Mínimo 2 partidas (1 débito + 1 crédito)
- * - react-hook-form + zodResolver + useActionState
+ * - react-hook-form + zodResolver com o schema da action (criar ou editar)
+ * - submissão por `useTransition` + action + navegação (padrão da casa)
+ * - Em edição: diário só de leitura (o número pertence-lhe) e data limitada ao
+ *   mês do período do lançamento
  * - UnsavedChangesGuard activo
  */
 
-import { useActionState, useEffect } from 'react';
+import { useState, useTransition } from 'react';
+import { diaIsoParaData, dataParaDiaIso } from '@/lib/format-date';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import {
   Select,
@@ -37,19 +43,22 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
-import { criarLancamento } from '@/server/actions/contabilidade.actions';
+import { criarLancamento, editarLancamento } from '@/server/actions/contabilidade.actions';
 import {
   CriarLancamentoSchema,
+  EditarLancamentoSchema,
   type CriarLancamentoInput,
+  type EditarLancamentoInput,
   type PartidaInput,
 } from '@/lib/validations/contabilidade';
+import { navegarDepoisDaAccao } from '@/lib/navegar-depois-da-accao';
 import { cn } from '@/lib/utils';
 
 // Tipo inline para evitar importar server-only de services
-type FormState =
-  | { ok: true; data: unknown }
-  | { ok: false; error: { code: string; message: string; details?: unknown } }
-  | null;
+type ErroServidor = { code: string; message: string; details?: unknown } | null;
+
+/** Os valores do formulário: os do criar, mais o `id` quando se edita. */
+type FormValues = CriarLancamentoInput & { id?: string };
 
 interface ContaOpcao {
   id: string;
@@ -64,11 +73,28 @@ interface DiarioOpcao {
   tipo: string;
 }
 
+/** Modo edição de um rascunho (#137): o que não se pode mudar vem daqui. */
+export interface EdicaoLancamento {
+  id: string;
+  /** Rótulo do diário, mostrado só para leitura. */
+  diario: string;
+  /** Limites `aaaa-mm-dd` da data: o mês do período do lançamento. */
+  dataMin?: string;
+  dataMax?: string;
+}
+
 interface NovoLancamentoFormProps {
   contas: ContaOpcao[];
   diarios: DiarioOpcao[];
   /** Pré-preenchimento vindo de outro ecrã (ex.: sugestão da reconciliação bancária). */
-  valoresIniciais?: { data?: string; historico?: string; partidas?: PartidaInput[] };
+  valoresIniciais?: {
+    data?: string;
+    historico?: string;
+    observacoes?: string;
+    partidas?: PartidaInput[];
+  };
+  /** Presente ⇒ edita o rascunho em vez de criar um lançamento novo. */
+  edicao?: EdicaoLancamento;
 }
 
 const DEFAULT_PARTIDA: PartidaInput = {
@@ -93,25 +119,25 @@ const DEFAULT_VALUES: CriarLancamentoInput = {
 const formatMZN = (v: number) =>
   `MT ${v.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** `aaaa-mm-dd` → meio-dia local: o dia civil sobrevive ao fuso (CLAUDE.md §Datas). */
-function diaParaData(dia: string): Date {
-  const [a, m, d] = dia.split('-').map(Number);
-  return new Date(a, m - 1, d, 12);
-}
-
-export function NovoLancamentoForm({ contas, diarios, valoresIniciais }: NovoLancamentoFormProps) {
+export function NovoLancamentoForm({ contas, diarios, valoresIniciais, edicao }: NovoLancamentoFormProps) {
   const router = useRouter();
-  const [state, dispatch, isPending] = useActionState<FormState, CriarLancamentoInput>(
-    (_prev, data) => criarLancamento(data),
-    null
-  );
+  const [isPending, startTransition] = useTransition();
+  const [erroServidor, setErroServidor] = useState<ErroServidor>(null);
+  const destinoCancelar = edicao ? `/contabilidade/lancamentos/${edicao.id}` : '/contabilidade/lancamentos';
 
-  const form = useForm<CriarLancamentoInput>({
-    resolver: zodResolver(CriarLancamentoSchema),
+  // O mesmo schema que a action valida: criar, ou editar (sem diário nem origem, com id).
+  const resolver = (
+    edicao ? zodResolver(EditarLancamentoSchema) : zodResolver(CriarLancamentoSchema)
+  ) as unknown as Resolver<FormValues>;
+
+  const form = useForm<FormValues>({
+    resolver,
     defaultValues: {
       ...DEFAULT_VALUES,
-      ...(valoresIniciais?.data && { data: diaParaData(valoresIniciais.data) }),
+      ...(edicao && { id: edicao.id }),
+      ...(valoresIniciais?.data && { data: diaIsoParaData(valoresIniciais.data) }),
       ...(valoresIniciais?.historico && { historico: valoresIniciais.historico }),
+      ...(valoresIniciais?.observacoes && { observacoes: valoresIniciais.observacoes }),
       ...(valoresIniciais?.partidas && { partidas: valoresIniciais.partidas }),
     },
     mode: 'onChange',
@@ -136,35 +162,42 @@ export function NovoLancamentoForm({ contas, diarios, valoresIniciais }: NovoLan
   const diferenca = Math.abs(totalDebito - totalCredito);
   const equilibrado = diferenca < 0.005;
 
-  // Aplicar erros do servidor
-  useEffect(() => {
-    if (!state) return;
-    if (!state.ok) {
-      const details = state.error.details as { fieldErrors?: Record<string, string[]> } | undefined;
-      if (details?.fieldErrors) {
-        Object.entries(details.fieldErrors).forEach(([field, messages]) => {
-          form.setError(field as keyof CriarLancamentoInput, {
-            type: 'server',
-            message: messages[0],
-          });
-        });
-      } else {
-        toast.error(state.error.message ?? 'Erro ao criar lançamento.');
-      }
-    } else {
-      toast.success('Lançamento criado com sucesso!');
-      router.push('/contabilidade/lancamentos');
-      router.refresh();
-    }
-  }, [state, form, router]);
+  const onSubmit = form.handleSubmit((data) => {
+    startTransition(async () => {
+      setErroServidor(null);
+      // Com `edicao`, o resolver já devolveu a forma do EditarLancamentoSchema.
+      const res = edicao
+        ? await editarLancamento(data as unknown as EditarLancamentoInput)
+        : await criarLancamento(data);
 
-  const onSubmit = form.handleSubmit((data) => dispatch(data));
+      if (!res.ok) {
+        const details = res.error.details as { fieldErrors?: Record<string, string[]> } | undefined;
+        if (!details?.fieldErrors) setErroServidor(res.error);
+        if (details?.fieldErrors) {
+          Object.entries(details.fieldErrors).forEach(([field, messages]) => {
+            form.setError(field as keyof FormValues, {
+              type: 'server',
+              message: messages[0],
+            });
+          });
+        } else {
+          toast.error(
+            res.error.message ?? (edicao ? 'Erro ao guardar o lançamento.' : 'Erro ao criar lançamento.'),
+          );
+        }
+        return;
+      }
+
+      toast.success(edicao ? 'Lançamento actualizado.' : 'Lançamento criado com sucesso!');
+      await navegarDepoisDaAccao(router, destinoCancelar);
+    });
+  });
 
   const isDirty = form.formState.isDirty;
 
   const handleCancel = () => {
     if (isDirty && !window.confirm('Tem alterações não guardadas. Pretende sair?')) return;
-    router.push('/contabilidade/lancamentos');
+    router.push(destinoCancelar);
   };
 
   return (
@@ -180,7 +213,7 @@ export function NovoLancamentoForm({ contas, diarios, valoresIniciais }: NovoLan
             </Button>
             <Button type="submit" size="sm" disabled={isPending || !equilibrado} onClick={onSubmit}>
               <Save className="h-4 w-4 mr-1.5" />
-              {isPending ? 'A guardar…' : 'Guardar Lançamento'}
+              {isPending ? 'A guardar…' : edicao ? 'Guardar alterações' : 'Guardar Lançamento'}
             </Button>
           </>
         }
@@ -198,34 +231,51 @@ export function NovoLancamentoForm({ contas, diarios, valoresIniciais }: NovoLan
                   <FormControl>
                     <Input
                       type="date"
-                      value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
-                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                      min={edicao?.dataMin}
+                      max={edicao?.dataMax}
+                      value={dataParaDiaIso(field.value)}
+                      onChange={(e) => field.onChange(e.target.value ? diaIsoParaData(e.target.value) : undefined)}
                     />
                   </FormControl>
+                  {edicao && (
+                    <FormDescription>
+                      Só dentro do mês do lançamento — o período não muda ao editar.
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Diário */}
-            <FormField
-              control={form.control}
-              name="diarioId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Diário *</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      defaultValue={field.value}
-                      onChange={field.onChange}
-                      placeholder="Seleccionar diário"
-                      options={diarios.map((d) => ({ value: d.id, label: `${d.codigo} — ${d.nome}` }))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Diário — em edição só se lê: o número pertence ao diário */}
+            {edicao ? (
+              <div className="space-y-2">
+                <Label htmlFor="diario-leitura">Diário</Label>
+                <Input id="diario-leitura" value={edicao.diario} readOnly disabled />
+                <p className="text-sm text-muted-foreground">
+                  O diário não muda: o número do lançamento pertence-lhe.
+                </p>
+              </div>
+            ) : (
+              <FormField
+                control={form.control}
+                name="diarioId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Diário *</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        defaultValue={field.value}
+                        onChange={field.onChange}
+                        placeholder="Seleccionar diário"
+                        options={diarios.map((d) => ({ value: d.id, label: `${d.codigo} — ${d.nome}` }))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
           </div>
 
           {/* Histórico */}
@@ -317,7 +367,14 @@ export function NovoLancamentoForm({ contas, diarios, valoresIniciais }: NovoLan
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger className="h-8 text-sm">
-                            <SelectValue />
+                            {/* Rótulo explícito: o Radix só o resolve depois de a lista abrir. */}
+                            <SelectValue>
+                              {field.value === 'CREDITO' ? (
+                                <span className="text-success font-medium">C — Crédito</span>
+                              ) : (
+                                <span className="text-info font-medium">D — Débito</span>
+                              )}
+                            </SelectValue>
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -459,9 +516,9 @@ export function NovoLancamentoForm({ contas, diarios, valoresIniciais }: NovoLan
           </div>
 
           {/* Erro global do servidor */}
-          {state && !state.ok && (
+          {erroServidor && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-              {state.error.message}
+              {erroServidor.message}
             </div>
           )}
         </FormSection>

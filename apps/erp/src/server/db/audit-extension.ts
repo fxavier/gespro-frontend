@@ -24,6 +24,9 @@ export const AUDIT_MODELS = new Set<string>([
   'SerieDocumento',
   // #148 — cancelar/liquidar NC e cancelar proforma/cotação são escritas singulares.
   'NotaCredito', 'Proforma', 'CotacaoComercial',
+  // #137 — editar e anular um rascunho escrevem pelo cliente estendido, uma linha
+  // de cada vez. Criar e os automáticos continuam pelo `prismaBase` (dívida, D5).
+  'Lancamento', 'PartidaLancamento',
 ]);
 
 /**

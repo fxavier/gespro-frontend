@@ -6,8 +6,8 @@
  */
 
 import Link from 'next/link';
-import { MoreHorizontal, Eye, RotateCcw } from 'lucide-react';
-import { useTransition } from 'react';
+import { MoreHorizontal, Eye, RotateCcw, Pencil, Ban } from 'lucide-react';
+import { useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -97,105 +97,133 @@ function ConfirmarLancamentoBtn({ id }: { id: string }) {
   );
 }
 
-const columns: TableColumn<LancamentoResumo>[] = [
-  {
-    key: 'numero',
-    label: 'Número',
-    sortKey: 'numero',
-    render: (row) => (
-      <span className="font-medium tabular-nums text-primary">{row.numero}</span>
-    ),
-  },
-  {
-    key: 'data',
-    label: 'Data',
-    sortKey: 'data',
-    render: (row) => (
-      <span className="tabular-nums text-muted-foreground">{formatarData(row.data)}</span>
-    ),
-  },
-  {
-    key: 'diarioNome',
-    label: 'Diário',
-    mobileHidden: true,
-    render: (row) => <span className="text-sm">{row.diarioNome}</span>,
-  },
-  {
-    key: 'historico',
-    label: 'Histórico',
-    render: (row) => (
-      <span className="text-sm line-clamp-1">{row.historico}</span>
-    ),
-  },
-  {
-    key: 'totalDebito',
-    label: 'Valor',
-    className: 'text-right tabular-nums',
-    headerClassName: 'text-right',
-    render: (row) => (
-      <span className="tabular-nums font-medium">{formatMZN(row.totalDebito)}</span>
-    ),
-  },
-  {
-    key: 'status',
-    label: 'Estado',
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-  {
-    key: 'acoes',
-    label: '',
-    className: 'w-10',
-    render: (row) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            aria-label={`Acções para ${row.numero}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href={`/contabilidade/lancamentos/${row.id}`}>
-              <Eye className="mr-2 h-4 w-4" />
-              Ver detalhe
-            </Link>
-          </DropdownMenuItem>
-          {row.status === 'RASCUNHO' && (
-            <>
-              <DropdownMenuSeparator />
-              <ConfirmarLancamentoBtn id={row.id} />
-            </>
-          )}
-          {row.status === 'LANCADO' && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href={`/contabilidade/lancamentos/${row.id}/estornar`}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Estornar
-                </Link>
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
-  },
-];
+/** As colunas dependem da permissão de escrita: «Editar»/«Anular» só com ela (#137, D4). */
+function construirColunas(podeEscrever: boolean): TableColumn<LancamentoResumo>[] {
+  return [
+    {
+      key: 'numero',
+      label: 'Número',
+      sortKey: 'numero',
+      render: (row) => (
+        <span className="font-medium tabular-nums text-primary">{row.numero}</span>
+      ),
+    },
+    {
+      key: 'data',
+      label: 'Data',
+      sortKey: 'data',
+      render: (row) => (
+        <span className="tabular-nums text-muted-foreground">{formatarData(row.data)}</span>
+      ),
+    },
+    {
+      key: 'diarioNome',
+      label: 'Diário',
+      mobileHidden: true,
+      render: (row) => <span className="text-sm">{row.diarioNome}</span>,
+    },
+    {
+      key: 'historico',
+      label: 'Histórico',
+      render: (row) => (
+        <span className="text-sm line-clamp-1">{row.historico}</span>
+      ),
+    },
+    {
+      key: 'totalDebito',
+      label: 'Valor',
+      className: 'text-right tabular-nums',
+      headerClassName: 'text-right',
+      render: (row) => (
+        <span className="tabular-nums font-medium">{formatMZN(row.totalDebito)}</span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Estado',
+      render: (row) => <StatusBadge status={row.status} />,
+    },
+    {
+      key: 'acoes',
+      label: '',
+      className: 'w-10',
+      render: (row) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label={`Acções para ${row.numero}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={`/contabilidade/lancamentos/${row.id}`}>
+                <Eye className="mr-2 h-4 w-4" />
+                Ver detalhe
+              </Link>
+            </DropdownMenuItem>
+            {row.status === 'RASCUNHO' && (
+              <>
+                <DropdownMenuSeparator />
+                <ConfirmarLancamentoBtn id={row.id} />
+                {podeEscrever && (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link href={`/contabilidade/lancamentos/${row.id}/editar`}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Editar
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="text-destructive">
+                      <Link href={`/contabilidade/lancamentos/${row.id}/anular`}>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Anular
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </>
+            )}
+            {row.status === 'LANCADO' && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href={`/contabilidade/lancamentos/${row.id}/estornar`}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Estornar
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+}
 
 interface LancamentosTableProps {
   data: LancamentoResumo[];
   nextCursor?: string | null;
   currentOrderBy?: string;
   currentOrderDir?: string;
+  /** `financas:lancamentos:escrita` — decide se o menu oferece «Editar» e «Anular». */
+  podeEscrever?: boolean;
 }
 
-export function LancamentosTable({ data, nextCursor, currentOrderBy, currentOrderDir }: LancamentosTableProps) {
+export function LancamentosTable({
+  data,
+  nextCursor,
+  currentOrderBy,
+  currentOrderDir,
+  podeEscrever = false,
+}: LancamentosTableProps) {
+  const columns = useMemo(() => construirColunas(podeEscrever), [podeEscrever]);
   return (
     <DataTable
       data={data}

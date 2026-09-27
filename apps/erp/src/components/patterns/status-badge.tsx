@@ -83,6 +83,8 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   // Estornado não é erro: é a forma correcta de corrigir um documento
   // append-only. Fica neutro, como CANCELADA, e não a vermelho.
   ESTORNADO: 'secondary',
+  // Rascunho anulado (#137): deitado fora, com motivo — terminal.
+  ANULADO: 'destructive',
 
   // Apuramento de IVA (EstadoApuramentoIva — ADR-0034 §7)
   // ESTORNADO já definido acima com a mesma variante.
@@ -331,6 +333,7 @@ export const STATUS_LABELS: Record<string, string> = {
   RASCUNHO: 'Rascunho',
   LANCADO: 'Lançado',
   ESTORNADO: 'Estornado',
+  ANULADO: 'Anulado',
   // Apuramento de IVA (ADR-0034)
   APURADO: 'Apurado',
   DECLARADO: 'Declarado à AT',

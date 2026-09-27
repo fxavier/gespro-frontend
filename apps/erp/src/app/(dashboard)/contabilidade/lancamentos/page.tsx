@@ -6,16 +6,15 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { Plus } from 'lucide-react';
-import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { FiltroLancamentoSchema } from '@/lib/validations/contabilidade';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
+import { acessoLancamentos } from './_lib/acesso';
 import { LancamentosTable, type LancamentoResumo } from './_components/lancamentos-table';
 
 const FiltroUrlSchema = FiltroLancamentoSchema.extend({
@@ -32,10 +31,12 @@ async function LancamentosSection({
   filtros,
   tenantId,
   userId,
+  podeEscrever,
 }: {
   filtros: FiltroUrl;
   tenantId: string;
   userId: string;
+  podeEscrever: boolean;
 }) {
   try {
     const result = await runWithTenantContext({ tenantId, userId }, () =>
@@ -62,6 +63,7 @@ async function LancamentosSection({
         nextCursor={result.nextCursor}
         currentOrderBy={filtros.orderBy}
         currentOrderDir={filtros.orderDir}
+        podeEscrever={podeEscrever}
       />
     );
   } catch {
@@ -82,6 +84,8 @@ const FILTER_CONFIGS: FilterConfig[] = [
       { label: 'Rascunho', value: 'RASCUNHO' },
       { label: 'Lançado', value: 'LANCADO' },
       { label: 'Estornado', value: 'ESTORNADO' },
+      // Os anulados não aparecem sem este filtro (#137, D6).
+      { label: 'Anulado', value: 'ANULADO' },
     ],
   },
   {
@@ -103,9 +107,10 @@ interface PageProps {
 }
 
 export default async function LancamentosPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const { tenantId, id: userId } = session.user;
+  const {
+    ctx: { tenantId, userId },
+    podeEscrever,
+  } = await acessoLancamentos();
 
   const rawParams = await searchParams;
   const flatParams = Object.fromEntries(
@@ -141,7 +146,12 @@ export default async function LancamentosPage({ searchParams }: PageProps) {
       />
 
       <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton rows={10} cols={6} />}>
-        <LancamentosSection filtros={filtros} tenantId={tenantId} userId={userId} />
+        <LancamentosSection
+          filtros={filtros}
+          tenantId={tenantId}
+          userId={userId}
+          podeEscrever={podeEscrever}
+        />
       </Suspense>
     </div>
   );
