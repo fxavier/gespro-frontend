@@ -7,6 +7,9 @@ import {
   bootstrapDiarios,
   bootstrapPlanoContas,
   bootstrapRbac,
+  // ORÁCULO da issue #140 (T4, verificador): AINDA NÃO EXISTE — os casos
+  // «bootstrapRegrasSugestao» rebentam até o autor a entregar.
+  bootstrapRegrasSugestao,
   bootstrapSeriesDocumento,
   classeEnum,
   derivarTipoConta,
@@ -245,6 +248,13 @@ function fakeTx() {
     // o seed passar a ser chamado, e para os casos do ticket 4.4.
     rubricaFluxoCaixa: tabela('rub', [['tenantId', 'codigo']], () => ({ ativo: true, deletedAt: null })),
     mapeamentoContaFluxo: tabela('map', [['tenantId', 'contaId']]),
+    // Issue #140 (T4): a regra de sugestão por omissão. Com estado, para medir a idempotência.
+    regraSugestaoLancamento: tabela('regra', [], () => ({
+      contaBancariaId: null,
+      descricao: null,
+      prioridade: 100,
+      ativo: true,
+    })),
     versaoMapeamentoFluxo: tabela('ver', [['tenantId', 'numero']], () => ({
       estado: 'PENDING',
       validadoPorId: null,
@@ -263,6 +273,9 @@ function fakeTx() {
         { id: 'c781', codigo: '781', classe: 'CLASSE_7' },
         { id: 'c769', codigo: '769', classe: 'CLASSE_7' },
       ]),
+      // Issue #140 (T4): este plano fixo não tem 6981 → a regra por omissão não se cria.
+      findFirst: vi.fn(async () => null),
+      count: vi.fn(async () => 0),
     },
     contaNaturezaNotaDebito: {
       createMany: vi.fn(async ({ data }: { data: unknown[]; skipDuplicates?: boolean }) => ({ count: data.length })),
@@ -759,5 +772,115 @@ describe('DFC — semearRubricasFluxo (ticket 4.4)', () => {
     // para sempre, e a DFC só o diria como impedimento em todas as contas.
     await expect(semearRubricasFluxo(tx as never, T1)).rejects.toThrow(/plano/i);
     expect(doTenant(tx.versaoMapeamentoFluxo, T1)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #140, T4 — regra de sugestão por omissão nos tenants novos (ORÁCULO,
+// verificador). Um tenant do registo público nascia sem nenhuma regra: o
+// `seedRegrasSugestao` só corria no seed de demonstração.
+// ---------------------------------------------------------------------------
+
+describe('bootstrapRegrasSugestao (issue #140, T4)', () => {
+  const T1 = 'tenant-1';
+  const T2 = 'tenant-2';
+  let tx: TxComPlano;
+
+  beforeEach(async () => {
+    tx = fakeTxComPlano();
+    await bootstrapPlanoContas(tx as never, T1);
+  });
+
+  const conta6981 = (tenantId: string) => doTenant(tx.contaPGC, tenantId).find((c) => c.codigo === '6981');
+  const escritasRegra = () =>
+    tx.regraSugestaoLancamento.create.mock.calls.length +
+    tx.regraSugestaoLancamento.createMany.mock.calls.length +
+    tx.regraSugestaoLancamento.createManyAndReturn.mock.calls.length +
+    tx.regraSugestaoLancamento.upsert.mock.calls.length +
+    tx.regraSugestaoLancamento.update.mock.calls.length +
+    tx.regraSugestaoLancamento.updateMany.mock.calls.length;
+
+  it('cria exactamente uma regra CREDITO com contrapartida = 6981 do tenant e tenantId explícito', async () => {
+    await bootstrapRegrasSugestao(tx as never, T1);
+
+    const regras = tx.regraSugestaoLancamento.linhas;
+    expect(regras).toHaveLength(1);
+    const [regra] = regras;
+    const c6981 = conta6981(T1);
+    expect(c6981).toBeDefined();
+    expect(regra).toMatchObject({
+      tenantId: T1,
+      natureza: 'CREDITO',
+      contaContrapartidaId: c6981!.id,
+      contaBancariaId: null,
+      ativo: true,
+    });
+    // O padrão tem pelo menos uma palavra (o mesmo invariante do RegraSugestaoSchema).
+    expect(String(regra.padrao).split('|').some((p) => p.trim().length > 0)).toBe(true);
+  });
+
+  it('é idempotente: a segunda chamada não escreve', async () => {
+    await bootstrapRegrasSugestao(tx as never, T1);
+    const antes = escritasRegra();
+    await bootstrapRegrasSugestao(tx as never, T1);
+    expect(escritasRegra()).toBe(antes);
+    expect(tx.regraSugestaoLancamento.linhas).toHaveLength(1);
+  });
+
+  it('um tenant que já tem regras suas não recebe a por omissão', async () => {
+    tx.regraSugestaoLancamento.linhas.push({
+      id: 'regra-do-utilizador', tenantId: T1, contaBancariaId: null, padrao: 'JUROS', natureza: 'DEBITO',
+      contaContrapartidaId: conta6981(T1)!.id, descricao: null, prioridade: 10, ativo: false,
+    });
+    await bootstrapRegrasSugestao(tx as never, T1);
+    expect(escritasRegra()).toBe(0);
+    expect(doTenant(tx.regraSugestaoLancamento, T1)).toHaveLength(1);
+  });
+
+  it('as regras de OUTRO tenant não contam para a idempotência', async () => {
+    await bootstrapPlanoContas(tx as never, T2);
+    await bootstrapRegrasSugestao(tx as never, T2);
+    await bootstrapRegrasSugestao(tx as never, T1);
+    expect(doTenant(tx.regraSugestaoLancamento, T1)).toHaveLength(1);
+    expect(doTenant(tx.regraSugestaoLancamento, T2)).toHaveLength(1);
+    expect(doTenant(tx.regraSugestaoLancamento, T1)[0].contaContrapartidaId).toBe(conta6981(T1)!.id);
+    expect(doTenant(tx.regraSugestaoLancamento, T2)[0].contaContrapartidaId).toBe(conta6981(T2)!.id);
+  });
+
+  it('sem conta 6981 no tenant: não escreve e não lança', async () => {
+    const i = tx.contaPGC.linhas.findIndex((c) => c.tenantId === T1 && c.codigo === '6981');
+    tx.contaPGC.linhas.splice(i, 1);
+    await bootstrapRegrasSugestao(tx as never, T1); // não lança
+    expect(escritasRegra()).toBe(0);
+    expect(tx.regraSugestaoLancamento.linhas).toHaveLength(0);
+  });
+
+  it('6981 inactiva: não escreve e não lança', async () => {
+    conta6981(T1)!.ativo = false;
+    await bootstrapRegrasSugestao(tx as never, T1);
+    expect(escritasRegra()).toBe(0);
+  });
+
+  it('6981 agregadora (não folha): não escreve e não lança', async () => {
+    conta6981(T1)!.aceitaLancamento = false;
+    await bootstrapRegrasSugestao(tx as never, T1);
+    expect(escritasRegra()).toBe(0);
+  });
+
+  it('a 6981 de OUTRO tenant não serve', async () => {
+    const i = tx.contaPGC.linhas.findIndex((c) => c.tenantId === T1 && c.codigo === '6981');
+    tx.contaPGC.linhas.splice(i, 1);
+    await bootstrapPlanoContas(tx as never, T2);
+    await bootstrapRegrasSugestao(tx as never, T1);
+    expect(doTenant(tx.regraSugestaoLancamento, T1)).toHaveLength(0);
+  });
+
+  it('bootstrapContabilidade passa a criar a regra por omissão', async () => {
+    const novo = fakeTxComPlano();
+    await bootstrapContabilidade(novo as never, T2);
+    const regras = doTenant(novo.regraSugestaoLancamento, T2);
+    expect(regras).toHaveLength(1);
+    const c6981 = doTenant(novo.contaPGC, T2).find((c) => c.codigo === '6981');
+    expect(regras[0]).toMatchObject({ tenantId: T2, natureza: 'CREDITO', contaContrapartidaId: c6981!.id });
   });
 });
