@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * Transições da proforma, conforme o estado. Cancelar exige motivo e ainda não
- * tem rota própria — fica de fora até a ter, em vez de abrir um modal.
+ * Transições da proforma, conforme o estado. Cancelar recolhe o motivo, por
+ * isso é uma ligação para a rota própria (`/cancelar`), não um modal.
  */
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, FileCheck, Send } from 'lucide-react';
+import { ArrowLeft, Ban, Check, FileCheck, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { aceitarProforma, enviarProforma } from '@/server/actions/faturacao.actions';
 
@@ -19,9 +19,10 @@ interface Props {
   podeEnviar: boolean;
   podeAceitar: boolean;
   podeConverter: boolean;
+  podeCancelar: boolean;
 }
 
-export function AcoesProforma({ id, numero, podeEnviar, podeAceitar, podeConverter }: Props) {
+export function AcoesProforma({ id, numero, podeEnviar, podeAceitar, podeConverter, podeCancelar }: Props) {
   const router = useRouter();
   const [aCorrer, iniciarTransicao] = useTransition();
 
@@ -69,6 +70,15 @@ export function AcoesProforma({ id, numero, podeEnviar, podeAceitar, podeConvert
         >
           <Check className="h-4 w-4 mr-1.5" />
           Aceitar
+        </Button>
+      )}
+
+      {podeCancelar && (
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/faturacao/proforma/${id}/cancelar`}>
+            <Ban className="h-4 w-4 mr-1.5" />
+            Cancelar
+          </Link>
         </Button>
       )}
 

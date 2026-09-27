@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
+import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 import { dataDocumento, idEntidade } from './common';
 
 // ---------------------------------------------------------------------------
@@ -291,3 +292,50 @@ export const FiltroCotacaoComercialSchema = z.object({
 });
 
 export type FiltroCotacaoComercialInput = z.infer<typeof FiltroCotacaoComercialSchema>;
+
+// ---------------------------------------------------------------------------
+// #148 — cancelar (NC, proforma, cotação) e liquidar NC
+// ---------------------------------------------------------------------------
+
+/** Motivo obrigatório; vai para `motivoCancelamento`, nunca para `observacoes`. */
+export const CancelarDocumentoSchema = z.object({
+  id: idEntidade(),
+  motivo: z.string().trim().min(3, 'Indique o motivo (mínimo 3 caracteres)').max(500),
+});
+
+export type CancelarDocumentoInput = z.infer<typeof CancelarDocumentoSchema>;
+
+const FormaPagamentoNCEnum = z.enum(
+  FORMAS_PAGAMENTO.map((f) => f.value) as [FormaPagamento, ...FormaPagamento[]],
+);
+
+/**
+ * Liquidação TOTAL da NC. DEVOLUCAO: dinheiro ao cliente pelo meio escolhido
+ * (lançamento 411 → meio). COMPENSACAO: abate ao saldo da factura original.
+ */
+export const LiquidarNotaCreditoSchema = z
+  .discriminatedUnion('forma', [
+    z.object({
+      id: idEntidade(),
+      forma: z.literal('COMPENSACAO'),
+      data: dataDocumento('Data da liquidação'),
+    }),
+    z.object({
+      id: idEntidade(),
+      forma: z.literal('DEVOLUCAO'),
+      data: dataDocumento('Data da liquidação'),
+      formaPagamento: FormaPagamentoNCEnum,
+      contaBancariaId: idEntidade().optional(),
+    }),
+  ])
+  .superRefine((d, ctx) => {
+    if (d.forma === 'DEVOLUCAO' && d.formaPagamento !== 'NUMERARIO' && !d.contaBancariaId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['contaBancariaId'],
+        message: 'A conta bancária é obrigatória para esta forma de pagamento.',
+      });
+    }
+  });
+
+export type LiquidarNotaCreditoInput = z.infer<typeof LiquidarNotaCreditoSchema>;

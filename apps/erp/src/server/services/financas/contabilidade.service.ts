@@ -682,69 +682,87 @@ export async function confirmarLancamento(id: string, ctx: Ctx): Promise<Lancame
 
 export async function estornarLancamento(input: EstornarLancamentoInput, ctx: Ctx): Promise<Lancamento> {
   return prismaBase.$transaction(async (tx) => {
-    const lancamento = await tx.lancamento.findFirst({
+    await estornarLancamentoEmTx(tx, input, ctx);
+    return tx.lancamento.findFirst({
       where: { id: input.lancamentoId, tenantId: ctx.tenantId },
-      include: { partidas: true },
-    });
-    if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
-    transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
-
-    const dataEstorno = input.data ?? new Date();
-
-    // ADR-0033 §5: resolver período do estorno + bloqueio FOR SHARE
-    const periodoResolvido = await resolverPeriodo(tx, dataEstorno, ctx.tenantId);
-    const [periodoLocked] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
-      SELECT id, codigo, estado FROM "PeriodoContabil"
-      WHERE id = ${periodoResolvido.id} AND "tenantId" = ${ctx.tenantId}
-      FOR SHARE
-    `;
-    if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
-    if (periodoLocked.estado !== 'ABERTO') {
-      throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
-    }
-
-    const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodoLocked.codigo, ctx.tenantId);
-
-    const estorno = await tx.lancamento.create({
-      data: {
-        tenantId: ctx.tenantId,
-        numero,
-        data: dataEstorno,
-        tipo: 'ESTORNO',
-        origem: lancamento.origem,
-        diarioId: lancamento.diarioId,
-        periodoId: periodoLocked.id,
-        documentoOrigemId: lancamento.id,
-        documentoOrigemTipo: 'Lancamento',
-        historico: `ESTORNO: ${lancamento.historico}`,
-        valorTotal: lancamento.valorTotal,
-        status: 'LANCADO',
-        periodoFiscal: periodoLocked.codigo, // cópia de periodo.codigo (ADR-0033 §1)
-        observacoes: input.motivo,
-        criadoPorId: ctx.userId,
-        lancamentoEstornoId: lancamento.id,
-      },
-    });
-
-    for (const p of lancamento.partidas) {
-      await tx.partidaLancamento.create({
-        data: {
-          tenantId: ctx.tenantId,
-          lancamentoId: estorno.id,
-          contaId: p.contaId,
-          centroCustoId: p.centroCustoId,
-          tipo: p.tipo === 'DEBITO' ? 'CREDITO' : 'DEBITO',
-          valor: p.valor,
-          historico: p.historico,
-        },
-      });
-    }
-
-    return tx.lancamento.update({
-      where: { id: lancamento.id },
-      data: { status: 'ESTORNADO' },
     }) as unknown as Lancamento;
   });
+}
+
+/**
+ * O estorno dentro de uma transacção alheia (#148: cancelar uma NC estorna o
+ * lançamento dela na MESMA transacção). Mesmo comportamento que `estornarLancamento`,
+ * incluindo o `FOR SHARE` do período — vive aqui por causa do `gate-periodo`.
+ * Devolve o lançamento de ESTORNO criado (o original fica `ESTORNADO`).
+ */
+export async function estornarLancamentoEmTx(
+  tx: Prisma.TransactionClient,
+  input: EstornarLancamentoInput,
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const lancamento = await tx.lancamento.findFirst({
+    where: { id: input.lancamentoId, tenantId: ctx.tenantId },
+    include: { partidas: true },
+  });
+  if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
+  transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
+
+  const dataEstorno = input.data ?? new Date();
+
+  // ADR-0033 §5: resolver período do estorno + bloqueio FOR SHARE
+  const periodoResolvido = await resolverPeriodo(tx, dataEstorno, ctx.tenantId);
+  const [periodoLocked] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
+    SELECT id, codigo, estado FROM "PeriodoContabil"
+    WHERE id = ${periodoResolvido.id} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodoLocked.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
+  }
+
+  const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodoLocked.codigo, ctx.tenantId);
+
+  const estorno = await tx.lancamento.create({
+    data: {
+      tenantId: ctx.tenantId,
+      numero,
+      data: dataEstorno,
+      tipo: 'ESTORNO',
+      origem: lancamento.origem,
+      diarioId: lancamento.diarioId,
+      periodoId: periodoLocked.id,
+      documentoOrigemId: lancamento.id,
+      documentoOrigemTipo: 'Lancamento',
+      historico: `ESTORNO: ${lancamento.historico}`,
+      valorTotal: lancamento.valorTotal,
+      status: 'LANCADO',
+      periodoFiscal: periodoLocked.codigo, // cópia de periodo.codigo (ADR-0033 §1)
+      observacoes: input.motivo,
+      criadoPorId: ctx.userId,
+      lancamentoEstornoId: lancamento.id,
+    },
+  });
+
+  for (const p of lancamento.partidas) {
+    await tx.partidaLancamento.create({
+      data: {
+        tenantId: ctx.tenantId,
+        lancamentoId: estorno.id,
+        contaId: p.contaId,
+        centroCustoId: p.centroCustoId,
+        tipo: p.tipo === 'DEBITO' ? 'CREDITO' : 'DEBITO',
+        valor: p.valor,
+        historico: p.historico,
+      },
+    });
+  }
+
+  await tx.lancamento.update({
+    where: { id: lancamento.id },
+    data: { status: 'ESTORNADO' },
+  });
+  return estorno as unknown as Lancamento;
 }
 
 export async function obterLancamento(id: string, ctx: Ctx): Promise<LancamentoComPartidas | null> {

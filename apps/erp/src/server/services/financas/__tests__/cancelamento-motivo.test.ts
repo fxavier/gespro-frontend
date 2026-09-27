@@ -5,10 +5,17 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const db = vi.hoisted(() => ({
-  notaDebito: { findFirst: vi.fn(), update: vi.fn(async (a: unknown) => a) },
-  notaCredito: { findFirst: vi.fn(), update: vi.fn(async (a: unknown) => a) },
-}));
+const db = vi.hoisted(() => {
+  const d = {
+    notaDebito: { findFirst: vi.fn(), update: vi.fn(async (a: unknown) => a) },
+    notaCredito: { findFirst: vi.fn(), update: vi.fn(async (a: unknown) => a) },
+    // #148: o cancelamento da NC corre numa transacção e tranca a linha (FOR UPDATE)
+    // antes de a ler. A tranca devolve a linha; a leitura continua a ser o findFirst.
+    $queryRaw: vi.fn(async () => [{ id: 'nc1', status: 'EMITIDA' }]),
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown): Promise<unknown> => fn(d)),
+  };
+  return d;
+});
 vi.mock('@/lib/auth', () => ({ auth: vi.fn() }));
 vi.mock('@/server/services/financas/contabilidade.service', () => ({ registarLancamentoContabilistico: vi.fn() }));
 vi.mock('@/server/db/client', () => ({ prisma: db, prismaBase: db }));

@@ -28,7 +28,7 @@ export default async function CotacaoDetalhePage({ params }: Props) {
 
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };
 
   const cotacao = await runWithTenantContext(ctx, () =>
@@ -82,6 +82,14 @@ export default async function CotacaoDetalhePage({ params }: Props) {
           {cotacao.observacoes || <span className="text-muted-foreground">Sem observações.</span>}
         </p>
       </div>
+      {cotacao.motivoCancelamento && (
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+            Motivo do cancelamento
+          </p>
+          <p className="whitespace-pre-wrap">{cotacao.motivoCancelamento}</p>
+        </div>
+      )}
       {cotacao.proformaId && (
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
@@ -128,6 +136,9 @@ export default async function CotacaoDetalhePage({ params }: Props) {
                 podeAceitar={permitidas.includes('ACEITE')}
                 podeRejeitar={permitidas.includes('REJEITADA')}
                 podeConverter={permitidas.includes('CONVERTIDA')}
+                podeCancelar={
+                  permitidas.includes('CANCELADA') && permissions.includes('faturacao:cotacao:gerir')
+                }
               />
             }
           />

@@ -10,7 +10,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, FileCheck, Send, XCircle } from 'lucide-react';
+import { ArrowLeft, Ban, Check, FileCheck, Send, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   aceitarCotacaoComercial,
@@ -24,9 +24,10 @@ interface Props {
   podeAceitar: boolean;
   podeRejeitar: boolean;
   podeConverter: boolean;
+  podeCancelar: boolean;
 }
 
-export function AcoesCotacao({ id, numero, podeEnviar, podeAceitar, podeRejeitar, podeConverter }: Props) {
+export function AcoesCotacao({ id, numero, podeEnviar, podeAceitar, podeRejeitar, podeConverter, podeCancelar }: Props) {
   const router = useRouter();
   const [aCorrer, iniciarTransicao] = useTransition();
 
@@ -82,6 +83,15 @@ export function AcoesCotacao({ id, numero, podeEnviar, podeAceitar, podeRejeitar
           <Link href={`/faturacao/cotacoes/${id}/rejeitar`}>
             <XCircle className="h-4 w-4 mr-1.5" />
             Rejeitar
+          </Link>
+        </Button>
+      )}
+
+      {podeCancelar && (
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/faturacao/cotacoes/${id}/cancelar`}>
+            <Ban className="h-4 w-4 mr-1.5" />
+            Cancelar
           </Link>
         </Button>
       )}

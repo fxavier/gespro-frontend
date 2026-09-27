@@ -1,7 +1,8 @@
 'use client';
 
+import { formatarData } from '@/lib/format-date';
 import Link from 'next/link';
-import { MoreHorizontal, Eye, FileCheck, XCircle } from 'lucide-react';
+import { MoreHorizontal, Eye, FileCheck, XCircle, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,9 +22,11 @@ export interface CotacaoResumo {
   dataValidade: string;
   total: string;
   status: string;
+  /** Transição permitida E permissão — decidido no servidor. */
+  podeCancelar: boolean;
 }
 
-const fmtDate = (s: string) => s ? new Date(s).toLocaleDateString('pt-PT') : '—';
+const fmtDate = (s: string) => (s ? formatarData(s) : '—');
 const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
 
 const columns: TableColumn<CotacaoResumo>[] = [
@@ -92,6 +95,17 @@ const columns: TableColumn<CotacaoResumo>[] = [
               Rejeitar
             </Link>
           </DropdownMenuItem>
+          {row.podeCancelar && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/faturacao/cotacoes/${row.id}/cancelar`} className="text-destructive">
+                  <Ban className="mr-2 h-4 w-4" />
+                  Cancelar
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     ),

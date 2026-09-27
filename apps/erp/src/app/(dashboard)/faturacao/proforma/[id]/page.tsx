@@ -27,7 +27,7 @@ export default async function ProformaDetalhePage({ params }: Props) {
 
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };
 
   const proforma = await runWithTenantContext(ctx, () => faturacaoService.obterProforma(id, ctx));
@@ -71,6 +71,14 @@ export default async function ProformaDetalhePage({ params }: Props) {
           {proforma.observacoes || <span className="text-muted-foreground">Sem observações.</span>}
         </p>
       </div>
+      {proforma.motivoCancelamento && (
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+            Motivo do cancelamento
+          </p>
+          <p className="whitespace-pre-wrap">{proforma.motivoCancelamento}</p>
+        </div>
+      )}
       {proforma.faturaId && (
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
@@ -116,6 +124,9 @@ export default async function ProformaDetalhePage({ params }: Props) {
                 podeEnviar={permitidas.includes('ENVIADA')}
                 podeAceitar={permitidas.includes('ACEITE')}
                 podeConverter={permitidas.includes('CONVERTIDA')}
+                podeCancelar={
+                  permitidas.includes('CANCELADA') && permissions.includes('faturacao:proforma:cancelar')
+                }
               />
             }
           />

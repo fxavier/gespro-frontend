@@ -209,7 +209,31 @@ A nota de crédito fica **Emitida**, com número da série `NC`, e aparece a men
 **Efeitos noutros módulos**
 - **Contabilidade:** é criado automaticamente o lançamento contabilístico da nota de crédito.
 
-> **Atenção:** na lista de notas de crédito, as opções de ver o detalhe e de liquidar ainda não têm ecrã (abrem uma página inexistente).
+### Como liquidar uma nota de crédito
+
+**Antes de começar:** permissão *Liquidar nota de crédito* (Administrador, Gestor, Financeiro). A nota tem de estar **Emitida**. A liquidação é sempre pelo total da nota.
+
+1. Em **Notas de Crédito**, abra a nota (**Ver detalhe** no menu ⋯) e clique em **Liquidar**.
+2. Escolha a **Forma**:
+   - **Compensação na factura** (seguida do número da factura original) — abate o valor da nota ao que o cliente ainda deve nessa fatura. Só aparece se a fatura estiver por pagar (Emitida, Parcialmente paga ou Vencida) e o saldo em aberto for pelo menos o total da nota; o saldo é mostrado.
+   - **Devolução ao cliente** — o dinheiro sai para o cliente. Escolha a **Forma de pagamento** e, se não for numerário, a **Conta bancária**. Em numerário é preciso ter o caixa aberto. Só aparece a quem tem permissão de operar o caixa (numerário) ou de registar movimentos bancários (restantes formas).
+3. Indique a **Data da liquidação** (não pode ser anterior à data de emissão da nota) e confirme.
+
+**Resultado:** a nota fica **Liquidada**, com a forma e a data visíveis no detalhe.
+- **Compensação:** o valor pago da fatura original sobe o total da nota (fica Paga ou Parcialmente paga). Não há lançamento novo: a nota já tinha abatido o crédito ao cliente quando foi emitida.
+- **Devolução:** é criado o lançamento Clientes c/c (411) a débito contra a conta do meio (Caixa ou a conta bancária) a crédito; em numerário, fica também registada a saída na sessão de caixa.
+
+### Como cancelar uma nota de crédito, uma proforma ou uma cotação
+
+**Antes de começar:** permissões *Cancelar nota de crédito*, *Cancelar factura proforma* ou *Gerir cotações*, conforme o documento.
+
+1. Abra o documento e clique em **Cancelar** (também no menu ⋯ da lista).
+2. Escreva o **Motivo** (obrigatório, pelo menos 3 caracteres) e confirme.
+
+**Resultado:** o documento fica **Cancelado**, com o motivo visível no detalhe. As observações do documento não são alteradas.
+- **Nota de crédito:** só se cancela uma nota **Emitida**. O lançamento contabilístico dela é **estornado** com a data de hoje, e o detalhe liga ao estorno. Não é possível cancelar uma nota cujo mês (da data de emissão) já tenha o **IVA apurado ou declarado**, ou cujo período esteja fechado — nesse caso, corrija com uma **nota de débito**.
+- **Proforma:** cancela-se em Rascunho, Enviada ou Aceite.
+- **Cotação:** só em **Rascunho**. Uma cotação já enviada ao cliente não se cancela: use **Rejeitar**.
 
 ## Caixa
 
@@ -402,7 +426,7 @@ Para eliminar, clique no botão de eliminar na linha e confirme em **Eliminar co
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Emitida | Documento fiscal emitido | Liquidada, Cancelada | Ainda sem ecrã neste módulo |
+| Emitida | Documento fiscal emitido | Liquidada, Cancelada | Financeiro, Gestor, Administrador (**Liquidar**, **Cancelar**) |
 | Liquidada | O crédito foi usado ou devolvido | — (final) | — |
 | Cancelada | Anulada, com motivo | — (final) | — |
 
@@ -410,24 +434,24 @@ Para eliminar, clique no botão de eliminar na linha e confirme em **Eliminar co
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Rascunho | Criada, ainda não enviada | Enviada (Cancelada ainda sem botão) | Financeiro, Gestor, Administrador (**Enviar**) |
+| Rascunho | Criada, ainda não enviada | Enviada, Cancelada | Financeiro, Gestor, Administrador (**Enviar**, **Cancelar**) |
 | Enviada | Entregue ao cliente | Aceite, Rejeitada (Expirada ainda sem botão) | Financeiro, Gestor, Administrador (**Aceitar**, **Rejeitar**) |
 | Aceite | Cliente aceitou | Convertida | Financeiro, Gestor, Administrador (**Converter em proforma**) |
 | Rejeitada | Cliente recusou (com motivo) | — (final) | — |
 | Convertida | Deu origem a uma proforma | — (final) | — |
 | Expirada | Passou a validade | — (final) | — |
-| Cancelada | Anulada | — (final) | — |
+| Cancelada | Anulada, com motivo | — (final) | — |
 
 ### Proforma
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Rascunho | Criada, ainda não enviada | Enviada (Cancelada ainda sem botão) | Financeiro, Gestor, Administrador (**Enviar**) |
-| Enviada | Entregue ao cliente | Aceite (Expirada e Cancelada ainda sem botão) | Financeiro, Gestor, Administrador (**Aceitar**) |
-| Aceite | Cliente aceitou | Convertida (Cancelada ainda sem botão) | Financeiro, Gestor, Administrador (**Converter em factura**) |
+| Rascunho | Criada, ainda não enviada | Enviada, Cancelada | Financeiro, Gestor, Administrador (**Enviar**, **Cancelar**) |
+| Enviada | Entregue ao cliente | Aceite, Cancelada (Expirada ainda sem botão) | Financeiro, Gestor, Administrador (**Aceitar**, **Cancelar**) |
+| Aceite | Cliente aceitou | Convertida, Cancelada | Financeiro, Gestor, Administrador (**Converter em factura**, **Cancelar**) |
 | Convertida | Deu origem a uma fatura | — (final) | — |
 | Expirada | Passou a validade | — (final) | — |
-| Cancelada | Anulada | — (final) | — |
+| Cancelada | Anulada, com motivo | — (final) | — |
 
 ### Sessão de caixa
 
