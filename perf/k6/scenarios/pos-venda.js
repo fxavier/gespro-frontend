@@ -10,7 +10,7 @@
  */
 import { sleep } from 'k6';
 import { carregarManifesto, opcoesCarga, cuidLike, chave } from '../lib/util.js';
-import { garantirSessao } from '../lib/session.js';
+import { garantirSessao, iniciarSessao } from '../lib/session.js';
 import { chamarAction } from '../lib/actions.js';
 
 const { tenant } = carregarManifesto(open(__ENV.SEED_MANIFEST || '../../.generated/seed-manifest.json'));
@@ -23,8 +23,12 @@ export const options = Object.assign(opcoesCarga({ vus: Number(__ENV.VUS || 10) 
   },
 });
 
-export default function () {
-  const sessao = garantirSessao(tenant);
+export function setup() {
+  return iniciarSessao(tenant);
+}
+
+export default function (data) {
+  const sessao = garantirSessao(data);
 
   // Preços «limpos» — evitam disputas de arredondamento com o serviço;
   // o objectivo é medir a transacção, não a aritmética.

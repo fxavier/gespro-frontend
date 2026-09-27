@@ -17,7 +17,7 @@ import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { resolverPerfil, volumesEscalados } from './config';
-import { seedTenantBase, SENHA_PERF_EXPORT } from './base';
+import { seedTenantBase, senhaPerf } from './base';
 import { seedTenantBulk } from './bulk';
 import { cuidLike, chave } from './id';
 
@@ -81,7 +81,7 @@ async function main() {
         slug: base.slug,
         tenantId: base.tenantId,
         adminEmail: base.adminEmail,
-        senha: SENHA_PERF_EXPORT,
+        senha: senhaPerf(base.adminEmail),
         adminUserId: base.adminUserId,
         sessaoCaixaId: base.sessaoCaixaId,
         sessaoPOSId: base.sessaoPOSId,

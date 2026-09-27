@@ -1,0 +1,16 @@
+{
+  "ifResourceExists": "SKIP",
+  "users": [
+    {
+      "id": "perf-perf-001-admin",
+      "username": "admin@perf-001.mz",
+      "email": "admin@perf-001.mz",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Admin",
+      "lastName": "perf-001",
+      "credentials": [{ "type": "password", "value": "perf1234", "temporary": false }],
+      "requiredActions": []
+    }
+  ]
+}

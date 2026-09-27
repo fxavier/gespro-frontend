@@ -10,7 +10,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, carregarManifesto, opcoesCarga, rendeuDados } from '../lib/util.js';
-import { garantirSessao } from '../lib/session.js';
+import { garantirSessao, iniciarSessao } from '../lib/session.js';
 
 const { tenant } = carregarManifesto(
   open(__ENV.SEED_MANIFEST || '../../.generated/seed-manifest.json'),
@@ -27,8 +27,12 @@ export const options = Object.assign(opcoesCarga(), {
   },
 });
 
-export default function () {
-  const sessao = garantirSessao(tenant);
+export function setup() {
+  return iniciarSessao(tenant);
+}
+
+export default function (data) {
+  const sessao = garantirSessao(data);
 
   // Balancete de um exercício (as datas do seed cobrem os últimos 730 dias).
   const ano = new Date().getFullYear() - 1;

@@ -14,7 +14,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, carregarManifesto, opcoesCarga, cuidLike, chave, rendeuDados } from '../lib/util.js';
-import { garantirSessao } from '../lib/session.js';
+import { garantirSessao, iniciarSessao } from '../lib/session.js';
 
 const { manifesto, tenant } = carregarManifesto(
   open(__ENV.SEED_MANIFEST || '../../.generated/seed-manifest.json'),
@@ -30,8 +30,12 @@ export const options = Object.assign(opcoesCarga(), {
   },
 });
 
-export default function () {
-  const sessao = garantirSessao(tenant);
+export function setup() {
+  return iniciarSessao(tenant);
+}
+
+export default function (data) {
+  const sessao = garantirSessao(data);
 
   // Primeira página (o caso comum).
   const r1 = http.get(`${BASE_URL}/inventario/movimentacoes?take=50`, {
