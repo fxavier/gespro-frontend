@@ -312,11 +312,26 @@ function documentoCriado(modelo: string) {
   return criados[0];
 }
 
-/** Parâmetros do `$queryRaw` da numeração (tenantId, tipo, ano). */
+/**
+ * Parâmetros do `$queryRaw` da numeração (tenantId, tipo, ano).
+ *
+ * A porta pode fazer outros `$queryRaw` (ex.: #148 — a conversão tranca a proforma com
+ * `FOR UPDATE` antes de a ler); a numeração escolhe-se pelo conteúdo — a que escreve em
+ * `"SerieDocumento"` — e tem de haver exactamente UMA.
+ */
 function paramsDaNumeracao() {
-  expect(h.tx.$queryRaw).toHaveBeenCalledTimes(1);
-  const [sql, ...params] = h.tx.$queryRaw.mock.calls[0];
-  return { sql: (sql as TemplateStringsArray).join('?'), params };
+  // Tagged template (strings, ...valores) ou um Prisma.sql (objecto com strings/values).
+  const normalizar = ([sql, ...params]: unknown[]): { sql: string; params: unknown[] } => {
+    if (Array.isArray(sql)) return { sql: sql.join('?'), params };
+    const s = sql as { strings?: string[]; values?: unknown[] };
+    if (s && Array.isArray(s.strings)) return { sql: s.strings.join('?'), params: s.values ?? [] };
+    return { sql: String(sql), params };
+  };
+  const numeracoes = (h.tx.$queryRaw.mock.calls as unknown[][])
+    .map(normalizar)
+    .filter((c) => /UPDATE\s+"SerieDocumento"/i.test(c.sql));
+  expect(numeracoes, 'uma e uma só numeração (UPDATE "SerieDocumento")').toHaveLength(1);
+  return numeracoes[0] as { sql: string; params: unknown[] };
 }
 
 beforeEach(() => {
