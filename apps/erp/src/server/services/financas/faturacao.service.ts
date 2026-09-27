@@ -44,6 +44,7 @@ import {
   TRANSICOES_NOTA_DEBITO,
   TRANSICOES_PROFORMA,
   TRANSICOES_COTACAO_COMERCIAL,
+  ESTADOS_FATURA_COMPENSAVEL,
   type StatusFatura,
   type StatusNotaCredito,
   type StatusNotaDebito,
@@ -980,7 +981,6 @@ function diaMaputo(data: Date): number {
   return ano * 10_000 + mes * 100 + dia;
 }
 
-const ESTADOS_FATURA_COMPENSAVEL: StatusFatura[] = ['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'];
 
 /**
  * #148 — liquidação TOTAL da NC (EMITIDA → LIQUIDADA).

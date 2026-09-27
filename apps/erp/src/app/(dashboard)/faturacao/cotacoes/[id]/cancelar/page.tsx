@@ -45,6 +45,7 @@ export default async function CancelarCotacaoPage({ params }: { params: Promise<
   } else if (!TRANSICOES_COTACAO_COMERCIAL[cotacao.status].includes('CANCELADA')) {
     bloqueio = (
       <AvisoEstado
+        accao={cotacao.status === 'ENVIADA' ? { href: `/faturacao/cotacoes/${id}/rejeitar`, rotulo: 'Rejeitar cotação' } : undefined}
         mensagem={
           cotacao.status === 'ENVIADA'
             ? 'Esta cotação já foi enviada ao cliente: em vez de a cancelar, registe a recusa com «Rejeitar».'

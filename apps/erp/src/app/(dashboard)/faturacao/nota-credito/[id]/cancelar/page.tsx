@@ -69,7 +69,11 @@ export default async function CancelarNotaCreditoPage({ params }: { params: Prom
             id={nc.id}
             numero={nc.numero}
             destino={detalhe}
-            aviso="O lançamento contabilístico da nota de crédito será estornado com a data de hoje."
+            aviso={
+              nc.lancamentoId
+                ? 'O lançamento contabilístico da nota de crédito será estornado com a data de hoje (se já tiver sido estornado, o estorno existente é associado).'
+                : undefined
+            }
           />
         </>
       )}

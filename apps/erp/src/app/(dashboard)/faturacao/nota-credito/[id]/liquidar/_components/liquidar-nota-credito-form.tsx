@@ -76,6 +76,7 @@ const CAMPO_DO_ERRO: Partial<Record<string, keyof Valores>> = {
   CONTA_BANCARIA_INCOMPATIVEL: 'contaBancariaId',
   CONTA_CONTABIL_BANCARIA_EM_FALTA: 'contaBancariaId',
   PERIODO_FECHADO: 'data',
+  NC_DATA_ANTERIOR_EMISSAO: 'data',
 };
 
 const rotuloForma = (f: FormaPagamento | undefined) => FORMAS_PAGAMENTO.find((x) => x.value === f)?.label;

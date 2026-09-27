@@ -49,16 +49,32 @@ export function SemPermissao({ mensagem, voltar }: { mensagem: string; voltar: s
 }
 
 /** O documento não está num estado que admita a acção. */
-export function AvisoEstado({ mensagem, voltar }: { mensagem: string; voltar: string }) {
+export function AvisoEstado({
+  mensagem,
+  voltar,
+  accao,
+}: {
+  mensagem: string;
+  voltar: string;
+  /** Acção alternativa (ex.: «Rejeitar» numa cotação já enviada). */
+  accao?: { href: string; rotulo: string };
+}) {
   return (
     <div
       className="rounded-lg border border-warning/40 bg-warning/10 p-6 text-sm"
       data-testid="documento-aviso-estado"
     >
       <p>{mensagem}</p>
-      <Button asChild size="sm" variant="outline" className="mt-4">
-        <Link href={voltar}>Voltar ao documento</Link>
-      </Button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {accao && (
+          <Button asChild size="sm">
+            <Link href={accao.href}>{accao.rotulo}</Link>
+          </Button>
+        )}
+        <Button asChild size="sm" variant="outline">
+          <Link href={voltar}>Voltar ao documento</Link>
+        </Button>
+      </div>
     </div>
   );
 }

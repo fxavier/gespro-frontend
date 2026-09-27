@@ -16,7 +16,7 @@ import { notFound } from 'next/navigation';
 import { Prisma } from '@prisma/client';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
-import { TRANSICOES_NOTA_CREDITO } from '@/server/services/financas/faturacao.interface';
+import { ESTADOS_FATURA_COMPENSAVEL, TRANSICOES_NOTA_CREDITO } from '@/server/services/financas/faturacao.interface';
 import { listarContasBancarias } from '@/server/services/financas/contabilidade.service';
 import type { ContaBancaria } from '@/server/services/financas/contabilidade.interface';
 import { obterSessaoAtual } from '@/server/services/financas/caixa.service';
@@ -27,8 +27,6 @@ import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 import { PERM, AvisoEstado, SemPermissao, acessoDocumento } from '../../../_components/acesso-documento';
 import { LiquidarNotaCreditoForm } from './_components/liquidar-nota-credito-form';
 
-/** Espelha `ESTADOS_FATURA_COMPENSAVEL` do serviço, que é quem recusa. */
-const ESTADOS_FATURA_COMPENSAVEL = ['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'];
 
 export default async function LiquidarNotaCreditoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -91,7 +89,7 @@ export default async function LiquidarNotaCreditoPage({ params }: { params: Prom
   const saldoFatura = fatura
     ? new Prisma.Decimal(fatura.total.toString()).minus(new Prisma.Decimal(fatura.totalPago.toString()))
     : null;
-  const estadoCompensavel = !!fatura && ESTADOS_FATURA_COMPENSAVEL.includes(fatura.status);
+  const estadoCompensavel = !!fatura && (ESTADOS_FATURA_COMPENSAVEL as readonly string[]).includes(fatura.status);
   const compensacaoPossivel = estadoCompensavel && !!saldoFatura && saldoFatura.greaterThanOrEqualTo(totalNC);
 
   const formasPermitidas: FormaPagamento[] = FORMAS_PAGAMENTO.map((f) => f.value).filter((f) =>

@@ -380,6 +380,9 @@ export const TRANSICOES_NOTA_DEBITO: Record<StatusNotaDebito, StatusNotaDebito[]
  * EXPIRADA   → []  (terminal)
  * CANCELADA  → []  (terminal)
  */
+/** #148 — estados em que a factura original aceita compensação de uma NC (serviço e UI). */
+export const ESTADOS_FATURA_COMPENSAVEL: readonly StatusFatura[] = ['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'];
+
 export const TRANSICOES_PROFORMA: Record<StatusProforma, StatusProforma[]> = {
   RASCUNHO: ['ENVIADA', 'CANCELADA'],
   ENVIADA: ['ACEITE', 'EXPIRADA', 'CANCELADA'],

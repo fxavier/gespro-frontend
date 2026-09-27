@@ -1,5 +1,6 @@
 'use client';
 
+import { formatarData } from '@/lib/format-date';
 import Link from 'next/link';
 import { MoreHorizontal, Eye, FileCheck, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,7 @@ export interface ProformaResumo {
   podeCancelar: boolean;
 }
 
-const fmtDate = (s: string) => s ? new Date(s).toLocaleDateString('pt-PT') : '—';
+const fmtDate = (s: string) => (s ? formatarData(s) : '—');
 const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
 
 const columns: TableColumn<ProformaResumo>[] = [

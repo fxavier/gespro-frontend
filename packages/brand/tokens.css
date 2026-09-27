@@ -124,7 +124,7 @@
   --accent: oklch(0.28 0.035 262);
   --accent-foreground: oklch(0.95 0.01 260);
   --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(1 0 0);
+  --destructive-foreground: oklch(0.15 0.02 250); /* #148: branco sobre o vermelho claro do escuro dava 2,88:1 — tinta escura passa AA (como o --primary) */
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 14%);
   --ring: oklch(0.72 0.13 258);
