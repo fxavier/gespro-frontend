@@ -234,7 +234,14 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
       });
 
       if (result.ok) {
-        toast.success(`Venda ${result.data.numero} registada com sucesso!`);
+        const vendaId = result.data.id;
+        toast.success(`Venda ${result.data.numero} registada com sucesso!`, {
+          duration: 15_000,
+          action: {
+            label: 'Imprimir talão',
+            onClick: () => window.open(`/pos/talao/${vendaId}`, '_blank'),
+          },
+        });
         setCarrinho([]);
         setValorRecebido('');
         setEtapa('carrinho');

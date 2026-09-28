@@ -104,46 +104,51 @@
     0 2px 4px -2px oklch(0.25 0.05 262 / 0.07);
 }
 
-.dark {
-  --background: oklch(0.17 0.012 262);
-  --foreground: oklch(0.95 0.01 260);
-  --card: oklch(0.215 0.02 262);
-  --card-foreground: oklch(0.95 0.01 260);
-  --popover: oklch(0.215 0.02 262);
-  --popover-foreground: oklch(0.95 0.01 260);
-  /* Clareia para ler como texto sobre o cartão (7:1); por cima leva tinta
-     escura (5.5:1). A 0.55 com branco passava no botão mas era ilegível como
-     cor de ligação — o mesmo token não pode servir os dois papéis de outra
-     forma. */
-  --primary: oklch(0.72 0.13 258);
-  --primary-foreground: oklch(0.15 0.02 250);
-  --secondary: oklch(0.25 0.02 262);
-  --secondary-foreground: oklch(0.95 0.01 260);
-  --muted: oklch(0.25 0.02 262);
-  --muted-foreground: oklch(0.74 0.016 262);
-  --accent: oklch(0.28 0.035 262);
-  --accent-foreground: oklch(0.95 0.01 260);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.15 0.02 250); /* #148: branco sobre o vermelho claro do escuro dava 2,88:1 — tinta escura passa AA (como o --primary) */
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.72 0.13 258);
-  --chart-1: oklch(0.72 0.13 258);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  /* `--sidebar-*` NÃO é redefinido aqui: a barra é azul nos dois temas. */
-  /* Estados semânticos — dark */
-  --success: oklch(0.72 0.13 150);
-  --success-foreground: oklch(0.1 0 0);
-  /* No dark, warning/info são mais claros para contrastar com fundo escuro */
-  --warning: oklch(0.82 0.13 80); /* âmbar claro — lê bem sobre fundo escuro */
-  --warning-foreground: oklch(0.15 0 0); /* quase-preto — para fundos sólidos */
-  --info: oklch(0.67 0.12 230); /* azul claro — lê bem sobre fundo escuro */
-  --info-foreground: oklch(0.15 0 0); /* quase-preto — para fundos sólidos */
-  /* Sombras */
-  --shadow-sm-val: 0 1px 2px oklch(0 0 0 / 0.35);
-  --shadow-md-val: 0 8px 20px -8px oklch(0 0 0 / 0.55),
-    0 2px 4px -2px oklch(0 0 0 / 0.3);
+/* Só no ecrã: em papel vale sempre o tema claro de :root (talão #127 —
+   no escuro imprimia texto quase branco). */
+@media screen {
+  .dark {
+    --background: oklch(0.17 0.012 262);
+    --foreground: oklch(0.95 0.01 260);
+    --card: oklch(0.215 0.02 262);
+    --card-foreground: oklch(0.95 0.01 260);
+    --popover: oklch(0.215 0.02 262);
+    --popover-foreground: oklch(0.95 0.01 260);
+    /* Clareia para ler como texto sobre o cartão (7:1); por cima leva tinta
+       escura (5.5:1). A 0.55 com branco passava no botão mas era ilegível como
+       cor de ligação — o mesmo token não pode servir os dois papéis de outra
+       forma. */
+    --primary: oklch(0.72 0.13 258);
+    --primary-foreground: oklch(0.15 0.02 250);
+    --secondary: oklch(0.25 0.02 262);
+    --secondary-foreground: oklch(0.95 0.01 260);
+    --muted: oklch(0.25 0.02 262);
+    --muted-foreground: oklch(0.74 0.016 262);
+    --accent: oklch(0.28 0.035 262);
+    --accent-foreground: oklch(0.95 0.01 260);
+    --destructive: oklch(0.704 0.191 22.216);
+    --destructive-foreground: oklch(0.15 0.02 250); /* #148: branco sobre o vermelho claro do escuro dava 2,88:1 — tinta escura passa AA (como o --primary) */
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 14%);
+    --ring: oklch(0.72 0.13 258);
+    --chart-1: oklch(0.72 0.13 258);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.627 0.265 303.9);
+    --chart-5: oklch(0.645 0.246 16.439);
+    /* `--sidebar-*` NÃO é redefinido aqui: a barra é azul nos dois temas. */
+    /* Estados semânticos — dark */
+    --success: oklch(0.72 0.13 150);
+    --success-foreground: oklch(0.1 0 0);
+    /* No dark, warning/info são mais claros para contrastar com fundo escuro */
+    --warning: oklch(0.82 0.13 80); /* âmbar claro — lê bem sobre fundo escuro */
+    --warning-foreground: oklch(0.15 0 0); /* quase-preto — para fundos sólidos */
+    --info: oklch(0.67 0.12 230); /* azul claro — lê bem sobre fundo escuro */
+    --info-foreground: oklch(0.15 0 0); /* quase-preto — para fundos sólidos */
+    /* Sombras */
+    --shadow-sm-val: 0 1px 2px oklch(0 0 0 / 0.35);
+    --shadow-md-val: 0 8px 20px -8px oklch(0 0 0 / 0.55),
+      0 2px 4px -2px oklch(0 0 0 / 0.3);
+  }
 }
+

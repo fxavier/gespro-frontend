@@ -4,7 +4,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Edit } from 'lucide-react';
+import { ArrowLeft, Edit, Printer } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { vendaService } from '@/server/services/comercial/index';
@@ -260,6 +260,14 @@ export default async function VendaDetalhePage({ params }: Props) {
                     Voltar
                   </Link>
                 </Button>
+                {venda.origem === 'POS' && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/pos/talao/${venda.id}`} target="_blank" rel="noopener noreferrer">
+                      <Printer className="h-4 w-4 mr-2" />
+                      Talão
+                    </Link>
+                  </Button>
+                )}
                 <VendaAcoes id={venda.id} status={venda.status} />
               </div>
             }
