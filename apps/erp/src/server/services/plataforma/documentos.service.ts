@@ -9,6 +9,7 @@
 import 'server-only';
 import { obterFatura } from '@/server/services/financas/faturacao.service';
 import { clienteService } from '@/server/services/comercial/cliente.service';
+import { vendaService } from '@/server/services/comercial/index';
 import { tenantAdminService } from '@/server/services/plataforma/tenant-admin.service';
 import { NotFoundError } from '@/lib/errors';
 import type { Ctx } from '@/server/services/types';
@@ -17,6 +18,7 @@ import {
   type DocumentoFiscalModel,
   type FaturaInput,
 } from '@/lib/documents/fatura-model';
+import { construirTalao, type TalaoModel } from '@/lib/documents/talao-model';
 
 export async function obterModeloFatura(id: string, ctx: Ctx): Promise<DocumentoFiscalModel> {
   const fatura = await obterFatura(id, ctx);
@@ -71,6 +73,39 @@ export async function obterModeloFatura(id: string, ctx: Ctx): Promise<Documento
       nuit: cliente.nuit,
       endereco: enderecoCliente ? `${enderecoCliente.rua}, ${enderecoCliente.numero}` : null,
       cidade: enderecoCliente?.cidade ?? null,
+    },
+  );
+}
+
+/** Talão NÃO fiscal do POS (issue #127). Cross-tenant → NotFoundError. */
+export async function obterModeloTalao(vendaId: string, ctx: Ctx): Promise<TalaoModel> {
+  const [venda, tenant] = await Promise.all([
+    vendaService.buscarPorId(vendaId, ctx),
+    tenantAdminService.obter(ctx.tenantId),
+  ]);
+  const cfg = tenant.configuracaoFiscal;
+
+  return construirTalao(
+    {
+      numero: venda.numero,
+      dataVenda: venda.dataVenda,
+      subtotal: venda.subtotal,
+      ivaTotal: venda.ivaTotal,
+      total: venda.total,
+      // Linha pelo valor LÍQUIDO (sem IVA): bate com «qtd × preço» e soma ao Subtotal.
+      itens: (venda.itens ?? []).map((i) => ({
+        nomeProduto: i.nomeProduto,
+        quantidade: i.quantidade,
+        precoUnitario: i.precoUnitario,
+        total: i.subtotal,
+      })),
+      pagamentos: venda.pagamentos ?? [],
+    },
+    {
+      nome: tenant.nome,
+      nuit: tenant.nuit,
+      endereco: cfg?.endereco ?? null,
+      telefone: cfg?.telefone ?? null,
     },
   );
 }

@@ -132,7 +132,11 @@
   --faixa-texto: oklch(0.955 0.012 262);
 }
 
-.dark {
-  --destaque: oklch(0.75 0.1 210);
-  /* `--faixa*` NÃO é redefinido aqui: ver a nota em :root. */
+/* Só no ecrã, como o `.dark` de packages/brand/tokens.css. */
+@media screen {
+  .dark {
+    --destaque: oklch(0.75 0.1 210);
+    /* `--faixa*` NÃO é redefinido aqui: ver a nota em :root. */
+  }
 }
+
