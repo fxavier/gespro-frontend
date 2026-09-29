@@ -23,9 +23,10 @@ export default async function EditarColaboradorPage({ params }: Props) {
   const ctx = { tenantId, userId };
 
   let colaborador;
+  let opcoes;
   try {
-    colaborador = await runWithTenantContext(ctx, () =>
-      ColaboradorService.obter(id, ctx)
+    [colaborador, opcoes] = await runWithTenantContext(ctx, () =>
+      Promise.all([ColaboradorService.obter(id, ctx), ColaboradorService.listarOpcoes(ctx)])
     );
   } catch {
     notFound();
@@ -46,7 +47,26 @@ export default async function EditarColaboradorPage({ params }: Props) {
         ]}
       />
 
-      <EditarColaboradorForm colaborador={colaborador} />
+      <EditarColaboradorForm
+        opcoes={opcoes}
+        colaborador={{
+          id: colaborador.id,
+          codigo: colaborador.codigo,
+          nome: colaborador.nome,
+          email: colaborador.email,
+          telefone: colaborador.telefone,
+          tipoContrato: colaborador.tipoContrato,
+          regimeTrabalho: colaborador.regimeTrabalho,
+          observacoes: colaborador.observacoes,
+          departamentoId: colaborador.departamentoId,
+          cargoId: colaborador.cargoId,
+          salarioBase: colaborador.salarioBase.toString(),
+          subsidioAlimentacao: colaborador.subsidioAlimentacao?.toString() ?? null,
+          subsidioTransporte: colaborador.subsidioTransporte?.toString() ?? null,
+          subsidioHabitacao: colaborador.subsidioHabitacao?.toString() ?? null,
+          subsidiosOutros: colaborador.subsidiosOutros?.toString() ?? null,
+        }}
+      />
     </div>
   );
 }

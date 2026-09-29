@@ -28,7 +28,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { Combobox, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
 import { criarColaboradorAction } from '@/server/actions/rh.actions';
 import { CreateColaboradorSchema, type CreateColaboradorInput } from '@/lib/validations/rh';
 
@@ -36,6 +36,11 @@ type FormState =
   | { ok: true; data: unknown }
   | { ok: false; error: { code: string; message: string; details?: unknown } }
   | null;
+
+export interface OpcoesColaborador {
+  departamentos: { id: string; nome: string }[];
+  cargos: { id: string; nome: string; departamentoId: string | null }[];
+}
 
 const DEFAULT_VALUES: Partial<CreateColaboradorInput> = {
   nacionalidade: 'Moçambicana',
@@ -47,7 +52,7 @@ const DEFAULT_VALUES: Partial<CreateColaboradorInput> = {
   estadoCivil: 'SOLTEIRO',
 };
 
-export function NovoColaboradorForm() {
+export function NovoColaboradorForm({ opcoes }: { opcoes: OpcoesColaborador }) {
   const router = useRouter();
   const [state, dispatch, isPending] = useActionState<FormState, CreateColaboradorInput>(
     (_prev, data) => criarColaboradorAction(data),
@@ -375,6 +380,112 @@ export function NovoColaboradorForm() {
                     placeholder="0.00"
                     {...field}
                     onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="departamentoId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Departamento</FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={opcoes.departamentos.map((d) => ({ value: d.id, label: d.nome }))}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Seleccione o departamento"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="cargoId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cargo</FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={opcoes.cargos.map((c) => ({ value: c.id, label: c.nome }))}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Seleccione o cargo"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="subsidioAlimentacao" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Subsídio Alimentação (MZN)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="tabular-nums"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="subsidioTransporte" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Subsídio Transporte (MZN)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="tabular-nums"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="subsidioHabitacao" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Subsídio Habitação (MZN)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="tabular-nums"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="subsidiosOutros" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Outros Subsídios (MZN)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="tabular-nums"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                   />
                 </FormControl>
                 <FormMessage />

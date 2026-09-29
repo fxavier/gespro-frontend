@@ -121,6 +121,12 @@ export interface IColaboradorService {
 
   /** Detalhe por ID com relações necessárias para a UI. */
   obter(id: string, ctx: Ctx): Promise<unknown>;
+
+  /** Departamentos e cargos activos do tenant, por nome, para os selectores do formulário. */
+  listarOpcoes(ctx: Ctx): Promise<{
+    departamentos: { id: string; nome: string }[];
+    cargos: { id: string; nome: string; departamentoId: string | null }[];
+  }>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
