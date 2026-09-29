@@ -13,6 +13,7 @@ import { NotFoundError } from '@/lib/errors';
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import type { ReciboDados } from '@/server/services/pessoas-projetos/payroll.interface';
+import { AcoesPayroll } from './_components/acoes-payroll';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -66,6 +67,9 @@ export default async function PayrollDetalhePage({
                 Voltar
               </Link>
             </Button>
+            {payroll.status === 'PENDENTE' && (
+              <AcoesPayroll payrollId={payroll.id} />
+            )}
             <Button size="sm" asChild>
               <a href={`/api/rh/payroll/${payroll.id}/recibo`}>
                 <FileDown className="h-4 w-4 mr-1.5" />
