@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { idEntidade } from './common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -156,8 +157,8 @@ export const CreateColaboradorSchema = z.object({
   fotoUrl: z.string().url().optional(),
 
   // Dados Profissionais
-  departamentoId: z.string().cuid().optional(),
-  cargoId: z.string().cuid().optional(),
+  departamentoId: idEntidade().optional(),
+  cargoId: idEntidade().optional(),
   supervisorId: z.string().cuid().optional(),
   dataAdmissao: z.coerce.date(),
   status: StatusColaboradorEnum.default('ACTIVO'),

@@ -122,6 +122,8 @@ export const ColaboradorService = {
         nome: input.nome,
         email: input.email,
         telefone: input.telefone,
+        tipoContrato: input.tipoContrato,
+        regimeTrabalho: input.regimeTrabalho,
         departamentoId: input.departamentoId,
         cargoId: input.cargoId,
         supervisorId: input.supervisorId,
@@ -129,6 +131,7 @@ export const ColaboradorService = {
         subsidioAlimentacao: input.subsidioAlimentacao,
         subsidioTransporte: input.subsidioTransporte,
         subsidioHabitacao: input.subsidioHabitacao,
+        subsidiosOutros: input.subsidiosOutros,
         horarioTrabalho: input.horarioTrabalho,
         localizacao: input.localizacao,
         nivelAcesso: input.nivelAcesso,
@@ -199,6 +202,20 @@ export const ColaboradorService = {
     });
     if (!c) throw new NotFoundError('Colaborador não encontrado');
     return c;
+  },
+
+  /** Departamentos e cargos activos do tenant, para os selectores do formulário. */
+  async listarOpcoes(ctx: Ctx) {
+    const where = { tenantId: ctx.tenantId, ativo: true };
+    const [departamentos, cargos] = await Promise.all([
+      prisma.departamento.findMany({ where, orderBy: { nome: 'asc' }, select: { id: true, nome: true } }),
+      prisma.cargo.findMany({
+        where,
+        orderBy: { nome: 'asc' },
+        select: { id: true, nome: true, departamentoId: true },
+      }),
+    ]);
+    return { departamentos, cargos };
   },
 };
 

@@ -28,7 +28,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { Combobox, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { OpcoesColaborador } from '../../../_components/novo-colaborador-form';
 import { actualizarColaboradorAction } from '@/server/actions/rh.actions';
 import { UpdateColaboradorSchema, type UpdateColaboradorInput } from '@/lib/validations/rh';
 import { z } from 'zod';
@@ -53,15 +54,25 @@ interface ColaboradorBasico {
   telefone: string | null;
   tipoContrato: string;
   regimeTrabalho: string;
-  salarioBase: unknown;
+  salarioBase: string;
   observacoes: string | null;
+  departamentoId: string | null;
+  cargoId: string | null;
+  subsidioAlimentacao: string | null;
+  subsidioTransporte: string | null;
+  subsidioHabitacao: string | null;
+  subsidiosOutros: string | null;
 }
 
 interface Props {
   colaborador: ColaboradorBasico;
+  opcoes: OpcoesColaborador;
 }
 
-export function EditarColaboradorForm({ colaborador }: Props) {
+/** Decimal serializado (string) → número do formulário; ausente fica ausente. */
+const paraNumero = (v: string | null) => (v == null ? undefined : Number(v));
+
+export function EditarColaboradorForm({ colaborador, opcoes }: Props) {
   const router = useRouter();
   const [state, dispatch, isPending] = useActionState<FormState, EditInput>(
     (_prev, data) => actualizarColaboradorAction(data),
@@ -80,6 +91,12 @@ export function EditarColaboradorForm({ colaborador }: Props) {
         regimeTrabalho: colaborador.regimeTrabalho as UpdateColaboradorInput['regimeTrabalho'],
         salarioBase: Number(colaborador.salarioBase),
         observacoes: colaborador.observacoes ?? undefined,
+        departamentoId: colaborador.departamentoId ?? undefined,
+        cargoId: colaborador.cargoId ?? undefined,
+        subsidioAlimentacao: paraNumero(colaborador.subsidioAlimentacao),
+        subsidioTransporte: paraNumero(colaborador.subsidioTransporte),
+        subsidioHabitacao: paraNumero(colaborador.subsidioHabitacao),
+        subsidiosOutros: paraNumero(colaborador.subsidiosOutros),
       },
     },
     mode: 'onBlur',
@@ -201,6 +218,112 @@ export function EditarColaboradorForm({ colaborador }: Props) {
                     {...field}
                     value={field.value ?? ''}
                     onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="data.departamentoId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Departamento</FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={opcoes.departamentos.map((d) => ({ value: d.id, label: d.nome }))}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Seleccione o departamento"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="data.cargoId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cargo</FormLabel>
+                <FormControl>
+                  <Combobox
+                    options={opcoes.cargos.map((c) => ({ value: c.id, label: c.nome }))}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Seleccione o cargo"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="data.subsidioAlimentacao" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Subsídio Alimentação (MZN)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="tabular-nums"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="data.subsidioTransporte" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Subsídio Transporte (MZN)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="tabular-nums"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="data.subsidioHabitacao" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Subsídio Habitação (MZN)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="tabular-nums"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="data.subsidiosOutros" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Outros Subsídios (MZN)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="tabular-nums"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                   />
                 </FormControl>
                 <FormMessage />
