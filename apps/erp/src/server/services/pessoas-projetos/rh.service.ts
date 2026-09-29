@@ -122,6 +122,8 @@ export const ColaboradorService = {
         nome: input.nome,
         email: input.email,
         telefone: input.telefone,
+        tipoContrato: input.tipoContrato,
+        regimeTrabalho: input.regimeTrabalho,
         departamentoId: input.departamentoId,
         cargoId: input.cargoId,
         supervisorId: input.supervisorId,
