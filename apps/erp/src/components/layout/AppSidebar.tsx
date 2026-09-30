@@ -113,8 +113,8 @@ const menuItems: MenuItem[] = [
       { title: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText },
       { title: 'Razão Geral', href: '/contabilidade/razao-geral', icon: BookText },
       { title: 'Balancete', href: '/contabilidade/balancete', icon: FileBarChart2 },
-      // A DRE não tem entrada na barra lateral (chega-se pelo dashboard); a DFC
-      // fica junto dos outros mapas. Com permissão: o OPERADOR não tem
+      { title: 'Demonstração do Resultado do Exercício', href: '/contabilidade/dre', icon: BarChart3 },
+      // A DFC fica junto dos outros mapas. Com permissão: o OPERADOR não tem
       // `financas:fluxo-caixa:leitura` e não deve ver um atalho para «Sem permissão».
       {
         title: 'Demonstração de Fluxos de Caixa',
