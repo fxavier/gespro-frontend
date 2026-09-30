@@ -118,3 +118,17 @@ export function diaIsoParaData(dia: string): Date {
 export function dataParaDiaIso(v: Date | undefined | null): string {
   return v instanceof Date && !Number.isNaN(v.getTime()) ? formatarDiaIso(v) : '';
 }
+
+/**
+ * Formata uma data pela data civil UTC (dd/mm/aaaa).
+ *
+ * Usar para vigências paramétricas ancoradas a meia-noite UTC (D1, spec 06):
+ * `formatarData` usa Africa/Maputo (UTC+2), o que converteria
+ * 2098-12-31T23:59:59.999Z → 01/01/2099 (mesmo dia da vigência seguinte).
+ * Este helper lê `toISOString().slice(0, 10)` em UTC e formata como dd/mm/aaaa.
+ */
+export function formatarDataUtcDia(v: Date | null | undefined): string {
+  if (!v) return '—';
+  const s = v.toISOString().slice(0, 10); // 'aaaa-mm-dd'
+  return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
+}

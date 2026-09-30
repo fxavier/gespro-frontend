@@ -7,7 +7,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus, Users, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Users, CheckCircle, Clock, Table2 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
@@ -155,12 +155,20 @@ export default async function PayrollPage({
           { label: 'Salários' },
         ]}
         actions={
-          <Button size="sm" asChild>
-            <Link href="/rh/payroll/novo">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Processar Folha do Mês
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/rh/payroll/tabelas">
+                <Table2 className="h-4 w-4 mr-1.5" />
+                Tabelas INSS/IRPS
+              </Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link href="/rh/payroll/novo">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Processar Folha do Mês
+              </Link>
+            </Button>
+          </div>
         }
       />
 
