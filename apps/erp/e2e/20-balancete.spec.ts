@@ -1,7 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
+import { Client } from 'pg';
 
 /**
- * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3).
+ * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3, #284 S4).
  *
  * S1 (PR #287): colunas PHC, totais, equilíbrio, URL params, selector remount.
  * S2 (este oracle): hierarquia por roll-up via contaMaeId; data-nivel em cada
@@ -992,4 +995,273 @@ test('25. «Conta inicial»=6a mostra erro junto do campo e não navega', async 
   expect(page.url(), 'URL não muda com código inválido').toBe(urlAntes);
   await expect(page).not.toHaveURL(/[?&]ci=/);
   await expect(campo).toHaveValue('6a');
+});
+
+// ===========================================================================
+// S4 (#284) — drill-down de conta para o razão geral
+//
+// Contrato: .scratch/sdlc/balancete-phc/S4-contrato.md.
+// Só linhas CONTA de contas com `aceitaLancamento` (e não-contexto) têm o
+// código como `<a>` com aria-label «Razão da conta <código> — <nome>» e href
+// `/contabilidade/razao-geral?contaId=<id>&dataInicio=<aaaa-mm-dd>&dataFim=<aaaa-mm-dd>`.
+// Datas = dia civil de Maputo do dataInicio do período inicial e do dataFim do
+// período final (SQL de leitura 2026-10-01, exercício 2026 do tenant demo):
+//   período 3 início 2026-02-28 22:00 UTC → 2026-03-01
+//   período 5 fim    2026-05-31 21:59:59.999 UTC → 2026-05-31
+//   período 13 fim   2026-12-31 21:59:59.999 UTC → 2026-12-31
+// O id da conta 121 é uuid (tenant-bootstrap) e muda a cada base: lê-se da
+// base em tempo de teste (só leitura), como em 26-payroll-tabelas.spec.ts.
+// ===========================================================================
+
+const RAZAO = '/contabilidade/razao-geral';
+const BASE_S4 = 'exercicio=2026&de=3&ate=5';
+const NOME_121 = 'Depósitos à ordem';
+const ROTULO_121 = `Razão da conta 121 — ${NOME_121}`;
+
+function urlBaseDados(): string {
+  for (const f of [path.join(process.cwd(), '.env'), path.join(process.cwd(), 'apps/erp/.env')]) {
+    if (fs.existsSync(f)) {
+      try {
+        process.loadEnvFile(f);
+      } catch {
+        // já carregado — usa o que estiver em process.env
+      }
+      break;
+    }
+  }
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL não está definida — verifique apps/erp/.env');
+  return url;
+}
+
+/** Só leitura: id e aceitaLancamento das contas do tenant demo, por código. */
+async function contasDemo(): Promise<Map<string, { id: string; aceitaLancamento: boolean }>> {
+  const c = new Client({ connectionString: urlBaseDados() });
+  await c.connect();
+  try {
+    const r = await c.query<{ codigo: string; id: string; aceitaLancamento: boolean }>(
+      `SELECT c.codigo, c.id, c."aceitaLancamento"
+         FROM "ContaPGC" c JOIN "Tenant" t ON t.id = c."tenantId"
+        WHERE t.slug = 'demo'`,
+    );
+    if (r.rows.length === 0) throw new Error('STOP: plano de contas do tenant demo vazio');
+    return new Map(r.rows.map((l) => [l.codigo, { id: l.id, aceitaLancamento: l.aceitaLancamento }]));
+  } finally {
+    await c.end();
+  }
+}
+
+/** Compara o href com o razão esperado — parâmetros como conjunto, não por ordem. */
+function expectHrefRazao(
+  href: string | null,
+  esperado: { contaId: string; dataInicio: string; dataFim: string },
+  ctx: string,
+): void {
+  expect(href, `${ctx}: ligação sem href`).toBeTruthy();
+  const u = new URL(href!, 'http://localhost');
+  expect(u.pathname, `${ctx}: caminho do razão`).toBe(RAZAO);
+  const params = Object.fromEntries(u.searchParams.entries());
+  expect(Array.from(u.searchParams.keys()).sort(), `${ctx}: parâmetros sem repetições nem extras`).toEqual(
+    ['contaId', 'dataFim', 'dataInicio'],
+  );
+  expect(params, `${ctx}: parâmetros do razão`).toEqual(esperado);
+}
+
+/** Linha CONTA pelo código exacto (não confunde '12' com '121'). */
+function linhaConta(page: Page, codigo: string) {
+  return page.locator('tbody tr[data-nivel]').filter({
+    has: page.locator('td:first-child', { hasText: new RegExp(`^${codigo}$`) }),
+  });
+}
+
+interface LinhaLigacao {
+  codigo: string;
+  nome: string;
+  contexto: boolean;
+  links: { texto: string; aria: string | null; href: string | null }[];
+}
+
+/** Para cada linha CONTA: as ligações na primeira célula. */
+async function ligacoesPorLinha(page: Page): Promise<LinhaLigacao[]> {
+  return page.locator('tbody tr[data-nivel]').evaluateAll((trs) =>
+    trs.map((tr) => {
+      const tds = Array.from(tr.querySelectorAll('td'));
+      return {
+        codigo: tds[0]?.textContent?.trim() ?? '',
+        nome: tds[1]?.textContent?.trim() ?? '',
+        contexto: tr.getAttribute('data-contexto') === '1',
+        links: Array.from(tds[0]?.querySelectorAll('a') ?? []).map((a) => ({
+          texto: a.textContent?.trim() ?? '',
+          aria: a.getAttribute('aria-label'),
+          href: a.getAttribute('href'),
+        })),
+      };
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 26. Folha 121 tem ligação ao razão com conta e datas dos períodos 3..5
+// ---------------------------------------------------------------------------
+
+test('26. 121 (folha) tem ligação «Razão da conta 121 — …» para o razão 2026-03-01..2026-05-31', async ({
+  page,
+}) => {
+  const contas = await contasDemo();
+  const c121 = contas.get('121');
+  expect(c121?.aceitaLancamento, '121 é folha no seed').toBe(true);
+
+  await navegar(page, BASE_S4);
+  const link = page.getByRole('link', { name: ROTULO_121, exact: true });
+  await expect(link).toHaveCount(1);
+  await expect(link).toHaveText('121'); // o texto é o código, e só o código
+  // A ligação vive na primeira célula da linha 121
+  await expect(linhaConta(page, '121').locator('td:first-child a')).toHaveCount(1);
+  await expect(linhaConta(page, '121').locator('td:first-child a')).toHaveAttribute(
+    'aria-label',
+    ROTULO_121,
+  );
+
+  expectHrefRazao(
+    await link.getAttribute('href'),
+    { contaId: c121!.id, dataInicio: '2026-03-01', dataFim: '2026-05-31' },
+    '121 em 3..5',
+  );
+
+  // Toda a folha não-contexto mostrada tem exactamente uma ligação coerente
+  const linhas = await ligacoesPorLinha(page);
+  const folhas = linhas.filter((l) => !l.contexto && contas.get(l.codigo)?.aceitaLancamento);
+  expect(folhas.length, 'há folhas em 3..5').toBeGreaterThan(1);
+  for (const l of folhas) {
+    expect(l.links.length, `folha ${l.codigo}: uma ligação`).toBe(1);
+    expect(l.links[0]!.texto, `folha ${l.codigo}: texto = código`).toBe(l.codigo);
+    expect(l.links[0]!.aria, `folha ${l.codigo}: aria-label`).toBe(
+      `Razão da conta ${l.codigo} — ${l.nome}`,
+    );
+    expectHrefRazao(
+      l.links[0]!.href,
+      { contaId: contas.get(l.codigo)!.id, dataInicio: '2026-03-01', dataFim: '2026-05-31' },
+      `folha ${l.codigo}`,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 27. Clicar navega para o razão da 121 no intervalo
+// ---------------------------------------------------------------------------
+
+test('27. clicar na ligação da 121 abre o razão da conta 121 em 2026-03-01..2026-05-31', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  await page.getByRole('link', { name: ROTULO_121, exact: true }).click();
+
+  await expect(page).toHaveURL(new RegExp(`${RAZAO}\\?`));
+  await expect(page).toHaveURL(/[?&]dataInicio=2026-03-01(&|$)/);
+  await expect(page).toHaveURL(/[?&]dataFim=2026-05-31(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  await expect(page.getByRole('heading', { name: 'Razão Geral' })).toBeVisible();
+  // O seletor mostra a conta e o intervalo vindos do URL
+  await expect(page.locator('#conta')).toContainText(`121 — ${NOME_121}`);
+  await expect(page.getByLabel('De', { exact: true })).toHaveValue('2026-03-01');
+  await expect(page.getByLabel('Até', { exact: true })).toHaveValue('2026-05-31');
+  // E o razão executou: há movimentos da 121 nos períodos 3..5 (seed)
+  await expect(page.getByText('Movimentos da Conta')).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Saldo Acum.' })).toBeVisible();
+  await expect(page.getByText('Escolha uma conta acima')).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------------------
+// 28. Mães, subtotais, sintética e contexto não têm ligação
+// ---------------------------------------------------------------------------
+
+test('28. linhas-mãe (1, 12), «Total da classe N», sintética e contexto (q=ordem, q=caixa&zeradas=1) sem ligação', async ({
+  page,
+}) => {
+  const contas = await contasDemo();
+
+  await navegar(page, BASE_S4);
+  for (const codigo of ['1', '12']) {
+    await expect(linhaConta(page, codigo), `linha ${codigo} visível`).toHaveCount(1);
+    await expect(
+      linhaConta(page, codigo).locator('td:first-child a'),
+      `mãe ${codigo} sem ligação`,
+    ).toHaveCount(0);
+  }
+  await expect(page.getByRole('link', { name: /^Razão da conta 12? — / })).toHaveCount(0);
+
+  // Toda a mãe mostrada (aceitaLancamento false) sem ligação nenhuma na linha
+  const linhas = await ligacoesPorLinha(page);
+  const maes = linhas.filter((l) => contas.get(l.codigo)?.aceitaLancamento === false);
+  expect(maes.length, 'há mães em 3..5').toBeGreaterThan(1);
+  for (const l of maes) {
+    expect(l.links, `mãe ${l.codigo} sem ligação`).toEqual([]);
+  }
+
+  // «Total da classe N» e sintética: nenhuma ligação na linha
+  const subtotais = page.locator('tbody tr[data-tipo="subtotal"]');
+  expect(await subtotais.count(), 'há subtotais de classe').toBeGreaterThan(0);
+  await expect(subtotais.first()).toContainText(/Total da classe \d/);
+  await expect(page.locator('tbody tr[data-tipo="subtotal"] a')).toHaveCount(0);
+  await expect(page.locator('tbody tr[data-tipo="sintetica"] a')).toHaveCount(0);
+
+  // Contexto: q=ordem (121 «Depósitos à ordem» corresponde; 1 e 12 entram como
+  // contexto) e q=caixa&zeradas=1 (11/111 sem movimento em 3..5 no seed; 1 é contexto).
+  const casos = [
+    { q: 'q=ordem', contextoEsperado: ['1', '12'], folhaComLigacao: '121' },
+    { q: 'q=caixa&zeradas=1', contextoEsperado: ['1'], folhaComLigacao: '111' },
+  ];
+  for (const { q, contextoEsperado, folhaComLigacao } of casos) {
+    await navegar(page, `${BASE_S4}&${q}`);
+    const comQ = await ligacoesPorLinha(page);
+    const contexto = comQ.filter((l) => l.contexto);
+    for (const codigo of contextoEsperado) {
+      expect(contexto.map((l) => l.codigo), `${q}: «${codigo}» é linha de contexto`).toContain(codigo);
+    }
+    for (const l of contexto) {
+      expect(l.links, `${q}: contexto ${l.codigo} sem ligação`).toEqual([]);
+    }
+    for (const l of comQ.filter((r) => contas.get(r.codigo)?.aceitaLancamento === false)) {
+      expect(l.links, `${q}: mãe ${l.codigo} sem ligação`).toEqual([]);
+    }
+    const folha = comQ.find((l) => l.codigo === folhaComLigacao);
+    expect(folha, `${q}: ${folhaComLigacao} mostrada`).toBeTruthy();
+    expect(folha!.contexto, `${q}: ${folhaComLigacao} corresponde à pesquisa`).toBe(false);
+    expect(folha!.links.length, `${q}: folha ${folhaComLigacao} tem ligação`).toBe(1);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 29. Com período 13: dataFim = 31/12
+// ---------------------------------------------------------------------------
+
+test('29. de=12&ate=13&p13=1: a ligação da 121 vai até 2026-12-31', async ({ page }) => {
+  const contas = await contasDemo();
+  await navegar(page, 'exercicio=2026&de=12&ate=13&p13=1');
+  const link = page.getByRole('link', { name: ROTULO_121, exact: true });
+  await expect(link).toHaveCount(1);
+  expectHrefRazao(
+    await link.getAttribute('href'),
+    { contaId: contas.get('121')!.id, dataInicio: '2026-12-01', dataFim: '2026-12-31' },
+    '121 em 12..13 com p13',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 30. A ligação não muda com o tipo de apresentação nem com filtros
+// ---------------------------------------------------------------------------
+
+test('30. a ligação da 121 é a mesma com tipo=periodo, tipo=acumulado e ci=1&cf=1', async ({
+  page,
+}) => {
+  const contas = await contasDemo();
+  const esperado = { contaId: contas.get('121')!.id, dataInicio: '2026-03-01', dataFim: '2026-05-31' };
+  for (const extra of ['tipo=periodo', 'tipo=acumulado', 'ci=1&cf=1', 'ci=1&cf=1&tipo=periodo&comSaldo=1']) {
+    await navegar(page, `${BASE_S4}&${extra}`);
+    const link = page.getByRole('link', { name: ROTULO_121, exact: true });
+    await expect(link, `ligação presente com ${extra}`).toHaveCount(1);
+    await expect(link).toHaveText('121');
+    expectHrefRazao(await link.getAttribute('href'), esperado, `121 com ${extra}`);
+  }
 });
