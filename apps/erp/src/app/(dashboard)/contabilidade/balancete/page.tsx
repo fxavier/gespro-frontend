@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/table';
 import { formatNumero } from '@/lib/format-currency';
 import { SeletorBalanceteVerificacao } from './_components/seletor-balancete-verificacao';
+import { hierarquizarBalancete } from '@/server/services/financas/balancete-verificacao';
 import type { FiltroBalanceteVerificacaoInput } from '@/server/services/financas/contabilidade.interface';
 import type { Prisma } from '@prisma/client';
 
@@ -49,15 +50,25 @@ function fmtBV(d: Prisma.Decimal): string {
 async function TabelaBalancete({
   filtro,
   ctx,
+  nivel,
+  razao,
 }: {
   filtro: FiltroBalanceteVerificacaoInput;
   ctx: { tenantId: string; userId: string };
+  nivel?: number;
+  razao?: boolean;
 }) {
   const balancete = await runWithTenantContext(ctx, () =>
     gerarBalanceteVerificacao(filtro, ctx),
   );
   const eq = balancete.equilibrio;
   const equilibrado = eq.movimento && eq.acumulado && eq.saldo;
+
+  const linhasHierarquicas = hierarquizarBalancete(
+    balancete,
+    balancete.contas,
+    { nivelMaximo: nivel, apenasRazao: razao },
+  );
 
   return (
     <div className="space-y-4">
@@ -93,30 +104,56 @@ async function TabelaBalancete({
           </TableHeader>
 
           <TableBody>
-            {balancete.linhas.map((linha, idx) => {
-              const key = linha.conta?.id ?? `sintetica-${idx}`;
-              const codigo = linha.conta?.codigo ?? '';
-              const descricao = linha.conta
-                ? linha.conta.nome
-                : 'Resultados de exercícios anteriores por encerrar';
+            {linhasHierarquicas.map((linha, idx) => {
+              if (linha.tipo === 'SUBTOTAL_CLASSE') {
+                const classeNum = linha.classe.slice(-1);
+                return (
+                  <TableRow key={`sub-${linha.classe}`} data-tipo="subtotal" className="font-semibold bg-muted/30">
+                    <TableCell className="font-mono text-primary"></TableCell>
+                    <TableCell>Total da classe {classeNum}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.movD)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.movC)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.acumD)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.acumC)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.saldoDevedor)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.saldoCredor)}</TableCell>
+                  </TableRow>
+                );
+              }
 
+              if (linha.tipo === 'SINTETICA') {
+                return (
+                  <TableRow key={`sintetica-${idx}`} data-tipo="sintetica" className="italic text-muted-foreground">
+                    <TableCell className="font-mono text-primary"></TableCell>
+                    <TableCell>
+                      Resultados de exercícios anteriores por encerrar
+                      <span className="ml-2 text-xs text-muted-foreground">(implícita)</span>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.movD)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.movC)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.acumD)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtBV(linha.acumC)}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">{fmtBV(linha.saldoDevedor)}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">{fmtBV(linha.saldoCredor)}</TableCell>
+                  </TableRow>
+                );
+              }
+
+              // CONTA — linha.conta always defined for tipo CONTA
+              if (!linha.conta) return null;
+              const conta = linha.conta;
               return (
                 <TableRow
-                  key={key}
-                  className={
-                    linha.implicita
-                      ? 'italic text-muted-foreground'
-                      : linha.contraNatureza
-                        ? 'text-warning'
-                        : ''
-                  }
+                  key={conta.id}
+                  data-nivel={String(linha.nivel)}
+                  className={[
+                    linha.agregadora ? 'font-semibold' : '',
+                    linha.contraNatureza ? 'text-warning' : '',
+                  ].filter(Boolean).join(' ')}
                 >
-                  <TableCell className="font-mono text-primary">{codigo}</TableCell>
-                  <TableCell>
-                    {descricao}
-                    {linha.implicita && (
-                      <span className="ml-2 text-xs text-muted-foreground">(implícita)</span>
-                    )}
+                  <TableCell className="font-mono text-primary">{conta.codigo}</TableCell>
+                  <TableCell style={{ paddingLeft: `calc(1rem + ${(linha.nivel - 1) * 1.25}rem)` }}>
+                    {conta.nome}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{fmtBV(linha.movD)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtBV(linha.movC)}</TableCell>
@@ -296,6 +333,11 @@ export default async function BalancetePage({ searchParams }: PageProps) {
     periodoFinal: periodoFinalEfetivo,
   };
 
+  // S2: nível e razão (só apresentação — não afectam a query)
+  const nivelRaw = typeof flat.nivel === 'string' ? parseInt(flat.nivel, 10) : NaN;
+  const nivel = !isNaN(nivelRaw) && nivelRaw >= 1 && nivelRaw <= 7 ? nivelRaw : undefined;
+  const razao = flat.razao === '1';
+
   const deDesc = String(filtro.periodoInicial).padStart(2, '0');
   const ateDesc = String(filtro.periodoFinal).padStart(2, '0');
 
@@ -329,14 +371,16 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         periodoInicial={filtro.periodoInicial}
         periodoFinal={filtro.periodoFinal}
         incluir13={filtro.incluir13}
+        nivelAtual={nivel}
+        razaoAtual={razao}
       />
 
       {/* m2: gerarBalanceteVerificacao dentro do filho do Suspense */}
       <Suspense
-        key={`${ex.codigo}-${filtro.periodoInicial}-${filtro.periodoFinal}-${filtro.incluir13}`}
+        key={`${ex.codigo}-${filtro.periodoInicial}-${filtro.periodoFinal}-${filtro.incluir13}-${nivel ?? ''}-${razao}`}
         fallback={<TableSkeleton rows={12} cols={8} />}
       >
-        <TabelaBalancete filtro={filtro} ctx={ctx} />
+        <TabelaBalancete filtro={filtro} ctx={ctx} nivel={nivel} razao={razao} />
       </Suspense>
     </div>
   );
