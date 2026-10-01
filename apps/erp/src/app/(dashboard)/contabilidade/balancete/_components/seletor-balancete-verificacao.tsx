@@ -56,12 +56,21 @@ const OPCOES_PERIODO = [
 // Componente
 // ---------------------------------------------------------------------------
 
+// Sentinela 'todos' em vez de '' — o componente Select da casa descarta itens com value ''.
+const NIVEL_TODOS = 'todos';
+const OPCOES_NIVEL = [
+  { value: NIVEL_TODOS, label: 'Todos' },
+  ...Array.from({ length: 7 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
+];
+
 interface Props {
   exercicios: { id: string; codigo: string }[];
   exercicioAtual: string;
   periodoInicial: number;
   periodoFinal: number;
   incluir13: boolean;
+  nivelAtual?: number;
+  razaoAtual?: boolean;
 }
 
 export function SeletorBalanceteVerificacao({
@@ -70,6 +79,8 @@ export function SeletorBalanceteVerificacao({
   periodoInicial,
   periodoFinal,
   incluir13,
+  nivelAtual,
+  razaoAtual = false,
 }: Props) {
   const router = useRouter();
 
@@ -77,12 +88,14 @@ export function SeletorBalanceteVerificacao({
   const [pInicial, setPInicial] = useState(periodoInicial);
   const [pFinal, setPFinal] = useState(periodoFinal);
   const [incl13, setIncl13] = useState(incluir13);
+  const [nivel, setNivel] = useState<string>(nivelAtual !== undefined ? String(nivelAtual) : NIVEL_TODOS);
+  const [razao, setRazao] = useState(razaoAtual);
 
   // «Adjusting state when a prop changes» (React docs) — no effect needed.
   // Next.js App Router updates client components in-place across RSC navigations
   // (key remount does not occur); this pattern resets local state during render
   // when the server sends new clamped values.
-  const chave = `${exercicioAtual}-${periodoInicial}-${periodoFinal}-${incluir13}`;
+  const chave = `${exercicioAtual}-${periodoInicial}-${periodoFinal}-${incluir13}-${nivelAtual ?? NIVEL_TODOS}-${razaoAtual}`;
   const [chaveAnterior, setChaveAnterior] = useState(chave);
   if (chave !== chaveAnterior) {
     setChaveAnterior(chave);
@@ -90,6 +103,8 @@ export function SeletorBalanceteVerificacao({
     setPInicial(periodoInicial);
     setPFinal(periodoFinal);
     setIncl13(incluir13);
+    setNivel(nivelAtual !== undefined ? String(nivelAtual) : NIVEL_TODOS);
+    setRazao(razaoAtual);
   }
 
   const labelInicial = OPCOES_PERIODO.find((o) => o.value === String(pInicial))?.label ?? '';
@@ -104,11 +119,13 @@ export function SeletorBalanceteVerificacao({
     params.set('de', String(deEfetivo));
     params.set('ate', String(ateEfetivo));
     if (incl13) params.set('p13', '1');
+    if (nivel !== NIVEL_TODOS) params.set('nivel', nivel);
+    if (razao) params.set('razao', '1');
     router.push(`/contabilidade/balancete?${params.toString()}`);
   };
 
   return (
-    <div className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+    <div className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:items-end">
       {/* Exercício */}
       <div className="space-y-2">
         <Label htmlFor="bv-exercicio">Exercício</Label>
@@ -166,6 +183,23 @@ export function SeletorBalanceteVerificacao({
         </Select>
       </div>
 
+      {/* Grau máximo */}
+      <div className="space-y-2">
+        <Label htmlFor="bv-nivel">Grau máximo</Label>
+        <Select value={String(nivel)} onValueChange={setNivel}>
+          <SelectTrigger id="bv-nivel">
+            <SelectValue placeholder="Todos">{nivel === NIVEL_TODOS ? 'Todos' : nivel}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {OPCOES_NIVEL.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Aplicar */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
@@ -184,6 +218,16 @@ export function SeletorBalanceteVerificacao({
           />
           <Label htmlFor="bv-incluir13" className="cursor-pointer text-sm font-normal">
             Incluir período 13 (encerramento)
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="bv-razao"
+            checked={razao}
+            onCheckedChange={(v) => setRazao(Boolean(v))}
+          />
+          <Label htmlFor="bv-razao" className="cursor-pointer text-sm font-normal">
+            Ver apenas contas de razão
           </Label>
         </div>
         <Button type="button" onClick={handleAplicar}>
