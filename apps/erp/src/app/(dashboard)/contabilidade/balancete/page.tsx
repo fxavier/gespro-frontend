@@ -19,6 +19,7 @@ import {
   gerarBalanceteVerificacao,
   listarContas,
   listarExercicios,
+  listarPeriodos,
   periodoFiscalDe,
 } from '@/server/services/financas/contabilidade.service';
 import {
@@ -38,6 +39,7 @@ import {
 } from '@/components/ui/table';
 import { formatNumero } from '@/lib/format-currency';
 import { cn } from '@/lib/utils';
+import { intervaloDiasDosPeriodos } from '@/lib/periodo-fiscal';
 import {
   SeletorBalanceteVerificacao,
   type FiltrosApresentacao,
@@ -107,6 +109,19 @@ type ValoresLinha = Pick<
   'movD' | 'movC' | 'acumD' | 'acumC' | 'saldoDevedor' | 'saldoCredor' | 'contraNatureza'
 >;
 
+/**
+ * Código da conta; numa folha (aceita lançamentos, não é contexto) é a ligação para
+ * o razão da conta no intervalo mostrado (S4). Mães, subtotais e sintética não têm.
+ */
+function codigoConta({ codigo, nome, href }: { codigo: string; nome: string; href: string | null }) {
+  if (!href) return codigo;
+  return (
+    <Link href={href} aria-label={`Razão da conta ${codigo} — ${nome}`} className="rounded-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {codigo}
+    </Link>
+  );
+}
+
 /** Células de valor de uma linha, segundo o tipo de apresentação (Saldo sempre). */
 function celulasValor(linha: ValoresLinha, tipo: TipoApresentacao, saldoClassName = '') {
   const saldo = (d: Prisma.Decimal, chave: string) => {
@@ -162,9 +177,22 @@ async function TabelaBalancete({
   razao?: boolean;
   apresentacao: FiltrosApresentacao;
 }) {
-  const balancete = await runWithTenantContext(ctx, () =>
-    gerarBalanceteVerificacao(filtro, ctx),
+  const [balancete, periodos] = await runWithTenantContext(ctx, () =>
+    Promise.all([
+      gerarBalanceteVerificacao(filtro, ctx),
+      listarPeriodos({ exercicioId: filtro.exercicioId }, ctx),
+    ]),
   );
+  // S4: drill-down para o razão — dias civis de Maputo dos períodos mostrados.
+  // Limitação conhecida: o razão filtra pela DATA do lançamento e o balancete pelo
+  // PERÍODO. O período 13 partilha a data de 31/12, por isso a ligação de 1..12 mostra
+  // também os lançamentos do p13, e a de 13..13 também os do p12 com data 31/12.
+  // Latente até o encerramento (#138) lançar no p13; seguimento: razão por intervalo
+  // de períodos.
+  const intervaloRazao = intervaloDiasDosPeriodos(periodos, filtro.periodoInicial, filtro.periodoFinal);
+  const hrefRazao = (contaId: string): string | null =>
+    intervaloRazao &&
+    `/contabilidade/razao-geral?${new URLSearchParams({ contaId, ...intervaloRazao }).toString()}`;
   const eq = balancete.equilibrio;
   const equilibrado = eq.movimento && eq.acumulado && eq.saldo;
 
@@ -255,7 +283,13 @@ async function TabelaBalancete({
                     linha.contexto && 'text-muted-foreground',
                   )}
                 >
-                  <td className={cn(TD, 'font-mono text-primary')}>{conta.codigo}</td>
+                  <td className={cn(TD, 'font-mono text-primary')}>
+                    {codigoConta({
+                      codigo: conta.codigo,
+                      nome: conta.nome,
+                      href: conta.aceitaLancamento && !linha.contexto ? hrefRazao(conta.id) : null,
+                    })}
+                  </td>
                   <td className={TD} style={{ paddingLeft: `calc(1rem + ${linha.profundidade * 1.25}rem)` }}>
                     {conta.nome}
                   </td>

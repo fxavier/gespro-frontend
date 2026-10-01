@@ -48,3 +48,34 @@ export function intervaloDoDiaMaputo<T extends { dataInicio?: unknown; dataFim?:
   }
   return r;
 }
+
+/** Dia civil em Maputo, `aaaa-mm-dd` (o locale en-CA formata nesta ordem). */
+const DIA_CIVIL_MAPUTO = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Maputo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * Intervalo de dias civis de Maputo coberto pelos períodos `inicial..final` de
+ * um exercício (procurados por `ordem`): do `dataInicio` do inicial ao `dataFim`
+ * do final. `null` se faltar algum dos dois. Espera entrada normalizada
+ * (inicial <= final). Usado pelo drill-down balancete → razão.
+ *
+ * Não usa `toISOString().slice`: o início de um período é às 22:00 UTC da véspera,
+ * e o dia UTC sairia trocado.
+ */
+export function intervaloDiasDosPeriodos(
+  periodos: { ordem: number; dataInicio: Date; dataFim: Date }[],
+  inicial: number,
+  final: number,
+): { dataInicio: string; dataFim: string } | null {
+  const pIni = periodos.find((p) => p.ordem === inicial);
+  const pFim = periodos.find((p) => p.ordem === final);
+  if (!pIni || !pFim) return null;
+  return {
+    dataInicio: DIA_CIVIL_MAPUTO.format(pIni.dataInicio),
+    dataFim: DIA_CIVIL_MAPUTO.format(pFim.dataFim),
+  };
+}
