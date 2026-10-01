@@ -185,3 +185,32 @@ listas por omissão.
 _Não confundir com_ **Estornado**: o estorno anula o efeito de um lançamento **confirmado**
 com outro lançamento de sinal contrário; a anulação só existe para o que nunca teve efeito.
 Decidido em 2026-09-27 (issue #137).
+
+### Balancete de verificação
+Lista as contas do PGC-NIRF com o **movimento do período**, o **acumulado** do exercício e o
+**saldo**, para provar que débitos e créditos batem. Escolhe-se por exercício e período inicial e
+final (não por datas). Mostra a hierarquia (classe, conta de razão, subcontas) com as contas-mãe
+somadas a partir das folhas; os totais contam só as folhas. Ver ADR-0040.
+
+### Movimento do período
+Os débitos e créditos dos lançamentos confirmados dos períodos escolhidos — do inicial ao final,
+pelo período a que o lançamento pertence, não pela data.
+
+### Acumulado
+Os débitos e créditos desde o primeiro período do exercício até ao período final, **mais a
+abertura**. _Não confundir com_ **saldo anterior** (o modelo antigo, que somava todo o histórico).
+
+### Abertura implícita
+Enquanto um exercício não tiver lançamento de abertura (diário `AB`), o balancete calcula-a: os
+saldos das classes 1–5 e 8 anteriores ao exercício entram no acumulado, e o resultado anterior das
+classes 6/7 entra numa linha **«Resultados de exercícios anteriores por encerrar»**. Não se escreve
+nada na base; desaparece quando o `AB` existir (ADR-0035).
+
+### Saldo devedor / saldo credor
+O saldo de uma conta (`acumulado D − acumulado C`) mostrado do lado onde cai, sempre positivo.
+Um saldo **contra natureza** (ex.: Caixa credora) é assinalado, não recusado.
+
+### Conta de razão
+Conta de nível 2 do PGC-NIRF (dois dígitos, ex.: `11` Caixa, `12` Bancos). O filtro «ver apenas
+contas de razão» do balancete mostra só este nível.
+

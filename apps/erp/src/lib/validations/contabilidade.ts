@@ -409,3 +409,23 @@ export const AbrirExercicioSchema = z.object({
 });
 
 export type AbrirExercicioInput = z.infer<typeof AbrirExercicioSchema>;
+
+// ---------------------------------------------------------------------------
+// Balancete de Verificação PHC (ADR-0040, issue #280)
+// ---------------------------------------------------------------------------
+
+export const FiltroBalanceteVerificacaoSchema = z.object({
+  /** Se ausente, usa o exercício que contém hoje (fuso Africa/Maputo). */
+  exercicioId: idEntidade('ID de exercício inválido').optional(),
+  /** Período inicial do intervalo de movimento (1..13). */
+  periodoInicial: z.coerce.number().int().min(1).max(13).default(1),
+  /**
+   * Período final do intervalo de movimento e acumulado (1..13).
+   * Default 12 para chamadores directos; a página passa o período corrente (Africa/Maputo).
+   */
+  periodoFinal: z.coerce.number().int().min(1).max(13).default(12),
+  /** Se false (omissão), o período 13 nunca entra mesmo com periodoFinal=13. */
+  incluir13: z.boolean().default(false),
+});
+
+export type FiltroBalanceteVerificacaoInput = z.infer<typeof FiltroBalanceteVerificacaoSchema>;

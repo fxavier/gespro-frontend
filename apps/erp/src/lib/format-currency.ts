@@ -74,6 +74,20 @@ export function parseCurrency(value: string): number {
 }
 
 /**
+ * Formata um número sem símbolo de moeda (para tabelas que usam parsePtNum no E2E).
+ * Exemplo: 2534248.29 → "2 534 248,29" (separador de milhar U+00A0 em pt-MZ)
+ */
+const _fmtNum = new Intl.NumberFormat('pt-MZ', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+export function formatNumero(value: number | string): string {
+  const n = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(n)) return '—';
+  return _fmtNum.format(n);
+}
+
+/**
  * Formata com moeda arbitrária (para módulos multi-moeda como faturação/compras).
  */
 export function formatCurrencyFull(value: number, currency: string, locale = 'pt-MZ'): string {
