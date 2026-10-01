@@ -74,12 +74,21 @@ export const TipoContaBancariaEnum = z.enum([
 // ContaPGC
 // ---------------------------------------------------------------------------
 
+/** Formato de um código de conta PGC (ex.: 1.1.1) — usado também nos filtros do balancete. */
+export const CODIGO_CONTA_PGC_REGEX = /^\d+(\.\d+)*$/;
+export const CODIGO_CONTA_PGC_MAX = 20;
+
+/** O texto é um código de conta PGC válido (mesma regra do CriarContaPGCSchema). */
+export function codigoContaPGCValido(codigo: string): boolean {
+  return codigo.length >= 1 && codigo.length <= CODIGO_CONTA_PGC_MAX && CODIGO_CONTA_PGC_REGEX.test(codigo);
+}
+
 export const CriarContaPGCSchema = z.object({
   codigo: z
     .string()
     .min(1)
-    .max(20)
-    .regex(/^\d+(\.\d+)*$/, 'Código deve seguir o formato PGC (ex.: 1.1.1)'),
+    .max(CODIGO_CONTA_PGC_MAX)
+    .regex(CODIGO_CONTA_PGC_REGEX, 'Código deve seguir o formato PGC (ex.: 1.1.1)'),
   nome: z.string().min(1, 'Nome obrigatório').max(200),
   classe: ClassePGCEnum,
   tipo: TipoContaEnum,

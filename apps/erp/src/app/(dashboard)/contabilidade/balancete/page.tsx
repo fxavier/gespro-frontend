@@ -2,21 +2,29 @@
  * Balancete de Verificação no modelo PHC — Server Component.
  *
  * URL: /contabilidade/balancete?exercicio=<codigo>&de=<ordem>&ate=<ordem>&p13=1
+ *   S2: nivel=1..7, razao=1
+ *   S3 (apresentação): ci, cf, classe=1..8, excluir=<códigos,>, zeradas=1, comSaldo=1,
+ *   q, tipo=periodo|acumulado|ambos — inválidos são ignorados; nunca mudam «Totais».
  *
- * ADR-0040, issue #280.
+ * ADR-0040, issues #280, #281, #283.
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
+import { TriangleAlert } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import {
   gerarBalanceteVerificacao,
+  listarContas,
   listarExercicios,
   periodoFiscalDe,
 } from '@/server/services/financas/contabilidade.service';
-import { FiltroBalanceteVerificacaoSchema } from '@/lib/validations/contabilidade';
+import {
+  FiltroBalanceteVerificacaoSchema,
+  codigoContaPGCValido,
+} from '@/lib/validations/contabilidade';
 import { Button } from '@/components/ui/button';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
 import {
@@ -29,10 +37,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatNumero } from '@/lib/format-currency';
-import { SeletorBalanceteVerificacao } from './_components/seletor-balancete-verificacao';
-import { hierarquizarBalancete } from '@/server/services/financas/balancete-verificacao';
+import { cn } from '@/lib/utils';
+import {
+  SeletorBalanceteVerificacao,
+  type FiltrosApresentacao,
+  type TipoApresentacao,
+} from './_components/seletor-balancete-verificacao';
+import {
+  filtrarBalancete,
+  hierarquizarBalancete,
+  type FiltrosBalancete,
+  type LinhaHierarquica,
+} from '@/server/services/financas/balancete-verificacao';
 import type { FiltroBalanceteVerificacaoInput } from '@/server/services/financas/contabilidade.interface';
-import type { Prisma } from '@prisma/client';
+import type { ClassePGC, Prisma } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Formatação de valores (sem símbolo MT — parsePtNum do E2E espera números puros)
@@ -44,6 +62,90 @@ function fmtBV(d: Prisma.Decimal): string {
 }
 
 // ---------------------------------------------------------------------------
+// S3: filtros de apresentação a partir do URL (inválidos → ignorados)
+// ---------------------------------------------------------------------------
+
+function lerFiltros(flat: Record<string, string | undefined>): FiltrosApresentacao {
+  const texto = (v: string | undefined) => (v ?? '').trim();
+  const codigo = (v: string | undefined) => (codigoContaPGCValido(texto(v)) ? texto(v) : '');
+  const classe = texto(flat.classe);
+  const tipo = texto(flat.tipo);
+  return {
+    contaInicial: codigo(flat.ci),
+    contaFinal: codigo(flat.cf),
+    classe: /^[1-8]$/.test(classe) ? classe : '',
+    excluir: texto(flat.excluir).split(',').map((c) => c.trim()).filter(codigoContaPGCValido).join(','),
+    zeradas: flat.zeradas === '1',
+    comSaldo: flat.comSaldo === '1',
+    pesquisa: texto(flat.q).slice(0, 100),
+    tipo: tipo === 'periodo' || tipo === 'acumulado' ? tipo : 'ambos',
+  };
+}
+
+function paraFiltrosBalancete(f: FiltrosApresentacao): FiltrosBalancete {
+  return {
+    contaInicial: f.contaInicial || undefined,
+    contaFinal: f.contaFinal || undefined,
+    classe: f.classe ? (`CLASSE_${f.classe}` as ClassePGC) : undefined,
+    excluir: f.excluir ? f.excluir.split(',') : undefined,
+    apenasComSaldo: f.comSaldo || undefined,
+    pesquisa: f.pesquisa || undefined,
+  };
+}
+
+/*
+ * Linhas do corpo em <tr>/<td> nativos, com as classes de `ui/table`: com «Ver contas
+ * sem movimento e saldo» são centenas de linhas, e cada componente servidor por célula
+ * leva ao payload RSC a sua informação de depuração (≈ 11 KB por linha em dev).
+ */
+const TR = 'border-b transition-colors hover:bg-accent/40 data-[state=selected]:bg-accent/60';
+const TD = 'p-4 align-middle';
+const TD_NUM = `${TD} text-right tabular-nums`;
+
+type ValoresLinha = Pick<
+  LinhaHierarquica,
+  'movD' | 'movC' | 'acumD' | 'acumC' | 'saldoDevedor' | 'saldoCredor' | 'contraNatureza'
+>;
+
+/** Células de valor de uma linha, segundo o tipo de apresentação (Saldo sempre). */
+function celulasValor(linha: ValoresLinha, tipo: TipoApresentacao, saldoClassName = '') {
+  const saldo = (d: Prisma.Decimal, chave: string) => {
+    const aviso = linha.contraNatureza && !d.isZero();
+    return (
+      <td key={chave} className={cn(TD_NUM, saldoClassName, aviso && 'text-warning')}>
+        {aviso && (
+          <span
+            role="img"
+            aria-label="Saldo contra natureza"
+            title="Saldo contra natureza"
+            className="mr-1 inline-flex align-[-2px]"
+          >
+            <TriangleAlert aria-hidden="true" className="size-3.5" />
+          </span>
+        )}
+        {fmtBV(d)}
+      </td>
+    );
+  };
+  return [
+    ...(tipo !== 'acumulado'
+      ? [
+          <td key="movD" className={TD_NUM}>{fmtBV(linha.movD)}</td>,
+          <td key="movC" className={TD_NUM}>{fmtBV(linha.movC)}</td>,
+        ]
+      : []),
+    ...(tipo !== 'periodo'
+      ? [
+          <td key="acumD" className={TD_NUM}>{fmtBV(linha.acumD)}</td>,
+          <td key="acumC" className={TD_NUM}>{fmtBV(linha.acumC)}</td>,
+        ]
+      : []),
+    saldo(linha.saldoDevedor, 'sD'),
+    saldo(linha.saldoCredor, 'sC'),
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Secção da tabela (componente async — faz a fetch dentro do Suspense, m2)
 // ---------------------------------------------------------------------------
 
@@ -52,11 +154,13 @@ async function TabelaBalancete({
   ctx,
   nivel,
   razao,
+  apresentacao,
 }: {
   filtro: FiltroBalanceteVerificacaoInput;
   ctx: { tenantId: string; userId: string };
   nivel?: number;
   razao?: boolean;
+  apresentacao: FiltrosApresentacao;
 }) {
   const balancete = await runWithTenantContext(ctx, () =>
     gerarBalanceteVerificacao(filtro, ctx),
@@ -64,10 +168,15 @@ async function TabelaBalancete({
   const eq = balancete.equilibrio;
   const equilibrado = eq.movimento && eq.acumulado && eq.saldo;
 
-  const linhasHierarquicas = hierarquizarBalancete(
-    balancete,
-    balancete.contas,
-    { nivelMaximo: nivel, apenasRazao: razao },
+  // Filtros são apresentação: totais, igualdades e subtotais vêm do balancete completo.
+  const tipo = apresentacao.tipo;
+  const linhasHierarquicas = filtrarBalancete(
+    hierarquizarBalancete(balancete, balancete.contas, {
+      nivelMaximo: nivel,
+      apenasRazao: razao,
+      incluirSemMovimento: apresentacao.zeradas,
+    }),
+    paraFiltrosBalancete(apresentacao),
   );
 
   return (
@@ -83,21 +192,25 @@ async function TabelaBalancete({
               <TableHead rowSpan={2} className="align-bottom border-r">
                 Descrição
               </TableHead>
-              <TableHead colSpan={2} className="text-center border-r">
-                Movimento do período
-              </TableHead>
-              <TableHead colSpan={2} className="text-center border-r">
-                Acumulado
-              </TableHead>
+              {tipo !== 'acumulado' && (
+                <TableHead colSpan={2} className="text-center border-r">
+                  Movimento do período
+                </TableHead>
+              )}
+              {tipo !== 'periodo' && (
+                <TableHead colSpan={2} className="text-center border-r">
+                  Acumulado
+                </TableHead>
+              )}
               <TableHead colSpan={2} className="text-center">
                 Saldo
               </TableHead>
             </TableRow>
             <TableRow>
-              <TableHead className="text-right tabular-nums">Débito</TableHead>
-              <TableHead className="text-right tabular-nums border-r">Crédito</TableHead>
-              <TableHead className="text-right tabular-nums">Débito</TableHead>
-              <TableHead className="text-right tabular-nums border-r">Crédito</TableHead>
+              {Array.from({ length: tipo === 'ambos' ? 2 : 1 }, (_, i) => [
+                <TableHead key={`d${i}`} className="text-right tabular-nums">Débito</TableHead>,
+                <TableHead key={`c${i}`} className="text-right tabular-nums border-r">Crédito</TableHead>,
+              ])}
               <TableHead className="text-right tabular-nums">Devedor</TableHead>
               <TableHead className="text-right tabular-nums">Credor</TableHead>
             </TableRow>
@@ -106,66 +219,48 @@ async function TabelaBalancete({
           <TableBody>
             {linhasHierarquicas.map((linha, idx) => {
               if (linha.tipo === 'SUBTOTAL_CLASSE') {
-                const classeNum = linha.classe.slice(-1);
                 return (
-                  <TableRow key={`sub-${linha.classe}`} data-tipo="subtotal" className="font-semibold bg-muted/30">
-                    <TableCell className="font-mono text-primary"></TableCell>
-                    <TableCell>Total da classe {classeNum}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.movD)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.movC)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.acumD)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.acumC)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.saldoDevedor)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.saldoCredor)}</TableCell>
-                  </TableRow>
+                  <tr key={`sub-${linha.classe}`} data-tipo="subtotal" className={cn(TR, 'font-semibold bg-muted/30')}>
+                    <td className={TD}></td>
+                    <td className={TD}>Total da classe {linha.classe.slice(-1)}</td>
+                    {celulasValor(linha, tipo)}
+                  </tr>
                 );
               }
 
               if (linha.tipo === 'SINTETICA') {
                 return (
-                  <TableRow key={`sintetica-${idx}`} data-tipo="sintetica" className="italic text-muted-foreground">
-                    <TableCell className="font-mono text-primary"></TableCell>
-                    <TableCell>
+                  <tr key={`sintetica-${idx}`} data-tipo="sintetica" className={cn(TR, 'italic text-muted-foreground')}>
+                    <td className={TD}></td>
+                    <td className={TD}>
                       Resultados de exercícios anteriores por encerrar
                       <span className="ml-2 text-xs text-muted-foreground">(implícita)</span>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.movD)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.movC)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.acumD)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBV(linha.acumC)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{fmtBV(linha.saldoDevedor)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{fmtBV(linha.saldoCredor)}</TableCell>
-                  </TableRow>
+                    </td>
+                    {celulasValor(linha, tipo, 'font-semibold')}
+                  </tr>
                 );
               }
 
-              // CONTA — linha.conta always defined for tipo CONTA
+              // CONTA — linha.conta sempre definida
               if (!linha.conta) return null;
               const conta = linha.conta;
               return (
-                <TableRow
+                <tr
                   key={conta.id}
                   data-nivel={String(linha.nivel)}
-                  className={[
-                    linha.agregadora ? 'font-semibold' : '',
-                    linha.contraNatureza ? 'text-warning' : '',
-                  ].filter(Boolean).join(' ')}
+                  data-contexto={linha.contexto ? '1' : undefined}
+                  className={cn(
+                    TR,
+                    linha.agregadora && 'font-semibold',
+                    linha.contexto && 'text-muted-foreground',
+                  )}
                 >
-                  <TableCell className="font-mono text-primary">{conta.codigo}</TableCell>
-                  <TableCell style={{ paddingLeft: `calc(1rem + ${(linha.nivel - 1) * 1.25}rem)` }}>
+                  <td className={cn(TD, 'font-mono text-primary')}>{conta.codigo}</td>
+                  <td className={TD} style={{ paddingLeft: `calc(1rem + ${linha.profundidade * 1.25}rem)` }}>
                     {conta.nome}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBV(linha.movD)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBV(linha.movC)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBV(linha.acumD)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBV(linha.acumC)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-semibold">
-                    {fmtBV(linha.saldoDevedor)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-semibold">
-                    {fmtBV(linha.saldoCredor)}
-                  </TableCell>
-                </TableRow>
+                  </td>
+                  {celulasValor(linha, tipo, 'font-semibold')}
+                </tr>
               );
             })}
           </TableBody>
@@ -173,16 +268,7 @@ async function TabelaBalancete({
           <TableFooter>
             <TableRow className="font-bold">
               <TableCell colSpan={2}>Totais</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.movD)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.movC)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.acumD)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.acumC)}</TableCell>
-              <TableCell className="text-right tabular-nums">
-                {fmtBV(balancete.totais.saldoDevedor)}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {fmtBV(balancete.totais.saldoCredor)}
-              </TableCell>
+              {celulasValor({ ...balancete.totais, contraNatureza: false }, tipo)}
             </TableRow>
           </TableFooter>
         </Table>
@@ -260,7 +346,9 @@ export default async function BalancetePage({ searchParams }: PageProps) {
   );
 
   // Exercícios disponíveis para o selector (ordenados por codigo desc — mais recente primeiro)
-  const exercicios = await runWithTenantContext(ctx, () => listarExercicios(ctx));
+  const [exercicios, contasNivel1] = await runWithTenantContext(ctx, () =>
+    Promise.all([listarExercicios(ctx), listarContas({ nivel: 1, take: 50 }, ctx)]),
+  );
 
   // M3: estado vazio quando não há exercícios contabilísticos
   if (exercicios.length === 0) {
@@ -338,6 +426,18 @@ export default async function BalancetePage({ searchParams }: PageProps) {
   const nivel = !isNaN(nivelRaw) && nivelRaw >= 1 && nivelRaw <= 7 ? nivelRaw : undefined;
   const razao = flat.razao === '1';
 
+  // S3: filtros de apresentação e opções do Select «Classe» (nome da conta de nível 1).
+  const apresentacao = lerFiltros(flat);
+  const classes = Array.from({ length: 8 }, (_, i) => {
+    const n = String(i + 1);
+    // O seed nomeia o nível 1 «Classe N — <nome>»: o prefixo sai para não repetir o número.
+    const nome = contasNivel1.items
+      .find((c) => c.classe === `CLASSE_${n}`)
+      ?.nome.replace(/^Classe\s+\d+\s*[—–-]\s*/i, '')
+      .trim();
+    return { value: n, label: nome ? `${n} — ${nome}` : `Classe ${n}` };
+  });
+
   const deDesc = String(filtro.periodoInicial).padStart(2, '0');
   const ateDesc = String(filtro.periodoFinal).padStart(2, '0');
 
@@ -373,14 +473,24 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         incluir13={filtro.incluir13}
         nivelAtual={nivel}
         razaoAtual={razao}
+        classes={classes}
+        filtrosAtuais={apresentacao}
       />
 
-      {/* m2: gerarBalanceteVerificacao dentro do filho do Suspense */}
+      {/* m2: gerarBalanceteVerificacao dentro do filho do Suspense. A key é só a consulta
+          (exercício, períodos, p13): mudar a apresentação (grau, razão, filtros S3) é uma
+          navegação em transição — a tabela actual fica até a nova estar pronta. */}
       <Suspense
-        key={`${ex.codigo}-${filtro.periodoInicial}-${filtro.periodoFinal}-${filtro.incluir13}-${nivel ?? ''}-${razao}`}
-        fallback={<TableSkeleton rows={12} cols={8} />}
+        key={`${ex.codigo}-${filtro.periodoInicial}-${filtro.periodoFinal}-${filtro.incluir13}`}
+        fallback={<TableSkeleton rows={12} cols={apresentacao.tipo === 'ambos' ? 8 : 6} />}
       >
-        <TabelaBalancete filtro={filtro} ctx={ctx} nivel={nivel} razao={razao} />
+        <TabelaBalancete
+          filtro={filtro}
+          ctx={ctx}
+          nivel={nivel}
+          razao={razao}
+          apresentacao={apresentacao}
+        />
       </Suspense>
     </div>
   );

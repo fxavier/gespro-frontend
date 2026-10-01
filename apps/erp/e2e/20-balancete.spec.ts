@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2).
+ * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3).
  *
  * S1 (PR #287): colunas PHC, totais, equilíbrio, URL params, selector remount.
  * S2 (este oracle): hierarquia por roll-up via contaMaeId; data-nivel em cada
@@ -485,4 +485,511 @@ test('11. sync selector: checkbox e «Grau máximo» reflectem URL após navigat
   // (verificado após razao=1 onde os subtotais estão presentes)
   const subtotaisComNivel = await page.locator('[data-tipo="subtotal"][data-nivel]').count();
   expect(subtotaisComNivel, 'subtotais não devem ter atributo data-nivel').toBe(0);
+});
+
+// ===========================================================================
+// S3 (#283) — filtros, tipo de apresentação e saldos contra natureza
+//
+// Contrato: .scratch/sdlc/balancete-phc/S3-contrato.md («Página / URL», §3, §4).
+// Filtros são APRESENTAÇÃO: «Totais» e o indicador de equilíbrio nunca mudam.
+// Contra natureza no seed (períodos 1..6/2026, SQL de leitura 2026-10-01):
+//   421   Fornecedores c/c  DEVEDORA  D 80 000,00  C 162 100,00   → saldo credor
+//   44331 Operações gerais  DEVEDORA  D 0          C 442 404,68   → saldo credor
+//   121 e 711 estão na sua natureza.
+// ===========================================================================
+
+const BASE_S3 = 'exercicio=2026&de=1&ate=6';
+
+/** Células da linha «Totais». */
+async function celulasTotais(page: Page): Promise<string[]> {
+  const loc = page.locator('tfoot tr, tbody tr').filter({ hasText: 'Totais' }).first();
+  await expect(loc).toBeVisible();
+  return loc.evaluate((tr) =>
+    Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.trim() ?? ''),
+  );
+}
+
+interface LinhaConta {
+  codigo: string;
+  contexto: boolean;
+  cells: string[];
+}
+
+/** Linhas CONTA (`tr[data-nivel]`) com marca de contexto. */
+async function linhasContaS3(page: Page): Promise<LinhaConta[]> {
+  return page.locator('tbody tr[data-nivel]').evaluateAll((trs) =>
+    trs.map((tr) => {
+      const cells = Array.from(tr.querySelectorAll('td')).map(
+        (td) => td.textContent?.trim() ?? '',
+      );
+      return {
+        codigo: cells[0] ?? '',
+        contexto: tr.getAttribute('data-contexto') === '1',
+        cells,
+      };
+    }),
+  );
+}
+
+async function expectEquilibrado(page: Page): Promise<void> {
+  await expect(page.getByText('Balancete equilibrado')).toBeVisible();
+  await expect(page.locator('[aria-label="Movimento"]')).toBeVisible();
+  await expect(page.locator('[aria-label="Acumulado"]')).toBeVisible();
+  await expect(page.locator('[aria-label="Saldos"]')).toBeVisible();
+}
+
+// ---------------------------------------------------------------------------
+// 12. Nenhum filtro altera «Totais» nem o indicador de equilíbrio
+// ---------------------------------------------------------------------------
+
+test('12. filtros (ci/cf, classe, comSaldo, q, excluir) não alteram «Totais» nem o equilíbrio', async ({
+  page,
+}) => {
+  const assinaturaLinhas = () =>
+    page
+      .locator('tbody tr')
+      .evaluateAll((trs) => trs.map((tr) => tr.textContent?.trim() ?? '').join('|'));
+
+  await navegar(page, BASE_S3);
+  const totaisDefault = await celulasTotais(page);
+  const linhasDefault = await assinaturaLinhas();
+  await expectEquilibrado(page);
+
+  // `muda`: o filtro tem de alterar as linhas mostradas no seed (senão o teste é vácuo).
+  // comSaldo=1 não muda nada no seed 1..6 (todas as contas com movimento têm saldo).
+  const casos = [
+    { filtro: 'ci=2&cf=4', muda: true },
+    { filtro: 'classe=7', muda: true },
+    { filtro: 'comSaldo=1', muda: false },
+    { filtro: 'q=caixa', muda: true },
+    { filtro: 'excluir=12', muda: true },
+  ];
+  for (const { filtro, muda } of casos) {
+    await navegar(page, `${BASE_S3}&${filtro}`);
+    expect(await celulasTotais(page), `Totais com ${filtro}`).toEqual(totaisDefault);
+    await expectEquilibrado(page);
+    if (muda) {
+      expect(await assinaturaLinhas(), `${filtro} deve alterar as linhas mostradas`).not.toBe(
+        linhasDefault,
+      );
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 13. «Conta inicial»/«Conta final» pela UI
+// ---------------------------------------------------------------------------
+
+test('13. «Conta inicial»=6 e «Conta final»=7 → URL ci=6&cf=7; contas (não-contexto) começam por 6 ou 7', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S3);
+
+  await page.getByLabel('Conta inicial', { exact: true }).fill('6');
+  await page.getByLabel('Conta final', { exact: true }).fill('7');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect(page).toHaveURL(/[?&]ci=6(&|$)/);
+  await expect(page).toHaveURL(/[?&]cf=7(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  const linhas = (await linhasContaS3(page)).filter((l) => !l.contexto);
+  expect(linhas.length, 'deve haver contas das classes 6–7 (seed tem 6112, 63299, 711)').toBeGreaterThan(0);
+  for (const l of linhas) {
+    expect(l.codigo, `conta ${l.codigo} fora do intervalo 6..7`).toMatch(/^[67]/);
+  }
+  // Contas de fora do intervalo não aparecem
+  expect(linhas.find((l) => l.codigo === '121'), '121 não pode aparecer em 6..7').toBeUndefined();
+});
+
+// ---------------------------------------------------------------------------
+// 14. «Classe» = 7
+// ---------------------------------------------------------------------------
+
+test('14. «Classe»=7 → URL classe=7; só linhas da classe 7 e apenas «Total da classe 7»', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S3);
+
+  await page.getByLabel('Classe', { exact: true }).click();
+  await page.getByRole('option', { name: /^7\b/ }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect(page).toHaveURL(/[?&]classe=7(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  const todas = await todasLinhas(page);
+  const contas = todas.filter((r) => r.nivel !== '');
+  expect(contas.length, 'classe 7 tem movimento no seed (711)').toBeGreaterThan(0);
+  for (const r of contas) {
+    expect(r.cells[0], `linha ${r.cells[0]} não é da classe 7`).toMatch(/^7/);
+  }
+  expect(contas.some((r) => r.cells[0] === '711'), '711 deve aparecer').toBe(true);
+
+  const subtotais = todas.filter((r) => r.tipo === 'subtotal');
+  expect(subtotais.length, 'só um subtotal (classe 7)').toBe(1);
+  expect(subtotais[0]!.cells[1]).toContain('Total da classe 7');
+
+  expect(todas.filter((r) => r.tipo === 'sintetica').length, 'sintética é da classe 8').toBe(0);
+});
+
+// ---------------------------------------------------------------------------
+// 15. «Ver apenas contas com saldo»
+// ---------------------------------------------------------------------------
+
+test('15. «Ver apenas contas com saldo» → URL comSaldo=1; nenhuma conta (não-contexto) com Devedor e Credor «—»', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S3);
+
+  await page.getByLabel('Ver apenas contas com saldo', { exact: true }).check();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect(page).toHaveURL(/[?&]comSaldo=1(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  const linhas = (await linhasContaS3(page)).filter((l) => !l.contexto);
+  expect(linhas.length).toBeGreaterThan(0);
+  for (const l of linhas) {
+    const [devedor, credor] = l.cells.slice(-2);
+    expect(
+      devedor === '—' && credor === '—',
+      `conta ${l.codigo} sem saldo não devia aparecer com comSaldo=1`,
+    ).toBe(false);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 16. «Excluir contas» = 121
+// ---------------------------------------------------------------------------
+
+test('16. «Excluir contas»=121 → URL excluir=121; 121 e descendentes saem; linha «12» mantém os valores', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S3);
+  const antes = await linhasContaS3(page);
+  const l12Antes = antes.find((l) => l.codigo === '12'); // exact
+  expect(l12Antes, 'linha «12» deve existir na vista por omissão').toBeTruthy();
+
+  await page.getByLabel('Excluir contas', { exact: true }).fill('121');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect(page).toHaveURL(/[?&]excluir=121(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  const depois = await linhasContaS3(page);
+  for (const l of depois) {
+    expect(l.codigo.startsWith('121'), `conta ${l.codigo} devia estar excluída`).toBe(false);
+  }
+  const l12Depois = depois.find((l) => l.codigo === '12');
+  expect(l12Depois, 'linha «12» continua visível').toBeTruthy();
+  expect(l12Depois!.cells.slice(2), 'valores de «12» não mudam (filtro é apresentação)').toEqual(
+    l12Antes!.cells.slice(2),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 17. «Ver contas sem movimento e saldo»
+// ---------------------------------------------------------------------------
+
+test('17. «Ver contas sem movimento e saldo» → URL zeradas=1; mais contas e algumas só com «—»', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S3);
+  const nDefault = (await linhasContaS3(page)).length;
+
+  await page.getByLabel('Ver contas sem movimento e saldo', { exact: true }).check();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect(page).toHaveURL(/[?&]zeradas=1(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  const linhas = await linhasContaS3(page);
+  expect(linhas.length, 'zeradas=1 mostra mais contas do que a omissão').toBeGreaterThan(nDefault);
+  const vazias = linhas.filter((l) => l.cells.slice(2).every((c) => c === '—'));
+  expect(vazias.length, 'deve haver contas com as seis colunas «—»').toBeGreaterThan(0);
+});
+
+// ---------------------------------------------------------------------------
+// 18. «Apresentação»: Por período / Acumulado / Por período e acumulado
+// ---------------------------------------------------------------------------
+
+async function escolherApresentacao(page: Page, opcao: string): Promise<void> {
+  await page.getByLabel('Apresentação', { exact: true }).click();
+  await page.getByRole('option', { name: opcao, exact: true }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+}
+
+async function contagemTdContas(page: Page): Promise<number[]> {
+  return page
+    .locator('tbody tr[data-nivel]')
+    .evaluateAll((trs) => trs.map((tr) => tr.querySelectorAll('td').length));
+}
+
+test('18. «Apresentação»: Por período (6 td, sem Acumulado) / Acumulado (6 td, sem Movimento) / ambos (8 td)', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S3);
+
+  // Por período
+  await escolherApresentacao(page, 'Por período');
+  await expect(page).toHaveURL(/[?&]tipo=periodo(&|$)/);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('columnheader', { name: 'Movimento do período' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Acumulado' })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: 'Saldo', exact: true })).toBeVisible();
+  let tds = await contagemTdContas(page);
+  expect(tds.length).toBeGreaterThan(0);
+  expect(new Set(tds), 'Por período: 6 td por conta').toEqual(new Set([6]));
+
+  // Acumulado
+  await escolherApresentacao(page, 'Acumulado');
+  await expect(page).toHaveURL(/[?&]tipo=acumulado(&|$)/);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('columnheader', { name: 'Movimento do período' })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: 'Acumulado' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Saldo', exact: true })).toBeVisible();
+  tds = await contagemTdContas(page);
+  expect(tds.length).toBeGreaterThan(0);
+  expect(new Set(tds), 'Acumulado: 6 td por conta').toEqual(new Set([6]));
+
+  // Por período e acumulado
+  await escolherApresentacao(page, 'Por período e acumulado');
+  await expect(page).not.toHaveURL(/[?&]tipo=(periodo|acumulado)(&|$)/);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('columnheader', { name: 'Movimento do período' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Acumulado' })).toBeVisible();
+  tds = await contagemTdContas(page);
+  expect(tds.length).toBeGreaterThan(0);
+  expect(new Set(tds), 'ambos: 8 td por conta').toEqual(new Set([8]));
+});
+
+// ---------------------------------------------------------------------------
+// 19. O selector reflecte o URL (carregamento directo e navegação client-side)
+// ---------------------------------------------------------------------------
+
+test('19. selector reflecte ci/cf/excluir/q/classe/comSaldo/zeradas/tipo do URL, também após voltar atrás', async ({
+  page,
+}) => {
+  // (a) carregamento directo com todos os parâmetros
+  await navegar(
+    page,
+    `${BASE_S3}&ci=6&cf=7&excluir=121,6112&q=caixa&classe=7&comSaldo=1&zeradas=1&tipo=acumulado`,
+  );
+  await expect(page.getByLabel('Conta inicial', { exact: true })).toHaveValue('6');
+  await expect(page.getByLabel('Conta final', { exact: true })).toHaveValue('7');
+  const excluir = await page.getByLabel('Excluir contas', { exact: true }).inputValue();
+  expect(excluir.replace(/\s/g, ''), '«Excluir contas» reflecte excluir=121,6112').toBe('121,6112');
+  await expect(page.getByLabel('Pesquisar', { exact: true })).toHaveValue('caixa');
+  await expect(page.getByLabel('Ver apenas contas com saldo', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Ver contas sem movimento e saldo', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Classe', { exact: true })).toContainText(/^\s*7\b/);
+  await expect(page.getByLabel('Apresentação', { exact: true })).toHaveText('Acumulado');
+
+  // (b) a partir da omissão, aplicar filtros pela UI e voltar atrás (navegação client-side):
+  // o estado local do selector tem de voltar a reflectir o URL sem filtros.
+  await navegar(page, BASE_S3);
+  await expect(page.getByLabel('Classe', { exact: true })).toHaveText('Todas');
+  await expect(page.getByLabel('Apresentação', { exact: true })).toHaveText('Por período e acumulado');
+
+  await page.getByLabel('Conta inicial', { exact: true }).fill('6');
+  await page.getByLabel('Conta final', { exact: true }).fill('7');
+  await page.getByLabel('Pesquisar', { exact: true }).fill('merc');
+  await page.getByLabel('Ver apenas contas com saldo', { exact: true }).check();
+  await page.getByLabel('Apresentação', { exact: true }).click();
+  await page.getByRole('option', { name: 'Por período', exact: true }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect(page).toHaveURL(/[?&]ci=6(&|$)/);
+  await expect(page).toHaveURL(/[?&]q=merc(&|$)/);
+  await expect(page).toHaveURL(/[?&]tipo=periodo(&|$)/);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByLabel('Pesquisar', { exact: true })).toHaveValue('merc');
+  await expect(page.getByLabel('Apresentação', { exact: true })).toHaveText('Por período');
+
+  await page.goBack();
+  await expect(page).not.toHaveURL(/[?&]ci=/);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByLabel('Conta inicial', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Conta final', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Pesquisar', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Ver apenas contas com saldo', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Apresentação', { exact: true })).toHaveText('Por período e acumulado');
+});
+
+// ---------------------------------------------------------------------------
+// 20. Marcador de saldo contra natureza
+// ---------------------------------------------------------------------------
+
+test('20. contas contra natureza (421, 44331) têm marcador acessível «Saldo contra natureza»; 121 e 711 não', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S3);
+
+  const linha = (codigo: string) =>
+    page.locator('tbody tr[data-nivel]').filter({
+      has: page.locator('td:first-child', { hasText: new RegExp(`^${codigo}$`) }),
+    });
+
+  for (const codigo of ['421', '44331']) {
+    await expect(linha(codigo), `linha ${codigo} visível`).toHaveCount(1);
+    const marcador = linha(codigo).locator('[aria-label="Saldo contra natureza"]');
+    await expect(marcador, `${codigo} deve ter o marcador`).toHaveCount(1);
+    await expect(marcador).toHaveAttribute('title', 'Saldo contra natureza');
+    // Esclarecimentos 2: `text-warning` só na célula de saldo não nula (aqui, Credor = última td)
+    const aviso = await linha(codigo).evaluate((tr) => {
+      const tds = Array.from(tr.querySelectorAll('td'));
+      const temAviso = (el: Element) =>
+        el.classList.contains('text-warning') || el.querySelector('.text-warning') !== null;
+      return {
+        linha: tr.classList.contains('text-warning'),
+        credor: temAviso(tds[tds.length - 1]!),
+        devedor: temAviso(tds[tds.length - 2]!),
+        outras: tds.slice(0, -2).some(temAviso),
+      };
+    });
+    expect(aviso, `${codigo}: text-warning só na célula Credor`).toEqual({
+      linha: false,
+      credor: true,
+      devedor: false,
+      outras: false,
+    });
+  }
+  for (const codigo of ['121', '711']) {
+    await expect(linha(codigo)).toHaveCount(1);
+    await expect(
+      linha(codigo).locator('[aria-label="Saldo contra natureza"]'),
+      `${codigo} está na sua natureza`,
+    ).toHaveCount(0);
+  }
+
+  // Todos os marcadores da página têm o title acessível
+  const marcadores = page.locator('[aria-label="Saldo contra natureza"]');
+  const n = await marcadores.count();
+  expect(n).toBeGreaterThanOrEqual(2);
+  for (let i = 0; i < n; i++) {
+    await expect(marcadores.nth(i)).toHaveAttribute('title', 'Saldo contra natureza');
+  }
+});
+
+// ===========================================================================
+// S3 — Esclarecimentos 2 (G5 iter 1): antepassado = mãe mostrada; UX do form;
+// rótulos de classe; validação de códigos.
+// Seed (SQL de leitura 2026-10-01): 63299 «Outros fornecimentos e serviços» é
+// raiz órfã da classe 6 (nível 5, contaMaeId null). 69 → 698 → 6981 é outra
+// cadeia (mães reais). Períodos 1..9/2026.
+// ===========================================================================
+
+const BASE_E2 = 'exercicio=2026&de=1&ate=9';
+
+// ---------------------------------------------------------------------------
+// 21. excluir=69 não leva a raiz órfã 63299
+// ---------------------------------------------------------------------------
+
+test('21. excluir=69 mantém a raiz órfã 63299 visível e com os mesmos valores', async ({ page }) => {
+  await navegar(page, BASE_E2);
+  const antes = (await linhasContaS3(page)).find((l) => l.codigo === '63299');
+  expect(antes, '63299 deve aparecer na vista por omissão 1..9').toBeTruthy();
+
+  await navegar(page, `${BASE_E2}&excluir=69`);
+  const linhas = await linhasContaS3(page);
+  for (const l of linhas) {
+    expect(l.codigo.startsWith('69'), `${l.codigo} devia estar excluída por excluir=69`).toBe(false);
+  }
+  const depois = linhas.find((l) => l.codigo === '63299');
+  expect(depois, '63299 não é descendente de 69 — não pode ser excluída').toBeTruthy();
+  expect(depois!.contexto, '63299 não é linha de contexto').toBe(false);
+  expect(depois!.cells.slice(2), 'valores de 63299 inalterados').toEqual(antes!.cells.slice(2));
+});
+
+// ---------------------------------------------------------------------------
+// 22. q=outros fornecimentos: 63299 sem 69/698/6981 como contexto
+// ---------------------------------------------------------------------------
+
+test('22. q=outros fornecimentos mostra 63299 e não mostra 69, 698 nem 6981', async ({ page }) => {
+  await navegar(page, `${BASE_E2}&q=${encodeURIComponent('outros fornecimentos')}`);
+  const linhas = await linhasContaS3(page);
+  const l = linhas.find((r) => r.codigo === '63299');
+  expect(l, '63299 corresponde à pesquisa').toBeTruthy();
+  expect(l!.contexto, '63299 passa o filtro — não é contexto').toBe(false);
+  for (const codigo of ['69', '698', '6981']) {
+    expect(
+      linhas.find((r) => r.codigo === codigo),
+      `${codigo} não é mãe mostrada de 63299 — não pode aparecer como contexto`,
+    ).toBeUndefined();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 23. Enter em «Pesquisar» aplica
+// ---------------------------------------------------------------------------
+
+test('23. Enter em «Pesquisar» (em #main-content) aplica o filtro → URL com q=', async ({ page }) => {
+  await navegar(page, BASE_E2);
+  const pesquisa = page.locator('#main-content').getByLabel('Pesquisar', { exact: true });
+  await pesquisa.fill('merc');
+  await pesquisa.press('Enter');
+  await expect(page).toHaveURL(/[?&]q=merc(&|$)/);
+  await page.waitForLoadState('networkidle');
+  await expect(pesquisa).toHaveValue('merc');
+});
+
+// ---------------------------------------------------------------------------
+// 24. Rótulos de «Classe» sem «Classe N —» duplicado
+// ---------------------------------------------------------------------------
+
+test('24. opções de «Classe» são «N — <nome>» sem «Classe N —» duplicado', async ({ page }) => {
+  await navegar(page, BASE_E2);
+  await page.getByLabel('Classe', { exact: true }).click();
+
+  await expect(page.getByRole('option', { name: 'Todas', exact: true })).toBeVisible();
+  // Nomes do nível 1 no seed, sem o prefixo «Classe N — »
+  const esperado: Record<string, string> = {
+    '1': 'Meios financeiros',
+    '4': 'Contas a receber, contas a pagar, acréscimos e diferimentos',
+    '7': 'Rendimentos e ganhos',
+  };
+  for (const [n, nome] of Object.entries(esperado)) {
+    await expect(page.getByRole('option', { name: `${n} — ${nome}`, exact: true })).toBeVisible();
+  }
+  const textos = await page.getByRole('option').allTextContents();
+  const classes = textos.map((t) => t.trim()).filter((t) => t !== 'Todas');
+  expect(classes.length, 'oito classes').toBe(8);
+  for (const t of classes) {
+    expect(t, `rótulo «${t}»`).toMatch(/^[1-8] — /);
+    expect(t, `rótulo «${t}» não repete «Classe N»`).not.toMatch(/Classe \d/);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 25. Código inválido em «Conta inicial»: erro no campo, sem navegar
+// ---------------------------------------------------------------------------
+
+test('25. «Conta inicial»=6a mostra erro junto do campo e não navega', async ({ page }) => {
+  await navegar(page, BASE_E2);
+  const urlAntes = page.url();
+
+  const campo = page.getByLabel('Conta inicial', { exact: true });
+  await campo.fill('6a');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  // Mensagem no próprio campo: aria-invalid e texto visível no contentor do campo
+  await expect(campo).toHaveAttribute('aria-invalid', 'true');
+  // Mensagem no pai/avô do input ou referenciada por aria-describedby
+  await expect
+    .poll(() =>
+      campo.evaluate((el) => {
+        const textos: string[] = [];
+        for (const id of (el.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean)) {
+          textos.push(document.getElementById(id)?.textContent ?? '');
+        }
+        textos.push(el.parentElement?.textContent ?? '', el.parentElement?.parentElement?.textContent ?? '');
+        return textos.some((t) => /inválid|código/i.test(t));
+      }),
+    )
+    .toBe(true);
+
+  expect(page.url(), 'URL não muda com código inválido').toBe(urlAntes);
+  await expect(page).not.toHaveURL(/[?&]ci=/);
+  await expect(campo).toHaveValue('6a');
 });
