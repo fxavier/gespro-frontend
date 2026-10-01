@@ -52,7 +52,7 @@ Exercício 2026
 | Diários | `/contabilidade/diarios` | Lista, cria e edita diários. |
 | Lançamentos | `/contabilidade/lancamentos` | Lista de lançamentos; criar, confirmar e estornar. |
 | Razão Geral | `/contabilidade/razao-geral` | Movimentos de uma conta num intervalo de datas, com saldo acumulado. |
-| Balancete | `/contabilidade/balancete` | Balancete de verificação (débitos, créditos e saldo por conta). |
+| Balancete | `/contabilidade/balancete` | Balancete de verificação por exercício e período (movimento, acumulado e saldo por conta). |
 | Reconciliação | `/contabilidade/reconciliacao` | Reconciliação bancária por conta: importar extracto, confirmar correspondências, fechar períodos de reconciliação. |
 | Exercícios | `/contabilidade/exercicios` | Exercícios e os seus 13 períodos; fechar e reabrir períodos; abrir um exercício. |
 | Apuramento de IVA | `/contabilidade/iva` | Apurar, estornar e declarar o IVA de cada período; descarregar os mapas. |
@@ -165,12 +165,24 @@ Um lançamento **Lançado** nunca se edita. Para o anular, estorna-se.
 
 ### Como gerar o Balancete
 
-1. Abra **Balancete**. Por omissão, mostra o ano civil corrente.
-2. Ajuste **De** e **Até** e clique **Consultar**. Em **Contas Zeradas** pode escolher **Excluir zeradas** ou **Incluir zeradas**.
+1. Abra **Balancete**. Por omissão, mostra o exercício corrente, do período 01 ao período do mês actual.
+2. Escolha o **Exercício**, o **Período inicial** e o **Período final**. Marque **Incluir período 13 (encerramento)** se quiser ver também o período do encerramento. Clique **Aplicar**.
 
-**Resultado:** o quadro «Balancete — dd/mm/aaaa – dd/mm/aaaa» com Código, Conta, Saldo Anterior, Débitos, Créditos e Saldo Actual por conta de movimento, a linha **TOTAIS** e a linha **DIFERENÇA (deve ser zero)**. Se a diferença não for zero, há lançamentos desequilibrados — e o período não fecha.
+**Resultado:** o quadro do «Exercício aaaa — períodos 01..mm», com Conta e Descrição, três pares de colunas e a linha **Totais**:
 
-O **Saldo Anterior** é o saldo da conta antes de «De» (todos os lançamentos anteriores), e o **Saldo Actual** soma-lhe os débitos e créditos do intervalo. «De» e «Até» contam o dia inteiro, em hora de Maputo. **Excluir zeradas** mostra só as contas com movimento no intervalo ou saldo anterior; **Incluir zeradas** mostra todas as contas de movimento. A caixa **Pesquisar por conta…** filtra por código (início) ou nome; as linhas **TOTAIS** e **DIFERENÇA** continuam a ser as do balancete inteiro.
+| Colunas | O que mostram |
+|---|---|
+| **Movimento do período** (Débito, Crédito) | Os lançamentos dos períodos escolhidos, do inicial ao final. Conta o período a que o lançamento pertence, não a data — é assim que o período 13 se distingue do 12. |
+| **Acumulado** (Débito, Crédito) | Os lançamentos desde o período 01 do exercício até ao período final, mais a abertura. |
+| **Saldo** (Devedor, Credor) | Acumulado a débito menos acumulado a crédito, mostrado do lado onde cai — nunca negativo. Uma conta com saldo **contra natureza** (por exemplo, Caixa credora) aparece assinalada a cor de aviso; não é um erro. |
+
+Só contam lançamentos **Lançados** e **Estornados**. Contas sem movimento nem acumulado não aparecem.
+
+Por baixo do quadro, o indicador **Balancete equilibrado** verifica três igualdades: **Movimento** (débitos = créditos do período), **Acumulado** (débitos = créditos acumulados) e **Saldos** (soma dos devedores = soma dos credores). Se alguma falhar, aparece **Balancete desequilibrado** com a igualdade em falta marcada — há lançamentos desequilibrados, e o período não fecha.
+
+**Abertura implícita.** Enquanto o exercício não tiver lançamento de abertura (diário `AB`), o balancete calcula-a, sem gravar nada: os saldos das classes 1–5 e 8 de antes do exercício entram no acumulado conta a conta, e o resultado das classes 6 e 7 dos anos anteriores entra numa linha em itálico, **«Resultados de exercícios anteriores por encerrar» (implícita)**, com um aviso de que há exercícios anteriores por encerrar. Sempre que há abertura implícita — mesmo sem a linha sintética — aparece por baixo do quadro a nota «Este balancete inclui abertura implícita…». Quando o exercício tiver o lançamento de abertura, deixa de haver abertura implícita. Os termos estão definidos no [glossário](../../CONTEXT.md#balancete-de-verificação) e a decisão no [ADR-0040](../decisions/ADR-0040-balancete-verificacao-phc.md).
+
+> **Nota:** o balancete já não se escolhe por datas livres (para isso use o **Razão Geral**). A hierarquia de contas (contas-mãe, subtotais por classe, grau máximo), os filtros, a exportação e a passagem de uma linha para o razão são entregues pelas restantes fatias de #279.
 
 > **Atenção:** o botão **Registar Balancete Oficial** (`/contabilidade/balancete/nova`) é um protótipo: o balancete «registado» fica guardado só no seu browser, não na base de dados da empresa, e não é visto por mais ninguém. Não o use como registo oficial.
 
@@ -466,7 +478,7 @@ Se o período da data do documento estiver fechado, a operação no outro módul
 
 **Enganei-me num lançamento que ainda está em rascunho. Posso corrigi-lo?** Hoje não há forma de editar nem de eliminar um rascunho. Confirme-o e estorne-o, e depois crie o lançamento correcto.
 
-**O «Saldo Anterior» conta desde quando?** Desde o primeiro lançamento da empresa até ao dia antes de «De». «Até» inclui o próprio dia.
+**O que entra no Acumulado?** Os lançamentos do período 01 ao período final do exercício, mais a abertura (o lançamento do diário AB ou, sem ele, a abertura implícita).
 
 **Posso lançar em Janeiro de 2027 antes de o exercício 2027 abrir?** Sim: se o exercício ainda não existir, é criado automaticamente no primeiro lançamento com essa data.
 
