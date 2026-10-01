@@ -333,7 +333,8 @@ singular (ex.: `definirContaNaturezaNotaDebito`).
 `localStorage` em vez da base (tabelas vazias, «guardado» que ninguém lê). Antes de corrigir um sintoma numa
 página, confirma que ela chega ao servidor: `git grep -l localStorage -- 'apps/erp/src/app/**/page.tsx'`
 (hoje: `balancete/nova` — «Salvar» ainda é fictício — e `projetos/lista/{novo,[id]/editar}`). Os tipos de
-`src/types/contabilidade.ts` são desse protótipo; os reais estão nos `*.interface.ts` dos serviços.
+contabilidade reais estão nos `*.interface.ts` dos serviços (os de protótipo, `src/types/contabilidade.ts`, saíram
+com o gerador `lib/contabilidade/balancete.ts`, #282).
 
 **Gates de CI** (`pnpm gates`, `apps/erp/scripts/gate-*.mjs`) — cinco, e falham o merge se houver: `Dialog` fora de `AlertDialog`, `'use client'` em `page.tsx` de listagem/detalhe, imports de `@/data/` em `src/app`, Server Actions que não declarem o que fazem em Leitura, ou escrita directa em `Lancamento`/`PartidaLancamento` fora do `contabilidade.service.ts` (`gate-periodo`, que varre `src/` **e** `prisma/`). Manter a zero.
 
