@@ -37,7 +37,7 @@ export default function (data) {
 
   const paginas = [
     `${BASE_URL}/inventario/movimentacoes?take=50`,
-    `${BASE_URL}/contabilidade/balancete?dataInicio=${ano}-01-01&dataFim=${ano}-12-31`,
+    `${BASE_URL}/contabilidade/balancete?exercicio=${ano}&de=1&ate=12`,
     `${BASE_URL}/contabilidade/razao-geral?contaId=${tenant.contaIds[__ITER % 30]}&dataInicio=${ano}-01-01&dataFim=${ano}-12-31`,
   ];
   const res = http.get(paginas[__ITER % paginas.length], { headers: sessao, tags });

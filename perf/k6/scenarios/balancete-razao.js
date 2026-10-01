@@ -34,14 +34,14 @@ export function setup() {
 export default function (data) {
   const sessao = garantirSessao(data);
 
-  // Balancete de um exercício (as datas do seed cobrem os últimos 730 dias).
+  // Balancete PHC de um exercício — URL nova (ADR-0040, S1).
   const ano = new Date().getFullYear() - 1;
   const rb = http.get(
-    `${BASE_URL}/contabilidade/balancete?dataInicio=${ano}-01-01&dataFim=${ano}-12-31&incluirZeradas=false`,
+    `${BASE_URL}/contabilidade/balancete?exercicio=${ano}&de=1&ate=12`,
     { headers: sessao, tags: { operation: 'balancete' } },
   );
-  // `TOTAIS` só existe na linha de totais, que só rende com o balancete gerado.
-  check(rb, { 'balancete rendeu totais': (r) => rendeuDados(r, 'TOTAIS') });
+  // «Balancete equilibrado» só existe após o cálculo; n4 — mais específico que «Totais».
+  check(rb, { 'balancete rendeu totais': (r) => rendeuDados(r, 'Balancete equilibrado') });
 
   // Razão de uma conta-folha aleatória no mesmo intervalo.
   const conta = tenant.contaIds[(__VU + __ITER) % tenant.contaIds.length];

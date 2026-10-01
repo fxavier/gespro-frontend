@@ -10,7 +10,7 @@ o histórico).
 - **Ficheiro**: `ADR-<NNNN>-<slug>.md` (quatro dígitos, zero-padded). Os ADRs 0001–0004 usam o
   prefixo curto `<NNNN>-<slug>.md` por razões históricas; do 0006 em diante a convenção é
   `ADR-<NNNN>-<slug>.md`.
-- **Numeração**: sequencial e **única**. O próximo número livre é **0040**.
+- **Numeração**: sequencial e **única**. O próximo número livre é **0041**.
 - **Estado**: `Proposto` → `Aceite` → (`Substituído por ADR-XXXX` | `Descontinuado`).
 - **Citação**: use sempre o identificador canónico da coluna «ADR» deste índice. Para os três
   documentos que colidem no número 0005, o identificador canónico é `ADR-0005-a`, `-b` ou `-c`
@@ -109,6 +109,7 @@ o histórico).
 | [0037](./ADR-0037-demonstracao-fluxos-caixa.md) | **Demonstração de fluxos de caixa (método indirecto)** | Aceite | 0033, 0036 |
 | [0038](./ADR-0038-reconciliacao-bancaria-automatica.md) | **Reconciliação bancária automática** | Proposto | 0033, 0015, 0011; cruza 0018, 0036 |
 | [0039](./ADR-0039-nota-debito-contabilidade.md) | **Nota de débito em contabilidade e finanças** | Proposto | 0033, 0034, 0015; cruza 0036 |
+| [0040](./ADR-0040-balancete-verificacao-phc.md) | **Balancete de verificação no modelo PHC: período, acumulado e abertura implícita** | Proposto | 0033, 0018; cruza 0035, 0037 |
 
 > O 0036 olha para a frente (o que está prestes a mover-se) e o 0037 para trás (o que se moveu, e
 > porquê). Partilham `prisma/schema/financas.prisma` e a FK `CompromissoTesouraria.rubricaId`, por

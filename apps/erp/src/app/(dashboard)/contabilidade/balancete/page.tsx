@@ -1,141 +1,211 @@
 /**
- * Balancete de Verificação — Server Component.
+ * Balancete de Verificação no modelo PHC — Server Component.
+ *
+ * URL: /contabilidade/balancete?exercicio=<codigo>&de=<ordem>&ate=<ordem>&p13=1
+ *
+ * ADR-0040, issue #280.
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
-import { FiltroBalanceteSchema } from '@/lib/validations/contabilidade';
+import {
+  gerarBalanceteVerificacao,
+  listarExercicios,
+  periodoFiscalDe,
+} from '@/server/services/financas/contabilidade.service';
+import { FiltroBalanceteVerificacaoSchema } from '@/lib/validations/contabilidade';
 import { Button } from '@/components/ui/button';
-import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
-import { SeletorPeriodo } from '../_components/seletor-periodo';
-import { intervaloDoDiaMaputo, periodoPorOmissao } from '@/lib/periodo-fiscal';
-import { formatarData } from '@/lib/format-date';
-import type { FilterConfig } from '@/components/patterns';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader, TableSkeleton } from '@/components/patterns';
 import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { formatNumero } from '@/lib/format-currency';
+import { SeletorBalanceteVerificacao } from './_components/seletor-balancete-verificacao';
+import type { FiltroBalanceteVerificacaoInput } from '@/server/services/financas/contabilidade.interface';
+import type { Prisma } from '@prisma/client';
 
-/**
- * Parâmetros de URL — tudo chega como string.
- *
- * As datas usam a coerção que o `FiltroBalanceteSchema` já traz; sobrepô-las
- * com `z.string()` era o defeito D1 (ADR-0018 §6): as datas seguiam em string
- * para o serviço (daí o `as any`) e, pior, o `incluirZeradas` recebia a string
- * `"false"` num `z.boolean()`, o `safeParse` falhava e a página caía num
- * default SEM datas — varrendo o razão inteiro em cada pedido.
- *
- * `z.coerce.boolean()` não serve aqui: `Boolean("false") === true`.
- */
-const BooleanoUrl = z.union([
-  z.boolean(),
-  z.enum(['true', 'false']).transform((v) => v === 'true'),
-]);
+// ---------------------------------------------------------------------------
+// Formatação de valores (sem símbolo MT — parsePtNum do E2E espera números puros)
+// ---------------------------------------------------------------------------
 
-const FiltroUrlSchema = FiltroBalanceteSchema.extend({
-  incluirZeradas: BooleanoUrl.default(false),
-});
+function fmtBV(d: Prisma.Decimal): string {
+  if (d.isZero()) return '—'; // «—»
+  return formatNumero(d.toString());
+}
 
-type FiltroUrl = z.infer<typeof FiltroUrlSchema>;
+// ---------------------------------------------------------------------------
+// Secção da tabela (componente async — faz a fetch dentro do Suspense, m2)
+// ---------------------------------------------------------------------------
 
-const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
-
-/**
- * Sem `try/catch`: um erro aqui propaga para `app/error.tsx` e a resposta é
- * ≠ 200. O `catch` genérico anterior devolvia um cartão de erro com HTTP 200
- * (defeito D7) — mascarou o D2 durante toda a fase A da campanha e engana
- * igualmente as sondas de saúde e os cenários k6. Entrada malformada já não
- * chega aqui: é apanhada pelo `safeParse` da página.
- */
-async function BalanceteSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
-  const result = await runWithTenantContext({ tenantId, userId }, () =>
-    contabilidadeService.gerarBalancete({ ...filtros, comSaldoAnterior: true }, { tenantId, userId })
+async function TabelaBalancete({
+  filtro,
+  ctx,
+}: {
+  filtro: FiltroBalanceteVerificacaoInput;
+  ctx: { tenantId: string; userId: string };
+}) {
+  const balancete = await runWithTenantContext(ctx, () =>
+    gerarBalanceteVerificacao(filtro, ctx),
   );
-
-  const n = (v: any) => parseFloat(v?.toString() ?? '0');
-  const periodo = `${formatarData(result.dataInicio)} – ${formatarData(result.dataFim)}`;
-  const totalDeb = n(result.totalDebitos);
-  const totalCred = n(result.totalCreditos);
-  const diferenca = totalDeb - totalCred;
+  const eq = balancete.equilibrio;
+  const equilibrado = eq.movimento && eq.acumulado && eq.saldo;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Balancete — {periodo}</CardTitle>
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
+    <div className="space-y-4">
+      {/* Tabela PHC */}
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Código</TableHead>
-              <TableHead>Conta</TableHead>
-              <TableHead className="text-right tabular-nums">Saldo Anterior</TableHead>
-              <TableHead className="text-right tabular-nums">Débitos</TableHead>
-              <TableHead className="text-right tabular-nums">Créditos</TableHead>
-              <TableHead className="text-right tabular-nums">Saldo Actual</TableHead>
+              <TableHead rowSpan={2} className="align-bottom border-r">
+                Conta
+              </TableHead>
+              <TableHead rowSpan={2} className="align-bottom border-r">
+                Descrição
+              </TableHead>
+              <TableHead colSpan={2} className="text-center border-r">
+                Movimento do período
+              </TableHead>
+              <TableHead colSpan={2} className="text-center border-r">
+                Acumulado
+              </TableHead>
+              <TableHead colSpan={2} className="text-center">
+                Saldo
+              </TableHead>
+            </TableRow>
+            <TableRow>
+              <TableHead className="text-right tabular-nums">Débito</TableHead>
+              <TableHead className="text-right tabular-nums border-r">Crédito</TableHead>
+              <TableHead className="text-right tabular-nums">Débito</TableHead>
+              <TableHead className="text-right tabular-nums border-r">Crédito</TableHead>
+              <TableHead className="text-right tabular-nums">Devedor</TableHead>
+              <TableHead className="text-right tabular-nums">Credor</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
-            {result.contas.map((linha) => {
-              const saldoAtual = n(linha.saldoAtual);
+            {balancete.linhas.map((linha, idx) => {
+              const key = linha.conta?.id ?? `sintetica-${idx}`;
+              const codigo = linha.conta?.codigo ?? '';
+              const descricao = linha.conta
+                ? linha.conta.nome
+                : 'Resultados de exercícios anteriores por encerrar';
+
               return (
-                <TableRow key={linha.conta.codigo}>
-                  <TableCell className="font-mono text-primary">{linha.conta.codigo}</TableCell>
-                  <TableCell className="font-medium">{linha.conta.nome}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtMZN.format(n(linha.saldoAnterior))}
+                <TableRow
+                  key={key}
+                  className={
+                    linha.implicita
+                      ? 'italic text-muted-foreground'
+                      : linha.contraNatureza
+                        ? 'text-warning'
+                        : ''
+                  }
+                >
+                  <TableCell className="font-mono text-primary">{codigo}</TableCell>
+                  <TableCell>
+                    {descricao}
+                    {linha.implicita && (
+                      <span className="ml-2 text-xs text-muted-foreground">(implícita)</span>
+                    )}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtMZN.format(n(linha.debitos))}
+                  <TableCell className="text-right tabular-nums">{fmtBV(linha.movD)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmtBV(linha.movC)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmtBV(linha.acumD)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmtBV(linha.acumC)}</TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">
+                    {fmtBV(linha.saldoDevedor)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtMZN.format(n(linha.creditos))}
-                  </TableCell>
-                  <TableCell className={`text-right tabular-nums font-semibold ${saldoAtual < 0 ? 'text-destructive' : ''}`}>
-                    {fmtMZN.format(saldoAtual)}
+                  <TableCell className="text-right tabular-nums font-semibold">
+                    {fmtBV(linha.saldoCredor)}
                   </TableCell>
                 </TableRow>
               );
             })}
-
-            <TableRow className="font-bold bg-muted/50">
-              <TableCell colSpan={3}>TOTAIS</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtMZN.format(totalDeb)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtMZN.format(totalCred)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtMZN.format(totalDeb - totalCred)}</TableCell>
-            </TableRow>
-
-            <TableRow className={`font-bold ${Math.abs(diferenca) < 0.01 ? 'text-success' : 'text-destructive'}`}>
-              <TableCell colSpan={5}>DIFERENÇA (deve ser zero)</TableCell>
-              <TableCell className="text-right tabular-nums text-lg">{fmtMZN.format(diferenca)}</TableCell>
-            </TableRow>
           </TableBody>
+
+          <TableFooter>
+            <TableRow className="font-bold">
+              <TableCell colSpan={2}>Totais</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.movD)}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.movC)}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.acumD)}</TableCell>
+              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.acumC)}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {fmtBV(balancete.totais.saldoDevedor)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {fmtBV(balancete.totais.saldoCredor)}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
         </Table>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Indicador de equilíbrio (m4: <ul>/<li aria-label>) */}
+      <div
+        className={`flex flex-wrap items-center gap-4 rounded-lg border p-4 ${
+          equilibrado
+            ? 'border-success/40 bg-success/10'
+            : 'border-destructive/40 bg-destructive/10'
+        }`}
+      >
+        <span className={`font-semibold ${equilibrado ? 'text-success' : 'text-destructive'}`}>
+          {equilibrado ? 'Balancete equilibrado' : 'Balancete desequilibrado'}
+        </span>
+        <ul className="flex flex-wrap gap-4 list-none p-0 m-0">
+          <li
+            aria-label="Movimento"
+            className={eq.movimento ? 'text-success' : 'text-destructive'}
+          >
+            {eq.movimento ? '✓' : '✗'} Movimento
+          </li>
+          <li
+            aria-label="Acumulado"
+            className={eq.acumulado ? 'text-success' : 'text-destructive'}
+          >
+            {eq.acumulado ? '✓' : '✗'} Acumulado
+          </li>
+          <li
+            aria-label="Saldos"
+            className={eq.saldo ? 'text-success' : 'text-destructive'}
+          >
+            {eq.saldo ? '✓' : '✗'} Saldos
+          </li>
+        </ul>
+      </div>
+
+      {/* Avisos informativos */}
+      {balancete.temAberturaImplicita && (
+        <div className="rounded-lg border border-info/40 bg-info/10 p-3 text-sm text-info">
+          Este balancete inclui <strong>abertura implícita</strong> dos saldos do exercício
+          anterior (saldos de balanço aplicados conta a conta; resultados agregados na linha
+          sintética quando existente).
+        </div>
+      )}
+      {balancete.temResultadosAnterioresPorEncerrar && (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+          Existem <strong>exercícios anteriores por encerrar</strong>: o resultado líquido dos
+          exercícios anteriores está reflectido na linha sintética «Resultados de exercícios
+          anteriores por encerrar».
+        </div>
+      )}
+    </div>
   );
 }
 
-const FILTER_CONFIGS: FilterConfig[] = [
-  {
-    key: 'incluirZeradas',
-    label: 'Contas Zeradas',
-    options: [
-      { label: 'Excluir zeradas', value: 'false' },
-      { label: 'Incluir zeradas', value: 'true' },
-    ],
-  },
-];
+// ---------------------------------------------------------------------------
+// Página principal
+// ---------------------------------------------------------------------------
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -145,33 +215,95 @@ export default async function BalancetePage({ searchParams }: PageProps) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId } = session.user;
+  const ctx = { tenantId, userId };
 
   const rawParams = await searchParams;
   const flat = Object.fromEntries(
-    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
   );
-  // Período: ausente → exercício corrente; presente → é o que o utilizador
-  // pediu. A ligação da barra lateral não leva datas, e sem isto o balancete
-  // abria sempre vazio a pedir que se editasse a URL à mão.
-  //
-  // O default cobre a AUSÊNCIA, não o erro: uma data mal formada continua a
-  // falhar o `safeParse` e a mostrar a instrução, que é o que o defeito D1
-  // exige — nunca um balancete de um período que ninguém pediu.
-  const omissao = periodoPorOmissao();
-  const periodo = {
-    dataInicio: typeof flat.dataInicio === 'string' ? flat.dataInicio : omissao.dataInicio,
-    dataFim: typeof flat.dataFim === 'string' ? flat.dataFim : omissao.dataFim,
+
+  // Exercícios disponíveis para o selector (ordenados por codigo desc — mais recente primeiro)
+  const exercicios = await runWithTenantContext(ctx, () => listarExercicios(ctx));
+
+  // M3: estado vazio quando não há exercícios contabilísticos
+  if (exercicios.length === 0) {
+    return (
+      <div className="p-6 space-y-6">
+        <PageHeader
+          title="Balancete de Verificação"
+          breadcrumbs={[
+            { label: 'Contabilidade', href: '/contabilidade' },
+            { label: 'Balancete' },
+          ]}
+        />
+        <div className="rounded-lg border p-8 text-center space-y-3">
+          <p className="text-muted-foreground">Sem exercício contabilístico</p>
+          <p className="text-sm text-muted-foreground">
+            Para gerar o balancete é necessário ter pelo menos um exercício contabilístico aberto.
+          </p>
+          <Button asChild size="sm">
+            <Link href="/contabilidade/exercicios/novo">Abrir exercício</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Período corrente por omissão (Africa/Maputo)
+  const periodoFiscalAtual = periodoFiscalDe(new Date());
+  const mesAtual = parseInt(periodoFiscalAtual.split('-')[1] ?? '12', 10);
+
+  // MAJOR-2: resolver o exercício na página (três tiers, sem lançar NotFoundError)
+  // NIT: tratar ?exercicio= (string vazia) como ausente
+  const codigoPedido =
+    typeof flat.exercicio === 'string' && flat.exercicio !== '' ? flat.exercicio : null;
+  const agora = new Date();
+  const ex =
+    (codigoPedido ? exercicios.find((e) => e.codigo === codigoPedido) : undefined) ??
+    exercicios.find((e) => e.dataInicio <= agora && agora <= e.dataFim) ??
+    exercicios[0]!;
+
+  // Aviso quando o código pedido não foi encontrado
+  const exercicioNaoEncontrado = codigoPedido !== null && ex.codigo !== codigoPedido;
+
+  // m1: usar FiltroBalanceteVerificacaoSchema com safeParse + fallback
+  const parsedFiltro = FiltroBalanceteVerificacaoSchema.safeParse({
+    exercicioId: ex.id,
+    periodoInicial: flat.de,
+    periodoFinal: flat.ate ?? mesAtual, // default = período corrente
+    incluir13: flat.p13 === '1',
+  });
+
+  const rawFiltro: FiltroBalanceteVerificacaoInput = parsedFiltro.success
+    ? parsedFiltro.data
+    : {
+        exercicioId: ex.id,
+        periodoInicial: 1,
+        periodoFinal: mesAtual,
+        incluir13: false,
+      };
+
+  // MAJOR-1: clamp na página (espelhado no serviço) para header e selector
+  const periodoFinalEfetivo = rawFiltro.incluir13
+    ? rawFiltro.periodoFinal
+    : Math.min(rawFiltro.periodoFinal, 12);
+  const periodoInicialEfetivo = Math.min(rawFiltro.periodoInicial, periodoFinalEfetivo);
+
+  const filtro: FiltroBalanceteVerificacaoInput = {
+    ...rawFiltro,
+    exercicioId: ex.id, // sempre o ID resolvido, nunca undefined
+    periodoInicial: periodoInicialEfetivo,
+    periodoFinal: periodoFinalEfetivo,
   };
-  // Datas `aaaa-mm-dd` ⇒ dia civil de Maputo inteiro, como na DRE: com a
-  // meia-noite UTC o último dia ficava de fora e o saldo anterior (#141)
-  // apanhava as primeiras duas horas do primeiro dia.
-  const parseResult = FiltroUrlSchema.safeParse(intervaloDoDiaMaputo({ ...flat, ...periodo }));
+
+  const deDesc = String(filtro.periodoInicial).padStart(2, '0');
+  const ateDesc = String(filtro.periodoFinal).padStart(2, '0');
 
   return (
     <div className="p-6 space-y-6">
       <PageHeader
         title="Balancete de Verificação"
-        description="Verificação de débitos e créditos por conta — PGC-NIRF"
+        description={`Exercício ${ex.codigo} — períodos ${deDesc}..${ateDesc}`}
         breadcrumbs={[
           { label: 'Contabilidade', href: '/contabilidade' },
           { label: 'Balancete' },
@@ -183,27 +315,29 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         }
       />
 
-      <SeletorPeriodo
-        rota="/contabilidade/balancete"
-        dataInicio={periodo.dataInicio}
-        dataFim={periodo.dataFim}
-      />
-
-      <FilterBar
-        searchPlaceholder="Pesquisar por conta…"
-        searchKey="search"
-        filters={FILTER_CONFIGS}
-      />
-
-      {parseResult.success ? (
-        <Suspense key={JSON.stringify(parseResult.data)} fallback={<TableSkeleton rows={12} cols={6} />}>
-          <BalanceteSection filtros={parseResult.data} tenantId={tenantId} userId={userId} />
-        </Suspense>
-      ) : (
-        <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
-          Período inválido. Escolha as datas acima para gerar o balancete.
+      {/* MAJOR-2: aviso quando o exercício pedido não existe */}
+      {exercicioNaoEncontrado && (
+        <div className="rounded-lg border border-info/40 bg-info/10 p-3 text-sm text-info">
+          Exercício <strong>{codigoPedido}</strong> não encontrado — a mostrar{' '}
+          <strong>{ex.codigo}</strong>
         </div>
       )}
+
+      <SeletorBalanceteVerificacao
+        exercicios={exercicios.map((e) => ({ id: e.id, codigo: e.codigo }))}
+        exercicioAtual={ex.codigo}
+        periodoInicial={filtro.periodoInicial}
+        periodoFinal={filtro.periodoFinal}
+        incluir13={filtro.incluir13}
+      />
+
+      {/* m2: gerarBalanceteVerificacao dentro do filho do Suspense */}
+      <Suspense
+        key={`${ex.codigo}-${filtro.periodoInicial}-${filtro.periodoFinal}-${filtro.incluir13}`}
+        fallback={<TableSkeleton rows={12} cols={8} />}
+      >
+        <TabelaBalancete filtro={filtro} ctx={ctx} />
+      </Suspense>
     </div>
   );
 }

@@ -23,7 +23,9 @@ import type {
   ReabrirPeriodoInput,
   AbrirExercicioInput,
   ListarPeriodosInput,
+  FiltroBalanceteVerificacaoInput,
 } from '@/lib/validations/contabilidade';
+import type { BalanceteVerificacaoNucleo } from './balancete-verificacao';
 import type { CalendarioContabilisticoInput } from '@/lib/validations/plataforma';
 
 // ---------------------------------------------------------------------------
@@ -291,6 +293,22 @@ export interface Balancete {
   totalCreditos: Prisma.Decimal;
 }
 
+/**
+ * Resultado de `gerarBalanceteVerificacao` (ADR-0040, issue #280).
+ * Estende o núcleo puro com metadados do exercício e do intervalo pedido.
+ */
+export interface BalanceteVerificacaoResult extends BalanceteVerificacaoNucleo {
+  exercicio: Pick<ExercicioContabil, 'id' | 'codigo' | 'dataInicio' | 'dataFim'>;
+  /** Período inicial efectivo (conforme pedido). */
+  periodoInicial: number;
+  /** Período final efectivo (≤ 12 quando incluir13=false). */
+  periodoFinal: number;
+  incluir13: boolean;
+}
+
+// Re-export para conveniência dos importadores do contrato
+export type { FiltroBalanceteVerificacaoInput };
+
 export interface DRE {
   dataInicio: Date;
   dataFim: Date;
@@ -488,4 +506,10 @@ export interface IContabilidadeService {
     input: RegistarLancamentoContabilisticoInput,
     ctx: Ctx,
   ): Promise<Lancamento>;
+
+  // --- Balancete de verificação PHC (ADR-0040) ---
+  gerarBalanceteVerificacao(
+    filtro: FiltroBalanceteVerificacaoInput,
+    ctx: Ctx,
+  ): Promise<BalanceteVerificacaoResult>;
 }

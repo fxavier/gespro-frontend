@@ -27,7 +27,10 @@ import type {
   ReabrirPeriodoInput,
   ListarPeriodosInput,
   AbrirExercicioInput,
+  FiltroBalanceteVerificacaoInput,
 } from '@/lib/validations/contabilidade';
+import { montarBalanceteVerificacao } from './balancete-verificacao';
+import type { BalanceteVerificacaoResult } from './contabilidade.interface';
 import type { CalendarioContabilisticoInput } from '@/lib/validations/plataforma';
 import { bootstrapSeriesDocumento } from '@/server/provisioning/tenant-bootstrap';
 import {
@@ -1874,6 +1877,138 @@ export async function registarLancamentoContabilistico(
 }
 
 // ---------------------------------------------------------------------------
+// Balancete de Verificação PHC (ADR-0040, issue #280, S1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Gera o balancete de verificação no modelo PHC para o intervalo de períodos
+ * pedido dentro de um exercício.
+ *
+ * - Movimento: partidas nos períodos [periodoInicial..periodoFinal].
+ * - Acumulado: partidas nos períodos [1..periodoFinal].
+ * - Abertura implícita: partidas antes de exercicio.dataInicio, só quando o
+ *   exercício NÃO tiver lançamentos no diário de tipo ABERTURA.
+ * - incluir13=false: o período 13 nunca entra mesmo que periodoFinal=13.
+ *
+ * Usa `prisma.partidaLancamento.groupBy` — nunca `$queryRaw` (ADR-0040 §3).
+ */
+export async function gerarBalanceteVerificacao(
+  filtro: FiltroBalanceteVerificacaoInput,
+  ctx: Ctx,
+): Promise<BalanceteVerificacaoResult> {
+  const { tenantId } = ctx;
+
+  // Período final efectivo: sem incluir13, o 13 equivale ao 12
+  const effectiveFinal = filtro.incluir13 ? filtro.periodoFinal : Math.min(filtro.periodoFinal, 12);
+  // Período inicial efectivo: não pode ultrapassar o final
+  const effectiveInicial = Math.min(filtro.periodoInicial, effectiveFinal);
+
+  // 1. Resolver o exercício (n2: primeiro, antes de qualquer groupBy — ADR-0040 §4)
+  const exercicio = filtro.exercicioId
+    ? await prisma.exercicioContabil.findFirst({
+        where: { tenantId, id: filtro.exercicioId },
+        select: { id: true, codigo: true, dataInicio: true, dataFim: true },
+      })
+    : await prisma.exercicioContabil.findFirst({
+        where: { tenantId, dataInicio: { lte: new Date() }, dataFim: { gte: new Date() } },
+        orderBy: { dataInicio: 'desc' },
+        select: { id: true, codigo: true, dataInicio: true, dataFim: true },
+      });
+
+  if (!exercicio) {
+    throw new NotFoundError('Exercício contabilístico não encontrado');
+  }
+
+  const exercicioId = exercicio.id;
+
+  // 2. Verificar se o exercício tem lançamentos no diário AB (n2: sequencial — só então
+  //    fazemos a query «anteriores», que pode ser pesada em bases grandes)
+  const aberturaCount = await prisma.lancamento.count({
+    where: {
+      tenantId,
+      status: FILTRO_LANCAMENTO_MAPA,
+      diario: { tipo: 'ABERTURA' },
+      periodo: { exercicioId },
+    },
+  });
+
+  // 3. Restantes queries em paralelo; anteriores só quando não há diário AB
+  const [movimentoRaw, acumuladoRaw, contasRaw, anterioresRaw] = await Promise.all([
+    // Movimento: períodos [inicial..final]
+    prisma.partidaLancamento.groupBy({
+      by: ['contaId', 'tipo'],
+      where: {
+        tenantId,
+        lancamento: {
+          status: FILTRO_LANCAMENTO_MAPA,
+          periodo: { exercicioId, ordem: { gte: effectiveInicial, lte: effectiveFinal } },
+        },
+      },
+      _sum: { valor: true },
+    }),
+    // Acumulado: períodos [1..final]
+    prisma.partidaLancamento.groupBy({
+      by: ['contaId', 'tipo'],
+      where: {
+        tenantId,
+        lancamento: {
+          status: FILTRO_LANCAMENTO_MAPA,
+          periodo: { exercicioId, ordem: { gte: 1, lte: effectiveFinal } },
+        },
+      },
+      _sum: { valor: true },
+    }),
+    // Todas as contas do tenant (mães e folhas)
+    prisma.contaPGC.findMany({
+      where: { tenantId },
+      select: {
+        id: true,
+        codigo: true,
+        nome: true,
+        classe: true,
+        natureza: true,
+        nivel: true,
+        contaMaeId: true,
+        aceitaLancamento: true,
+      },
+    }),
+    // Anteriores: partidas antes de exercicio.dataInicio (só quando sem AB)
+    aberturaCount === 0
+      ? prisma.partidaLancamento.groupBy({
+          by: ['contaId', 'tipo'],
+          where: {
+            tenantId,
+            lancamento: {
+              status: FILTRO_LANCAMENTO_MAPA,
+              data: { lt: exercicio.dataInicio },
+            },
+          },
+          _sum: { valor: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // Se o exercício tem lançamentos no diário AB → sem abertura implícita
+  const anteriores = aberturaCount > 0 ? null : anterioresRaw;
+
+  // 3. Montar o balancete via núcleo puro
+  const nucleo = montarBalanceteVerificacao({
+    contas: contasRaw,
+    movimento: movimentoRaw,
+    acumulado: acumuladoRaw,
+    anteriores,
+  });
+
+  return {
+    exercicio,
+    periodoInicial: effectiveInicial,
+    periodoFinal: effectiveFinal,
+    incluir13: filtro.incluir13,
+    ...nucleo,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Verificação de conformidade com IContabilidadeService (NIT)
 // ---------------------------------------------------------------------------
 
@@ -1913,4 +2048,5 @@ export const contabilidadeService = {
   obterCalendarioContabilistico,
   atualizarCalendarioContabilistico,
   registarLancamentoContabilistico,
+  gerarBalanceteVerificacao,
 } satisfies IContabilidadeService;
