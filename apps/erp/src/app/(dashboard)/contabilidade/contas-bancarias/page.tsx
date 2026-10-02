@@ -56,12 +56,17 @@ export default async function ContasBancariasPage() {
           { label: 'Contas Bancárias' },
         ]}
         actions={
-          <Button asChild size="sm">
-            <Link href="/contabilidade/contas-bancarias/nova">
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Conta Bancária
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href="/contabilidade/configuracoes/meios-pagamento-pos">Meios de pagamento do POS</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/contabilidade/contas-bancarias/nova">
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Conta Bancária
+              </Link>
+            </Button>
+          </div>
         }
       />
 

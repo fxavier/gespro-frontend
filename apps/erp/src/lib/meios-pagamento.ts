@@ -33,3 +33,32 @@ export const TIPOS_CONTA_POR_FORMA: Record<FormaPagamento, ReadonlyArray<string>
   'E-MOLA':               ['CARTEIRA_MOVEL'],
   NUMERARIO:              [],
 };
+
+// ---------------------------------------------------------------------------
+// Meios de pagamento do POS (ADR-0041 §4) — enum `MetodoPagamentoTipo`.
+// ---------------------------------------------------------------------------
+
+/** Meios do POS cuja conta a débito é configurável por tenant (`ContaMeioPagamentoPOS`).
+ *  DINHEIRO debita sempre 111 e CREDITO 411; os restantes, sem configuração, 121. */
+export const METODOS_POS_CONFIGURAVEIS = ['CARTAO', 'TRANSFERENCIA', 'MPESA', 'EMOLA'] as const;
+export type MetodoPOSConfiguravel = (typeof METODOS_POS_CONFIGURAVEIS)[number];
+
+export const ROTULO_METODO_POS: Record<MetodoPOSConfiguravel, string> = {
+  CARTAO: 'Cartão',
+  TRANSFERENCIA: 'Transferência',
+  MPESA: 'M-Pesa',
+  EMOLA: 'e-Mola',
+};
+
+/** Tipos de ContaBancaria aceites por cada meio configurável — o mesmo critério de
+ *  `TIPOS_CONTA_POR_FORMA` (carteiras móveis só para M-Pesa/e-Mola). */
+export const TIPOS_CONTA_POR_METODO_POS: Record<MetodoPOSConfiguravel, ReadonlyArray<string>> = {
+  CARTAO: TIPOS_CONTA_POR_FORMA.TRANSFERENCIA_BANCARIA,
+  TRANSFERENCIA: TIPOS_CONTA_POR_FORMA.TRANSFERENCIA_BANCARIA,
+  MPESA: TIPOS_CONTA_POR_FORMA['M-PESA'],
+  EMOLA: TIPOS_CONTA_POR_FORMA['E-MOLA'],
+};
+
+export function eMetodoPOSConfiguravel(metodo: string): metodo is MetodoPOSConfiguravel {
+  return (METODOS_POS_CONFIGURAVEIS as ReadonlyArray<string>).includes(metodo);
+}

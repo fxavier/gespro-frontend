@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { idEntidade } from '@/lib/validations/common';
+import { METODOS_POS_CONFIGURAVEIS } from '@/lib/meios-pagamento';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -349,6 +350,18 @@ export const FiltroContaBancariaSchema = z.object({
 });
 
 export type FiltroContaBancariaInput = z.infer<typeof FiltroContaBancariaSchema>;
+
+// ---------------------------------------------------------------------------
+// Conta a débito por meio de pagamento do POS (ADR-0041 §4)
+// ---------------------------------------------------------------------------
+
+/** `contaBancariaId: null` retira a configuração (o meio volta a debitar 121). */
+export const DefinirContaMeioPagamentoPOSSchema = z.object({
+  metodo: z.enum(METODOS_POS_CONFIGURAVEIS),
+  contaBancariaId: idEntidade('Conta bancária inválida').nullable(),
+});
+
+export type DefinirContaMeioPagamentoPOSInput = z.infer<typeof DefinirContaMeioPagamentoPOSSchema>;
 
 export const FiltroRazaoSchema = z.object({
   contaId: idEntidade('ID de conta inválido'),
