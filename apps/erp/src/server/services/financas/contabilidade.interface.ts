@@ -25,7 +25,7 @@ import type {
   ListarPeriodosInput,
   FiltroBalanceteVerificacaoInput,
 } from '@/lib/validations/contabilidade';
-import type { BalanceteVerificacaoNucleo } from './balancete-verificacao';
+import type { BalanceteVerificacaoNucleo, ContaBV } from './balancete-verificacao';
 import type { CalendarioContabilisticoInput } from '@/lib/validations/plataforma';
 
 // ---------------------------------------------------------------------------
@@ -304,6 +304,8 @@ export interface BalanceteVerificacaoResult extends BalanceteVerificacaoNucleo {
   /** Período final efectivo (≤ 12 quando incluir13=false). */
   periodoFinal: number;
   incluir13: boolean;
+  /** Todas as contas do tenant (mães e folhas) — necessário para hierarquizarBalancete. */
+  contas: ContaBV[];
 }
 
 // Re-export para conveniência dos importadores do contrato
