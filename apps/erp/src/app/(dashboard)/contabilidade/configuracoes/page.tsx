@@ -7,6 +7,7 @@
  *    e passado ao Client Component como `initialData`.
  */
 
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -58,6 +59,18 @@ export default async function ConfiguracoesContabilidadePage() {
         ]}
       />
       <CalendarioForm initialData={calendario} />
+      <div className="rounded-lg border p-4 text-sm">
+        <p className="font-medium">Meios de pagamento do POS</p>
+        <p className="mt-1 text-muted-foreground">
+          Conta bancária que cada venda POS debita por cartão, transferência, M-Pesa ou e-Mola.{' '}
+          <Link
+            href="/contabilidade/configuracoes/meios-pagamento-pos"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Configurar contas dos meios de pagamento
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

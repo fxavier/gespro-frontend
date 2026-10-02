@@ -23,9 +23,11 @@ import {
   ReabrirPeriodoSchema,
   ListarPeriodosSchema,
   AbrirExercicioSchema,
+  DefinirContaMeioPagamentoPOSSchema,
 } from '@/lib/validations/contabilidade';
 import { CalendarioContabilisticoSchema } from '@/lib/validations/plataforma';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
+import * as meioPagamento from '@/server/services/financas/meio-pagamento.service';
 import { z } from 'zod';
 import { idEntidade } from '@/lib/validations/common';
 
@@ -179,6 +181,14 @@ export const gerarDRE = createSafeAction({
 });
 
 // --- Banca ---
+
+// Conta a débito por meio de pagamento do POS (ADR-0041 §4)
+export const definirContaMeioPagamentoPOS = createSafeAction({
+  schema: DefinirContaMeioPagamentoPOSSchema,
+  permission: 'financas:configurar',
+  revalidate: { paths: ['/contabilidade/configuracoes/meios-pagamento-pos'] },
+  handler: (input, ctx) => meioPagamento.definirContaMeioPagamentoPOS(input, ctx),
+});
 
 export const criarContaBancaria = createSafeAction({
   schema: CriarContaBancariaSchema,

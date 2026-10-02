@@ -86,7 +86,7 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'financas:fechar_caixa',          descricao: 'Fechar caixa diário' },
   { code: 'financas:conciliar',             descricao: 'Conciliar extractos bancários' },
   { code: 'financas:exportar',              descricao: 'Exportar relatórios financeiros' },
-  { code: 'financas:configurar',            descricao: 'Configurar plano de contas' },
+  { code: 'financas:configurar',            descricao: 'Configurar contabilidade (plano, calendário, meios de pagamento do POS)' },
   { code: 'financas:leitura',               descricao: 'Leitura geral do módulo financeiro' },
   // Apuramento periódico do IVA (ADR-0034). `mapas` é leitura: exportar em modo de
   // Leitura é garantia do ADR-0032, e o mapa de IVA é dos documentos que o cliente

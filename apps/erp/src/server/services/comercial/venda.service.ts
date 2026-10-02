@@ -35,6 +35,7 @@ import type { BaixaStockInput, IStockService, ReservaStockInput } from '@/server
 import type { RegistarMovimentoCaixaInput, TipoSerieDocumento } from '@/server/services/financas';
 import type { IFaturacaoService } from '@/server/services/financas';
 import type { ICaixaService } from '@/server/services/financas';
+import type { IMeioPagamentoPOSService } from '@/server/services/financas';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
 import type { IComissaoService } from './comissao.interface';
@@ -238,6 +239,7 @@ export class VendaService implements IVendaService {
       IComissaoService,
       'calcularComissao' | 'registarComissao'
     >,
+    private readonly meioPagamentoPOSService: IMeioPagamentoPOSService,
   ) {}
 
   async criar(input: CreateVendaInput, ctx: Ctx): Promise<VendaRow> {
@@ -457,6 +459,8 @@ export class VendaService implements IVendaService {
     }
 
     const pagamentos = input.pagamentos.map((p) => ({ tipo: p.tipo, valor: new Prisma.Decimal(String(p.valor)) }));
+    // Conta a débito por meio configurada pelo tenant; os ausentes caem na omissão (ADR-0041 §4).
+    const contas = await this.meioPagamentoPOSService.resolverContasPagamentoPOS(tx, ctx);
     const fatura = await this.faturacaoService.emitirDocumentoEmTx(
       tx,
       {
@@ -485,7 +489,7 @@ export class VendaService implements IVendaService {
       ctx,
       {
         tipoSerie: 'FATURA_RECIBO', // nasce PAGA pela série (ADR-0041 §1)
-        construirLancamento: (doc) => this.faturacaoService.construirLancamentoVendaPOS(doc, pagamentos),
+        construirLancamento: (doc) => this.faturacaoService.construirLancamentoVendaPOS(doc, pagamentos, contas),
       },
     );
 

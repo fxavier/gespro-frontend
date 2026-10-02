@@ -879,6 +879,22 @@ model ContaNaturezaNotaDebito {
   @@unique([tenantId, natureza])
 }
 
+/// Conta bancária que a venda POS debita por meio de pagamento (ADR-0041 §4).
+/// Só CARTAO, TRANSFERENCIA, MPESA e EMOLA são configuráveis; sem linha, o meio
+/// debita 121. Escrita por `definirContaMeioPagamentoPOS`, lida por
+/// `resolverContasPagamentoPOS` dentro da transacção da venda.
+model ContaMeioPagamentoPOS {
+  id              String              @id @default(cuid())
+  tenantId        String
+  metodo          MetodoPagamentoTipo
+  contaBancariaId String              // FK escalar ContaBancaria (tipo compatível com o meio)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([tenantId, metodo])
+  @@index([contaBancariaId])
+}
+
 /// Proforma: proposta comercial antes de emitir factura fiscal.
 model Proforma {
   id               String         @id @default(cuid())

@@ -5,7 +5,8 @@
  * Substitui os stubs da Wave 2 pelas implementações reais de:
  *  - WS A: stockService (baixarStock, reservarStock, libertarStock, entradaStock, confirmarConsumoStock)
  *  - WS D: caixaService (registarMovimentoCaixa), faturacaoService (proximoNumeroSerie, emitirNotaCredito)
- *          contabilidadeService (registarLancamentoContabilistico)
+ *          contabilidadeService (registarLancamentoContabilistico),
+ *          resolverContasPagamentoPOS (conta a débito por meio, ADR-0041 §4)
  */
 import 'server-only';
 
@@ -13,6 +14,7 @@ import { stockService } from '@/server/services/inventario/stock.service';
 import { caixaService } from '@/server/services/financas/caixa.service';
 import { faturacaoService } from '@/server/services/financas/faturacao.service';
 import { contabilidadeService } from '@/server/services/financas/contabilidade.service';
+import { resolverContasPagamentoPOS } from '@/server/services/financas/meio-pagamento.service';
 import { VendaService, SessaoPOSService } from './venda.service';
 import { ComissaoService } from './comissao.service';
 import { EncomendaService } from './encomenda.service';
@@ -30,6 +32,7 @@ export const vendaService = new VendaService(
   caixaService,
   faturacaoService,
   _comissaoService,
+  { resolverContasPagamentoPOS },
 );
 
 export const sessaoPOSService = new SessaoPOSService();

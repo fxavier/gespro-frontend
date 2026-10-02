@@ -75,6 +75,12 @@ A conta de omissão segue o princípio do `PGC_FATURACAO`: os códigos fixos sã
 por tenant manda. A configuração valida a compatibilidade com `TIPOS_CONTA_POR_FORMA` (M-Pesa e e-Mola
 só em `CARTEIRA_MOVEL`).
 
+Configura-se em `/contabilidade/configuracoes/meios-pagamento-pos` com a permissão existente
+`financas:configurar` (não uma permissão própria: uma permissão nova não chega aos papéis dos tenants
+existentes sem novo seed). Desactivar uma `ContaBancaria` configurada **não** muda o débito — a conta PGC
+continua válida e o dinheiro entrou lá; recusar a venda ao balcão ou cair em silêncio na 121 seriam
+piores. A página avisa por linha e a configuração corrige-se lá.
+
 ### 5. Idempotência
 
 O terminal gera uma chave por tentativa de venda; `Venda.chaveIdempotencia` com
