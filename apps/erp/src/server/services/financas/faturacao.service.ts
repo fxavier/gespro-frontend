@@ -638,6 +638,12 @@ export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {
  * decidir primeiro o que significa «e-mail confirmado» para um processo sem
  * pessoa, e registá-lo. Hoje não existe nenhum chamador nessa situação: as
  * rotas de cron não emitem, e os seeds só mencionam esta função num comentário.
+ *
+ * Os núcleos `emitirDocumentoEmTx`/`emitirNotaCreditoEmTx` NÃO chamam o travão:
+ * são a porta para quem já tem a sua própria transacção (POS, devolução,
+ * troca). O travão continua a ser obrigação do chamador com sessão — no POS
+ * aplica-se na abertura da sessão (ADR-0041 §6). Um chamador sem pessoa
+ * continua proibido pelas mesmas razões.
  */
 async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
   // `await import` e não import estático: `@/lib/auth` arrasta o next-auth
@@ -665,93 +671,106 @@ async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
 
 export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta> {
   await exigirEmailConfirmadoParaEmitir();
-  return prismaBase.$transaction(async (tx) => {
-    // W9: validar FKs cross-domínio contra tenant
-    const cliente = await tx.cliente.findFirst({
-      where: { id: input.clienteId, tenantId: ctx.tenantId },
+  return prismaBase.$transaction((tx) => emitirDocumentoEmTx(tx, input, ctx));
+}
+
+/**
+ * Núcleo da emissão de factura (ADR-0041 §3): corre na transacção do chamador e
+ * NÃO consulta a sessão — o travão de e-mail é de quem chama (`emitirFatura`,
+ * `converterProformaEmFatura`; o POS aplica-o na abertura da sessão, §6).
+ */
+export async function emitirDocumentoEmTx(
+  tx: Prisma.TransactionClient,
+  input: EmitirFaturaInput,
+  ctx: Ctx,
+): Promise<FaturaCompleta> {
+  // W9: validar FKs cross-domínio contra tenant
+  const cliente = await tx.cliente.findFirst({
+    where: { id: input.clienteId, tenantId: ctx.tenantId },
+    select: { id: true, nuit: true },
+  });
+  if (!cliente) throw new NotFoundError('Cliente não encontrado');
+
+  if (input.vendaId) {
+    const venda = await tx.venda.findFirst({
+      where: { id: input.vendaId, tenantId: ctx.tenantId },
       select: { id: true },
     });
-    if (!cliente) throw new NotFoundError('Cliente não encontrado');
+    if (!venda) throw new NotFoundError('Venda não encontrada');
+  }
 
-    if (input.vendaId) {
-      const venda = await tx.venda.findFirst({
-        where: { id: input.vendaId, tenantId: ctx.tenantId },
-        select: { id: true },
-      });
-      if (!venda) throw new NotFoundError('Venda não encontrada');
-    }
+  const { numero, serieDocumentoId } = await numerarDocumento(tx, 'FATURA', ctx, input.dataEmissao);
+  const totais = calcularTotaisLinhas(input.linhas);
 
-    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'FATURA', ctx, input.dataEmissao);
-    const totais = calcularTotaisLinhas(input.linhas);
-
-    const fatura = await tx.fatura.create({
-      data: {
-        tenantId: ctx.tenantId,
-        serieDocumentoId,
-        numero,
-        clienteId: input.clienteId,
-        vendaId: input.vendaId ?? null,
-        moeda: input.moeda ?? 'MZN',
-        ...totais,
-        totalPago: new Prisma.Decimal(0),
-        status: 'EMITIDA',
-        dataEmissao: input.dataEmissao,
-        dataVencimento: input.dataVencimento,
-        observacoes: input.observacoes ?? null,
-        emitidoPorId: ctx.userId,
-      },
-    });
-
-    await Promise.all(
-      input.linhas.map((l, i) =>
-        tx.linhaFatura.create({
-          data: {
-            tenantId: ctx.tenantId,
-            faturaId: fatura.id,
-            produtoId: l.produtoId ?? null,
-            descricao: l.descricao,
-            quantidade: new Prisma.Decimal(l.quantidade.toFixed(4)),
-            precoUnitario: new Prisma.Decimal(l.precoUnitario.toFixed(2)),
-            desconto: new Prisma.Decimal(l.desconto.toFixed(2)),
-            taxaIva: new Prisma.Decimal(l.taxaIva.toFixed(4)),
-            subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
-            ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
-            total: new Prisma.Decimal(l.total.toFixed(2)),
-            ordemLinha: l.ordemLinha ?? i,
-          },
-        }),
-      ),
-    );
-
-    // Wave 3: lançamento contabilístico automático na MESMA transacção.
-    // O retorno é guardado para ligar Fatura.lancamentoId — sem esta ligação
-    // a pré-condição DOCUMENTO_SEM_LANCAMENTO impede o apuramento de IVA e o
-    // fecho do período em TODOS os meses com actividade (verificado em prod).
-    const lancamentoFatura = await registarLancamentoContabilistico(
-      tx,
-      construirLancamentoFatura({
-        id: fatura.id,
-        numero: fatura.numero,
-        total: totais.total,
-        subtotal: totais.subtotal,
-        ivaTotal: totais.ivaTotal,
-        dataEmissao: input.dataEmissao,
-      }),
-      ctx,
-    );
-    await tx.fatura.update({
-      where: { id: fatura.id },
-      data: { lancamentoId: lancamentoFatura.id },
-    });
-
-    return tx.fatura.findFirst({
-      where: { id: fatura.id },
-      include: {
-        linhas: { orderBy: { ordemLinha: 'asc' } },
-        serieDocumento: { select: { id: true, tipo: true, prefixo: true, ano: true } },
-      },
-    }) as unknown as FaturaCompleta;
+  const fatura = await tx.fatura.create({
+    data: {
+      tenantId: ctx.tenantId,
+      serieDocumentoId,
+      numero,
+      clienteId: input.clienteId,
+      // NUIT congelado na emissão: o mapa de IVA reproduz-se mesmo que o cliente mude (§8).
+      nuitCliente: cliente.nuit ?? null,
+      vendaId: input.vendaId ?? null,
+      moeda: input.moeda ?? 'MZN',
+      ...totais,
+      totalPago: new Prisma.Decimal(0),
+      status: 'EMITIDA',
+      dataEmissao: input.dataEmissao,
+      dataVencimento: input.dataVencimento,
+      observacoes: input.observacoes ?? null,
+      emitidoPorId: ctx.userId,
+    },
   });
+
+  await Promise.all(
+    input.linhas.map((l, i) =>
+      tx.linhaFatura.create({
+        data: {
+          tenantId: ctx.tenantId,
+          faturaId: fatura.id,
+          produtoId: l.produtoId ?? null,
+          descricao: l.descricao,
+          quantidade: new Prisma.Decimal(l.quantidade.toFixed(4)),
+          precoUnitario: new Prisma.Decimal(l.precoUnitario.toFixed(2)),
+          desconto: new Prisma.Decimal(l.desconto.toFixed(2)),
+          taxaIva: new Prisma.Decimal(l.taxaIva.toFixed(4)),
+          subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
+          ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
+          total: new Prisma.Decimal(l.total.toFixed(2)),
+          ordemLinha: l.ordemLinha ?? i,
+        },
+      }),
+    ),
+  );
+
+  // Wave 3: lançamento contabilístico automático na MESMA transacção.
+  // O retorno é guardado para ligar Fatura.lancamentoId — sem esta ligação
+  // a pré-condição DOCUMENTO_SEM_LANCAMENTO impede o apuramento de IVA e o
+  // fecho do período em TODOS os meses com actividade (verificado em prod).
+  const lancamentoFatura = await registarLancamentoContabilistico(
+    tx,
+    construirLancamentoFatura({
+      id: fatura.id,
+      numero: fatura.numero,
+      total: totais.total,
+      subtotal: totais.subtotal,
+      ivaTotal: totais.ivaTotal,
+      dataEmissao: input.dataEmissao,
+    }),
+    ctx,
+  );
+  await tx.fatura.update({
+    where: { id: fatura.id },
+    data: { lancamentoId: lancamentoFatura.id },
+  });
+
+  return tx.fatura.findFirst({
+    where: { id: fatura.id },
+    include: {
+      linhas: { orderBy: { ordemLinha: 'asc' } },
+      serieDocumento: { select: { id: true, tipo: true, prefixo: true, ano: true } },
+    },
+  }) as unknown as FaturaCompleta;
 }
 
 export async function obterFatura(id: string, ctx: Ctx): Promise<FaturaCompleta | null> {
@@ -875,91 +894,98 @@ export async function procurarFaturasCreditaveis(
 
 export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx): Promise<NotaCreditoCompleta> {
   await exigirEmailConfirmadoParaEmitir();
-  return prismaBase.$transaction(async (tx) => {
-    const faturaOriginal = await tx.fatura.findFirst({
-      where: { id: input.faturaOriginalId, tenantId: ctx.tenantId },
-    });
-    if (!faturaOriginal) throw new NotFoundError('Factura original não encontrada');
-    if (faturaOriginal.status === 'CANCELADA') {
-      throw new BusinessRuleError('FATURA_CANCELADA', 'Não é possível emitir NC para factura cancelada');
-    }
+  return prismaBase.$transaction((tx) => emitirNotaCreditoEmTx(tx, input, ctx));
+}
 
-    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_CREDITO', ctx, input.dataEmissao);
-
-    let subtotal = new Prisma.Decimal(0);
-    let ivaTotal = new Prisma.Decimal(0);
-    for (const l of input.linhas) {
-      subtotal = subtotal.plus(new Prisma.Decimal(l.subtotal.toFixed(2)));
-      ivaTotal = ivaTotal.plus(new Prisma.Decimal(l.ivaItem.toFixed(2)));
-    }
-
-    const nc = await tx.notaCredito.create({
-      data: {
-        tenantId: ctx.tenantId,
-        serieDocumentoId,
-        numero,
-        faturaOriginalId: input.faturaOriginalId,
-        motivo: input.motivo,
-        moeda: input.moeda ?? 'MZN',
-        subtotal,
-        descontoTotal: new Prisma.Decimal(0),
-        ivaTotal,
-        total: subtotal.plus(ivaTotal),
-        status: 'EMITIDA',
-        dataEmissao: input.dataEmissao,
-        observacoes: input.observacoes ?? null,
-        emitidoPorId: ctx.userId,
-      },
-    });
-
-    await Promise.all(
-      input.linhas.map((l, i) =>
-        tx.linhaNotaCredito.create({
-          data: {
-            tenantId: ctx.tenantId,
-            notaCreditoId: nc.id,
-            produtoId: l.produtoId ?? null,
-            descricao: l.descricao,
-            quantidade: new Prisma.Decimal(l.quantidade.toFixed(4)),
-            precoUnitario: new Prisma.Decimal(l.precoUnitario.toFixed(2)),
-            desconto: new Prisma.Decimal(l.desconto.toFixed(2)),
-            taxaIva: new Prisma.Decimal(l.taxaIva.toFixed(4)),
-            subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
-            ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
-            total: new Prisma.Decimal(l.total.toFixed(2)),
-            ordemLinha: l.ordemLinha ?? i,
-          },
-        }),
-      ),
-    );
-
-    // Wave 3: lançamento de estorno contabilístico na MESMA transacção.
-    // Guarda lancamentoId — idem à factura: sem ligação o apuramento fica bloqueado.
-    const lancamentoNC = await registarLancamentoContabilistico(
-      tx,
-      construirLancamentoNotaCredito({
-        id: nc.id,
-        numero,
-        total: subtotal.plus(ivaTotal),
-        subtotal,
-        ivaTotal,
-        dataEmissao: input.dataEmissao,
-      }),
-      ctx,
-    );
-    await tx.notaCredito.update({
-      where: { id: nc.id },
-      data: { lancamentoId: lancamentoNC.id },
-    });
-
-    return tx.notaCredito.findFirst({
-      where: { id: nc.id },
-      include: {
-        linhas: { orderBy: { ordemLinha: 'asc' } },
-        faturaOriginal: { select: { id: true, numero: true, total: true } },
-      },
-    }) as unknown as NotaCreditoCompleta;
+/** Núcleo da emissão de nota de crédito — idem a `emitirDocumentoEmTx`: sem sessão, na tx do chamador. */
+export async function emitirNotaCreditoEmTx(
+  tx: Prisma.TransactionClient,
+  input: EmitirNotaCreditoInput,
+  ctx: Ctx,
+): Promise<NotaCreditoCompleta> {
+  const faturaOriginal = await tx.fatura.findFirst({
+    where: { id: input.faturaOriginalId, tenantId: ctx.tenantId },
   });
+  if (!faturaOriginal) throw new NotFoundError('Factura original não encontrada');
+  if (faturaOriginal.status === 'CANCELADA') {
+    throw new BusinessRuleError('FATURA_CANCELADA', 'Não é possível emitir NC para factura cancelada');
+  }
+
+  const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_CREDITO', ctx, input.dataEmissao);
+
+  let subtotal = new Prisma.Decimal(0);
+  let ivaTotal = new Prisma.Decimal(0);
+  for (const l of input.linhas) {
+    subtotal = subtotal.plus(new Prisma.Decimal(l.subtotal.toFixed(2)));
+    ivaTotal = ivaTotal.plus(new Prisma.Decimal(l.ivaItem.toFixed(2)));
+  }
+
+  const nc = await tx.notaCredito.create({
+    data: {
+      tenantId: ctx.tenantId,
+      serieDocumentoId,
+      numero,
+      faturaOriginalId: input.faturaOriginalId,
+      motivo: input.motivo,
+      moeda: input.moeda ?? 'MZN',
+      subtotal,
+      descontoTotal: new Prisma.Decimal(0),
+      ivaTotal,
+      total: subtotal.plus(ivaTotal),
+      status: 'EMITIDA',
+      dataEmissao: input.dataEmissao,
+      observacoes: input.observacoes ?? null,
+      emitidoPorId: ctx.userId,
+    },
+  });
+
+  await Promise.all(
+    input.linhas.map((l, i) =>
+      tx.linhaNotaCredito.create({
+        data: {
+          tenantId: ctx.tenantId,
+          notaCreditoId: nc.id,
+          produtoId: l.produtoId ?? null,
+          descricao: l.descricao,
+          quantidade: new Prisma.Decimal(l.quantidade.toFixed(4)),
+          precoUnitario: new Prisma.Decimal(l.precoUnitario.toFixed(2)),
+          desconto: new Prisma.Decimal(l.desconto.toFixed(2)),
+          taxaIva: new Prisma.Decimal(l.taxaIva.toFixed(4)),
+          subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
+          ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
+          total: new Prisma.Decimal(l.total.toFixed(2)),
+          ordemLinha: l.ordemLinha ?? i,
+        },
+      }),
+    ),
+  );
+
+  // Wave 3: lançamento de estorno contabilístico na MESMA transacção.
+  // Guarda lancamentoId — idem à factura: sem ligação o apuramento fica bloqueado.
+  const lancamentoNC = await registarLancamentoContabilistico(
+    tx,
+    construirLancamentoNotaCredito({
+      id: nc.id,
+      numero,
+      total: subtotal.plus(ivaTotal),
+      subtotal,
+      ivaTotal,
+      dataEmissao: input.dataEmissao,
+    }),
+    ctx,
+  );
+  await tx.notaCredito.update({
+    where: { id: nc.id },
+    data: { lancamentoId: lancamentoNC.id },
+  });
+
+  return tx.notaCredito.findFirst({
+    where: { id: nc.id },
+    include: {
+      linhas: { orderBy: { ordemLinha: 'asc' } },
+      faturaOriginal: { select: { id: true, numero: true, total: true } },
+    },
+  }) as unknown as NotaCreditoCompleta;
 }
 
 export async function obterNotaCredito(id: string, ctx: Ctx): Promise<NotaCreditoCompleta | null> {
@@ -1443,48 +1469,31 @@ export async function converterProformaEmFatura(id: string, ctx: Ctx): Promise<F
     if (!proforma) throw new NotFoundError('Proforma não encontrada');
     transitarProforma(proforma.status as StatusProforma, 'CONVERTIDA');
 
+    // Mesmo núcleo que `emitirFatura`: numera, congela o NUIT e lança D 411 / C 711 / C 44331
+    // (antes a factura convertida ficava sem lançamento ⇒ DOCUMENTO_SEM_LANCAMENTO).
+    // As linhas da proforma já vêm calculadas pelo mesmo Zod — os totais coincidem.
     const dataEmissao = new Date();
-    const { numero, serieDocumentoId } = await numerarDocumento(tx, 'FATURA', ctx, dataEmissao);
-
-    const fatura = await tx.fatura.create({
-      data: {
-        tenantId: ctx.tenantId,
-        serieDocumentoId,
-        numero,
+    const fatura = await emitirDocumentoEmTx(
+      tx,
+      {
         clienteId: proforma.clienteId,
         moeda: proforma.moeda,
-        subtotal: proforma.subtotal,
-        descontoTotal: proforma.descontoTotal,
-        baseIva: proforma.subtotal,
-        ivaTotal: proforma.ivaTotal,
-        total: proforma.total,
-        totalPago: new Prisma.Decimal(0),
-        status: 'EMITIDA',
         dataEmissao,
         dataVencimento: new Date(dataEmissao.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 dias
-        emitidoPorId: ctx.userId,
+        linhas: proforma.linhas.map((l) => ({
+          produtoId: l.produtoId ?? undefined,
+          descricao: l.descricao,
+          quantidade: l.quantidade.toNumber(),
+          precoUnitario: l.precoUnitario.toNumber(),
+          desconto: l.desconto.toNumber(),
+          taxaIva: l.taxaIva.toNumber(),
+          subtotal: l.subtotal.toNumber(),
+          ivaItem: l.ivaItem.toNumber(),
+          total: l.total.toNumber(),
+          ordemLinha: l.ordemLinha,
+        })),
       },
-    });
-
-    await Promise.all(
-      proforma.linhas.map((l) =>
-        tx.linhaFatura.create({
-          data: {
-            tenantId: ctx.tenantId,
-            faturaId: fatura.id,
-            produtoId: l.produtoId,
-            descricao: l.descricao,
-            quantidade: l.quantidade,
-            precoUnitario: l.precoUnitario,
-            desconto: l.desconto,
-            taxaIva: l.taxaIva,
-            subtotal: l.subtotal,
-            ivaItem: l.ivaItem,
-            total: l.total,
-            ordemLinha: l.ordemLinha,
-          },
-        }),
-      ),
+      ctx,
     );
 
     await tx.proforma.update({
@@ -1492,13 +1501,7 @@ export async function converterProformaEmFatura(id: string, ctx: Ctx): Promise<F
       data: { status: 'CONVERTIDA', faturaId: fatura.id },
     });
 
-    return tx.fatura.findFirst({
-      where: { id: fatura.id },
-      include: {
-        linhas: { orderBy: { ordemLinha: 'asc' } },
-        serieDocumento: { select: { id: true, tipo: true, prefixo: true, ano: true } },
-      },
-    }) as unknown as FaturaCompleta;
+    return fatura;
   });
 }
 

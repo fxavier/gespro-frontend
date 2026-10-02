@@ -76,7 +76,6 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 | A | Novo Lançamento só carrega as primeiras 200 contas de movimento (até 493): classes 5–8 inescolhíveis ([#87](https://github.com/fxavier/gespro-frontend/issues/87)) |
 | A | Fim de intervalo `aaaa-mm-dd` à meia-noite UTC exclui o último dia (balancete, razão, DRE) ([#88](https://github.com/fxavier/gespro-frontend/issues/88)) |
 | A | Estornar apuramento de IVA em duas transacções: com período fechado fica ESTORNADO com o lançamento activo ([#89](https://github.com/fxavier/gespro-frontend/issues/89)) |
-| A | `converterProformaEmFatura` emite sem lançamento → `DOCUMENTO_SEM_LANCAMENTO` bloqueia IVA e fecho, e o utilizador não consegue resolver ([#90](https://github.com/fxavier/gespro-frontend/issues/90)) |
 | M | Rascunhos de lançamento sem editar nem eliminar ([#137](https://github.com/fxavier/gespro-frontend/issues/137)) |
 | M | Encerramento do exercício (ADR-0035) não implementado; período 13 sem lançamentos mas exige apuramento ([#138](https://github.com/fxavier/gespro-frontend/issues/138)) |
 | M | Sem ecrã para conta por natureza de ND, regras de sugestão da reconciliação e tolerâncias da conta bancária ([#139](https://github.com/fxavier/gespro-frontend/issues/139)) ([#140](https://github.com/fxavier/gespro-frontend/issues/140)) |
