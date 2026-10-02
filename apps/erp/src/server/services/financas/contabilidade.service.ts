@@ -290,6 +290,26 @@ export async function resolverPeriodo(
   return criado;
 }
 
+/**
+ * Recusa com `PERIODO_FECHADO` se o período fiscal (Africa/Maputo) de `data` já existe e não
+ * está ABERTO. Só leitura, sem tranca: serve para falhar cedo (abertura da sessão POS,
+ * ADR-0041 §6). Período ainda por criar conta como aberto — o primeiro lançamento cria-o
+ * (`resolverPeriodo`). Quem lança continua protegido pela leitura trancada de `criarLancamento`.
+ */
+export async function exigirPeriodoAbertoEm(data: Date, ctx: Ctx): Promise<void> {
+  const periodo = await prisma.periodoContabil.findFirst({
+    where: { tenantId: ctx.tenantId, codigo: periodoFiscalDe(data) },
+    select: { codigo: true, estado: true },
+  });
+  if (periodo && periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError(
+      'PERIODO_FECHADO',
+      `O período contabilístico ${periodo.codigo} está fechado — não é possível vender nele. ` +
+        'Reabra o período em Contabilidade › Exercícios ou peça a quem o fechou.',
+    );
+  }
+}
+
 function transitarEstado(atual: StatusLancamento, alvo: StatusLancamento): void {
   const permitidas = TRANSICOES_LANCAMENTO[atual];
   if (!permitidas.includes(alvo)) {

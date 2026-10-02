@@ -716,7 +716,7 @@ export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {
  * aplica-se na abertura da sessão (ADR-0041 §6). Um chamador sem pessoa
  * continua proibido pelas mesmas razões.
  */
-async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
+export async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
   // `await import` e não import estático: `@/lib/auth` arrasta o next-auth
   // inteiro, e este ficheiro é importado por todo o lado onde se lê facturação
   // — inclusive por caminhos que nunca emitem nada. Assim o custo só existe

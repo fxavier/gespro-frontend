@@ -9,14 +9,48 @@
  * Component (que corre duas vezes em desenvolvimento e não é lugar de efeito).
  * Em Strict Mode o efeito também corre duas vezes — a segunda chamada recebe
  * `SESSAO_JA_ABERTA` e é tratada como sucesso.
+ *
+ * A abertura falha cedo (ADR-0041 §6): e-mail por confirmar, período de hoje
+ * fechado, caixa fechada/de outro utilizador/inexistente. Cada recusa mostra a
+ * mensagem do servidor e leva o operador ao sítio onde se resolve.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, MonitorPlay } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { abrirSessaoPOS } from '@/server/actions/vendas.actions';
+
+type Recusa = { titulo: string; mensagem: string; acao: { href: string; rotulo: string } };
+
+const IR_AO_CAIXA = { href: '/caixa/abertura?voltar=/pos', rotulo: 'Abrir o caixa' };
+
+function recusaDe(code: string, message: string | undefined): Recusa {
+  const mensagem = message || 'Não foi possível iniciar a sessão POS.';
+  switch (code) {
+    case 'EMAIL_POR_CONFIRMAR_EMISSAO':
+      return {
+        titulo: 'Confirme o seu e-mail para vender',
+        mensagem,
+        acao: { href: '/dashboard', rotulo: 'Ir ao painel' },
+      };
+    case 'PERIODO_FECHADO':
+      return {
+        titulo: 'O período contabilístico de hoje está fechado',
+        mensagem,
+        acao: { href: '/contabilidade/exercicios', rotulo: 'Ver exercícios e períodos' },
+      };
+    case 'SESSAO_CAIXA_FECHADA':
+      return { titulo: 'O caixa já não está aberto', mensagem, acao: IR_AO_CAIXA };
+    case 'SESSAO_CAIXA_DE_OUTRO_UTILIZADOR':
+      return { titulo: 'Este caixa é de outro utilizador', mensagem, acao: IR_AO_CAIXA };
+    case 'NAO_ENCONTRADO':
+      return { titulo: 'Sessão de caixa não encontrada', mensagem, acao: IR_AO_CAIXA };
+    default:
+      return { titulo: 'Não foi possível iniciar o POS', mensagem, acao: { href: '/caixa', rotulo: 'Ir ao caixa' } };
+  }
+}
 
 export function POSIniciar({
   sessaoCaixaId,
@@ -26,43 +60,44 @@ export function POSIniciar({
   numeroCaixa: string;
 }) {
   const router = useRouter();
-  const [erro, setErro] = useState<string | null>(null);
+  const [recusa, setRecusa] = useState<Recusa | null>(null);
   const iniciado = useRef(false);
+
+  const iniciar = useCallback(async () => {
+    const r = await abrirSessaoPOS({ sessaoCaixaId });
+    if (r.ok || r.error.code === 'SESSAO_JA_ABERTA') {
+      router.refresh();
+      return;
+    }
+    setRecusa(recusaDe(r.error.code, r.error.message));
+  }, [sessaoCaixaId, router]);
 
   useEffect(() => {
     if (iniciado.current) return;
     iniciado.current = true;
-    void (async () => {
-      const r = await abrirSessaoPOS({ sessaoCaixaId });
-      if (r.ok || r.error.code === 'SESSAO_JA_ABERTA') {
-        router.refresh();
-        return;
-      }
-      setErro(r.error.message ?? 'Não foi possível iniciar a sessão POS.');
-    })();
-  }, [sessaoCaixaId, router]);
+    void iniciar();
+  }, [iniciar]);
 
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="w-full max-w-md space-y-4 text-center" role="status" aria-live="polite">
         <MonitorPlay className="mx-auto h-12 w-12 text-primary" aria-hidden="true" />
-        {erro ? (
+        {recusa ? (
           <>
-            <h1 className="text-2xl font-bold">Não foi possível iniciar o POS</h1>
-            <p className="text-sm text-muted-foreground">{erro}</p>
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <h1 className="text-2xl font-bold">{recusa.titulo}</h1>
+            <p className="text-sm text-muted-foreground">{recusa.mensagem}</p>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <Button
                 variant="outline"
                 onClick={() => {
-                  iniciado.current = false;
-                  setErro(null);
-                  router.refresh();
+                  setRecusa(null);
+                  void iniciar();
                 }}
               >
                 Tentar de novo
               </Button>
               <Button asChild>
-                <Link href="/caixa">Ir ao caixa</Link>
+                <Link href={recusa.acao.href}>{recusa.acao.rotulo}</Link>
               </Button>
             </div>
           </>

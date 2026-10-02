@@ -91,3 +91,8 @@ export {
 
 // Funções transaccionais (B6) — chamar dentro de prismaBase.$transaction
 export { proximoNumeroSerie } from './faturacao.service';
+
+// Verificações de abertura da sessão POS (ADR-0041 §6 — WS C): falhar cedo, sem escrever.
+export { exigirEmailConfirmadoParaEmitir } from './faturacao.service';
+export { exigirPeriodoAbertoEm } from './contabilidade.service';
+export { exigirSessaoCaixaAbertaDoUtilizador } from './caixa.service';

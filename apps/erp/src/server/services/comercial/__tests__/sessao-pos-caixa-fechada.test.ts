@@ -14,6 +14,10 @@
  *      a órfã fica FECHADA (com fechadoEm) e a nova ABERTA.
  *   3. abrir continua a recusar com SESSAO_JA_ABERTA quando a sessão POS
  *      ABERTA existente tem a caixa ABERTA.
+ *   4. (ADR-0041 §6) abrir recusa com EMAIL_POR_CONFIRMAR_EMISSAO quando a sessão
+ *      não tem o e-mail confirmado, e não cria SessaoPOS nenhuma.
+ *
+ * `auth()` é fronteira: duplo mutável (vi.hoisted), e-mail confirmado por omissão.
  *
  * Requer o Postgres local (DATABASE_URL em .env). Dados isolados num tenant
  * próprio, apagados no fim. Cada caso usa o seu vendedor.
@@ -21,7 +25,14 @@
 
 import 'dotenv/config';
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
+
+const h = vi.hoisted(() => ({
+  sessao: { user: { emailVerificado: true } } as unknown,
+}));
+
+vi.mock('@/lib/auth', () => ({ auth: async () => h.sessao }));
+
 import { prismaBase } from '@/server/db/client';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { sessaoPOSService } from '@/server/services/comercial/index';
@@ -34,6 +45,7 @@ const USERS = {
   obterAberta: `test-user-pos-b-${SUFIXO}`,
   abrirRecupera: `test-user-pos-c-${SUFIXO}`,
   abrirRecusa: `test-user-pos-d-${SUFIXO}`,
+  abrirEmailPorConfirmar: `test-user-pos-e-${SUFIXO}`,
 } as const;
 
 const ctxDe = (userId: string) => ({ tenantId: TENANT_ID, userId });
@@ -92,6 +104,10 @@ afterAll(async () => {
   await prismaBase.sessaoCaixa.deleteMany({ where: { tenantId: TENANT_ID } });
   await prismaBase.user.deleteMany({ where: { tenantId: TENANT_ID } });
   await prismaBase.tenant.delete({ where: { id: TENANT_ID } });
+});
+
+afterEach(() => {
+  h.sessao = { user: { emailVerificado: true } };
 });
 
 describe('SessaoPOSService — sessão POS sobre caixa não aberta', () => {
@@ -163,5 +179,22 @@ describe('SessaoPOSService — sessão POS sobre caixa não aberta', () => {
       where: { tenantId: TENANT_ID, vendedorId: userId, status: 'ABERTA' },
     });
     expect(abertas).toBe(1);
+  });
+
+  it('abrir recusa com EMAIL_POR_CONFIRMAR_EMISSAO com e-mail por confirmar e não cria SessaoPOS (ADR-0041 §6)', async () => {
+    const userId = USERS.abrirEmailPorConfirmar;
+    const caixa = await criarSessaoCaixa(userId, 'ABERTA');
+    h.sessao = { user: { emailVerificado: false } };
+
+    await expect(
+      runWithTenantContext(ctxDe(userId), () =>
+        sessaoPOSService.abrir({ sessaoCaixaId: caixa.id }, ctxDe(userId)),
+      ),
+    ).rejects.toMatchObject({ code: 'EMAIL_POR_CONFIRMAR_EMISSAO' });
+
+    const criadas = await prismaBase.sessaoPOS.count({
+      where: { tenantId: TENANT_ID, vendedorId: userId },
+    });
+    expect(criadas).toBe(0);
   });
 });

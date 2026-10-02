@@ -219,6 +219,30 @@ export async function obterSessao(id: string, ctx: Ctx): Promise<SessaoCaixaComM
   return sessao as unknown as SessaoCaixaComMovimentos | null;
 }
 
+/**
+ * Confirma que a sessão de caixa existe no tenant, está ABERTA e é do utilizador
+ * (ADR-0041 §6 — abertura da sessão POS). Outro tenant ou inexistente → NotFoundError.
+ */
+export async function exigirSessaoCaixaAbertaDoUtilizador(sessaoCaixaId: string, ctx: Ctx): Promise<void> {
+  const sessao = await prisma.sessaoCaixa.findFirst({
+    where: { id: sessaoCaixaId, tenantId: ctx.tenantId },
+    select: { status: true, responsavelId: true, numero: true },
+  });
+  if (!sessao) throw new NotFoundError(`Sessão de caixa ${sessaoCaixaId} não encontrada`);
+  if (sessao.status !== 'ABERTA') {
+    throw new BusinessRuleError(
+      'SESSAO_CAIXA_FECHADA',
+      `A sessão de caixa ${sessao.numero} já não está aberta. Abra o caixa para começar a vender.`,
+    );
+  }
+  if (sessao.responsavelId !== ctx.userId) {
+    throw new BusinessRuleError(
+      'SESSAO_CAIXA_DE_OUTRO_UTILIZADOR',
+      `A sessão de caixa ${sessao.numero} pertence a outro utilizador — quem vende presta contas do seu próprio caixa.`,
+    );
+  }
+}
+
 export async function listarSessoes(
   filtro: FiltroSessaoCaixaInput,
   ctx: Ctx,
