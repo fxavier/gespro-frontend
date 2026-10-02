@@ -21,7 +21,7 @@ de facturação no POS e integrando-o na contabilidade quando é gravado.
 - Venda paga no acto: **Factura-Recibo**, uma `Fatura` numerada na série nova
   `TipoSerieDocumento.FATURA_RECIBO` (prefixo `FR`), nascida `PAGA` (`totalPago = total`).
 - Venda a crédito (pagamento `CREDITO`, sozinho ou com outros meios): **Factura** na série `FATURA`,
-  nascida `EMITIDA`, com o valor em dívida em 411. Exige cliente identificado (`CLIENTE_OBRIGATORIO_CREDITO`).
+  nascida `EMITIDA` (ou `PARCIALMENTE_PAGA` quando parte foi recebida no acto), com o valor em dívida em 411. Exige cliente identificado (`CLIENTE_OBRIGATORIO_CREDITO`).
 - A designação do documento vem do tipo da série (como já faz o PDF via `ROTULO_TIPO_SERIE`); não se
   acrescenta `Fatura.tipo`.
 - Série por tenant, não por ponto de venda: o GestPro não tem a entidade «ponto de venda».

@@ -9,6 +9,8 @@
  *   F10         — finalizar venda (abre painel de pagamento)
  *   Escape      — limpar carrinho / fechar painel de pagamento
  *   +/-         — incrementar/decrementar quantidade do último item
+ *
+ * «Crédito» emite Factura (não Factura-Recibo) e exige um cliente identificado (ADR-0041 §4).
  */
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
@@ -26,6 +28,7 @@ import {
   CheckCircle,
   Loader2,
   LogOut,
+  UserRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -43,14 +46,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { ComboboxRemoto } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
 import { criarVenda, fecharSessaoPOS } from '@/server/actions/vendas.actions';
+import { procurarClientes } from '@/server/actions/clientes.actions';
+import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
 import type { SessaoPOSRow } from '@/server/services/comercial/venda.interface';
 import type { ProdutoDto } from '@/server/services/inventario/catalogo.interface';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 
 // ─── Tipos locais ─────────────────────────────────────────────────────────────
 
-type MetodoPagamento = 'DINHEIRO' | 'CARTAO' | 'MPESA' | 'EMOLA' | 'TRANSFERENCIA';
+type MetodoPagamento = 'DINHEIRO' | 'CARTAO' | 'MPESA' | 'EMOLA' | 'TRANSFERENCIA' | 'CREDITO';
 
 interface ItemCarrinho {
   produtoId: string;
@@ -86,6 +93,7 @@ const METODO_ICONS: Record<MetodoPagamento, React.ReactNode> = {
   MPESA: <Smartphone className="h-4 w-4" />,
   EMOLA: <Wallet className="h-4 w-4" />,
   TRANSFERENCIA: <CreditCard className="h-4 w-4" />,
+  CREDITO: <UserRound className="h-4 w-4" />,
 };
 
 const METODO_LABELS: Record<MetodoPagamento, string> = {
@@ -94,17 +102,45 @@ const METODO_LABELS: Record<MetodoPagamento, string> = {
   MPESA: 'M-Pesa',
   EMOLA: 'e-Mola',
   TRANSFERENCIA: 'Transferência',
+  CREDITO: 'Crédito',
 };
 
+/** O Consumidor Final não tem conta corrente: nunca é opção para uma venda a crédito. */
+async function procurarClientesCredito(q: string): Promise<ComboboxOption[] | null> {
+  const res = await procurarClientes({ q });
+  return res.ok
+    ? res.data
+        .filter((c) => c.codigo !== CLIENTE_CONSUMIDOR_FINAL.codigo)
+        .map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))
+    : null;
+}
+
 // ─── Componente ───────────────────────────────────────────────────────────────
+
+/**
+ * Chave de idempotência de uma tentativa de venda (ADR-0041 §5). Só tem de ser única por
+ * tentativa; não é um segredo. `crypto.randomUUID` falta em contexto não seguro (POS por http na
+ * rede local), daí o recurso.
+ */
+function novaChaveVenda(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `pos-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProps) {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  // Tentativa de venda em curso: a mesma chave enquanto o conteúdo da venda não mudar (um retry
+  // depois de uma falha de rede devolve a venda já gravada); renovada após sucesso ou quando o
+  // carrinho, o pagamento ou o cliente mudam.
+  const tentativaRef = useRef<{ chave: string; conteudo: string } | null>(null);
   const [busca, setBusca] = useState('');
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>('DINHEIRO');
   const [valorRecebido, setValorRecebido] = useState('');
+  const [clienteId, setClienteId] = useState('');
   const [etapa, setEtapa] = useState<'carrinho' | 'pagamento'>('carrinho');
   const [pending, startTransition] = useTransition();
   const [fecharPending, startFechar] = useTransition();
@@ -201,38 +237,54 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
 
   // ─── Finalizar venda ──────────────────────────────────────────────────────
 
+  const faltaCliente = metodoPagamento === 'CREDITO' && !clienteId;
+
   const finalizarVenda = () => {
-    if (carrinho.length === 0 || pending) return;
+    if (carrinho.length === 0 || pending || faltaCliente) return;
 
     const valorNum = parseFloat(valorRecebido.replace(',', '.'));
     const troco = metodoPagamento === 'DINHEIRO' && valorNum > total
       ? valorNum - total
       : 0;
 
+    const venda = {
+      origem: 'POS' as const,
+      vendedorId,
+      sessaoPOSId: sessaoPOS.id,
+      sessaoCaixaId: sessaoPOS.sessaoCaixaId,
+      ...(metodoPagamento === 'CREDITO' ? { clienteId } : {}),
+      itens: carrinho.map((item) => ({
+        produtoId: item.produtoId,
+        nomeProduto: item.nomeProduto,
+        sku: item.sku ?? undefined,
+        quantidade: item.quantidade,
+        precoUnitario: item.precoUnitario,
+        taxaIva: item.taxaIva,
+      })),
+      pagamentos: [
+        {
+          tipo: metodoPagamento,
+          valor: total,
+          ...(troco > 0 ? { troco } : {}),
+        },
+      ],
+    };
+    // O troco não é conteúdo fiscal (o servidor também o ignora na chave): mudar só o valor
+    // recebido num retry não pode gerar uma chave nova e uma segunda venda.
+    const conteudo = JSON.stringify({
+      ...venda,
+      pagamentos: venda.pagamentos.map(({ tipo, valor }) => ({ tipo, valor })),
+    });
+    if (tentativaRef.current?.conteudo !== conteudo) {
+      tentativaRef.current = { chave: novaChaveVenda(), conteudo };
+    }
+    const chaveIdempotencia = tentativaRef.current.chave;
+
     startTransition(async () => {
-      const result = await criarVenda({
-        origem: 'POS',
-        vendedorId,
-        sessaoPOSId: sessaoPOS.id,
-        sessaoCaixaId: sessaoPOS.sessaoCaixaId,
-        itens: carrinho.map((item) => ({
-          produtoId: item.produtoId,
-          nomeProduto: item.nomeProduto,
-          sku: item.sku ?? undefined,
-          quantidade: item.quantidade,
-          precoUnitario: item.precoUnitario,
-          taxaIva: item.taxaIva,
-        })),
-        pagamentos: [
-          {
-            tipo: metodoPagamento,
-            valor: total,
-            ...(troco > 0 ? { troco } : {}),
-          },
-        ],
-      });
+      const result = await criarVenda({ ...venda, chaveIdempotencia });
 
       if (result.ok) {
+        tentativaRef.current = null;
         const vendaId = result.data.id;
         toast.success(`Venda ${result.data.numero} registada com sucesso!`, {
           duration: 15_000,
@@ -243,6 +295,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
         });
         setCarrinho([]);
         setValorRecebido('');
+        setClienteId('');
         setEtapa('carrinho');
         setBusca('');
         searchRef.current?.focus();
@@ -503,6 +556,32 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
                 </div>
               )}
 
+              {metodoPagamento === 'CREDITO' && (
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="pos-cliente-credito"
+                    className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+                  >
+                    Cliente *
+                  </label>
+                  <ComboboxRemoto
+                    id="pos-cliente-credito"
+                    opcoesIniciais={[]}
+                    procurar={procurarClientesCredito}
+                    value={clienteId}
+                    onChange={setClienteId}
+                    placeholder="Seleccione o cliente"
+                    searchPlaceholder="Pesquisar por código, nome ou NUIT…"
+                    emptyText="Escreva para pesquisar clientes."
+                  />
+                  {faltaCliente && (
+                    <p id="pos-cliente-credito-dica" className="text-xs text-muted-foreground">
+                      A venda a crédito exige um cliente identificado: é emitida uma factura em nome dele.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-lg border p-3 space-y-1 bg-muted/20">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
@@ -524,15 +603,18 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
               <Button
                 className="w-full"
                 size="lg"
-                disabled={pending}
+                disabled={pending || faltaCliente}
                 onClick={finalizarVenda}
+                aria-describedby={faltaCliente ? 'pos-cliente-credito-dica' : undefined}
               >
                 {pending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <CheckCircle className="mr-2 h-4 w-4" />
                 )}
-                {pending ? 'A registar…' : `Pagar MT ${total.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+                {pending
+                  ? 'A registar…'
+                  : `${metodoPagamento === 'CREDITO' ? 'Facturar a crédito' : 'Pagar'} MT ${total.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
               </Button>
               <Button
                 variant="ghost"

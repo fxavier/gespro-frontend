@@ -121,6 +121,9 @@ export const CreateVendaSchema = z
       .array(CreatePagamentoVendaSchema)
       .min(1, 'A venda deve ter pelo menos um pagamento'),
     dataVenda: z.coerce.date().optional(),
+    // ADR-0041 §5: chave por tentativa de venda (terminal POS). Um retry com a mesma chave
+    // devolve a venda já gravada em vez de duplicar documento, stock e caixa.
+    chaveIdempotencia: z.string().min(1).max(100).optional(),
   })
   .refine(
     (data) => {

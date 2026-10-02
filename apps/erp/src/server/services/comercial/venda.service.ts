@@ -220,6 +220,33 @@ async function _resolverArmazem(tx: TxClient, ctx: Ctx): Promise<string> {
   return loc.id;
 }
 
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Cliente de uma venda POS com parte a crédito (ADR-0041 §4): tem de ser identificado —
+ * nem anónimo nem o Consumidor Final, que não tem conta corrente a que se cobrar.
+ */
+async function _clienteDoCredito(
+  tx: Prisma.TransactionClient,
+  input: CreateVendaInput,
+  ctx: Ctx,
+): Promise<{ id: string; diasPagamento: number }> {
+  const cliente = input.clienteId
+    ? await tx.cliente.findFirst({
+        where: { id: input.clienteId, tenantId: ctx.tenantId },
+        select: { id: true, codigo: true, diasPagamento: true },
+      })
+    : null;
+  if (input.clienteId && !cliente) throw new NotFoundError('Cliente não encontrado');
+  if (!cliente || cliente.codigo === CLIENTE_CONSUMIDOR_FINAL.codigo) {
+    throw new BusinessRuleError(
+      'CLIENTE_OBRIGATORIO_CREDITO',
+      'Uma venda a crédito exige um cliente identificado (não o Consumidor Final).',
+    );
+  }
+  return { id: cliente.id, diasPagamento: cliente.diasPagamento };
+}
+
 // ---------------------------------------------------------------------------
 // VendaService
 // ---------------------------------------------------------------------------
@@ -243,28 +270,158 @@ export class VendaService implements IVendaService {
   ) {}
 
   async criar(input: CreateVendaInput, ctx: Ctx): Promise<VendaRow> {
-    // ponytail: guarda provisória — o POS a crédito (Factura, D 411, limite) chega com a S4 (#308).
-    if (input.origem === 'POS' && input.pagamentos.some((p) => p.tipo === 'CREDITO')) {
-      throw new BusinessRuleError(
-        'PAGAMENTO_CREDITO_NAO_SUPORTADO',
-        'O POS ainda não vende a crédito: use outro meio de pagamento ou emita uma factura.',
-      );
-    }
-
     // 1. Calcular totais (puro — o mesmo cálculo do terminal POS, por linha a 2 casas).
     //    Aplica-se a TODAS as origens: é a regra de totais da venda, não uma regra só do POS.
     const totais = calcularTotaisVendaPOS(input.itens);
-    const { subtotal: subtotalTotal, ivaTotal: ivaTotalAcc, total } = totais;
+    const { total } = totais;
     const itensTotais = input.itens.map((item, k) => ({ item, ...totais.linhas[k] }));
     const dataVenda = input.dataVenda ?? new Date();
 
-    // 2. Status inicial por origem: ENCOMENDA em RASCUNHO; POS paga nasce CONCLUIDA
-    //    (ADR-0041 §7); os outros em PENDENTE.
+    // 1b. Idempotência (ADR-0041 §5): um retry com a mesma chave devolve a venda já gravada,
+    //     sem escrever nada. Esta leitura é só o atalho; a garantia é o índice único
+    //     (tenantId, chaveIdempotencia) — ver o catch da transacção abaixo.
+    const chave = input.chaveIdempotencia;
+    if (chave) {
+      const existente = await this._vendaComChave(chave, input, ctx);
+      if (existente) return existente;
+    }
+
+    // 2. Status inicial por origem: ENCOMENDA em RASCUNHO; POS paga nasce CONCLUIDA e POS
+    //    com parte a crédito nasce FATURADA (ADR-0041 §7); os outros em PENDENTE.
+    const posACredito = input.origem === 'POS' && input.pagamentos.some((p) => p.tipo === 'CREDITO');
     const statusInicial: StatusVenda =
-      input.origem === 'ENCOMENDA' ? 'RASCUNHO' : input.origem === 'POS' ? 'CONCLUIDA' : 'PENDENTE';
+      input.origem === 'ENCOMENDA'
+        ? 'RASCUNHO'
+        : input.origem === 'POS'
+          ? posACredito
+            ? 'FATURADA'
+            : 'CONCLUIDA'
+          : 'PENDENTE';
 
     // 3. Transacção principal: número + venda + itens + pagamentos + stock + caixa + histórico
-    const vendaRow = await prisma.$transaction(async (tx) => {
+    let vendaRow: VendaRow;
+    try {
+      vendaRow = await this._criarEmTx(input, ctx, {
+        totais,
+        itensTotais,
+        dataVenda,
+        posACredito,
+        statusInicial,
+      });
+    } catch (err) {
+      // Violação de unicidade: pode ser a corrida com a mesma chave (a outra tentativa ganhou o
+      // índice (tenantId, chaveIdempotencia) e esta transacção foi desfeita inteira — número,
+      // stock, caixa, documento) ou outro índice único qualquer. Só se devolve a venda quando
+      // existe mesmo uma venda gravada com esta chave (e com o mesmo conteúdo); senão relança.
+      if (
+        chave &&
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        const vencedora = await this._vendaComChave(chave, input, ctx);
+        if (vencedora) return vencedora;
+      }
+      throw err;
+    }
+
+    // 4. Registar comissão APÓS o commit da transacção principal — só para a chamada que criou.
+    //    A comissão é best-effort: falha regista-se no log mas não reverte a venda.
+    //    Não engolir o erro dentro de uma tx — a comissão tem a sua própria operação.
+    if (input.vendedorId) {
+      try {
+        const calculo = await this.comissaoService.calcularComissao(
+          input.vendedorId,
+          vendaRow.id,
+          total.toString(),
+          itensTotais.map(({ item, subtotal }) => ({
+            categoriaId: item.produtoId, // Wave 3: categoria real via WS A
+            valor: subtotal.toString(),
+          })),
+          ctx,
+        );
+        // Usa prisma (não tx) — a transacção principal já foi committed
+        await this.comissaoService.registarComissao(prisma as unknown as TxClient, calculo, ctx);
+      } catch (err) {
+        // Regista no log mas não propaga — a venda já está committed
+        console.error('[VendaService.criar] Falha ao registar comissão:', err);
+      }
+    }
+
+    return vendaRow;
+  }
+
+  /**
+   * Venda já gravada com esta chave de idempotência no tenant, ou `null`. A chave cobre o
+   * conteúdo fiscal inteiro da venda (ADR-0041 §5): cliente, origem, linhas (produto, variante,
+   * quantidade, preço, desconto, IVA) e pagamentos (tipo, valor), sem olhar à ordem. O `troco`
+   * não é conteúdo fiscal e fica de fora. Mesma chave com outro conteúdo é um pedido novo
+   * disfarçado de retry → `CHAVE_IDEMPOTENCIA_REUTILIZADA`.
+   */
+  private async _vendaComChave(
+    chave: string,
+    input: CreateVendaInput,
+    ctx: Ctx,
+  ): Promise<VendaRow | null> {
+    const existente = await prisma.venda.findFirst({
+      where: { tenantId: ctx.tenantId, chaveIdempotencia: chave },
+      include: { itens: true, pagamentos: true },
+    });
+    if (!existente) return null;
+
+    // Normaliza à escala das colunas (Decimal(18,2) e taxaIva Decimal(9,6)), como o Postgres grava.
+    const n = (v: unknown, casas = 2) => new Prisma.Decimal(String(v)).toFixed(casas);
+    const assinaturaLinha = (l: {
+      produtoId: string;
+      varianteId?: string | null;
+      quantidade: unknown;
+      precoUnitario: unknown;
+      desconto: unknown;
+      taxaIva: unknown;
+    }) =>
+      [l.produtoId, l.varianteId ?? '', n(l.quantidade), n(l.precoUnitario), n(l.desconto), n(l.taxaIva, 6)].join('|');
+    const assinaturaPagamento = (p: { tipo: string; valor: unknown }) => `${p.tipo}|${n(p.valor)}`;
+    const ordenadas = (xs: string[]) => [...xs].sort().join('\n');
+
+    const mesmoConteudo =
+      (existente.clienteId ?? null) === (input.clienteId ?? null) &&
+      existente.origem === input.origem &&
+      ordenadas(existente.itens.map(assinaturaLinha)) === ordenadas(input.itens.map(assinaturaLinha)) &&
+      ordenadas(existente.pagamentos.map(assinaturaPagamento)) ===
+        ordenadas(input.pagamentos.map(assinaturaPagamento));
+
+    if (!mesmoConteudo) {
+      throw new BusinessRuleError(
+        'CHAVE_IDEMPOTENCIA_REUTILIZADA',
+        'Esta chave de idempotência já foi usada numa venda com outro conteúdo.',
+      );
+    }
+    return mapVendaRow({ ...existente, historicoEstado: [] });
+  }
+
+  private async _criarEmTx(
+    input: CreateVendaInput,
+    ctx: Ctx,
+    {
+      totais,
+      itensTotais,
+      dataVenda,
+      posACredito,
+      statusInicial,
+    }: {
+      totais: ReturnType<typeof calcularTotaisVendaPOS>;
+      itensTotais: Array<
+        { item: CreateVendaInput['itens'][number] } & ReturnType<typeof calcularTotaisVendaPOS>['linhas'][number]
+      >;
+      dataVenda: Date;
+      posACredito: boolean;
+      statusInicial: StatusVenda;
+    },
+  ): Promise<VendaRow> {
+    const { subtotal: subtotalTotal, ivaTotal: ivaTotalAcc, total } = totais;
+    return prisma.$transaction(async (tx) => {
+      // 3. Crédito exige cliente identificado (ADR-0041 §4) — antes de gastar qualquer número.
+      const clienteCredito = posACredito ? await _clienteDoCredito(tx as Prisma.TransactionClient, input, ctx) : null;
+
       // 3a. Número de série
       const numero = await this.faturacaoService.proximoNumeroSerie(
         tx as Prisma.TransactionClient,
@@ -296,6 +453,7 @@ export class VendaService implements IVendaService {
           total,
           currency: 'MZN',
           observacoes: input.observacoes ?? null,
+          chaveIdempotencia: input.chaveIdempotencia ?? null,
           dataVenda,
           itens: {
             create: itensTotais.map(({ item, subtotal, ivaItem, total: tot }) => ({
@@ -340,13 +498,14 @@ export class VendaService implements IVendaService {
           await this.stockService.baixarStock(tx as TxClient, baixaInput, ctx);
         }
 
-        // Factura-Recibo + lançamento na MESMA transacção (ADR-0041 §1, §3).
-        const fatura = await this._emitirFacturaReciboPOS(
+        // Documento fiscal + lançamento na MESMA transacção (ADR-0041 §1, §3, §4).
+        const fatura = await this._emitirDocumentoPOS(
           tx as Prisma.TransactionClient,
           input,
           venda.id,
           itensTotais,
           dataVenda,
+          clienteCredito,
           ctx,
         );
         venda.faturaId = fatura.id;
@@ -398,39 +557,16 @@ export class VendaService implements IVendaService {
 
       return mapVendaRow({ ...venda, historicoEstado: [] });
     });
-
-    // 4. Registar comissão APÓS o commit da transacção principal.
-    //    A comissão é best-effort: falha regista-se no log mas não reverte a venda.
-    //    Não engolir o erro dentro de uma tx — a comissão tem a sua própria operação.
-    if (input.vendedorId) {
-      try {
-        const calculo = await this.comissaoService.calcularComissao(
-          input.vendedorId,
-          vendaRow.id,
-          total.toString(),
-          itensTotais.map(({ item, subtotal }) => ({
-            categoriaId: item.produtoId, // Wave 3: categoria real via WS A
-            valor: subtotal.toString(),
-          })),
-          ctx,
-        );
-        // Usa prisma (não tx) — a transacção principal já foi committed
-        await this.comissaoService.registarComissao(prisma as unknown as TxClient, calculo, ctx);
-      } catch (err) {
-        // Regista no log mas não propaga — a venda já está committed
-        console.error('[VendaService.criar] Falha ao registar comissão:', err);
-      }
-    }
-
-    return vendaRow;
   }
 
   /**
-   * Factura-Recibo da venda POS paga (ADR-0041 §1–§4): numerada na série FATURA_RECIBO,
-   * nasce PAGA, lança D meio de pagamento / C 711 / C 44331 e fica ligada à venda nos
-   * dois sentidos. Sem cliente, factura contra o Consumidor Final (§2).
+   * Documento fiscal da venda POS (ADR-0041 §1–§4), ligado à venda nos dois sentidos, com
+   * lançamento D meio de pagamento (CREDITO → 411) / C 711 / C 44331:
+   *   - paga: Factura-Recibo (série FATURA_RECIBO, PAGA); sem cliente, contra o Consumidor Final (§2);
+   *   - com parte a crédito: Factura (série FATURA), EMITIDA ou PARCIALMENTE_PAGA pelo que foi
+   *     recebido nos outros meios, vencimento = emissão + prazo do cliente.
    */
-  private async _emitirFacturaReciboPOS(
+  private async _emitirDocumentoPOS(
     tx: Prisma.TransactionClient,
     input: CreateVendaInput,
     vendaId: string,
@@ -441,9 +577,10 @@ export class VendaService implements IVendaService {
       total: Prisma.Decimal;
     }>,
     dataVenda: Date,
+    clienteCredito: { id: string; diasPagamento: number } | null,
     ctx: Ctx,
   ) {
-    let clienteId = input.clienteId;
+    let clienteId = clienteCredito?.id ?? input.clienteId;
     if (!clienteId) {
       const cf = await tx.cliente.findFirst({
         where: { tenantId: ctx.tenantId, codigo: CLIENTE_CONSUMIDOR_FINAL.codigo },
@@ -468,7 +605,9 @@ export class VendaService implements IVendaService {
         vendaId,
         moeda: 'MZN',
         dataEmissao: dataVenda,
-        dataVencimento: dataVenda,
+        dataVencimento: clienteCredito
+          ? new Date(dataVenda.getTime() + clienteCredito.diasPagamento * DIA_MS)
+          : dataVenda,
         linhas: itensTotais.map(({ item, subtotal, ivaItem, total }, i) => {
           const bruto = new Prisma.Decimal(String(item.quantidade)).mul(new Prisma.Decimal(String(item.precoUnitario)));
           return {
@@ -488,7 +627,13 @@ export class VendaService implements IVendaService {
       },
       ctx,
       {
-        tipoSerie: 'FATURA_RECIBO', // nasce PAGA pela série (ADR-0041 §1)
+        // FR nasce PAGA pela série (§1); a Factura nasce com o que foi recebido fora do crédito (§4).
+        ...(clienteCredito
+          ? {
+              tipoSerie: 'FATURA' as const,
+              totalPago: pagamentos.filter((p) => p.tipo !== 'CREDITO').reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0)),
+            }
+          : { tipoSerie: 'FATURA_RECIBO' as const }),
         construirLancamento: (doc) => this.faturacaoService.construirLancamentoVendaPOS(doc, pagamentos, contas),
       },
     );
