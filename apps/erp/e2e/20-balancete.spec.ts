@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { Client } from 'pg';
 
 /**
- * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3, #284 S4, #285 S5).
+ * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3, #284 S4, #285 S5, #286 S6).
  *
  * S1 (PR #287): colunas PHC, totais, equilíbrio, URL params, selector remount.
  * S2 (este oracle): hierarquia por roll-up via contaMaeId; data-nivel em cada
@@ -1372,7 +1372,7 @@ function centimosCsv(t: string, ctx: string): number {
   return Math.round(Number(t) * 100);
 }
 
-async function descarregar(page: Page, nomeLink: 'Exportar CSV' | 'Exportar Excel') {
+async function descarregar(page: Page, nomeLink: 'Exportar CSV' | 'Exportar Excel' | 'Exportar PDF') {
   const link = page.getByRole('link', { name: nomeLink, exact: true });
   await expect(link).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
@@ -1381,7 +1381,10 @@ async function descarregar(page: Page, nomeLink: 'Exportar CSV' | 'Exportar Exce
   return { nome: download.suggestedFilename(), bytes: fs.readFileSync(caminho!) };
 }
 
-async function hrefExport(page: Page, nomeLink: 'Exportar CSV' | 'Exportar Excel'): Promise<URL> {
+async function hrefExport(
+  page: Page,
+  nomeLink: 'Exportar CSV' | 'Exportar Excel' | 'Exportar PDF',
+): Promise<URL> {
   const link = page.getByRole('link', { name: nomeLink, exact: true });
   await expect(link).toHaveCount(1);
   const href = await link.getAttribute('href');
@@ -1596,4 +1599,130 @@ test('35. depois de aplicar filtros pela UI os links de exportação levam-nos; 
     page.getByRole('link', { name: 'Exportar CSV', exact: true }),
     'voltar atrás: href sem excluir',
   ).not.toHaveAttribute('href', /[?&]excluir=/);
+});
+
+// ===========================================================================
+// S6 (#286) — exportação PDF (A4 horizontal)
+//
+// Contrato: .scratch/sdlc/balancete-phc/S6-contrato.md.
+// Terceiro link no PageHeader, «Exportar PDF» (`<a href download>`), para a mesma
+// GET /api/contabilidade/balancete/export com formato=pdf e os parâmetros da página.
+// Resposta application/pdf, anexo `balancete-<exercicio>-<pi>-<pf>.pdf`.
+// O conteúdo textual do PDF (cabeçalho, Transporte/A transportar, Totais,
+// igualdades, «Página x de y») é coberto pelo oráculo unitário; aqui só
+// link, download e assinatura.
+// ===========================================================================
+
+/** Número de objectos de página (`/Type /Page`, não `/Pages`) num PDF não cifrado. */
+function contarPaginasPdf(bytes: Buffer): number {
+  return (bytes.toString('latin1').match(/\/Type\s*\/Page(?![a-zA-Z])/g) ?? []).length;
+}
+
+// ---------------------------------------------------------------------------
+// 36. Link «Exportar PDF» com formato=pdf e exercicio/de/ate
+// ---------------------------------------------------------------------------
+
+test('36. link «Exportar PDF» aponta para a exportação com formato=pdf e exercicio/de/ate', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  const link = page.getByRole('link', { name: 'Exportar PDF', exact: true });
+  await expect(link, 'Exportar PDF: um link').toHaveCount(1);
+  await expect(link, 'Exportar PDF: <a download>').toHaveAttribute('download');
+  // `download` sem valor: o nome vem do Content-Disposition do servidor.
+  expect(await link.getAttribute('download'), 'download sem valor').toBe('');
+  const u = await hrefExport(page, 'Exportar PDF');
+  expect(u.pathname, 'rota').toBe(EXPORT);
+  expect(u.searchParams.getAll('formato'), 'formato').toEqual(['pdf']);
+  expect(u.searchParams.getAll('exercicio'), 'exercicio').toEqual(['2026']);
+  expect(u.searchParams.getAll('de'), 'de').toEqual(['3']);
+  expect(u.searchParams.getAll('ate'), 'ate').toEqual(['5']);
+
+  // Os outros dois continuam lá, com o seu formato
+  for (const [nome, formato] of [
+    ['Exportar CSV', 'csv'],
+    ['Exportar Excel', 'xlsx'],
+  ] as const) {
+    expect((await hrefExport(page, nome)).searchParams.get('formato'), `${nome}: formato`).toBe(
+      formato,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 37. Download: nome e assinatura «%PDF»
+// ---------------------------------------------------------------------------
+
+test('37. «Exportar PDF» descarrega balancete-2026-3-5.pdf (assinatura «%PDF»)', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  const { nome, bytes } = await descarregar(page, 'Exportar PDF');
+  expect(nome).toBe('balancete-2026-3-5.pdf');
+  expect(bytes.length, 'ficheiro não vazio').toBeGreaterThan(5);
+  expect(bytes.subarray(0, 5).toString('latin1'), 'assinatura PDF').toBe('%PDF-');
+  expect(contarPaginasPdf(bytes), 'pelo menos uma página').toBeGreaterThanOrEqual(1);
+});
+
+// ---------------------------------------------------------------------------
+// 38. zeradas=1: muitas linhas → várias páginas, < 2 MB, < 20 s
+// ---------------------------------------------------------------------------
+
+test('38. com zeradas=1 o PDF tem várias páginas, menos de 2 MB e responde em menos de 20 s', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await navegar(page, `${BASE_S4}&zeradas=1`);
+  const nLinhas = await page.locator('tbody tr').count();
+  expect(nLinhas, 'pré-condição: zeradas=1 dá muitas linhas').toBeGreaterThan(100);
+
+  const u = await hrefExport(page, 'Exportar PDF');
+  expect(u.searchParams.get('zeradas'), 'href leva zeradas=1').toBe('1');
+  expect(u.searchParams.get('formato')).toBe('pdf');
+
+  // Tempo do pedido medido pela API do contexto (mesma sessão), sem depender do download.
+  const inicio = Date.now();
+  const resp = await page.request.get(`${u.pathname}${u.search}`, { timeout: 30_000 });
+  const ms = Date.now() - inicio;
+  expect(resp.status(), 'HTTP 200').toBe(200);
+  expect(resp.headers()['content-type'] ?? '', 'Content-Type').toMatch(/^application\/pdf/);
+  expect(resp.headers()['content-disposition'] ?? '', 'anexo com o nome').toMatch(
+    /attachment;.*filename="?balancete-2026-3-5\.pdf"?/,
+  );
+  const bytes = await resp.body();
+  expect(bytes.subarray(0, 5).toString('latin1'), 'assinatura PDF').toBe('%PDF-');
+  expect(bytes.length, 'tamanho razoável (< 2 MB)').toBeLessThan(2 * 1024 * 1024);
+  expect(ms, `pedido em ${ms} ms (< 20 s em dev)`).toBeLessThan(20_000);
+  expect(contarPaginasPdf(bytes), `várias páginas para ${nLinhas} linhas`).toBeGreaterThanOrEqual(2);
+
+  // E o link também descarrega
+  const dl = await descarregar(page, 'Exportar PDF');
+  expect(dl.nome).toBe('balancete-2026-3-5.pdf');
+  expect(dl.bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+});
+
+// ---------------------------------------------------------------------------
+// 39. O link PDF segue os filtros aplicados pela UI
+// ---------------------------------------------------------------------------
+
+test('39. depois de aplicar «Excluir contas»=121 pela UI o link PDF leva excluir=121', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  let u = await hrefExport(page, 'Exportar PDF');
+  expect(u.searchParams.has('excluir'), 'sem filtros: sem excluir').toBe(false);
+
+  await page.getByLabel('Excluir contas', { exact: true }).fill('121');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(page).toHaveURL(/[?&]excluir=121(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  const link = page.getByRole('link', { name: 'Exportar PDF', exact: true });
+  await expect(link, 'href com excluir=121').toHaveAttribute('href', /[?&]excluir=121(&|$)/);
+  u = await hrefExport(page, 'Exportar PDF');
+  expect(u.pathname).toBe(EXPORT);
+  expect(u.searchParams.get('formato')).toBe('pdf');
+  expect(u.searchParams.get('exercicio')).toBe('2026');
+  expect(u.searchParams.get('de')).toBe('3');
+  expect(u.searchParams.get('ate')).toBe('5');
 });

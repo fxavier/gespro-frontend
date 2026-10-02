@@ -338,7 +338,7 @@ describe('GET — formato e nome do ficheiro', () => {
   });
 
   it('formato lixo → csv', async () => {
-    for (const f of ['pdf', 'XLSX', '']) {
+    for (const f of ['docx', 'XLSX', '']) {
       const res = await chamar(`exercicio=2026&de=2&ate=5&formato=${f}`);
       expect(res.status, f).toBe(200);
       expect(res.headers.get('Content-Type'), f).toMatch(/^text\/csv/);
