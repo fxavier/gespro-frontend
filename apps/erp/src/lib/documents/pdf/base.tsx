@@ -143,12 +143,15 @@ export function RodapeDocumento({ mencoes }: { mencoes: string[] }) {
 export function PaginaDocumento({
   children,
   rodape,
+  orientation,
 }: {
   children: React.ReactNode;
   rodape?: string[];
+  /** Omissão: retrato. Só se passa ao motor quando é dada — os documentos existentes ficam iguais. */
+  orientation?: 'portrait' | 'landscape';
 }) {
   return (
-    <Page size="A4" style={estilos.pagina}>
+    <Page size="A4" style={estilos.pagina} {...(orientation ? { orientation } : {})}>
       {children}
       {rodape && rodape.length > 0 ? <RodapeDocumento mencoes={rodape} /> : null}
     </Page>

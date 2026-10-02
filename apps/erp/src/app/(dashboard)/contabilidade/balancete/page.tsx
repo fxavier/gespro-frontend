@@ -390,7 +390,7 @@ export default async function BalancetePage({ searchParams }: PageProps) {
   const apresentacao = filtrosDoSelector(params);
 
   // S5: exportação com os parâmetros normalizados que a página está a mostrar.
-  const hrefExportar = (formato: 'csv' | 'xlsx') => {
+  const hrefExportar = (formato: 'csv' | 'xlsx' | 'pdf') => {
     const q = queryBalancete(params);
     q.set('formato', formato);
     return `/api/contabilidade/balancete/export?${q.toString()}`;
@@ -432,6 +432,12 @@ export default async function BalancetePage({ searchParams }: PageProps) {
               <a href={hrefExportar('xlsx')} download>
                 <Download className="mr-2 h-4 w-4" aria-hidden="true" />
                 Exportar Excel
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <a href={hrefExportar('pdf')} download>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Exportar PDF
               </a>
             </Button>
             <Button asChild size="sm" variant="outline">
