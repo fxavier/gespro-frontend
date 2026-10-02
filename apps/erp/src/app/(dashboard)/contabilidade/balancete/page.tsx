@@ -5,27 +5,30 @@
  *   S2: nivel=1..7, razao=1
  *   S3 (apresentação): ci, cf, classe=1..8, excluir=<códigos,>, zeradas=1, comSaldo=1,
  *   q, tipo=periodo|acumulado|ambos — inválidos são ignorados; nunca mudam «Totais».
+ *   Os parâmetros lêem-se com `lerParametrosBalancete` (src/lib/balancete-params.ts),
+ *   a mesma regra da exportação CSV/Excel (S5).
  *
- * ADR-0040, issues #280, #281, #283.
+ * ADR-0040, issues #280, #281, #283, #285.
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { TriangleAlert } from 'lucide-react';
+import { Download, TriangleAlert } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import {
-  gerarBalanceteVerificacao,
   listarContas,
   listarExercicios,
   listarPeriodos,
   periodoFiscalDe,
 } from '@/server/services/financas/contabilidade.service';
+import { balanceteApresentado } from '@/server/services/financas/balancete-apresentado';
 import {
-  FiltroBalanceteVerificacaoSchema,
-  codigoContaPGCValido,
-} from '@/lib/validations/contabilidade';
+  lerParametrosBalancete,
+  queryBalancete,
+  type ParametrosBalancete,
+} from '@/lib/balancete-params';
 import { Button } from '@/components/ui/button';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
 import {
@@ -45,14 +48,8 @@ import {
   type FiltrosApresentacao,
   type TipoApresentacao,
 } from './_components/seletor-balancete-verificacao';
-import {
-  filtrarBalancete,
-  hierarquizarBalancete,
-  type FiltrosBalancete,
-  type LinhaHierarquica,
-} from '@/server/services/financas/balancete-verificacao';
-import type { FiltroBalanceteVerificacaoInput } from '@/server/services/financas/contabilidade.interface';
-import type { ClassePGC, Prisma } from '@prisma/client';
+import type { LinhaHierarquica } from '@/server/services/financas/balancete-verificacao';
+import type { Prisma } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Formatação de valores (sem símbolo MT — parsePtNum do E2E espera números puros)
@@ -64,34 +61,21 @@ function fmtBV(d: Prisma.Decimal): string {
 }
 
 // ---------------------------------------------------------------------------
-// S3: filtros de apresentação a partir do URL (inválidos → ignorados)
+// S3: filtros de apresentação na forma que o selector usa
 // ---------------------------------------------------------------------------
 
-function lerFiltros(flat: Record<string, string | undefined>): FiltrosApresentacao {
-  const texto = (v: string | undefined) => (v ?? '').trim();
-  const codigo = (v: string | undefined) => (codigoContaPGCValido(texto(v)) ? texto(v) : '');
-  const classe = texto(flat.classe);
-  const tipo = texto(flat.tipo);
+/** Os filtros de apresentação na forma do selector (texto, como no URL). */
+function filtrosDoSelector(p: ParametrosBalancete): FiltrosApresentacao {
+  const f = p.filtros;
   return {
-    contaInicial: codigo(flat.ci),
-    contaFinal: codigo(flat.cf),
-    classe: /^[1-8]$/.test(classe) ? classe : '',
-    excluir: texto(flat.excluir).split(',').map((c) => c.trim()).filter(codigoContaPGCValido).join(','),
-    zeradas: flat.zeradas === '1',
-    comSaldo: flat.comSaldo === '1',
-    pesquisa: texto(flat.q).slice(0, 100),
-    tipo: tipo === 'periodo' || tipo === 'acumulado' ? tipo : 'ambos',
-  };
-}
-
-function paraFiltrosBalancete(f: FiltrosApresentacao): FiltrosBalancete {
-  return {
-    contaInicial: f.contaInicial || undefined,
-    contaFinal: f.contaFinal || undefined,
-    classe: f.classe ? (`CLASSE_${f.classe}` as ClassePGC) : undefined,
-    excluir: f.excluir ? f.excluir.split(',') : undefined,
-    apenasComSaldo: f.comSaldo || undefined,
-    pesquisa: f.pesquisa || undefined,
+    contaInicial: f.contaInicial ?? '',
+    contaFinal: f.contaFinal ?? '',
+    classe: f.classe ? f.classe.slice(-1) : '',
+    excluir: (f.excluir ?? []).join(','),
+    zeradas: p.opcoesHierarquia.incluirSemMovimento === true,
+    comSaldo: f.apenasComSaldo === true,
+    pesquisa: f.pesquisa ?? '',
+    tipo: p.tipo.toLowerCase() as TipoApresentacao,
   };
 }
 
@@ -165,21 +149,18 @@ function celulasValor(linha: ValoresLinha, tipo: TipoApresentacao, saldoClassNam
 // ---------------------------------------------------------------------------
 
 async function TabelaBalancete({
-  filtro,
+  params,
   ctx,
-  nivel,
-  razao,
-  apresentacao,
 }: {
-  filtro: FiltroBalanceteVerificacaoInput;
+  params: ParametrosBalancete;
   ctx: { tenantId: string; userId: string };
-  nivel?: number;
-  razao?: boolean;
-  apresentacao: FiltrosApresentacao;
 }) {
-  const [balancete, periodos] = await runWithTenantContext(ctx, () =>
+  const filtro = params.filtroServico;
+  // Consulta → hierarquia → filtros: o mesmo caminho da exportação (S5). Filtros são
+  // apresentação: totais, igualdades e subtotais vêm do balancete completo.
+  const [{ balancete, linhas: linhasHierarquicas }, periodos] = await runWithTenantContext(ctx, () =>
     Promise.all([
-      gerarBalanceteVerificacao(filtro, ctx),
+      balanceteApresentado(params, ctx),
       listarPeriodos({ exercicioId: filtro.exercicioId }, ctx),
     ]),
   );
@@ -196,16 +177,7 @@ async function TabelaBalancete({
   const eq = balancete.equilibrio;
   const equilibrado = eq.movimento && eq.acumulado && eq.saldo;
 
-  // Filtros são apresentação: totais, igualdades e subtotais vêm do balancete completo.
-  const tipo = apresentacao.tipo;
-  const linhasHierarquicas = filtrarBalancete(
-    hierarquizarBalancete(balancete, balancete.contas, {
-      nivelMaximo: nivel,
-      apenasRazao: razao,
-      incluirSemMovimento: apresentacao.zeradas,
-    }),
-    paraFiltrosBalancete(apresentacao),
-  );
+  const tipo = params.tipo.toLowerCase() as TipoApresentacao;
 
   return (
     <div className="space-y-4">
@@ -375,17 +347,21 @@ export default async function BalancetePage({ searchParams }: PageProps) {
   const ctx = { tenantId, userId };
 
   const rawParams = await searchParams;
-  const flat = Object.fromEntries(
-    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
-  );
 
   // Exercícios disponíveis para o selector (ordenados por codigo desc — mais recente primeiro)
   const [exercicios, contasNivel1] = await runWithTenantContext(ctx, () =>
     Promise.all([listarExercicios(ctx), listarContas({ nivel: 1, take: 50 }, ctx)]),
   );
 
+  // Período corrente por omissão (Africa/Maputo)
+  const periodoFiscalAtual = periodoFiscalDe(new Date());
+  const mesAtual = parseInt(periodoFiscalAtual.split('-')[1] ?? '12', 10);
+
+  // Exercício, períodos, hierarquia, filtros e tipo — a regra partilhada com a exportação.
+  const params = lerParametrosBalancete(rawParams, { exercicios, mesAtual });
+
   // M3: estado vazio quando não há exercícios contabilísticos
-  if (exercicios.length === 0) {
+  if ('semExercicio' in params) {
     return (
       <div className="p-6 space-y-6">
         <PageHeader
@@ -408,60 +384,19 @@ export default async function BalancetePage({ searchParams }: PageProps) {
     );
   }
 
-  // Período corrente por omissão (Africa/Maputo)
-  const periodoFiscalAtual = periodoFiscalDe(new Date());
-  const mesAtual = parseInt(periodoFiscalAtual.split('-')[1] ?? '12', 10);
+  const ex = params.exercicio;
+  const codigoPedido = params.codigoPedidoNaoEncontrado;
+  const filtro = params.filtroServico;
+  const apresentacao = filtrosDoSelector(params);
 
-  // MAJOR-2: resolver o exercício na página (três tiers, sem lançar NotFoundError)
-  // NIT: tratar ?exercicio= (string vazia) como ausente
-  const codigoPedido =
-    typeof flat.exercicio === 'string' && flat.exercicio !== '' ? flat.exercicio : null;
-  const agora = new Date();
-  const ex =
-    (codigoPedido ? exercicios.find((e) => e.codigo === codigoPedido) : undefined) ??
-    exercicios.find((e) => e.dataInicio <= agora && agora <= e.dataFim) ??
-    exercicios[0]!;
-
-  // Aviso quando o código pedido não foi encontrado
-  const exercicioNaoEncontrado = codigoPedido !== null && ex.codigo !== codigoPedido;
-
-  // m1: usar FiltroBalanceteVerificacaoSchema com safeParse + fallback
-  const parsedFiltro = FiltroBalanceteVerificacaoSchema.safeParse({
-    exercicioId: ex.id,
-    periodoInicial: flat.de,
-    periodoFinal: flat.ate ?? mesAtual, // default = período corrente
-    incluir13: flat.p13 === '1',
-  });
-
-  const rawFiltro: FiltroBalanceteVerificacaoInput = parsedFiltro.success
-    ? parsedFiltro.data
-    : {
-        exercicioId: ex.id,
-        periodoInicial: 1,
-        periodoFinal: mesAtual,
-        incluir13: false,
-      };
-
-  // MAJOR-1: clamp na página (espelhado no serviço) para header e selector
-  const periodoFinalEfetivo = rawFiltro.incluir13
-    ? rawFiltro.periodoFinal
-    : Math.min(rawFiltro.periodoFinal, 12);
-  const periodoInicialEfetivo = Math.min(rawFiltro.periodoInicial, periodoFinalEfetivo);
-
-  const filtro: FiltroBalanceteVerificacaoInput = {
-    ...rawFiltro,
-    exercicioId: ex.id, // sempre o ID resolvido, nunca undefined
-    periodoInicial: periodoInicialEfetivo,
-    periodoFinal: periodoFinalEfetivo,
+  // S5: exportação com os parâmetros normalizados que a página está a mostrar.
+  const hrefExportar = (formato: 'csv' | 'xlsx' | 'pdf') => {
+    const q = queryBalancete(params);
+    q.set('formato', formato);
+    return `/api/contabilidade/balancete/export?${q.toString()}`;
   };
 
-  // S2: nível e razão (só apresentação — não afectam a query)
-  const nivelRaw = typeof flat.nivel === 'string' ? parseInt(flat.nivel, 10) : NaN;
-  const nivel = !isNaN(nivelRaw) && nivelRaw >= 1 && nivelRaw <= 7 ? nivelRaw : undefined;
-  const razao = flat.razao === '1';
-
-  // S3: filtros de apresentação e opções do Select «Classe» (nome da conta de nível 1).
-  const apresentacao = lerFiltros(flat);
+  // Opções do Select «Classe» (nome da conta de nível 1).
   const classes = Array.from({ length: 8 }, (_, i) => {
     const n = String(i + 1);
     // O seed nomeia o nível 1 «Classe N — <nome>»: o prefixo sai para não repetir o número.
@@ -485,14 +420,35 @@ export default async function BalancetePage({ searchParams }: PageProps) {
           { label: 'Balancete' },
         ]}
         actions={
-          <Button asChild size="sm" variant="outline">
-            <Link href="/contabilidade/balancete/nova">Registar Balancete Oficial</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* `download` sem valor: o nome do ficheiro vem do Content-Disposition. */}
+            <Button asChild size="sm" variant="outline">
+              <a href={hrefExportar('csv')} download>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Exportar CSV
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <a href={hrefExportar('xlsx')} download>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Exportar Excel
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <a href={hrefExportar('pdf')} download>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Exportar PDF
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/contabilidade/balancete/nova">Registar Balancete Oficial</Link>
+            </Button>
+          </div>
         }
       />
 
       {/* MAJOR-2: aviso quando o exercício pedido não existe */}
-      {exercicioNaoEncontrado && (
+      {codigoPedido !== null && (
         <div className="rounded-lg border border-info/40 bg-info/10 p-3 text-sm text-info">
           Exercício <strong>{codigoPedido}</strong> não encontrado — a mostrar{' '}
           <strong>{ex.codigo}</strong>
@@ -505,8 +461,8 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         periodoInicial={filtro.periodoInicial}
         periodoFinal={filtro.periodoFinal}
         incluir13={filtro.incluir13}
-        nivelAtual={nivel}
-        razaoAtual={razao}
+        nivelAtual={params.opcoesHierarquia.nivelMaximo}
+        razaoAtual={params.opcoesHierarquia.apenasRazao === true}
         classes={classes}
         filtrosAtuais={apresentacao}
       />
@@ -518,13 +474,7 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         key={`${ex.codigo}-${filtro.periodoInicial}-${filtro.periodoFinal}-${filtro.incluir13}`}
         fallback={<TableSkeleton rows={12} cols={apresentacao.tipo === 'ambos' ? 8 : 6} />}
       >
-        <TabelaBalancete
-          filtro={filtro}
-          ctx={ctx}
-          nivel={nivel}
-          razao={razao}
-          apresentacao={apresentacao}
-        />
+        <TabelaBalancete params={params} ctx={ctx} />
       </Suspense>
     </div>
   );

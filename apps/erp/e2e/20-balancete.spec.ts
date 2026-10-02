@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { Client } from 'pg';
 
 /**
- * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3, #284 S4).
+ * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3, #284 S4, #285 S5, #286 S6).
  *
  * S1 (PR #287): colunas PHC, totais, equilíbrio, URL params, selector remount.
  * S2 (este oracle): hierarquia por roll-up via contaMaeId; data-nivel em cada
@@ -1264,4 +1264,465 @@ test('30. a ligação da 121 é a mesma com tipo=periodo, tipo=acumulado e ci=1&
     await expect(link).toHaveText('121');
     expectHrefRazao(await link.getAttribute('href'), esperado, `121 com ${extra}`);
   }
+});
+
+// ===========================================================================
+// S5 (#285) — exportação CSV/Excel
+//
+// Contrato: .scratch/sdlc/balancete-phc/S5-contrato.md.
+// Dois links no PageHeader, «Exportar CSV» e «Exportar Excel» (`<a href download>`),
+// para GET /api/contabilidade/balancete/export?formato=csv|xlsx&<parâmetros da página>.
+// Ficheiro `balancete-<exercicio>-<pi>-<pf>.<ext>`. CSV da casa (`toCsv`): BOM,
+// separador `;`, CRLF, metadados opcionais antes do cabeçalho (por isso o cabeçalho
+// procura-se pela linha cujo primeiro campo é «Conta»).
+// Colunas (AMBOS): Conta · Descrição · Tipo · Nível · Movimento Débito · Movimento
+// Crédito · Acumulado Débito · Acumulado Crédito · Saldo Devedor · Saldo Credor.
+// Tipo ∈ {Conta, Subtotal, Sintética, Total}; decimais sem separador de milhares,
+// ponto decimal, zeros como «0»; última linha Tipo «Total» = totais do núcleo.
+// ===========================================================================
+
+const EXPORT = '/api/contabilidade/balancete/export';
+const COLUNAS_AMBOS = [
+  'Conta',
+  'Descrição',
+  'Tipo',
+  'Nível',
+  'Movimento Débito',
+  'Movimento Crédito',
+  'Acumulado Débito',
+  'Acumulado Crédito',
+  'Saldo Devedor',
+  'Saldo Credor',
+];
+const COLUNAS_PERIODO = COLUNAS_AMBOS.filter((c) => !c.startsWith('Acumulado'));
+const COLUNAS_VALOR = COLUNAS_AMBOS.slice(4);
+
+/** RFC-4180 com `;` — campos entre aspas podem conter `;`, aspas duplicadas e quebras. */
+function parseCsv(texto: string): string[][] {
+  const t = texto.replace(/^﻿/, '');
+  const linhas: string[][] = [];
+  let linha: string[] = [];
+  let campo = '';
+  let aspas = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i]!;
+    if (aspas) {
+      if (ch === '"') {
+        if (t[i + 1] === '"') {
+          campo += '"';
+          i++;
+        } else aspas = false;
+      } else campo += ch;
+    } else if (ch === '"') aspas = true;
+    else if (ch === ';') {
+      linha.push(campo);
+      campo = '';
+    } else if (ch === '\r' || ch === '\n') {
+      if (ch === '\r' && t[i + 1] === '\n') i++;
+      linha.push(campo);
+      linhas.push(linha);
+      linha = [];
+      campo = '';
+    } else campo += ch;
+  }
+  if (campo !== '' || linha.length > 0) {
+    linha.push(campo);
+    linhas.push(linha);
+  }
+  return linhas;
+}
+
+interface CsvBalancete {
+  cabecalho: string[];
+  /** Linhas de dados como objecto coluna→valor (sem a linha «Total»). */
+  corpo: Record<string, string>[];
+  total: Record<string, string>;
+}
+
+function lerCsvBalancete(texto: string): CsvBalancete {
+  const todas = parseCsv(texto);
+  const iCab = todas.findIndex((l) => l[0] === 'Conta');
+  expect(iCab, 'CSV: linha de cabeçalho começada por «Conta»').toBeGreaterThanOrEqual(0);
+  const cabecalho = todas[iCab]!;
+  const dados = todas
+    .slice(iCab + 1)
+    .filter((l) => !(l.length === 1 && l[0] === ''))
+    .map((l) => {
+      expect(l.length, `CSV: linha com ${cabecalho.length} campos: ${l.join(';')}`).toBe(
+        cabecalho.length,
+      );
+      return Object.fromEntries(cabecalho.map((c, i) => [c, l[i] ?? '']));
+    });
+  const totais = dados.filter((d) => d['Tipo'] === 'Total');
+  expect(totais.length, 'CSV: exactamente uma linha Tipo «Total»').toBe(1);
+  expect(dados[dados.length - 1]!['Tipo'], 'CSV: a linha «Total» é a última').toBe('Total');
+  return { cabecalho, corpo: dados.slice(0, -1), total: totais[0]! };
+}
+
+/** Valor do ecrã («—» = 0) arredondado a cêntimos. */
+function centimosPagina(t: string): number {
+  return t === '—' ? 0 : Math.round(parsePtNum(t) * 100);
+}
+
+/** Valor do CSV: sem separador de milhares, ponto decimal, nunca vazio. */
+function centimosCsv(t: string, ctx: string): number {
+  expect(t, `${ctx}: número no formato canónico (ponto decimal, sem milhares) — «${t}»`).toMatch(
+    /^-?\d+(\.\d+)?$/,
+  );
+  return Math.round(Number(t) * 100);
+}
+
+async function descarregar(page: Page, nomeLink: 'Exportar CSV' | 'Exportar Excel' | 'Exportar PDF') {
+  const link = page.getByRole('link', { name: nomeLink, exact: true });
+  await expect(link).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
+  const caminho = await download.path();
+  expect(caminho, `${nomeLink}: o download completou`).toBeTruthy();
+  return { nome: download.suggestedFilename(), bytes: fs.readFileSync(caminho!) };
+}
+
+async function hrefExport(
+  page: Page,
+  nomeLink: 'Exportar CSV' | 'Exportar Excel' | 'Exportar PDF',
+): Promise<URL> {
+  const link = page.getByRole('link', { name: nomeLink, exact: true });
+  await expect(link).toHaveCount(1);
+  const href = await link.getAttribute('href');
+  expect(href, `${nomeLink}: href`).toBeTruthy();
+  return new URL(href!, 'http://localhost');
+}
+
+/** Linhas do corpo da tabela, na ordem, no vocabulário do CSV. */
+async function linhasPaginaParaCsv(page: Page) {
+  return page.locator('tbody tr').evaluateAll((trs) =>
+    trs.map((tr) => {
+      const tds = Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.trim() ?? '');
+      const dt = tr.getAttribute('data-tipo');
+      const nivel = tr.getAttribute('data-nivel');
+      return {
+        tipo: dt === 'subtotal' ? 'Subtotal' : dt === 'sintetica' ? 'Sintética' : nivel ? 'Conta' : '?',
+        conta: dt ? '' : (tds[0] ?? ''),
+        descricao: tds[1] ?? '',
+        nivel: nivel ?? '',
+        valores: tds.slice(2),
+      };
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 31. Links «Exportar CSV» / «Exportar Excel» com os parâmetros da página
+// ---------------------------------------------------------------------------
+
+test('31. links «Exportar CSV» e «Exportar Excel» apontam para a exportação com exercicio/de/ate', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  for (const [nome, formato] of [
+    ['Exportar CSV', 'csv'],
+    ['Exportar Excel', 'xlsx'],
+  ] as const) {
+    const link = page.getByRole('link', { name: nome, exact: true });
+    await expect(link, `${nome}: um link`).toHaveCount(1);
+    await expect(link, `${nome}: <a download>`).toHaveAttribute('download');
+    const u = await hrefExport(page, nome);
+    expect(u.pathname, `${nome}: rota`).toBe(EXPORT);
+    expect(u.searchParams.getAll('formato'), `${nome}: formato`).toEqual([formato]);
+    expect(u.searchParams.getAll('exercicio'), `${nome}: exercicio`).toEqual(['2026']);
+    expect(u.searchParams.getAll('de'), `${nome}: de`).toEqual(['3']);
+    expect(u.searchParams.getAll('ate'), `${nome}: ate`).toEqual(['5']);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 32. CSV: nome, cabeçalho AMBOS, linhas = página, «Total» = «Totais»
+// ---------------------------------------------------------------------------
+
+test('32. «Exportar CSV» descarrega balancete-2026-3-5.csv com as colunas, as linhas e os «Totais» da página', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  const totaisPagina = await celulasTotais(page); // ['Totais', movD, movC, acumD, acumC, sD, sC]
+  expect(totaisPagina.length, 'Totais: rótulo + 6 valores').toBe(7);
+  const linhasPagina = await linhasPaginaParaCsv(page);
+  expect(linhasPagina.length, 'há linhas em 3..5').toBeGreaterThan(1);
+
+  const { nome, bytes } = await descarregar(page, 'Exportar CSV');
+  expect(nome).toBe('balancete-2026-3-5.csv');
+  const csv = lerCsvBalancete(bytes.toString('utf8'));
+  expect(csv.cabecalho, 'cabeçalho AMBOS exacto e por esta ordem').toEqual(COLUNAS_AMBOS);
+
+  // Todos os valores numéricos no formato canónico, nunca vazios (zeros = «0»)
+  for (const r of [...csv.corpo, csv.total]) {
+    for (const c of COLUNAS_VALOR) centimosCsv(r[c] ?? '', `${r['Tipo']} ${r['Conta']} / ${c}`);
+    expect(['Conta', 'Subtotal', 'Sintética', 'Total'], `Tipo «${r['Tipo']}»`).toContain(r['Tipo']);
+    if (r['Tipo'] === 'Subtotal' || r['Tipo'] === 'Total') {
+      expect(r['Nível'], `${r['Tipo']}: Nível vazio`).toBe('');
+    }
+  }
+
+  // «Total» = «Totais» do ecrã, a cêntimos
+  COLUNAS_VALOR.forEach((c, i) => {
+    expect(centimosCsv(csv.total[c]!, `Total / ${c}`), `Total / ${c} = Totais do ecrã`).toBe(
+      centimosPagina(totaisPagina[i + 1]!),
+    );
+  });
+
+  // Mesmas linhas, mesma ordem, mesmos valores que a tabela
+  expect(
+    csv.corpo.map((r) => `${r['Tipo']}|${r['Conta']}`),
+    'linhas do CSV = linhas da tabela, pela mesma ordem',
+  ).toEqual(linhasPagina.map((l) => `${l.tipo}|${l.conta}`));
+  csv.corpo.forEach((r, i) => {
+    const p = linhasPagina[i]!;
+    const ctx = `linha ${i + 1} (${p.tipo} ${p.conta})`;
+    if (p.tipo === 'Conta') {
+      expect(r['Nível'], `${ctx}: Nível = data-nivel`).toBe(p.nivel);
+      expect(r['Descrição'], `${ctx}: Descrição = nome`).toBe(p.descricao);
+    }
+    if (p.tipo === 'Subtotal') {
+      expect(r['Descrição'], `${ctx}: Descrição`).toMatch(/^Total da classe [1-8]$/);
+      expect(r['Descrição']).toBe(p.descricao);
+    }
+    if (p.tipo === 'Sintética') {
+      expect(r['Descrição'], `${ctx}: Descrição`).toBe(
+        'Resultados de exercícios anteriores por encerrar (implícita)',
+      );
+    }
+    COLUNAS_VALOR.forEach((c, j) => {
+      expect(centimosCsv(r[c]!, `${ctx} / ${c}`), `${ctx} / ${c}`).toBe(
+        centimosPagina(p.valores[j]!),
+      );
+    });
+  });
+
+  // A 121 está lá, com Tipo «Conta» e Nível 3
+  const r121 = csv.corpo.find((r) => r['Conta'] === '121');
+  expect(r121, '121 no CSV').toBeTruthy();
+  expect(r121!['Tipo']).toBe('Conta');
+  expect(r121!['Nível']).toBe('3');
+  expect(r121!['Descrição']).toBe(NOME_121);
+});
+
+// ---------------------------------------------------------------------------
+// 33. tipo=periodo&excluir=121: sem o par Acumulado, sem 121, «Total» igual
+// ---------------------------------------------------------------------------
+
+test('33. com tipo=periodo&excluir=121 o CSV não tem Acumulado nem a 121 e o «Total» não muda', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  const base = lerCsvBalancete((await descarregar(page, 'Exportar CSV')).bytes.toString('utf8'));
+
+  await navegar(page, `${BASE_S4}&tipo=periodo&excluir=121`);
+  const totaisPagina = await celulasTotais(page); // ['Totais', movD, movC, sD, sC]
+  expect(totaisPagina.length, 'Totais por período: rótulo + 4 valores').toBe(5);
+
+  const u = await hrefExport(page, 'Exportar CSV');
+  expect(u.searchParams.get('tipo'), 'href leva tipo=periodo').toBe('periodo');
+  expect(u.searchParams.get('excluir'), 'href leva excluir=121').toBe('121');
+
+  const { nome, bytes } = await descarregar(page, 'Exportar CSV');
+  expect(nome).toBe('balancete-2026-3-5.csv');
+  const csv = lerCsvBalancete(bytes.toString('utf8'));
+  expect(csv.cabecalho, 'cabeçalho Por período: sem Acumulado Débito/Crédito').toEqual(
+    COLUNAS_PERIODO,
+  );
+
+  for (const r of csv.corpo) {
+    expect(r['Conta'].startsWith('121'), `conta ${r['Conta']} devia estar excluída`).toBe(false);
+  }
+  expect(csv.corpo.some((r) => r['Conta'] === '12'), '«12» continua').toBe(true);
+
+  for (const c of COLUNAS_PERIODO.slice(4)) {
+    expect(centimosCsv(csv.total[c]!, `Total / ${c}`), `Total / ${c} igual ao do CSV sem filtros`).toBe(
+      centimosCsv(base.total[c]!, `Total base / ${c}`),
+    );
+  }
+  COLUNAS_PERIODO.slice(4).forEach((c, i) => {
+    expect(centimosCsv(csv.total[c]!, `Total / ${c}`), `Total / ${c} = Totais do ecrã`).toBe(
+      centimosPagina(totaisPagina[i + 1]!),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 34. «Exportar Excel» descarrega um .xlsx (ZIP)
+// ---------------------------------------------------------------------------
+
+test('34. «Exportar Excel» descarrega balancete-2026-3-5.xlsx (assinatura ZIP «PK»)', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  const { nome, bytes } = await descarregar(page, 'Exportar Excel');
+  expect(nome).toBe('balancete-2026-3-5.xlsx');
+  expect(bytes.length, 'ficheiro não vazio').toBeGreaterThan(4);
+  expect(bytes.subarray(0, 4).toString('hex'), 'assinatura ZIP local header (PK\\x03\\x04)').toBe(
+    '504b0304',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 35. Os links seguem os filtros aplicados pela UI (e o voltar atrás)
+// ---------------------------------------------------------------------------
+
+test('35. depois de aplicar filtros pela UI os links de exportação levam-nos; voltar atrás repõe', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  let u = await hrefExport(page, 'Exportar CSV');
+  expect(u.searchParams.has('excluir'), 'sem filtros: sem excluir').toBe(false);
+  expect(u.searchParams.get('tipo') ?? 'ambos', 'sem filtros: tipo ambos').not.toBe('periodo');
+
+  await page.getByLabel('Excluir contas', { exact: true }).fill('121');
+  await escolherApresentacao(page, 'Por período'); // clica «Aplicar»
+  await expect(page).toHaveURL(/[?&]excluir=121(&|$)/);
+  await expect(page).toHaveURL(/[?&]tipo=periodo(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  for (const nome of ['Exportar CSV', 'Exportar Excel'] as const) {
+    const link = page.getByRole('link', { name: nome, exact: true });
+    await expect(link, `${nome}: href com excluir=121`).toHaveAttribute('href', /[?&]excluir=121(&|$)/);
+    await expect(link, `${nome}: href com tipo=periodo`).toHaveAttribute('href', /[?&]tipo=periodo(&|$)/);
+    u = await hrefExport(page, nome);
+    expect(u.pathname).toBe(EXPORT);
+    expect(u.searchParams.get('formato')).toBe(nome === 'Exportar CSV' ? 'csv' : 'xlsx');
+    expect(u.searchParams.get('exercicio')).toBe('2026');
+    expect(u.searchParams.get('de')).toBe('3');
+    expect(u.searchParams.get('ate')).toBe('5');
+  }
+
+  await page.goBack();
+  await expect(page).not.toHaveURL(/[?&]excluir=/);
+  await page.waitForLoadState('networkidle');
+  await expect(
+    page.getByRole('link', { name: 'Exportar CSV', exact: true }),
+    'voltar atrás: href sem excluir',
+  ).not.toHaveAttribute('href', /[?&]excluir=/);
+});
+
+// ===========================================================================
+// S6 (#286) — exportação PDF (A4 horizontal)
+//
+// Contrato: .scratch/sdlc/balancete-phc/S6-contrato.md.
+// Terceiro link no PageHeader, «Exportar PDF» (`<a href download>`), para a mesma
+// GET /api/contabilidade/balancete/export com formato=pdf e os parâmetros da página.
+// Resposta application/pdf, anexo `balancete-<exercicio>-<pi>-<pf>.pdf`.
+// O conteúdo textual do PDF (cabeçalho, Transporte/A transportar, Totais,
+// igualdades, «Página x de y») é coberto pelo oráculo unitário; aqui só
+// link, download e assinatura.
+// ===========================================================================
+
+/** Número de objectos de página (`/Type /Page`, não `/Pages`) num PDF não cifrado. */
+function contarPaginasPdf(bytes: Buffer): number {
+  return (bytes.toString('latin1').match(/\/Type\s*\/Page(?![a-zA-Z])/g) ?? []).length;
+}
+
+// ---------------------------------------------------------------------------
+// 36. Link «Exportar PDF» com formato=pdf e exercicio/de/ate
+// ---------------------------------------------------------------------------
+
+test('36. link «Exportar PDF» aponta para a exportação com formato=pdf e exercicio/de/ate', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  const link = page.getByRole('link', { name: 'Exportar PDF', exact: true });
+  await expect(link, 'Exportar PDF: um link').toHaveCount(1);
+  await expect(link, 'Exportar PDF: <a download>').toHaveAttribute('download');
+  // `download` sem valor: o nome vem do Content-Disposition do servidor.
+  expect(await link.getAttribute('download'), 'download sem valor').toBe('');
+  const u = await hrefExport(page, 'Exportar PDF');
+  expect(u.pathname, 'rota').toBe(EXPORT);
+  expect(u.searchParams.getAll('formato'), 'formato').toEqual(['pdf']);
+  expect(u.searchParams.getAll('exercicio'), 'exercicio').toEqual(['2026']);
+  expect(u.searchParams.getAll('de'), 'de').toEqual(['3']);
+  expect(u.searchParams.getAll('ate'), 'ate').toEqual(['5']);
+
+  // Os outros dois continuam lá, com o seu formato
+  for (const [nome, formato] of [
+    ['Exportar CSV', 'csv'],
+    ['Exportar Excel', 'xlsx'],
+  ] as const) {
+    expect((await hrefExport(page, nome)).searchParams.get('formato'), `${nome}: formato`).toBe(
+      formato,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 37. Download: nome e assinatura «%PDF»
+// ---------------------------------------------------------------------------
+
+test('37. «Exportar PDF» descarrega balancete-2026-3-5.pdf (assinatura «%PDF»)', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  const { nome, bytes } = await descarregar(page, 'Exportar PDF');
+  expect(nome).toBe('balancete-2026-3-5.pdf');
+  expect(bytes.length, 'ficheiro não vazio').toBeGreaterThan(5);
+  expect(bytes.subarray(0, 5).toString('latin1'), 'assinatura PDF').toBe('%PDF-');
+  expect(contarPaginasPdf(bytes), 'pelo menos uma página').toBeGreaterThanOrEqual(1);
+});
+
+// ---------------------------------------------------------------------------
+// 38. zeradas=1: muitas linhas → várias páginas, < 2 MB, < 20 s
+// ---------------------------------------------------------------------------
+
+test('38. com zeradas=1 o PDF tem várias páginas, menos de 2 MB e responde em menos de 20 s', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await navegar(page, `${BASE_S4}&zeradas=1`);
+  const nLinhas = await page.locator('tbody tr').count();
+  expect(nLinhas, 'pré-condição: zeradas=1 dá muitas linhas').toBeGreaterThan(100);
+
+  const u = await hrefExport(page, 'Exportar PDF');
+  expect(u.searchParams.get('zeradas'), 'href leva zeradas=1').toBe('1');
+  expect(u.searchParams.get('formato')).toBe('pdf');
+
+  // Tempo do pedido medido pela API do contexto (mesma sessão), sem depender do download.
+  const inicio = Date.now();
+  const resp = await page.request.get(`${u.pathname}${u.search}`, { timeout: 30_000 });
+  const ms = Date.now() - inicio;
+  expect(resp.status(), 'HTTP 200').toBe(200);
+  expect(resp.headers()['content-type'] ?? '', 'Content-Type').toMatch(/^application\/pdf/);
+  expect(resp.headers()['content-disposition'] ?? '', 'anexo com o nome').toMatch(
+    /attachment;.*filename="?balancete-2026-3-5\.pdf"?/,
+  );
+  const bytes = await resp.body();
+  expect(bytes.subarray(0, 5).toString('latin1'), 'assinatura PDF').toBe('%PDF-');
+  expect(bytes.length, 'tamanho razoável (< 2 MB)').toBeLessThan(2 * 1024 * 1024);
+  expect(ms, `pedido em ${ms} ms (< 20 s em dev)`).toBeLessThan(20_000);
+  expect(contarPaginasPdf(bytes), `várias páginas para ${nLinhas} linhas`).toBeGreaterThanOrEqual(2);
+
+  // E o link também descarrega
+  const dl = await descarregar(page, 'Exportar PDF');
+  expect(dl.nome).toBe('balancete-2026-3-5.pdf');
+  expect(dl.bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+});
+
+// ---------------------------------------------------------------------------
+// 39. O link PDF segue os filtros aplicados pela UI
+// ---------------------------------------------------------------------------
+
+test('39. depois de aplicar «Excluir contas»=121 pela UI o link PDF leva excluir=121', async ({
+  page,
+}) => {
+  await navegar(page, BASE_S4);
+  let u = await hrefExport(page, 'Exportar PDF');
+  expect(u.searchParams.has('excluir'), 'sem filtros: sem excluir').toBe(false);
+
+  await page.getByLabel('Excluir contas', { exact: true }).fill('121');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(page).toHaveURL(/[?&]excluir=121(&|$)/);
+  await page.waitForLoadState('networkidle');
+
+  const link = page.getByRole('link', { name: 'Exportar PDF', exact: true });
+  await expect(link, 'href com excluir=121').toHaveAttribute('href', /[?&]excluir=121(&|$)/);
+  u = await hrefExport(page, 'Exportar PDF');
+  expect(u.pathname).toBe(EXPORT);
+  expect(u.searchParams.get('formato')).toBe('pdf');
+  expect(u.searchParams.get('exercicio')).toBe('2026');
+  expect(u.searchParams.get('de')).toBe('3');
+  expect(u.searchParams.get('ate')).toBe('5');
 });
