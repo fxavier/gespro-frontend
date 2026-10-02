@@ -298,6 +298,16 @@ export interface LinhaHierarquica extends LinhaBV {
   /** conta com filhas visíveis no balancete (negrito) */
   agregadora: boolean;
   classe: ClassePGC;
+  /**
+   * S3: id da conta mostrada imediatamente acima na árvore efectiva (antepassado
+   * visível mais próximo depois de nivelMaximo/apenasRazao); null nas raízes,
+   * SUBTOTAL_CLASSE e SINTETICA.
+   */
+  maeMostradaId: string | null;
+  /** S3: 0 nas raízes do bloco, +1 por cada mãe mostrada; SUBTOTAL_CLASSE 0, SINTETICA 1. */
+  profundidade: number;
+  /** S3: linha mantida por `filtrarBalancete` só como antepassada de uma que passa os filtros. */
+  contexto?: boolean;
 }
 
 
@@ -411,12 +421,13 @@ function maesEfectivas(contaPorId: Map<string, ContaBV>): Map<string, string | n
  *
  * @param nucleo  - resultado de montarBalanceteVerificacao (não é modificado)
  * @param contas  - TODAS as contas do tenant (mães e folhas)
- * @param opcoes  - nivelMaximo: oculta CONTA com nivel > N; apenasRazao: só nivel 2 (ganha)
+ * @param opcoes  - nivelMaximo: oculta CONTA com nivel > N; apenasRazao: só nivel 2 (ganha);
+ *                  incluirSemMovimento: todas as contas do plano, as sem valores a zeros
  */
 export function hierarquizarBalancete(
   nucleo: BalanceteVerificacaoNucleo,
   contas: ContaBV[],
-  opcoes?: { nivelMaximo?: number; apenasRazao?: boolean },
+  opcoes?: { nivelMaximo?: number; apenasRazao?: boolean; incluirSemMovimento?: boolean },
 ): LinhaHierarquica[] {
   const passaFiltro = (nivel: number): boolean =>
     opcoes?.apenasRazao ? nivel === 2 : nivel <= (opcoes?.nivelMaximo ?? Infinity);
@@ -443,10 +454,15 @@ export function hierarquizarBalancete(
       somarEm(v, linha);
     }
   }
-  // `valores` tem exactamente as contas presentes (núcleo + antepassados).
+  // S3: com incluirSemMovimento, as restantes contas do plano entram a zeros.
+  if (opcoes?.incluirSemMovimento) {
+    for (const id of contaPorId.keys()) if (!valores.has(id)) valores.set(id, valoresZero());
+  }
+  // `valores` tem exactamente as contas presentes.
 
   // --- Mãe mostrada (antepassado visível mais próximo) e bloco (classe da raiz) ---
   const filhas = new Map<string | null, ContaBV[]>(); // null = raízes mostradas
+  const maeMostrada = new Map<string, string | null>();
   const blocoDe = new Map<string, ClassePGC>();
   for (const id of valores.keys()) {
     const conta = contaPorId.get(id)!;
@@ -458,6 +474,7 @@ export function hierarquizarBalancete(
       raiz = cur;
     }
     blocoDe.set(id, contaPorId.get(raiz)!.classe);
+    maeMostrada.set(id, mostrada);
     const lista = filhas.get(mostrada) ?? [];
     lista.push(conta);
     filhas.set(mostrada, lista);
@@ -479,7 +496,7 @@ export function hierarquizarBalancete(
   }
 
   // --- Emissão: por classe, o bloco em pré-ordem, a sintética (8) e o subtotal ---
-  const linhaConta = (conta: ContaBV): LinhaHierarquica => {
+  const linhaConta = (conta: ContaBV, profundidade: number): LinhaHierarquica => {
     const v = valores.get(conta.id)!;
     const agregadora = (filhas.get(conta.id)?.length ?? 0) > 0;
     const saldos = saldosDe(v);
@@ -500,18 +517,20 @@ export function hierarquizarBalancete(
       nivel: conta.nivel,
       agregadora,
       classe: conta.classe,
+      maeMostradaId: maeMostrada.get(conta.id) ?? null,
+      profundidade,
     };
   };
 
   const resultado: LinhaHierarquica[] = [];
   for (const classe of CLASSES_ORDEM) {
     const raizes = (filhas.get(null) ?? []).filter((c) => blocoDe.get(c.id) === classe);
-    const pilha = [...raizes].reverse();
+    const pilha = [...raizes].reverse().map((conta) => ({ conta, profundidade: 0 }));
     while (pilha.length > 0) {
-      const conta = pilha.pop()!;
-      resultado.push(linhaConta(conta));
+      const { conta, profundidade } = pilha.pop()!;
+      resultado.push(linhaConta(conta, profundidade));
       const fs = filhas.get(conta.id) ?? [];
-      for (let i = fs.length - 1; i >= 0; i--) pilha.push(fs[i]!);
+      for (let i = fs.length - 1; i >= 0; i--) pilha.push({ conta: fs[i]!, profundidade: profundidade + 1 });
     }
 
     if (classe === 'CLASSE_8' && sintetica) {
@@ -528,6 +547,8 @@ export function hierarquizarBalancete(
         nivel: 2,
         agregadora: false,
         classe: 'CLASSE_8',
+        maeMostradaId: null,
+        profundidade: 1,
       });
     }
 
@@ -546,8 +567,107 @@ export function hierarquizarBalancete(
         nivel: 1,
         agregadora: false,
         classe,
+        maeMostradaId: null,
+        profundidade: 0,
       });
     }
   }
   return resultado;
+}
+
+// ---------------------------------------------------------------------------
+// S3: Filtros de apresentação (ADR-0040 §5 — nunca alteram totais nem subtotais)
+// ---------------------------------------------------------------------------
+
+export interface FiltrosBalancete {
+  /** codigo >= contaInicial (texto). */
+  contaInicial?: string;
+  /** codigo <= contaFinal, ou começa por contaFinal (inclui as subcontas da final). */
+  contaFinal?: string;
+  /** Só linhas desta classe (CONTA, SINTETICA e SUBTOTAL). */
+  classe?: ClassePGC;
+  /** Códigos a esconder, com todas as linhas mostradas por baixo deles. */
+  excluir?: string[];
+  /** Só CONTA com saldo não nulo. */
+  apenasComSaldo?: boolean;
+  /** Código começa por / nome contém (sem maiúsculas nem acentos). */
+  pesquisa?: string;
+}
+
+const normalizarTexto = (s: string): string => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+const temSaldo = (l: LinhaHierarquica): boolean => !l.saldoDevedor.isZero() || !l.saldoCredor.isZero();
+
+/**
+ * Filtra as linhas de `hierarquizarBalancete` para apresentação. Pura; a saída é
+ * uma subsequência da entrada, com os mesmos valores.
+ *
+ * - CONTA fica se passa todos os filtros activos, ou como contexto (`contexto: true`)
+ *   se é antepassada de uma que fica. Antepassada = a mãe mostrada (`maeMostradaId`),
+ *   e a mãe dela, e assim por diante — nunca deduzida do `nivel`.
+ * - `excluir` tira a conta e tudo o que se mostra por baixo dela (nem como contexto).
+ * - SINTETICA segue `classe` e `apenasComSaldo`; sai com pesquisa ou intervalo de contas.
+ * - SUBTOTAL_CLASSE fica se o seu bloco ficou com alguma linha (e é da classe filtrada).
+ * - Sem filtros activos devolve as linhas tal como vieram.
+ */
+export function filtrarBalancete(linhas: LinhaHierarquica[], filtros: FiltrosBalancete): LinhaHierarquica[] {
+  const { contaInicial, contaFinal, classe, apenasComSaldo, pesquisa } = filtros;
+  const excluir = new Set(filtros.excluir ?? []);
+  const q = pesquisa ? normalizarTexto(pesquisa) : '';
+  const activos = !!contaInicial || !!contaFinal || classe !== undefined || excluir.size > 0 || apenasComSaldo === true || !!q;
+  if (!activos) return [...linhas];
+
+  const passa = (l: LinhaHierarquica): boolean => {
+    const c = l.conta!;
+    if (contaInicial && c.codigo < contaInicial) return false;
+    if (contaFinal && c.codigo > contaFinal && !c.codigo.startsWith(contaFinal)) return false;
+    if (classe !== undefined && l.classe !== classe) return false;
+    if (apenasComSaldo && !temSaldo(l)) return false;
+    if (q && !normalizarTexto(c.codigo).startsWith(q) && !normalizarTexto(c.nome).includes(q)) return false;
+    return true;
+  };
+
+  // 1.ª passagem: mãe mostrada (índice de uma linha CONTA anterior), raiz e exclusão.
+  // A mãe vem sempre antes da filha (pré-ordem), por isso uma passagem chega.
+  const indicePorId = new Map<string, number>();
+  const mae: (number | null)[] = linhas.map(() => null);
+  const raiz: number[] = linhas.map((_, i) => i);
+  const excluida: boolean[] = linhas.map(() => false);
+  const fica: ('P' | 'ctx' | null)[] = linhas.map(() => null);
+  linhas.forEach((l, i) => {
+    if (l.tipo !== 'CONTA') return;
+    const m = l.maeMostradaId === null ? null : (indicePorId.get(l.maeMostradaId) ?? null);
+    mae[i] = m;
+    raiz[i] = m === null ? i : raiz[m]!;
+    excluida[i] = excluir.has(l.conta!.codigo) || (m !== null && excluida[m]!);
+    if (!excluida[i] && passa(l)) fica[i] = 'P';
+    indicePorId.set(l.conta!.id, i);
+  });
+  // Antepassadas de quem fica: contexto (as não excluídas; a exclusão herda-se, logo nunca o são).
+  linhas.forEach((_, i) => {
+    if (fica[i] !== 'P') return;
+    for (let m = mae[i]!; m !== null && fica[m] === null; m = mae[m]!) fica[m] = 'ctx';
+  });
+
+  const sinteticaFica = (l: LinhaHierarquica): boolean =>
+    !q && !contaInicial && !contaFinal &&
+    (classe === undefined || classe === 'CLASSE_8') &&
+    (!apenasComSaldo || temSaldo(l));
+
+  // 2.ª passagem: emissão. O bloco de uma linha é a classe da sua raiz mostrada
+  // (a sintética é da 8); o subtotal fica se o seu bloco ficou com alguma linha.
+  const saida: LinhaHierarquica[] = [];
+  let blocosComLinhas = new Set<ClassePGC>();
+  linhas.forEach((l, i) => {
+    if (l.tipo === 'SUBTOTAL_CLASSE') {
+      if (blocosComLinhas.has(l.classe) && (classe === undefined || classe === l.classe)) saida.push(l);
+      blocosComLinhas = new Set();
+    } else if (l.tipo === 'SINTETICA') {
+      if (sinteticaFica(l)) { saida.push(l); blocosComLinhas.add('CLASSE_8'); }
+    } else if (fica[i] !== null) {
+      saida.push(fica[i] === 'ctx' ? { ...l, contexto: true } : l);
+      blocosComLinhas.add(linhas[raiz[i]!]!.classe);
+    }
+  });
+  return saida;
 }
