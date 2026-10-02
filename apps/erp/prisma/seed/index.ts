@@ -16,6 +16,7 @@ import { seedRecrutamento } from './recrutamento';
 import { seedDemoVendas } from './demo-vendas';
 import { seedDemoContabilidade } from './demo-contabilidade';
 import { PROVINCIAS_MOCAMBIQUE } from '../../src/lib/provincias-mocambique';
+import { bootstrapConsumidorFinal } from '../../src/server/provisioning/tenant-bootstrap';
 
 // Cliente próprio (fora de RSC) — não importa o client `server-only` da app.
 const prisma = new PrismaClient({
@@ -113,6 +114,10 @@ async function main() {
   // 5-ter. As facturas do funil reflectidas nos livros — sem isto o
   //        balancete e a DRE ignoram a receita toda.
   await seedDemoContabilidade(prisma, tenant.id, adminUserId);
+
+  // 5-quater. Cliente técnico Consumidor Final (ADR-0041 §2): a venda POS anónima
+  //           factura contra ele. Depois do funil, para não lhe mudar a escolha de clientes.
+  await bootstrapConsumidorFinal(prisma, tenant.id);
 
   // 6. Províncias (referência, sem tabela DB na Wave 0)
   await seedProvincias();

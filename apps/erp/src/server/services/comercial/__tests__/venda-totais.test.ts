@@ -1,22 +1,28 @@
 /**
  * Property tests — invariantes de totais de Venda (WS C)
  *
+ * Exercita a função REAL usada por `VendaService.criar` e pelo terminal POS:
+ * `calcularTotaisVendaPOS` (@/lib/vendas-totais — ADR-0041 §3, arredondamento por linha
+ * a 2 casas, meio para cima). Até à S2 este ficheiro testava uma cópia em linha de um
+ * cálculo sem arredondamento, que já não existe no serviço.
+ *
  * Verifica:
- *  1. subtotal = Σ(precoUnitario * quantidade * (1 - desconto/100))
- *  2. ivaTotal = Σ(subtotalItem * taxaIva)
+ *  1. subtotal = Σ subtotal das linhas (já arredondadas)
+ *  2. ivaTotal = Σ ivaItem das linhas (já arredondados)
  *  3. total = subtotal + ivaTotal
- *  4. Valores não negativos
- *  5. IVA 16% padrão moçambicano (taxaIva = 0.16)
+ *  4. Valores não negativos; total >= subtotal
+ *  5. desconto 0% → subtotal da linha = round2(preço × qtd); desconto 100% → zero
+ *  6. IVA 16% padrão moçambicano (taxaIva = 0.16) — exemplos concretos
+ *
+ * O oráculo de arredondamento linha a linha vive em src/lib/__tests__/vendas-totais.test.ts.
  */
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
 import { Prisma } from '@prisma/client';
+import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 
 const D = Prisma.Decimal;
-
-// ---------------------------------------------------------------------------
-// Lógica de cálculo extraída do venda.service.ts (função pura — testável)
-// ---------------------------------------------------------------------------
+const r2 = (d: Prisma.Decimal) => d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
 interface ItemInput {
   quantidade: number;
@@ -25,45 +31,8 @@ interface ItemInput {
   taxaIva: number;  // fracção 0-1
 }
 
-interface ItemCalculado {
-  subtotal: Prisma.Decimal;
-  ivaItem: Prisma.Decimal;
-  total: Prisma.Decimal;
-}
-
-function calcularItem(item: ItemInput): ItemCalculado {
-  const preco = new D(item.precoUnitario);
-  const qtd = new D(item.quantidade);
-  const desc = new D(item.desconto);
-  const taxaIva = new D(item.taxaIva);
-
-  const subtotalBruto = preco.mul(qtd);
-  const descontoValor = subtotalBruto.mul(desc).div(100);
-  const subtotal = subtotalBruto.minus(descontoValor);
-  const ivaItem = subtotal.mul(taxaIva);
-  const total = subtotal.plus(ivaItem);
-
-  return { subtotal, ivaItem, total };
-}
-
-interface TotaisVenda {
-  subtotal: Prisma.Decimal;
-  ivaTotal: Prisma.Decimal;
-  total: Prisma.Decimal;
-}
-
-function calcularTotaisVenda(itens: ItemInput[]): TotaisVenda {
-  let subtotal = new D(0);
-  let ivaTotal = new D(0);
-
-  for (const item of itens) {
-    const calc = calcularItem(item);
-    subtotal = subtotal.plus(calc.subtotal);
-    ivaTotal = ivaTotal.plus(calc.ivaItem);
-  }
-
-  return { subtotal, ivaTotal, total: subtotal.plus(ivaTotal) };
-}
+const calcularTotaisVenda = (itens: ItemInput[]) => calcularTotaisVendaPOS(itens);
+const calcularItem = (item: ItemInput) => calcularTotaisVendaPOS([item]).linhas[0];
 
 // ---------------------------------------------------------------------------
 // Arbitrários
@@ -148,7 +117,7 @@ describe('Invariantes de totais da Venda', () => {
     );
   });
 
-  it('[property] desconto 0% → subtotal = precoUnitario * quantidade', () => {
+  it('[property] desconto 0% → subtotal = round2(precoUnitario * quantidade)', () => {
     fc.assert(
       fc.property(
         fc.record({
@@ -159,7 +128,8 @@ describe('Invariantes de totais da Venda', () => {
         ({ quantidade, precoUnitario, taxaIva }) => {
           const item = { quantidade, precoUnitario, desconto: 0, taxaIva };
           const { subtotal } = calcularItem(item);
-          const esperado = new D(precoUnitario).mul(quantidade);
+          // Com arredondamento por linha (ADR-0041 §3): round2(preço × qtd), não o produto em bruto.
+          const esperado = r2(new D(String(precoUnitario)).mul(String(quantidade)));
           expect(subtotal.toFixed(4)).toBe(esperado.toFixed(4));
         },
       ),

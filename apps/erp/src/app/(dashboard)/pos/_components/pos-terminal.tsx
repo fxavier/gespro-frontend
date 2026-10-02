@@ -46,6 +46,7 @@ import {
 import { criarVenda, fecharSessaoPOS } from '@/server/actions/vendas.actions';
 import type { SessaoPOSRow } from '@/server/services/comercial/venda.interface';
 import type { ProdutoDto } from '@/server/services/inventario/catalogo.interface';
+import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 
 // ─── Tipos locais ─────────────────────────────────────────────────────────────
 
@@ -69,16 +70,14 @@ interface POSTerminalProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * O mesmo cálculo do servidor (ADR-0041 §3): o pagamento enviado tem de igualar o
+ * total da venda ao cêntimo, senão o servidor recusa com PAGAMENTOS_NAO_BATEM_TOTAL.
+ * Os valores saem em 2 casas exactas, por isso o `number` não perde nada.
+ */
 function calcularTotais(itens: ItemCarrinho[]) {
-  let subtotal = 0;
-  let ivaTotal = 0;
-  for (const item of itens) {
-    const base = item.precoUnitario * item.quantidade;
-    const iva = base * item.taxaIva;
-    subtotal += base;
-    ivaTotal += iva;
-  }
-  return { subtotal, ivaTotal, total: subtotal + ivaTotal };
+  const t = calcularTotaisVendaPOS(itens);
+  return { subtotal: t.subtotal.toNumber(), ivaTotal: t.ivaTotal.toNumber(), total: t.total.toNumber() };
 }
 
 const METODO_ICONS: Record<MetodoPagamento, React.ReactNode> = {

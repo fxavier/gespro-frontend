@@ -168,6 +168,7 @@ do browser não conseguem ler de custom properties — alterar os dois em conjun
 FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@relation`** a modelos de outro workstream — mantém cada schema auto-contido e desacopla `tenant.prisma` dos domínios. A consistência é garantida chamando as **funções de contrato** dentro da mesma `$transaction`:
 - **A/inventário expõe**: `entradaStock`, `baixarStock`, `reservarStock`, `confirmarConsumoStock`, `libertarStock`.
 - **D/finanças expõe**: `registarLancamentoContabilistico` (partida dobrada), `registarMovimentoCaixa`, `proximoNumeroSerie` (numeração atómica `UPDATE...RETURNING FOR UPDATE`, sem lacunas).
+- **D/finanças expõe também (ADR-0041)**: `emitirDocumentoEmTx` (núcleo da emissão, na tx do chamador; `FATURA_RECIBO` nasce `PAGA`) e `construirLancamentoVendaPOS` (D meio de pagamento / C 711 / C 44331) — chamados pelo `faturacaoService` injectado, nunca por import do módulo.
 - Fluxos ligados: venda/POS→stock+caixa · recepção→stock+conta a pagar · factura→contabilidade · produção→consumo/entrada de stock.
 
 ### Camadas transversais (envelopam, não alteram contratos)

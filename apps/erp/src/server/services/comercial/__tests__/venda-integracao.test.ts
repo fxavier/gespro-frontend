@@ -8,6 +8,13 @@
  *   (a) SaldoStock decrementado após venda POS
  *   (b) MovimentoCaixa criado com o valor total da venda
  *   (c) Venda.numero gerado pelo proximoNumeroSerie (sequencial, sem Date.now)
+ *
+ * ADR-0041 (#306): a venda POS paga emite Factura-Recibo e lança na mesma transacção,
+ * por isso o tenant é provisionado pelo `bootstrapContabilidade` real (PGC, diários,
+ * séries — VENDA e FATURA_RECIBO incluídas —, Consumidor Final). O exercício e os
+ * períodos nascem na primeira escrita contabilística (`resolverPeriodo`).
+ * O `afterAll` apaga TUDO o que o tenant descartável deixou — corre contra a base local
+ * dentro do `pnpm check`.
  */
 
 // Carrega variáveis de ambiente do .env (necessário em vitest — não usa Next.js runtime)
@@ -17,6 +24,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { prismaBase } from '@/server/db/client';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { vendaService } from '@/server/services/comercial/index';
+import { bootstrapContabilidade } from '@/server/provisioning/tenant-bootstrap';
 import type { CreateVendaInput } from '@/lib/validations/vendas';
 
 // ---------------------------------------------------------------------------
@@ -92,17 +100,9 @@ beforeAll(async () => {
     },
   });
 
-  // 7. SerieDocumento para VENDA
-  await prismaBase.serieDocumento.create({
-    data: {
-      tenantId: TENANT_ID,
-      tipo: 'VENDA' as never,
-      prefixo: 'VND',
-      ano: new Date().getFullYear(),
-      formatoNumero: '{prefixo}/{ano}/{numero:06}',
-      ativo: true,
-    },
-  });
+  // 7. Contabilidade do tenant pelo bootstrap real: PGC, diários, séries (VENDA com
+  //    prefixo VND e FATURA_RECIBO), Consumidor Final, DFC — ADR-0041.
+  await prismaBase.$transaction((tx) => bootstrapContabilidade(tx, TENANT_ID), { timeout: 60_000 });
 
   // 8. SessaoCaixa aberta
   const sessao = await prismaBase.sessaoCaixa.create({
@@ -123,21 +123,44 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Deletar em ordem de dependência (FK sem cascade explícito)
-  await prismaBase.historicoEstadoVenda.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.itemVenda.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.pagamentoVenda.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.comissao.deleteMany({ where: { tenantId: TENANT_ID } }); // FK Comissao→Venda
-  await prismaBase.venda.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.movimentoCaixa.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.sessaoCaixa.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.serieDocumento.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.movimentoStock.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.saldoStock.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.reservaStock.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.localizacao.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.produto.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.categoriaProduto.deleteMany({ where: { tenantId: TENANT_ID } });
-  await prismaBase.user.deleteMany({ where: { tenantId: TENANT_ID } });
+  const W = { where: { tenantId: TENANT_ID } };
+  await prismaBase.historicoEstadoVenda.deleteMany(W);
+  await prismaBase.itemVenda.deleteMany(W);
+  await prismaBase.pagamentoVenda.deleteMany(W);
+  await prismaBase.comissao.deleteMany(W); // FK Comissao→Venda
+  await prismaBase.venda.deleteMany(W);
+  await prismaBase.sessaoPOS.deleteMany(W);
+  // Factura-Recibo e o seu lançamento (ADR-0041)
+  await prismaBase.linhaFatura.deleteMany(W);
+  await prismaBase.fatura.deleteMany(W);
+  await prismaBase.partidaLancamento.deleteMany(W);
+  await prismaBase.lancamento.deleteMany(W);
+  await prismaBase.periodoContabil.deleteMany(W);
+  await prismaBase.exercicioContabil.deleteMany(W);
+  await prismaBase.movimentoCaixa.deleteMany(W);
+  await prismaBase.sessaoCaixa.deleteMany(W);
+  await prismaBase.serieDocumento.deleteMany(W);
+  await prismaBase.movimentoStock.deleteMany(W);
+  await prismaBase.saldoStock.deleteMany(W);
+  await prismaBase.reservaStock.deleteMany(W);
+  await prismaBase.localizacao.deleteMany(W);
+  await prismaBase.produto.deleteMany(W);
+  await prismaBase.categoriaProduto.deleteMany(W);
+  // Resto do bootstrapContabilidade
+  await prismaBase.cliente.deleteMany(W);
+  await prismaBase.regraSugestaoLancamento.deleteMany(W);
+  await prismaBase.contaNaturezaNotaDebito.deleteMany(W);
+  await prismaBase.mapeamentoContaFluxo.deleteMany(W);
+  await prismaBase.versaoMapeamentoFluxo.deleteMany(W);
+  await prismaBase.rubricaFluxoCaixa.deleteMany(W);
+  await prismaBase.diario.deleteMany(W);
+  // ContaPGC é auto-referenciada (contaMaeId): folhas primeiro, do nível mais fundo para cima.
+  const niveis = await prismaBase.contaPGC.findMany({ ...W, distinct: ['nivel'], select: { nivel: true } });
+  for (const nivel of niveis.map((n) => n.nivel).sort((a, b) => b - a)) {
+    await prismaBase.contaPGC.deleteMany({ where: { tenantId: TENANT_ID, nivel } });
+  }
+  await prismaBase.auditLog.deleteMany(W);
+  await prismaBase.user.deleteMany(W);
   await prismaBase.tenant.delete({ where: { id: TENANT_ID } });
 });
 

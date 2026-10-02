@@ -56,6 +56,7 @@ export const TipoSerieDocumentoEnum = z.enum([
   'PROFORMA',
   'COTACAO_COMERCIAL',
   'RECIBO',
+  'FATURA_RECIBO',
 ]);
 
 // ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ import {
   semearRubricasFluxo,
 } from '../tenant-bootstrap';
 import { CONTA_PADRAO_NATUREZA_ND } from '@/lib/nota-debito';
+import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
 import { AtividadeFluxoEnum, SinalFluxoEnum } from '@/lib/validations/fluxo-caixa';
 import type {
   ContaCaixaInfo,
@@ -282,6 +283,8 @@ function fakeTx() {
     },
     diario: { createMany: createMany() },
     serieDocumento: { createMany: createMany() },
+    // ADR-0041 §2: o cliente técnico Consumidor Final.
+    cliente: { createMany: createMany() },
     permission: {
       createMany: vi.fn(async (_args: ArgsCreateMany) => ({ count: 0 })),
       findMany: vi.fn(async () => [{ id: 'p1', code: 'faturacao:ver' }]),
@@ -406,6 +409,15 @@ describe('diários e séries', () => {
     expect(r.diarios).toBe(DIARIOS_INICIAIS.length);
     expect(r.series).toBe(SERIES_INICIAIS.length);
     expect(tx.contaNaturezaNotaDebito.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('bootstrapContabilidade cria o Consumidor Final do tenant, idempotente (ADR-0041 §2)', async () => {
+    await bootstrapContabilidade(tx as never, 'tenant-1');
+    expect(tx.cliente.createMany).toHaveBeenCalledTimes(1);
+    expect(tx.cliente.createMany).toHaveBeenCalledWith({
+      data: [{ tenantId: 'tenant-1', ...CLIENTE_CONSUMIDOR_FINAL }],
+      skipDuplicates: true,
+    });
   });
 });
 
