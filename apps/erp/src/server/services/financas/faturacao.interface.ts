@@ -512,10 +512,16 @@ export interface OpcoesEmissaoDocumento {
   /** Série que numera o documento (omissão: FATURA). */
   tipoSerie?: TipoSerieDocumento;
   /**
-   * Omissão: derivado da série — FATURA_RECIBO nasce PAGA (`totalPago = total`,
-   * ADR-0041 §1), as outras EMITIDA. Contradizer a série → OPCOES_EMISSAO_INCOERENTES.
+   * Omissão: derivado da série e de `totalPago` — FATURA_RECIBO nasce PAGA
+   * (`totalPago = total`, ADR-0041 §1); as outras EMITIDA, ou PARCIALMENTE_PAGA quando
+   * `0 < totalPago < total` (venda POS mista a crédito, §4). Contradizer → OPCOES_EMISSAO_INCOERENTES.
    */
-  status?: 'EMITIDA' | 'PAGA';
+  status?: 'EMITIDA' | 'PARCIALMENTE_PAGA' | 'PAGA';
+  /**
+   * Valor já recebido na emissão (omissão: total na FATURA_RECIBO, 0 nas outras).
+   * Numa FATURA tem de ficar em [0, total[; numa FATURA_RECIBO tem de ser o total.
+   */
+  totalPago?: Prisma.Decimal;
   /** Lançamento do documento (omissão: `construirLancamentoFatura`, D 411). */
   construirLancamento?: (doc: DocumentoLancavel) => RegistarLancamentoContabilisticoInput;
 }

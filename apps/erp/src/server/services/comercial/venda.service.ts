@@ -220,6 +220,33 @@ async function _resolverArmazem(tx: TxClient, ctx: Ctx): Promise<string> {
   return loc.id;
 }
 
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Cliente de uma venda POS com parte a crédito (ADR-0041 §4): tem de ser identificado —
+ * nem anónimo nem o Consumidor Final, que não tem conta corrente a que se cobrar.
+ */
+async function _clienteDoCredito(
+  tx: Prisma.TransactionClient,
+  input: CreateVendaInput,
+  ctx: Ctx,
+): Promise<{ id: string; diasPagamento: number }> {
+  const cliente = input.clienteId
+    ? await tx.cliente.findFirst({
+        where: { id: input.clienteId, tenantId: ctx.tenantId },
+        select: { id: true, codigo: true, diasPagamento: true },
+      })
+    : null;
+  if (input.clienteId && !cliente) throw new NotFoundError('Cliente não encontrado');
+  if (!cliente || cliente.codigo === CLIENTE_CONSUMIDOR_FINAL.codigo) {
+    throw new BusinessRuleError(
+      'CLIENTE_OBRIGATORIO_CREDITO',
+      'Uma venda a crédito exige um cliente identificado (não o Consumidor Final).',
+    );
+  }
+  return { id: cliente.id, diasPagamento: cliente.diasPagamento };
+}
+
 // ---------------------------------------------------------------------------
 // VendaService
 // ---------------------------------------------------------------------------
@@ -243,14 +270,6 @@ export class VendaService implements IVendaService {
   ) {}
 
   async criar(input: CreateVendaInput, ctx: Ctx): Promise<VendaRow> {
-    // ponytail: guarda provisória — o POS a crédito (Factura, D 411, limite) chega com a S4 (#308).
-    if (input.origem === 'POS' && input.pagamentos.some((p) => p.tipo === 'CREDITO')) {
-      throw new BusinessRuleError(
-        'PAGAMENTO_CREDITO_NAO_SUPORTADO',
-        'O POS ainda não vende a crédito: use outro meio de pagamento ou emita uma factura.',
-      );
-    }
-
     // 1. Calcular totais (puro — o mesmo cálculo do terminal POS, por linha a 2 casas).
     //    Aplica-se a TODAS as origens: é a regra de totais da venda, não uma regra só do POS.
     const totais = calcularTotaisVendaPOS(input.itens);
@@ -258,13 +277,23 @@ export class VendaService implements IVendaService {
     const itensTotais = input.itens.map((item, k) => ({ item, ...totais.linhas[k] }));
     const dataVenda = input.dataVenda ?? new Date();
 
-    // 2. Status inicial por origem: ENCOMENDA em RASCUNHO; POS paga nasce CONCLUIDA
-    //    (ADR-0041 §7); os outros em PENDENTE.
+    // 2. Status inicial por origem: ENCOMENDA em RASCUNHO; POS paga nasce CONCLUIDA e POS
+    //    com parte a crédito nasce FATURADA (ADR-0041 §7); os outros em PENDENTE.
+    const posACredito = input.origem === 'POS' && input.pagamentos.some((p) => p.tipo === 'CREDITO');
     const statusInicial: StatusVenda =
-      input.origem === 'ENCOMENDA' ? 'RASCUNHO' : input.origem === 'POS' ? 'CONCLUIDA' : 'PENDENTE';
+      input.origem === 'ENCOMENDA'
+        ? 'RASCUNHO'
+        : input.origem === 'POS'
+          ? posACredito
+            ? 'FATURADA'
+            : 'CONCLUIDA'
+          : 'PENDENTE';
 
     // 3. Transacção principal: número + venda + itens + pagamentos + stock + caixa + histórico
     const vendaRow = await prisma.$transaction(async (tx) => {
+      // 3. Crédito exige cliente identificado (ADR-0041 §4) — antes de gastar qualquer número.
+      const clienteCredito = posACredito ? await _clienteDoCredito(tx as Prisma.TransactionClient, input, ctx) : null;
+
       // 3a. Número de série
       const numero = await this.faturacaoService.proximoNumeroSerie(
         tx as Prisma.TransactionClient,
@@ -340,13 +369,14 @@ export class VendaService implements IVendaService {
           await this.stockService.baixarStock(tx as TxClient, baixaInput, ctx);
         }
 
-        // Factura-Recibo + lançamento na MESMA transacção (ADR-0041 §1, §3).
-        const fatura = await this._emitirFacturaReciboPOS(
+        // Documento fiscal + lançamento na MESMA transacção (ADR-0041 §1, §3, §4).
+        const fatura = await this._emitirDocumentoPOS(
           tx as Prisma.TransactionClient,
           input,
           venda.id,
           itensTotais,
           dataVenda,
+          clienteCredito,
           ctx,
         );
         venda.faturaId = fatura.id;
@@ -426,11 +456,13 @@ export class VendaService implements IVendaService {
   }
 
   /**
-   * Factura-Recibo da venda POS paga (ADR-0041 §1–§4): numerada na série FATURA_RECIBO,
-   * nasce PAGA, lança D meio de pagamento / C 711 / C 44331 e fica ligada à venda nos
-   * dois sentidos. Sem cliente, factura contra o Consumidor Final (§2).
+   * Documento fiscal da venda POS (ADR-0041 §1–§4), ligado à venda nos dois sentidos, com
+   * lançamento D meio de pagamento (CREDITO → 411) / C 711 / C 44331:
+   *   - paga: Factura-Recibo (série FATURA_RECIBO, PAGA); sem cliente, contra o Consumidor Final (§2);
+   *   - com parte a crédito: Factura (série FATURA), EMITIDA ou PARCIALMENTE_PAGA pelo que foi
+   *     recebido nos outros meios, vencimento = emissão + prazo do cliente.
    */
-  private async _emitirFacturaReciboPOS(
+  private async _emitirDocumentoPOS(
     tx: Prisma.TransactionClient,
     input: CreateVendaInput,
     vendaId: string,
@@ -441,9 +473,10 @@ export class VendaService implements IVendaService {
       total: Prisma.Decimal;
     }>,
     dataVenda: Date,
+    clienteCredito: { id: string; diasPagamento: number } | null,
     ctx: Ctx,
   ) {
-    let clienteId = input.clienteId;
+    let clienteId = clienteCredito?.id ?? input.clienteId;
     if (!clienteId) {
       const cf = await tx.cliente.findFirst({
         where: { tenantId: ctx.tenantId, codigo: CLIENTE_CONSUMIDOR_FINAL.codigo },
@@ -468,7 +501,9 @@ export class VendaService implements IVendaService {
         vendaId,
         moeda: 'MZN',
         dataEmissao: dataVenda,
-        dataVencimento: dataVenda,
+        dataVencimento: clienteCredito
+          ? new Date(dataVenda.getTime() + clienteCredito.diasPagamento * DIA_MS)
+          : dataVenda,
         linhas: itensTotais.map(({ item, subtotal, ivaItem, total }, i) => {
           const bruto = new Prisma.Decimal(String(item.quantidade)).mul(new Prisma.Decimal(String(item.precoUnitario)));
           return {
@@ -488,7 +523,13 @@ export class VendaService implements IVendaService {
       },
       ctx,
       {
-        tipoSerie: 'FATURA_RECIBO', // nasce PAGA pela série (ADR-0041 §1)
+        // FR nasce PAGA pela série (§1); a Factura nasce com o que foi recebido fora do crédito (§4).
+        ...(clienteCredito
+          ? {
+              tipoSerie: 'FATURA' as const,
+              totalPago: pagamentos.filter((p) => p.tipo !== 'CREDITO').reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0)),
+            }
+          : { tipoSerie: 'FATURA_RECIBO' as const }),
         construirLancamento: (doc) => this.faturacaoService.construirLancamentoVendaPOS(doc, pagamentos, contas),
       },
     );

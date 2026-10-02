@@ -757,13 +757,21 @@ export async function emitirDocumentoEmTx(
   opcoes: OpcoesEmissaoDocumento = {},
 ): Promise<FaturaCompleta> {
   const { tipoSerie = 'FATURA', construirLancamento = construirLancamentoFatura } = opcoes;
-  // Factura-Recibo ⇔ PAGA (ADR-0041 §1): o estado deriva da série; contradizê-la é recusado.
-  const statusDaSerie = tipoSerie === 'FATURA_RECIBO' ? 'PAGA' : 'EMITIDA';
-  const status = opcoes.status ?? statusDaSerie;
-  if (status !== statusDaSerie) {
+  const totais = calcularTotaisLinhas(input.linhas);
+  // Factura-Recibo ⇔ PAGA (ADR-0041 §1); factura com parte recebida ⇔ PARCIALMENTE_PAGA (§4).
+  // O estado deriva da série e do valor recebido; contradizê-los é recusado.
+  const recebido = opcoes.totalPago ?? (tipoSerie === 'FATURA_RECIBO' ? totais.total : new Prisma.Decimal(0));
+  const recebidoValido =
+    tipoSerie === 'FATURA_RECIBO'
+      ? recebido.equals(totais.total)
+      : recebido.isZero() || (recebido.greaterThan(0) && recebido.lessThan(totais.total));
+  const statusDerivado =
+    tipoSerie === 'FATURA_RECIBO' ? 'PAGA' : recebido.greaterThan(0) ? 'PARCIALMENTE_PAGA' : 'EMITIDA';
+  const status = opcoes.status ?? statusDerivado;
+  if (!recebidoValido || status !== statusDerivado) {
     throw new BusinessRuleError(
       'OPCOES_EMISSAO_INCOERENTES',
-      `Um documento da série ${tipoSerie} não pode nascer ${status}.`,
+      `Um documento da série ${tipoSerie} com ${recebido.toFixed(2)} recebidos não pode nascer ${status}.`,
     );
   }
   // W9: validar FKs cross-domínio contra tenant
@@ -782,7 +790,6 @@ export async function emitirDocumentoEmTx(
   }
 
   const { numero, serieDocumentoId } = await numerarDocumento(tx, tipoSerie, ctx, input.dataEmissao);
-  const totais = calcularTotaisLinhas(input.linhas);
 
   const fatura = await tx.fatura.create({
     data: {
@@ -795,7 +802,7 @@ export async function emitirDocumentoEmTx(
       vendaId: input.vendaId ?? null,
       moeda: input.moeda ?? 'MZN',
       ...totais,
-      totalPago: status === 'PAGA' ? totais.total : new Prisma.Decimal(0),
+      totalPago: recebido,
       status,
       dataEmissao: input.dataEmissao,
       dataVencimento: input.dataVencimento,
