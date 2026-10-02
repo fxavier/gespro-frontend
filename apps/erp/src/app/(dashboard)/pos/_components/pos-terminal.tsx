@@ -117,9 +117,25 @@ async function procurarClientesCredito(q: string): Promise<ComboboxOption[] | nu
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
+/**
+ * Chave de idempotência de uma tentativa de venda (ADR-0041 §5). Só tem de ser única por
+ * tentativa; não é um segredo. `crypto.randomUUID` falta em contexto não seguro (POS por http na
+ * rede local), daí o recurso.
+ */
+function novaChaveVenda(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `pos-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProps) {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  // Tentativa de venda em curso: a mesma chave enquanto o conteúdo da venda não mudar (um retry
+  // depois de uma falha de rede devolve a venda já gravada); renovada após sucesso ou quando o
+  // carrinho, o pagamento ou o cliente mudam.
+  const tentativaRef = useRef<{ chave: string; conteudo: string } | null>(null);
   const [busca, setBusca] = useState('');
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>('DINHEIRO');
@@ -231,31 +247,44 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
       ? valorNum - total
       : 0;
 
+    const venda = {
+      origem: 'POS' as const,
+      vendedorId,
+      sessaoPOSId: sessaoPOS.id,
+      sessaoCaixaId: sessaoPOS.sessaoCaixaId,
+      ...(metodoPagamento === 'CREDITO' ? { clienteId } : {}),
+      itens: carrinho.map((item) => ({
+        produtoId: item.produtoId,
+        nomeProduto: item.nomeProduto,
+        sku: item.sku ?? undefined,
+        quantidade: item.quantidade,
+        precoUnitario: item.precoUnitario,
+        taxaIva: item.taxaIva,
+      })),
+      pagamentos: [
+        {
+          tipo: metodoPagamento,
+          valor: total,
+          ...(troco > 0 ? { troco } : {}),
+        },
+      ],
+    };
+    // O troco não é conteúdo fiscal (o servidor também o ignora na chave): mudar só o valor
+    // recebido num retry não pode gerar uma chave nova e uma segunda venda.
+    const conteudo = JSON.stringify({
+      ...venda,
+      pagamentos: venda.pagamentos.map(({ tipo, valor }) => ({ tipo, valor })),
+    });
+    if (tentativaRef.current?.conteudo !== conteudo) {
+      tentativaRef.current = { chave: novaChaveVenda(), conteudo };
+    }
+    const chaveIdempotencia = tentativaRef.current.chave;
+
     startTransition(async () => {
-      const result = await criarVenda({
-        origem: 'POS',
-        vendedorId,
-        sessaoPOSId: sessaoPOS.id,
-        sessaoCaixaId: sessaoPOS.sessaoCaixaId,
-        ...(metodoPagamento === 'CREDITO' ? { clienteId } : {}),
-        itens: carrinho.map((item) => ({
-          produtoId: item.produtoId,
-          nomeProduto: item.nomeProduto,
-          sku: item.sku ?? undefined,
-          quantidade: item.quantidade,
-          precoUnitario: item.precoUnitario,
-          taxaIva: item.taxaIva,
-        })),
-        pagamentos: [
-          {
-            tipo: metodoPagamento,
-            valor: total,
-            ...(troco > 0 ? { troco } : {}),
-          },
-        ],
-      });
+      const result = await criarVenda({ ...venda, chaveIdempotencia });
 
       if (result.ok) {
+        tentativaRef.current = null;
         const vendaId = result.data.id;
         toast.success(`Venda ${result.data.numero} registada com sucesso!`, {
           duration: 15_000,

@@ -361,6 +361,9 @@ model Venda {
   total         Decimal     @db.Decimal(18, 2)
   currency      String      @default("MZN")
   observacoes   String?
+  /// Chave de idempotência da tentativa de venda (terminal POS, ADR-0041 §5). Um retry com a
+  /// mesma chave devolve a venda já gravada; o índice único é a garantia, não um findFirst.
+  chaveIdempotencia String?
   dataVenda     DateTime    @default(now())
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -374,6 +377,7 @@ model Venda {
   historicoEstado HistoricoEstadoVenda[]
 
   @@unique([tenantId, numero])
+  @@unique([tenantId, chaveIdempotencia])
   @@index([tenantId, status])
   @@index([tenantId, origem, status])
   @@index([tenantId, clienteId])
