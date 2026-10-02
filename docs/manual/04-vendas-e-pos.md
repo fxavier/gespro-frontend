@@ -6,7 +6,9 @@
 
 O grupo **Vendas & POS** reúne tudo o que acontece do lado do cliente: vender ao balcão no **POS**, registar
 **encomendas** de clientes, emitir **faturas**, corrigir faturas com **notas de crédito** e **notas de débito**, e
-manter a ficha de **clientes**. As vendas feitas no POS baixam o stock e ficam registadas na sessão de caixa aberta.
+manter a ficha de **clientes**. Cada venda feita no POS emite o seu documento fiscal (uma **Factura-Recibo**, ou uma
+**Factura** se for a crédito), baixa o stock, entra na contabilidade e, na parte paga em dinheiro, na sessão de caixa
+aberta.
 
 A emissão de documentos fiscais pelo lado financeiro (séries de numeração, painel de faturação, proformas e cotações)
 está no capítulo [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md). Este capítulo trata a emissão a
@@ -22,7 +24,8 @@ partir das vendas.
 
 > **Atenção — confirme o seu e-mail antes de emitir documentos fiscais.** Se a sua empresa foi registada pelo site e
 > ainda não abriu a ligação de confirmação que recebeu por e-mail, pode usar o sistema normalmente (configurar,
-> importar dados, vender no POS, exportar), mas **não pode emitir faturas, notas de crédito nem notas de débito**.
+> importar dados, exportar), mas **não pode emitir faturas, notas de crédito nem notas de débito** — nem vender no
+> POS, porque cada venda POS emite um documento fiscal.
 > Um documento fiscal é irreversível e tem efeito para terceiros, por isso o sistema exige que se saiba quem o emite.
 > Abra a ligação de confirmação; se já confirmou há pouco e o sistema ainda recusa, termine a sessão e entre outra
 > vez.
@@ -33,6 +36,8 @@ partir das vendas.
 |---|---|
 | Venda | Registo de uma venda a um cliente, com itens, pagamentos e histórico de estados. Tem número próprio (por exemplo `VND/2026/000123`). A **Origem** diz de onde veio: POS, Encomenda, E-Commerce ou Manual. |
 | POS | O terminal de venda ao balcão. Só funciona com uma **sessão de caixa** aberta em seu nome. |
+| Factura-Recibo | Documento fiscal da venda paga no acto (série `FR/…`): é factura e recibo ao mesmo tempo e nasce já **Paga**. É o que o POS emite numa venda paga. |
+| Consumidor Final | Cliente técnico que cada empresa tem (código `CF-000000`, NUIT `999999999`). Uma venda POS sem cliente escolhido sai em nome dele. Não se edita nem se desactiva. |
 | Sessão POS | O período de trabalho de um vendedor no terminal, ligado à sua sessão de caixa. Abre-se sozinha quando entra no POS com o caixa aberto. |
 | Encomenda (Pedido) | Pedido de um cliente para entrega futura, com data prevista. Tem numeração própria (`ENC/…`). |
 | Fatura | Documento fiscal que diz ao cliente quanto deve e até quando. É emitida já no estado **Emitida** e não se altera. |
@@ -81,6 +86,9 @@ partir das vendas.
   não tiver, ao abrir o POS é levado para a abertura de caixa e volta ao POS assim que registar o fundo (ver
   [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md)).
 - A empresa tem de ter pelo menos um **armazém activo** e stock dos produtos (ver [Inventário](03-inventario.md)).
+- Tem de ter o **e-mail confirmado** e o **período contabilístico de hoje aberto**: cada venda emite um documento
+  fiscal e lança na contabilidade. O POS verifica as duas coisas (e o caixa) ao abrir a sessão, e recusa logo à
+  entrada em vez de falhar com o cliente ao balcão — o ecrã diz o que falta e leva-o ao sítio onde se resolve.
 
 **Passos**
 1. No menu, abra **Vendas & POS › POS**. Se o caixa estiver aberto, aparece por instantes «A iniciar o POS…» e o
@@ -90,30 +98,47 @@ partir das vendas.
 3. No carrinho, use **+** e **−** para mudar a quantidade e o caixote do lixo para retirar a linha. O painel mostra
    **Subtotal**, **IVA** e **Total**.
 4. Clique **Finalizar (F10)**.
-5. Em **Método de pagamento**, escolha **Dinheiro**, **Cartão**, **M-Pesa**, **e-Mola** ou **Transferência**.
+5. Em **Método de pagamento**, escolha **Dinheiro**, **Cartão**, **M-Pesa**, **e-Mola**, **Transferência** ou
+   **Crédito**.
 6. Se for **Dinheiro**, escreva o **Valor recebido (MT)**; o sistema mostra o **Troco**.
-7. Clique **Pagar MT …** (o botão mostra o total).
+7. Se for **Crédito**, escolha o **Cliente \*** (pesquise por código, nome ou NUIT). Uma venda a crédito exige um
+   cliente identificado — não pode ser o Consumidor Final —, porque é emitida uma factura em nome dele.
+8. Clique **Pagar MT …** ou, a crédito, **Facturar a crédito MT …** (o botão mostra o total).
 
 **Atalhos de teclado:** `/` ou `F2` — pesquisar; `F10` — finalizar; `Esc` — voltar ao carrinho ou, no carrinho,
 limpá-lo; `+`/`-` — aumentar ou diminuir a última linha.
 
 **Resultado**
-- Aparece «Venda VND/… registada com sucesso!» e o carrinho fica vazio para o cliente seguinte.
-- A venda fica na lista de vendas (`/vendas`) com Origem **POS** e estado **Pendente**.
+- Aparece «Venda VND/… registada com sucesso!», com o botão **Imprimir talão**, e o carrinho fica vazio para o
+  cliente seguinte (depois de uma venda a crédito, o método volta a **Dinheiro**).
+- A venda fica na lista de vendas (`/vendas`) com Origem **POS** e estado **Concluída** (paga) ou **Faturada** (a
+  crédito).
+- **Documento fiscal**, emitido no mesmo momento e ligado à venda:
+  - venda paga → **Factura-Recibo** (`FR/…`), já **Paga**; sem cliente escolhido, em nome do Consumidor Final;
+  - venda a crédito → **Factura** (`FAT/…`), **Emitida**, com vencimento pelo prazo de pagamento do cliente; é
+    cobrada como qualquer outra factura (ver [capítulo 6](06-faturacao-caixa-tesouraria.md)).
+  O documento aparece em **Faturas**. Se alguma coisa falhar (stock, período, série, conta), nada fica registado —
+  nem venda, nem documento, nem número.
 
 **Efeitos noutros módulos**
 - **Stock:** cada produto vendido sai do armazém activo principal da empresa (o mais antigo). Se não houver stock
   suficiente, a venda é recusada e nada fica registado.
-- **Caixa:** é registado na sua sessão de caixa um movimento de venda pelo **total** da venda, com a descrição
-  «Venda VND/…».
+- **Caixa:** só a parte paga em **dinheiro** entra na sua sessão de caixa, como movimento de venda com a descrição
+  «Venda VND/…». Cartão, M-Pesa, e-Mola e transferência não passam pela gaveta.
+- **Contabilidade:** o documento lança, no mesmo momento, a débito a conta do meio de pagamento e a crédito
+  **711 Vendas** e **44331 IVA liquidado**. Dinheiro debita **111 Caixa**; crédito debita **411 Clientes c/c**;
+  cartão, transferência, M-Pesa e e-Mola debitam a conta configurada em
+  **Contabilidade › Configurações › Meios de pagamento do POS** (sem configuração, **121 Depósitos à ordem**). Ver
+  [Contabilidade](05-contabilidade.md).
 - **Comissões:** é calculada automaticamente uma comissão para quem vendeu, no estado **Pendente**.
-- **Contabilidade:** a venda POS, por si, **não** gera lançamento contabilístico nem fatura. Se o cliente precisar
-  de fatura, emita-a em **Faturas** (ver abaixo).
 
 > **Atenção — limitações actuais do POS:**
-> - O sistema ainda **não imprime recibo nem talão**. O comprovativo da venda é o seu número, que pode ser consultado
->   em `/vendas`.
-> - Cada venda aceita **um só método de pagamento**.
+> - O **talão** (botão **Imprimir talão**, ou **Talão** no detalhe da venda) **não é documento fiscal**; o documento
+>   fiscal é a Factura-Recibo ou a Factura, em **Faturas**.
+> - Cada venda aceita **um só método de pagamento** no terminal.
+> - A venda **não lança o custo das vendas** (a saída de stock não debita 61 nem credita 32): a margem não aparece
+>   na contabilidade.
+> - As vendas POS feitas **antes** desta versão não têm documento fiscal nem lançamento.
 > - O terminal mostra os **primeiros 60 produtos activos** por ordem alfabética, e a pesquisa procura só entre esses.
 > - O valor recebido em dinheiro não é verificado: confirme que cobre o total antes de clicar **Pagar**.
 
@@ -123,9 +148,9 @@ limpá-lo; `+`/`-` — aumentar ou diminuir a última linha.
 ### Como fechar a sessão POS
 
 **Antes de começar**
-- O sistema **recusa fechar a sessão enquanto houver vendas Pendentes** feitas nela — e hoje todas as vendas do POS
-  ficam Pendentes. Antes de fechar, abra `/vendas`, filtre **Origem: POS** e **Estado: Pendente**, e use
-  **Confirmar** em cada uma (ver [Como confirmar ou cancelar uma venda](#como-confirmar-ou-cancelar-uma-venda)).
+- O sistema **recusa fechar a sessão enquanto houver vendas Pendentes** feitas nela. As vendas do POS nascem
+  **Concluídas** ou **Faturadas**, por isso isto só acontece com vendas antigas; nesse caso abra `/vendas`, filtre
+  **Origem: POS** e **Estado: Pendente**, e use **Confirmar** em cada uma.
 
 **Passos**
 1. No terminal, clique no ícone de saída ao lado de **Sessão POS** (dica: «Fechar sessão POS»).
@@ -136,8 +161,9 @@ limpá-lo; `+`/`-` — aumentar ou diminuir a última linha.
 - Enquanto a sua sessão de caixa continuar aberta, ao voltar ao POS é aberta automaticamente uma nova sessão POS. Para
   terminar o dia, feche também o caixa (ver [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md)).
 
-> A janela diz «Vendas pendentes nesta sessão não serão afectadas», mas na prática o fecho é recusado com a
-> mensagem «Existem N vendas pendentes. Feche-as antes de encerrar a sessão.» — siga o passo *Antes de começar*.
+> A janela diz «Vendas pendentes nesta sessão não serão afectadas», mas se houver vendas Pendentes o fecho é
+> recusado com a mensagem «Existem N vendas pendentes. Feche-as antes de encerrar a sessão.» — siga o passo
+> *Antes de começar*.
 
 ### Como consultar as vendas
 
@@ -146,6 +172,9 @@ limpá-lo; `+`/`-` — aumentar ou diminuir a última linha.
 2. Use **Pesquisar por número ou nome do cliente…** e os filtros **Estado** e **Origem**.
 3. Clique no número da venda para abrir o detalhe: separadores **Itens**, **Pagamentos** (método, valor, troco) e
    **Histórico** (cada mudança de estado com data e motivo).
+4. Numa venda com documento fiscal (todas as do POS), o campo **Documento fiscal** mostra o número da
+   Factura-Recibo ou da Factura e abre-o em Facturação. O PDF fiscal serve-se em `/api/faturacao/<id>/pdf`
+   (o botão «Descarregar PDF» da factura ainda não funciona — lacuna #133). O talão também indica o documento.
 
 ### Como confirmar ou cancelar uma venda
 
@@ -165,9 +194,38 @@ limpá-lo; `+`/`-` — aumentar ou diminuir a última linha.
 - A venda passa a **Cancelada** e o Histórico regista a mudança. As comissões **Pendentes** dessa venda são
   canceladas. Se a venda veio de uma encomenda, o stock reservado é libertado.
 
-> **Atenção:** cancelar uma venda feita **no POS** não devolve o stock ao armazém nem retira o valor da sessão de
-> caixa — ajuste o stock em [Inventário](03-inventario.md) e o caixa no capítulo
-> [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md). O cancelamento não pode ser revertido.
+> **Atenção:** uma venda **com documento fiscal** (todas as do POS) não tem o botão **Cancelar Venda** e o sistema
+> recusa cancelá-la ou dá-la como devolvida: um documento emitido só se desfaz por nota de crédito. Para uma venda
+> POS paga, use [Como anular uma venda POS](#como-anular-uma-venda-pos). O cancelamento não pode ser revertido.
+
+### Como anular uma venda POS
+
+Anular desfaz uma venda POS **paga** sem tocar no documento original: é emitida uma **nota de crédito** total sobre a
+Factura-Recibo, o valor é devolvido ao cliente pelos meios com que pagou, e o stock volta ao armazém — tudo de uma vez.
+
+**Antes de começar**
+- Permissão de cancelar vendas (Administrador, Gestor). Se a venda foi paga em dinheiro, também a de operar o caixa;
+  se foi paga por cartão, M-Pesa, e-Mola ou transferência, também a de movimentar contas bancárias.
+- Se houve dinheiro, a **sessão de caixa onde a venda foi feita** tem de estar aberta: é dessa gaveta que o
+  dinheiro sai.
+- O período contabilístico de hoje tem de estar aberto.
+
+**Passos**
+1. Abra a venda em `/vendas` e clique **Anular venda** (só aparece numa venda POS **Concluída** com documento).
+2. Escreva o **Motivo** — fica na nota de crédito e no histórico da venda.
+3. Clique **Anular venda**.
+
+**Resultado**
+- Aparece «Venda VND/… anulada — nota de crédito emitida.» e a venda passa a **Cancelada**.
+- É emitida uma **nota de crédito** de todas as linhas, liquidada por devolução; aparece em **Notas de Crédito**.
+- **Contabilidade:** a nota de crédito estorna a venda (débito de 711 e 44331, crédito de 411) e a devolução
+  credita os meios de pagamento originais. A Factura-Recibo e o seu lançamento ficam como estavam.
+- **Caixa:** a parte em dinheiro sai da sessão de caixa da venda. **Stock:** cada produto volta à localização de
+  onde saiu.
+- Se alguma coisa falhar (caixa fechada, período fechado…), nada fica registado — nem a nota de crédito.
+
+> **Não se anulam aqui:** uma venda **a crédito** (Faturada) — anula-se pela nota de crédito sobre a factura, em
+> **Notas de Crédito** — e a venda de substituição de uma troca. O ecrã **Anular** explica o motivo em cada caso.
 
 ### Como registar uma encomenda de cliente
 
@@ -329,7 +387,9 @@ penalização).
 
 > **Atenção:** este formulário pede os **identificadores internos** do cliente, da venda e do produto (não o nome
 > nem o número), e ainda não há botões para aprovar, processar ou rejeitar a devolução — por isso uma devolução
-> registada aqui **não** devolve stock nem gera nota de crédito. Para corrigir o valor faturado ao cliente, emita
+> registada aqui **não** devolve stock nem gera nota de crédito. (O sistema já sabe processar uma devolução com
+> nota de crédito e uma troca com nota de crédito e Factura-Recibo, mas ainda sem ecrã.) Para desfazer uma venda POS
+> paga inteira, use [Como anular uma venda POS](#como-anular-uma-venda-pos). Para corrigir o valor faturado ao cliente, emita
 > uma [nota de crédito](#como-emitir-uma-nota-de-crédito). O ecrã **Trocas** (`/vendas/trocas`) é só de consulta:
 > o botão **Nova Troca (via Devolução)** leva à lista de devoluções.
 
@@ -422,11 +482,11 @@ feita no POS gera uma comissão; sem regra própria do vendedor, aplica-se 5%.
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
 | Rascunho | Venda ainda em preparação (vendas vindas de encomenda). | Pendente, Cancelada | — |
-| Pendente | Venda registada (é o estado das vendas feitas no POS). | Confirmada (botão **Confirmar**), Faturada, Cancelada | Confirmar: Administrador, Gestor, Operador. Cancelar: Administrador, Gestor |
+| Pendente | Venda registada (vendas manuais e as vendas POS antigas). | Confirmada (botão **Confirmar**), Faturada, Cancelada | Confirmar: Administrador, Gestor, Operador. Cancelar: Administrador, Gestor |
 | Confirmada | Venda aceite. | Em Preparação, Faturada, Cancelada | Cancelar: Administrador, Gestor |
 | Em Preparação | A ser preparada para entrega. | Faturada, Cancelada | Cancelar: Administrador, Gestor |
-| Faturada | Venda com fatura. | Concluída, Devolvida | — |
-| Concluída | Venda terminada. | — (final) | — |
+| Faturada | Venda com fatura (é o estado da venda POS a crédito). | Concluída, Devolvida (só sem documento fiscal) | — |
+| Concluída | Venda terminada (é o estado da venda POS paga). | Cancelada, só por **Anular venda** | Administrador, Gestor |
 | Cancelada | Venda anulada. | — (final) | — |
 | Devolvida | Mercadoria devolvida. | — (final) | — |
 
@@ -503,6 +563,9 @@ Nos ecrãs só existem hoje os botões **Confirmar** e **Cancelar Venda**; as re
 | Stock insuficiente. Disponível: …, solicitado: …. | Não há stock suficiente no armazém para a quantidade no carrinho. | Reduza a quantidade ou dê entrada de stock em [Inventário](03-inventario.md). |
 | Nenhum armazém activo encontrado. Crie pelo menos um armazém no módulo de stock. | A empresa não tem nenhum armazém activo. | Crie um armazém em [Inventário](03-inventario.md). |
 | Sessão de caixa … não está aberta | A sessão de caixa ligada ao POS foi fechada. | Abra o caixa outra vez e volte ao POS. |
+| Uma venda a crédito exige um cliente identificado (não o Consumidor Final). | Escolheu **Crédito** sem cliente, ou com o Consumidor Final. | Escolha o cliente em **Cliente \***. |
+| A venda … tem documento fiscal: use «Anular venda» (nota de crédito total) ou registe uma devolução. | Tentou cancelar ou dar como devolvida uma venda com documento fiscal. | Use **Anular venda** ou uma nota de crédito. |
+| … é um cliente técnico do POS e não pode ser alterado nem desactivado. | Tentou editar ou desactivar o Consumidor Final. | Nada a fazer: o Consumidor Final é do sistema. |
 | Existem N vendas pendentes. Feche-as antes de encerrar a sessão. | Há vendas Pendentes nesta sessão POS. | Confirme-as em `/vendas` e volte a fechar a sessão. |
 | Série activa para tipo "…" no ano … não encontrada. Crie a série … primeiro. | Não existe numeração para esse tipo de documento no ano da data escolhida. | Veja as séries no capítulo [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md); confirme também a data de emissão. |
 | Data de vencimento não pode ser anterior à data de emissão | Datas trocadas na fatura. | Corrija a **Data de vencimento**. |
@@ -517,13 +580,15 @@ Nos ecrãs só existem hoje os botões **Confirmar** e **Cancelar Venda**; as re
 [nota de crédito](#como-emitir-uma-nota-de-crédito) para anular o que estava a mais e, se for o caso, uma nova fatura
 correcta ou uma [nota de débito](#como-emitir-uma-nota-de-débito) para o que ficou por cobrar.
 
-**A venda no POS emite fatura?** Não. A venda POS regista a venda, baixa o stock e entra no caixa. Se o cliente
-pedir fatura, emita-a em **Faturas**.
+**A venda no POS emite fatura?** Sim. Uma venda paga emite uma **Factura-Recibo**; uma venda a crédito, uma
+**Factura** em nome do cliente. Ambas aparecem em **Faturas** e entram na contabilidade. Não emita outra fatura para
+a mesma venda.
 
-**O cliente pagou por M-Pesa. Entra no caixa?** Sim: hoje todas as vendas do POS, qualquer que seja o método,
-entram na sessão de caixa pelo total. O método fica registado no separador **Pagamentos** da venda.
+**O cliente pagou por M-Pesa. Entra no caixa?** Não. Só o dinheiro entra na sessão de caixa. O M-Pesa é lançado na
+conta configurada para esse meio (por omissão, 121 Depósitos à ordem); o método fica registado no separador
+**Pagamentos** da venda.
 
-**Posso vender no POS sem ter confirmado o e-mail?** Sim. Só a emissão de faturas, notas de crédito e notas de débito
-exige o e-mail confirmado.
+**Posso vender no POS sem ter confirmado o e-mail?** Não. Cada venda POS emite um documento fiscal, e o POS recusa
+abrir a sessão enquanto o e-mail não estiver confirmado.
 
 **Onde estão as cotações e as proformas?** No capítulo [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md).

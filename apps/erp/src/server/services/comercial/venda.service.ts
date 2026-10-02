@@ -4,15 +4,21 @@
  * Integração real com WS A (stock) e WS D (caixa/faturação).
  * Cross-WS dependencies injectadas no construtor para testabilidade.
  *
- * Fluxo POS (dentro da $transaction principal — ADR-0041):
- *   1. proximoNumeroSerie(tx,'VENDA') → número único (WS D)
- *   2. criar Venda (CONCLUIDA) + ItemVenda + PagamentoVenda
- *   3. baixarStock por item (WS A) usando localizacao ARMAZEM real
- *   4. Factura-Recibo (série FATURA_RECIBO, PAGA) + lançamento, pelo núcleo
- *      emitirDocumentoEmTx (WS D); Venda.faturaId ↔ Fatura.vendaId
- *   5. registarMovimentoCaixa só pela parte em DINHEIRO (WS D)
- *   6. HistoricoEstadoVenda inicial
+ * Fluxo POS (ADR-0041). Antes da transacção: Σ pagamentos = total (PAGAMENTOS_NAO_BATEM_TOTAL)
+ * e idempotência pela chave. Dentro da $transaction principal:
+ *   1. com parte a CREDITO: cliente identificado obrigatório (não o Consumidor Final)
+ *   2. proximoNumeroSerie(tx,'VENDA') → número único (WS D)
+ *   3. criar Venda + ItemVenda + PagamentoVenda — CONCLUIDA se paga, FATURADA se a crédito
+ *   4. baixarStock por item (WS A) usando localizacao ARMAZEM real
+ *   5. documento fiscal pelo núcleo emitirDocumentoEmTx (WS D), com lançamento
+ *      D meio de pagamento (CREDITO → 411) / C 711 / C 44331; Venda.faturaId ↔ Fatura.vendaId:
+ *        - paga: Factura-Recibo (série FATURA_RECIBO, PAGA); sem cliente, contra o Consumidor Final
+ *        - com parte a crédito: Factura (série FATURA), EMITIDA ou PARCIALMENTE_PAGA
+ *   6. registarMovimentoCaixa só pela parte em DINHEIRO (WS D)
+ *   7. HistoricoEstadoVenda inicial
  *   Após commit: calcular + registar comissão (best-effort, WS C interno)
+ *   Venda com documento não transita para DEVOLVIDA/CANCELADA (VENDA_COM_DOCUMENTO): desfaz-se
+ *   por nota de crédito — anular (total) ou devolução.
  *
  * Fluxo ENCOMENDA (dentro da $transaction de criar):
  *   1. proximoNumeroSerie → número único
@@ -28,6 +34,7 @@ import 'server-only';
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
+import { logger } from '@/server/observability/logger';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx, TxClient } from '@/server/services/types';
@@ -320,6 +327,19 @@ export class VendaService implements IVendaService {
     const itensTotais = input.itens.map((item, k) => ({ item, ...totais.linhas[k] }));
     const dataVenda = input.dataVenda ?? new Date();
 
+    // 1a. Venda POS: Σ pagamentos = total, ao cêntimo (ADR-0041 §4). Verificado antes da
+    //     transacção para que esta regra fale primeiro — dentro dela, um crédito desalinhado
+    //     chegaria ao núcleo da emissão como OPCOES_EMISSAO_INCOERENTES.
+    if (input.origem === 'POS') {
+      const pago = input.pagamentos.reduce((a, p) => a.plus(String(p.valor)), new Prisma.Decimal(0));
+      if (!pago.equals(total)) {
+        throw new BusinessRuleError(
+          'PAGAMENTOS_NAO_BATEM_TOTAL',
+          `A soma dos pagamentos (${pago.toFixed(2)}) não coincide com o total da venda (${total.toFixed(2)}).`,
+        );
+      }
+    }
+
     // 1b. Idempotência (ADR-0041 §5): um retry com a mesma chave devolve a venda já gravada,
     //     sem escrever nada. Esta leitura é só o atalho; a garantia é o índice único
     //     (tenantId, chaveIdempotencia) — ver o catch da transacção abaixo.
@@ -386,7 +406,7 @@ export class VendaService implements IVendaService {
         await this.comissaoService.registarComissao(prisma as unknown as TxClient, calculo, ctx);
       } catch (err) {
         // Regista no log mas não propaga — a venda já está committed
-        console.error('[VendaService.criar] Falha ao registar comissão:', err);
+        logger.error({ err, vendaId: vendaRow.id }, 'falha ao registar a comissão da venda');
       }
     }
 
@@ -462,10 +482,10 @@ export class VendaService implements IVendaService {
   ): Promise<VendaRow> {
     const { subtotal: subtotalTotal, ivaTotal: ivaTotalAcc, total } = totais;
     return prisma.$transaction(async (tx) => {
-      // 3. Crédito exige cliente identificado (ADR-0041 §4) — antes de gastar qualquer número.
+      // 3a. Crédito exige cliente identificado (ADR-0041 §4) — antes de gastar qualquer número.
       const clienteCredito = posACredito ? await _clienteDoCredito(tx as Prisma.TransactionClient, input, ctx) : null;
 
-      // 3a. Número de série
+      // 3b. Número de série
       const numero = await this.faturacaoService.proximoNumeroSerie(
         tx as Prisma.TransactionClient,
         'VENDA' as TipoSerieDocumento,
@@ -473,10 +493,10 @@ export class VendaService implements IVendaService {
         dataVenda,
       );
 
-      // 3b. Resolver armazém padrão do tenant (usado em POS e ENCOMENDA)
+      // 3c. Resolver armazém padrão do tenant (usado em POS e ENCOMENDA)
       const armazemId = await _resolverArmazem(tx as TxClient, ctx);
 
-      // 3c. Criar Venda
+      // 3d. Criar Venda
       const venda = await tx.venda.create({
         data: {
           tenantId: ctx.tenantId,
@@ -527,7 +547,7 @@ export class VendaService implements IVendaService {
         include: { itens: true, pagamentos: true },
       });
 
-      // 3d. Efeitos laterais de POS: baixar stock (WS A) + mover caixa (WS D)
+      // 3e. Efeitos laterais de POS: baixar stock (WS A) + mover caixa (WS D)
       if (input.origem === 'POS') {
         for (const { item } of itensTotais) {
           const baixaInput: BaixaStockInput = {
@@ -570,7 +590,7 @@ export class VendaService implements IVendaService {
         }
       }
 
-      // 3e. ENCOMENDA: reservar stock por item (WS A)
+      // 3f. ENCOMENDA: reservar stock por item (WS A)
       //     ReservaStock.documentoReferenciaId = venda.id permite lookup ao cancelar/confirmar.
       if (input.origem === 'ENCOMENDA') {
         for (const { item } of itensTotais) {
@@ -586,7 +606,7 @@ export class VendaService implements IVendaService {
         }
       }
 
-      // 3f. Histórico de estado inicial
+      // 3g. Histórico de estado inicial
       await tx.historicoEstadoVenda.create({
         data: {
           tenantId: ctx.tenantId,
@@ -776,6 +796,8 @@ export class VendaService implements IVendaService {
    * parte a crédito) pediria as duas. Anula-se pela nota de crédito em Facturação.
    */
   async anular(vendaId: string, input: { motivo: string }, ctx: Ctx): Promise<VendaRow> {
+    // Travão do e-mail com sessão, antes da tx — os núcleos em tx não o verificam (como devolução/troca).
+    await exigirEmailConfirmadoParaEmitir();
     const motivo = input.motivo?.trim() ?? '';
     if (!motivo) {
       throw new BusinessRuleError('MOTIVO_OBRIGATORIO', 'Indique o motivo da anulação: fica na nota de crédito.');

@@ -8,6 +8,9 @@ import { ArrowLeft, Ban, Edit, Printer } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { vendaService } from '@/server/services/comercial/index';
+import { obterFatura } from '@/server/services/financas';
+import { formatarData, formatarDataExtensa, formatarDataHora } from '@/lib/format-date';
+import { formatMZN } from '@/lib/format-currency';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -57,8 +60,13 @@ export default async function VendaDetalhePage({ params }: Props) {
   } catch {
     notFound();
   }
-
   if (!venda) notFound();
+
+  // Documento fiscal emitido com a venda (ADR-0041): Factura-Recibo ou, a crédito, Factura.
+  const faturaId = venda.faturaId;
+  const documento = faturaId
+    ? await runWithTenantContext({ tenantId, userId }, () => obterFatura(faturaId, { tenantId, userId }))
+    : null;
 
   const itens = venda.itens ?? [];
   const pagamentos = venda.pagamentos ?? [];
@@ -100,7 +108,7 @@ export default async function VendaDetalhePage({ params }: Props) {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{parseFloat(item.quantidade)}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      MT {parseFloat(item.precoUnitario).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+                      {formatMZN(item.precoUnitario)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {parseFloat(item.desconto) > 0 ? `${parseFloat(item.desconto).toFixed(1)}%` : '—'}
@@ -109,7 +117,7 @@ export default async function VendaDetalhePage({ params }: Props) {
                       {(parseFloat(item.taxaIva) * 100).toFixed(0)}%
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
-                      MT {parseFloat(item.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+                      {formatMZN(item.total)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -118,9 +126,9 @@ export default async function VendaDetalhePage({ params }: Props) {
           </Table>
           {itens.length > 0 && (
             <div className="p-4 bg-muted/30 flex justify-end gap-8 text-sm">
-              <span className="text-muted-foreground">Subtotal: MT {parseFloat(venda.subtotal).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}</span>
-              <span className="text-muted-foreground">IVA: MT {parseFloat(venda.ivaTotal).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}</span>
-              <span className="font-bold">Total: MT {parseFloat(venda.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}</span>
+              <span className="text-muted-foreground">Subtotal: {formatMZN(venda.subtotal)}</span>
+              <span className="text-muted-foreground">IVA: {formatMZN(venda.ivaTotal)}</span>
+              <span className="font-bold">Total: {formatMZN(venda.total)}</span>
             </div>
           )}
         </div>
@@ -156,20 +164,14 @@ export default async function VendaDetalhePage({ params }: Props) {
                       <Badge variant="outline">{METODO_LABELS[pag.tipo] ?? pag.tipo}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
-                      MT {parseFloat(pag.valor).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+                      {formatMZN(pag.valor)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{pag.referencia ?? '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {pag.troco ? `MT ${parseFloat(pag.troco).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}` : '—'}
+                      {pag.troco ? formatMZN(pag.troco) : '—'}
                     </TableCell>
                     <TableCell className="text-muted-foreground tabular-nums">
-                      {new Date(pag.createdAt).toLocaleString('pt-MZ', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatarDataHora(pag.createdAt)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -196,13 +198,7 @@ export default async function VendaDetalhePage({ params }: Props) {
                     <span className="text-muted-foreground">→</span>
                     <StatusBadge status={h.estadoDepois} />
                     <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                      {new Date(h.createdAt).toLocaleString('pt-MZ', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatarDataHora(h.createdAt)}
                     </span>
                   </div>
                   {h.motivo && (
@@ -222,17 +218,25 @@ export default async function VendaDetalhePage({ params }: Props) {
     { label: 'Origem', value: ORIGEM_LABELS[venda.origem] ?? venda.origem },
     {
       label: 'Data da Venda',
-      value: new Date(venda.dataVenda).toLocaleDateString('pt-MZ', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      }),
+      value: formatarDataExtensa(venda.dataVenda),
     },
+    ...(documento
+      ? [
+          {
+            label: 'Documento fiscal',
+            value: (
+              <Link href={`/faturacao/${documento.id}`} className="font-mono text-primary underline">
+                {documento.numero}
+              </Link>
+            ),
+          },
+        ]
+      : []),
     {
       label: 'Total',
       value: (
         <span className="font-bold tabular-nums">
-          MT {parseFloat(venda.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+          {formatMZN(venda.total)}
         </span>
       ),
     },
@@ -247,7 +251,7 @@ export default async function VendaDetalhePage({ params }: Props) {
         header={
           <PageHeader
             title={`Venda ${venda.numero}`}
-            description={`${ORIGEM_LABELS[venda.origem] ?? venda.origem} · ${new Date(venda.dataVenda).toLocaleDateString('pt-MZ')}`}
+            description={`${ORIGEM_LABELS[venda.origem] ?? venda.origem} · ${formatarData(venda.dataVenda)}`}
             breadcrumbs={[
               { label: 'Vendas', href: '/vendas' },
               { label: venda.numero },

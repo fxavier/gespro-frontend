@@ -55,6 +55,11 @@ export default async function TalaoPage({ params }: Props) {
           Talão <span className="font-mono">{talao.numero}</span>
         </p>
         <p>{formatarDataHora(talao.data)}</p>
+        {talao.documentoFiscal && (
+          <p>
+            Documento fiscal <span className="font-mono">{talao.documentoFiscal}</span>
+          </p>
+        )}
       </div>
 
       <ul className="border-t border-dashed pt-2 space-y-1.5">

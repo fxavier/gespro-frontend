@@ -58,12 +58,19 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 
 | G | Lacuna |
 |---|---|
-| A | Sessão POS impossível de fechar: vendas POS ficam `PENDENTE` e o fecho recusa-se ([#82](https://github.com/fxavier/gespro-frontend/issues/82)) |
-| A | Todos os métodos de pagamento (M-Pesa, cartão, transferência) entram no caixa como dinheiro ([#83](https://github.com/fxavier/gespro-frontend/issues/83)) |
-| A | Cancelar venda POS não repõe stock nem retira do caixa ([#84](https://github.com/fxavier/gespro-frontend/issues/84)) |
+| — | ~~Sessão POS impossível de fechar: vendas POS ficam `PENDENTE`~~ — **deixou de ser lacuna** (ADR-0041, PRD [#304](https://github.com/fxavier/gespro-frontend/issues/304)): a venda POS nasce `CONCLUIDA` (paga) ou `FATURADA` (a crédito) ([#82](https://github.com/fxavier/gespro-frontend/issues/82)) |
+| — | ~~Todos os métodos de pagamento entram no caixa como dinheiro~~ — **deixou de ser lacuna** (ADR-0041 §4): só o `DINHEIRO` entra na gaveta; os outros meios debitam a conta configurada em `/contabilidade/configuracoes/meios-pagamento-pos` (omissão 121) ([#83](https://github.com/fxavier/gespro-frontend/issues/83)) |
+| — | ~~Cancelar venda POS não repõe stock nem retira do caixa~~ — **deixou de ser lacuna** (ADR-0041 §8): venda com documento não transita para `CANCELADA`/`DEVOLVIDA` (`VENDA_COM_DOCUMENTO`); «Anular venda» emite NC total, devolve pelos meios originais, tira o dinheiro da caixa da venda e reentra o stock, numa só transacção ([#84](https://github.com/fxavier/gespro-frontend/issues/84)) |
+| — | ~~Venda POS sem documento fiscal nem lançamento~~ — **deixou de ser lacuna** (ADR-0041): Factura-Recibo (paga) ou Factura (crédito) + D meio / C 711 / C 44331 na transacção da venda. As vendas POS **anteriores** ao ADR-0041 continuam sem documento nem lançamento (não há retroactivo) |
+| A | Custo das vendas não lançado: a baixa de stock da venda não gera D 61 / C 32 — a DRE não mostra margem (ADR-0041 §9, fora de âmbito) |
+| A | Venda a crédito aceita cliente suspenso/inactivo pela API ([#317](https://github.com/fxavier/gespro-frontend/issues/317)) |
+| A | Crédito utilizado e limite de crédito não aplicados ao emitir factura — incluindo a venda POS a crédito ([#318](https://github.com/fxavier/gespro-frontend/issues/318)) |
+| M | Venda POS a crédito ou mista não se anula pelo POS (`VENDA_A_CREDITO_NAO_ANULAVEL`): só por NC em Facturação, liquidada por compensação, e sem reentrada de stock ([#322](https://github.com/fxavier/gespro-frontend/issues/322)) |
+| M | As actions `processarDevolucao` (NC + liquidação + stock) e `criarTroca` (NC + Factura-Recibo) existem sem ecrã: a devolução da UI fica `PENDENTE` e não gera NC |
+| B | Número da troca inventado (`TRC-${Date.now()}` em `troca.service.ts`), fora de `SerieDocumento`: sem sequência nem formato `TRC/aaaa/nnnnnn`, e duas trocas no mesmo milissegundo colidem no `@@unique([tenantId, numero])` |
 | A | Nota de débito sem natureza: `emitirNotaDebito` não grava natureza e credita sempre 711; `resolverContaNaturezaNotaDebito` sem chamador (nó `contabilizacao` do ADR-0039 por fazer) ([#85](https://github.com/fxavier/gespro-frontend/issues/85)) |
 | A | Nota de crédito sem limite face ao valor da factura ([#86](https://github.com/fxavier/gespro-frontend/issues/86)) |
-| M | POS sem recibo/talão, um só método de pagamento, 60 primeiros produtos, sem validação do valor recebido ([#127](https://github.com/fxavier/gespro-frontend/issues/127)) ([#128](https://github.com/fxavier/gespro-frontend/issues/128)) |
+| M | POS: um só método de pagamento por venda no terminal, 60 primeiros produtos, sem validação do valor recebido ([#128](https://github.com/fxavier/gespro-frontend/issues/128)). O talão existe ([#127](https://github.com/fxavier/gespro-frontend/issues/127), fechada) e não é documento fiscal |
 | M | Encomendas, devoluções, trocas e comissões sem UI de transição; «Submeter» venda em Rascunho falha sempre ([#129](https://github.com/fxavier/gespro-frontend/issues/129)) ([#130](https://github.com/fxavier/gespro-frontend/issues/130)) ([#131](https://github.com/fxavier/gespro-frontend/issues/131)) ([#132](https://github.com/fxavier/gespro-frontend/issues/132)) |
 | M | «Baixar PDF» da factura inerte; `/api/faturacao/[id]/pdf` só por URL (e pede `faturacao:ver` em vez de `faturacao:leitura`) ([#133](https://github.com/fxavier/gespro-frontend/issues/133)) |
 | B | Histórico de clientes só escrito pelo seed; comissões filtradas pelo id errado no perfil do vendedor ([#134](https://github.com/fxavier/gespro-frontend/issues/134)) ([#135](https://github.com/fxavier/gespro-frontend/issues/135)) |

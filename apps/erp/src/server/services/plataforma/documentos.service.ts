@@ -77,15 +77,22 @@ export async function obterModeloFatura(id: string, ctx: Ctx): Promise<Documento
   );
 }
 
-/** Talão NÃO fiscal do POS (issue #127). Cross-tenant → NotFoundError. */
-export async function obterModeloTalao(vendaId: string, ctx: Ctx): Promise<TalaoModel> {
+/**
+ * Talão NÃO fiscal do POS (issue #127). Cross-tenant → NotFoundError. Nomeia o documento
+ * fiscal emitido com a venda (Factura-Recibo ou Factura, ADR-0041), quando existe.
+ */
+export async function obterModeloTalao(
+  vendaId: string,
+  ctx: Ctx,
+): Promise<TalaoModel & { documentoFiscal: string | null }> {
   const [venda, tenant] = await Promise.all([
     vendaService.buscarPorId(vendaId, ctx),
     tenantAdminService.obter(ctx.tenantId),
   ]);
   const cfg = tenant.configuracaoFiscal;
+  const documento = venda.faturaId ? await obterFatura(venda.faturaId, ctx) : null;
 
-  return construirTalao(
+  const talao = construirTalao(
     {
       numero: venda.numero,
       dataVenda: venda.dataVenda,
@@ -108,4 +115,5 @@ export async function obterModeloTalao(vendaId: string, ctx: Ctx): Promise<Talao
       telefone: cfg?.telefone ?? null,
     },
   );
+  return { ...talao, documentoFiscal: documento?.numero ?? null };
 }
