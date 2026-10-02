@@ -2,21 +2,33 @@
  * Balancete de Verificação no modelo PHC — Server Component.
  *
  * URL: /contabilidade/balancete?exercicio=<codigo>&de=<ordem>&ate=<ordem>&p13=1
+ *   S2: nivel=1..7, razao=1
+ *   S3 (apresentação): ci, cf, classe=1..8, excluir=<códigos,>, zeradas=1, comSaldo=1,
+ *   q, tipo=periodo|acumulado|ambos — inválidos são ignorados; nunca mudam «Totais».
+ *   Os parâmetros lêem-se com `lerParametrosBalancete` (src/lib/balancete-params.ts),
+ *   a mesma regra da exportação CSV/Excel (S5).
  *
- * ADR-0040, issue #280.
+ * ADR-0040, issues #280, #281, #283, #285.
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
+import { Download, TriangleAlert } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import {
-  gerarBalanceteVerificacao,
+  listarContas,
   listarExercicios,
+  listarPeriodos,
   periodoFiscalDe,
 } from '@/server/services/financas/contabilidade.service';
-import { FiltroBalanceteVerificacaoSchema } from '@/lib/validations/contabilidade';
+import { balanceteApresentado } from '@/server/services/financas/balancete-apresentado';
+import {
+  lerParametrosBalancete,
+  queryBalancete,
+  type ParametrosBalancete,
+} from '@/lib/balancete-params';
 import { Button } from '@/components/ui/button';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
 import {
@@ -29,8 +41,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatNumero } from '@/lib/format-currency';
-import { SeletorBalanceteVerificacao } from './_components/seletor-balancete-verificacao';
-import type { FiltroBalanceteVerificacaoInput } from '@/server/services/financas/contabilidade.interface';
+import { cn } from '@/lib/utils';
+import { intervaloDiasDosPeriodos } from '@/lib/periodo-fiscal';
+import {
+  SeletorBalanceteVerificacao,
+  type FiltrosApresentacao,
+  type TipoApresentacao,
+} from './_components/seletor-balancete-verificacao';
+import type { LinhaHierarquica } from '@/server/services/financas/balancete-verificacao';
 import type { Prisma } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
@@ -43,21 +61,123 @@ function fmtBV(d: Prisma.Decimal): string {
 }
 
 // ---------------------------------------------------------------------------
+// S3: filtros de apresentação na forma que o selector usa
+// ---------------------------------------------------------------------------
+
+/** Os filtros de apresentação na forma do selector (texto, como no URL). */
+function filtrosDoSelector(p: ParametrosBalancete): FiltrosApresentacao {
+  const f = p.filtros;
+  return {
+    contaInicial: f.contaInicial ?? '',
+    contaFinal: f.contaFinal ?? '',
+    classe: f.classe ? f.classe.slice(-1) : '',
+    excluir: (f.excluir ?? []).join(','),
+    zeradas: p.opcoesHierarquia.incluirSemMovimento === true,
+    comSaldo: f.apenasComSaldo === true,
+    pesquisa: f.pesquisa ?? '',
+    tipo: p.tipo.toLowerCase() as TipoApresentacao,
+  };
+}
+
+/*
+ * Linhas do corpo em <tr>/<td> nativos, com as classes de `ui/table`: com «Ver contas
+ * sem movimento e saldo» são centenas de linhas, e cada componente servidor por célula
+ * leva ao payload RSC a sua informação de depuração (≈ 11 KB por linha em dev).
+ */
+const TR = 'border-b transition-colors hover:bg-accent/40 data-[state=selected]:bg-accent/60';
+const TD = 'p-4 align-middle';
+const TD_NUM = `${TD} text-right tabular-nums`;
+
+type ValoresLinha = Pick<
+  LinhaHierarquica,
+  'movD' | 'movC' | 'acumD' | 'acumC' | 'saldoDevedor' | 'saldoCredor' | 'contraNatureza'
+>;
+
+/**
+ * Código da conta; numa folha (aceita lançamentos, não é contexto) é a ligação para
+ * o razão da conta no intervalo mostrado (S4). Mães, subtotais e sintética não têm.
+ */
+function codigoConta({ codigo, nome, href }: { codigo: string; nome: string; href: string | null }) {
+  if (!href) return codigo;
+  return (
+    <Link href={href} aria-label={`Razão da conta ${codigo} — ${nome}`} className="rounded-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {codigo}
+    </Link>
+  );
+}
+
+/** Células de valor de uma linha, segundo o tipo de apresentação (Saldo sempre). */
+function celulasValor(linha: ValoresLinha, tipo: TipoApresentacao, saldoClassName = '') {
+  const saldo = (d: Prisma.Decimal, chave: string) => {
+    const aviso = linha.contraNatureza && !d.isZero();
+    return (
+      <td key={chave} className={cn(TD_NUM, saldoClassName, aviso && 'text-warning')}>
+        {aviso && (
+          <span
+            role="img"
+            aria-label="Saldo contra natureza"
+            title="Saldo contra natureza"
+            className="mr-1 inline-flex align-[-2px]"
+          >
+            <TriangleAlert aria-hidden="true" className="size-3.5" />
+          </span>
+        )}
+        {fmtBV(d)}
+      </td>
+    );
+  };
+  return [
+    ...(tipo !== 'acumulado'
+      ? [
+          <td key="movD" className={TD_NUM}>{fmtBV(linha.movD)}</td>,
+          <td key="movC" className={TD_NUM}>{fmtBV(linha.movC)}</td>,
+        ]
+      : []),
+    ...(tipo !== 'periodo'
+      ? [
+          <td key="acumD" className={TD_NUM}>{fmtBV(linha.acumD)}</td>,
+          <td key="acumC" className={TD_NUM}>{fmtBV(linha.acumC)}</td>,
+        ]
+      : []),
+    saldo(linha.saldoDevedor, 'sD'),
+    saldo(linha.saldoCredor, 'sC'),
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Secção da tabela (componente async — faz a fetch dentro do Suspense, m2)
 // ---------------------------------------------------------------------------
 
 async function TabelaBalancete({
-  filtro,
+  params,
   ctx,
 }: {
-  filtro: FiltroBalanceteVerificacaoInput;
+  params: ParametrosBalancete;
   ctx: { tenantId: string; userId: string };
 }) {
-  const balancete = await runWithTenantContext(ctx, () =>
-    gerarBalanceteVerificacao(filtro, ctx),
+  const filtro = params.filtroServico;
+  // Consulta → hierarquia → filtros: o mesmo caminho da exportação (S5). Filtros são
+  // apresentação: totais, igualdades e subtotais vêm do balancete completo.
+  const [{ balancete, linhas: linhasHierarquicas }, periodos] = await runWithTenantContext(ctx, () =>
+    Promise.all([
+      balanceteApresentado(params, ctx),
+      listarPeriodos({ exercicioId: filtro.exercicioId }, ctx),
+    ]),
   );
+  // S4: drill-down para o razão — dias civis de Maputo dos períodos mostrados.
+  // Limitação conhecida: o razão filtra pela DATA do lançamento e o balancete pelo
+  // PERÍODO. O período 13 partilha a data de 31/12, por isso a ligação de 1..12 mostra
+  // também os lançamentos do p13, e a de 13..13 também os do p12 com data 31/12.
+  // Latente até o encerramento (#138) lançar no p13; seguimento: razão por intervalo
+  // de períodos.
+  const intervaloRazao = intervaloDiasDosPeriodos(periodos, filtro.periodoInicial, filtro.periodoFinal);
+  const hrefRazao = (contaId: string): string | null =>
+    intervaloRazao &&
+    `/contabilidade/razao-geral?${new URLSearchParams({ contaId, ...intervaloRazao }).toString()}`;
   const eq = balancete.equilibrio;
   const equilibrado = eq.movimento && eq.acumulado && eq.saldo;
+
+  const tipo = params.tipo.toLowerCase() as TipoApresentacao;
 
   return (
     <div className="space-y-4">
@@ -72,63 +192,81 @@ async function TabelaBalancete({
               <TableHead rowSpan={2} className="align-bottom border-r">
                 Descrição
               </TableHead>
-              <TableHead colSpan={2} className="text-center border-r">
-                Movimento do período
-              </TableHead>
-              <TableHead colSpan={2} className="text-center border-r">
-                Acumulado
-              </TableHead>
+              {tipo !== 'acumulado' && (
+                <TableHead colSpan={2} className="text-center border-r">
+                  Movimento do período
+                </TableHead>
+              )}
+              {tipo !== 'periodo' && (
+                <TableHead colSpan={2} className="text-center border-r">
+                  Acumulado
+                </TableHead>
+              )}
               <TableHead colSpan={2} className="text-center">
                 Saldo
               </TableHead>
             </TableRow>
             <TableRow>
-              <TableHead className="text-right tabular-nums">Débito</TableHead>
-              <TableHead className="text-right tabular-nums border-r">Crédito</TableHead>
-              <TableHead className="text-right tabular-nums">Débito</TableHead>
-              <TableHead className="text-right tabular-nums border-r">Crédito</TableHead>
+              {Array.from({ length: tipo === 'ambos' ? 2 : 1 }, (_, i) => [
+                <TableHead key={`d${i}`} className="text-right tabular-nums">Débito</TableHead>,
+                <TableHead key={`c${i}`} className="text-right tabular-nums border-r">Crédito</TableHead>,
+              ])}
               <TableHead className="text-right tabular-nums">Devedor</TableHead>
               <TableHead className="text-right tabular-nums">Credor</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {balancete.linhas.map((linha, idx) => {
-              const key = linha.conta?.id ?? `sintetica-${idx}`;
-              const codigo = linha.conta?.codigo ?? '';
-              const descricao = linha.conta
-                ? linha.conta.nome
-                : 'Resultados de exercícios anteriores por encerrar';
+            {linhasHierarquicas.map((linha, idx) => {
+              if (linha.tipo === 'SUBTOTAL_CLASSE') {
+                return (
+                  <tr key={`sub-${linha.classe}`} data-tipo="subtotal" className={cn(TR, 'font-semibold bg-muted/30')}>
+                    <td className={TD}></td>
+                    <td className={TD}>Total da classe {linha.classe.slice(-1)}</td>
+                    {celulasValor(linha, tipo)}
+                  </tr>
+                );
+              }
 
-              return (
-                <TableRow
-                  key={key}
-                  className={
-                    linha.implicita
-                      ? 'italic text-muted-foreground'
-                      : linha.contraNatureza
-                        ? 'text-warning'
-                        : ''
-                  }
-                >
-                  <TableCell className="font-mono text-primary">{codigo}</TableCell>
-                  <TableCell>
-                    {descricao}
-                    {linha.implicita && (
+              if (linha.tipo === 'SINTETICA') {
+                return (
+                  <tr key={`sintetica-${idx}`} data-tipo="sintetica" className={cn(TR, 'italic text-muted-foreground')}>
+                    <td className={TD}></td>
+                    <td className={TD}>
+                      Resultados de exercícios anteriores por encerrar
                       <span className="ml-2 text-xs text-muted-foreground">(implícita)</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBV(linha.movD)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBV(linha.movC)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBV(linha.acumD)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBV(linha.acumC)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-semibold">
-                    {fmtBV(linha.saldoDevedor)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-semibold">
-                    {fmtBV(linha.saldoCredor)}
-                  </TableCell>
-                </TableRow>
+                    </td>
+                    {celulasValor(linha, tipo, 'font-semibold')}
+                  </tr>
+                );
+              }
+
+              // CONTA — linha.conta sempre definida
+              if (!linha.conta) return null;
+              const conta = linha.conta;
+              return (
+                <tr
+                  key={conta.id}
+                  data-nivel={String(linha.nivel)}
+                  data-contexto={linha.contexto ? '1' : undefined}
+                  className={cn(
+                    TR,
+                    linha.agregadora && 'font-semibold',
+                    linha.contexto && 'text-muted-foreground',
+                  )}
+                >
+                  <td className={cn(TD, 'font-mono text-primary')}>
+                    {codigoConta({
+                      codigo: conta.codigo,
+                      nome: conta.nome,
+                      href: conta.aceitaLancamento && !linha.contexto ? hrefRazao(conta.id) : null,
+                    })}
+                  </td>
+                  <td className={TD} style={{ paddingLeft: `calc(1rem + ${linha.profundidade * 1.25}rem)` }}>
+                    {conta.nome}
+                  </td>
+                  {celulasValor(linha, tipo, 'font-semibold')}
+                </tr>
               );
             })}
           </TableBody>
@@ -136,16 +274,7 @@ async function TabelaBalancete({
           <TableFooter>
             <TableRow className="font-bold">
               <TableCell colSpan={2}>Totais</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.movD)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.movC)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.acumD)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmtBV(balancete.totais.acumC)}</TableCell>
-              <TableCell className="text-right tabular-nums">
-                {fmtBV(balancete.totais.saldoDevedor)}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {fmtBV(balancete.totais.saldoCredor)}
-              </TableCell>
+              {celulasValor({ ...balancete.totais, contraNatureza: false }, tipo)}
             </TableRow>
           </TableFooter>
         </Table>
@@ -218,15 +347,21 @@ export default async function BalancetePage({ searchParams }: PageProps) {
   const ctx = { tenantId, userId };
 
   const rawParams = await searchParams;
-  const flat = Object.fromEntries(
-    Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
-  );
 
   // Exercícios disponíveis para o selector (ordenados por codigo desc — mais recente primeiro)
-  const exercicios = await runWithTenantContext(ctx, () => listarExercicios(ctx));
+  const [exercicios, contasNivel1] = await runWithTenantContext(ctx, () =>
+    Promise.all([listarExercicios(ctx), listarContas({ nivel: 1, take: 50 }, ctx)]),
+  );
+
+  // Período corrente por omissão (Africa/Maputo)
+  const periodoFiscalAtual = periodoFiscalDe(new Date());
+  const mesAtual = parseInt(periodoFiscalAtual.split('-')[1] ?? '12', 10);
+
+  // Exercício, períodos, hierarquia, filtros e tipo — a regra partilhada com a exportação.
+  const params = lerParametrosBalancete(rawParams, { exercicios, mesAtual });
 
   // M3: estado vazio quando não há exercícios contabilísticos
-  if (exercicios.length === 0) {
+  if ('semExercicio' in params) {
     return (
       <div className="p-6 space-y-6">
         <PageHeader
@@ -249,52 +384,28 @@ export default async function BalancetePage({ searchParams }: PageProps) {
     );
   }
 
-  // Período corrente por omissão (Africa/Maputo)
-  const periodoFiscalAtual = periodoFiscalDe(new Date());
-  const mesAtual = parseInt(periodoFiscalAtual.split('-')[1] ?? '12', 10);
+  const ex = params.exercicio;
+  const codigoPedido = params.codigoPedidoNaoEncontrado;
+  const filtro = params.filtroServico;
+  const apresentacao = filtrosDoSelector(params);
 
-  // MAJOR-2: resolver o exercício na página (três tiers, sem lançar NotFoundError)
-  // NIT: tratar ?exercicio= (string vazia) como ausente
-  const codigoPedido =
-    typeof flat.exercicio === 'string' && flat.exercicio !== '' ? flat.exercicio : null;
-  const agora = new Date();
-  const ex =
-    (codigoPedido ? exercicios.find((e) => e.codigo === codigoPedido) : undefined) ??
-    exercicios.find((e) => e.dataInicio <= agora && agora <= e.dataFim) ??
-    exercicios[0]!;
-
-  // Aviso quando o código pedido não foi encontrado
-  const exercicioNaoEncontrado = codigoPedido !== null && ex.codigo !== codigoPedido;
-
-  // m1: usar FiltroBalanceteVerificacaoSchema com safeParse + fallback
-  const parsedFiltro = FiltroBalanceteVerificacaoSchema.safeParse({
-    exercicioId: ex.id,
-    periodoInicial: flat.de,
-    periodoFinal: flat.ate ?? mesAtual, // default = período corrente
-    incluir13: flat.p13 === '1',
-  });
-
-  const rawFiltro: FiltroBalanceteVerificacaoInput = parsedFiltro.success
-    ? parsedFiltro.data
-    : {
-        exercicioId: ex.id,
-        periodoInicial: 1,
-        periodoFinal: mesAtual,
-        incluir13: false,
-      };
-
-  // MAJOR-1: clamp na página (espelhado no serviço) para header e selector
-  const periodoFinalEfetivo = rawFiltro.incluir13
-    ? rawFiltro.periodoFinal
-    : Math.min(rawFiltro.periodoFinal, 12);
-  const periodoInicialEfetivo = Math.min(rawFiltro.periodoInicial, periodoFinalEfetivo);
-
-  const filtro: FiltroBalanceteVerificacaoInput = {
-    ...rawFiltro,
-    exercicioId: ex.id, // sempre o ID resolvido, nunca undefined
-    periodoInicial: periodoInicialEfetivo,
-    periodoFinal: periodoFinalEfetivo,
+  // S5: exportação com os parâmetros normalizados que a página está a mostrar.
+  const hrefExportar = (formato: 'csv' | 'xlsx' | 'pdf') => {
+    const q = queryBalancete(params);
+    q.set('formato', formato);
+    return `/api/contabilidade/balancete/export?${q.toString()}`;
   };
+
+  // Opções do Select «Classe» (nome da conta de nível 1).
+  const classes = Array.from({ length: 8 }, (_, i) => {
+    const n = String(i + 1);
+    // O seed nomeia o nível 1 «Classe N — <nome>»: o prefixo sai para não repetir o número.
+    const nome = contasNivel1.items
+      .find((c) => c.classe === `CLASSE_${n}`)
+      ?.nome.replace(/^Classe\s+\d+\s*[—–-]\s*/i, '')
+      .trim();
+    return { value: n, label: nome ? `${n} — ${nome}` : `Classe ${n}` };
+  });
 
   const deDesc = String(filtro.periodoInicial).padStart(2, '0');
   const ateDesc = String(filtro.periodoFinal).padStart(2, '0');
@@ -309,14 +420,35 @@ export default async function BalancetePage({ searchParams }: PageProps) {
           { label: 'Balancete' },
         ]}
         actions={
-          <Button asChild size="sm" variant="outline">
-            <Link href="/contabilidade/balancete/nova">Registar Balancete Oficial</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* `download` sem valor: o nome do ficheiro vem do Content-Disposition. */}
+            <Button asChild size="sm" variant="outline">
+              <a href={hrefExportar('csv')} download>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Exportar CSV
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <a href={hrefExportar('xlsx')} download>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Exportar Excel
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <a href={hrefExportar('pdf')} download>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Exportar PDF
+              </a>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/contabilidade/balancete/nova">Registar Balancete Oficial</Link>
+            </Button>
+          </div>
         }
       />
 
       {/* MAJOR-2: aviso quando o exercício pedido não existe */}
-      {exercicioNaoEncontrado && (
+      {codigoPedido !== null && (
         <div className="rounded-lg border border-info/40 bg-info/10 p-3 text-sm text-info">
           Exercício <strong>{codigoPedido}</strong> não encontrado — a mostrar{' '}
           <strong>{ex.codigo}</strong>
@@ -329,14 +461,20 @@ export default async function BalancetePage({ searchParams }: PageProps) {
         periodoInicial={filtro.periodoInicial}
         periodoFinal={filtro.periodoFinal}
         incluir13={filtro.incluir13}
+        nivelAtual={params.opcoesHierarquia.nivelMaximo}
+        razaoAtual={params.opcoesHierarquia.apenasRazao === true}
+        classes={classes}
+        filtrosAtuais={apresentacao}
       />
 
-      {/* m2: gerarBalanceteVerificacao dentro do filho do Suspense */}
+      {/* m2: gerarBalanceteVerificacao dentro do filho do Suspense. A key é só a consulta
+          (exercício, períodos, p13): mudar a apresentação (grau, razão, filtros S3) é uma
+          navegação em transição — a tabela actual fica até a nova estar pronta. */}
       <Suspense
         key={`${ex.codigo}-${filtro.periodoInicial}-${filtro.periodoFinal}-${filtro.incluir13}`}
-        fallback={<TableSkeleton rows={12} cols={8} />}
+        fallback={<TableSkeleton rows={12} cols={apresentacao.tipo === 'ambos' ? 8 : 6} />}
       >
-        <TabelaBalancete filtro={filtro} ctx={ctx} />
+        <TabelaBalancete params={params} ctx={ctx} />
       </Suspense>
     </div>
   );

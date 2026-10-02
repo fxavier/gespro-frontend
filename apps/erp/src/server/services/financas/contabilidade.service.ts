@@ -2004,6 +2004,7 @@ export async function gerarBalanceteVerificacao(
     periodoInicial: effectiveInicial,
     periodoFinal: effectiveFinal,
     incluir13: filtro.incluir13,
+    contas: contasRaw,
     ...nucleo,
   };
 }
