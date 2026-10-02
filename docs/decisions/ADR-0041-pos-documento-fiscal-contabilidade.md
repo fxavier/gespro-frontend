@@ -35,6 +35,11 @@ de facturação no POS e integrando-o na contabilidade quando é gravado.
 migração. Uma venda POS sem cliente factura contra ele. Não se abre excepção no mapa de IVA nem na
 integridade referencial.
 
+O cliente técnico é **protegido**: `ClienteService.atualizar` e `desativar` recusam-no com
+`CLIENTE_TECNICO_PROTEGIDO` e não mudam nada. O NUIT `999999999` é uma sentinela que o validador
+`nuit()` recusa de propósito — nunca entra por formulário, só pelo bootstrap e pela migração. A confirmar
+com a questão legal do §1.
+
 ### 3. Lançamento por documento, na mesma transacção
 
 Cada documento lança o seu (`Fatura.lancamentoId`), no diário `VENDAS`, `origem: VENDA` — é o que a

@@ -136,6 +136,8 @@ enum TipoSerieDocumento {
   // WS-10: Vendas — Encomendas e Devoluções (delta aditivo; não reordenar)
   ENCOMENDA
   NOTA_DEVOLUCAO
+  // ADR-0041: Factura-Recibo da venda POS paga no acto (delta aditivo; não reordenar)
+  FATURA_RECIBO
 }
 
 enum StatusFatura {

@@ -26,6 +26,7 @@ export const ROTULO_TIPO_SERIE: Record<TipoSerieGerivel, string> = {
   PROFORMA: 'Factura Pró-forma',
   COTACAO_COMERCIAL: 'Cotação',
   RECIBO: 'Recibo',
+  FATURA_RECIBO: 'Factura-Recibo',
 };
 
 /** Substitui o template de numeração: `{prefixo}/{ano}/{numero:06}`. */

@@ -4,12 +4,14 @@
  * Integração real com WS A (stock) e WS D (caixa/faturação).
  * Cross-WS dependencies injectadas no construtor para testabilidade.
  *
- * Fluxo POS (dentro da $transaction principal):
+ * Fluxo POS (dentro da $transaction principal — ADR-0041):
  *   1. proximoNumeroSerie(tx,'VENDA') → número único (WS D)
- *   2. criar Venda + ItemVenda + PagamentoVenda
+ *   2. criar Venda (CONCLUIDA) + ItemVenda + PagamentoVenda
  *   3. baixarStock por item (WS A) usando localizacao ARMAZEM real
- *   4. registarMovimentoCaixa (WS D)
- *   5. HistoricoEstadoVenda inicial
+ *   4. Factura-Recibo (série FATURA_RECIBO, PAGA) + lançamento, pelo núcleo
+ *      emitirDocumentoEmTx (WS D); Venda.faturaId ↔ Fatura.vendaId
+ *   5. registarMovimentoCaixa só pela parte em DINHEIRO (WS D)
+ *   6. HistoricoEstadoVenda inicial
  *   Após commit: calcular + registar comissão (best-effort, WS C interno)
  *
  * Fluxo ENCOMENDA (dentro da $transaction de criar):
@@ -33,6 +35,8 @@ import type { BaixaStockInput, IStockService, ReservaStockInput } from '@/server
 import type { RegistarMovimentoCaixaInput, TipoSerieDocumento } from '@/server/services/financas';
 import type { IFaturacaoService } from '@/server/services/financas';
 import type { ICaixaService } from '@/server/services/financas';
+import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
+import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
 import type { IComissaoService } from './comissao.interface';
 import {
   TRANSICOES_VENDA,
@@ -193,25 +197,6 @@ function mapSessaoPOSRow(s: PrismaSessaoPOS): SessaoPOSRow {
 }
 
 // ---------------------------------------------------------------------------
-// Cálculo de totais de itens
-// ---------------------------------------------------------------------------
-
-function calcularTotaisItem(item: CreateVendaInput['itens'][number]) {
-  const preco = new Prisma.Decimal(item.precoUnitario);
-  const qtd = new Prisma.Decimal(item.quantidade);
-  const desc = new Prisma.Decimal(item.desconto);
-  const taxaIva = new Prisma.Decimal(item.taxaIva);
-
-  const subtotalBruto = preco.mul(qtd);
-  const descontoValor = subtotalBruto.mul(desc).div(100);
-  const subtotal = subtotalBruto.minus(descontoValor);
-  const ivaItem = subtotal.mul(taxaIva);
-  const total = subtotal.plus(ivaItem);
-
-  return { subtotal, ivaItem, total };
-}
-
-// ---------------------------------------------------------------------------
 // Helpers de localização (Wave 3)
 // ---------------------------------------------------------------------------
 
@@ -245,7 +230,10 @@ export class VendaService implements IVendaService {
       'baixarStock' | 'reservarStock' | 'libertarStock' | 'entradaStock' | 'confirmarConsumoStock'
     >,
     private readonly caixaService: Pick<ICaixaService, 'registarMovimentoCaixa'>,
-    private readonly faturacaoService: Pick<IFaturacaoService, 'proximoNumeroSerie'>,
+    private readonly faturacaoService: Pick<
+      IFaturacaoService,
+      'proximoNumeroSerie' | 'emitirDocumentoEmTx' | 'construirLancamentoVendaPOS'
+    >,
     private readonly comissaoService: Pick<
       IComissaoService,
       'calcularComissao' | 'registarComissao'
@@ -253,19 +241,25 @@ export class VendaService implements IVendaService {
   ) {}
 
   async criar(input: CreateVendaInput, ctx: Ctx): Promise<VendaRow> {
-    // 1. Calcular totais (puro — sem acesso à BD)
-    let subtotalTotal = new Prisma.Decimal(0);
-    let ivaTotalAcc = new Prisma.Decimal(0);
-    const itensTotais = input.itens.map((item) => {
-      const { subtotal, ivaItem, total } = calcularTotaisItem(item);
-      subtotalTotal = subtotalTotal.plus(subtotal);
-      ivaTotalAcc = ivaTotalAcc.plus(ivaItem);
-      return { item, subtotal, ivaItem, total };
-    });
-    const total = subtotalTotal.plus(ivaTotalAcc);
+    // ponytail: guarda provisória — o POS a crédito (Factura, D 411, limite) chega com a S4 (#308).
+    if (input.origem === 'POS' && input.pagamentos.some((p) => p.tipo === 'CREDITO')) {
+      throw new BusinessRuleError(
+        'PAGAMENTO_CREDITO_NAO_SUPORTADO',
+        'O POS ainda não vende a crédito: use outro meio de pagamento ou emita uma factura.',
+      );
+    }
 
-    // 2. Status inicial por origem (ENCOMENDA começa em RASCUNHO; os outros em PENDENTE)
-    const statusInicial: StatusVenda = input.origem === 'ENCOMENDA' ? 'RASCUNHO' : 'PENDENTE';
+    // 1. Calcular totais (puro — o mesmo cálculo do terminal POS, por linha a 2 casas).
+    //    Aplica-se a TODAS as origens: é a regra de totais da venda, não uma regra só do POS.
+    const totais = calcularTotaisVendaPOS(input.itens);
+    const { subtotal: subtotalTotal, ivaTotal: ivaTotalAcc, total } = totais;
+    const itensTotais = input.itens.map((item, k) => ({ item, ...totais.linhas[k] }));
+    const dataVenda = input.dataVenda ?? new Date();
+
+    // 2. Status inicial por origem: ENCOMENDA em RASCUNHO; POS paga nasce CONCLUIDA
+    //    (ADR-0041 §7); os outros em PENDENTE.
+    const statusInicial: StatusVenda =
+      input.origem === 'ENCOMENDA' ? 'RASCUNHO' : input.origem === 'POS' ? 'CONCLUIDA' : 'PENDENTE';
 
     // 3. Transacção principal: número + venda + itens + pagamentos + stock + caixa + histórico
     const vendaRow = await prisma.$transaction(async (tx) => {
@@ -274,7 +268,7 @@ export class VendaService implements IVendaService {
         tx as Prisma.TransactionClient,
         'VENDA' as TipoSerieDocumento,
         ctx,
-        input.dataVenda ?? new Date(),
+        dataVenda,
       );
 
       // 3b. Resolver armazém padrão do tenant (usado em POS e ENCOMENDA)
@@ -300,7 +294,7 @@ export class VendaService implements IVendaService {
           total,
           currency: 'MZN',
           observacoes: input.observacoes ?? null,
-          dataVenda: input.dataVenda ?? new Date(),
+          dataVenda,
           itens: {
             create: itensTotais.map(({ item, subtotal, ivaItem, total: tot }) => ({
               tenantId: ctx.tenantId,
@@ -344,11 +338,26 @@ export class VendaService implements IVendaService {
           await this.stockService.baixarStock(tx as TxClient, baixaInput, ctx);
         }
 
-        if (input.sessaoCaixaId) {
+        // Factura-Recibo + lançamento na MESMA transacção (ADR-0041 §1, §3).
+        const fatura = await this._emitirFacturaReciboPOS(
+          tx as Prisma.TransactionClient,
+          input,
+          venda.id,
+          itensTotais,
+          dataVenda,
+          ctx,
+        );
+        venda.faturaId = fatura.id;
+
+        // Só o dinheiro entra na gaveta (ADR-0041 §4).
+        const dinheiro = venda.pagamentos
+          .filter((p) => p.tipo === 'DINHEIRO')
+          .reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
+        if (input.sessaoCaixaId && dinheiro.greaterThan(0)) {
           const movInput: RegistarMovimentoCaixaInput = {
             sessaoCaixaId: input.sessaoCaixaId,
             tipo: 'VENDA',
-            valor: total,
+            valor: dinheiro,
             descricao: `Venda ${numero}`,
             documentoOrigemId: venda.id,
             documentoOrigemTipo: 'Venda',
@@ -412,6 +421,76 @@ export class VendaService implements IVendaService {
     }
 
     return vendaRow;
+  }
+
+  /**
+   * Factura-Recibo da venda POS paga (ADR-0041 §1–§4): numerada na série FATURA_RECIBO,
+   * nasce PAGA, lança D meio de pagamento / C 711 / C 44331 e fica ligada à venda nos
+   * dois sentidos. Sem cliente, factura contra o Consumidor Final (§2).
+   */
+  private async _emitirFacturaReciboPOS(
+    tx: Prisma.TransactionClient,
+    input: CreateVendaInput,
+    vendaId: string,
+    itensTotais: Array<{
+      item: CreateVendaInput['itens'][number];
+      subtotal: Prisma.Decimal;
+      ivaItem: Prisma.Decimal;
+      total: Prisma.Decimal;
+    }>,
+    dataVenda: Date,
+    ctx: Ctx,
+  ) {
+    let clienteId = input.clienteId;
+    if (!clienteId) {
+      const cf = await tx.cliente.findFirst({
+        where: { tenantId: ctx.tenantId, codigo: CLIENTE_CONSUMIDOR_FINAL.codigo },
+        select: { id: true },
+      });
+      if (!cf) {
+        throw new BusinessRuleError(
+          'CONSUMIDOR_FINAL_INEXISTENTE',
+          `O cliente técnico ${CLIENTE_CONSUMIDOR_FINAL.nome} (${CLIENTE_CONSUMIDOR_FINAL.codigo}) não existe neste tenant.`,
+        );
+      }
+      clienteId = cf.id;
+    }
+
+    const pagamentos = input.pagamentos.map((p) => ({ tipo: p.tipo, valor: new Prisma.Decimal(String(p.valor)) }));
+    const fatura = await this.faturacaoService.emitirDocumentoEmTx(
+      tx,
+      {
+        clienteId,
+        vendaId,
+        moeda: 'MZN',
+        dataEmissao: dataVenda,
+        dataVencimento: dataVenda,
+        linhas: itensTotais.map(({ item, subtotal, ivaItem, total }, i) => {
+          const bruto = new Prisma.Decimal(String(item.quantidade)).mul(new Prisma.Decimal(String(item.precoUnitario)));
+          return {
+            produtoId: item.produtoId,
+            descricao: item.nomeProduto,
+            quantidade: item.quantidade,
+            precoUnitario: item.precoUnitario,
+            // Na factura o desconto é um valor, não uma percentagem.
+            desconto: bruto.minus(subtotal).toDecimalPlaces(2).toNumber(),
+            taxaIva: item.taxaIva,
+            subtotal: subtotal.toNumber(),
+            ivaItem: ivaItem.toNumber(),
+            total: total.toNumber(),
+            ordemLinha: i,
+          };
+        }),
+      },
+      ctx,
+      {
+        tipoSerie: 'FATURA_RECIBO', // nasce PAGA pela série (ADR-0041 §1)
+        construirLancamento: (doc) => this.faturacaoService.construirLancamentoVendaPOS(doc, pagamentos),
+      },
+    );
+
+    await tx.venda.updateMany({ where: { id: vendaId, tenantId: ctx.tenantId }, data: { faturaId: fatura.id } });
+    return fatura;
   }
 
   async transitar(input: TransitarVendaInput, ctx: Ctx): Promise<VendaRow> {

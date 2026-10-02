@@ -1,5 +1,5 @@
 import 'server-only';
-import { Prisma, type TipoSerieDocumento as TipoSeriePrisma } from '@prisma/client';
+import { Prisma, type MetodoPagamentoTipo, type TipoSerieDocumento as TipoSeriePrisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
@@ -65,6 +65,7 @@ import {
   type CotacaoComercialCompleta,
   type PaginacaoFaturacao,
   type Ctx,
+  type OpcoesEmissaoDocumento,
 } from './faturacao.interface';
 
 // ---------------------------------------------------------------------------
@@ -251,6 +252,76 @@ export function construirLancamentoNotaCredito(nc: {
     documentoOrigemId: nc.id,
     documentoOrigemTipo: 'NotaCredito',
     historico: `Nota de crédito ${nc.numero}`,
+    partidas,
+  };
+}
+
+/** Conta a débito, por omissão, de cada meio de pagamento da venda POS (ADR-0041 §4). */
+export const CONTA_MEIO_PAGAMENTO_POS: Record<MetodoPagamentoTipo, string> = {
+  /** 1.1.1 — Caixa */
+  DINHEIRO: '111',
+  /** 1.2.1 — Depósitos à ordem */
+  CARTAO: '121',
+  TRANSFERENCIA: '121',
+  MPESA: '121',
+  EMOLA: '121',
+  CREDITO: PGC_FATURACAO.CLIENTES_CC,
+};
+
+/**
+ * Lançamento do documento da venda POS (ADR-0041 §3, §4). Pure function.
+ * Uma partida a débito por linha de pagamento, na conta do meio (`contas` sobrepõe-se
+ * à omissão meio a meio); C 711 = subtotal; C 44331 = IVA (se > 0).
+ * Invariante: Σ débitos = Σ créditos = total — senão PAGAMENTOS_NAO_BATEM_TOTAL.
+ */
+export function construirLancamentoVendaPOS(
+  doc: {
+    id: string;
+    numero: string;
+    total: Prisma.Decimal;
+    subtotal: Prisma.Decimal;
+    ivaTotal: Prisma.Decimal;
+    dataEmissao: Date;
+  },
+  pagamentos: ReadonlyArray<{ tipo: MetodoPagamentoTipo; valor: Prisma.Decimal }>,
+  contas: Partial<Record<MetodoPagamentoTipo, string>> = {},
+): RegistarLancamentoContabilisticoInput {
+  const pago = pagamentos.reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
+  if (!pago.equals(doc.total)) {
+    throw new BusinessRuleError(
+      'PAGAMENTOS_NAO_BATEM_TOTAL',
+      `A soma dos pagamentos (${pago.toFixed(2)}) não coincide com o total da venda (${doc.total.toFixed(2)}).`,
+    );
+  }
+
+  const partidas: RegistarLancamentoContabilisticoInput['partidas'] = pagamentos.map((p) => ({
+    contaCodigo: contas[p.tipo] ?? CONTA_MEIO_PAGAMENTO_POS[p.tipo],
+    tipo: 'DEBITO' as const,
+    valor: p.valor.toFixed(2),
+    historico: `${doc.numero} — recebimento (${p.tipo})`,
+  }));
+  partidas.push({
+    contaCodigo: PGC_FATURACAO.RECEITA_VENDAS,
+    tipo: 'CREDITO',
+    valor: doc.subtotal.toFixed(2),
+    historico: `${doc.numero} — receita de vendas`,
+  });
+  if (doc.ivaTotal.greaterThan(0)) {
+    partidas.push({
+      contaCodigo: PGC_FATURACAO.IVA_LIQUIDADO,
+      tipo: 'CREDITO',
+      valor: doc.ivaTotal.toFixed(2),
+      historico: `${doc.numero} — IVA liquidado`,
+    });
+  }
+
+  return {
+    data: doc.dataEmissao,
+    diarioTipo: 'VENDAS',
+    origem: 'VENDA',
+    documentoOrigemId: doc.id,
+    documentoOrigemTipo: 'Fatura',
+    historico: `Venda POS ${doc.numero}`,
     partidas,
   };
 }
@@ -683,7 +754,18 @@ export async function emitirDocumentoEmTx(
   tx: Prisma.TransactionClient,
   input: EmitirFaturaInput,
   ctx: Ctx,
+  opcoes: OpcoesEmissaoDocumento = {},
 ): Promise<FaturaCompleta> {
+  const { tipoSerie = 'FATURA', construirLancamento = construirLancamentoFatura } = opcoes;
+  // Factura-Recibo ⇔ PAGA (ADR-0041 §1): o estado deriva da série; contradizê-la é recusado.
+  const statusDaSerie = tipoSerie === 'FATURA_RECIBO' ? 'PAGA' : 'EMITIDA';
+  const status = opcoes.status ?? statusDaSerie;
+  if (status !== statusDaSerie) {
+    throw new BusinessRuleError(
+      'OPCOES_EMISSAO_INCOERENTES',
+      `Um documento da série ${tipoSerie} não pode nascer ${status}.`,
+    );
+  }
   // W9: validar FKs cross-domínio contra tenant
   const cliente = await tx.cliente.findFirst({
     where: { id: input.clienteId, tenantId: ctx.tenantId },
@@ -699,7 +781,7 @@ export async function emitirDocumentoEmTx(
     if (!venda) throw new NotFoundError('Venda não encontrada');
   }
 
-  const { numero, serieDocumentoId } = await numerarDocumento(tx, 'FATURA', ctx, input.dataEmissao);
+  const { numero, serieDocumentoId } = await numerarDocumento(tx, tipoSerie, ctx, input.dataEmissao);
   const totais = calcularTotaisLinhas(input.linhas);
 
   const fatura = await tx.fatura.create({
@@ -713,8 +795,8 @@ export async function emitirDocumentoEmTx(
       vendaId: input.vendaId ?? null,
       moeda: input.moeda ?? 'MZN',
       ...totais,
-      totalPago: new Prisma.Decimal(0),
-      status: 'EMITIDA',
+      totalPago: status === 'PAGA' ? totais.total : new Prisma.Decimal(0),
+      status,
       dataEmissao: input.dataEmissao,
       dataVencimento: input.dataVencimento,
       observacoes: input.observacoes ?? null,
@@ -749,7 +831,7 @@ export async function emitirDocumentoEmTx(
   // fecho do período em TODOS os meses com actividade (verificado em prod).
   const lancamentoFatura = await registarLancamentoContabilistico(
     tx,
-    construirLancamentoFatura({
+    construirLancamento({
       id: fatura.id,
       numero: fatura.numero,
       total: totais.total,
@@ -1743,6 +1825,8 @@ export const faturacaoService = {
   proximoNumeroSerie,
   numerarDocumento,
   emitirFatura,
+  emitirDocumentoEmTx,
+  construirLancamentoVendaPOS,
   obterFatura,
   listarFaturas,
   registarPagamento,

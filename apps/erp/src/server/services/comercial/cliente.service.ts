@@ -16,6 +16,7 @@ import { prisma, prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx, TxClient } from '@/server/services/types';
+import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
 import type {
   IClienteService,
   ClienteRow,
@@ -198,6 +199,16 @@ async function gerarCodigoCliente(tenantId: string): Promise<string> {
 // Implementação do serviço
 // ---------------------------------------------------------------------------
 
+/** O Consumidor Final é o cliente das vendas POS anónimas (ADR-0041 §2): não se edita nem se desactiva. */
+function _recusarClienteTecnico(codigo: string | null): void {
+  if (codigo === CLIENTE_CONSUMIDOR_FINAL.codigo) {
+    throw new BusinessRuleError(
+      'CLIENTE_TECNICO_PROTEGIDO',
+      `${CLIENTE_CONSUMIDOR_FINAL.nome} é um cliente técnico do POS e não pode ser alterado nem desactivado.`,
+    );
+  }
+}
+
 export class ClienteService implements IClienteService {
   async criar(input: CreateClienteInput, ctx: Ctx): Promise<ClienteRow> {
     const codigo = await gerarCodigoCliente(ctx.tenantId);
@@ -337,6 +348,7 @@ export class ClienteService implements IClienteService {
     if (!existente || existente.tenantId !== ctx.tenantId || existente.deletedAt) {
       throw new NotFoundError(`Cliente ${id} não encontrado`);
     }
+    _recusarClienteTecnico(existente.codigo);
 
     const atualizado = await prisma.cliente.update({
       where: { id },
@@ -373,12 +385,13 @@ export class ClienteService implements IClienteService {
   async desativar(id: string, ctx: Ctx): Promise<void> {
     const cliente = await prisma.cliente.findUnique({
       where: { id },
-      select: { tenantId: true, deletedAt: true, creditoUtilizadoMT: true },
+      select: { tenantId: true, deletedAt: true, creditoUtilizadoMT: true, codigo: true },
     });
 
     if (!cliente || cliente.tenantId !== ctx.tenantId || cliente.deletedAt) {
       throw new NotFoundError(`Cliente ${id} não encontrado`);
     }
+    _recusarClienteTecnico(cliente.codigo);
 
     if (cliente.creditoUtilizadoMT && cliente.creditoUtilizadoMT.greaterThan(0)) {
       throw new BusinessRuleError(

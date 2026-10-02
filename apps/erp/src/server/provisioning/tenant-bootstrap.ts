@@ -20,6 +20,7 @@ import planoContasJson from '../../../prisma/seed/data/plano-contas-pgc.json';
 import rubricasFluxoJson from '../../../prisma/seed/data/rubricas-fluxo-caixa.json';
 import { PERMISSIONS, SYSTEM_ROLES } from '../../../prisma/seed/rbac';
 import { CONTA_PADRAO_NATUREZA_ND, classeAdmitidaParaNatureza } from '../../lib/nota-debito';
+import { CLIENTE_CONSUMIDOR_FINAL } from '../../lib/consumidor-final';
 // `mapeamento-versao.model.ts` importa `server-only`: fora do Next só resolve com
 // `tsx -C react-server` (é assim que `db:seed` e `db:seed:volume` correm).
 import { instantaneoDe } from '../services/financas/mapeamento-versao.model';
@@ -176,6 +177,8 @@ export const SERIES_INICIAIS: Array<{ tipo: string; prefixo: string }> = [
   { tipo: 'CONTAGEM_STOCK', prefixo: 'CTG' },
   { tipo: 'ENCOMENDA', prefixo: 'ENC' },
   { tipo: 'NOTA_DEVOLUCAO', prefixo: 'NDV' },
+  // ADR-0041 §1: Factura-Recibo da venda POS paga no acto.
+  { tipo: 'FATURA_RECIBO', prefixo: 'FR' },
 ];
 
 /** Ano corrente no fuso Africa/Maputo (UTC+2, fixo). */
@@ -221,6 +224,22 @@ export async function bootstrapSeriesDocumento(
     total += r.count;
   }
   return total;
+}
+
+// ---------------------------------------------------------------------------
+// Cliente técnico Consumidor Final (ADR-0041 §2)
+// ---------------------------------------------------------------------------
+
+/**
+ * A venda POS sem cliente factura contra ele. Idempotente: `skipDuplicates` sobre
+ * `@@unique([tenantId, codigo])`. Os tenants anteriores recebem-no pela migração.
+ */
+export async function bootstrapConsumidorFinal(tx: BootstrapClient, tenantId: string): Promise<number> {
+  const r = await tx.cliente.createMany({
+    data: [{ tenantId, ...CLIENTE_CONSUMIDOR_FINAL }],
+    skipDuplicates: true,
+  });
+  return r.count;
 }
 
 // ---------------------------------------------------------------------------
@@ -472,7 +491,7 @@ export async function bootstrapRbac(
 }
 
 // ---------------------------------------------------------------------------
-// Bootstrap completo de contabilidade (PGC + diários + séries + DFC + regra de sugestão)
+// Bootstrap completo de contabilidade (PGC + diários + séries + Consumidor Final + DFC + regra de sugestão)
 // ---------------------------------------------------------------------------
 
 export async function bootstrapContabilidade(
@@ -483,6 +502,7 @@ export async function bootstrapContabilidade(
   const diarios = await bootstrapDiarios(tx, tenantId);
   const series = await bootstrapSeriesDocumento(tx, tenantId);
   await bootstrapContasNaturezaNotaDebito(tx, tenantId);
+  await bootstrapConsumidorFinal(tx, tenantId);
   // Um tenant novo nasce com zero contas folha sem mapeamento na DFC (ADR-0037 §3).
   await semearRubricasFluxo(tx, tenantId);
   // Um tenant do registo público nascia sem regra de sugestão nenhuma (issue #140).

@@ -1,5 +1,6 @@
 import 'server-only'; // A5: serviços são server-only
-import type { Prisma } from '@prisma/client';
+import type { MetodoPagamentoTipo, Prisma } from '@prisma/client';
+import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
   CriarSerieDocumentoInput,
   LiquidarNotaCreditoInput,
@@ -59,7 +60,9 @@ export type TipoSerieDocumento =
   | 'CONTAGEM_STOCK'
   // WS-10: Vendas — Encomendas e Devoluções
   | 'ENCOMENDA'
-  | 'NOTA_DEVOLUCAO';
+  | 'NOTA_DEVOLUCAO'
+  // ADR-0041: venda POS paga no acto
+  | 'FATURA_RECIBO';
 
 export type StatusFatura =
   | 'RASCUNHO'
@@ -494,6 +497,29 @@ export interface PaginacaoFaturacao<T> {
 // Interface do serviço de faturação
 // ---------------------------------------------------------------------------
 
+/** O que o construtor de lançamento de um documento emitido precisa de ler. */
+export interface DocumentoLancavel {
+  id: string;
+  numero: string;
+  total: Prisma.Decimal;
+  subtotal: Prisma.Decimal;
+  ivaTotal: Prisma.Decimal;
+  dataEmissao: Date;
+}
+
+/** Variações do documento emitido por `emitirDocumentoEmTx`; as omissões são as da factura comum. */
+export interface OpcoesEmissaoDocumento {
+  /** Série que numera o documento (omissão: FATURA). */
+  tipoSerie?: TipoSerieDocumento;
+  /**
+   * Omissão: derivado da série — FATURA_RECIBO nasce PAGA (`totalPago = total`,
+   * ADR-0041 §1), as outras EMITIDA. Contradizer a série → OPCOES_EMISSAO_INCOERENTES.
+   */
+  status?: 'EMITIDA' | 'PAGA';
+  /** Lançamento do documento (omissão: `construirLancamentoFatura`, D 411). */
+  construirLancamento?: (doc: DocumentoLancavel) => RegistarLancamentoContabilisticoInput;
+}
+
 export interface IFaturacaoService {
   // --- Séries de documento ---
   /**
@@ -546,6 +572,25 @@ export interface IFaturacaoService {
 
   // --- Facturas ---
   emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta>;
+  /**
+   * Núcleo da emissão (ADR-0041 §3), na transacção do chamador e sem consultar a sessão.
+   * Contrato publicado para WS C (venda POS → Factura-Recibo).
+   */
+  emitirDocumentoEmTx(
+    tx: Prisma.TransactionClient,
+    input: EmitirFaturaInput,
+    ctx: Ctx,
+    opcoes?: OpcoesEmissaoDocumento,
+  ): Promise<FaturaCompleta>;
+  /**
+   * Lançamento da venda POS (ADR-0041 §3, §4): D conta do meio por pagamento, C 711, C 44331.
+   * @throws BusinessRuleError('PAGAMENTOS_NAO_BATEM_TOTAL')
+   */
+  construirLancamentoVendaPOS(
+    doc: DocumentoLancavel,
+    pagamentos: ReadonlyArray<{ tipo: MetodoPagamentoTipo; valor: Prisma.Decimal }>,
+    contas?: Partial<Record<MetodoPagamentoTipo, string>>,
+  ): RegistarLancamentoContabilisticoInput;
   obterFatura(id: string, ctx: Ctx): Promise<FaturaCompleta | null>;
   listarFaturas(
     filtro: FiltroFaturaInput,
