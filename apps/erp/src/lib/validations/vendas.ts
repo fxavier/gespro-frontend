@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { idEntidade } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums (espelham os enums Prisma em SCREAMING_SNAKE)
@@ -148,6 +149,12 @@ export const TransitarVendaSchema = z.object({
   vendaId: z.string().cuid('ID de venda inválido'),
   paraStatus: StatusVendaEnum,
   motivo: z.string().max(500).optional(),
+});
+
+/** Anular uma venda POS por nota de crédito (ADR-0041 §8). O motivo vai para a NC. */
+export const AnularVendaSchema = z.object({
+  vendaId: idEntidade('ID de venda inválido'),
+  motivo: z.string().trim().min(1, 'Indique o motivo da anulação').max(500, 'Máximo 500 caracteres'),
 });
 
 export const FilterVendaSchema = z.object({
@@ -432,6 +439,7 @@ export type CreateVendaInput = z.infer<typeof CreateVendaSchema>;
 export type UpdateVendaInput = z.infer<typeof UpdateVendaSchema>;
 export type FilterVendaInput = z.infer<typeof FilterVendaSchema>;
 export type TransitarVendaInput = z.infer<typeof TransitarVendaSchema>;
+export type AnularVendaInput = z.infer<typeof AnularVendaSchema>;
 export type CreateItemVendaInput = z.infer<typeof CreateItemVendaSchema>;
 export type CreatePagamentoVendaInput = z.infer<typeof CreatePagamentoVendaSchema>;
 export type AbrirSessaoPOSInput = z.infer<typeof AbrirSessaoPOSSchema>;

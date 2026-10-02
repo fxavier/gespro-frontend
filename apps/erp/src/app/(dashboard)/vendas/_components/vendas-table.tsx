@@ -109,7 +109,7 @@ const columns: TableColumn<VendaSummary>[] = [
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <div className="px-2 py-1" onClick={(e) => e.stopPropagation()}>
-            <VendaAcoes id={row.id} status={row.status} modoCompacto />
+            <VendaAcoes id={row.id} status={row.status} faturaId={row.faturaId} modoCompacto />
           </div>
         </DropdownMenuContent>
       </DropdownMenu>

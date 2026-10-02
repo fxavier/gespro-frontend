@@ -4,7 +4,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Edit, Printer } from 'lucide-react';
+import { ArrowLeft, Ban, Edit, Printer } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { vendaService } from '@/server/services/comercial/index';
@@ -268,7 +268,15 @@ export default async function VendaDetalhePage({ params }: Props) {
                     </Link>
                   </Button>
                 )}
-                <VendaAcoes id={venda.id} status={venda.status} />
+                {venda.origem === 'POS' && venda.faturaId && venda.status === 'CONCLUIDA' && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/vendas/${venda.id}/anular`}>
+                      <Ban className="h-4 w-4 mr-2" />
+                      Anular venda
+                    </Link>
+                  </Button>
+                )}
+                <VendaAcoes id={venda.id} status={venda.status} faturaId={venda.faturaId} />
               </div>
             }
           />

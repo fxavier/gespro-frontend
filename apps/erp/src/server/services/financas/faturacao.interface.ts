@@ -610,6 +610,15 @@ export interface IFaturacaoService {
 
   // --- Notas de crédito ---
   emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx): Promise<NotaCreditoCompleta>;
+  /**
+   * Núcleo da emissão da NC (ADR-0041 §8), na transacção do chamador e sem consultar a sessão.
+   * Contrato publicado para WS C (anulação da venda POS).
+   */
+  emitirNotaCreditoEmTx(
+    tx: Prisma.TransactionClient,
+    input: EmitirNotaCreditoInput,
+    ctx: Ctx,
+  ): Promise<NotaCreditoCompleta>;
   obterNotaCredito(id: string, ctx: Ctx): Promise<NotaCreditoCompleta | null>;
   listarNotasCredito(
     filtro: FiltroNotaCreditoInput,
@@ -625,6 +634,17 @@ export interface IFaturacaoService {
   liquidarNotaCredito(
     input: LiquidarNotaCreditoInput,
     ctx: Ctx & { permissions?: ReadonlySet<string> },
+  ): Promise<NotaCredito>;
+  /**
+   * ADR-0041 §8 — liquida por DEVOLUCAO, na transacção do chamador, a NC que credita a factura
+   * inteira: D 411 total / C nas contas debitadas pelo lançamento da factura, pelos mesmos
+   * valores. Sem movimento de caixa (é do chamador) e sem `ctx.permissions` (são da action).
+   * Recusa: NC_DEVOLUCAO_PARCIAL, NC_DOCUMENTO_A_CREDITO, DOCUMENTO_SEM_LANCAMENTO, transição inválida.
+   */
+  devolverNotaCreditoPelosMeiosOriginaisEmTx(
+    tx: Prisma.TransactionClient,
+    input: { notaCreditoId: string; data: Date },
+    ctx: Ctx,
   ): Promise<NotaCredito>;
   /** #148 — estorna o lançamento da NC na mesma transacção; PERIODO_FECHADO sem escrita. */
   cancelarNotaCredito(id: string, motivo: string, ctx: Ctx): Promise<NotaCredito>;

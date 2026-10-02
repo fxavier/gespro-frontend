@@ -1249,6 +1249,100 @@ export async function liquidarNotaCredito(
 }
 
 /**
+ * Liquidação por devolução de uma NC que credita o documento original INTEIRO, pelos mesmos
+ * meios com que ele foi recebido (ADR-0041 §8 — anulação da venda POS). Núcleo em transacção:
+ * corre na tx do chamador, não consulta a sessão nem `ctx.permissions` (a permissão é da action).
+ *
+ * Um só lançamento: D 411 pelo total / C em cada conta que o lançamento do documento original
+ * debitou, pelo mesmo valor — a devolução sai por onde a receita entrou. O movimento de caixa da
+ * parte em numerário NÃO é daqui: é do chamador, pelo contrato `registarMovimentoCaixa`, na
+ * sessão de caixa da venda (só ele sabe qual é).
+ *
+ * Venda mista (numerário + cartão/transferência): continua a ser UM só lançamento de liquidação,
+ * no diário CAIXA, que credita também a(s) conta(s) bancária(s) — não há um lançamento por meio
+ * nem um no diário de bancos.
+ *
+ * Recusa: NC não EMITIDA (transição), documento original sem lançamento, NC parcial
+ * (`NC_DEVOLUCAO_PARCIAL`) e documento com parte a crédito (`NC_DOCUMENTO_A_CREDITO` — a 411 do
+ * original não se «devolve»; isso é compensação).
+ */
+export async function devolverNotaCreditoPelosMeiosOriginaisEmTx(
+  tx: Prisma.TransactionClient,
+  input: { notaCreditoId: string; data: Date },
+  ctx: Ctx,
+): Promise<NotaCredito> {
+  await trancarLinha(tx, 'NotaCredito', input.notaCreditoId, ctx.tenantId);
+  const nc = await tx.notaCredito.findFirst({ where: { id: input.notaCreditoId, tenantId: ctx.tenantId } });
+  if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
+  transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
+
+  const fatura = await tx.fatura.findFirst({
+    where: { id: nc.faturaOriginalId, tenantId: ctx.tenantId },
+    select: { numero: true, total: true, lancamentoId: true },
+  });
+  if (!fatura) throw new NotFoundError('Factura original não encontrada');
+  if (!fatura.lancamentoId) {
+    throw new BusinessRuleError(
+      'DOCUMENTO_SEM_LANCAMENTO',
+      `A factura ${fatura.numero} não tem lançamento: não se sabe por que meios foi recebida.`,
+    );
+  }
+  const total = new Prisma.Decimal(String(nc.total));
+  if (!total.equals(new Prisma.Decimal(String(fatura.total)))) {
+    throw new BusinessRuleError(
+      'NC_DEVOLUCAO_PARCIAL',
+      `A nota de crédito ${nc.numero} não credita a factura ${fatura.numero} inteira: a devolução pelos meios originais só cobre o documento todo.`,
+    );
+  }
+
+  const debitos = await tx.partidaLancamento.findMany({
+    where: { lancamentoId: fatura.lancamentoId, tenantId: ctx.tenantId, tipo: 'DEBITO' },
+    select: { valor: true, conta: { select: { codigo: true } } },
+    orderBy: { id: 'asc' },
+  });
+  const porConta = new Map<string, Prisma.Decimal>();
+  for (const p of debitos) {
+    porConta.set(p.conta.codigo, (porConta.get(p.conta.codigo) ?? new Prisma.Decimal(0)).plus(p.valor));
+  }
+  if (porConta.has(PGC_FATURACAO.CLIENTES_CC)) {
+    throw new BusinessRuleError(
+      'NC_DOCUMENTO_A_CREDITO',
+      `A factura ${fatura.numero} tem parte a crédito: a nota de crédito liquida-se por compensação, não por devolução.`,
+    );
+  }
+
+  const valor = total.toFixed(2);
+  const descricao = `Devolução da nota de crédito ${nc.numero} (anulação de ${fatura.numero})`;
+  const lancamento = await registarLancamentoContabilistico(
+    tx,
+    {
+      data: input.data,
+      // Há sempre caixa ou banco do outro lado; com numerário, o diário é o de caixa.
+      diarioTipo: porConta.has(CONTA_MEIO_PAGAMENTO_POS.DINHEIRO) ? 'CAIXA' : 'BANCO',
+      origem: 'PAGAMENTO',
+      documentoOrigemId: nc.id,
+      documentoOrigemTipo: 'NotaCredito',
+      historico: descricao,
+      partidas: [
+        { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor },
+        ...[...porConta].map(([contaCodigo, v]) => ({ contaCodigo, tipo: 'CREDITO' as const, valor: v.toFixed(2) })),
+      ],
+    },
+    ctx,
+  );
+
+  return tx.notaCredito.update({
+    where: { id: nc.id },
+    data: {
+      status: 'LIQUIDADA',
+      formaLiquidacao: 'DEVOLUCAO',
+      dataLiquidacao: input.data,
+      lancamentoLiquidacaoId: lancamento.id,
+    },
+  }) as unknown as NotaCredito;
+}
+
+/**
  * O IVA é apurado pelos documentos: cancelar uma NC cujo período de emissão (dia de
  * Maputo) já tem apuramento activo, ou está fechado, mudaria para trás a base de um
  * mês encerrado. O período fica trancado `FOR SHARE` até ao commit.
@@ -1839,9 +1933,11 @@ export const faturacaoService = {
   registarPagamento,
   marcarVencida,
   emitirNotaCredito,
+  emitirNotaCreditoEmTx,
   obterNotaCredito,
   listarNotasCredito,
   liquidarNotaCredito,
+  devolverNotaCreditoPelosMeiosOriginaisEmTx,
   cancelarNotaCredito,
   emitirNotaDebito,
   obterNotaDebito,
