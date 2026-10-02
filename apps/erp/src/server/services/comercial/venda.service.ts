@@ -36,6 +36,11 @@ import type { RegistarMovimentoCaixaInput, TipoSerieDocumento } from '@/server/s
 import type { IFaturacaoService } from '@/server/services/financas';
 import type { ICaixaService } from '@/server/services/financas';
 import type { IMeioPagamentoPOSService } from '@/server/services/financas';
+import {
+  exigirEmailConfirmadoParaEmitir,
+  exigirPeriodoAbertoEm,
+  exigirSessaoCaixaAbertaDoUtilizador,
+} from '@/server/services/financas';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
 import type { IComissaoService } from './comissao.interface';
@@ -814,6 +819,13 @@ export class VendaService implements IVendaService {
 
 export class SessaoPOSService implements ISessaoPOSService {
   async abrir(input: AbrirSessaoPOSInput, ctx: Ctx): Promise<SessaoPOSRow> {
+    // ADR-0041 §6: falhar na abertura, não com o cliente ao balcão. Tudo antes de
+    // qualquer escrita (inclusive o fecho das órfãs abaixo). A venda continua a ser
+    // recusada pelo lançamento se o período fechar entretanto.
+    await exigirEmailConfirmadoParaEmitir();
+    await exigirPeriodoAbertoEm(new Date(), ctx);
+    await exigirSessaoCaixaAbertaDoUtilizador(input.sessaoCaixaId, ctx);
+
     // Sessões POS ABERTAS cuja caixa já não está ABERTA são órfãs (nenhuma venda
     // passaria: SESSAO_CAIXA_FECHADA). Fecham-se aqui para o vendedor poder recomeçar.
     const abertas = await prisma.sessaoPOS.findMany({
