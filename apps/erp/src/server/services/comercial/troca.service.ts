@@ -1,16 +1,23 @@
 /**
- * TrocaService — WS-10 (Spec 10)
+ * TrocaService — WS-10 (Spec 10), ADR-0041 §8
  *
- * Compõe:
- *  0. Emitir NC dos bens devolvidos (contrato D — tx própria, antes do $tx principal)
- *     MAJOR 5: NC obrigatória se devolucao.faturaId + serieNotaCreditoId
- *  1. Processar devolução (entrada de stock do artigo devolvido)
- *  2. Criar nova venda do artigo substituto (baixarStock)
- *  3. Liquidar diferença de valor (a favor do cliente ou da empresa)
- *  4. Marcar devolução PROCESSADA + criar Troca
+ * Uma troca é uma devolução + uma venda nova, e fiscalmente é isso mesmo: a nota de crédito dos
+ * bens devolvidos e uma Factura-Recibo nova para o substituto, pelo mesmo caminho da venda POS.
+ * Tudo numa só `prismaBase.$transaction` — uma falha em qualquer passo não deixa nada (nem NC,
+ * nem Venda, nem Fatura, nem Troca, nem números de série gastos):
  *
- * NC é emitida ANTES do $transaction principal (tx própria do faturacaoService).
- * Tudo o resto em prismaBase.$transaction único.
+ *  1. Devolução trancada e relida (APROVADA, com factura).
+ *  2. NC dos bens devolvidos pelo núcleo `emitirNotaCreditoEmTx` (D 711 / D 44331 / C 411).
+ *  3. Entrada de stock do devolvido; Venda de substituição; baixa de stock do substituto.
+ *  4. Factura-Recibo (série FATURA_RECIBO, PAGA) pelo núcleo `emitirDocumentoEmTx`, com o
+ *     lançamento de `construirLancamentoVendaPOS`, ligada à venda nos dois sentidos.
+ *  5. Compensação NC ↔ FR: o crédito da NC paga a FR até ao valor dela — é um pagamento
+ *     CREDITO (D 411) no lançamento da FR, que anula o C 411 da NC; a NC fica LIQUIDADA por
+ *     COMPENSACAO. Os `pagamentos` do input são só a diferença que o cliente paga; se o
+ *     substituto vale menos, o excesso da NC devolve-se em dinheiro (D 411 / C 111 na liquidação
+ *     + MovimentoCaixa DEVOLUCAO). Efeito líquido: 411 a zero, caixa/banco = diferença.
+ *  6. Caixa: só a parte em DINHEIRO entra na gaveta (MovimentoCaixa VENDA).
+ *  7. Devolução PROCESSADA com `notaCreditoId`; Troca criada.
  */
 import 'server-only';
 
@@ -19,10 +26,13 @@ import { prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx } from '@/server/services/types';
 import type { IStockService } from '@/server/services/inventario/stock.interface';
-import type { ICaixaService } from '@/server/services/financas/caixa.interface';
-import type { IFaturacaoService } from '@/server/services/financas/faturacao.interface';
-import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
+import type { ICaixaService, IFaturacaoService, IMeioPagamentoPOSService } from '@/server/services/financas';
+import { exigirEmailConfirmadoParaEmitir } from '@/server/services/financas';
+import { TRANSICOES_DEVOLUCAO } from '@/lib/state-machines';
+import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 import type { CreateTrocaInput } from '@/lib/validations/vendas';
+import { lerDevolucaoTrancada, notaCreditoDaDevolucaoEmTx } from './devolucao.service';
+import { linhaDocumentoFiscal } from './venda.service';
 
 // ---------------------------------------------------------------------------
 // Tipos de retorno
@@ -57,74 +67,108 @@ export class TrocaService {
   constructor(
     private readonly stockService: Pick<IStockService, 'entradaStock' | 'baixarStock'>,
     private readonly caixaService: Pick<ICaixaService, 'registarMovimentoCaixa'>,
-    private readonly faturacaoService: Pick<IFaturacaoService, 'emitirNotaCredito'>,
+    private readonly faturacaoService: Pick<
+      IFaturacaoService,
+      'proximoNumeroSerie' | 'emitirNotaCreditoEmTx' | 'liquidarNotaCreditoEmTx' | 'emitirDocumentoEmTx' | 'construirLancamentoVendaPOS'
+    >,
+    private readonly meioPagamentoPOSService: IMeioPagamentoPOSService,
   ) {}
 
   /**
-   * Criar troca:
+   * Cria a troca (ADR-0041 §8, «Troca — como a NC paga a nova Factura-Recibo»): NC da devolução,
+   * venda de substituição com Factura-Recibo e compensação NC ↔ FR numa só transacção.
    *
-   * 0. [Se faturaId + serieNotaCreditoId]: emitir NC da devolução (tx própria)
-   * 1. prismaBase.$transaction:
-   *    a. entradaStock do artigo devolvido (contrato A)
-   *    b. Criar Venda do artigo substituto (nova numeração)
-   *    c. baixarStock do artigo substituto (contrato A)
-   *    d. Acerto de caixa se diferença != 0 (contrato D caixa)
-   *    e. Marcar devolucao como PROCESSADA + notaCreditoId se emitida
-   *    f. Criar Troca
+   * Compensação: o crédito da NC paga a FR até ao total dela — D 411 no lançamento da FR (como um
+   * meio CREDITO) e a NC liquidada por COMPENSACAO, sem lançamento próprio. `input.pagamentos` é só
+   * o que muda de mãos: Σ pagamentos = total da FR − compensado (senão PAGAMENTOS_NAO_BATEM_TOTAL).
+   * Substituto mais barato: o excedente da NC devolve-se em numerário (D 411 / C 111 no lançamento
+   * de liquidação + MovimentoCaixa DEVOLUCAO) — a única parte da compensação com lançamento.
+   * A venda de substituição não se anula pelo POS (VENDA_DE_TROCA em `vendaService.anular`).
+   *
+   * Recusa sem escrever: TRANSICAO_INVALIDA (devolução não APROVADA), TROCA_SEM_FATURA,
+   * SERIE_NC_OBRIGATORIA, NC_JA_LIQUIDADA, PAGAMENTOS_NAO_BATEM_TOTAL, TROCA_SEM_CREDITO,
+   * SESSAO_CAIXA_NECESSARIA, e as dos núcleos (NC_EXCEDE_FATURA, PERIODO_FECHADO…).
    */
   async criar(input: CreateTrocaInput, ctx: Ctx): Promise<TrocaRow> {
-    const devolucao = await prismaBase.devolucao.findFirst({
-      where: { id: input.devolucaoId, tenantId: ctx.tenantId },
-      include: { itens: true },
-    });
-    if (!devolucao) throw new NotFoundError('Devolução não encontrada');
+    // Emite documentos fiscais: o travão de e-mail é de quem tem sessão (os núcleos não o aplicam).
+    await exigirEmailConfirmadoParaEmitir();
 
-    if (devolucao.status !== 'APROVADA') {
-      throw new BusinessRuleError(
-        'DEVOLUCAO_INVALIDA',
-        'Troca só pode ser criada a partir de uma devolução aprovada.',
-      );
-    }
-
-    // 0. Emitir NC dos bens devolvidos — MAJOR 5 (tx própria, antes do $tx principal)
-    //    Guard: se fatura presente, serieNotaCreditoId é obrigatório (consistente com BLOCKER 3).
-    if (devolucao.faturaId && !input.serieNotaCreditoId) {
-      throw new BusinessRuleError(
-        'SERIE_NC_OBRIGATORIA',
-        'Esta devolução está associada a uma fatura. É obrigatório fornecer uma série de nota de crédito para a troca.',
-      );
-    }
-
-    // Idempotência: reutilizar NC já emitida se existir (evita duplo estorno)
-    let notaCreditoId: string | null = (devolucao.notaCreditoId as string | null) ?? null;
-
-    if (devolucao.faturaId && input.serieNotaCreditoId && !notaCreditoId) {
-      const nc = await this.faturacaoService.emitirNotaCredito(
-        {
-          faturaOriginalId: devolucao.faturaId,
-          motivo: `Troca — devolução ${devolucao.numero}`,
-          moeda: 'MZN',
-          dataEmissao: new Date(),
-          linhas: devolucao.itens.map((item, idx) => ({
-            produtoId: item.produtoId,
-            descricao: item.nomeProduto,
-            quantidade: Number(item.quantidade),
-            precoUnitario: Number(item.valorUnitario),
-            desconto: 0,
-            taxaIva: Number(item.taxaIva),
-            ordemLinha: idx + 1,
-            subtotal: Number(item.subtotal),
-            ivaItem: Number(item.ivaItem),
-            total: Number(item.total),
-          })),
-        },
-        ctx,
-      );
-      notaCreditoId = nc.id;
-    }
+    const novoItem = input.novoItem;
+    const totais = calcularTotaisVendaPOS([
+      { quantidade: novoItem.quantidade, precoUnitario: novoItem.precoUnitario, desconto: novoItem.desconto ?? 0, taxaIva: novoItem.taxaIva ?? 0.16 },
+    ]);
+    const linha = totais.linhas[0];
+    const pagos = input.pagamentos.map((p) => ({ tipo: p.tipo, valor: new Prisma.Decimal(String(p.valor)) }));
 
     return prismaBase.$transaction(async (tx) => {
-      // a. Entrada de stock do artigo devolvido
+      const devolucao = await lerDevolucaoTrancada(tx, input.devolucaoId, ctx);
+      // Mesma regra do `processar`: a troca leva a devolução APROVADA → PROCESSADA.
+      const permitidas = TRANSICOES_DEVOLUCAO[devolucao.status] ?? [];
+      if (!permitidas.includes('PROCESSADA')) {
+        throw new BusinessRuleError(
+          'TRANSICAO_INVALIDA',
+          `Devolução: transição inválida ${devolucao.status} → PROCESSADA. A troca só se cria a partir de uma devolução aprovada.`,
+        );
+      }
+      if (!devolucao.faturaId) {
+        throw new BusinessRuleError(
+          'TROCA_SEM_FATURA',
+          `A devolução ${devolucao.numero} não está ligada a uma factura: sem nota de crédito não há crédito a abater na venda de substituição.`,
+        );
+      }
+      if (!input.serieNotaCreditoId) {
+        throw new BusinessRuleError(
+          'SERIE_NC_OBRIGATORIA',
+          'Esta devolução está associada a uma fatura. É obrigatório fornecer uma série de nota de crédito para a troca.',
+        );
+      }
+
+      const agora = new Date();
+
+      // 2. NC dos bens devolvidos (ou a que a devolução já traga, se ainda tiver crédito).
+      const nc = await notaCreditoDaDevolucaoEmTx(
+        this.faturacaoService,
+        tx,
+        devolucao,
+        `Troca — devolução ${devolucao.numero}`,
+        agora,
+        ctx,
+      );
+      if (!nc) throw new NotFoundError('Nota de crédito da devolução não encontrada');
+      if (nc.status !== 'EMITIDA') {
+        throw new BusinessRuleError(
+          'NC_JA_LIQUIDADA',
+          `A nota de crédito ${nc.numero} da devolução ${devolucao.numero} está ${nc.status}: já não tem crédito a abater na troca.`,
+        );
+      }
+
+      // 5. Compensação: o crédito da NC paga a FR até ao total dela; o resto é diferença.
+      const compensado = Prisma.Decimal.min(nc.total, totais.total);
+      const aDevolver = nc.total.minus(compensado);
+      const pagoPeloCliente = pagos.reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
+      const diferenca = totais.total.minus(compensado);
+      if (!pagoPeloCliente.equals(diferenca)) {
+        throw new BusinessRuleError(
+          'PAGAMENTOS_NAO_BATEM_TOTAL',
+          `A diferença a pagar na troca é ${diferenca.toFixed(2)} (substituto ${totais.total.toFixed(2)} − ` +
+            `crédito ${compensado.toFixed(2)}), mas os pagamentos somam ${pagoPeloCliente.toFixed(2)}.`,
+        );
+      }
+      if (pagos.some((p) => p.tipo === 'CREDITO')) {
+        throw new BusinessRuleError(
+          'TROCA_SEM_CREDITO',
+          'A diferença de uma troca paga-se no acto: a crédito, emita uma factura em Facturação.',
+        );
+      }
+      const dinheiro = pagos.filter((p) => p.tipo === 'DINHEIRO').reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
+      if ((dinheiro.greaterThan(0) || aDevolver.greaterThan(0)) && !input.sessaoCaixaId) {
+        throw new BusinessRuleError(
+          'SESSAO_CAIXA_NECESSARIA',
+          'Esta troca movimenta dinheiro: indique a sessão de caixa aberta.',
+        );
+      }
+
+      // 3a. Entrada de stock do artigo devolvido
       if (input.localizacaoId) {
         for (const item of devolucao.itens) {
           await this.stockService.entradaStock(
@@ -142,18 +186,8 @@ export class TrocaService {
         }
       }
 
-      // b. Calcular totais do artigo substituto
-      const novoItem = input.novoItem;
-      const qty = new Prisma.Decimal(novoItem.quantidade);
-      const preco = new Prisma.Decimal(novoItem.precoUnitario);
-      const desc = new Prisma.Decimal(novoItem.desconto ?? 0).div(100);
-      const taxa = new Prisma.Decimal(novoItem.taxaIva ?? 0.16);
-      const baseItem = qty.mul(preco).mul(new Prisma.Decimal(1).minus(desc));
-      const ivaItem = baseItem.mul(taxa);
-      const totalItem = baseItem.plus(ivaItem);
-
-      // Criar Venda de substituição
-      const numeroVenda = await proximoNumeroSerie(tx, 'VENDA', ctx, new Date());
+      // 3b. Venda de substituição — os totais saem do mesmo cálculo da Factura-Recibo.
+      const numeroVenda = await this.faturacaoService.proximoNumeroSerie(tx, 'VENDA', ctx, agora);
       const venda = await tx.venda.create({
         data: {
           tenantId: ctx.tenantId,
@@ -163,10 +197,11 @@ export class TrocaService {
           clienteId: devolucao.clienteId,
           vendedorId: ctx.userId,
           sessaoCaixaId: input.sessaoCaixaId ?? null,
-          subtotal: baseItem,
+          subtotal: totais.subtotal,
           descontoTotal: new Prisma.Decimal(0),
-          ivaTotal: ivaItem,
-          total: totalItem,
+          ivaTotal: totais.ivaTotal,
+          total: totais.total,
+          dataVenda: agora,
           observacoes: input.observacoes ?? `Troca referente a devolução ${devolucao.numero}`,
           itens: {
             create: [
@@ -176,29 +211,30 @@ export class TrocaService {
                 varianteId: novoItem.varianteId ?? null,
                 nomeProduto: novoItem.nomeProduto,
                 sku: novoItem.sku ?? null,
-                quantidade: qty,
-                precoUnitario: preco,
-                desconto: new Prisma.Decimal(novoItem.desconto ?? 0),
-                taxaIva: taxa,
-                subtotal: baseItem,
-                ivaItem,
-                total: totalItem,
+                quantidade: new Prisma.Decimal(String(novoItem.quantidade)),
+                precoUnitario: new Prisma.Decimal(String(novoItem.precoUnitario)),
+                desconto: new Prisma.Decimal(String(novoItem.desconto ?? 0)),
+                taxaIva: new Prisma.Decimal(String(novoItem.taxaIva ?? 0.16)),
+                subtotal: linha.subtotal,
+                ivaItem: linha.ivaItem,
+                total: linha.total,
               },
             ],
           },
+          // Só o dinheiro que o cliente entregou; o crédito compensado está na NC (via Troca).
           pagamentos: {
             create: input.pagamentos.map((p) => ({
               tenantId: ctx.tenantId,
-              tipo: p.tipo as 'DINHEIRO' | 'CARTAO' | 'TRANSFERENCIA' | 'MPESA' | 'EMOLA' | 'CREDITO',
-              valor: new Prisma.Decimal(p.valor),
+              tipo: p.tipo,
+              valor: new Prisma.Decimal(String(p.valor)),
               referencia: p.referencia ?? null,
-              troco: p.troco != null ? new Prisma.Decimal(p.troco) : null,
+              troco: p.troco != null ? new Prisma.Decimal(String(p.troco)) : null,
             })),
           },
         },
       });
 
-      // c. Baixar stock do artigo substituto
+      // 3c. Baixar stock do artigo substituto
       if (input.localizacaoId) {
         await this.stockService.baixarStock(
           tx,
@@ -214,22 +250,70 @@ export class TrocaService {
         );
       }
 
-      // d. Calcular diferença de valor (positivo = cliente deve; negativo = empresa deve)
-      const valorDevolvido = devolucao.valorTotal as Prisma.Decimal;
-      const diferenca = totalItem.minus(valorDevolvido);
+      // 4. Factura-Recibo do substituto: D meios da diferença + D 411 pelo crédito compensado.
+      const meios = compensado.greaterThan(0) ? [...pagos, { tipo: 'CREDITO' as const, valor: compensado }] : pagos;
+      const contas = await this.meioPagamentoPOSService.resolverContasPagamentoPOS(tx, ctx);
+      const fatura = await this.faturacaoService.emitirDocumentoEmTx(
+        tx,
+        {
+          clienteId: devolucao.clienteId,
+          vendaId: venda.id,
+          moeda: 'MZN',
+          dataEmissao: agora,
+          dataVencimento: agora,
+          observacoes: `Troca — devolução ${devolucao.numero}, nota de crédito ${nc.numero}`,
+          linhas: [
+            linhaDocumentoFiscal(
+              {
+                produtoId: novoItem.produtoId,
+                nomeProduto: novoItem.nomeProduto,
+                quantidade: novoItem.quantidade,
+                precoUnitario: novoItem.precoUnitario,
+                taxaIva: novoItem.taxaIva ?? 0.16,
+                ...linha,
+              },
+              0,
+            ),
+          ],
+        },
+        ctx,
+        {
+          tipoSerie: 'FATURA_RECIBO',
+          construirLancamento: (doc) => this.faturacaoService.construirLancamentoVendaPOS(doc, meios, contas),
+        },
+      );
+      await tx.venda.updateMany({ where: { id: venda.id, tenantId: ctx.tenantId }, data: { faturaId: fatura.id } });
 
-      // d2. Acerto de caixa se diferença != 0 e sessão de caixa fornecida
-      if (!diferenca.isZero() && input.sessaoCaixaId) {
-        const tipoMovimento = diferenca.isPositive() ? 'VENDA' : 'DEVOLUCAO';
+      // 5. Liquidação da NC: compensada na FR e, se o substituto vale menos, o resto em dinheiro.
+      await this.faturacaoService.liquidarNotaCreditoEmTx(
+        tx,
+        { notaCreditoId: nc.id, data: agora, numerario: aDevolver, compensado },
+        ctx,
+      );
+
+      // 6. Caixa: entra o dinheiro da diferença; sai o excesso do crédito devolvido.
+      if (input.sessaoCaixaId && dinheiro.greaterThan(0)) {
         await this.caixaService.registarMovimentoCaixa(
           tx,
           {
             sessaoCaixaId: input.sessaoCaixaId,
-            tipo: tipoMovimento,
-            valor: diferenca.abs(),
-            descricao: diferenca.isPositive()
-              ? `Troca: cliente pagou diferença`
-              : `Troca: reembolso de diferença ao cliente`,
+            tipo: 'VENDA',
+            valor: dinheiro,
+            descricao: `Troca: diferença paga pelo cliente (${fatura.numero})`,
+            documentoOrigemId: venda.id,
+            documentoOrigemTipo: 'Troca',
+          },
+          ctx,
+        );
+      }
+      if (input.sessaoCaixaId && aDevolver.greaterThan(0)) {
+        await this.caixaService.registarMovimentoCaixa(
+          tx,
+          {
+            sessaoCaixaId: input.sessaoCaixaId,
+            tipo: 'DEVOLUCAO',
+            valor: aDevolver,
+            descricao: `Troca: reembolso da diferença (NC ${nc.numero})`,
             documentoOrigemId: venda.id,
             documentoOrigemTipo: 'Troca',
           },
@@ -237,26 +321,25 @@ export class TrocaService {
         );
       }
 
-      // e. Marcar devolucao como PROCESSADA + notaCreditoId se emitida (MAJOR 5)
+      // 7. Devolução PROCESSADA com a NC; Troca.
       await tx.devolucao.update({
         where: { id: devolucao.id },
         data: {
           status: 'PROCESSADA',
           processadoPorId: ctx.userId,
-          processadoEm: new Date(),
-          ...(notaCreditoId && { notaCreditoId }),
+          processadoEm: agora,
+          notaCreditoId: nc.id,
         },
       });
 
-      // f. Criar Troca
-      const numeroTroca = `TRC-${Date.now()}`;
       const troca = await tx.troca.create({
         data: {
           tenantId: ctx.tenantId,
-          numero: numeroTroca,
+          numero: `TRC-${Date.now()}`,
           devolucaoId: devolucao.id,
           vendaSubstituicaoId: venda.id,
-          diferenca,
+          // positiva = cliente pagou; negativa = crédito devolvido ao cliente
+          diferenca: totais.total.minus(nc.total),
           observacoes: input.observacoes ?? null,
         },
       });
@@ -294,6 +377,14 @@ export class TrocaService {
       createdAt: troca.createdAt,
       updatedAt: troca.updatedAt,
     };
+  }
+
+  /** A troca cuja venda de substituição é `vendaId`, se houver (ADR-0041 §8: essa venda não se anula pelo POS). */
+  async trocaDaVenda(vendaId: string, ctx: Ctx): Promise<{ numero: string } | null> {
+    return prismaBase.troca.findFirst({
+      where: { tenantId: ctx.tenantId, vendaSubstituicaoId: vendaId },
+      select: { numero: true },
+    });
   }
 
   async listar(

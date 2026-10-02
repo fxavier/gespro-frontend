@@ -21,7 +21,7 @@ import { AcoesNotaCredito } from './_components/acoes-nota-credito';
 
 const ROTULO_FORMA_LIQUIDACAO = {
   DEVOLUCAO: 'Devolução ao cliente',
-  COMPENSACAO: 'Compensação na factura original',
+  COMPENSACAO: 'Compensação na factura original ou no documento da troca',
 } as const;
 
 interface Props {
@@ -117,8 +117,9 @@ export default async function NotaCreditoDetalhePage({ params }: Props) {
             </Campo>
           ) : nc.formaLiquidacao === 'COMPENSACAO' ? (
             <p className="text-muted-foreground">
-              Sem lançamento próprio: o crédito abateu ao saldo da factura original, e a conta de
-              clientes já tinha sido creditada na emissão da nota.
+              Sem lançamento próprio: o crédito abateu à factura original ou ao documento da troca,
+              e a conta de clientes já tinha sido creditada na emissão da nota. Só a parte devolvida
+              em numerário teria lançamento.
             </p>
           ) : null}
         </div>

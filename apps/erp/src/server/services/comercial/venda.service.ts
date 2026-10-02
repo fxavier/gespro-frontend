@@ -229,9 +229,10 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Linha do documento fiscal a partir de uma linha da venda — a MESMA derivação na Factura-Recibo
- * (criar) e na nota de crédito da anulação, para a NC creditar exactamente as linhas da factura.
+ * (criar), na nota de crédito da anulação e na Factura-Recibo da troca (TrocaService), para a NC
+ * creditar exactamente as linhas da factura.
  */
-function _linhaDocumento(
+export function linhaDocumentoFiscal(
   l: {
     produtoId: string;
     nomeProduto: string;
@@ -651,7 +652,7 @@ export class VendaService implements IVendaService {
           ? new Date(dataVenda.getTime() + clienteCredito.diasPagamento * DIA_MS)
           : dataVenda,
         linhas: itensTotais.map(({ item, subtotal, ivaItem, total }, i) =>
-          _linhaDocumento({ ...item, subtotal, ivaItem, total }, i),
+          linhaDocumentoFiscal({ ...item, subtotal, ivaItem, total }, i),
         ),
       },
       ctx,
@@ -798,6 +799,19 @@ export class VendaService implements IVendaService {
       if (venda.status === 'CANCELADA') {
         throw new BusinessRuleError('VENDA_JA_ANULADA', `A venda ${venda.numero} já está anulada.`);
       }
+      // A venda de substituição de uma troca foi paga em parte pelo crédito da NC da devolução
+      // (COMPENSACAO, ADR-0041 §8): devolvê-la «pelos meios originais» devolveria em dinheiro o
+      // que o cliente pagou com crédito. Corrige-se em Facturação, por nota de crédito.
+      const troca = await tx.troca.findFirst({
+        where: { tenantId: ctx.tenantId, vendaSubstituicaoId: venda.id },
+        select: { numero: true },
+      });
+      if (troca) {
+        throw new BusinessRuleError(
+          'VENDA_DE_TROCA',
+          `A venda ${venda.numero} é a venda de troca ${troca.numero}: corrija em Facturação, por nota de crédito.`,
+        );
+      }
       if (venda.origem !== 'POS' || !venda.faturaId) {
         throw new BusinessRuleError(
           'VENDA_SEM_DOCUMENTO',
@@ -837,7 +851,7 @@ export class VendaService implements IVendaService {
           moeda: venda.currency,
           dataEmissao: agora,
           linhas: venda.itens.map((i, k) =>
-            _linhaDocumento(
+            linhaDocumentoFiscal(
               {
                 produtoId: i.produtoId,
                 nomeProduto: i.nomeProduto,

@@ -106,6 +106,18 @@ pelo núcleo em transacção (`emitirNotaCreditoEmTx`) com o estorno contabilís
 liquidação da NC por devolução. A troca emite nova Factura-Recibo pelo mesmo caminho da venda. O fecho de
 sessão não gera lançamentos.
 
+**Troca — como a NC paga a nova Factura-Recibo.** A NC da devolução (C 411) paga o documento de substituição
+até ao seu valor: a Factura-Recibo leva uma partida D 411 pelo valor compensado (como um meio `CREDITO`) e a NC
+liquida-se por `COMPENSACAO` por esse valor. Os `PagamentoVenda` da venda de substituição registam **só** o
+dinheiro/banco que mudou de mãos (a diferença); a ligação ao crédito faz-se por `Troca → Devolucao → NotaCredito`,
+por isso `Σ PagamentoVenda = total − compensado` nessa venda. Se o substituto for mais barato, o excedente
+devolve-se em numerário (D 411 / C 111 + `MovimentoCaixa` DEVOLUCAO) no mesmo lançamento de liquidação. A venda
+de troca não se anula pelo POS (`VENDA_DE_TROCA`): corrige-se em Facturação, por NC.
+
+**Devolução — reembolso.** Com sessão de caixa, o reembolso sai da gaveta (D 411 / C 111) e a NC fica
+liquidada. Sem sessão de caixa a NC fica `EMITIDA` e liquida-se depois em Facturação, por exemplo por banco.
+A anulação POS (acima) devolve pelos meios originais; a devolução, pelo que fisicamente sai.
+
 ### 9. Fora de âmbito (issues próprias)
 
 - **Custo das vendas** (D 611 / C inventário) e a conta folha de mercadorias em armazém (D4): sem custo de

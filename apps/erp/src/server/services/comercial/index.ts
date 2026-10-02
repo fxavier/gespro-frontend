@@ -51,8 +51,10 @@ export const devolucaoService = new DevolucaoService(
   caixaService,
 );
 
-// TrocaService agora recebe faturacaoService para emitir NC (MAJOR 5)
-export const trocaService = new TrocaService(stockService, caixaService, faturacaoService);
+// TrocaService: NC + Factura-Recibo da troca pelos núcleos em tx (ADR-0041 §8)
+export const trocaService = new TrocaService(stockService, caixaService, faturacaoService, {
+  resolverContasPagamentoPOS,
+});
 
 // Re-exportar os singletons que já existem nos ficheiros individuais
 export { clienteService } from './cliente.service';

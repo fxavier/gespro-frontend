@@ -289,7 +289,7 @@ export interface IVendaService {
    * pelos meios originais (`devolverNotaCreditoPelosMeiosOriginaisEmTx`), MovimentoCaixa
    * DEVOLUCAO pela parte em dinheiro na sessão de caixa da venda, reentrada de stock por item e
    * venda CANCELADA. A factura original e o seu lançamento ficam intactos.
-   * Recusa sem escrever: MOTIVO_OBRIGATORIO, VENDA_JA_ANULADA, VENDA_SEM_DOCUMENTO,
+   * Recusa sem escrever: MOTIVO_OBRIGATORIO, VENDA_JA_ANULADA, VENDA_DE_TROCA, VENDA_SEM_DOCUMENTO,
    * VENDA_A_CREDITO_NAO_ANULAVEL, VENDA_NAO_ANULAVEL, VENDA_COM_NOTA_CREDITO, PERIODO_FECHADO,
    * SESSAO_CAIXA_FECHADA. Permissões: da action, não do serviço.
    */

@@ -10,14 +10,20 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { vendaService } from '@/server/services/comercial/index';
+import { trocaService, vendaService } from '@/server/services/comercial/index';
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { AnularVendaForm } from './_components/anular-venda-form';
 
-function razaoParaNaoAnular(venda: { origem: string; status: string; faturaId: string | null }): string | null {
+function razaoParaNaoAnular(
+  venda: { origem: string; status: string; faturaId: string | null },
+  troca: { numero: string } | null,
+): string | null {
   if (venda.status === 'CANCELADA') return 'Esta venda já está anulada.';
+  if (troca) {
+    return `Esta é a venda de troca ${troca.numero}: não se anula pelo POS. Corrija em Facturação, por nota de crédito.`;
+  }
   if (venda.origem !== 'POS' || !venda.faturaId) {
     return 'Esta venda não tem documento fiscal de venda POS: não há nota de crédito a emitir.';
   }
@@ -44,7 +50,8 @@ export default async function AnularVendaPage({ params }: { params: Promise<{ id
   if (!venda) notFound();
 
   const detalhe = `/vendas/${venda.id}`;
-  const razao = razaoParaNaoAnular(venda);
+  const troca = await runWithTenantContext(ctx, () => trocaService.trocaDaVenda(venda.id, ctx));
+  const razao = razaoParaNaoAnular(venda, troca);
   const dinheiro = (venda.pagamentos ?? [])
     .filter((p) => p.tipo === 'DINHEIRO')
     .reduce((a, p) => a + parseFloat(p.valor), 0);
