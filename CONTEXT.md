@@ -214,3 +214,27 @@ Um saldo **contra natureza** (ex.: Caixa credora) é assinalado, não recusado.
 Conta de nível 2 do PGC-NIRF (dois dígitos, ex.: `11` Caixa, `12` Bancos). O filtro «ver apenas
 contas de razão» do balancete mostra só este nível.
 
+
+## Vendas e facturação
+
+### Venda POS
+A venda feita ao balcão, dentro de uma sessão POS sobre uma sessão de caixa aberta. Emite **sempre** um
+documento fiscal na mesma transacção ([[Factura-Recibo]] se paga no acto, [[Factura]] se a crédito) e esse
+documento lança na contabilidade. **Não é** o talão: o talão é a impressão não fiscal da venda.
+
+### Factura
+Documento fiscal de venda (`Fatura`, série `FATURA`): reconhece a dívida do cliente em 411. Nasce emitida
+e fica por pagar. Corrige-se por nota de crédito ou de débito, nunca por alteração.
+
+### Factura-Recibo
+[[Factura]] paga no acto (`Fatura` na série `FATURA_RECIBO`): documento e recibo num só. Nasce paga; o
+débito vai ao meio de pagamento (111, banco, carteira móvel), não a 411. **Não é** a venda a dinheiro
+nem o talão.
+
+### Consumidor Final
+O cliente técnico de cada tenant (`CF-000000`) contra o qual se factura uma venda POS sem cliente
+identificado. **Não é** um cliente real: não tem crédito, e uma venda a crédito exige cliente identificado.
+
+### Pagamento da venda
+Uma linha de `PagamentoVenda`: o meio (dinheiro, cartão, transferência, M-Pesa, e-Mola, crédito) e o valor
+**aplicado à venda**. O troco é informativo e não é receita; só a parte em dinheiro entra na gaveta.
