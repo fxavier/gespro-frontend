@@ -151,7 +151,7 @@ enum StatusFatura {
 
 enum FormaLiquidacaoNC {
   DEVOLUCAO   // dinheiro devolvido ao cliente (caixa ou banco) — lançamento 411 → meio
-  COMPENSACAO // abatido ao saldo em aberto da factura original — sem lançamento
+  COMPENSACAO // abatido à factura original ou ao documento da troca (ADR-0041 §8) — sem lançamento próprio, salvo a parte devolvida em numerário
 }
 
 enum StatusNotaCredito {

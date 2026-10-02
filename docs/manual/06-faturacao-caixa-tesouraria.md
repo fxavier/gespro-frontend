@@ -85,7 +85,7 @@ Para um ano novo, as séries são criadas quando se **abre o exercício contabil
 
 <!-- captura: 06-faturacao-caixa-tesouraria/series.png | /faturacao/series -->
 
-Em **Faturação › Séries de documento** (`/faturacao/series`) vê as séries dos seis documentos de faturação — Factura, Nota de Crédito, Nota de Débito, Factura Pró-forma, Cotação e Recibo — com o **próximo número** que cada uma vai emitir, o estado (**Activa**/**Inactiva**) e quantos documentos já numerou. Por omissão mostra o ano corrente; filtre por tipo, ano ou estado.
+Em **Faturação › Séries de documento** (`/faturacao/series`) vê as séries dos sete documentos de faturação — Factura, Nota de Crédito, Nota de Débito, Factura Pró-forma, Cotação, Recibo e Factura-Recibo (`FR`, a das vendas POS pagas) — com o **próximo número** que cada uma vai emitir, o estado (**Activa**/**Inactiva**) e quantos documentos já numerou. Por omissão mostra o ano corrente; filtre por tipo, ano ou estado.
 
 **Quem pode:** todos os que vêem a faturação consultam a lista. Criar, editar, activar, desactivar e eliminar exige a permissão *Configurar séries de faturação* (por omissão, Administrador e Financeiro).
 
@@ -267,7 +267,9 @@ Aparece «Caixa aberto com sucesso!». É criada uma sessão **Aberta** com o n�
 O POS trabalha sempre sobre o caixa aberto do utilizador:
 
 - Se abrir o **POS** sem ter o caixa aberto, o sistema leva-o para **Abertura de Caixa** e, depois de abrir, volta ao POS.
-- Cada venda finalizada no POS regista na sessão um movimento **Venda** com o total da venda.
+- Cada venda finalizada no POS regista na sessão um movimento **Venda** só pela parte paga em **dinheiro**; cartão,
+  M-Pesa, e-Mola, transferência e crédito não passam pela gaveta (entram na contabilidade pelo documento da venda).
+- **Anular venda** devolve a parte em dinheiro pela sessão de caixa onde a venda foi feita, que tem de estar aberta.
 - Uma devolução com reembolso feita com o caixa aberto regista um movimento **Devolução** (saída).
 
 Veja o funcionamento do POS em [Vendas e POS](04-vendas-e-pos.md).

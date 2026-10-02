@@ -610,6 +610,16 @@ export interface IFaturacaoService {
 
   // --- Notas de crédito ---
   emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx): Promise<NotaCreditoCompleta>;
+  /**
+   * Núcleo da emissão da NC (ADR-0041 §8), na transacção do chamador e sem consultar a sessão.
+   * Contrato publicado para WS C (anulação da venda POS, devolução, troca). Tranca a factura e
+   * recusa creditar além do total dela (NC_EXCEDE_FATURA: Σ NC não canceladas + esta > total).
+   */
+  emitirNotaCreditoEmTx(
+    tx: Prisma.TransactionClient,
+    input: EmitirNotaCreditoInput,
+    ctx: Ctx,
+  ): Promise<NotaCreditoCompleta>;
   obterNotaCredito(id: string, ctx: Ctx): Promise<NotaCreditoCompleta | null>;
   listarNotasCredito(
     filtro: FiltroNotaCreditoInput,
@@ -617,7 +627,9 @@ export interface IFaturacaoService {
   ): Promise<PaginacaoFaturacao<NotaCreditoCompleta>>;
   /**
    * #148 — liquidação total. DEVOLUCAO: lançamento 411 → meio (e movimento de caixa em
-   * numerário); COMPENSACAO: abate ao `totalPago` da factura original, sem lançamento.
+   * numerário); COMPENSACAO: abate ao `totalPago` da factura original, sem lançamento. Na troca
+   * (ADR-0041 §8) o crédito abate ao documento da troca e a COMPENSACAO não tem lançamento próprio,
+   * salvo a parte devolvida em numerário (D 411 / C 111).
    * Recusa: NC_COMPENSACAO_EXCEDE_SALDO, FATURA_NAO_COMPENSAVEL, MEIO_PAGAMENTO_SEM_PERMISSAO
    * (DEVOLUCAO: NUMERARIO exige `caixa:operar`, as outras formas `financas:banca:escrita`;
    * sem `permissions` no ctx, recusa), transição inválida. Movimento de caixa: DEVOLUCAO.
@@ -625,6 +637,28 @@ export interface IFaturacaoService {
   liquidarNotaCredito(
     input: LiquidarNotaCreditoInput,
     ctx: Ctx & { permissions?: ReadonlySet<string> },
+  ): Promise<NotaCredito>;
+  /**
+   * ADR-0041 §8 — liquida por DEVOLUCAO, na transacção do chamador, a NC que credita a factura
+   * inteira: D 411 total / C nas contas debitadas pelo lançamento da factura, pelos mesmos
+   * valores. Sem movimento de caixa (é do chamador) e sem `ctx.permissions` (são da action).
+   * Recusa: NC_DEVOLUCAO_PARCIAL, NC_DOCUMENTO_A_CREDITO, DOCUMENTO_SEM_LANCAMENTO, transição inválida.
+   */
+  devolverNotaCreditoPelosMeiosOriginaisEmTx(
+    tx: Prisma.TransactionClient,
+    input: { notaCreditoId: string; data: Date },
+    ctx: Ctx,
+  ): Promise<NotaCredito>;
+  /**
+   * ADR-0041 §8 — liquidação total, na transacção do chamador, da NC de uma devolução ou troca
+   * de balcão: `numerario` (D 411 / C 111; o movimento de caixa é do chamador) + `compensado`
+   * (abatido à nova Factura-Recibo da troca, sem lançamento) = total da NC.
+   * Recusa: NC_LIQUIDACAO_INCOMPLETA, transição inválida.
+   */
+  liquidarNotaCreditoEmTx(
+    tx: Prisma.TransactionClient,
+    input: { notaCreditoId: string; data: Date; numerario: Prisma.Decimal; compensado: Prisma.Decimal },
+    ctx: Ctx,
   ): Promise<NotaCredito>;
   /** #148 — estorna o lançamento da NC na mesma transacção; PERIODO_FECHADO sem escrita. */
   cancelarNotaCredito(id: string, motivo: string, ctx: Ctx): Promise<NotaCredito>;

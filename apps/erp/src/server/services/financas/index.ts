@@ -47,6 +47,7 @@ export type {
 // Conta a débito por meio de pagamento do POS (ADR-0041 §4 — WS C)
 // ---------------------------------------------------------------------------
 export type { IMeioPagamentoPOSService } from './meio-pagamento.service';
+export { resolverContasPagamentoPOS } from './meio-pagamento.service';
 
 // ---------------------------------------------------------------------------
 // Tipos de faturação + numeração (fonte única para WS A, B, C, E, F)
@@ -96,3 +97,6 @@ export { proximoNumeroSerie } from './faturacao.service';
 export { exigirEmailConfirmadoParaEmitir } from './faturacao.service';
 export { exigirPeriodoAbertoEm } from './contabilidade.service';
 export { exigirSessaoCaixaAbertaDoUtilizador } from './caixa.service';
+
+// Leitura publicada de um documento (ex.: o detalhe da venda mostra o documento fiscal que a emitiu).
+export { obterFatura } from './faturacao.service';

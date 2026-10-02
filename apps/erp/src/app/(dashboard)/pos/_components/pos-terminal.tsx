@@ -296,6 +296,8 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
         setCarrinho([]);
         setValorRecebido('');
         setClienteId('');
+        // O crédito é excepção: a venda seguinte volta a dinheiro, não herda o cliente nem o meio.
+        if (metodoPagamento === 'CREDITO') setMetodoPagamento('DINHEIRO');
         setEtapa('carrinho');
         setBusca('');
         searchRef.current?.focus();
@@ -570,6 +572,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
                     procurar={procurarClientesCredito}
                     value={clienteId}
                     onChange={setClienteId}
+                    disabled={pending}
                     placeholder="Seleccione o cliente"
                     searchPlaceholder="Pesquisar por código, nome ou NUIT…"
                     emptyText="Escreva para pesquisar clientes."

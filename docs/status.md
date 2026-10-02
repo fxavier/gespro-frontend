@@ -9,6 +9,24 @@ ADR-0023 §2–3 executado: `docs/README.md` é o ponto de entrada; `docs/sistem
 *last-mile* (serviço sem ecrã) e estado sem escritor; as 128 lacunas foram abertas como issues
 (`needs-triage` + `gravidade:A|M|B`); as 24 de gravidade **A**: #76, #77, #78, #79, #80, #81, #82, #83, #84, #85, #86, #87, #88, #89, #90, #91, #92, #93, #94, #95, #96, #97, #98, #99.
 
+## 🧾 Venda POS com documento fiscal (ADR-0041 · PRD #304) — S1–S9 entregues (2026-10-02)
+
+Ramo da run `pos-documento-fiscal`. A venda POS emite **Factura-Recibo** (paga) ou **Factura** (a crédito) e lança
+D meio / C 711 / C 44331 na transacção da venda; «Anular venda» emite NC total com devolução pelos meios originais,
+saída de caixa e reentrada de stock; contas dos meios em `/contabilidade/configuracoes/meios-pagamento-pos`. Fecha,
+no código, as lacunas A #82, #83 e #84 (issues por fechar no merge). S9 ([#313](https://github.com/fxavier/gespro-frontend/issues/313)): prova ponta-a-ponta (integração IVA/balancete/DFC e E2E `27-pos-documento-fiscal`).
+
+**Dívida declarada** (detalhe em [`sistema/08-lacunas-conhecidas.md`](sistema/08-lacunas-conhecidas.md)):
+[#317](https://github.com/fxavier/gespro-frontend/issues/317) (crédito a cliente suspenso/inactivo pela API), [#318](https://github.com/fxavier/gespro-frontend/issues/318) (limite de crédito não aplicado),
+[#322](https://github.com/fxavier/gespro-frontend/issues/322) (anular venda a crédito/mista), custo das vendas por lançar (ADR-0041 §9), `processarDevolucao` e
+`criarTroca` sem ecrã, número de troca inventado (`TRC-<timestamp>`), vendas POS anteriores ao ADR-0041 sem documento ([#335](https://github.com/fxavier/gespro-frontend/issues/335)). Outros follow-ups da run: #325–#334, #336, #337 ([HUMANO] confirmação legal).
+
+**Desempenho por medir** ([#338](https://github.com/fxavier/gespro-frontend/issues/338)): o k6 `pos-venda` antes/depois (critério da #313) **não correu** — os utilizadores de carga
+não estão no realm Keycloak local (falta o `partialImport` de `infra/keycloak/perf-users.json`, passo do
+`.github/workflows/perf.yml`) e o `perf/.generated/seed-manifest.json` é anterior à #240 (senha por omissão; re-correr
+`pnpm db:seed:volume`). Os dois passos ficam para um humano; o método está preparado (antes = `f398dac`, depois = a
+cabeça desta run; 5 corridas `PROFILE=baseline VUS=10 DURATION=60s`; SLO p95 < 1500 ms).
+
 ## 💧 Demonstração de Fluxos de Caixa (spec 22 · WS-2 · issue #153) — entregue, à espera do parecer (2026-09-26)
 
 Grafo [`.claude/grafos/dfc.md`](../.claude/grafos/dfc.md), ramo `ws-2-dfc` (worktree `wt/feat-dfc`), sob o

@@ -24,6 +24,8 @@ import type { StatusVenda } from '@/server/services/comercial/venda.interface';
 interface VendaAcoesProps {
   id: string;
   status: string;
+  /** Com documento fiscal a venda só se desfaz por nota de crédito (ADR-0041 §8): sem «Cancelar». */
+  faturaId?: string | null;
   modoCompacto?: boolean;
 }
 
@@ -31,7 +33,7 @@ interface VendaAcoesProps {
  * Acções de estado de uma venda.
  * Padrão canónico: useTransition + AlertDialog para acções destrutivas.
  */
-export function VendaAcoes({ id, status, modoCompacto = false }: VendaAcoesProps) {
+export function VendaAcoes({ id, status, faturaId = null, modoCompacto = false }: VendaAcoesProps) {
   const router = useRouter();
   const [confirmarPending, startConfirmar] = useTransition();
   const [cancelarPending, startCancelar] = useTransition();
@@ -39,7 +41,7 @@ export function VendaAcoes({ id, status, modoCompacto = false }: VendaAcoesProps
   const [dialogAberto, setDialogAberto] = useState(false);
 
   const podeConfirmar = status === 'PENDENTE' || status === 'RASCUNHO';
-  const podeCancelar = !['CANCELADA', 'CONCLUIDA', 'DEVOLVIDA'].includes(status);
+  const podeCancelar = !faturaId && !['CANCELADA', 'CONCLUIDA', 'DEVOLVIDA'].includes(status);
 
   const handleConfirmar = () => {
     startConfirmar(async () => {

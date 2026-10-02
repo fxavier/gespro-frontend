@@ -992,6 +992,9 @@ export async function emitirNotaCreditoEmTx(
   input: EmitirNotaCreditoInput,
   ctx: Ctx,
 ): Promise<NotaCreditoCompleta> {
+  // Tranca a factura ANTES de a ler: o estado e o crédito já concedido que decidem vêm da
+  // leitura trancada, e outra NC sobre a mesma factura espera pelo commit desta.
+  await trancarLinha(tx, 'Fatura', input.faturaOriginalId, ctx.tenantId);
   const faturaOriginal = await tx.fatura.findFirst({
     where: { id: input.faturaOriginalId, tenantId: ctx.tenantId },
   });
@@ -1000,14 +1003,35 @@ export async function emitirNotaCreditoEmTx(
     throw new BusinessRuleError('FATURA_CANCELADA', 'Não é possível emitir NC para factura cancelada');
   }
 
-  const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_CREDITO', ctx, input.dataEmissao);
-
   let subtotal = new Prisma.Decimal(0);
   let ivaTotal = new Prisma.Decimal(0);
   for (const l of input.linhas) {
     subtotal = subtotal.plus(new Prisma.Decimal(l.subtotal.toFixed(2)));
     ivaTotal = ivaTotal.plus(new Prisma.Decimal(l.ivaItem.toFixed(2)));
   }
+
+  // Nunca se credita mais do que a factura: Σ NC não canceladas + esta ≤ total. Com a factura
+  // trancada acima, duas NC concorrentes não passam ambas esta verificação (ADR-0041 §8).
+  const [credito] = await tx.$queryRaw<Array<{ excede: boolean; total: Prisma.Decimal; creditado: Prisma.Decimal }>>(
+    Prisma.sql`SELECT f.total,
+                      COALESCE(SUM(nc.total), 0) AS creditado,
+                      COALESCE(SUM(nc.total), 0) + ${subtotal.plus(ivaTotal).toFixed(2)}::numeric > f.total AS excede
+                 FROM "Fatura" f
+                 LEFT JOIN "NotaCredito" nc
+                   ON nc."faturaOriginalId" = f.id AND nc."tenantId" = f."tenantId" AND nc.status <> 'CANCELADA'
+                WHERE f.id = ${input.faturaOriginalId} AND f."tenantId" = ${ctx.tenantId}
+                GROUP BY f.id, f.total`,
+  );
+  if (credito?.excede === true) {
+    throw new BusinessRuleError(
+      'NC_EXCEDE_FATURA',
+      `A factura ${faturaOriginal.numero} (${new Prisma.Decimal(String(credito.total)).toFixed(2)}) já tem ` +
+        `${new Prisma.Decimal(String(credito.creditado)).toFixed(2)} creditados: uma nota de crédito de ` +
+        `${subtotal.plus(ivaTotal).toFixed(2)} excede o total.`,
+    );
+  }
+
+  const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_CREDITO', ctx, input.dataEmissao);
 
   const nc = await tx.notaCredito.create({
     data: {
@@ -1246,6 +1270,167 @@ export async function liquidarNotaCredito(
       },
     }) as unknown as NotaCredito;
   });
+}
+
+/**
+ * Liquidação por devolução de uma NC que credita o documento original INTEIRO, pelos mesmos
+ * meios com que ele foi recebido (ADR-0041 §8 — anulação da venda POS). Núcleo em transacção:
+ * corre na tx do chamador, não consulta a sessão nem `ctx.permissions` (a permissão é da action).
+ *
+ * Um só lançamento: D 411 pelo total / C em cada conta que o lançamento do documento original
+ * debitou, pelo mesmo valor — a devolução sai por onde a receita entrou. O movimento de caixa da
+ * parte em numerário NÃO é daqui: é do chamador, pelo contrato `registarMovimentoCaixa`, na
+ * sessão de caixa da venda (só ele sabe qual é).
+ *
+ * Venda mista (numerário + cartão/transferência): continua a ser UM só lançamento de liquidação,
+ * no diário CAIXA, que credita também a(s) conta(s) bancária(s) — não há um lançamento por meio
+ * nem um no diário de bancos.
+ *
+ * Recusa: NC não EMITIDA (transição), documento original sem lançamento, NC parcial
+ * (`NC_DEVOLUCAO_PARCIAL`) e documento com parte a crédito (`NC_DOCUMENTO_A_CREDITO` — a 411 do
+ * original não se «devolve»; isso é compensação).
+ */
+export async function devolverNotaCreditoPelosMeiosOriginaisEmTx(
+  tx: Prisma.TransactionClient,
+  input: { notaCreditoId: string; data: Date },
+  ctx: Ctx,
+): Promise<NotaCredito> {
+  await trancarLinha(tx, 'NotaCredito', input.notaCreditoId, ctx.tenantId);
+  const nc = await tx.notaCredito.findFirst({ where: { id: input.notaCreditoId, tenantId: ctx.tenantId } });
+  if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
+  transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
+
+  const fatura = await tx.fatura.findFirst({
+    where: { id: nc.faturaOriginalId, tenantId: ctx.tenantId },
+    select: { numero: true, total: true, lancamentoId: true },
+  });
+  if (!fatura) throw new NotFoundError('Factura original não encontrada');
+  if (!fatura.lancamentoId) {
+    throw new BusinessRuleError(
+      'DOCUMENTO_SEM_LANCAMENTO',
+      `A factura ${fatura.numero} não tem lançamento: não se sabe por que meios foi recebida.`,
+    );
+  }
+  const total = new Prisma.Decimal(String(nc.total));
+  if (!total.equals(new Prisma.Decimal(String(fatura.total)))) {
+    throw new BusinessRuleError(
+      'NC_DEVOLUCAO_PARCIAL',
+      `A nota de crédito ${nc.numero} não credita a factura ${fatura.numero} inteira: a devolução pelos meios originais só cobre o documento todo.`,
+    );
+  }
+
+  const debitos = await tx.partidaLancamento.findMany({
+    where: { lancamentoId: fatura.lancamentoId, tenantId: ctx.tenantId, tipo: 'DEBITO' },
+    select: { valor: true, conta: { select: { codigo: true } } },
+    orderBy: { id: 'asc' },
+  });
+  const porConta = new Map<string, Prisma.Decimal>();
+  for (const p of debitos) {
+    porConta.set(p.conta.codigo, (porConta.get(p.conta.codigo) ?? new Prisma.Decimal(0)).plus(p.valor));
+  }
+  if (porConta.has(PGC_FATURACAO.CLIENTES_CC)) {
+    throw new BusinessRuleError(
+      'NC_DOCUMENTO_A_CREDITO',
+      `A factura ${fatura.numero} tem parte a crédito: a nota de crédito liquida-se por compensação, não por devolução.`,
+    );
+  }
+
+  const valor = total.toFixed(2);
+  const descricao = `Devolução da nota de crédito ${nc.numero} (anulação de ${fatura.numero})`;
+  const lancamento = await registarLancamentoContabilistico(
+    tx,
+    {
+      data: input.data,
+      // Há sempre caixa ou banco do outro lado; com numerário, o diário é o de caixa.
+      diarioTipo: porConta.has(CONTA_MEIO_PAGAMENTO_POS.DINHEIRO) ? 'CAIXA' : 'BANCO',
+      origem: 'PAGAMENTO',
+      documentoOrigemId: nc.id,
+      documentoOrigemTipo: 'NotaCredito',
+      historico: descricao,
+      partidas: [
+        { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor },
+        ...[...porConta].map(([contaCodigo, v]) => ({ contaCodigo, tipo: 'CREDITO' as const, valor: v.toFixed(2) })),
+      ],
+    },
+    ctx,
+  );
+
+  return tx.notaCredito.update({
+    where: { id: nc.id },
+    data: {
+      status: 'LIQUIDADA',
+      formaLiquidacao: 'DEVOLUCAO',
+      dataLiquidacao: input.data,
+      lancamentoLiquidacaoId: lancamento.id,
+    },
+  }) as unknown as NotaCredito;
+}
+
+/**
+ * Liquidação TOTAL da NC emitida por uma devolução ou troca de balcão (ADR-0041 §8), na
+ * transacção do chamador — sem sessão e sem `ctx.permissions` (são da action). O valor da NC
+ * reparte-se em duas partes que têm de somar o total:
+ *
+ *   - `numerario`: dinheiro devolvido da gaveta → lançamento D 411 / C 111 (diário CAIXA). O
+ *     `MovimentoCaixa` é do chamador, na sessão de caixa que só ele conhece;
+ *   - `compensado`: crédito abatido ao documento da troca (a nova Factura-Recibo debita a 411
+ *     por esse valor no seu próprio lançamento) → sem lançamento aqui.
+ *
+ * `formaLiquidacao` é COMPENSACAO quando há parte compensada, senão DEVOLUCAO; o lançamento da
+ * parte em numerário, havendo, fica em `lancamentoLiquidacaoId`.
+ * Recusa: NC_LIQUIDACAO_INCOMPLETA (partes negativas ou que não somam o total), transição inválida.
+ */
+export async function liquidarNotaCreditoEmTx(
+  tx: Prisma.TransactionClient,
+  input: { notaCreditoId: string; data: Date; numerario: Prisma.Decimal; compensado: Prisma.Decimal },
+  ctx: Ctx,
+): Promise<NotaCredito> {
+  await trancarLinha(tx, 'NotaCredito', input.notaCreditoId, ctx.tenantId);
+  const nc = await tx.notaCredito.findFirst({ where: { id: input.notaCreditoId, tenantId: ctx.tenantId } });
+  if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
+  transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
+
+  const total = new Prisma.Decimal(String(nc.total));
+  const { numerario, compensado } = input;
+  if (numerario.isNegative() || compensado.isNegative() || !numerario.plus(compensado).equals(total)) {
+    throw new BusinessRuleError(
+      'NC_LIQUIDACAO_INCOMPLETA',
+      `A liquidação da nota de crédito ${nc.numero} (${numerario.toFixed(2)} em numerário + ` +
+        `${compensado.toFixed(2)} compensados) não cobre o total ${total.toFixed(2)}.`,
+    );
+  }
+
+  let lancamentoLiquidacaoId: string | null = null;
+  if (numerario.greaterThan(0)) {
+    const valor = numerario.toFixed(2);
+    const lancamento = await registarLancamentoContabilistico(
+      tx,
+      {
+        data: input.data,
+        diarioTipo: 'CAIXA',
+        origem: 'PAGAMENTO',
+        documentoOrigemId: nc.id,
+        documentoOrigemTipo: 'NotaCredito',
+        historico: `Devolução em numerário da nota de crédito ${nc.numero}`,
+        partidas: [
+          { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor },
+          { contaCodigo: CONTA_MEIO_PAGAMENTO_POS.DINHEIRO, tipo: 'CREDITO', valor },
+        ],
+      },
+      ctx,
+    );
+    lancamentoLiquidacaoId = lancamento.id;
+  }
+
+  return tx.notaCredito.update({
+    where: { id: nc.id },
+    data: {
+      status: 'LIQUIDADA',
+      formaLiquidacao: compensado.greaterThan(0) ? 'COMPENSACAO' : 'DEVOLUCAO',
+      dataLiquidacao: input.data,
+      lancamentoLiquidacaoId,
+    },
+  }) as unknown as NotaCredito;
 }
 
 /**
@@ -1839,9 +2024,12 @@ export const faturacaoService = {
   registarPagamento,
   marcarVencida,
   emitirNotaCredito,
+  emitirNotaCreditoEmTx,
   obterNotaCredito,
   listarNotasCredito,
   liquidarNotaCredito,
+  devolverNotaCreditoPelosMeiosOriginaisEmTx,
+  liquidarNotaCreditoEmTx,
   cancelarNotaCredito,
   emitirNotaDebito,
   obterNotaDebito,

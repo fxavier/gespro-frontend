@@ -57,6 +57,7 @@ Exercício 2026
 | Exercícios | `/contabilidade/exercicios` | Exercícios e os seus 13 períodos; fechar e reabrir períodos; abrir um exercício. |
 | Apuramento de IVA | `/contabilidade/iva` | Apurar, estornar e declarar o IVA de cada período; descarregar os mapas. |
 | Configurações | `/contabilidade/configuracoes` | Calendário de abertura automática do exercício e fecho automático de períodos. |
+| — (a partir de Configurações) | `/contabilidade/configuracoes/meios-pagamento-pos` | **Contas dos meios de pagamento do POS**: a conta bancária que cada venda POS debita, por meio de pagamento. |
 | *(atalho no Dashboard)* Centros de Custo | `/contabilidade/centros-custo` | Dimensão analítica. |
 | *(atalho no Dashboard)* DRE | `/contabilidade/dre` | Demonstração do Resultado do Exercício. |
 | *(botão em Reconciliação)* Contas Bancárias | `/contabilidade/contas-bancarias` | Contas bancárias e a conta PGC a que cada uma está ligada. |
@@ -368,6 +369,23 @@ O ecrã da conta tem os indicadores **Excepções**, **Sugestões**, **Em trâns
 
 > **Nota — conta por natureza de nota de débito:** a escolha da conta de rendimento a creditar por cada natureza de nota de débito (acerto de preço, juros de mora, penalização…) **ainda não está disponível** neste ecrã. Hoje, o lançamento de qualquer nota de débito debita 411 Clientes c/c e credita 711 Vendas (e 44331 IVA liquidado, se houver IVA), seja qual for a natureza.
 
+### Como configurar as contas dos meios de pagamento do POS
+
+Cada venda POS lança a débito a conta do meio com que foi paga. Dinheiro debita sempre **111 Caixa** e crédito
+debita sempre **411 Clientes c/c** — não se configuram. Para cartão, transferência, M-Pesa e e-Mola, escolhe aqui a
+conta bancária cuja conta contabilística é debitada; um meio sem conta debita **121 Depósitos à ordem**.
+
+**Antes de começar:** permissão de configuração financeira (Administrador, Financeiro, Gestor). As contas bancárias
+têm de existir e estar activas (ver [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md)).
+
+1. Abra **Configurações** e, em **Meios de pagamento do POS**, clique **Configurar contas dos meios de pagamento**.
+2. Para cada meio, escolha a conta. M-Pesa e e-Mola só aceitam carteiras móveis; cartão e transferência, contas
+   bancárias. Para voltar à omissão, escolha **Sem conta — debita 121 Depósitos à ordem**.
+3. Clique **Guardar** na linha do meio.
+
+**Resultado:** «Cartão: conta guardada.» (ou o meio que alterou). Vale para as vendas seguintes; as já lançadas não
+mudam.
+
 <!-- captura: 05-contabilidade/configuracoes.png | /contabilidade/configuracoes -->
 ![Configurações de Contabilidade](img/05-contabilidade/configuracoes.png)
 
@@ -380,6 +398,8 @@ Estes lançamentos são criados automaticamente, já no estado **Lançado**, com
 | Emitir factura | Diário de Vendas: débito 411 Clientes c/c; crédito 711 Vendas e 44331 IVA liquidado. |
 | Emitir nota de crédito | Diário de Vendas: o inverso da factura, na parte creditada. |
 | Emitir nota de débito | Diário de Vendas: débito 411; crédito 711 e 44331. |
+| Vender no POS ([Vendas e POS](04-vendas-e-pos.md)) | Diário de Vendas, pelo documento da venda (Factura-Recibo ou, a crédito, Factura): débito da conta do meio de pagamento (111 dinheiro, 411 crédito, a conta configurada ou 121 nos restantes); crédito 711 Vendas e 44331 IVA liquidado. |
+| Anular uma venda POS | Nota de crédito (o inverso da venda) e a devolução: débito 411; crédito das contas dos meios de pagamento originais. |
 | Criar uma conta a pagar, ou registar a recepção de uma compra | Diário de Compras: débito da conta de gasto/existências (e da conta 4432x de IVA dedutível, só quando a conta a pagar tem o documento do fornecedor completo); crédito 421 Fornecedores c/c. Na recepção de compras não é lançado IVA dedutível. |
 | Pagar uma conta a pagar | Diário de Banco: débito 421 Fornecedores c/c; crédito 121 Depósitos à ordem. |
 | Processar e pagar a folha salarial | Diário de Salários ([Recursos Humanos](07-recursos-humanos.md)). |
@@ -387,6 +407,10 @@ Estes lançamentos são criados automaticamente, já no estado **Lançado**, com
 | Apurar o IVA | Diário de Operações, no último dia do mês (ver acima). |
 
 Se o período da data do documento estiver fechado, a operação no outro módulo é recusada com «Período … está fechado».
+
+**O que ainda não lança:** o **recebimento** de uma factura (o pagamento não credita a 411), o **custo das vendas**
+(a saída de stock de uma venda não debita 61 nem credita 32) e as vendas POS feitas antes de as vendas POS emitirem
+documento fiscal. O balancete e a DRE não mostram a margem.
 
 ## Estados
 

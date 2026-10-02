@@ -3,6 +3,7 @@
  * Server Actions — Vendas + POS + Encomendas + Devoluções + Trocas + Vendedores (WS C + WS-10)
  */
 import { createSafeAction } from '@/server/safe-action';
+import { BusinessRuleError } from '@/lib/errors';
 import {
   vendaService,
   sessaoPOSService,
@@ -16,6 +17,7 @@ import {
   CreateVendaSchema,
   UpdateVendaSchema,
   TransitarVendaSchema,
+  AnularVendaSchema,
   AbrirSessaoPOSSchema,
   FecharSessaoPOSSchema,
   CreateEncomendaSchema,
@@ -82,6 +84,39 @@ export const cancelarVenda = createSafeAction({
   },
   handler: async ({ id, motivo }, ctx) => {
     return vendaService.transitar({ vendaId: id, paraStatus: 'CANCELADA', motivo }, ctx);
+  },
+});
+
+/**
+ * Anular uma venda POS paga por nota de crédito (ADR-0041 §8). A permissão é a de cancelar
+ * vendas; a devolução mexe em caixa/banca, por isso exige ainda as mesmas permissões que a
+ * liquidação da NC por devolução (`liquidarNotaCredito`): `caixa:operar` para a parte em
+ * dinheiro e `financas:banca:escrita` para a parte bancária.
+ */
+export const anularVenda = createSafeAction({
+  schema: AnularVendaSchema,
+  permission: 'vendas:cancelar',
+  revalidate: {
+    paths: ['/vendas', '/vendas/notas-credito'],
+    tags: ['vendas', 'faturacao'],
+  },
+  handler: async ({ vendaId, motivo }, ctx) => {
+    const venda = await vendaService.buscarPorId(vendaId, ctx);
+    const meios = new Set((venda.pagamentos ?? []).map((p) => p.tipo));
+    if (meios.has('DINHEIRO') && !ctx.permissions.has('caixa:operar')) {
+      throw new BusinessRuleError(
+        'MEIO_PAGAMENTO_SEM_PERMISSAO',
+        'Não tem permissão para operar o caixa: a devolução em dinheiro não é possível.',
+      );
+    }
+    const bancarios = [...meios].some((m) => m !== 'DINHEIRO' && m !== 'CREDITO');
+    if (bancarios && !ctx.permissions.has('financas:banca:escrita')) {
+      throw new BusinessRuleError(
+        'MEIO_PAGAMENTO_SEM_PERMISSAO',
+        'Não tem permissão para movimentar contas bancárias: a devolução por cartão ou carteira móvel não é possível.',
+      );
+    }
+    return vendaService.anular(vendaId, { motivo }, { tenantId: ctx.tenantId, userId: ctx.userId });
   },
 });
 

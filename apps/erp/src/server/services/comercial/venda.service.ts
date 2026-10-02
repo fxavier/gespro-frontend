@@ -4,15 +4,21 @@
  * Integração real com WS A (stock) e WS D (caixa/faturação).
  * Cross-WS dependencies injectadas no construtor para testabilidade.
  *
- * Fluxo POS (dentro da $transaction principal — ADR-0041):
- *   1. proximoNumeroSerie(tx,'VENDA') → número único (WS D)
- *   2. criar Venda (CONCLUIDA) + ItemVenda + PagamentoVenda
- *   3. baixarStock por item (WS A) usando localizacao ARMAZEM real
- *   4. Factura-Recibo (série FATURA_RECIBO, PAGA) + lançamento, pelo núcleo
- *      emitirDocumentoEmTx (WS D); Venda.faturaId ↔ Fatura.vendaId
- *   5. registarMovimentoCaixa só pela parte em DINHEIRO (WS D)
- *   6. HistoricoEstadoVenda inicial
+ * Fluxo POS (ADR-0041). Antes da transacção: Σ pagamentos = total (PAGAMENTOS_NAO_BATEM_TOTAL)
+ * e idempotência pela chave. Dentro da $transaction principal:
+ *   1. com parte a CREDITO: cliente identificado obrigatório (não o Consumidor Final)
+ *   2. proximoNumeroSerie(tx,'VENDA') → número único (WS D)
+ *   3. criar Venda + ItemVenda + PagamentoVenda — CONCLUIDA se paga, FATURADA se a crédito
+ *   4. baixarStock por item (WS A) usando localizacao ARMAZEM real
+ *   5. documento fiscal pelo núcleo emitirDocumentoEmTx (WS D), com lançamento
+ *      D meio de pagamento (CREDITO → 411) / C 711 / C 44331; Venda.faturaId ↔ Fatura.vendaId:
+ *        - paga: Factura-Recibo (série FATURA_RECIBO, PAGA); sem cliente, contra o Consumidor Final
+ *        - com parte a crédito: Factura (série FATURA), EMITIDA ou PARCIALMENTE_PAGA
+ *   6. registarMovimentoCaixa só pela parte em DINHEIRO (WS D)
+ *   7. HistoricoEstadoVenda inicial
  *   Após commit: calcular + registar comissão (best-effort, WS C interno)
+ *   Venda com documento não transita para DEVOLVIDA/CANCELADA (VENDA_COM_DOCUMENTO): desfaz-se
+ *   por nota de crédito — anular (total) ou devolução.
  *
  * Fluxo ENCOMENDA (dentro da $transaction de criar):
  *   1. proximoNumeroSerie → número único
@@ -28,6 +34,7 @@ import 'server-only';
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
+import { logger } from '@/server/observability/logger';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx, TxClient } from '@/server/services/types';
@@ -228,6 +235,40 @@ async function _resolverArmazem(tx: TxClient, ctx: Ctx): Promise<string> {
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Linha do documento fiscal a partir de uma linha da venda — a MESMA derivação na Factura-Recibo
+ * (criar), na nota de crédito da anulação e na Factura-Recibo da troca (TrocaService), para a NC
+ * creditar exactamente as linhas da factura.
+ */
+export function linhaDocumentoFiscal(
+  l: {
+    produtoId: string;
+    nomeProduto: string;
+    quantidade: number;
+    precoUnitario: number;
+    taxaIva: number;
+    subtotal: Prisma.Decimal;
+    ivaItem: Prisma.Decimal;
+    total: Prisma.Decimal;
+  },
+  ordemLinha: number,
+) {
+  const bruto = new Prisma.Decimal(String(l.quantidade)).mul(new Prisma.Decimal(String(l.precoUnitario)));
+  return {
+    produtoId: l.produtoId,
+    descricao: l.nomeProduto,
+    quantidade: l.quantidade,
+    precoUnitario: l.precoUnitario,
+    // Na factura o desconto é um valor, não uma percentagem.
+    desconto: bruto.minus(l.subtotal).toDecimalPlaces(2).toNumber(),
+    taxaIva: l.taxaIva,
+    subtotal: l.subtotal.toNumber(),
+    ivaItem: l.ivaItem.toNumber(),
+    total: l.total.toNumber(),
+    ordemLinha,
+  };
+}
+
+/**
  * Cliente de uma venda POS com parte a crédito (ADR-0041 §4): tem de ser identificado —
  * nem anónimo nem o Consumidor Final, que não tem conta corrente a que se cobrar.
  */
@@ -265,7 +306,11 @@ export class VendaService implements IVendaService {
     private readonly caixaService: Pick<ICaixaService, 'registarMovimentoCaixa'>,
     private readonly faturacaoService: Pick<
       IFaturacaoService,
-      'proximoNumeroSerie' | 'emitirDocumentoEmTx' | 'construirLancamentoVendaPOS'
+      | 'proximoNumeroSerie'
+      | 'emitirDocumentoEmTx'
+      | 'construirLancamentoVendaPOS'
+      | 'emitirNotaCreditoEmTx'
+      | 'devolverNotaCreditoPelosMeiosOriginaisEmTx'
     >,
     private readonly comissaoService: Pick<
       IComissaoService,
@@ -281,6 +326,19 @@ export class VendaService implements IVendaService {
     const { total } = totais;
     const itensTotais = input.itens.map((item, k) => ({ item, ...totais.linhas[k] }));
     const dataVenda = input.dataVenda ?? new Date();
+
+    // 1a. Venda POS: Σ pagamentos = total, ao cêntimo (ADR-0041 §4). Verificado antes da
+    //     transacção para que esta regra fale primeiro — dentro dela, um crédito desalinhado
+    //     chegaria ao núcleo da emissão como OPCOES_EMISSAO_INCOERENTES.
+    if (input.origem === 'POS') {
+      const pago = input.pagamentos.reduce((a, p) => a.plus(String(p.valor)), new Prisma.Decimal(0));
+      if (!pago.equals(total)) {
+        throw new BusinessRuleError(
+          'PAGAMENTOS_NAO_BATEM_TOTAL',
+          `A soma dos pagamentos (${pago.toFixed(2)}) não coincide com o total da venda (${total.toFixed(2)}).`,
+        );
+      }
+    }
 
     // 1b. Idempotência (ADR-0041 §5): um retry com a mesma chave devolve a venda já gravada,
     //     sem escrever nada. Esta leitura é só o atalho; a garantia é o índice único
@@ -348,7 +406,7 @@ export class VendaService implements IVendaService {
         await this.comissaoService.registarComissao(prisma as unknown as TxClient, calculo, ctx);
       } catch (err) {
         // Regista no log mas não propaga — a venda já está committed
-        console.error('[VendaService.criar] Falha ao registar comissão:', err);
+        logger.error({ err, vendaId: vendaRow.id }, 'falha ao registar a comissão da venda');
       }
     }
 
@@ -424,10 +482,10 @@ export class VendaService implements IVendaService {
   ): Promise<VendaRow> {
     const { subtotal: subtotalTotal, ivaTotal: ivaTotalAcc, total } = totais;
     return prisma.$transaction(async (tx) => {
-      // 3. Crédito exige cliente identificado (ADR-0041 §4) — antes de gastar qualquer número.
+      // 3a. Crédito exige cliente identificado (ADR-0041 §4) — antes de gastar qualquer número.
       const clienteCredito = posACredito ? await _clienteDoCredito(tx as Prisma.TransactionClient, input, ctx) : null;
 
-      // 3a. Número de série
+      // 3b. Número de série
       const numero = await this.faturacaoService.proximoNumeroSerie(
         tx as Prisma.TransactionClient,
         'VENDA' as TipoSerieDocumento,
@@ -435,10 +493,10 @@ export class VendaService implements IVendaService {
         dataVenda,
       );
 
-      // 3b. Resolver armazém padrão do tenant (usado em POS e ENCOMENDA)
+      // 3c. Resolver armazém padrão do tenant (usado em POS e ENCOMENDA)
       const armazemId = await _resolverArmazem(tx as TxClient, ctx);
 
-      // 3c. Criar Venda
+      // 3d. Criar Venda
       const venda = await tx.venda.create({
         data: {
           tenantId: ctx.tenantId,
@@ -489,7 +547,7 @@ export class VendaService implements IVendaService {
         include: { itens: true, pagamentos: true },
       });
 
-      // 3d. Efeitos laterais de POS: baixar stock (WS A) + mover caixa (WS D)
+      // 3e. Efeitos laterais de POS: baixar stock (WS A) + mover caixa (WS D)
       if (input.origem === 'POS') {
         for (const { item } of itensTotais) {
           const baixaInput: BaixaStockInput = {
@@ -532,7 +590,7 @@ export class VendaService implements IVendaService {
         }
       }
 
-      // 3e. ENCOMENDA: reservar stock por item (WS A)
+      // 3f. ENCOMENDA: reservar stock por item (WS A)
       //     ReservaStock.documentoReferenciaId = venda.id permite lookup ao cancelar/confirmar.
       if (input.origem === 'ENCOMENDA') {
         for (const { item } of itensTotais) {
@@ -548,7 +606,7 @@ export class VendaService implements IVendaService {
         }
       }
 
-      // 3f. Histórico de estado inicial
+      // 3g. Histórico de estado inicial
       await tx.historicoEstadoVenda.create({
         data: {
           tenantId: ctx.tenantId,
@@ -613,22 +671,9 @@ export class VendaService implements IVendaService {
         dataVencimento: clienteCredito
           ? new Date(dataVenda.getTime() + clienteCredito.diasPagamento * DIA_MS)
           : dataVenda,
-        linhas: itensTotais.map(({ item, subtotal, ivaItem, total }, i) => {
-          const bruto = new Prisma.Decimal(String(item.quantidade)).mul(new Prisma.Decimal(String(item.precoUnitario)));
-          return {
-            produtoId: item.produtoId,
-            descricao: item.nomeProduto,
-            quantidade: item.quantidade,
-            precoUnitario: item.precoUnitario,
-            // Na factura o desconto é um valor, não uma percentagem.
-            desconto: bruto.minus(subtotal).toDecimalPlaces(2).toNumber(),
-            taxaIva: item.taxaIva,
-            subtotal: subtotal.toNumber(),
-            ivaItem: ivaItem.toNumber(),
-            total: total.toNumber(),
-            ordemLinha: i,
-          };
-        }),
+        linhas: itensTotais.map(({ item, subtotal, ivaItem, total }, i) =>
+          linhaDocumentoFiscal({ ...item, subtotal, ivaItem, total }, i),
+        ),
       },
       ctx,
       {
@@ -655,6 +700,15 @@ export class VendaService implements IVendaService {
 
     if (!venda || venda.tenantId !== ctx.tenantId) {
       throw new NotFoundError(`Venda ${input.vendaId} não encontrada`);
+    }
+
+    // ADR-0041 §8 — uma venda com documento fiscal só se desfaz por nota de crédito: DEVOLVIDA
+    // reentraria stock sem NC e CANCELADA deixaria a factura viva. FATURADA → CONCLUIDA continua.
+    if (venda.faturaId && (input.paraStatus === 'DEVOLVIDA' || input.paraStatus === 'CANCELADA')) {
+      throw new BusinessRuleError(
+        'VENDA_COM_DOCUMENTO',
+        `A venda ${venda.numero} tem documento fiscal: use «Anular venda» (nota de crédito total) ou registe uma devolução.`,
+      );
     }
 
     // Valida transição (lança BusinessRuleError se inválida)
@@ -727,6 +781,195 @@ export class VendaService implements IVendaService {
       });
 
       return mapVendaRow(atualizada);
+    });
+  }
+
+  /**
+   * Anulação da venda POS por nota de crédito (ADR-0041 §8). Nunca se altera nem apaga o
+   * documento: a Factura-Recibo e o seu lançamento ficam como estão; o que anula é a NC, com o
+   * seu estorno, a devolução pelos meios originais, a saída de caixa e a reentrada de stock —
+   * tudo numa só transacção. Qualquer falha (período fechado, caixa fechada, conta inactiva…)
+   * desfaz tudo, inclusive o número da NC.
+   *
+   * Venda a crédito (FATURADA): recusada com VENDA_A_CREDITO_NAO_ANULAVEL. A 411 do cliente não
+   * se devolve — compensa-se — e a NC só tem uma forma de liquidação; uma venda mista (parte paga,
+   * parte a crédito) pediria as duas. Anula-se pela nota de crédito em Facturação.
+   */
+  async anular(vendaId: string, input: { motivo: string }, ctx: Ctx): Promise<VendaRow> {
+    // Travão do e-mail com sessão, antes da tx — os núcleos em tx não o verificam (como devolução/troca).
+    await exigirEmailConfirmadoParaEmitir();
+    const motivo = input.motivo?.trim() ?? '';
+    if (!motivo) {
+      throw new BusinessRuleError('MOTIVO_OBRIGATORIO', 'Indique o motivo da anulação: fica na nota de crédito.');
+    }
+
+    return prisma.$transaction(async (rawTx) => {
+      const tx = rawTx as unknown as Prisma.TransactionClient;
+      // Tranca a venda antes de a ler: duas anulações concorrentes não emitem duas NC.
+      await tx.$queryRaw`SELECT id FROM "Venda" WHERE id = ${vendaId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
+      const venda = await tx.venda.findFirst({
+        where: { id: vendaId, tenantId: ctx.tenantId },
+        include: { itens: { orderBy: { createdAt: 'asc' } }, pagamentos: true },
+      });
+      if (!venda) throw new NotFoundError(`Venda ${vendaId} não encontrada`);
+      // Tranca também a factura: serializa com uma NC concorrente emitida em Facturação, que
+      // passaria a verificação de NC existente abaixo e creditaria a factura duas vezes.
+      if (venda.faturaId) {
+        await tx.$queryRaw`SELECT id FROM "Fatura" WHERE id = ${venda.faturaId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
+      }
+
+      if (venda.status === 'CANCELADA') {
+        throw new BusinessRuleError('VENDA_JA_ANULADA', `A venda ${venda.numero} já está anulada.`);
+      }
+      // A venda de substituição de uma troca foi paga em parte pelo crédito da NC da devolução
+      // (COMPENSACAO, ADR-0041 §8): devolvê-la «pelos meios originais» devolveria em dinheiro o
+      // que o cliente pagou com crédito. Corrige-se em Facturação, por nota de crédito.
+      const troca = await tx.troca.findFirst({
+        where: { tenantId: ctx.tenantId, vendaSubstituicaoId: venda.id },
+        select: { numero: true },
+      });
+      if (troca) {
+        throw new BusinessRuleError(
+          'VENDA_DE_TROCA',
+          `A venda ${venda.numero} é a venda de troca ${troca.numero}: corrija em Facturação, por nota de crédito.`,
+        );
+      }
+      if (venda.origem !== 'POS' || !venda.faturaId) {
+        throw new BusinessRuleError(
+          'VENDA_SEM_DOCUMENTO',
+          `A venda ${venda.numero} não tem documento fiscal de venda POS: não há nota de crédito a emitir. ` +
+            (venda.origem === 'POS' ? 'É uma venda anterior à emissão automática de documento.' : 'Use o fluxo da encomenda.'),
+        );
+      }
+      if (venda.status === 'FATURADA') {
+        throw new BusinessRuleError(
+          'VENDA_A_CREDITO_NAO_ANULAVEL',
+          `A venda ${venda.numero} foi a crédito: anule-a emitindo uma nota de crédito sobre a factura em Facturação, liquidada por compensação.`,
+        );
+      }
+      if (venda.status !== 'CONCLUIDA') {
+        throw new BusinessRuleError('VENDA_NAO_ANULAVEL', `A venda ${venda.numero} no estado ${venda.status} não se anula.`);
+      }
+      // Uma NC já emitida (devolução parcial) mais a NC total creditariam a factura duas vezes.
+      const ncExistente = await tx.notaCredito.findFirst({
+        where: { tenantId: ctx.tenantId, faturaOriginalId: venda.faturaId, status: { not: 'CANCELADA' } },
+        select: { numero: true },
+      });
+      if (ncExistente) {
+        throw new BusinessRuleError(
+          'VENDA_COM_NOTA_CREDITO',
+          `A factura da venda ${venda.numero} já tem a nota de crédito ${ncExistente.numero}: a anulação total creditá-la-ia duas vezes.`,
+        );
+      }
+
+      const agora = new Date();
+
+      // 1. NC de todas as linhas, pela mesma derivação das linhas da Factura-Recibo.
+      const nc = await this.faturacaoService.emitirNotaCreditoEmTx(
+        tx,
+        {
+          faturaOriginalId: venda.faturaId,
+          motivo,
+          moeda: venda.currency,
+          dataEmissao: agora,
+          linhas: venda.itens.map((i, k) =>
+            linhaDocumentoFiscal(
+              {
+                produtoId: i.produtoId,
+                nomeProduto: i.nomeProduto,
+                quantidade: Number(i.quantidade.toString()),
+                precoUnitario: Number(i.precoUnitario.toString()),
+                taxaIva: Number(i.taxaIva.toString()),
+                subtotal: i.subtotal,
+                ivaItem: i.ivaItem,
+                total: i.total,
+              },
+              k,
+            ),
+          ),
+        },
+        ctx,
+      );
+
+      // 2. Liquidação por devolução, pelos meios originais (um lançamento D 411 / C meios).
+      await this.faturacaoService.devolverNotaCreditoPelosMeiosOriginaisEmTx(tx, { notaCreditoId: nc.id, data: agora }, ctx);
+
+      // 3. Só o dinheiro sai da gaveta — a da sessão de caixa da venda, que tem de estar aberta.
+      const dinheiro = venda.pagamentos
+        .filter((p) => p.tipo === 'DINHEIRO')
+        .reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
+      if (dinheiro.greaterThan(0)) {
+        if (!venda.sessaoCaixaId) {
+          throw new BusinessRuleError(
+            'SESSAO_CAIXA_FECHADA',
+            `A venda ${venda.numero} não tem sessão de caixa: o dinheiro não tem gaveta de onde sair.`,
+          );
+        }
+        await this.caixaService.registarMovimentoCaixa(
+          tx as unknown as TxClient,
+          {
+            sessaoCaixaId: venda.sessaoCaixaId,
+            tipo: 'DEVOLUCAO',
+            valor: dinheiro,
+            descricao: `Anulação da venda ${venda.numero} (NC ${nc.numero})`,
+            documentoOrigemId: nc.id,
+            documentoOrigemTipo: 'NotaCredito',
+          },
+          ctx,
+        );
+      }
+
+      // 4. Reentrada de stock por item, na localização de onde a venda o tirou.
+      const saidas = await tx.movimentoStock.findMany({
+        where: { tenantId: ctx.tenantId, documentoReferenciaId: venda.id, documentoReferenciaTipo: 'Venda', tipo: 'SAIDA' },
+        select: { produtoId: true, varianteProdutoId: true, localizacaoOrigemId: true },
+      });
+      let armazemId: string | null = null;
+      for (const item of venda.itens) {
+        const saida = saidas.find(
+          (m) => m.produtoId === item.produtoId && (m.varianteProdutoId ?? null) === (item.varianteId ?? null),
+        );
+        const localizacaoDestinoId =
+          saida?.localizacaoOrigemId ?? (armazemId ??= await _resolverArmazem(tx as unknown as TxClient, ctx));
+        await this.stockService.entradaStock(
+          tx as unknown as TxClient,
+          {
+            produtoId: item.produtoId,
+            varianteProdutoId: item.varianteId ?? undefined,
+            localizacaoDestinoId,
+            quantidade: Number(item.quantidade.toString()),
+            documentoReferenciaId: venda.id,
+            documentoReferenciaTipo: 'DevolucaoVenda',
+            motivo: `Anulação da venda ${venda.numero} (NC ${nc.numero})`,
+          },
+          ctx,
+        );
+      }
+
+      // 5. Venda CANCELADA. Deliberadamente FORA de TRANSICOES_VENDA: lá CONCLUIDA é terminal,
+      //    e continua a sê-lo para o `transitar` (cancelar sem documento). Aqui o fim da venda é
+      //    acompanhado pela NC que a compensa — é a única porta para CANCELADA de uma venda paga.
+      const anulada = await tx.venda.update({
+        where: { id: venda.id },
+        data: { status: 'CANCELADA' },
+        include: { itens: true, pagamentos: true },
+      });
+      await tx.comissao.updateMany({
+        where: { tenantId: ctx.tenantId, vendaId: venda.id, status: 'PENDENTE' },
+        data: { status: 'CANCELADA' },
+      });
+      await tx.historicoEstadoVenda.create({
+        data: {
+          tenantId: ctx.tenantId,
+          vendaId: venda.id,
+          estadoAntes: venda.status,
+          estadoDepois: 'CANCELADA',
+          motivo: `Anulada pela nota de crédito ${nc.numero}: ${motivo}`,
+          userId: ctx.userId,
+        },
+      });
+
+      return mapVendaRow(anulada);
     });
   }
 

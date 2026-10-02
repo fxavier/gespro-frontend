@@ -169,7 +169,26 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 - **A/inventário expõe**: `entradaStock`, `baixarStock`, `reservarStock`, `confirmarConsumoStock`, `libertarStock`.
 - **D/finanças expõe**: `registarLancamentoContabilistico` (partida dobrada), `registarMovimentoCaixa`, `proximoNumeroSerie` (numeração atómica `UPDATE...RETURNING FOR UPDATE`, sem lacunas).
 - **D/finanças expõe também (ADR-0041)**: `emitirDocumentoEmTx` (núcleo da emissão, na tx do chamador; `FATURA_RECIBO` nasce `PAGA`) e `construirLancamentoVendaPOS` (D meio de pagamento / C 711 / C 44331) — chamados pelo `faturacaoService` injectado, nunca por import do módulo.
-- Fluxos ligados: venda/POS→stock+caixa · recepção→stock+conta a pagar · factura→contabilidade · produção→consumo/entrada de stock.
+- Fluxos ligados: venda/POS→stock+caixa+documento+contabilidade · recepção→stock+conta a pagar · factura→contabilidade · produção→consumo/entrada de stock.
+- **O que (não) lança na contabilidade, do lado das vendas**: factura, nota de crédito, nota de débito e encomenda
+  lançam D 411 / C 711 / C 44331 (diário de vendas). A **venda POS** (ADR-0041) emite, na mesma tx, Factura-Recibo
+  (paga, série `FATURA_RECIBO`, nasce `PAGA`) ou Factura (parte a `CREDITO`: `EMITIDA`/`PARCIALMENTE_PAGA`, a venda nasce `FATURADA`) e
+  lança D meio de pagamento (111 dinheiro · 411 crédito · conta do meio em `/contabilidade/configuracoes/meios-pagamento-pos`,
+  omissão 121) / C 711 / C 44331; só o `DINHEIRO` entra na caixa. Continuam a **não** lançar: o recebimento de
+  facturas (`registarPagamento` muda o estado e não credita a 411) e o **custo das vendas** (a baixa de stock não
+  faz D 61 / C 32 — ADR-0041 §9). As vendas POS anteriores ao ADR-0041 não têm documento nem lançamento.
+- **Venda POS — armadilhas (ADR-0041)**:
+  - Σ pagamentos = total ao cêntimo, verificado no início de `vendaService.criar` (`PAGAMENTOS_NAO_BATEM_TOTAL`);
+    o total vem de `calcularTotaisVendaPOS` (`lib/vendas-totais.ts`), o **mesmo** que o terminal usa — não recalcules
+    noutro sítio, senão o terminal manda um total que o servidor recusa.
+  - O **Consumidor Final** (`CLIENTE_CONSUMIDOR_FINAL`, `CF-000000`) é cliente técnico de cada tenant (bootstrap +
+    migração): venda sem cliente factura contra ele; `cliente.service` recusa editá-lo/desactivá-lo
+    (`CLIENTE_TECNICO_PROTEGIDO`) e o crédito recusa-o (`CLIENTE_OBRIGATORIO_CREDITO`).
+  - Venda com documento só sai por **nota de crédito** (`anular` ou devolução): `transitar` recusa `CANCELADA`/`DEVOLVIDA`
+    com `VENDA_COM_DOCUMENTO`.
+  - `emitirDocumentoEmTx`, `emitirNotaCreditoEmTx` e `liquidarNotaCreditoEmTx` (e `devolverNotaCreditoPelosMeiosOriginaisEmTx`)
+    são os **núcleos** em tx: não verificam o e-mail. O travão `exigirEmailConfirmadoParaEmitir` fica com o chamador que
+    tem sessão, **antes** da tx (abertura da sessão POS, `vendaService.anular`, `devolucaoService.processar`, `trocaService.criar`, os wrappers públicos).
 
 ### Camadas transversais (envelopam, não alteram contratos)
 - **Observabilidade** (`src/server/observability/*`, `instrumentation.ts`) — logger estruturado com redacção de segredos/PII, `requestId` num `AsyncLocalStorage` **separado** do tenant, métricas RED. `withApi`/`createSafeAction` estão envelopados: erros inesperados devolvem `traceId` sem stack ao cliente. `/api/health` (liveness), `/api/ready` (SELECT 1), `/api/metrics` (protegido por `METRICS_SECRET`).

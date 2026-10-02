@@ -283,6 +283,18 @@ export interface IVendaService {
    */
   transitar(input: TransitarVendaInput, ctx: Ctx): Promise<VendaRow>;
 
+  /**
+   * Anula uma venda POS paga (CONCLUIDA, com Factura-Recibo) — ADR-0041 §8. Numa só transacção:
+   * NC de todas as linhas ligada à factura (`emitirNotaCreditoEmTx`), liquidada por DEVOLUCAO
+   * pelos meios originais (`devolverNotaCreditoPelosMeiosOriginaisEmTx`), MovimentoCaixa
+   * DEVOLUCAO pela parte em dinheiro na sessão de caixa da venda, reentrada de stock por item e
+   * venda CANCELADA. A factura original e o seu lançamento ficam intactos.
+   * Recusa sem escrever: MOTIVO_OBRIGATORIO, VENDA_JA_ANULADA, VENDA_DE_TROCA, VENDA_SEM_DOCUMENTO,
+   * VENDA_A_CREDITO_NAO_ANULAVEL, VENDA_NAO_ANULAVEL, VENDA_COM_NOTA_CREDITO, PERIODO_FECHADO,
+   * SESSAO_CAIXA_FECHADA. Permissões: da action, não do serviço.
+   */
+  anular(vendaId: string, input: { motivo: string }, ctx: Ctx): Promise<VendaRow>;
+
   buscarPorId(id: string, ctx: Ctx): Promise<VendaRow>;
   listar(filtros: FilterVendaInput, ctx: Ctx): Promise<PaginatedVendas>;
   atualizar(id: string, input: UpdateVendaInput, ctx: Ctx): Promise<VendaRow>;

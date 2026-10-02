@@ -5,6 +5,8 @@
  */
 
 import { DataTable, StatusBadge } from '@/components/patterns';
+import { formatMZN } from '@/lib/format-currency';
+import { formatarData } from '@/lib/format-date';
 import type { TableColumn } from '@/components/patterns';
 
 export interface NotaCreditoRow {
@@ -50,7 +52,7 @@ const columns: TableColumn<NotaCreditoRow>[] = [
     mobileHidden: true,
     render: (row) => (
       <span className="text-sm tabular-nums text-muted-foreground">
-        {new Date(row.dataEmissao).toLocaleDateString('pt-MZ')}
+        {formatarData(row.dataEmissao)}
       </span>
     ),
   },
@@ -59,7 +61,7 @@ const columns: TableColumn<NotaCreditoRow>[] = [
     label: 'Total',
     render: (row) => (
       <span className="font-medium tabular-nums">
-        MT {parseFloat(row.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+        {formatMZN(row.total)}
       </span>
     ),
   },
