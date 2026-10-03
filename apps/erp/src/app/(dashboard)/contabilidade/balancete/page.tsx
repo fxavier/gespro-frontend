@@ -20,13 +20,13 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import {
   listarContas,
   listarExercicios,
-  listarPeriodos,
   periodoFiscalDe,
 } from '@/server/services/financas/contabilidade.service';
 import { balanceteApresentado } from '@/server/services/financas/balancete-apresentado';
 import {
   lerParametrosBalancete,
   queryBalancete,
+  hrefRazaoPeriodos,
   type ParametrosBalancete,
 } from '@/lib/balancete-params';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,6 @@ import {
 } from '@/components/ui/table';
 import { formatNumero } from '@/lib/format-currency';
 import { cn } from '@/lib/utils';
-import { intervaloDiasDosPeriodos } from '@/lib/periodo-fiscal';
 import {
   SeletorBalanceteVerificacao,
   type FiltrosApresentacao,
@@ -158,22 +157,16 @@ async function TabelaBalancete({
   const filtro = params.filtroServico;
   // Consulta → hierarquia → filtros: o mesmo caminho da exportação (S5). Filtros são
   // apresentação: totais, igualdades e subtotais vêm do balancete completo.
-  const [{ balancete, linhas: linhasHierarquicas }, periodos] = await runWithTenantContext(ctx, () =>
-    Promise.all([
-      balanceteApresentado(params, ctx),
-      listarPeriodos({ exercicioId: filtro.exercicioId }, ctx),
-    ]),
+  const { balancete, linhas: linhasHierarquicas } = await runWithTenantContext(ctx, () =>
+    balanceteApresentado(params, ctx),
   );
-  // S4: drill-down para o razão — dias civis de Maputo dos períodos mostrados.
-  // Limitação conhecida: o razão filtra pela DATA do lançamento e o balancete pelo
-  // PERÍODO. O período 13 partilha a data de 31/12, por isso a ligação de 1..12 mostra
-  // também os lançamentos do p13, e a de 13..13 também os do p12 com data 31/12.
-  // Latente até o encerramento (#138) lançar no p13; seguimento: razão por intervalo
-  // de períodos.
-  const intervaloRazao = intervaloDiasDosPeriodos(periodos, filtro.periodoInicial, filtro.periodoFinal);
-  const hrefRazao = (contaId: string): string | null =>
-    intervaloRazao &&
-    `/contabilidade/razao-geral?${new URLSearchParams({ contaId, ...intervaloRazao }).toString()}`;
+  // S4 + #297: drill-down para o razão por intervalo de períodos (não datas livres).
+  const hrefRazao = (contaId: string): string =>
+    hrefRazaoPeriodos(contaId, params.exercicio.codigo, {
+      periodoInicial: filtro.periodoInicial,
+      periodoFinal: filtro.periodoFinal,
+      incluir13: filtro.incluir13,
+    });
   const eq = balancete.equilibrio;
   const equilibrado = eq.movimento && eq.acumulado && eq.saldo;
 

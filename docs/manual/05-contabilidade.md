@@ -158,11 +158,19 @@ Um lançamento **Lançado** nunca se edita. Para o anular, estorna-se.
 ### Como consultar o Razão Geral de uma conta
 
 1. Abra **Razão Geral**.
-2. Escolha a **Conta** (só aparecem contas de movimento), as datas **De** e **Até**, e clique **Consultar**.
+2. Escolha a **Conta** (só aparecem contas de movimento).
+3. Escolha o modo de filtragem:
+   - **Por datas**: preencha **De** e **Até** com datas no formato `aaaa-mm-dd`.
+   - **Por períodos**: escolha o **Exercício** (código do ano, ex.: «2026»), o **Do período** e o **Ao período** (1–12; marque **Incluir período 13** para incluir o período de encerramento).
+4. Clique **Consultar**.
 
-**Resultado:** a tabela **Movimentos da Conta** com Data, Histórico, Débito, Crédito e **Saldo Acum.** Só contam lançamentos **Lançados** e **Estornados** (os rascunhos ficam de fora; um lançamento estornado e o seu estorno aparecem os dois e anulam-se).
+**Resultado:** a tabela com Data, Histórico, Débito, Crédito e **Saldo Acum.**, enquadrada pela linha **Saldo anterior** (saldo da conta antes do intervalo) e pela linha **Saldo final** (soma do saldo anterior com o movimento do intervalo). Os totais de Débito e Crédito do período também aparecem na linha do Saldo final.
 
-> **Nota:** o saldo acumulado começa em zero na data «De» — não inclui o saldo de antes do intervalo. Para ver o saldo desde o início do ano, comece em 1 de Janeiro.
+Só contam lançamentos **Lançados** e **Estornados** (os rascunhos ficam de fora; um lançamento estornado e o seu estorno aparecem os dois e anulam-se).
+
+**Drill-down a partir do Balancete.** Ao clicar no código de uma conta de movimento no Balancete de Verificação, abre o Razão Geral dessa conta no mesmo exercício e intervalo de períodos — sem conversão para datas livres.
+
+> **Nota:** no modo «Por períodos», o «Saldo anterior» inclui os movimentos dos períodos anteriores do mesmo exercício e, em contas de balanço (classes 1–5 e 8) sem lançamento de abertura, também os saldos dos exercícios anteriores. No modo «Por datas», o «Saldo anterior» inclui todos os lançamentos com data anterior à data «De».
 
 ### Como gerar o Balancete
 

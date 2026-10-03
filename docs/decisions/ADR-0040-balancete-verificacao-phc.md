@@ -70,6 +70,24 @@ apresentação (pesquisa, intervalo de contas, nível, «só com saldo») não a
 Agregação em SQL (ADR-0018 D3): `groupBy` por conta e tipo para o movimento, para o acumulado e para a
 abertura. O roll-up é em memória sobre as contas (centenas), nunca sobre partidas.
 
+### 7. Razão geral por períodos e com saldo anterior (#297)
+
+O razão geral aceita dois modos, e o drill-down do balancete usa o segundo:
+
+- **Por datas** (`dataInicio`/`dataFim`, como até aqui): movimento = lançamentos com data no intervalo;
+  **saldo anterior** = todos os lançamentos com data anterior a `dataInicio`.
+- **Por períodos** (`exercicio` + `de`/`ate` + `p13`, as mesmas regras de normalização do balancete):
+  movimento = lançamentos dos períodos `[de..ate]` do exercício, pelo **período** do lançamento;
+  **saldo anterior** = períodos `[1..de−1]` do exercício **mais**, só nas classes 1–5 e 8 e só enquanto o
+  exercício não tiver lançamentos no diário `AB`, os lançamentos anteriores a `dataInicio` do exercício
+  (a abertura implícita do §4). Nas classes 6 e 7 o anterior ao exercício não entra — está na linha
+  sintética do balancete, não na conta.
+
+Ambos filtram por `FILTRO_LANCAMENTO_MAPA` e assinam o saldo pela natureza da conta (como o razão sempre
+fez). Invariante: no modo por períodos, o saldo final do razão de uma folha é o «Saldo» dessa conta no
+balancete do mesmo intervalo (Devedor − Credor, com o sinal da natureza), e o movimento é o «Movimento do
+período».
+
 ## Alternativas consideradas
 
 | Alternativa | Porque não |
@@ -85,6 +103,7 @@ abertura. O roll-up é em memória sobre as contas (centenas), nunca sobre parti
 - O balancete deixa de aceitar datas livres; ligações existentes com `dataInicio`/`dataFim` caem no
   exercício corrente.
 - Enquanto a #138 (período 13) não entrar, a opção «incluir período 13» não muda os números.
-- O drill-down para o razão converte o intervalo de períodos em datas (o razão continua por datas).
+- O drill-down para o razão passa o intervalo de **períodos** (§7, #297); até à #297 convertia-o em datas, e o
+  período 13, que partilha a data de 31/12, misturava-se com o 12.
 - Quando o ADR-0035 for implementado, esta abertura implícita é o comportamento de transição; o teste
   que fixa «com `AB` não há abertura implícita» é o que garante que não duplica.
