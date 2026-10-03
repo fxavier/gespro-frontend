@@ -57,6 +57,22 @@ function lerUm(params: ParametrosEntrada, chave: string): string | undefined {
  * - nivel 1..7; razao/zeradas/comSaldo só com '1'; ci/cf/excluir códigos PGC válidos;
  *   classe 1..8; q aparado e cortado a 100; tipo periodo|acumulado, o resto é ambos.
  */
+/**
+ * Selecciona o exercício corrente da lista: o pedido pelo código, senão o que
+ * contém «agora», senão o primeiro da lista. Pré-condição: exercicios.length > 0.
+ */
+export function exercicioCorrente<E extends ExercicioBalancete>(
+  exercicios: E[],
+  codigoPedido?: string | null,
+): E {
+  const agora = new Date();
+  return (
+    (codigoPedido ? exercicios.find((e) => e.codigo === codigoPedido) : undefined) ??
+    exercicios.find((e) => e.dataInicio <= agora && agora <= e.dataFim) ??
+    exercicios[0]!
+  );
+}
+
 export function lerParametrosBalancete<E extends ExercicioBalancete>(
   params: ParametrosEntrada,
   contexto: { exercicios: E[]; mesAtual: number },
@@ -69,11 +85,7 @@ export function lerParametrosBalancete<E extends ExercicioBalancete>(
   // Exercício: pedido → corrente → primeiro.
   const pedido = p('exercicio');
   const codigoPedido = pedido ? pedido : null;
-  const agora = new Date();
-  const exercicio =
-    (codigoPedido ? exercicios.find((e) => e.codigo === codigoPedido) : undefined) ??
-    exercicios.find((e) => e.dataInicio <= agora && agora <= e.dataFim) ??
-    exercicios[0]!;
+  const exercicio = exercicioCorrente(exercicios, codigoPedido);
 
   // Períodos.
   const lido = FiltroBalanceteVerificacaoSchema.safeParse({
@@ -115,6 +127,28 @@ export function lerParametrosBalancete<E extends ExercicioBalancete>(
     filtros,
     tipo: tipo === 'periodo' ? 'PERIODO' : tipo === 'acumulado' ? 'ACUMULADO' : 'AMBOS',
   };
+}
+
+/**
+ * Gera o href para a página de Razão Geral no modo por períodos.
+ *
+ * URL: `/contabilidade/razao-geral?contaId=<id>&exercicio=<código>&de=<n>&ate=<n>`
+ * mais `&p13=1` apenas quando `intervalo.incluir13 === true`.
+ * Parâmetros numéricos serializam como string sem zeros à esquerda («3», não «03»).
+ */
+export function hrefRazaoPeriodos(
+  contaId: string,
+  exercicioCodigo: string,
+  intervalo: { periodoInicial: number; periodoFinal: number; incluir13: boolean },
+): string {
+  const params = new URLSearchParams({
+    contaId,
+    exercicio: exercicioCodigo,
+    de: String(intervalo.periodoInicial),
+    ate: String(intervalo.periodoFinal),
+  });
+  if (intervalo.incluir13) params.set('p13', '1');
+  return `/contabilidade/razao-geral?${params.toString()}`;
 }
 
 /** Os parâmetros já normalizados, de volta para o URL (ligações de exportação). */

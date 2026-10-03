@@ -998,17 +998,14 @@ test('25. «Conta inicial»=6a mostra erro junto do campo e não navega', async 
 });
 
 // ===========================================================================
-// S4 (#284) — drill-down de conta para o razão geral
+// S4 (#284 + #297) — drill-down de conta para o razão geral (por períodos)
 //
-// Contrato: .scratch/sdlc/balancete-phc/S4-contrato.md.
-// Só linhas CONTA de contas com `aceitaLancamento` (e não-contexto) têm o
+// Actualizado em S2 (issue #297): o href usa agora parâmetros de período
+// (`exercicio`, `de`, `ate`, opcionalmente `p13=1`) em vez de datas.
+// Só linhas CONTA de contas com `aceitaLancamento` (não-contexto) têm o
 // código como `<a>` com aria-label «Razão da conta <código> — <nome>» e href
-// `/contabilidade/razao-geral?contaId=<id>&dataInicio=<aaaa-mm-dd>&dataFim=<aaaa-mm-dd>`.
-// Datas = dia civil de Maputo do dataInicio do período inicial e do dataFim do
-// período final (SQL de leitura 2026-10-01, exercício 2026 do tenant demo):
-//   período 3 início 2026-02-28 22:00 UTC → 2026-03-01
-//   período 5 fim    2026-05-31 21:59:59.999 UTC → 2026-05-31
-//   período 13 fim   2026-12-31 21:59:59.999 UTC → 2026-12-31
+// `/contabilidade/razao-geral?contaId=<id>&exercicio=<código>&de=<n>&ate=<n>`
+// (mais `&p13=1` quando o balancete inclui o período 13).
 // O id da conta 121 é uuid (tenant-bootstrap) e muda a cada base: lê-se da
 // base em tempo de teste (só leitura), como em 26-payroll-tabelas.spec.ts.
 // ===========================================================================
@@ -1051,19 +1048,24 @@ async function contasDemo(): Promise<Map<string, { id: string; aceitaLancamento:
   }
 }
 
-/** Compara o href com o razão esperado — parâmetros como conjunto, não por ordem. */
-function expectHrefRazao(
+/**
+ * Compara o href da ligação de drill-down com o formato por períodos (#297 S2).
+ * Parâmetros esperados: contaId, exercicio, de, ate; p13 só quando incluir13.
+ */
+function expectHrefRazaoPeriodos(
   href: string | null,
-  esperado: { contaId: string; dataInicio: string; dataFim: string },
+  esperado: { contaId: string; exercicio: string; de: string; ate: string; p13?: string },
   ctx: string,
 ): void {
   expect(href, `${ctx}: ligação sem href`).toBeTruthy();
   const u = new URL(href!, 'http://localhost');
   expect(u.pathname, `${ctx}: caminho do razão`).toBe(RAZAO);
   const params = Object.fromEntries(u.searchParams.entries());
-  expect(Array.from(u.searchParams.keys()).sort(), `${ctx}: parâmetros sem repetições nem extras`).toEqual(
-    ['contaId', 'dataFim', 'dataInicio'],
-  );
+  const chavesEsperadas = ['ate', 'contaId', 'de', 'exercicio', ...(esperado.p13 ? ['p13'] : [])];
+  expect(
+    Array.from(u.searchParams.keys()).sort(),
+    `${ctx}: parâmetros sem repetições nem extras`,
+  ).toEqual(chavesEsperadas);
   expect(params, `${ctx}: parâmetros do razão`).toEqual(esperado);
 }
 
@@ -1101,10 +1103,10 @@ async function ligacoesPorLinha(page: Page): Promise<LinhaLigacao[]> {
 }
 
 // ---------------------------------------------------------------------------
-// 26. Folha 121 tem ligação ao razão com conta e datas dos períodos 3..5
+// 26. Folha 121 tem ligação ao razão com conta e períodos 3..5 do exercício 2026
 // ---------------------------------------------------------------------------
 
-test('26. 121 (folha) tem ligação «Razão da conta 121 — …» para o razão 2026-03-01..2026-05-31', async ({
+test('26. 121 (folha) tem ligação «Razão da conta 121 — …» para o razão períodos 3..5 do exercício 2026', async ({
   page,
 }) => {
   const contas = await contasDemo();
@@ -1122,9 +1124,9 @@ test('26. 121 (folha) tem ligação «Razão da conta 121 — …» para o razã
     ROTULO_121,
   );
 
-  expectHrefRazao(
+  expectHrefRazaoPeriodos(
     await link.getAttribute('href'),
-    { contaId: c121!.id, dataInicio: '2026-03-01', dataFim: '2026-05-31' },
+    { contaId: c121!.id, exercicio: '2026', de: '3', ate: '5' },
     '121 em 3..5',
   );
 
@@ -1138,37 +1140,42 @@ test('26. 121 (folha) tem ligação «Razão da conta 121 — …» para o razã
     expect(l.links[0]!.aria, `folha ${l.codigo}: aria-label`).toBe(
       `Razão da conta ${l.codigo} — ${l.nome}`,
     );
-    expectHrefRazao(
+    expectHrefRazaoPeriodos(
       l.links[0]!.href,
-      { contaId: contas.get(l.codigo)!.id, dataInicio: '2026-03-01', dataFim: '2026-05-31' },
+      { contaId: contas.get(l.codigo)!.id, exercicio: '2026', de: '3', ate: '5' },
       `folha ${l.codigo}`,
     );
   }
 });
 
 // ---------------------------------------------------------------------------
-// 27. Clicar navega para o razão da 121 no intervalo
+// 27. Clicar navega para o razão da 121 nos períodos 3..5 de 2026
 // ---------------------------------------------------------------------------
 
-test('27. clicar na ligação da 121 abre o razão da conta 121 em 2026-03-01..2026-05-31', async ({
+test('27. clicar na ligação da 121 abre o razão da conta 121 nos períodos 3..5 de 2026', async ({
   page,
 }) => {
   await navegar(page, BASE_S4);
   await page.getByRole('link', { name: ROTULO_121, exact: true }).click();
 
   await expect(page).toHaveURL(new RegExp(`${RAZAO}\\?`));
-  await expect(page).toHaveURL(/[?&]dataInicio=2026-03-01(&|$)/);
-  await expect(page).toHaveURL(/[?&]dataFim=2026-05-31(&|$)/);
+  await expect(page).toHaveURL(/[?&]exercicio=2026(&|$)/);
+  await expect(page).toHaveURL(/[?&]de=3(&|$)/);
+  await expect(page).toHaveURL(/[?&]ate=5(&|$)/);
+  // Parâmetros de datas NÃO devem estar no URL (#297)
+  await expect(page).not.toHaveURL(/dataInicio/);
+  await expect(page).not.toHaveURL(/dataFim/);
   await page.waitForLoadState('networkidle');
 
   await expect(page.getByRole('heading', { name: 'Razão Geral' })).toBeVisible();
-  // O seletor mostra a conta e o intervalo vindos do URL
+  // O seletor mostra a conta e está no modo por períodos
   await expect(page.locator('#conta')).toContainText(`121 — ${NOME_121}`);
-  await expect(page.getByLabel('De', { exact: true })).toHaveValue('2026-03-01');
-  await expect(page.getByLabel('Até', { exact: true })).toHaveValue('2026-05-31');
-  // E o razão executou: há movimentos da 121 nos períodos 3..5 (seed)
-  await expect(page.getByText('Movimentos da Conta')).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Saldo Acum.' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Por períodos' })).toBeChecked();
+  await expect(page.getByLabel('Do período')).toHaveValue('3');
+  await expect(page.getByLabel('Ao período')).toHaveValue('5');
+  // E o razão executou: linhas de saldo anterior e final presentes
+  await expect(page.getByTestId('razao-saldo-anterior')).toBeVisible();
+  await expect(page.getByTestId('razao-saldo-final')).toBeVisible();
   await expect(page.getByText('Escolha uma conta acima')).toHaveCount(0);
 });
 
@@ -1233,17 +1240,19 @@ test('28. linhas-mãe (1, 12), «Total da classe N», sintética e contexto (q=o
 });
 
 // ---------------------------------------------------------------------------
-// 29. Com período 13: dataFim = 31/12
+// 29. Com período 13: href usa exercicio/de/ate/p13
 // ---------------------------------------------------------------------------
 
-test('29. de=12&ate=13&p13=1: a ligação da 121 vai até 2026-12-31', async ({ page }) => {
+test('29. de=12&ate=13&p13=1: a ligação da 121 usa exercicio=2026&de=12&ate=13&p13=1', async ({
+  page,
+}) => {
   const contas = await contasDemo();
   await navegar(page, 'exercicio=2026&de=12&ate=13&p13=1');
   const link = page.getByRole('link', { name: ROTULO_121, exact: true });
   await expect(link).toHaveCount(1);
-  expectHrefRazao(
+  expectHrefRazaoPeriodos(
     await link.getAttribute('href'),
-    { contaId: contas.get('121')!.id, dataInicio: '2026-12-01', dataFim: '2026-12-31' },
+    { contaId: contas.get('121')!.id, exercicio: '2026', de: '12', ate: '13', p13: '1' },
     '121 em 12..13 com p13',
   );
 });
@@ -1256,13 +1265,13 @@ test('30. a ligação da 121 é a mesma com tipo=periodo, tipo=acumulado e ci=1&
   page,
 }) => {
   const contas = await contasDemo();
-  const esperado = { contaId: contas.get('121')!.id, dataInicio: '2026-03-01', dataFim: '2026-05-31' };
+  const esperado = { contaId: contas.get('121')!.id, exercicio: '2026', de: '3', ate: '5' };
   for (const extra of ['tipo=periodo', 'tipo=acumulado', 'ci=1&cf=1', 'ci=1&cf=1&tipo=periodo&comSaldo=1']) {
     await navegar(page, `${BASE_S4}&${extra}`);
     const link = page.getByRole('link', { name: ROTULO_121, exact: true });
     await expect(link, `ligação presente com ${extra}`).toHaveCount(1);
     await expect(link).toHaveText('121');
-    expectHrefRazao(await link.getAttribute('href'), esperado, `121 com ${extra}`);
+    expectHrefRazaoPeriodos(await link.getAttribute('href'), esperado, `121 com ${extra}`);
   }
 });
 

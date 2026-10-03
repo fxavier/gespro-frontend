@@ -1199,24 +1199,33 @@ async function exercicioTemDiarioAbertura(exercicioId: string, tenantId: string)
 // Razão de conta — modo por datas e modo por períodos (ADR-0040 §7, issue #297)
 // ---------------------------------------------------------------------------
 
+type AgregadoTipoValor = Array<{ tipo: string; _sum: { valor: Prisma.Decimal | null } }> | undefined | null;
+
+/**
+ * Soma partidas por tipo, devolvendo os débitos e créditos brutos.
+ * Defensivo: aceita `undefined`/`null` (Prisma groupBy devolve `[]` em produção,
+ * mas um duplo sem return value devolve `undefined`).
+ * Partilhado por `calcularSaldoSignado` e `razaoConta`.
+ */
+function somarAgregados(agregados: AgregadoTipoValor): { debito: Prisma.Decimal; credito: Prisma.Decimal } {
+  const zero = new Prisma.Decimal(0);
+  let debito = zero;
+  let credito = zero;
+  for (const a of agregados ?? []) {
+    const v = a._sum.valor ?? zero;
+    if (a.tipo === 'DEBITO') debito = debito.plus(v);
+    else credito = credito.plus(v);
+  }
+  return { debito, credito };
+}
+
 /**
  * Calcula o saldo assinado pela natureza a partir de um array de agregados
  * `{ tipo, _sum: { valor } }`. Resultado: DEVEDORA → D−C; CREDORA → C−D.
- * Um resultado `undefined` (mock sem return value) é tratado como [].
  */
-function calcularSaldoSignado(
-  agregados: Array<{ tipo: string; _sum: { valor: Prisma.Decimal | null } }> | undefined | null,
-  natureza: 'DEVEDORA' | 'CREDORA',
-): Prisma.Decimal {
-  const zero = new Prisma.Decimal(0);
-  let D = zero;
-  let C = zero;
-  for (const a of agregados ?? []) {
-    const v = a._sum.valor ?? zero;
-    if (a.tipo === 'DEBITO') D = D.plus(v);
-    else C = C.plus(v);
-  }
-  return natureza === 'DEVEDORA' ? D.minus(C) : C.minus(D);
+function calcularSaldoSignado(agregados: AgregadoTipoValor, natureza: 'DEVEDORA' | 'CREDORA'): Prisma.Decimal {
+  const { debito, credito } = somarAgregados(agregados);
+  return natureza === 'DEVEDORA' ? debito.minus(credito) : credito.minus(debito);
 }
 
 /**
@@ -1254,25 +1263,10 @@ function construirLinhasRazao(
   });
 }
 
+// take e cursor são ignorados: o serviço devolve sempre as linhas completas (decisão G5, #297); paginação por cursor fica para quando a dimensão de uma conta o justificar.
 export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<RazaoConta> {
   const conta = await prisma.contaPGC.findFirst({ where: { id: filtro.contaId, tenantId: ctx.tenantId } });
   if (!conta) throw new NotFoundError('Conta não encontrada');
-
-  const zero = new Prisma.Decimal(0);
-
-  /** Extrai {debito, credito} brutos a partir dos agregados por tipo. */
-  const totaisDeAgregados = (
-    agregados: Array<{ tipo: string; _sum: { valor: Prisma.Decimal | null } }> | undefined | null,
-  ): { debito: Prisma.Decimal; credito: Prisma.Decimal } => {
-    let d = zero;
-    let c = zero;
-    for (const a of agregados ?? []) {
-      const v = a._sum.valor ?? zero;
-      if (a.tipo === 'DEBITO') d = d.plus(v);
-      else c = c.plus(v);
-    }
-    return { debito: d, credito: c };
-  };
 
   // ── Modo por datas ─────────────────────────────────────────────────────────
   if (!('exercicioId' in filtro)) {
@@ -1296,13 +1290,11 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Ra
         },
         _sum: { valor: true },
       }),
-      // totais: mesma janela das linhas, agregado (ponytail: não truncado por take)
       prisma.partidaLancamento.groupBy({
         by: ['tipo'],
         where: movWhere,
         _sum: { valor: true },
       }),
-      // linhas: não são truncadas por take (ponytail: unbounded lines per account)
       prisma.partidaLancamento.findMany({
         where: movWhere,
         include: { lancamento: { select: { id: true, data: true, historico: true, origem: true } } },
@@ -1311,9 +1303,8 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Ra
     ]);
 
     const saldoAnterior = calcularSaldoSignado(antRaw, conta.natureza);
-    const totais = totaisDeAgregados(totaisRaw);
-    const delta = conta.natureza === 'DEVEDORA' ? totais.debito.minus(totais.credito) : totais.credito.minus(totais.debito);
-    const saldoFinal = saldoAnterior.plus(delta);
+    const totais = somarAgregados(totaisRaw);
+    const saldoFinal = saldoAnterior.plus(calcularSaldoSignado(totaisRaw, conta.natureza));
     const linhas = construirLinhasRazao(partidas, conta.natureza, saldoAnterior);
 
     return {
@@ -1342,8 +1333,10 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Ra
 
   const exercicioId = exercicio.id;
 
-  // Verificar se o exercício tem lançamentos no diário ABERTURA (partilhado com balancete)
-  const temAbertura = await exercicioTemDiarioAbertura(exercicioId, ctx.tenantId);
+  // Verificar AB só para contas de balanço: classes 6/7 não têm histórico anterior relevante.
+  const temAbertura = CLASSES_BALANCO.has(conta.classe)
+    ? await exercicioTemDiarioAbertura(exercicioId, ctx.tenantId)
+    : true;
 
   const movWherePeriodos = {
     tenantId: ctx.tenantId,
@@ -1383,13 +1376,11 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Ra
           _sum: { valor: true },
         })
       : Promise.resolve([]),
-    // Totais do intervalo (ponytail: não truncado por take)
     prisma.partidaLancamento.groupBy({
       by: ['tipo'],
       where: movWherePeriodos,
       _sum: { valor: true },
     }),
-    // Linhas: não são truncadas por take (ponytail: unbounded lines per account)
     prisma.partidaLancamento.findMany({
       where: movWherePeriodos,
       include: { lancamento: { select: { id: true, data: true, historico: true, origem: true } } },
@@ -1401,15 +1392,13 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Ra
     }),
   ]);
 
-  // saldoAnterior via calcularSaldoSignado (NIT: substitui somarTipo)
   const saldoAnterior = calcularSaldoSignado(
     [...(antPeriodosRaw ?? []), ...(antHistoricoRaw ?? [])],
     conta.natureza,
   );
 
-  const totais = totaisDeAgregados(totaisRaw);
-  const delta = conta.natureza === 'DEVEDORA' ? totais.debito.minus(totais.credito) : totais.credito.minus(totais.debito);
-  const saldoFinal = saldoAnterior.plus(delta);
+  const totais = somarAgregados(totaisRaw);
+  const saldoFinal = saldoAnterior.plus(calcularSaldoSignado(totaisRaw, conta.natureza));
   const linhas = construirLinhasRazao(partidas, conta.natureza, saldoAnterior);
 
   return {

@@ -369,8 +369,8 @@ export const FiltroRazaoDatasSchema = z.object({
   dataInicio: z.coerce.date(),
   dataFim: z.coerce.date(),
   cursor: z.string().cuid().optional(),
-  // ponytail: presente no schema por simetria; o serviço não trunca (linhas ilimitadas
-  // por conta; paginar com cursor quando uma conta o justificar).
+  // take e cursor aceites e ignorados pelo serviço — linhas completas por decisão G5 (#297);
+  // paginação por cursor fica para quando uma conta o justificar.
   take: z.number().int().min(1).max(200).default(50),
 });
 
@@ -393,8 +393,8 @@ export const FiltroRazaoPeriodosSchema = z.object({
   periodoFinal: z.coerce.number().int().min(1).max(13),
   /** Se false (omissão), o período 13 nunca entra mesmo com periodoFinal=13. */
   incluir13: z.boolean().default(false),
-  // ponytail: presente no schema por simetria; o serviço não trunca (linhas ilimitadas
-  // por conta; paginar com cursor quando uma conta o justificar).
+  // take e cursor aceites e ignorados pelo serviço — linhas completas por decisão G5 (#297);
+  // paginação por cursor fica para quando uma conta o justificar.
   take: z.number().int().min(1).max(200).default(50),
 });
 
