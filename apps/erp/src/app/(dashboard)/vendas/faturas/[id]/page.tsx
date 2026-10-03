@@ -65,9 +65,11 @@ export default async function FaturaDetalhePage({ params }: PageProps) {
         actions={
           <div className="flex gap-2">
             <StatusBadge status={fatura.status} />
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Baixar PDF
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/api/faturacao/${fatura.id}/pdf`}>
+                <Download className="h-4 w-4 mr-2" />
+                Baixar PDF
+              </a>
             </Button>
           </div>
         }
