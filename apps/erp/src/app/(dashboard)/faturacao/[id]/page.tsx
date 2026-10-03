@@ -5,7 +5,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
@@ -128,13 +128,6 @@ export default async function FaturaDetalhePage({ params }: Props) {
           <p className="font-mono text-xs break-all">{fatura.hashValidacao}</p>
         </div>
       )}
-      {fatura.caminhoArquivoPdf && (
-        <Button variant="outline" size="sm" asChild>
-          <a href={fatura.caminhoArquivoPdf} target="_blank" rel="noopener noreferrer">
-            Descarregar PDF
-          </a>
-        </Button>
-      )}
     </div>
   );
 
@@ -178,12 +171,21 @@ export default async function FaturaDetalhePage({ params }: Props) {
             ]}
             badge={<StatusBadge status={fatura.status} />}
             actions={
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/faturacao">
-                  <ArrowLeft className="h-4 w-4 mr-1.5" />
-                  Voltar
-                </Link>
-              </Button>
+              <div className="flex gap-2">
+                {/* PDF gerado a pedido pela rota fiscal; `caminhoArquivoPdf` nunca é escrito (#133). */}
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/api/faturacao/${fatura.id}/pdf`}>
+                    <Download className="h-4 w-4 mr-1.5" />
+                    Descarregar PDF
+                  </a>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/faturacao">
+                    <ArrowLeft className="h-4 w-4 mr-1.5" />
+                    Voltar
+                  </Link>
+                </Button>
+              </div>
             }
           />
         }

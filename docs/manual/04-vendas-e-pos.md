@@ -173,8 +173,8 @@ limpá-lo; `+`/`-` — aumentar ou diminuir a última linha.
 3. Clique no número da venda para abrir o detalhe: separadores **Itens**, **Pagamentos** (método, valor, troco) e
    **Histórico** (cada mudança de estado com data e motivo).
 4. Numa venda com documento fiscal (todas as do POS), o campo **Documento fiscal** mostra o número da
-   Factura-Recibo ou da Factura e abre-o em Facturação. O PDF fiscal serve-se em `/api/faturacao/<id>/pdf`
-   (o botão «Descarregar PDF» da factura ainda não funciona — lacuna #133). O talão também indica o documento.
+   Factura-Recibo ou da Factura e abre-o em Facturação, onde o botão **Descarregar PDF** (no topo) descarrega o
+   PDF fiscal. O talão também indica o documento.
 
 ### Como confirmar ou cancelar uma venda
 

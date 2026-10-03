@@ -72,7 +72,7 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 | A | Nota de crédito sem limite face ao valor da factura ([#86](https://github.com/fxavier/gespro-frontend/issues/86)) |
 | M | POS: um só método de pagamento por venda no terminal, 60 primeiros produtos, sem validação do valor recebido ([#128](https://github.com/fxavier/gespro-frontend/issues/128)). O talão existe ([#127](https://github.com/fxavier/gespro-frontend/issues/127), fechada) e não é documento fiscal |
 | M | Encomendas, devoluções, trocas e comissões sem UI de transição; «Submeter» venda em Rascunho falha sempre ([#129](https://github.com/fxavier/gespro-frontend/issues/129)) ([#130](https://github.com/fxavier/gespro-frontend/issues/130)) ([#131](https://github.com/fxavier/gespro-frontend/issues/131)) ([#132](https://github.com/fxavier/gespro-frontend/issues/132)) |
-| M | «Baixar PDF» da factura inerte; `/api/faturacao/[id]/pdf` só por URL (e pede `faturacao:ver` em vez de `faturacao:leitura`) ([#133](https://github.com/fxavier/gespro-frontend/issues/133)) |
+| ~~M~~ | ~~«Baixar PDF» da factura inerte~~ — deixou de ser lacuna: os dois detalhes de factura ligam a `/api/faturacao/[id]/pdf`, que pede `faturacao:leitura` ([#133](https://github.com/fxavier/gespro-frontend/issues/133)) |
 | B | Histórico de clientes só escrito pelo seed; comissões filtradas pelo id errado no perfil do vendedor ([#134](https://github.com/fxavier/gespro-frontend/issues/134)) ([#135](https://github.com/fxavier/gespro-frontend/issues/135)) |
 | B | Motivo da desactivação de cliente não é enviado ([#136](https://github.com/fxavier/gespro-frontend/issues/136)) |
 

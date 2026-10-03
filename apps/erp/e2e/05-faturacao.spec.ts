@@ -160,3 +160,30 @@ test('a listagem mostra o número da factura e o nome do cliente', async ({ page
   await expect(cliente).not.toHaveText('—');
   await expect(cliente).not.toHaveText(/^c[a-z0-9]{20,}$/);
 });
+
+/**
+ * Regressão #133 — o botão de PDF dos dois detalhes de factura tem de descarregar
+ * o PDF fiscal (`/api/faturacao/[id]/pdf`). Antes, o de `/vendas/faturas/[id]`
+ * não tinha acção e o de `/faturacao/[id]` dependia de `caminhoArquivoPdf`,
+ * que nada escreve — por isso nem aparecia.
+ */
+test('os detalhes da factura descarregam o PDF fiscal', async ({ page }) => {
+  await page.goto('/faturacao');
+  const primeira = page.locator('tbody tr').first();
+  await expect(primeira).toBeVisible({ timeout: 15_000 });
+  await primeira.click();
+  await page.waitForURL(/\/faturacao\/[^/]+$/, { timeout: 15_000 });
+  const id = new URL(page.url()).pathname.split('/').pop()!;
+
+  for (const [rota, rotulo] of [
+    [`/faturacao/${id}`, 'Descarregar PDF'],
+    [`/vendas/faturas/${id}`, 'Baixar PDF'],
+  ] as const) {
+    await page.goto(rota);
+    const botao = page.getByRole('link', { name: rotulo });
+    await expect(botao, `${rota}: «${rotulo}» é uma ligação`).toBeVisible({ timeout: 15_000 });
+    await expect(botao).toHaveAttribute('href', `/api/faturacao/${id}/pdf`);
+    const [download] = await Promise.all([page.waitForEvent('download'), botao.click()]);
+    expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+  }
+});
