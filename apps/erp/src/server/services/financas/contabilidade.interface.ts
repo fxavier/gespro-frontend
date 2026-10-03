@@ -277,6 +277,41 @@ export interface LinhaRazao {
   origem: OrigemLancamento;
 }
 
+/**
+ * Intervalo efectivo do razão — modo por datas ou por períodos.
+ * O modo por períodos usa os valores normalizados (após aplicação de incluir13
+ * e de>ate), tal como `BalanceteVerificacaoResult.periodoInicial/Final`.
+ */
+export type IntervaloRazao =
+  | { modo: 'DATAS'; dataInicio: Date; dataFim: Date }
+  | {
+      modo: 'PERIODOS';
+      exercicioId: string;
+      periodoInicial: number;
+      periodoFinal: number;
+      incluir13: boolean;
+    };
+
+/**
+ * Resultado de `razaoConta` (ADR-0040 §7, issue #297).
+ *
+ * `saldoAnterior` — saldo da conta antes do intervalo pedido, com o sinal da natureza
+ * (DEVEDORA: D−C; CREDORA: C−D).
+ * `totais` — débitos e créditos brutos do intervalo de movimento (= movD/movC do balancete);
+ *   calculados por `groupBy` sobre o mesmo intervalo das linhas.
+ * `saldoFinal` — derivado de `totais`: `saldoAnterior + sinal(natureza)·(D−C)`.
+ *   Igual ao último `saldoAcumulado` quando as linhas não estão truncadas.
+ * `linhas` — cada `saldoAcumulado` parte do `saldoAnterior`; não são truncadas por `take`.
+ */
+export interface RazaoConta {
+  conta: Pick<ContaPGC, 'id' | 'codigo' | 'nome' | 'natureza' | 'classe'>;
+  saldoAnterior: Prisma.Decimal;
+  totais: { debito: Prisma.Decimal; credito: Prisma.Decimal };
+  linhas: LinhaRazao[];
+  saldoFinal: Prisma.Decimal;
+  intervalo: IntervaloRazao;
+}
+
 export interface ContaBalancete {
   conta: Pick<ContaPGC, 'id' | 'codigo' | 'nome' | 'tipo' | 'natureza'>;
   saldoAnterior: Prisma.Decimal;
@@ -471,7 +506,7 @@ export interface IContabilidadeService {
 
   // --- Relatórios ---
   gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Promise<Balancete>;
-  razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<LinhaRazao[]>;
+  razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<RazaoConta>;
   gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE>;
 
   // --- Banca ---

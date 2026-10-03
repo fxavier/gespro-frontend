@@ -80,7 +80,7 @@ export interface BalanceteVerificacaoNucleo {
 // ---------------------------------------------------------------------------
 
 /** Classes cujo saldo anterior entra conta a conta no acumulado (ADR-0040 §4). */
-const CLASSES_BALANCO = new Set<ClassePGC>([
+export const CLASSES_BALANCO = new Set<ClassePGC>([
   'CLASSE_1',
   'CLASSE_2',
   'CLASSE_3',
@@ -88,6 +88,24 @@ const CLASSES_BALANCO = new Set<ClassePGC>([
   'CLASSE_5',
   'CLASSE_8',
 ]);
+
+/**
+ * Normalização do intervalo de períodos — idêntica para balancete e razão.
+ *
+ * - Sem `incluir13`: o período 13 equivale ao 12 (`periodoFinal` ≤ 12).
+ * - `periodoInicial` não pode ultrapassar `periodoFinal` efectivo (de > ate → ate..ate).
+ *
+ * Função pura; não toca na BD.
+ */
+export function normalizarIntervaloPeriodos(filtro: {
+  periodoInicial: number;
+  periodoFinal: number;
+  incluir13: boolean;
+}): { periodoInicial: number; periodoFinal: number } {
+  const effectiveFinal = filtro.incluir13 ? filtro.periodoFinal : Math.min(filtro.periodoFinal, 12);
+  const effectiveInicial = Math.min(filtro.periodoInicial, effectiveFinal);
+  return { periodoInicial: effectiveInicial, periodoFinal: effectiveFinal };
+}
 
 // ---------------------------------------------------------------------------
 // Função principal

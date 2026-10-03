@@ -29,8 +29,8 @@ import type {
   AbrirExercicioInput,
   FiltroBalanceteVerificacaoInput,
 } from '@/lib/validations/contabilidade';
-import { montarBalanceteVerificacao } from './balancete-verificacao';
-import type { BalanceteVerificacaoResult } from './contabilidade.interface';
+import { montarBalanceteVerificacao, CLASSES_BALANCO, normalizarIntervaloPeriodos } from './balancete-verificacao';
+import type { BalanceteVerificacaoResult, RazaoConta } from './contabilidade.interface';
 import type { CalendarioContabilisticoInput } from '@/lib/validations/plataforma';
 import { bootstrapSeriesDocumento } from '@/server/provisioning/tenant-bootstrap';
 import {
@@ -1174,41 +1174,258 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
 }
 
 
-export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<LinhaRazao[]> {
+// ---------------------------------------------------------------------------
+// Helper: verifica se o exercício tem lançamentos no diário ABERTURA
+// ---------------------------------------------------------------------------
+
+/**
+ * True se o exercício tiver pelo menos um lançamento no diário de tipo ABERTURA
+ * com status em FILTRO_LANCAMENTO_MAPA. Partilhado por `razaoConta` e
+ * `gerarBalanceteVerificacao` para evitar duplicação da lógica.
+ */
+async function exercicioTemDiarioAbertura(exercicioId: string, tenantId: string): Promise<boolean> {
+  const count = await prisma.lancamento.count({
+    where: {
+      tenantId,
+      status: FILTRO_LANCAMENTO_MAPA,
+      diario: { tipo: 'ABERTURA' },
+      periodo: { exercicioId },
+    },
+  });
+  return count > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Razão de conta — modo por datas e modo por períodos (ADR-0040 §7, issue #297)
+// ---------------------------------------------------------------------------
+
+/**
+ * Calcula o saldo assinado pela natureza a partir de um array de agregados
+ * `{ tipo, _sum: { valor } }`. Resultado: DEVEDORA → D−C; CREDORA → C−D.
+ * Um resultado `undefined` (mock sem return value) é tratado como [].
+ */
+function calcularSaldoSignado(
+  agregados: Array<{ tipo: string; _sum: { valor: Prisma.Decimal | null } }> | undefined | null,
+  natureza: 'DEVEDORA' | 'CREDORA',
+): Prisma.Decimal {
+  const zero = new Prisma.Decimal(0);
+  let D = zero;
+  let C = zero;
+  for (const a of agregados ?? []) {
+    const v = a._sum.valor ?? zero;
+    if (a.tipo === 'DEBITO') D = D.plus(v);
+    else C = C.plus(v);
+  }
+  return natureza === 'DEVEDORA' ? D.minus(C) : C.minus(D);
+}
+
+/**
+ * Constrói as linhas do razão a partir de partidas ordenadas, computando
+ * `saldoAcumulado` como corrida a partir de `saldoAnterior`.
+ */
+function construirLinhasRazao(
+  partidas: Array<{
+    id: string;
+    lancamentoId: string;
+    tipo: string;
+    valor: Prisma.Decimal;
+    historico: string | null;
+    lancamento: { id: string; data: Date; historico: string; origem: string };
+  }>,
+  natureza: 'DEVEDORA' | 'CREDORA',
+  saldoAnterior: Prisma.Decimal,
+): LinhaRazao[] {
+  const sinal = natureza === 'DEVEDORA' ? 1 : -1;
+  let saldo = saldoAnterior;
+  return partidas.map((p) => {
+    const d = p.tipo === 'DEBITO' ? p.valor : null;
+    const c = p.tipo === 'CREDITO' ? p.valor : null;
+    const delta = (d ?? new Prisma.Decimal(0)).minus(c ?? new Prisma.Decimal(0));
+    saldo = saldo.plus(delta.times(sinal));
+    return {
+      lancamentoId: p.lancamentoId,
+      data: p.lancamento.data,
+      historico: p.historico ?? p.lancamento.historico,
+      debito: d,
+      credito: c,
+      saldoAcumulado: saldo,
+      origem: p.lancamento.origem as LinhaRazao['origem'],
+    };
+  });
+}
+
+export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<RazaoConta> {
   const conta = await prisma.contaPGC.findFirst({ where: { id: filtro.contaId, tenantId: ctx.tenantId } });
   if (!conta) throw new NotFoundError('Conta não encontrada');
 
-  const partidas = await prisma.partidaLancamento.findMany({
-    where: {
+  const zero = new Prisma.Decimal(0);
+
+  /** Extrai {debito, credito} brutos a partir dos agregados por tipo. */
+  const totaisDeAgregados = (
+    agregados: Array<{ tipo: string; _sum: { valor: Prisma.Decimal | null } }> | undefined | null,
+  ): { debito: Prisma.Decimal; credito: Prisma.Decimal } => {
+    let d = zero;
+    let c = zero;
+    for (const a of agregados ?? []) {
+      const v = a._sum.valor ?? zero;
+      if (a.tipo === 'DEBITO') d = d.plus(v);
+      else c = c.plus(v);
+    }
+    return { debito: d, credito: c };
+  };
+
+  // ── Modo por datas ─────────────────────────────────────────────────────────
+  if (!('exercicioId' in filtro)) {
+    const movWhere = {
       tenantId: ctx.tenantId,
       contaId: filtro.contaId,
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
         status: FILTRO_LANCAMENTO_MAPA,
       },
-    },
-    include: {
-      lancamento: { select: { id: true, data: true, historico: true, origem: true } },
-    },
-    orderBy: { lancamento: { data: 'asc' } },
-  });
+    } as const;
 
-  let saldo = new Prisma.Decimal(0);
-  const isDevedora = conta.natureza === 'DEVEDORA';
+    const [antRaw, totaisRaw, partidas] = await Promise.all([
+      // saldoAnterior: tudo com data < dataInicio
+      prisma.partidaLancamento.groupBy({
+        by: ['tipo'],
+        where: {
+          tenantId: ctx.tenantId,
+          contaId: filtro.contaId,
+          lancamento: { status: FILTRO_LANCAMENTO_MAPA, data: { lt: filtro.dataInicio } },
+        },
+        _sum: { valor: true },
+      }),
+      // totais: mesma janela das linhas, agregado (ponytail: não truncado por take)
+      prisma.partidaLancamento.groupBy({
+        by: ['tipo'],
+        where: movWhere,
+        _sum: { valor: true },
+      }),
+      // linhas: não são truncadas por take (ponytail: unbounded lines per account)
+      prisma.partidaLancamento.findMany({
+        where: movWhere,
+        include: { lancamento: { select: { id: true, data: true, historico: true, origem: true } } },
+        orderBy: [{ lancamento: { data: 'asc' } }, { id: 'asc' }],
+      }),
+    ]);
 
-  return partidas.map((p) => {
-    if (p.tipo === 'DEBITO') saldo = isDevedora ? saldo.plus(p.valor) : saldo.minus(p.valor);
-    else saldo = isDevedora ? saldo.minus(p.valor) : saldo.plus(p.valor);
+    const saldoAnterior = calcularSaldoSignado(antRaw, conta.natureza);
+    const totais = totaisDeAgregados(totaisRaw);
+    const delta = conta.natureza === 'DEVEDORA' ? totais.debito.minus(totais.credito) : totais.credito.minus(totais.debito);
+    const saldoFinal = saldoAnterior.plus(delta);
+    const linhas = construirLinhasRazao(partidas, conta.natureza, saldoAnterior);
+
     return {
-      lancamentoId: p.lancamentoId,
-      data: p.lancamento.data,
-      historico: p.historico ?? p.lancamento.historico,
-      debito: p.tipo === 'DEBITO' ? p.valor : null,
-      credito: p.tipo === 'CREDITO' ? p.valor : null,
-      saldoAcumulado: saldo,
-      origem: p.lancamento.origem as LinhaRazao['origem'],
+      conta: { id: conta.id, codigo: conta.codigo, nome: conta.nome, natureza: conta.natureza, classe: conta.classe },
+      saldoAnterior,
+      totais,
+      linhas,
+      saldoFinal,
+      intervalo: { modo: 'DATAS', dataInicio: filtro.dataInicio, dataFim: filtro.dataFim },
     };
+  }
+
+  // ── Modo por períodos ──────────────────────────────────────────────────────
+  const { exercicioId: exercicioIdFiltro, periodoInicial, periodoFinal, incluir13 } = filtro;
+
+  // Normalização partilhada com gerarBalanceteVerificacao
+  const { periodoInicial: effectiveInicial, periodoFinal: effectiveFinal } =
+    normalizarIntervaloPeriodos({ periodoInicial, periodoFinal, incluir13 });
+
+  // Resolver exercício (deve pertencer ao tenant — cross-tenant → NotFoundError)
+  const exercicio = await prisma.exercicioContabil.findFirst({
+    where: { tenantId: ctx.tenantId, id: exercicioIdFiltro },
+    select: { id: true, dataInicio: true },
   });
+  if (!exercicio) throw new NotFoundError('Exercício contabilístico não encontrado');
+
+  const exercicioId = exercicio.id;
+
+  // Verificar se o exercício tem lançamentos no diário ABERTURA (partilhado com balancete)
+  const temAbertura = await exercicioTemDiarioAbertura(exercicioId, ctx.tenantId);
+
+  const movWherePeriodos = {
+    tenantId: ctx.tenantId,
+    contaId: filtro.contaId,
+    lancamento: {
+      status: FILTRO_LANCAMENTO_MAPA,
+      periodo: { exercicioId, ordem: { gte: effectiveInicial, lte: effectiveFinal } },
+    },
+  } as const;
+
+  // Todas as queries em paralelo
+  const [antPeriodosRaw, antHistoricoRaw, totaisRaw, partidas] = await Promise.all([
+    // Anterior — Part A: períodos [1..effectiveInicial-1]
+    effectiveInicial > 1
+      ? prisma.partidaLancamento.groupBy({
+          by: ['tipo'],
+          where: {
+            tenantId: ctx.tenantId,
+            contaId: filtro.contaId,
+            lancamento: {
+              status: FILTRO_LANCAMENTO_MAPA,
+              periodo: { exercicioId, ordem: { gte: 1, lte: effectiveInicial - 1 } },
+            },
+          },
+          _sum: { valor: true },
+        })
+      : Promise.resolve([]),
+    // Anterior — Part B: histórico antes do exercício (só sem AB e classes de balanço)
+    !temAbertura && CLASSES_BALANCO.has(conta.classe)
+      ? prisma.partidaLancamento.groupBy({
+          by: ['tipo'],
+          where: {
+            tenantId: ctx.tenantId,
+            contaId: filtro.contaId,
+            lancamento: { status: FILTRO_LANCAMENTO_MAPA, data: { lt: exercicio.dataInicio } },
+          },
+          _sum: { valor: true },
+        })
+      : Promise.resolve([]),
+    // Totais do intervalo (ponytail: não truncado por take)
+    prisma.partidaLancamento.groupBy({
+      by: ['tipo'],
+      where: movWherePeriodos,
+      _sum: { valor: true },
+    }),
+    // Linhas: não são truncadas por take (ponytail: unbounded lines per account)
+    prisma.partidaLancamento.findMany({
+      where: movWherePeriodos,
+      include: { lancamento: { select: { id: true, data: true, historico: true, origem: true } } },
+      orderBy: [
+        { lancamento: { periodo: { ordem: 'asc' } } },
+        { lancamento: { data: 'asc' } },
+        { id: 'asc' },
+      ],
+    }),
+  ]);
+
+  // saldoAnterior via calcularSaldoSignado (NIT: substitui somarTipo)
+  const saldoAnterior = calcularSaldoSignado(
+    [...(antPeriodosRaw ?? []), ...(antHistoricoRaw ?? [])],
+    conta.natureza,
+  );
+
+  const totais = totaisDeAgregados(totaisRaw);
+  const delta = conta.natureza === 'DEVEDORA' ? totais.debito.minus(totais.credito) : totais.credito.minus(totais.debito);
+  const saldoFinal = saldoAnterior.plus(delta);
+  const linhas = construirLinhasRazao(partidas, conta.natureza, saldoAnterior);
+
+  return {
+    conta: { id: conta.id, codigo: conta.codigo, nome: conta.nome, natureza: conta.natureza, classe: conta.classe },
+    saldoAnterior,
+    totais,
+    linhas,
+    saldoFinal,
+    intervalo: {
+      modo: 'PERIODOS',
+      exercicioId,
+      periodoInicial: effectiveInicial,
+      periodoFinal: effectiveFinal,
+      incluir13,
+    },
+  };
 }
 
 /**
@@ -1918,10 +2135,13 @@ export async function gerarBalanceteVerificacao(
 ): Promise<BalanceteVerificacaoResult> {
   const { tenantId } = ctx;
 
-  // Período final efectivo: sem incluir13, o 13 equivale ao 12
-  const effectiveFinal = filtro.incluir13 ? filtro.periodoFinal : Math.min(filtro.periodoFinal, 12);
-  // Período inicial efectivo: não pode ultrapassar o final
-  const effectiveInicial = Math.min(filtro.periodoInicial, effectiveFinal);
+  // Normalização do intervalo — partilhada com razaoConta
+  const { periodoInicial: effectiveInicial, periodoFinal: effectiveFinal } =
+    normalizarIntervaloPeriodos({
+      periodoInicial: filtro.periodoInicial,
+      periodoFinal: filtro.periodoFinal,
+      incluir13: filtro.incluir13,
+    });
 
   // 1. Resolver o exercício (n2: primeiro, antes de qualquer groupBy — ADR-0040 §4)
   const exercicio = filtro.exercicioId
@@ -1943,14 +2163,7 @@ export async function gerarBalanceteVerificacao(
 
   // 2. Verificar se o exercício tem lançamentos no diário AB (n2: sequencial — só então
   //    fazemos a query «anteriores», que pode ser pesada em bases grandes)
-  const aberturaCount = await prisma.lancamento.count({
-    where: {
-      tenantId,
-      status: FILTRO_LANCAMENTO_MAPA,
-      diario: { tipo: 'ABERTURA' },
-      periodo: { exercicioId },
-    },
-  });
+  const temAbertura = await exercicioTemDiarioAbertura(exercicioId, tenantId);
 
   // 3. Restantes queries em paralelo; anteriores só quando não há diário AB
   const [movimentoRaw, acumuladoRaw, contasRaw, anterioresRaw] = await Promise.all([
@@ -1993,7 +2206,7 @@ export async function gerarBalanceteVerificacao(
       },
     }),
     // Anteriores: partidas antes de exercicio.dataInicio (só quando sem AB)
-    aberturaCount === 0
+    !temAbertura
       ? prisma.partidaLancamento.groupBy({
           by: ['contaId', 'tipo'],
           where: {
@@ -2009,7 +2222,7 @@ export async function gerarBalanceteVerificacao(
   ]);
 
   // Se o exercício tem lançamentos no diário AB → sem abertura implícita
-  const anteriores = aberturaCount > 0 ? null : anterioresRaw;
+  const anteriores = temAbertura ? null : anterioresRaw;
 
   // 3. Montar o balancete via núcleo puro
   const nucleo = montarBalanceteVerificacao({

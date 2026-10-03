@@ -363,13 +363,48 @@ export const DefinirContaMeioPagamentoPOSSchema = z.object({
 
 export type DefinirContaMeioPagamentoPOSInput = z.infer<typeof DefinirContaMeioPagamentoPOSSchema>;
 
-export const FiltroRazaoSchema = z.object({
+/** Modo por datas: filtra pelo campo `data` do lançamento. */
+export const FiltroRazaoDatasSchema = z.object({
   contaId: idEntidade('ID de conta inválido'),
   dataInicio: z.coerce.date(),
   dataFim: z.coerce.date(),
   cursor: z.string().cuid().optional(),
+  // ponytail: presente no schema por simetria; o serviço não trunca (linhas ilimitadas
+  // por conta; paginar com cursor quando uma conta o justificar).
   take: z.number().int().min(1).max(200).default(50),
 });
+
+export type FiltroRazaoDatasInput = z.infer<typeof FiltroRazaoDatasSchema>;
+
+/**
+ * Modo por períodos: filtra pelo período do lançamento dentro de um exercício.
+ *
+ * Os campos numéricos (`periodoInicial`, `periodoFinal`) usam `z.coerce` porque
+ * chegam como string do URL; `incluir13` usa `z.boolean` sem coerção (a página
+ * traduz o parâmetro de URL para boolean antes de chamar o schema).
+ *
+ * A normalização do intervalo (de > ate → ate..ate; 13 sem p13 → 12) é feita
+ * pelo serviço, tal como no balancete de verificação.
+ */
+export const FiltroRazaoPeriodosSchema = z.object({
+  contaId: idEntidade('ID de conta inválido'),
+  exercicioId: idEntidade('ID de exercício inválido'),
+  periodoInicial: z.coerce.number().int().min(1).max(13),
+  periodoFinal: z.coerce.number().int().min(1).max(13),
+  /** Se false (omissão), o período 13 nunca entra mesmo com periodoFinal=13. */
+  incluir13: z.boolean().default(false),
+  // ponytail: presente no schema por simetria; o serviço não trunca (linhas ilimitadas
+  // por conta; paginar com cursor quando uma conta o justificar).
+  take: z.number().int().min(1).max(200).default(50),
+});
+
+export type FiltroRazaoPeriodosInput = z.infer<typeof FiltroRazaoPeriodosSchema>;
+
+/**
+ * Filtro de razão de conta: union dos dois modos.
+ * A normalização do intervalo (de > ate, 13 sem p13) é do SERVIÇO.
+ */
+export const FiltroRazaoSchema = z.union([FiltroRazaoDatasSchema, FiltroRazaoPeriodosSchema]);
 
 export type FiltroRazaoInput = z.infer<typeof FiltroRazaoSchema>;
 

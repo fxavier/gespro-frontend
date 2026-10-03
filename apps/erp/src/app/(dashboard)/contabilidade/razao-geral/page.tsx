@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
-import { FiltroRazaoSchema } from '@/lib/validations/contabilidade';
+import { FiltroRazaoDatasSchema } from '@/lib/validations/contabilidade';
 import { intervaloDoDiaMaputo } from '@/lib/periodo-fiscal';
 import { formatarData } from '@/lib/format-date';
 import { SeletorConta } from './_components/seletor-conta';
@@ -34,7 +34,7 @@ import {
  *
  * Só o `take` precisa de coerção: o schema base espera número e o URL dá string.
  */
-const FiltroUrlSchema = FiltroRazaoSchema.extend({
+const FiltroUrlSchema = FiltroRazaoDatasSchema.extend({
   take: z.coerce.number().int().min(1).max(200).default(50),
 });
 
@@ -54,11 +54,12 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
  * Entrada malformada já não chega aqui — é apanhada pelo `safeParse` da página.
  */
 async function RazaoSection({ filtros, tenantId, userId }: { filtros: FiltroUrl; tenantId: string; userId: string }) {
-  const linhas = await runWithTenantContext({ tenantId, userId }, () =>
+  const resultado = await runWithTenantContext({ tenantId, userId }, () =>
     contabilidadeService.razaoConta(filtros, { tenantId, userId })
   );
+  const linhas = resultado.linhas;
 
-  if (!linhas || linhas.length === 0) {
+  if (linhas.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
         Nenhum movimento encontrado para os filtros seleccionados.
@@ -67,7 +68,6 @@ async function RazaoSection({ filtros, tenantId, userId }: { filtros: FiltroUrl;
   }
 
   const n = (v: any) => parseFloat(v?.toString() ?? '0');
-  let saldoAcumulado = 0;
 
   return (
     <Card>
@@ -90,7 +90,6 @@ async function RazaoSection({ filtros, tenantId, userId }: { filtros: FiltroUrl;
               const debito = n(l.debito);
               const credito = n(l.credito);
               const saldoPartida = n(l.saldoAcumulado);
-              saldoAcumulado = saldoPartida; // use server-computed saldo
               return (
                 <TableRow key={i}>
                   <TableCell className="text-sm">

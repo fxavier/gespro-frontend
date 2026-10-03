@@ -27,6 +27,8 @@ export type {
   Balancete,
   ContaBalancete,
   LinhaRazao,
+  RazaoConta,
+  IntervaloRazao,
   DRE,
 } from './contabilidade.interface';
 
