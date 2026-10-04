@@ -82,7 +82,7 @@ export default async function EditarContaPGCPage({
           tipo: conta.tipo,
           natureza: conta.natureza,
           nivel: conta.nivel,
-          contaMaeId: conta.contaMaeId ?? undefined,
+          contaMaeId: conta.contaMaeId,
           aceitaLancamento: conta.aceitaLancamento,
           descricao: conta.descricao ?? '',
         }}
