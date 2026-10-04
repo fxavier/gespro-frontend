@@ -2,6 +2,7 @@
 // Partilhado cliente/servidor.
 
 import { z } from 'zod';
+import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -106,8 +107,8 @@ export const FilterContagemSchema = z.object({
   status: StatusContagemStockEnum.optional(),
   localizacaoId: z.string().optional(),
   responsavelId: z.string().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().min(1).max(100).default(25),
 });

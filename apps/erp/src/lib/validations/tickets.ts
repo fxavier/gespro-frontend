@@ -2,6 +2,7 @@
 // Partilhado cliente/servidor. Nunca aceitar `where` cru do cliente.
 
 import { z } from 'zod';
+import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ============================================================
 // Enums (espelham os enums Prisma de operacoes.prisma)
@@ -110,8 +111,8 @@ export const FiltrarTicketsSchema = z.object({
   slaEmAtraso: z.boolean().optional(),
   origemTipo: z.string().optional(),
   origemId: z.string().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   pesquisa: z.string().max(200).optional(),
   cursor: z.string().optional(),
   take: z.number().int().min(1).max(100).default(25),

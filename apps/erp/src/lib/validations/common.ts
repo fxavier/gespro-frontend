@@ -13,6 +13,20 @@ import { z } from 'zod';
 import { validarNUIT } from '@/lib/validacao-nuit';
 import { validarBI } from '@/lib/validacao-bi';
 import { getProvincias } from '@/lib/provincias-mocambique';
+import { inicioDoDiaMaputo, fimDoDiaMaputo } from '@/lib/periodo-fiscal';
+
+// ---------------------------------------------------------------------------
+// Limites de intervalo por datas (#88, #349)
+// ---------------------------------------------------------------------------
+
+/**
+ * `aaaa-mm-dd` é o dia civil INTEIRO de Maputo — início às 00:00, fim às
+ * 23:59:59.999 (+02:00). `z.coerce.date` sozinho dava a meia-noite UTC e, como
+ * `lte`, deixava de fora o próprio último dia. Dates e strings com hora passam
+ * inalterados. Não usar em colunas `@db.Date` (aí a meia-noite UTC é o dia certo).
+ */
+export const inicioDoDia = () => z.preprocess(inicioDoDiaMaputo, z.coerce.date());
+export const fimDoDia = () => z.preprocess(fimDoDiaMaputo, z.coerce.date());
 
 // ---------------------------------------------------------------------------
 // NUIT

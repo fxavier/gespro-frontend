@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { idEntidade } from '@/lib/validations/common';
+import { idEntidade, inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums (espelham prisma/schema/financas.prisma e o ADR-0036 §5-6)
@@ -166,8 +166,8 @@ export const FiltroCompromissoSchema = z
     tipo: TipoCompromissoEnum.optional(),
     recorrencia: RecorrenciaCompromissoEnum.optional(),
     ativo: booleanoDeSearchParam.optional(),
-    dataInicio: z.coerce.date().optional(),
-    dataFim: z.coerce.date().optional(),
+    dataInicio: inicioDoDia().optional(),
+    dataFim: fimDoDia().optional(),
     pesquisa: z.string().max(255).optional(),
     cursor: idEntidade('Cursor inválido').optional(),
     take: z.coerce.number().int().min(1).max(100).default(25),

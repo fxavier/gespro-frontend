@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idEntidade } from '@/lib/validations/common';
+import { idEntidade, inicioDoDia, fimDoDia } from '@/lib/validations/common';
 import { METODOS_POS_CONFIGURAVEIS } from '@/lib/meios-pagamento';
 
 // ---------------------------------------------------------------------------
@@ -278,8 +278,8 @@ export const FiltroLancamentoSchema = z.object({
   contaId: idEntidade('ID de conta inválido').optional(),
   centroCustoId: z.string().cuid().optional(),
   periodoFiscal: z.string().regex(/^\d{4}-\d{2}$/, 'Formato YYYY-MM').optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
@@ -370,8 +370,8 @@ export type DefinirContaMeioPagamentoPOSInput = z.infer<typeof DefinirContaMeioP
 /** Modo por datas: filtra pelo campo `data` do lançamento. */
 export const FiltroRazaoDatasSchema = z.object({
   contaId: idEntidade('ID de conta inválido'),
-  dataInicio: z.coerce.date(),
-  dataFim: z.coerce.date(),
+  dataInicio: inicioDoDia(),
+  dataFim: fimDoDia(),
   cursor: z.string().cuid().optional(),
   // take e cursor aceites e ignorados pelo serviço — linhas completas por decisão G5 (#297);
   // paginação por cursor fica para quando uma conta o justificar.
@@ -413,8 +413,8 @@ export const FiltroRazaoSchema = z.union([FiltroRazaoDatasSchema, FiltroRazaoPer
 export type FiltroRazaoInput = z.infer<typeof FiltroRazaoSchema>;
 
 export const FiltroBalanceteSchema = z.object({
-  dataInicio: z.coerce.date(),
-  dataFim: z.coerce.date(),
+  dataInicio: inicioDoDia(),
+  dataFim: fimDoDia(),
   incluirZeradas: z.boolean().default(false),
   classe: ClassePGCEnum.optional(),
   /** Código (prefixo) ou nome da conta; filtra linhas, não os totais (#141). */
@@ -430,8 +430,8 @@ export const FiltroBalanceteSchema = z.object({
 export type FiltroBalanceteInput = z.infer<typeof FiltroBalanceteSchema>;
 
 export const FiltroDRESchema = z.object({
-  dataInicio: z.coerce.date(),
-  dataFim: z.coerce.date(),
+  dataInicio: inicioDoDia(),
+  dataFim: fimDoDia(),
   centroCustoId: z.string().cuid().optional(),
 });
 

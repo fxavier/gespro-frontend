@@ -476,8 +476,14 @@ export async function listar(
           ...(filter.status ? { status: filter.status as never } : {}),
           ...(filter.localizacaoId ? { localizacaoId: filter.localizacaoId } : {}),
           ...(filter.responsavelId ? { responsavelId: filter.responsavelId } : {}),
-          ...(filter.dataInicio ? { dataAbertura: { gte: filter.dataInicio } } : {}),
-          ...(filter.dataFim ? { dataAbertura: { lte: filter.dataFim } } : {}),
+          ...(filter.dataInicio || filter.dataFim
+            ? {
+                dataAbertura: {
+                  ...(filter.dataInicio ? { gte: filter.dataInicio } : {}),
+                  ...(filter.dataFim ? { lte: filter.dataFim } : {}),
+                },
+              }
+            : {}),
         },
         select: CONTAGEM_SEL,
         orderBy: { dataAbertura: 'desc' },
