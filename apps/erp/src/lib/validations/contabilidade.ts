@@ -1,16 +1,6 @@
 import { z } from 'zod';
-import { idEntidade } from '@/lib/validations/common';
+import { idEntidade, inicioDoDia, fimDoDia } from '@/lib/validations/common';
 import { METODOS_POS_CONFIGURAVEIS } from '@/lib/meios-pagamento';
-import { inicioDoDiaMaputo, fimDoDiaMaputo } from '@/lib/periodo-fiscal';
-
-/**
- * Limites de intervalo por datas (#88): `aaaa-mm-dd` é o dia civil INTEIRO de
- * Maputo — início às 00:00, fim às 23:59:59.999 (+02:00). `z.coerce.date` sozinho
- * dava a meia-noite UTC e, como `lte`, deixava de fora o próprio último dia.
- * Dates e strings com hora passam inalterados.
- */
-const inicioDoDia = () => z.preprocess(inicioDoDiaMaputo, z.coerce.date());
-const fimDoDia = () => z.preprocess(fimDoDiaMaputo, z.coerce.date());
 
 // ---------------------------------------------------------------------------
 // Enums

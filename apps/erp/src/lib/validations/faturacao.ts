@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
-import { dataDocumento, idEntidade } from './common';
+import { dataDocumento, idEntidade, inicioDoDia, fimDoDia } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -167,10 +167,10 @@ export type RegistarPagamentoFaturaInput = z.infer<typeof RegistarPagamentoFatur
 export const FiltroFaturaSchema = z.object({
   clienteId: z.string().optional(),
   status: StatusFaturaEnum.optional(),
-  dataEmissaoInicio: z.coerce.date().optional(),
-  dataEmissaoFim: z.coerce.date().optional(),
-  dataVencimentoInicio: z.coerce.date().optional(),
-  dataVencimentoFim: z.coerce.date().optional(),
+  dataEmissaoInicio: inicioDoDia().optional(),
+  dataEmissaoFim: fimDoDia().optional(),
+  dataVencimentoInicio: inicioDoDia().optional(),
+  dataVencimentoFim: fimDoDia().optional(),
   search: z.string().max(100).optional(), // número ou nome de cliente
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
@@ -196,8 +196,8 @@ export type EmitirNotaCreditoInput = z.infer<typeof EmitirNotaCreditoSchema>;
 export const FiltroNotaCreditoSchema = z.object({
   faturaOriginalId: z.string().cuid().optional(),
   status: StatusNotaCreditoEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
@@ -223,8 +223,8 @@ export type EmitirNotaDebitoInput = z.infer<typeof EmitirNotaDebitoSchema>;
 export const FiltroNotaDebitoSchema = z.object({
   clienteId: z.string().optional(),
   status: StatusNotaDebitoEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
@@ -254,8 +254,8 @@ export type CriarProformaInput = z.infer<typeof CriarProformaSchema>;
 export const FiltroProformaSchema = z.object({
   clienteId: z.string().optional(),
   status: StatusProformaEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
@@ -286,8 +286,8 @@ export type CriarCotacaoComercialInput = z.infer<typeof CriarCotacaoComercialSch
 export const FiltroCotacaoComercialSchema = z.object({
   clienteId: z.string().optional(),
   status: StatusCotacaoComercialEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });

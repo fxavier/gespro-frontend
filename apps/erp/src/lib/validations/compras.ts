@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
-import { idEntidade } from './common';
+import { idEntidade, inicioDoDia, fimDoDia } from './common';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 
 // ---- Enums ----
@@ -148,8 +148,8 @@ export const FilterRequisicaoCompraSchema = z.object({
   departamento: z.string().max(100).optional(),
   /** Pesquisa de texto livre: número, nome do solicitante ou departamento (OR). */
   q: z.string().max(200).optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().positive().max(100).default(25),
   orderBy: z.enum(['createdAt', 'valorTotal', 'prioridade']).default('createdAt'),
@@ -200,8 +200,8 @@ export const UpdateCotacaoSchema = z.object({
 export const FilterCotacaoSchema = z.object({
   status: StatusCotacaoEnum.optional(),
   requisicaoCompraId: z.string().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().positive().max(100).default(25),
   orderBy: z.enum(['createdAt', 'dataValidade']).default('createdAt'),
@@ -285,8 +285,8 @@ export const FilterPedidoCompraSchema = z.object({
   status: StatusPedidoCompraEnum.optional(),
   fornecedorId: z.string().optional(),
   requisicaoCompraId: z.string().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().positive().max(100).default(25),
   orderBy: z.enum(['createdAt', 'valorTotal', 'dataEntregaPrevista']).default('createdAt'),
@@ -326,8 +326,8 @@ export type CreateRecebimentoCompraInput = z.infer<typeof CreateRecebimentoCompr
 export const FilterRecebimentoCompraSchema = z.object({
   pedidoCompraId: z.string().optional(),
   status: StatusRecebimentoEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().positive().max(100).default(25),
 });
@@ -373,8 +373,8 @@ export const UpdateContaPagarSchema = z.object({
 export const FilterContaPagarSchema = z.object({
   status: StatusContaPagarEnum.optional(),
   fornecedorId: z.string().optional(),
-  dataVencimentoInicio: z.coerce.date().optional(),
-  dataVencimentoFim: z.coerce.date().optional(),
+  dataVencimentoInicio: inicioDoDia().optional(),
+  dataVencimentoFim: fimDoDia().optional(),
   vencidas: z.boolean().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().positive().max(100).default(25),
@@ -417,8 +417,8 @@ export type CreatePagamentoInput = z.infer<typeof CreatePagamentoSchema>;
 export const FilterPagamentoSchema = z.object({
   contaPagarId: z.string().optional(),
   status: StatusPagamentoEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().positive().max(100).default(25),
 });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -309,8 +310,8 @@ export const CreateComunicacaoSchema = z.object({
 export const FilterComunicacaoSchema = z.object({
   projetoId: z.string().cuid().optional(),
   tipo: TipoComunicacaoEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -50,8 +51,8 @@ export type FecharSessaoCaixaInput = z.infer<typeof FecharSessaoCaixaSchema>;
 export const FiltroSessaoCaixaSchema = z.object({
   status: StatusSessaoCaixaEnum.optional(),
   responsavelId: z.string().cuid().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
@@ -107,8 +108,8 @@ export type ReforcoInput = z.infer<typeof ReforcoSchema>;
 export const FiltroMovimentoCaixaSchema = z.object({
   sessaoCaixaId: z.string().cuid().optional(),
   tipo: TipoMovimentoCaixaEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });

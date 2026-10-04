@@ -2,6 +2,7 @@
 // Partilhado cliente/servidor.
 
 import { z } from 'zod';
+import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -141,8 +142,8 @@ export const AtivoFilterSchema = z.object({
   responsavelId: z.string().optional(),
   estado: EstadoAtivoEnum.optional(),
   fornecedorId: z.string().optional(),
-  dataAquisicaoInicio: z.coerce.date().optional(),
-  dataAquisicaoFim: z.coerce.date().optional(),
+  dataAquisicaoInicio: inicioDoDia().optional(),
+  dataAquisicaoFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().min(1).max(100).default(25),
   orderBy: z
@@ -259,8 +260,8 @@ export const ManutencaoAtivoFilterSchema = z.object({
   status: StatusManutencaoAtivoEnum.optional(),
   prioridade: PrioridadeManutencaoEnum.optional(),
   tecnicoId: z.string().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().min(1).max(100).default(25),
 });
@@ -316,8 +317,8 @@ export const InventarioFisicoFilterSchema = z.object({
   status: StatusInventarioFisicoEnum.optional(),
   responsavelId: z.string().optional(),
   localizacaoId: z.string().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().min(1).max(100).default(25),
 });

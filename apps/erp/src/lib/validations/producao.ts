@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -194,8 +195,8 @@ export const FilterOrdemProducaoSchema = z.object({
   roteiroId: z.string().cuid().optional(),
   responsavelId: z.string().cuid().optional(),
   clienteId: z.string().cuid().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });

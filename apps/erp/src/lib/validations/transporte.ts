@@ -2,6 +2,7 @@
 // Partilhado cliente/servidor. Nunca aceitar `where` cru do cliente.
 
 import { z } from 'zod';
+import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ============================================================
 // Enums (espelham os enums Prisma de operacoes.prisma)
@@ -193,8 +194,8 @@ export const CriarManutencaoViaturaSchema = z.object({
 export const FiltrarManutencoesSchema = z.object({
   viaturaId: z.string().cuid().optional(),
   tipo: TipoManutencaoViaturaEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
@@ -333,8 +334,8 @@ export const FiltrarAtividadesSchema = z.object({
   prioridade: PrioridadeAtividadeEnum.optional(),
   motoristaResponsavelId: z.string().cuid().optional(),
   viaturaId: z.string().cuid().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.number().int().min(1).max(100).default(25),
   orderBy: z.enum(['dataInicioPrevista', 'createdAt', 'prioridade']).default('dataInicioPrevista'),
@@ -377,8 +378,8 @@ export const FiltrarRotasSchema = z.object({
   estado: EstadoRotaEnum.optional(),
   viaturaId: z.string().cuid().optional(),
   motoristaId: z.string().cuid().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.number().int().min(1).max(100).default(25),
   orderBy: z.enum(['dataInicio', 'createdAt']).default('dataInicio'),
@@ -448,8 +449,8 @@ export const FiltrarEntregasSchema = z.object({
   rotaId: z.string().cuid().optional(),
   viaturaId: z.string().cuid().optional(),
   motoristaId: z.string().cuid().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.number().int().min(1).max(100).default(25),
   orderBy: z.enum(['dataAgendada', 'createdAt', 'prioridade']).default('dataAgendada'),
@@ -492,8 +493,8 @@ export const FiltrarAbastecimentosSchema = z.object({
   viaturaId: z.string().cuid().optional(),
   motoristaId: z.string().cuid().optional(),
   tipoCombustivel: TipoCombustivelEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),
   take: z.number().int().min(1).max(100).default(25),
   orderBy: z.enum(['data', 'createdAt']).default('data'),

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idEntidade } from './common';
+import { idEntidade, inicioDoDia, fimDoDia } from './common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -220,8 +220,8 @@ export const FilterAusenciaSchema = z.object({
   colaboradorId: z.string().cuid().optional(),
   tipo: TipoAusenciaEnum.optional(),
   status: StatusAusenciaEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
@@ -367,8 +367,8 @@ export const FilterFormacaoSchema = z.object({
   search: z.string().optional(),
   status: StatusFormacaoEnum.optional(),
   modalidade: ModalidadeFormacaoEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
