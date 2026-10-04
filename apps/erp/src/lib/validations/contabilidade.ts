@@ -494,3 +494,13 @@ export const ProcurarContasLancamentoSchema = z.object({
 });
 
 export type ProcurarContasLancamentoInput = z.infer<typeof ProcurarContasLancamentoSchema>;
+
+// --- Pesquisa de contas mãe para ComboboxRemoto (formulário plano de contas) ---
+
+export const ProcurarContasMaeSchema = z.object({
+  q: z.string().trim().max(100).default(''),
+  /** Conta a excluir dos resultados (a própria conta em modo edição). */
+  excluirId: idEntidade().optional(),
+});
+
+export type ProcurarContasMaeInput = z.infer<typeof ProcurarContasMaeSchema>;

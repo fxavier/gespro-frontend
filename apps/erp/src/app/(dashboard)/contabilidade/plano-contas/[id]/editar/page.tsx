@@ -9,8 +9,8 @@ import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
-import { PageHeader } from '@/components/patterns';
-import { ContaForm, type ContaMaeOption } from '../../_components/conta-form';
+import { PageHeader, type ComboboxOption } from '@/components/patterns';
+import { ContaForm } from '../../_components/conta-form';
 
 export default async function EditarContaPGCPage({
   params,
@@ -24,24 +24,34 @@ export default async function EditarContaPGCPage({
   const ctx = { tenantId, userId };
 
   const ano = new Date().getFullYear();
-  const { detalhe, contasMae } = await runWithTenantContext(ctx, async () => {
+  const { detalhe, opcoesIniciais } = await runWithTenantContext(ctx, async () => {
     const detalhe = await contabilidadeService.obterContaDetalhe(
       id,
       { dataInicio: new Date(Date.UTC(ano, 0, 1)), dataFim: new Date(Date.UTC(ano, 11, 31)) },
       ctx,
     );
-    if (!detalhe) return { detalhe: null, contasMae: [] as ContaMaeOption[] };
+    if (!detalhe) return { detalhe: null, opcoesIniciais: [] as ComboboxOption[] };
 
-    const { items } = await contabilidadeService.listarContas({ take: 200 }, ctx);
+    // Primeira página (50 contas) + conta mãe actual (pode estar fora das primeiras 50).
+    const { items } = await contabilidadeService.listarContas({ take: 50 }, ctx);
+
+    // Merge por id: primeira página + conta mãe actual (sem duplicados, sem a própria conta).
+    const mapaContas = new Map<string, ComboboxOption>(
+      items
+        .filter((c) => c.id !== id)
+        .map((c) => [c.id, { value: c.id, label: `${c.codigo} — ${c.nome}` }]),
+    );
+    const contaMaeActual = detalhe.contaMae;
+    if (contaMaeActual) {
+      mapaContas.set(contaMaeActual.id, {
+        value: contaMaeActual.id,
+        label: `${contaMaeActual.codigo} — ${contaMaeActual.nome}`,
+      });
+    }
+
     return {
       detalhe,
-      contasMae: items
-        // Uma conta não pode ser mãe de si própria.
-        .filter((c: { id: string }) => c.id !== id)
-        .map((c: { id: string; codigo: string; nome: string }) => ({
-          id: c.id,
-          label: `${c.codigo} — ${c.nome}`,
-        })),
+      opcoesIniciais: [...mapaContas.values()],
     };
   });
   if (!detalhe) notFound();
@@ -62,7 +72,7 @@ export default async function EditarContaPGCPage({
       />
 
       <ContaForm
-        contasMae={contasMae}
+        opcoesIniciais={opcoesIniciais}
         contaId={conta.id}
         trancado={movimentosTotais > 0}
         valoresIniciais={{
