@@ -39,17 +39,19 @@ const TIPO_LABEL: Record<string, string> = {
   RESULTADO: 'Resultado',
 };
 
-/** Exercício corrente — é o período em que um contabilista pensa por omissão. */
+/**
+ * Exercício corrente — é o período em que um contabilista pensa por omissão.
+ * Ano civil de Maputo (o servidor corre em UTC: no dia 1/1 às 00h30 de Maputo
+ * `getFullYear()` ainda diz o ano anterior), delimitado em instantes de Maputo.
+ */
 function exercicioCorrente() {
-  const ano = new Date().getFullYear();
+  const { ano } = contabilidadeService.diaCivilEmMaputo(new Date());
   return {
     ano,
-    dataInicio: new Date(Date.UTC(ano, 0, 1)),
-    dataFim: new Date(Date.UTC(ano, 11, 31, 23, 59, 59)),
+    dataInicio: new Date(`${ano}-01-01T00:00:00.000+02:00`),
+    dataFim: new Date(`${ano}-12-31T23:59:59.999+02:00`),
   };
 }
-
-const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export default async function ContaDetalhePage({
   params,
@@ -110,7 +112,7 @@ export default async function ContaDetalhePage({
             {conta.aceitaLancamento && (
               <Button asChild size="sm" variant="outline">
                 <Link
-                  href={`/contabilidade/razao-geral?contaId=${conta.id}&dataInicio=${iso(exercicio.dataInicio)}&dataFim=${iso(exercicio.dataFim)}`}
+                  href={`/contabilidade/razao-geral?contaId=${conta.id}&dataInicio=${exercicio.ano}-01-01&dataFim=${exercicio.ano}-12-31`}
                 >
                   <ScrollText className="h-4 w-4 mr-2" />
                   Ver razão

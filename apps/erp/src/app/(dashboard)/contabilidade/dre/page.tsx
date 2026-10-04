@@ -11,7 +11,7 @@ import * as contabilidadeService from '@/server/services/financas/contabilidade.
 import { FiltroDRESchema } from '@/lib/validations/contabilidade';
 import { PageHeader, TableSkeleton } from '@/components/patterns';
 import { SeletorPeriodo } from '../_components/seletor-periodo';
-import { intervaloDoDiaMaputo, periodoPorOmissao } from '@/lib/periodo-fiscal';
+import { periodoPorOmissao } from '@/lib/periodo-fiscal';
 import { formatarData } from '@/lib/format-date';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
@@ -118,10 +118,10 @@ export default async function DrePage({ searchParams }: PageProps) {
     dataInicio: typeof flat.dataInicio === 'string' ? flat.dataInicio : omissao.dataInicio,
     dataFim: typeof flat.dataFim === 'string' ? flat.dataFim : omissao.dataFim,
   };
-  // Datas `aaaa-mm-dd` ⇒ dia civil de Maputo inteiro (`intervaloDoDiaMaputo`):
+  // Datas `aaaa-mm-dd` ⇒ dia civil de Maputo inteiro (o schema normaliza, #88):
   // com a meia-noite UTC o último dia ficava de fora, e a DRE deixava de
   // coincidir com o resultado líquido da DFC do mesmo intervalo (I9).
-  const parseResult = FiltroUrlSchema.safeParse(intervaloDoDiaMaputo({ ...flat, ...periodo }));
+  const parseResult = FiltroUrlSchema.safeParse({ ...flat, ...periodo });
 
   return (
     <div className="p-6 space-y-6">

@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { idEntidade } from '@/lib/validations/common';
 import { METODOS_POS_CONFIGURAVEIS } from '@/lib/meios-pagamento';
+import { inicioDoDiaMaputo, fimDoDiaMaputo } from '@/lib/periodo-fiscal';
+
+/**
+ * Limites de intervalo por datas (#88): `aaaa-mm-dd` é o dia civil INTEIRO de
+ * Maputo — início às 00:00, fim às 23:59:59.999 (+02:00). `z.coerce.date` sozinho
+ * dava a meia-noite UTC e, como `lte`, deixava de fora o próprio último dia.
+ * Dates e strings com hora passam inalterados.
+ */
+const inicioDoDia = () => z.preprocess(inicioDoDiaMaputo, z.coerce.date());
+const fimDoDia = () => z.preprocess(fimDoDiaMaputo, z.coerce.date());
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -274,8 +284,8 @@ export const FiltroLancamentoSchema = z.object({
   contaId: idEntidade('ID de conta inválido').optional(),
   centroCustoId: z.string().cuid().optional(),
   periodoFiscal: z.string().regex(/^\d{4}-\d{2}$/, 'Formato YYYY-MM').optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().min(1).max(100).default(25),
 });
@@ -366,8 +376,8 @@ export type DefinirContaMeioPagamentoPOSInput = z.infer<typeof DefinirContaMeioP
 /** Modo por datas: filtra pelo campo `data` do lançamento. */
 export const FiltroRazaoDatasSchema = z.object({
   contaId: idEntidade('ID de conta inválido'),
-  dataInicio: z.coerce.date(),
-  dataFim: z.coerce.date(),
+  dataInicio: inicioDoDia(),
+  dataFim: fimDoDia(),
   cursor: z.string().cuid().optional(),
   // take e cursor aceites e ignorados pelo serviço — linhas completas por decisão G5 (#297);
   // paginação por cursor fica para quando uma conta o justificar.
@@ -409,8 +419,8 @@ export const FiltroRazaoSchema = z.union([FiltroRazaoDatasSchema, FiltroRazaoPer
 export type FiltroRazaoInput = z.infer<typeof FiltroRazaoSchema>;
 
 export const FiltroBalanceteSchema = z.object({
-  dataInicio: z.coerce.date(),
-  dataFim: z.coerce.date(),
+  dataInicio: inicioDoDia(),
+  dataFim: fimDoDia(),
   incluirZeradas: z.boolean().default(false),
   classe: ClassePGCEnum.optional(),
   /** Código (prefixo) ou nome da conta; filtra linhas, não os totais (#141). */
@@ -426,8 +436,8 @@ export const FiltroBalanceteSchema = z.object({
 export type FiltroBalanceteInput = z.infer<typeof FiltroBalanceteSchema>;
 
 export const FiltroDRESchema = z.object({
-  dataInicio: z.coerce.date(),
-  dataFim: z.coerce.date(),
+  dataInicio: inicioDoDia(),
+  dataFim: fimDoDia(),
   centroCustoId: z.string().cuid().optional(),
 });
 

@@ -21,7 +21,6 @@ import {
 } from '@/server/services/financas/contabilidade.service';
 import { FiltroRazaoDatasSchema, FiltroRazaoPeriodosSchema } from '@/lib/validations/contabilidade';
 import { lerParametrosBalancete, exercicioCorrente } from '@/lib/balancete-params';
-import { intervaloDoDiaMaputo } from '@/lib/periodo-fiscal';
 import { formatarData } from '@/lib/format-date';
 import { formatMZN } from '@/lib/format-currency';
 import { SeletorConta } from './_components/seletor-conta';
@@ -297,10 +296,12 @@ export default async function RazaoGeralPage({ searchParams }: PageProps) {
   const dataInicioUrl = typeof flat.dataInicio === 'string' ? flat.dataInicio : inicioPorOmissao;
   const dataFimUrl = typeof flat.dataFim === 'string' ? flat.dataFim : fimPorOmissao;
 
-  // Datas `aaaa-mm-dd` ⇒ dia civil de Maputo inteiro (D7: evita último dia fora)
-  const parseFiltro = FiltroRazaoDatasSchema.safeParse(
-    intervaloDoDiaMaputo({ contaId: contaIdUrl, dataInicio: dataInicioUrl, dataFim: dataFimUrl }),
-  );
+  // Datas `aaaa-mm-dd` ⇒ dia civil de Maputo inteiro (o schema normaliza, #88)
+  const parseFiltro = FiltroRazaoDatasSchema.safeParse({
+    contaId: contaIdUrl,
+    dataInicio: dataInicioUrl,
+    dataFim: dataFimUrl,
+  });
 
   const intervaloTexto = parseFiltro.success
     ? `${formatarData(dataInicioUrl)} a ${formatarData(dataFimUrl)}`
