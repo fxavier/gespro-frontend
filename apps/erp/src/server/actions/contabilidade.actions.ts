@@ -24,6 +24,7 @@ import {
   ListarPeriodosSchema,
   AbrirExercicioSchema,
   DefinirContaMeioPagamentoPOSSchema,
+  ProcurarContasLancamentoSchema,
 } from '@/lib/validations/contabilidade';
 import { CalendarioContabilisticoSchema } from '@/lib/validations/plataforma';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
@@ -269,4 +270,24 @@ export const atualizarCalendarioContabilistico = createSafeAction({
   permission: 'financas:configurar',
   revalidate: { tags: ['contabilidade', 'configuracoes'], paths: ['/contabilidade/configuracoes'] },
   handler: (input, ctx) => contabilidade.atualizarCalendarioContabilistico(input, ctx),
+});
+
+/**
+ * Pesquisa de contas PGC folha para o `ComboboxRemoto` do formulário de
+ * lançamento contabilístico (issue #87). Leitura: corre em modo de Leitura
+ * (ADR-0032). Nota: `ComboboxRemoto` nunca chama esta action com termo vazio —
+ * quando o campo está limpo mostra `opcoesIniciais` (carregadas pelo Server
+ * Component). Esta action só é invocada quando o utilizador escreve algo.
+ */
+export const procurarContasLancamentoAction = createSafeAction({
+  schema: ProcurarContasLancamentoSchema,
+  permission: 'financas:leitura',
+  permiteEmLeitura: true,
+  handler: async (input, ctx) => {
+    const pagina = await contabilidade.listarContas(
+      { search: input.q, aceitaLancamento: true, ativo: true, take: 30 },
+      ctx,
+    );
+    return pagina.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
+  },
 });

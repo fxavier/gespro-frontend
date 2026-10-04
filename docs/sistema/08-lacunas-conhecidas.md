@@ -80,7 +80,8 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 
 | G | Lacuna |
 |---|---|
-| A | Novo Lançamento só carrega as primeiras 200 contas de movimento (até 493): classes 5–8 inescolhíveis ([#87](https://github.com/fxavier/gespro-frontend/issues/87)) |
+| — | ~~Novo Lançamento só carrega as primeiras 200 contas de movimento (até 493): classes 5–8 inescolhíveis~~ — **deixou de ser lacuna** ([#87](https://github.com/fxavier/gespro-frontend/issues/87)): a conta da partida é um `ComboboxRemoto` com pesquisa no servidor sobre todas as contas de movimento activas |
+| B | Plano de contas: o selector de conta-mãe só oferece as primeiras 200 de 505 contas ([#344](https://github.com/fxavier/gespro-frontend/issues/344)) |
 | A | Fim de intervalo `aaaa-mm-dd` à meia-noite UTC exclui o último dia (balancete, razão, DRE) ([#88](https://github.com/fxavier/gespro-frontend/issues/88)) |
 | A | Estornar apuramento de IVA em duas transacções: com período fechado fica ESTORNADO com o lançamento activo ([#89](https://github.com/fxavier/gespro-frontend/issues/89)) |
 | M | Rascunhos de lançamento sem editar nem eliminar ([#137](https://github.com/fxavier/gespro-frontend/issues/137)) |

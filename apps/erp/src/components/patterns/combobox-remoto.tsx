@@ -18,6 +18,7 @@ interface ComboboxRemotoProps {
   emptyText?: string;
   disabled?: boolean;
   id?: string;
+  className?: string;
 }
 
 /**
