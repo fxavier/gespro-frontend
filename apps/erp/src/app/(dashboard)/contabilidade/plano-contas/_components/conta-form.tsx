@@ -26,13 +26,12 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
-import { criarContaPGC, atualizarContaPGC } from '@/server/actions/contabilidade.actions';
+import { FormPage, FormSection, UnsavedChangesGuard, ComboboxRemoto, type ComboboxOption } from '@/components/patterns';
+import { criarContaPGC, atualizarContaPGC, procurarContasMaeAction } from '@/server/actions/contabilidade.actions';
 import { CriarContaPGCSchema, type CriarContaPGCInput } from '@/lib/validations/contabilidade';
 
-export type ContaMaeOption = { id: string; label: string };
-
 const SEM_PAI = '__none__';
+const OPCAO_SEM_PAI: ComboboxOption = { value: SEM_PAI, label: 'Nenhuma (conta raiz)' };
 const LISTA = '/contabilidade/plano-contas';
 
 const CLASSE_LABEL: Record<CriarContaPGCInput['classe'], string> = {
@@ -68,12 +67,13 @@ const DEFAULT_VALUES: CriarContaPGCInput = {
 };
 
 export function ContaForm({
-  contasMae,
+  opcoesIniciais,
   contaId,
   valoresIniciais,
   trancado = false,
 }: {
-  contasMae: ContaMaeOption[];
+  /** Primeira página de contas mãe (carregada pelo Server Component); o formulário junta «Nenhuma». */
+  opcoesIniciais: ComboboxOption[];
   /** Presente em modo edição. */
   contaId?: string;
   valoresIniciais?: Partial<CriarContaPGCInput>;
@@ -88,6 +88,13 @@ export function ContaForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const emEdicao = Boolean(contaId);
+
+  /** Pesquisa de contas mãe no servidor (debounce gerido pelo ComboboxRemoto). */
+  const procurarContasMae = async (q: string): Promise<ComboboxOption[] | null> => {
+    const r = await procurarContasMaeAction({ q, excluirId: contaId });
+    if (!r.ok) return null;
+    return [OPCAO_SEM_PAI, ...r.data.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))];
+  };
 
   const form = useForm<CriarContaPGCInput>({
     resolver: zodResolver(CriarContaPGCSchema),
@@ -299,12 +306,13 @@ export function ContaForm({
                 <FormItem>
                   <FormLabel>Conta Mãe</FormLabel>
                   <FormControl>
-                    <Combobox
+                    <ComboboxRemoto
                       value={field.value ?? SEM_PAI}
                       disabled={trancado}
                       onChange={(v) => field.onChange(v === SEM_PAI ? undefined : v)}
                       placeholder="Nenhuma (conta raiz)"
-                      options={[{ value: SEM_PAI, label: 'Nenhuma (conta raiz)' }, ...contasMae.map((c) => ({ value: c.id, label: c.label }))]}
+                      opcoesIniciais={[OPCAO_SEM_PAI, ...opcoesIniciais]}
+                      procurar={procurarContasMae}
                     />
                   </FormControl>
                   <FormDescription>Opcional — para contas de detalhe</FormDescription>

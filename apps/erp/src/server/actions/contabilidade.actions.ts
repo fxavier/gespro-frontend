@@ -25,6 +25,7 @@ import {
   AbrirExercicioSchema,
   DefinirContaMeioPagamentoPOSSchema,
   ProcurarContasLancamentoSchema,
+  ProcurarContasMaeSchema,
 } from '@/lib/validations/contabilidade';
 import { CalendarioContabilisticoSchema } from '@/lib/validations/plataforma';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
@@ -289,5 +290,32 @@ export const procurarContasLancamentoAction = createSafeAction({
       ctx,
     );
     return pagina.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
+  },
+});
+
+/**
+ * Pesquisa de contas PGC (todas, não só folhas) para o `ComboboxRemoto` do
+ * campo «Conta Mãe» no formulário de plano de contas (issue #344).
+ *
+ * Aceita um `excluirId` opcional para que o formulário de edição exclua a
+ * própria conta dos resultados (uma conta não pode ser mãe de si própria).
+ *
+ * Leitura: corre em modo de Leitura (ADR-0032). Esta action só é invocada
+ * quando o utilizador escreve algo — quando o campo está limpo o
+ * `ComboboxRemoto` mostra `opcoesIniciais` (carregadas pelo Server Component).
+ */
+export const procurarContasMaeAction = createSafeAction({
+  schema: ProcurarContasMaeSchema,
+  permission: 'financas:leitura',
+  permiteEmLeitura: true,
+  handler: async (input, ctx) => {
+    const pagina = await contabilidade.listarContas(
+      { search: input.q, take: 30 },
+      ctx,
+    );
+    const items = input.excluirId
+      ? pagina.items.filter((c) => c.id !== input.excluirId)
+      : pagina.items;
+    return items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
   },
 });

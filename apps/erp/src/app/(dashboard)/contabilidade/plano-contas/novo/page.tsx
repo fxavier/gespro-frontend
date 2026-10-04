@@ -10,19 +10,16 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { PageHeader } from '@/components/patterns';
-import { ContaForm, type ContaMaeOption } from '../_components/conta-form';
+import { ContaForm } from '../_components/conta-form';
 
 export default async function NovaContaPGCPage() {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId } = session.user;
 
-  const contasMae: ContaMaeOption[] = await runWithTenantContext({ tenantId, userId }, async () => {
-    const { items } = await contabilidadeService.listarContas({ take: 200 }, { tenantId, userId });
-    return items.map((c: { id: string; codigo: string; nome: string }) => ({
-      id: c.id,
-      label: `${c.codigo} — ${c.nome}`,
-    }));
+  const opcoesIniciais = await runWithTenantContext({ tenantId, userId }, async () => {
+    const { items } = await contabilidadeService.listarContas({ take: 50 }, { tenantId, userId });
+    return items.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }));
   });
 
   return (
@@ -37,7 +34,7 @@ export default async function NovaContaPGCPage() {
         ]}
       />
 
-      <ContaForm contasMae={contasMae} />
+      <ContaForm opcoesIniciais={opcoesIniciais} />
     </div>
   );
 }
