@@ -29,6 +29,7 @@ import type {
   AbrirExercicioInput,
   FiltroBalanceteVerificacaoInput,
 } from '@/lib/validations/contabilidade';
+import { MSG_CONTA_MAE_NAO_ENCONTRADA } from '@/lib/validations/contabilidade';
 import { montarBalanceteVerificacao, CLASSES_BALANCO, normalizarIntervaloPeriodos } from './balancete-verificacao';
 import type { BalanceteVerificacaoResult, RazaoConta } from './contabilidade.interface';
 import type { CalendarioContabilisticoInput } from '@/lib/validations/plataforma';
@@ -452,6 +453,38 @@ async function trancarPeriodoAberto(
 // Plano de contas
 // ---------------------------------------------------------------------------
 
+/** Tecto da subida na hierarquia: o PGC vai ao nível 7; folga para dados antigos. */
+const PROFUNDIDADE_MAXIMA_PLANO = 32;
+
+/**
+ * A mãe tem de existir no tenant (senão 404, mesmo que exista noutro) e, ao
+ * actualizar, não pode ser a própria conta nem um descendente dela (#347).
+ * Corrida tolerada: dois saves simultâneos podem fechar um ciclo entre a validação e a escrita (o `maesEfectivas` do balancete quebra ciclos).
+ */
+async function validarContaMae(contaMaeId: string, ctx: Ctx, contaId?: string): Promise<void> {
+  if (contaId && contaMaeId === contaId) {
+    throw new BusinessRuleError('CONTA_MAE_PROPRIA', 'Uma conta não pode ser mãe de si própria');
+  }
+  let atual: string | null = contaMaeId;
+  for (let i = 0; atual && i < PROFUNDIDADE_MAXIMA_PLANO; i++) {
+    const conta: { contaMaeId: string | null } | null = await prisma.contaPGC.findFirst({
+      where: { id: atual, tenantId: ctx.tenantId },
+      select: { contaMaeId: true },
+    });
+    if (!conta) {
+      if (i === 0) throw new NotFoundError(MSG_CONTA_MAE_NAO_ENCONTRADA);
+      return; // cadeia partida acima da mãe: não há ciclo com esta conta
+    }
+    if (contaId && conta.contaMaeId === contaId) {
+      throw new BusinessRuleError(
+        'CONTA_MAE_CICLO',
+        'A conta mãe escolhida é descendente desta conta — criaria um ciclo na hierarquia',
+      );
+    }
+    atual = conta.contaMaeId;
+  }
+}
+
 export async function criarConta(input: CriarContaPGCInput, ctx: Ctx): Promise<ContaPGC> {
   const existente = await prisma.contaPGC.findFirst({
     where: { codigo: input.codigo, tenantId: ctx.tenantId },
@@ -459,6 +492,7 @@ export async function criarConta(input: CriarContaPGCInput, ctx: Ctx): Promise<C
   if (existente) {
     throw new BusinessRuleError('CONTA_DUPLICADA', `Conta "${input.codigo}" já existe`);
   }
+  if (input.contaMaeId) await validarContaMae(input.contaMaeId, ctx);
   return prisma.contaPGC.create({
     data: { tenantId: ctx.tenantId, ...input },
   }) as unknown as ContaPGC;
@@ -493,6 +527,9 @@ export async function atualizarConta(input: AtualizarContaPGCInput, ctx: Ctx): P
       );
     }
   }
+
+  // Depois da tranca: uma conta com movimentos ouve «tem movimentos», não «ciclo»/404.
+  if (data.contaMaeId) await validarContaMae(data.contaMaeId, ctx, id);
 
   return prisma.contaPGC.update({ where: { id }, data }) as unknown as ContaPGC;
 }

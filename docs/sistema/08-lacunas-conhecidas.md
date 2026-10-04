@@ -82,7 +82,7 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 |---|---|
 | — | ~~Novo Lançamento só carrega as primeiras 200 contas de movimento (até 493): classes 5–8 inescolhíveis~~ — **deixou de ser lacuna** ([#87](https://github.com/fxavier/gespro-frontend/issues/87)): a conta da partida é um `ComboboxRemoto` com pesquisa no servidor sobre todas as contas de movimento activas |
 | — | ~~Plano de contas: o selector de conta-mãe só oferece as primeiras 200 de 505 contas~~ — **deixou de ser lacuna** ([#344](https://github.com/fxavier/gespro-frontend/issues/344)): `ComboboxRemoto` com pesquisa no servidor sobre todas as contas |
-| A | Conta-mãe sem validação no servidor: aceita id de outro tenant, permite ciclos, e «Nenhuma (conta raiz)» não desassocia em edição ([#347](https://github.com/fxavier/gespro-frontend/issues/347)) |
+| — | ~~Conta-mãe sem validação no servidor: aceita id de outro tenant, permite ciclos, e «Nenhuma (conta raiz)» não desassocia em edição~~ — **deixou de ser lacuna**: `criarConta`/`atualizarConta` exigem a mãe no próprio tenant (404), recusam a própria conta (`CONTA_MAE_PROPRIA`) e descendentes (`CONTA_MAE_CICLO`); «Nenhuma» envia `null` e tira a mãe ([#347](https://github.com/fxavier/gespro-frontend/issues/347)) |
 | A | Fim de intervalo `aaaa-mm-dd` à meia-noite UTC exclui o último dia (balancete, razão, DRE) ([#88](https://github.com/fxavier/gespro-frontend/issues/88)) |
 | A | Estornar apuramento de IVA em duas transacções: com período fechado fica ESTORNADO com o lançamento activo ([#89](https://github.com/fxavier/gespro-frontend/issues/89)) |
 | M | Rascunhos de lançamento sem editar nem eliminar ([#137](https://github.com/fxavier/gespro-frontend/issues/137)) |

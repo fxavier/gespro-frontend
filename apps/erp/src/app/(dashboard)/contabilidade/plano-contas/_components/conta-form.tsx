@@ -28,7 +28,11 @@ import {
 } from '@/components/ui/form';
 import { FormPage, FormSection, UnsavedChangesGuard, ComboboxRemoto, type ComboboxOption } from '@/components/patterns';
 import { criarContaPGC, atualizarContaPGC, procurarContasMaeAction } from '@/server/actions/contabilidade.actions';
-import { CriarContaPGCSchema, type CriarContaPGCInput } from '@/lib/validations/contabilidade';
+import {
+  CriarContaPGCSchema,
+  MSG_CONTA_MAE_NAO_ENCONTRADA,
+  type CriarContaPGCInput,
+} from '@/lib/validations/contabilidade';
 
 const SEM_PAI = '__none__';
 const OPCAO_SEM_PAI: ComboboxOption = { value: SEM_PAI, label: 'Nenhuma (conta raiz)' };
@@ -117,6 +121,12 @@ export function ContaForm({
               message: messages[0],
             });
           });
+        } else if (
+          res.error.code === 'CONTA_MAE_CICLO' ||
+          res.error.code === 'CONTA_MAE_PROPRIA' ||
+          res.error.message === MSG_CONTA_MAE_NAO_ENCONTRADA
+        ) {
+          form.setError('contaMaeId', { type: 'server', message: res.error.message });
         } else {
           toast.error(res.error.message ?? 'Ocorreu um erro ao guardar a conta.');
         }
@@ -309,7 +319,7 @@ export function ContaForm({
                     <ComboboxRemoto
                       value={field.value ?? SEM_PAI}
                       disabled={trancado}
-                      onChange={(v) => field.onChange(v === SEM_PAI ? undefined : v)}
+                      onChange={(v) => field.onChange(v === SEM_PAI ? null : v)}
                       placeholder="Nenhuma (conta raiz)"
                       opcoesIniciais={[OPCAO_SEM_PAI, ...opcoesIniciais]}
                       procurar={procurarContasMae}

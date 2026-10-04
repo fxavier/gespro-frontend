@@ -95,10 +95,14 @@ export const CriarContaPGCSchema = z.object({
   tipo: TipoContaEnum,
   natureza: NaturezaContaEnum,
   nivel: z.number().int().min(1).max(4),
-  contaMaeId: idEntidade('ID de conta mãe inválido').optional(),
+  // null ou omitido = raiz na criação; na actualização (`.partial()`), null = tirar a mãe e omitido = não alterar.
+  contaMaeId: idEntidade('ID de conta mãe inválido').nullable().optional(),
   aceitaLancamento: z.boolean().default(false),
   descricao: z.string().max(500).optional(),
 });
+
+/** Mensagem do `NotFoundError` da conta mãe — o formulário usa-a para pôr o erro no campo. */
+export const MSG_CONTA_MAE_NAO_ENCONTRADA = 'Conta mãe não encontrada';
 
 export type CriarContaPGCInput = z.infer<typeof CriarContaPGCSchema>;
 
