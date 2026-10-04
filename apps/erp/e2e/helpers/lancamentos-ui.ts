@@ -19,7 +19,9 @@ export function marcaLancamento(rotulo: string): string {
 /** Escolhe uma opção num `Combobox` (filtro local) pelo início do rótulo. */
 export async function escolherNoCombobox(page: Page, caixa: Locator, pesquisa: string, opcao: RegExp) {
   await caixa.click();
-  await page.getByPlaceholder('Pesquisar…').fill(pesquisa);
+  // Scoped ao wrapper do Radix Popover: evita strict mode quando o popover
+  // anterior ainda está na animação de fecho e dois inputs coexistem no DOM.
+  await page.locator('[data-radix-popper-content-wrapper]').last().getByPlaceholder('Pesquisar…').fill(pesquisa);
   await page.getByRole('option', { name: opcao }).first().click();
   await expect(caixa).toHaveText(opcao);
 }

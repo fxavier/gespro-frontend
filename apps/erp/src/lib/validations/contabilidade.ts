@@ -486,3 +486,11 @@ export const FiltroBalanceteVerificacaoSchema = z.object({
 });
 
 export type FiltroBalanceteVerificacaoInput = z.infer<typeof FiltroBalanceteVerificacaoSchema>;
+
+// --- Pesquisa de contas para ComboboxRemoto (formulário de lançamento) ---
+
+export const ProcurarContasLancamentoSchema = z.object({
+  q: z.string().trim().max(100).default(''),
+});
+
+export type ProcurarContasLancamentoInput = z.infer<typeof ProcurarContasLancamentoSchema>;

@@ -80,16 +80,25 @@ export default async function EditarLancamentoPage({
     );
   }
 
-  const listadas = await runWithTenantContext(ctx, () =>
-    contabilidadeService.listarContas({ aceitaLancamento: true, take: 200 }, ctx)
-  );
-  const contas = listadas.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
-  // As contas do rascunho podem não estar entre as 200 primeiras — sem isto o campo aparece vazio.
-  for (const p of lancamento.partidas) {
-    if (p.conta && !contas.some((c) => c.id === p.conta.id)) {
-      contas.push({ id: p.conta.id, codigo: p.conta.codigo, nome: p.conta.nome });
+  // Opções iniciais para o ComboboxRemoto: primeira página (50 contas) + contas
+  // do rascunho que possam estar fora dela (ex.: classes 6-8 adicionadas numa
+  // edição anterior). Map por id para deduplicar — padrão de opcoes.ts.
+  const contasMap = await runWithTenantContext(ctx, async () => {
+    const pagina = await contabilidadeService.listarContas(
+      { aceitaLancamento: true, ativo: true, take: 50 },
+      ctx,
+    );
+    const m = new Map(
+      pagina.items.map((c) => [c.id, { id: c.id, codigo: c.codigo, nome: c.nome }]),
+    );
+    for (const p of lancamento.partidas) {
+      if (p.conta && !m.has(p.conta.id)) {
+        m.set(p.conta.id, { id: p.conta.id, codigo: p.conta.codigo, nome: p.conta.nome });
+      }
     }
-  }
+    return m;
+  });
+  const contas = [...contasMap.values()];
 
   const partidas = lancamento.partidas.map((p) => ({
     contaId: p.contaId,

@@ -46,35 +46,43 @@ export default async function NovoLancamentoPage({
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId } = session.user;
 
+  // Opções iniciais para o ComboboxRemoto: primeira página (50 contas) + contas
+  // do pré-preenchimento que possam estar fora dela (ex.: classes 6-8).
+  // Padrão: `opcoes.ts` da reconciliação — Map por id para deduplicar.
   let contas: { id: string; codigo: string; nome: string }[] = [];
   let diarios: { id: string; codigo: string; nome: string; tipo: string }[] = [];
 
   try {
-    const [contasResult, diariosResult] = await runWithTenantContext({ tenantId, userId }, () =>
-      Promise.all([
-        contabilidadeService.listarContas({ aceitaLancamento: true, take: 200 }, { tenantId, userId }),
-        contabilidadeService.listarDiarios({ tenantId, userId }),
-      ])
-    );
+    const ctx = { tenantId, userId };
+    const prefillIds = [
+      ...new Set((prefill?.partidas ?? []).map((p) => p.contaId).filter(Boolean)),
+    ];
 
-    contas = contasResult.items.map((c: any) => ({
-      id: c.id,
-      codigo: c.codigo,
-      nome: c.nome,
-    }));
+    await runWithTenantContext(ctx, async () => {
+      const [pagina, listarDiariosResult, prefillResolvidas] = await Promise.all([
+        contabilidadeService.listarContas({ aceitaLancamento: true, ativo: true, take: 50 }, ctx),
+        contabilidadeService.listarDiarios(ctx),
+        Promise.all(prefillIds.map((id) => contabilidadeService.obterConta(id, ctx))),
+      ]);
 
-    diarios = diariosResult.map((d: any) => ({
-      id: d.id,
-      codigo: d.codigo,
-      nome: d.nome,
-      tipo: d.tipo,
-    }));
-    // A conta sugerida pode não estar entre as 200 primeiras — sem isto o select apareceria vazio.
-    const emFalta = (prefill?.partidas ?? []).map((p) => p.contaId).filter((id) => id && !contas.some((c) => c.id === id));
-    for (const id of new Set(emFalta)) {
-      const c = await runWithTenantContext({ tenantId, userId }, () => contabilidadeService.obterConta(id, { tenantId, userId }));
-      if (c) contas.push({ id: c.id, codigo: c.codigo, nome: c.nome });
-    }
+      diarios = listarDiariosResult.map((d: any) => ({
+        id: d.id,
+        codigo: d.codigo,
+        nome: d.nome,
+        tipo: d.tipo,
+      }));
+
+      // Primeira página de contas + pré-preenchimento fora da primeira página.
+      const contasMap = new Map(
+        pagina.items.map((c: any) => [c.id, { id: c.id, codigo: c.codigo, nome: c.nome }]),
+      );
+      for (const c of prefillResolvidas) {
+        if (c && !contasMap.has(c.id)) {
+          contasMap.set(c.id, { id: c.id, codigo: c.codigo, nome: c.nome });
+        }
+      }
+      contas = [...contasMap.values()];
+    });
   } catch {
     // Se o serviço falhar, formulário mostra selects vazios
   }

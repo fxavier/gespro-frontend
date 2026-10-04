@@ -42,8 +42,8 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
-import { criarLancamento, editarLancamento } from '@/server/actions/contabilidade.actions';
+import { FormPage, FormSection, UnsavedChangesGuard, Combobox, ComboboxRemoto, type ComboboxOption } from '@/components/patterns';
+import { criarLancamento, editarLancamento, procurarContasLancamentoAction } from '@/server/actions/contabilidade.actions';
 import {
   CriarLancamentoSchema,
   EditarLancamentoSchema,
@@ -124,6 +124,18 @@ export function NovoLancamentoForm({ contas, diarios, valoresIniciais, edicao }:
   const [isPending, startTransition] = useTransition();
   const [erroServidor, setErroServidor] = useState<ErroServidor>(null);
   const destinoCancelar = edicao ? `/contabilidade/lancamentos/${edicao.id}` : '/contabilidade/lancamentos';
+
+  /** Opções iniciais para o ComboboxRemoto das partidas (primeira página + contas pré-preenchidas). */
+  const opcoesIniciaisContas: ComboboxOption[] = contas.map((c) => ({
+    value: c.id,
+    label: `${c.codigo} — ${c.nome}`,
+  }));
+
+  /** Pesquisa de contas no servidor (debounce gerido pelo ComboboxRemoto). */
+  const procurarContas = async (q: string): Promise<ComboboxOption[] | null> => {
+    const r = await procurarContasLancamentoAction({ q });
+    return r.ok ? r.data.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` })) : null;
+  };
 
   // O mesmo schema que a action valida: criar, ou editar (sem diário nem origem, com id).
   const resolver = (
@@ -344,12 +356,15 @@ export function NovoLancamentoForm({ contas, diarios, valoresIniciais, edicao }:
                     <FormItem className="space-y-1">
                       <FormLabel className="text-xs sm:sr-only">Conta</FormLabel>
                       <FormControl>
-                        <Combobox
+                        <ComboboxRemoto
                           className="h-8 text-sm"
-                          defaultValue={field.value}
+                          opcoesIniciais={opcoesIniciaisContas}
+                          procurar={procurarContas}
+                          value={field.value || undefined}
                           onChange={field.onChange}
                           placeholder="Seleccionar conta…"
-                          options={contas.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+                          searchPlaceholder="Pesquisar…"
+                          emptyText="Nenhuma conta encontrada"
                         />
                       </FormControl>
                       <FormMessage />
