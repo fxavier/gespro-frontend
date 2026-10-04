@@ -4,6 +4,7 @@
  * Partilhado cliente/servidor. Sem imports de @prisma/client.
  */
 import { z } from 'zod';
+import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ---- Enums ----
 
@@ -248,8 +249,8 @@ export const FilterAgendamentoServicoSchema = z.object({
   servicoId: z.string().optional(),
   tecnicoId: z.string().optional(),
   clienteId: z.string().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
   take: z.number().int().positive().max(100).default(25),
   orderBy: z.enum(['dataAgendamento', 'createdAt']).default('dataAgendamento'),

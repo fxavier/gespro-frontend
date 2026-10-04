@@ -493,8 +493,14 @@ export const AssiduidadeService = {
             tenantId: ctx.tenantId,
             ...(filter.colaboradorId ? { colaboradorId: filter.colaboradorId } : {}),
             ...(filter.tipo ? { tipo: filter.tipo } : {}),
-            ...(filter.dataInicio ? { data: { gte: filter.dataInicio } } : {}),
-            ...(filter.dataFim ? { data: { lte: filter.dataFim } } : {}),
+            ...(filter.dataInicio || filter.dataFim
+              ? {
+                  data: {
+                    ...(filter.dataInicio ? { gte: filter.dataInicio } : {}),
+                    ...(filter.dataFim ? { lte: filter.dataFim } : {}),
+                  },
+                }
+              : {}),
           },
           include: { colaborador: { select: { nome: true } } },
           orderBy: { data: 'desc' },

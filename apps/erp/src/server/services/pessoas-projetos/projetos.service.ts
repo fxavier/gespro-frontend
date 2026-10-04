@@ -471,8 +471,14 @@ export const TimesheetService = {
             tenantId: ctx.tenantId,
             ...(filter.projetoId ? { projetoId: filter.projetoId } : {}),
             ...(filter.colaboradorId ? { colaboradorId: filter.colaboradorId } : {}),
-            ...(filter.dataInicio ? { data: { gte: filter.dataInicio } } : {}),
-            ...(filter.dataFim ? { data: { lte: filter.dataFim } } : {}),
+            ...(filter.dataInicio || filter.dataFim
+              ? {
+                  data: {
+                    ...(filter.dataInicio ? { gte: filter.dataInicio } : {}),
+                    ...(filter.dataFim ? { lte: filter.dataFim } : {}),
+                  },
+                }
+              : {}),
           },
           orderBy: { data: 'desc' },
         }),

@@ -49,8 +49,14 @@ export const ComunicacaoService = {
             deletedAt: null,
             ...(filter.projetoId ? { projetoId: filter.projetoId } : {}),
             ...(filter.tipo ? { tipo: filter.tipo as never } : {}),
-            ...(filter.dataInicio ? { data: { gte: filter.dataInicio } } : {}),
-            ...(filter.dataFim ? { data: { lte: filter.dataFim } } : {}),
+            ...(filter.dataInicio || filter.dataFim
+              ? {
+                  data: {
+                    ...(filter.dataInicio ? { gte: filter.dataInicio } : {}),
+                    ...(filter.dataFim ? { lte: filter.dataFim } : {}),
+                  },
+                }
+              : {}),
           },
           orderBy: { data: 'desc' },
           select: {

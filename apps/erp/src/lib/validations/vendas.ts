@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod';
-import { idEntidade } from './common';
+import { idEntidade, inicioDoDia, fimDoDia } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums (espelham os enums Prisma em SCREAMING_SNAKE)
@@ -167,8 +167,8 @@ export const FilterVendaSchema = z.object({
   clienteId: z.string().cuid().optional(),
   vendedorId: z.string().cuid().optional(),
   sessaoPOSId: z.string().cuid().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   orderBy: z.enum(['dataVenda', 'total', 'createdAt']).default('dataVenda'),
   order: z.enum(['asc', 'desc']).default('desc'),
 });
@@ -255,8 +255,8 @@ export const FilterComissaoSchema = z.object({
   take: z.number().int().min(1).max(100).default(25),
   vendedorId: z.string().cuid().optional(),
   status: StatusComissaoEnum.optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   orderBy: z.enum(['createdAt', 'valorComissao', 'pagoEm']).default('createdAt'),
   order: z.enum(['asc', 'desc']).default('desc'),
 });
@@ -356,8 +356,8 @@ export const FilterEncomendaSchema = z.object({
   status: StatusEncomendaEnum.optional(),
   clienteId: z.string().cuid().optional(),
   vendedorId: z.string().cuid().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   orderBy: z.enum(['dataPrevista', 'total', 'createdAt']).default('createdAt'),
   order: z.enum(['asc', 'desc']).default('desc'),
 });
@@ -410,8 +410,8 @@ export const FilterDevolucaoSchema = z.object({
   status: StatusDevolucaoEnum.optional(),
   motivo: MotivoDevolucaoEnum.optional(),
   clienteId: z.string().cuid().optional(),
-  dataInicio: z.coerce.date().optional(),
-  dataFim: z.coerce.date().optional(),
+  dataInicio: inicioDoDia().optional(),
+  dataFim: fimDoDia().optional(),
   orderBy: z.enum(['createdAt', 'valorTotal']).default('createdAt'),
   order: z.enum(['asc', 'desc']).default('desc'),
 });
