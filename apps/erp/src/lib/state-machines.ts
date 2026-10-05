@@ -326,7 +326,7 @@ export const TRANSICOES_EXERCICIO: Record<EstadoExercicio, EstadoExercicio[]> = 
   ENCERRADO: [],
 };
 
-const ROTULO_ESTADO_EXERCICIO: Record<EstadoExercicio, string> = {
+export const ROTULO_ESTADO_EXERCICIO: Record<EstadoExercicio, string> = {
   ABERTO: 'aberto',
   EM_ENCERRAMENTO: 'em encerramento',
   ENCERRADO_PROVISORIO: 'encerrado provisoriamente',

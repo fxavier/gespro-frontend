@@ -4,13 +4,14 @@
  * Exibe os exercícios do tenant com os respectivos treze períodos.
  * Acções disponíveis por período: Fechar (inline, com lista de impedimentos)
  * e Reabrir (rota dedicada — exige motivo).
+ * Acções por exercício (ADR-0035, #138), por estado E permissão: ABERTO → «Encerrar exercício»
+ * (rota dedicada); ENCERRADO_PROVISORIO → «Reabrir exercício» (rota, exige motivo) e
+ * «Encerrar definitivamente» (AlertDialog — irreversível).
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { Plus, CalendarDays } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { Plus, CalendarDays, Lock, LockOpen } from 'lucide-react';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import type { ExercicioContabil, PeriodoContabil } from '@/server/services/financas/contabilidade.interface';
@@ -19,6 +20,8 @@ import { PageHeader, StatusBadge, EmptyState } from '@/components/patterns';
 import { formatarData } from '@/lib/format-date';
 import { ExerciciosTableSkeleton } from './_components/exercicios-skeleton';
 import { PeriodoAcoes } from './_components/periodo-acoes';
+import { EncerrarDefinitivoButton } from './_components/encerrar-definitivo-button';
+import { acessoExercicios, type AcessoExercicios } from './_lib/acesso';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Componente de períodos de um exercício
@@ -71,19 +74,59 @@ function GrelhaperiodosExercicio({ periodos }: { periodos: PeriodoContabil[] }) 
 // Componente de card de exercício
 // ─────────────────────────────────────────────────────────────────────────────
 
+function AcoesExercicio({
+  exercicio,
+  acesso,
+}: {
+  exercicio: ExercicioContabil;
+  acesso: AcessoExercicios;
+}) {
+  const base = `/contabilidade/exercicios/${exercicio.id}`;
+  if (exercicio.estado === 'ABERTO' && acesso.podeEncerrar) {
+    return (
+      <Button asChild size="sm" variant="outline">
+        <Link href={`${base}/encerrar`}>
+          <Lock className="h-3.5 w-3.5 mr-1.5" />
+          Encerrar exercício
+        </Link>
+      </Button>
+    );
+  }
+  if (exercicio.estado === 'ENCERRADO_PROVISORIO') {
+    return (
+      <>
+        {acesso.podeReabrir && (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${base}/reabrir`}>
+              <LockOpen className="h-3.5 w-3.5 mr-1.5" />
+              Reabrir exercício
+            </Link>
+          </Button>
+        )}
+        {acesso.podeEncerrarDefinitivo && (
+          <EncerrarDefinitivoButton exercicioId={exercicio.id} codigo={exercicio.codigo} />
+        )}
+      </>
+    );
+  }
+  return null;
+}
+
 function CartaoExercicio({
   exercicio,
   periodos,
+  acesso,
 }: {
   exercicio: ExercicioContabil;
   periodos: PeriodoContabil[];
+  acesso: AcessoExercicios;
 }) {
   const abertos = periodos.filter((p) => p.estado === 'ABERTO').length;
   const fechados = periodos.filter((p) => p.estado === 'FECHADO').length;
 
   return (
     <div className="rounded-lg border bg-card">
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b">
         <div className="flex items-center gap-3">
           <CalendarDays className="h-5 w-5 text-muted-foreground" />
           <div>
@@ -91,13 +134,19 @@ function CartaoExercicio({
             <p className="text-sm text-muted-foreground">
               {formatarData(exercicio.dataInicio)} – {formatarData(exercicio.dataFim)}
             </p>
+            {exercicio.estado === 'ENCERRADO' && exercicio.encerradoDefinitivoEm && (
+              <p className="text-sm text-muted-foreground">
+                Encerrado em definitivo em {formatarData(exercicio.encerradoDefinitivoEm)}
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted-foreground">
             {abertos} abertos · {fechados} fechados
           </span>
           <StatusBadge status={exercicio.estado} />
+          <AcoesExercicio exercicio={exercicio} acesso={acesso} />
         </div>
       </div>
       <div className="p-4">
@@ -111,14 +160,8 @@ function CartaoExercicio({
 // Secção assíncrona com exercícios + períodos
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function ExerciciosSection({
-  tenantId,
-  userId,
-}: {
-  tenantId: string;
-  userId: string;
-}) {
-  const ctx = { tenantId, userId };
+async function ExerciciosSection({ acesso }: { acesso: AcessoExercicios }) {
+  const { ctx } = acesso;
 
   const exercicios = await runWithTenantContext(ctx, () =>
     contabilidadeService.listarExercicios(ctx)
@@ -159,6 +202,7 @@ async function ExerciciosSection({
           key={e.id}
           exercicio={e}
           periodos={periodosMap.get(e.id) ?? []}
+          acesso={acesso}
         />
       ))}
     </div>
@@ -170,10 +214,7 @@ async function ExerciciosSection({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default async function ExerciciosPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-
-  const { tenantId, id: userId } = session.user;
+  const acesso = await acessoExercicios();
 
   return (
     <div className="p-6 space-y-6">
@@ -195,7 +236,7 @@ export default async function ExerciciosPage() {
       />
 
       <Suspense fallback={<ExerciciosTableSkeleton />}>
-        <ExerciciosSection tenantId={tenantId} userId={userId} />
+        <ExerciciosSection acesso={acesso} />
       </Suspense>
     </div>
   );
