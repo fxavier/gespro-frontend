@@ -1,14 +1,18 @@
 /**
- * Teste de integração — Estorno do apuramento de IVA é atómico (#89)
+ * Teste de integração — Estorno do apuramento de IVA: corrida e transição inválida (#354)
  *
- * `estornarApuramentoIva` tem de deixar o apuramento e o seu lançamento em
- * estados coerentes: ou os dois passam a ESTORNADO, ou nenhum muda. Se o
- * estorno do lançamento falhar (período fechado, lançamento já estornado),
- * o apuramento continua APURADO e nenhum lançamento de estorno fica gravado.
+ * 1. Dois `estornarApuramentoIva` simultâneos sobre o mesmo apuramento têm de
+ *    produzir UM só lançamento de estorno: um pedido passa, o outro é recusado
+ *    como regra de negócio. Hoje a leitura do estado é feita sem tranca e os
+ *    dois pedidos só se serializam no `Diario FOR UPDATE` — o segundo prossegue
+ *    com a leitura antiga e grava um segundo estorno.
+ *    A corrida repete-se em RONDAS (um período/apuramento novo por ronda) para
+ *    que o resultado não dependa de um único entrelaçamento.
+ * 2. Estornar ou declarar um apuramento já ESTORNADO tem de chegar ao
+ *    utilizador como `BusinessRuleError` (`TRANSICAO_INVALIDA`), não como `Error`
+ *    cru («Erro interno», 500).
  *
- * O setup segue `apuramento-iva-reproducibilidade.test.ts` (estrutura mínima
- * do tenant + lançamento fonte com partidas IVA inseridas directamente), que
- * é o caminho já provado para `apurarIva` produzir um `lancamentoId`.
+ * Setup copiado de `apuramento-iva-estorno-periodo-fechado.test.ts` (#89).
  *
  * Requer: Docker em execução + @testcontainers/postgresql
  * Degrada graciosamente: SKIP_INTEGRATION=true ou sem INTEGRATION_DB_URL → saltado.
@@ -21,11 +25,14 @@ type AnyDb = any;
 
 const skip = process.env.SKIP_INTEGRATION === 'true' || !process.env.INTEGRATION_DB_URL;
 
-describe.skipIf(skip)('Estorno do apuramento de IVA — atomicidade (#89)', () => {
+/** Meses usados pelas rondas da corrida (um período/apuramento por ronda). */
+const MESES_CORRIDA = [1, 2, 3, 4, 5];
+
+describe.skipIf(skip)('Estorno do apuramento de IVA — corrida e transição inválida (#354)', () => {
   let db: AnyDb;
   const TS = Date.now();
-  const TENANT_ID = `tenant-estorno-iva-${TS}`;
-  const USER_ID = `user-estorno-iva-${TS}`;
+  const TENANT_ID = `tenant-estorno-conc-${TS}`;
+  const USER_ID = `user-estorno-conc-${TS}`;
   const CTX = { tenantId: TENANT_ID, userId: USER_ID };
 
   let exercicioId: string;
@@ -64,7 +71,7 @@ describe.skipIf(skip)('Estorno do apuramento de IVA — atomicidade (#89)', () =
         diarioId: diarioVendasId,
         periodoId: periodo.id,
         periodoFiscal: `2026-${mm}`,
-        historico: `IVA estorno teste ${mm}`,
+        historico: `IVA estorno concorrente ${mm}`,
         valorTotal: new Prisma.Decimal('1600'),
         status: 'LANCADO',
         criadoPorId: USER_ID,
@@ -93,15 +100,15 @@ describe.skipIf(skip)('Estorno do apuramento de IVA — atomicidade (#89)', () =
     db = new PrismaClient({ adapter });
 
     await db.tenant.create({
-      data: { id: TENANT_ID, nome: 'Tenant Estorno IVA', slug: `estorno-iva-${TS}`, nuit: '400123457' },
+      data: { id: TENANT_ID, nome: 'Tenant Estorno IVA', slug: `estorno-conc-${TS}`, nuit: '400123458' },
     });
     await db.user.create({
       data: {
         id: USER_ID,
         tenantId: TENANT_ID,
-        email: `estorno-iva-${TS}@test.mz`,
+        email: `estorno-conc-${TS}@test.mz`,
         nome: 'Utilizador Estorno IVA',
-        keycloakSub: `kc-estorno-iva-${TS}`,
+        keycloakSub: `kc-estorno-conc-${TS}`,
       },
     });
 
@@ -171,86 +178,80 @@ describe.skipIf(skip)('Estorno do apuramento de IVA — atomicidade (#89)', () =
   });
 
   it(
-    'período fechado: rejeita com PERIODO_FECHADO e não deixa o apuramento ESTORNADO',
+    'corrida: dois estornos simultâneos do mesmo apuramento criam UM só estorno',
     async () => {
-      const { apuramento, periodo, lancamentoId } = await periodoApurado(8);
-
-      // Fecho directo do PeriodoContabil pelo client cru — o mesmo que o teste de
-      // reprodutibilidade faz. `fecharPeriodo` exige sete pré-condições alheias a este
-      // defeito; o que está em teste é só a reacção do estorno a um período não ABERTO.
-      await db.periodoContabil.update({
-        where: { id: periodo.id },
-        data: { estado: 'FECHADO', fechadoEm: new Date(), fechadoPorId: USER_ID },
-      });
-
       const { estornarApuramentoIva } = await import('@/server/services/financas/apuramento-iva.service');
-      await expect(
-        estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: 'Período fechado #89' }, CTX),
-      ).rejects.toMatchObject({ name: 'BusinessRuleError', code: 'PERIODO_FECHADO' });
 
-      const apuramentoDepois = await db.apuramentoIva.findFirst({ where: { id: apuramento.id } });
-      expect(apuramentoDepois.estado).toBe('APURADO');
+      for (const mes of MESES_CORRIDA) {
+        const { apuramento, lancamentoId } = await periodoApurado(mes);
 
-      const lancamentoDepois = await db.lancamento.findFirst({ where: { id: lancamentoId } });
-      expect(lancamentoDepois.status).toBe('LANCADO');
+        const resultados = await Promise.allSettled([
+          estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: `Corrida A #354 (${mes})` }, CTX),
+          estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: `Corrida B #354 (${mes})` }, CTX),
+        ]);
 
-      const estornos = await db.lancamento.count({
-        where: { tenantId: TENANT_ID, lancamentoEstornoId: lancamentoId },
-      });
-      expect(estornos).toBe(0);
+        const estornos = await db.lancamento.count({
+          where: { tenantId: TENANT_ID, lancamentoEstornoId: lancamentoId },
+        });
+        // A afirmação que decide: o razão do período não pode ficar com o IVA revertido duas vezes.
+        expect(estornos, `ronda ${mes}: lançamentos de estorno do apuramento`).toBe(1);
+
+        const cumpridos = resultados.filter((r) => r.status === 'fulfilled');
+        const rejeitados = resultados.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+        expect(cumpridos, `ronda ${mes}: pedidos que passaram`).toHaveLength(1);
+        expect(rejeitados, `ronda ${mes}: pedidos recusados`).toHaveLength(1);
+        expect(rejeitados[0].reason).toMatchObject({ name: 'BusinessRuleError' });
+
+        const apuramentoDepois = await db.apuramentoIva.findFirst({ where: { id: apuramento.id } });
+        expect(apuramentoDepois.estado).toBe('ESTORNADO');
+      }
     },
-    60_000,
+    120_000,
   );
 
   it(
-    'lançamento já estornado: rejeita e o apuramento continua APURADO',
+    'estornar um apuramento já ESTORNADO: BusinessRuleError TRANSICAO_INVALIDA e nenhum estorno extra',
     async () => {
-      const { apuramento, periodo, lancamentoId } = await periodoApurado(9);
-
-      // Estorno directo do lançamento de apuramento, com o período aberto e a data
-      // dentro do próprio período (não depende do dia em que o teste corre).
-      const { estornarLancamento } = await import('@/server/services/financas/contabilidade.service');
-      await estornarLancamento({ lancamentoId, motivo: 'Estorno prévio #89', data: periodo.dataFim }, CTX);
-      const lancamentoAntes = await db.lancamento.findFirst({ where: { id: lancamentoId } });
-      expect(lancamentoAntes.status).toBe('ESTORNADO');
+      const { apuramento, lancamentoId } = await periodoApurado(7);
 
       const { estornarApuramentoIva } = await import('@/server/services/financas/apuramento-iva.service');
+      await estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: 'Primeiro estorno #354' }, CTX);
+
       await expect(
-        estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: 'Lançamento já estornado #89' }, CTX),
+        estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: 'Duplo clique #354' }, CTX),
       ).rejects.toMatchObject({ name: 'BusinessRuleError', code: 'TRANSICAO_INVALIDA' });
 
-      const apuramentoDepois = await db.apuramentoIva.findFirst({ where: { id: apuramento.id } });
-      expect(apuramentoDepois.estado).toBe('APURADO');
-
-      // Só o estorno prévio do setup: a recusa não grava um segundo (#354).
       const estornos = await db.lancamento.count({
         where: { tenantId: TENANT_ID, lancamentoEstornoId: lancamentoId },
       });
       expect(estornos).toBe(1);
+
+      const apuramentoDepois = await db.apuramentoIva.findFirst({ where: { id: apuramento.id } });
+      expect(apuramentoDepois.estado).toBe('ESTORNADO');
     },
     60_000,
   );
 
   it(
-    'período aberto: apuramento e lançamento ESTORNADO, um único estorno no mesmo período',
+    'declarar um apuramento ESTORNADO: BusinessRuleError TRANSICAO_INVALIDA e continua ESTORNADO',
     async () => {
-      const { apuramento, periodo, lancamentoId } = await periodoApurado(10);
+      const { apuramento } = await periodoApurado(11);
 
-      const { estornarApuramentoIva } = await import('@/server/services/financas/apuramento-iva.service');
-      await estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: 'Correcção #89' }, CTX);
+      const { estornarApuramentoIva, marcarDeclarado } = await import(
+        '@/server/services/financas/apuramento-iva.service'
+      );
+      await estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: 'Estorno antes de declarar #354' }, CTX);
+
+      await expect(
+        marcarDeclarado(
+          { apuramentoId: apuramento.id, declaradoEm: new Date(), referenciaEntrega: 'REF-354' },
+          CTX,
+        ),
+      ).rejects.toMatchObject({ name: 'BusinessRuleError', code: 'TRANSICAO_INVALIDA' });
 
       const apuramentoDepois = await db.apuramentoIva.findFirst({ where: { id: apuramento.id } });
       expect(apuramentoDepois.estado).toBe('ESTORNADO');
-
-      const original = await db.lancamento.findFirst({ where: { id: lancamentoId } });
-      expect(original.status).toBe('ESTORNADO');
-
-      const estornos = await db.lancamento.findMany({
-        where: { tenantId: TENANT_ID, lancamentoEstornoId: lancamentoId },
-      });
-      expect(estornos).toHaveLength(1);
-      expect(estornos[0].periodoId).toBe(original.periodoId);
-      expect(estornos[0].periodoId).toBe(periodo.id);
+      expect(apuramentoDepois.declaradoEm).toBeNull();
     },
     60_000,
   );

@@ -55,7 +55,7 @@ vi.mock('@/server/observability/context', () => ({
 // Mocked contabilidade service (não testamos o lançamento aqui)
 vi.mock('../contabilidade.service', () => ({
   registarLancamentoContabilistico: vi.fn(),
-  estornarLancamento:               vi.fn(),
+  estornarLancamentoEmTx:           vi.fn(),
   FILTRO_LANCAMENTO_MAPA:           { in: ['LANCADO', 'ESTORNADO'] },
 }));
 
