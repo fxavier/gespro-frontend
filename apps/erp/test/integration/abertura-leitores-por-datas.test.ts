@@ -12,6 +12,10 @@
  *     predicado único: gerarBalancete (→ DFC), razaoConta (datas), obterContaDetalhe,
  *     saldoContabilAte, projeção saldoTesourariaAte, reconciliação saldoRazao, importação
  *     (partidas do banco), apurarIva (agregação e 4438).
+ *   - Emenda pós-P3: a exclusão por datas é do AB AUTOMÁTICO — diário ABERTURA com
+ *     `documentoOrigemTipo = 'ExercicioContabil'` (origem = exercício anterior). Um AB manual
+ *     (sem essa origem, legado) conta sempre, em qualquer exercício. A exclusão cobre também os
+ *     ESTORNOS do AB automático (`lancamentoEstornoId` aponta para um AB automático).
  *   - «Tem AB» = lançamento LANCADO no diário AB do exercício, não estornado e não estorno.
  *   - Lançamento manual: diário EN recusado (`DIARIO_DE_ENCERRAMENTO`); diário AB só no
  *     primeiro exercício do tenant, sem anterior (`ABERTURA_AUTOMATICA`).
@@ -136,7 +140,11 @@ describe.skipIf(skip)('Leitores por datas imunes ao lançamento de abertura (#36
    * Lançamento de abertura de 2027, LANCADO, no diário ABERTURA, período 1, data = dataInicio
    * do exercício. Inserção CRUA só no setup: o gerador do AB é a P3 e não existe ainda.
    */
-  async function inserirAbertura(t: Tenant, partidas: Array<[Codigo, 'DEBITO' | 'CREDITO', string]>) {
+  async function inserirAbertura(
+    t: Tenant,
+    partidas: Array<[Codigo, 'DEBITO' | 'CREDITO', string]>,
+    { automatica = true }: { automatica?: boolean } = {},
+  ) {
     const diario = await db.diario.findFirst({ where: { tenantId: t.ctx.tenantId, tipo: 'ABERTURA' } });
     const ex = await db.exercicioContabil.findFirst({ where: { id: t.ex27, tenantId: t.ctx.tenantId } });
     const p1 = await db.periodoContabil.findFirst({ where: { tenantId: t.ctx.tenantId, exercicioId: t.ex27, ordem: 1 } });
@@ -153,7 +161,10 @@ describe.skipIf(skip)('Leitores por datas imunes ao lançamento de abertura (#36
         diarioId: diario.id,
         periodoId: p1.id,
         periodoFiscal: p1.codigo,
-        historico: 'Abertura do exercício 2027 (teste)',
+        // O AB AUTOMÁTICO (o do gerador) é o que traz a origem no exercício anterior; um AB
+        // manual (dados legados) não a tem e conta sempre.
+        ...(automatica ? { documentoOrigemTipo: 'ExercicioContabil', documentoOrigemId: t.ex26 } : {}),
+        historico: automatica ? 'Abertura do exercício 2027 (teste)' : 'Abertura manual 2027 (legado)',
         valorTotal: debitos,
         status: 'LANCADO',
         criadoPorId: t.ctx.userId,
@@ -214,9 +225,10 @@ describe.skipIf(skip)('Leitores por datas imunes ao lançamento de abertura (#36
 
     B = await novoTenant();
     await montarCenario(B);
-    // O AB estornado pelo estorno genérico (o espelho fica no MESMO diário ABERTURA, período 1).
+    // O AB automático estorna-se pelo caminho dele (o genérico recusa-o com LANCAMENTO_DE_ABERTURA):
+    // o espelho fica no MESMO diário ABERTURA, período 1, com a data do original.
     await comCtx(B, () =>
-      contab.estornarLancamento({ lancamentoId: B.abId!, motivo: 'AB refeito', data: new Date('2027-01-01T10:00:00+02:00') }, B.ctx),
+      db.$transaction((tx: AnyDb) => contab.estornarLancamentoAberturaEmTx(tx, { lancamentoId: B.abId!, motivo: 'AB refeito' }, B.ctx)),
     );
     const estornoB = await db.lancamento.findFirst({
       where: { tenantId: B.ctx.tenantId, lancamentoEstornoId: B.abId },
@@ -412,6 +424,74 @@ describe.skipIf(skip)('Leitores por datas imunes ao lançamento de abertura (#36
     // implícita 1700 + AB 1700 − estorno 1700 + M2 400
     expect(f2(linhaBV(bv, B, '121')?.saldoDevedor), '121 saldo').toBe('2100.00');
     expect(f2(linhaBV(bv, B, '521')?.saldoCredor), '521 saldo').toBe('3000.00');
+  });
+
+  // -------------------------------------------------------------------------
+  // 8c. AB MANUAL (legado) conta sempre nos leitores por datas
+  // -------------------------------------------------------------------------
+
+  it('8c. gerarBalancete conta um AB MANUAL (sem origem ExercicioContabil) de um exercício com anterior', async () => {
+    const LEG = await novoTenant();
+    await lancar(LEG, '2026-02-10T10:00:00Z', [['111', 'DEBITO', '1000'], ['521', 'CREDITO', '1000']]);
+    // Dados legados: AB manual LANCADO no diário ABERTURA de 2027 (que tem anterior), sem origem.
+    await inserirAbertura(LEG, [['111', 'DEBITO', '500'], ['521', 'CREDITO', '500']], { automatica: false });
+    const ab = await db.lancamento.findFirst({ where: { id: LEG.abId, tenantId: LEG.ctx.tenantId } });
+    expect(ab.documentoOrigemTipo, 'pré-condição: AB sem origem').toBeNull();
+
+    const filtro = val.FiltroBalanceteSchema.parse({ dataInicio: '2027-01-01', dataFim: '2027-12-31', comSaldoAnterior: true });
+    const bal: any = await comCtx(LEG, () => contab.gerarBalancete(filtro, LEG.ctx));
+    const l111 = linhaBal(bal, LEG, '111');
+    expect(f2(l111?.saldoAnterior), '111 saldo anterior').toBe('1000.00');
+    expect(f2(l111?.debitos), 'o AB manual é movimento de 2027').toBe('500.00');
+    expect(f2(l111?.saldoAtual), '111 saldo no fim de 2027').toBe('1500.00');
+  });
+
+  // -------------------------------------------------------------------------
+  // 8d. AB automático ESTORNADO: nem o AB nem o estorno contam nos leitores por datas
+  // -------------------------------------------------------------------------
+
+  it('8d. AB automático estornado: gerarBalancete e razaoConta por datas não contam o AB nem o estorno dele', async () => {
+    const estorno = await db.lancamento.findFirst({ where: { tenantId: B.ctx.tenantId, lancamentoEstornoId: B.abId } });
+    expect(estorno, 'pré-condição: o AB de B tem estorno').toBeTruthy();
+
+    const filtro = val.FiltroBalanceteSchema.parse({ dataInicio: '2027-01-01', dataFim: '2027-12-31', comSaldoAnterior: true });
+    const bal: any = await comCtx(B, () => contab.gerarBalancete(filtro, B.ctx));
+    const l111 = linhaBal(bal, B, '111');
+    expect(f2(l111?.saldoAnterior), 'balancete: 111 saldo anterior').toBe('1000.00');
+    expect(f2(l111?.debitos), 'balancete: 111 débitos de 2027 = só o M1').toBe('200.00');
+    expect(f2(l111?.creditos), 'balancete: 111 créditos de 2027 (o estorno do AB não conta)').toBe('0.00');
+    expect(f2(l111?.saldoAtual), 'balancete: 111 saldo no fim de 2027').toBe('1200.00');
+
+    const fr = val.FiltroRazaoSchema.parse({ contaId: B.conta['111'], dataInicio: '2027-01-01', dataFim: '2027-12-31' });
+    const r: any = await comCtx(B, () => contab.razaoConta(fr, B.ctx));
+    const ids = r.linhas.map((l: any) => l.lancamentoId);
+    expect(ids, 'razão: o AB não é linha').not.toContain(B.abId);
+    expect(ids, 'razão: o estorno do AB não é linha').not.toContain(estorno.id);
+    expect(f2(r.saldoAnterior), 'razão: saldo anterior').toBe('1000.00');
+    expect(r.linhas, 'razão: só o M1').toHaveLength(1);
+    expect(f2(r.saldoFinal), 'razão: saldo final').toBe('1200.00');
+  });
+
+  it('8e. AB automático estornado: projetarMovimentosContabilisticos não projecta a partida do banco do AB nem a do estorno', async () => {
+    const imp = await import('@/server/services/reconciliacao/importacao.service');
+    const estorno = await db.lancamento.findFirst({
+      where: { tenantId: B.ctx.tenantId, lancamentoEstornoId: B.abId },
+      include: { partidas: true },
+    });
+    const estorno121 = estorno?.partidas.find((p: any) => p.contaId === B.conta['121']);
+    expect(B.abPartida121, 'pré-condição: o AB tem partida no 121').toBeTruthy();
+    expect(estorno121, 'pré-condição: o estorno do AB tem partida no 121').toBeTruthy();
+
+    await comCtx(B, () => imp.projetarMovimentosContabilisticos(B.contaBancariaId!, B.ctx));
+    const movs = await db.movimentoContabilistico.findMany({
+      where: { tenantId: B.ctx.tenantId, contaBancariaId: B.contaBancariaId },
+      select: { partidaId: true, lancamentoId: true },
+    });
+    const partidas = movs.map((m: any) => m.partidaId);
+    expect(partidas, 'a partida do AB não é movimento').not.toContain(B.abPartida121);
+    expect(partidas, 'a partida do estorno do AB não é movimento').not.toContain(estorno121.id);
+    expect(movs.map((m: any) => m.lancamentoId)).not.toContain(estorno.id);
+    expect(movs, 'L2, L3 e M2').toHaveLength(3);
   });
 
   // -------------------------------------------------------------------------

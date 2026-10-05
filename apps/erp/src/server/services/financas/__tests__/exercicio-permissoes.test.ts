@@ -37,4 +37,10 @@ describe('permissões financas:exercicio:* do encerramento (ADR-0035)', () => {
     expect(papeis).not.toContain('GESTOR');
     expect(papeis).not.toContain('FINANCEIRO');
   });
+
+  // #364 — aplicar o resultado (ADR-0035 §5) executa uma deliberação dos sócios: só o ADMIN.
+  it('financas:exercicio:aplicar-resultado — no catálogo e só do ADMIN (#364)', () => {
+    expect(PERMISSIONS.map((p) => p.code)).toContain('financas:exercicio:aplicar-resultado');
+    expect(papeisCom('financas:exercicio:aplicar-resultado')).toEqual(['ADMIN']);
+  });
 });

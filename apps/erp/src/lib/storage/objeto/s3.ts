@@ -53,6 +53,12 @@ export function criarS3Storage(): ObjectStorage {
       return getSignedUrl(cliente(), comando, { expiresIn: ttlSegundos });
     },
 
+    async put(key, bytes, contentType) {
+      await cliente().send(
+        new PutObjectCommand({ Bucket: bucket(), Key: key, Body: bytes, ContentType: contentType }),
+      );
+    },
+
     async delete(key) {
       await cliente().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
     },

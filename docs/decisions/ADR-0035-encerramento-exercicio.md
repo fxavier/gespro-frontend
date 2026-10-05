@@ -181,27 +181,76 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   apuramento de IVA (§7 — o IVA é dos doze meses). Ao contrário do que a §7 diz, as outras
   pré-condições do ADR-0033 §6 não se aplicam aos treze: as de datas já foram verificadas no
   período 12.
-- **«Balanço de abertura lançado, ou primeiro exercício»** (§7) passa a ser, enquanto a abertura
-  `AB` do exercício seguinte (§6) não estiver construída: **sem exercício anterior, ou anterior pelo
-  menos `ENCERRADO_PROVISORIO`**. Os saldos de partida vêm da abertura implícita do ADR-0040.
+- **«Balanço de abertura lançado, ou primeiro exercício»** (§7) — reposto pelo #363: com
+  exercício anterior, o encerramento exige o anterior pelo menos `ENCERRADO_PROVISORIO`
+  (`EXERCICIO_ANTERIOR_ABERTO`) **e**, quando há abertura a esperar, uma abertura `AB` efectiva
+  (`ABERTURA_EM_FALTA`), os dois recolhidos com os outros impedimentos. Há abertura a esperar
+  quando o anterior tem saldos de balanço a transportar — o mesmo agregado que a gera: um ano a
+  zero não abre nada e não bloqueia nada. O estado do anterior não entra nesta condição (um
+  anterior reaberto com saldos dá os dois impedimentos). Sem anterior, nada se exige (o `AB` manual
+  é opcional).
+- **Abertura `AB` do exercício seguinte (§6, #363).** Contrapõe-se à letra da §6 num ponto: é
+  gerada **também** pelo encerramento — os ajustamentos chegam com o ano seguinte já criado (o
+  cron cria-o a 1 de Dezembro), e esperar pela «abertura» deixava-o sem `AB`. Regras:
+  - **Conteúdo**: um lançamento `LANCADO` no diário `AB`, período de ordem 1 do seguinte, `data` =
+    `dataInicio` dele, `documentoOrigemTipo = 'ExercicioContabil'` e `documentoOrigemId` = o
+    exercício **anterior**. Partidas = saldos das folhas das classes 1–5 e 8 (`CLASSES_BALANCO`)
+    nos períodos **1..13** do anterior, pelo período do lançamento e `FILTRO_LANCAMENTO_MAPA` —
+    equivale à fotografia mais os lançamentos `EN`; devedor → débito, credor → crédito. Sem saldos
+    não se escreve nada. Escritor único: `criarLancamentoAberturaEmTx` (gate-periodo).
+  - **Origem reservada**: `'ExercicioContabil'` (`ORIGEM_ABERTURA`) é o que identifica a abertura
+    gerada — e o seu estorno, que leva a mesma origem (e o exercício anterior em
+    `documentoOrigemId`) e aponta o original pelo `lancamentoEstornoId`. `criarLancamento` e
+    `registarLancamentoContabilistico` recusam-na (`DOCUMENTO_ORIGEM_RESERVADO`); a edição de um
+    rascunho não aceita origem.
+  - **Disparos**: `encerrarExercicio(N)` com N+1 existente (na mesma tx, depois dos `EN`; uma
+    abertura efectiva que lá esteja é estornada antes, para ficar uma só); e a **criação** de N+1
+    (`abrirExercicio`, cron, ou `resolverPeriodo` quando o primeiro lançamento cai em N+1) com N
+    pelo menos `ENCERRADO_PROVISORIO`, um `EncerramentoExercicio` em vigor, N+1 sem `AB` efectivo e
+    o seu período 1 aberto — idempotente: um segundo `abrirExercicio` não duplica. N «encerrado» por
+    escrita crua, sem `EncerramentoExercicio`, não gera (e N+1 recusa encerrar com
+    `ABERTURA_EM_FALTA`). O definitivo não toca na abertura.
+  - **Reabrir N** estorna a abertura efectiva de N+1 com origem em N (`estornarLancamentoAberturaEmTx`:
+    no período dela — o 1 de N+1, por id, não pela data de hoje —, no diário `AB`, com a data do
+    original) e o id entra em `ReaberturaExercicio.lancamentosEstornados` a seguir aos dos `EN`.
+    Recusa com `EXERCICIO_SEGUINTE_COM_PERIODO_FECHADO`, antes de qualquer escrita, se algum
+    período de N+1 estiver `FECHADO`.
+  - **Encerrar N** com N+1 existente e o período 1 dele não `ABERTO` → impedimento
+    `ABERTURA_SEGUINTE_FECHADA`.
+  - **Estorno genérico** (`estornarLancamento`) de uma abertura gerada, ou do estorno dela →
+    `LANCAMENTO_DE_ABERTURA`, decidido antes de resolver período (não cria exercícios).
+  - **Trancas**: exercício → os seus períodos → exercício seguinte → os períodos dele → diários
+    (`EN`, depois `AB`), em encerrar e reabrir — sempre do ano mais antigo para o mais recente. A
+    criação de N+1 tranca N `FOR SHARE` e depois N+1 `FOR UPDATE`: fecha a corrida com um
+    encerramento concorrente de N (um dos dois vê o outro já commitado e gera a abertura) e
+    serializa duas criações. Dentro de um lançamento que já tenha trancado um período de N, um
+    encerramento concorrente de N pode dar deadlock — o Postgres aborta uma das transacções.
+  - **`anteriorId` re-encadeado**: criar N quando N+1 já existe sem anterior liga N+1 a N — salvo
+    se N+1 já tiver lançamentos no diário `AB` (abertura manual: tenant migrado, cujo primeiro
+    exercício é N+1; encadeá-lo transformava os saldos iniciais numa abertura «em falta»).
+  - **Registo**: o encerramento regista `aberturaSeguinteId` e `aberturasEstornadas`; a reabertura,
+    `aberturasEstornadas`; a criação regista a abertura que gerou — dentro da transacção do
+    chamador (pode ser a de um lançamento), por isso «gerada na transacção».
+  - Sem `AuditLog` próprio: o lançamento (e o seu estorno) é o rasto; a `ReaberturaExercicio`
+    lista o estorno. `EncerramentoExercicio` não guarda o id da abertura (sem migração).
 - **Leitores por datas excluem o fecho e a abertura** (#363): o período 13 (os lançamentos de
-  encerramento têm a data de 31 de Dezembro e, contados, punham o resultado do ano a zero) e o
-  lançamento de abertura `AB` de um exercício **com anterior** (re-afirma, no dia 1, saldos que já
-  estão no razão — contado, dobrava-os). Predicado único em
+  encerramento têm a data de 31 de Dezembro e, contados, punham o resultado do ano a zero) e a
+  abertura `AB` **gerada** — diário `AB` com origem `ExercicioContabil`, e o seu estorno —, que
+  re-afirma no dia 1 saldos que já estão no razão (contada, dobrava-os). A chave é a origem, não
+  o exercício ter anterior: uma abertura **manual** (saldos iniciais, dados legados) conta sempre. Predicado único em
   `services/financas/fora-de-fecho-e-abertura.ts`: `FORA_DE_FECHO_E_ABERTURA` (e o equivalente SQL)
   nos mapas e na tesouraria — balancete por datas e DFC, DRE, projecção, saldos e importação da
   reconciliação; `SEM_ABERTURA_REAFIRMADA` nos leitores de uma conta — razão por datas, detalhe da
   conta, `saldoContabilAte` — que mantêm o período 13 (ver abaixo) — e no apuramento do IVA
   (agregação do período e crédito reportado do 4438). Também a abertura implícita (ADR-0040) deixa
-  de somar ABs anteriores. O AB do **primeiro** exercício (sem anterior) não re-afirma nada — são os
-  saldos iniciais de quem migra — e conta em todos. As vistas por **período** usam o AB.
+  de somar as aberturas geradas. As vistas por **período** usam o AB (gerado ou manual).
 - **«Tem AB» é efectivo** (#363): um lançamento `LANCADO` no diário `AB` do exercício, que não foi
   estornado nem é um estorno. Com o AB estornado a abertura implícita volta.
 - **Diários reservados** (#363): o lançamento manual recusa o diário `EN`
   (`DIARIO_DE_ENCERRAMENTO`, e o formulário não o oferece) e o diário `AB` num exercício com
   anterior (`ABERTURA_AUTOMATICA` — a abertura gera-se no encerramento do anterior); no primeiro
   exercício o `AB` manual é a forma de lançar os saldos iniciais.
-- **DFC**: 81/82/83/88 → `OP-00`, 59 → `FIN-02` (`docs/handoff/dfc-seed.md`). A DFC só exclui das
+- **DFC**: 81/82/83/88 → `OP-00`, 59 → `OP-00` desde o #364 (era `FIN-02`; `docs/handoff/dfc-seed.md`). A DFC só exclui das
   secções as contas de tipo gasto/rendimento; a classe 8 não. Os lançamentos de encerramento ficam
   fora dela por causa da exclusão do período 13 dos mapas por datas, não pela rubrica.
 - **Consequências da exclusão do período 13 por datas.** A DRE e o balancete por datas
@@ -221,9 +270,73 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   corre numa única transacção — tudo ou nada —, por isso não há estado intermédio observável. A
   máquina é `ABERTO → ENCERRADO_PROVISORIO → (ABERTO | ENCERRADO)`, em `lib/state-machines.ts`.
 - **§7 «já são exigidas para os treze»** deixa de ser verdade para o período 13 (ver acima).
-- **Fora desta implementação** (issues próprias): abertura `AB` do exercício seguinte (§6),
-  aplicação do resultado (§5), arquivo em PDF do balanço/DRE/balancete (§8 — o balanço e o PDF da
-  DRE ainda não existem).
+- **Aplicação do resultado (§5, #364)** — `aplicacao-resultado.service.ts`, permissão
+  `financas:exercicio:aplicar-resultado` (só ADMIN), modelo `AplicacaoResultado`:
+  - **Conteúdo**: transfere o saldo **inteiro** de 88 no exercício seguinte (N+1) — abertura mais
+    o movimento que já lá esteja, meses 1..12, `FILTRO_LANCAMENTO_MAPA` — para 59, num lançamento
+    `LANCADO` do diário regular `OPERACOES`, `data` = data da deliberação, período = o mês dessa
+    data em N+1 (dia fiscal de Maputo), `documentoOrigemTipo = 'AplicacaoResultado'` e
+    `documentoOrigemId` = a aplicação. Lucro (88 credor) → D 88 / C 59; prejuízo → o inverso. A
+    distribuição (reservas, dividendos) faz-se depois por lançamentos manuais a partir de 59.
+  - **Recusas**, por esta ordem, antes de qualquer escrita: referência da acta vazia
+    (`VALIDACAO`); outro tenant (404); N não `ENCERRADO_PROVISORIO`/`ENCERRADO`
+    (`EXERCICIO_NAO_ENCERRADO`); N+1 inexistente ou sem `AB` efectivo (`ABERTURA_EM_FALTA` — a
+    recusa não cria N+1); data fora dos doze meses de N+1 (`DATA_FORA_DO_EXERCICIO_SEGUINTE`);
+    esse mês fechado (`PERIODO_FECHADO`); aplicação activa de N (`RESULTADO_JA_APLICADO`); 88 a
+    zero em N+1 (`SEM_RESULTADO_A_APLICAR`).
+  - **Uma activa por exercício** (`anuladaEm` nulo) não se exprime em Prisma: decide-se com N
+    trancado. **Trancas**: N `FOR UPDATE` → N+1 `FOR UPDATE` → o período da data (`FOR SHARE`) →
+    o diário (numeração) — do ano mais antigo para o mais recente, como no encerramento.
+  - **Anulação** (`anularAplicacaoResultado`, motivo pela regra da reabertura): estorna o
+    lançamento no **período dele** (por id, não pela data de hoje), com a data do original e a
+    mesma origem reservada; marca `anuladaEm`, `motivoAnulacao`, `lancamentoAnulacaoId`. Depois
+    pode aplicar-se de novo. O estorno genérico do lançamento (ou do seu estorno) recusa com
+    `LANCAMENTO_DE_APLICACAO`, antes de resolver período; a origem `'AplicacaoResultado'` é
+    reservada (`DOCUMENTO_ORIGEM_RESERVADO`). Escritores únicos em `contabilidade.service.ts`
+    (`criarLancamentoAplicacaoResultadoEmTx`, `estornarLancamentoAplicacaoResultadoEmTx`; gate-periodo).
+  - **Reabrir N** com uma aplicação activa recusa com `APLICACAO_DO_RESULTADO_REGISTADA`, decidido
+    com N trancado e antes de qualquer escrita: anula-se primeiro.
+  - **Trilho**: `AuditLog` explícito na mesma transacção — `AplicacaoResultado` CREATE ao aplicar,
+    UPDATE ao anular, com autor, `keycloakSub` e `requestId`.
+  - **DFC**: 59 passa de `FIN-02` a `OP-00`, com 88 — a aplicação fica neutra numa só linha.
+  - **UI**: em `/contabilidade/exercicios`, «Aplicar resultado» (rota `[id]/aplicar-resultado`) num
+    exercício encerrado cujo seguinte tem abertura e sem aplicação activa; com uma activa, a data,
+    a acta e «Anular aplicação» (rota `[id]/aplicacao/anular`, motivo).
+- **Arquivo em PDF (§8, #365)** — balanço, DRE e balancete arquivados por encerramento:
+  - **Balanço simples por classes** (`balanco.service.ts` → núcleo puro `balanco.ts`): lê o
+    `gerarBalanceteVerificacao` (acumulado por período 1..N, com AB ou abertura implícita) e agrupa
+    as folhas por conta de razão (dois dígitos). Activo = classes 1–3 e as razões da classe 4 de
+    saldo líquido devedor; Passivo = razões da classe 4 de saldo líquido credor; Capital próprio =
+    classes 5 e 8, a linha sintética dos resultados anteriores por encerrar e o resultado do período
+    (classes 6/7 por apurar, credor positivo). Período final por omissão: 13 com o exercício
+    encerrado, senão 12. Sem reclassificação por prazo — não é o modelo oficial de balanço.
+    Página `/contabilidade/balanco` e `GET /api/contabilidade/balanco/export` (PDF).
+  - **DRE em PDF**: `GET /api/contabilidade/dre/export`, mesmas datas e schema da página.
+  - **Arquivo DEPOIS do commit**: `arquivarEncerramento(encerramentoId, ctx)` gera os PDF EM FALTA
+    (balanço até ao período 13 e balancete de verificação 1..13, ambos do mesmo balancete — só
+    contas de razão acima de 500 linhas, `MAX_LINHAS_BALANCETE_ARQUIVO`; DRE sobre as datas do
+    exercício) FORA de qualquer transacção, grava cada um com `ObjectStorage.put` numa key nova sob
+    `tenant/<t>/encerramento/<id>/` e escreve a key só se ainda estiver nula (o objecto que não fica ligado — corrida perdida,
+    encerramento anulado entretanto — apaga-se, em melhor esforço); `arquivadoEm` fica
+    preenchido quando as três estão. São as únicas escritas em `EncerramentoExercicio` depois da
+    criação além de `anuladoEm`, com linha de `AuditLog`. **Byte a byte**: um documento arquivado
+    nunca se regrava nem se substitui; com os três arquivados, a chamada é um no-op. Só um
+    encerramento em vigor se arquiva.
+  - **DRE e balanço arquivados não mostram o mesmo resultado, e é o correcto**: a DRE (por datas,
+    sem o período 13) mostra o resultado antes da estimativa do imposto; o balanço do período 13
+    mostra em 88 o resultado líquido depois dela.
+  - **Semântica de falha**: o serviço `encerrarExercicio` não arquiva — a Server Action dispara o
+    arquivo com `after()` (depois da resposta: o utilizador não espera os PDF) quando o serviço
+    devolve `ok`, e engole a falha (log `warn`). Uma falha de armazenamento nunca desfaz o
+    encerramento: as keys dos documentos em falta ficam nulas, a lista de exercícios mostra
+    «Arquivo em falta» e «Arquivar documentos» (action `arquivarEncerramento`, permissão
+    `financas:exercicio:encerrar`) gera só os que faltam. Logo a seguir a encerrar, a lista pode
+    mostrar «Arquivo em falta» enquanto o arquivo corre. Num encerramento reaberto e re-encerrado,
+    o novo encerramento tem o seu próprio arquivo; o do anulado fica no armazenamento.
+  - **Download**: `GET /api/contabilidade/exercicios/[id]/encerramento/[balanco|dre|balancete]`
+    (`financas:exportar`) → 302 para um URL assinado de 300 s da key do encerramento em vigor;
+    404 para outro tenant, sem encerramento em vigor ou sem arquivo. O recurso `encerramento` do
+    armazenamento só se grava pelo servidor — o presign de upload recusa-o.
 
 ## Alternativas consideradas
 

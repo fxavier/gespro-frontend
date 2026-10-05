@@ -223,9 +223,10 @@ describe('projetarMovimentosContabilisticos', () => {
       partida(id, {
         lancamento: {
           data: new Date(2027, 0, 1, 0), numero: 'AB/000001', historico: 'Abertura 2027',
-          documentoOrigemTipo: null, documentoOrigemId: null,
+          // AB automático: gerado a partir do exercício anterior (origem = ExercicioContabil).
+          documentoOrigemTipo: 'ExercicioContabil', documentoOrigemId: 'ex-2026',
           diario: { tipo: 'ABERTURA' },
-          periodo: { ordem: 1, exercicio: { anteriorId: 'ex-2026' } },
+          periodo: { ordem: 1 },
         },
       });
     const real = partida('p9999', {
@@ -233,7 +234,7 @@ describe('projetarMovimentosContabilisticos', () => {
         data: new Date(2027, 2, 10, 12), numero: 'BCO/000300', historico: 'Recebimento real',
         documentoOrigemTipo: null, documentoOrigemId: null,
         diario: { tipo: 'BANCO' },
-        periodo: { ordem: 3, exercicio: { anteriorId: 'ex-2026' } },
+        periodo: { ordem: 3 },
       },
     });
     const loteAB = Array.from({ length: 1000 }, (_, i) => doAB(`p${String(i).padStart(4, '0')}`));
