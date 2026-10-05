@@ -76,6 +76,11 @@ export function criarLocalStorage(): ObjectStorage {
       return `${ROTA_LOCAL}/${key}`;
     },
 
+    // `caminhoSeguro` (dentro de `guardarObjetoLocal`) recusa uma key fora do directório base.
+    async put(key, bytes, contentType) {
+      await guardarObjetoLocal(key, bytes, contentType);
+    },
+
     async delete(key) {
       const alvo = caminhoSeguro(key);
       await fs.rm(alvo, { force: true });

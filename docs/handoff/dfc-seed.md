@@ -168,6 +168,15 @@ agregadoras são os de `plano-contas-pgc.json`.
 > **porque os mapas por datas excluem o período 13** (#138 N3), não por causa desta rubrica. **59 → FIN-02**: capital próprio, como 55x/58x (deixa de valer a nota
 > acima de que 59 não tem folha). A **aplicação do resultado 88 → 59** (no exercício seguinte, ainda não construída)
 > vai precisar de tratamento próprio na DFC.
+>
+> **2026-10-05 (#364). 59 → OP-00** (deixa a FIN-02). A aplicação do resultado (ADR-0035 §5) é um lançamento do
+> exercício seguinte, num mês normal, D 88 / C 59 (ou o inverso): com 59 em FIN-02 e 88 em OP-00, a DFC desse ano
+> mostrava uma variação não-caixa de financiamento compensada por uma operacional. Com as duas em OP-00 a aplicação
+> é neutra numa só linha — nenhum total da DFC muda. ⚠ **Para o parecer**: a distribuição posterior a partir de 59
+> (lançamentos manuais para 55x reservas, FIN-02, ou 4673 resultados atribuídos, FIN-03) deixa de ser neutra numa
+> secção — a variação não-caixa aparece em OP-00 e na secção da contrapartida, compensando-se entre elas (antes, 59 →
+> 55x era neutra em FIN-02 e era a aplicação que cruzava secções). Tenants já existentes: migração de dados
+> com uma nova versão do mapeamento (orquestrador); fixture da sentinela re-derivada pelo autor do oráculo.
 
 ### ⚠ Estrutura do plano (para o parecer; NIT (b) da revisão)
 

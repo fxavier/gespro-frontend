@@ -333,6 +333,14 @@ export const ROTULO_ESTADO_EXERCICIO: Record<EstadoExercicio, string> = {
   ENCERRADO: 'encerrado em definitivo',
 };
 
+/**
+ * Período final por omissão do balanço (#365): o 13 com o exercício encerrado (provisório ou
+ * definitivo) — o balanço depois do apuramento —, senão o 12. Partilhado pela página e pelo serviço.
+ */
+export function periodoFinalPorOmissao(estado: EstadoExercicio): number {
+  return estado === 'ENCERRADO_PROVISORIO' || estado === 'ENCERRADO' ? 13 : 12;
+}
+
 /** Lança `BusinessRuleError('TRANSICAO_INVALIDA')` — nunca `Error` cru (não chega ao utilizador como 500). */
 export function transitarExercicio(atual: EstadoExercicio, alvo: EstadoExercicio): EstadoExercicio {
   if (!TRANSICOES_EXERCICIO[atual]?.includes(alvo)) {

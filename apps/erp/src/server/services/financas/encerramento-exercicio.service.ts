@@ -7,10 +7,26 @@ import { MotivoReaberturaSchema } from '@/lib/validations/contabilidade';
 import { transitarExercicio } from '@/lib/state-machines';
 import { getRequestContext } from '@/server/observability/context';
 import { logger } from '@/server/observability/logger';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { derivarKey, getObjectStorage, prefixoTenant } from '@/lib/storage/objeto';
+import { renderBalancoPdf } from '@/lib/documents/pdf/balanco-pdf';
+import { renderBalancetePdf } from '@/lib/documents/pdf/balancete-pdf';
+import { renderDrePdf } from '@/lib/documents/pdf/dre-pdf';
+import { montarBalanco } from './balanco';
+import { emissaoDosMapas } from './emissao-mapas';
+import { filtrarBalancete, hierarquizarBalancete } from './balancete-verificacao';
+import { MAX_LINHAS_BALANCETE_ARQUIVO, somarLinhasQueContam, zeros } from '@/lib/documents/balancete-paginas';
 import {
   FILTRO_LANCAMENTO_MAPA,
+  aberturaEsperadaDeEmTx,
+  aberturasAutomaticasEfectivasEmTx,
   criarLancamentoEncerramentoEmTx,
+  estornarLancamentoAberturaEmTx,
   estornarLancamentoEncerramentoEmTx,
+  exercicioTemAberturaEfectivaEmTx,
+  gerarAberturaEmTx,
+  gerarBalanceteVerificacao,
+  gerarDRE,
 } from './contabilidade.service';
 import type {
   Ctx,
@@ -29,17 +45,28 @@ import type {
  *  2. tranca os treze períodos (`FOR UPDATE`, por ordem) — trava reaberturas e lançamentos
  *     concorrentes enquanto o ano se apura;
  *  3. recolhe TODOS os impedimentos e, havendo algum, devolve-os sem escrever nada;
- *  4. fotografa o balancete dos períodos 1..12 e grava os três lançamentos no diário EN,
- *     período 13, com a data do fim do exercício (o 2.º só com estimativa > 0);
- *  5. fecha o período 13, passa o exercício a ENCERRADO_PROVISORIO e regista o
- *     `EncerramentoExercicio`.
+ *  4. fotografa o balancete dos períodos 1..12 e grava até três lançamentos no diário EN,
+ *     período 13, com a data do fim do exercício — cada um só quando tem partidas (#366): um ano
+ *     sem saldo nas classes 6/7 encerra sem lançamento nenhum, e as referências ficam nulas;
+ *  5. fecha o período 13, passa o exercício a ENCERRADO_PROVISORIO, regista o
+ *     `EncerramentoExercicio` e escreve as linhas de `AuditLog` da transição (#366);
+ *  6. se o exercício SEGUINTE já existe, gera nele a abertura (diário AB, período 1 — #363,
+ *     ADR-0035 §6), estornando antes uma abertura efectiva que ainda lá esteja.
  *
- * Ordem das trancas: exercício → períodos → diário (pela numeração) — a mesma na reabertura e no
- * definitivo (abaixo). `fecharPeriodo` e `reabrirPeriodo` trancam só o período e leem o
- * exercício sem tranca: não há ciclo (o porquê de não ficar velho está no `reabrirPeriodo`).
+ * Ordem das trancas: exercício → os seus períodos → exercício seguinte → os períodos dele →
+ * diários (pela numeração: EN e depois AB) — a mesma na reabertura e no definitivo (abaixo).
+ * Sempre do ano mais antigo para o mais recente: um encerramento de N e outro de N+1 em
+ * simultâneo cruzam-se só na linha de N+1, que ambos pedem antes de qualquer outra coisa de N+1.
+ * A criação de um exercício (`garantirAberturaAoCriarEmTx`) segue a mesma ordem (anterior
+ * `FOR SHARE` → ele `FOR UPDATE`). `fecharPeriodo` e `reabrirPeriodo` trancam só o período e leem
+ * o exercício sem tranca: não há ciclo (o porquê de não ficar velho está no `reabrirPeriodo`).
  *
  * As escritas em `Lancamento`/`PartidaLancamento` passam por `criarLancamentoEncerramentoEmTx`
  * (`contabilidade.service`) — `gate-periodo`.
+ *
+ * Auditoria (#366): os três serviços escrevem pelo `prismaBase`, que não passa pela
+ * `audit-extension` — por isso cada transição escreve as suas linhas de `AuditLog` à mão, na
+ * mesma transacção. Uma chamada recusada sai antes de qualquer escrita e não deixa linha.
  */
 
 const ZERO = new Prisma.Decimal(0);
@@ -49,6 +76,64 @@ const PREFIXOS_FINANCEIROS = ['69', '78'];
 const CODIGOS_FIXOS = ['81', '82', '83', '88', '851', '4411'] as const;
 
 type Partida = { contaId: string; tipo: TipoPartida; valor: Prisma.Decimal };
+type Tx = Prisma.TransactionClient;
+
+/** `sub` do autor no Keycloak, para os registos e o `AuditLog`. */
+async function keycloakSubDe(tx: Tx, ctx: Ctx): Promise<string> {
+  const utilizador = await tx.user.findFirst({
+    where: { id: ctx.userId, tenantId: ctx.tenantId },
+    select: { keycloakSub: true },
+  });
+  return utilizador?.keycloakSub ?? ctx.userId;
+}
+
+/** Linha de `AuditLog` escrita na transacção do chamador (o `prismaBase` não é auditado). */
+async function auditar(
+  tx: Tx,
+  ctx: Ctx,
+  keycloakSub: string,
+  linha: { entity: string; entityId: string; action: 'CREATE' | 'UPDATE'; data?: Prisma.InputJsonValue },
+): Promise<void> {
+  await tx.auditLog.create({
+    data: {
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      keycloakSub,
+      requestId: getRequestContext()?.requestId ?? null,
+      ...linha,
+    },
+  });
+}
+
+/** Transição de estado do exercício, no formato da `audit-extension` (antes/depois). */
+function transicaoExercicio(antes: EstadoExercicio, depois: EstadoExercicio): Prisma.InputJsonValue {
+  return { before: { estado: antes }, after: { estado: depois } };
+}
+
+/**
+ * O exercício seguinte (o que encadeia neste pelo `anteriorId`), trancado `FOR UPDATE`, e os seus
+ * períodos, `FOR UPDATE` por ordem — ou `null` se ainda não existe. Chamado depois de trancar
+ * este exercício e os seus períodos (ordem das trancas no topo do ficheiro).
+ */
+async function trancarSeguinte(
+  tx: Tx,
+  exercicioId: string,
+  ctx: Ctx,
+): Promise<{ id: string; codigo: string; periodos: Array<{ id: string; ordem: number; estado: string }> } | null> {
+  const [seguinte] = await tx.$queryRaw<Array<{ id: string; codigo: string }>>`
+    SELECT id, codigo FROM "ExercicioContabil"
+    WHERE "anteriorId" = ${exercicioId} AND "tenantId" = ${ctx.tenantId}
+    FOR UPDATE
+  `;
+  if (!seguinte) return null;
+  const periodos = await tx.$queryRaw<Array<{ id: string; ordem: number; estado: string }>>`
+    SELECT id, ordem, estado FROM "PeriodoContabil"
+    WHERE "exercicioId" = ${seguinte.id} AND "tenantId" = ${ctx.tenantId}
+    ORDER BY ordem
+    FOR UPDATE
+  `;
+  return { ...seguinte, periodos };
+}
 
 /** Partida que leva `saldo` (D − C) a zero na conta: credita um saldo devedor, debita um credor. */
 function saldar(contaId: string, saldo: Prisma.Decimal): Partida {
@@ -80,6 +165,8 @@ export async function encerrarExercicio(
   const estimativa = lerEstimativa(input.estimativaImposto);
   const inicio = Date.now();
   let partidasPorLancamento: { resultados: number; imposto: number; liquido: number } | null = null;
+  let aberturaSeguinteId: string | null = null;
+  let aberturasEstornadas: string[] = [];
 
   const resultado = await prismaBase.$transaction<ResultadoEncerramentoExercicio>(
     async (tx) => {
@@ -106,6 +193,9 @@ export async function encerrarExercicio(
       if (!periodo13) throw new NotFoundError(`Período de encerramento do exercício ${exercicio.codigo} não encontrado`);
       const mensais = periodos.filter((p) => ORDENS_MENSAIS.includes(p.ordem));
 
+      // 2b. O exercício seguinte, se existir, e os seus períodos — trancados depois dos deste.
+      const seguinte = await trancarSeguinte(tx, exercicio.id, ctx);
+
       // 3. Impedimentos — todos de uma vez.
       const impedimentos: string[] = [];
 
@@ -123,6 +213,19 @@ export async function encerrarExercicio(
         if (anterior && anterior.estado !== 'ENCERRADO_PROVISORIO' && anterior.estado !== 'ENCERRADO') {
           impedimentos.push('EXERCICIO_ANTERIOR_ABERTO');
         }
+        // §7 (#363): com anterior, a abertura gerada tem de estar lá — efectiva (não estornada) —
+        // quando há abertura a esperar: um anterior sem saldos de balanço (ano a zero) não abre
+        // nada e não bloqueia nada. O estado do anterior é o impedimento de cima, à parte.
+        if (
+          !(await exercicioTemAberturaEfectivaEmTx(tx, exercicio.id, ctx)) &&
+          (await aberturaEsperadaDeEmTx(tx, exercicio.anteriorId, ctx))
+        ) {
+          impedimentos.push('ABERTURA_EM_FALTA');
+        }
+      }
+      // §6 (#363): a abertura do seguinte vai para o período 1 dele; fechado, não a recebe.
+      if (seguinte && seguinte.periodos.find((p) => p.ordem === 1)?.estado !== 'ABERTO') {
+        impedimentos.push('ABERTURA_SEGUINTE_FECHADA');
       }
 
       const rascunhos13 = await tx.lancamento.count({
@@ -169,8 +272,6 @@ export async function encerrarExercicio(
       const folhasResultados = contasMovimentadas.filter(
         (c) => (c.classe === 'CLASSE_6' || c.classe === 'CLASSE_7') && !saldo(c.id).isZero(),
       );
-      if (folhasResultados.length === 0) impedimentos.push('SEM_RESULTADOS_A_APURAR');
-
       if (impedimentos.length > 0) return { ok: false, impedimentos };
 
       // 4a. Contas da classe 8 e do imposto.
@@ -244,9 +345,8 @@ export async function encerrarExercicio(
         transferido88 = transferido88.plus(s);
       }
       if (!transferido88.isZero()) partidasLiquido.push(movimentar(c('88'), transferido88));
-      // Resultado corrente exactamente zero e sem imposto: não há nada a levar a 88, e o
-      // registo exige o lançamento do resultado líquido.
-      if (partidasLiquido.length === 0) return { ok: false, impedimentos: ['SEM_RESULTADOS_A_APURAR'] };
+      // Sem saldo nas classes 6/7, ou resultado corrente exactamente zero e sem imposto, não há
+      // nada a lançar: o ano encerra na mesma, com a referência a nulo (#366).
 
       // 4e. Escrita.
       const comum = {
@@ -255,11 +355,14 @@ export async function encerrarExercicio(
         documentoOrigemId: exercicio.id,
         documentoOrigemTipo: 'ExercicioContabil',
       };
-      const lancResultados = await criarLancamentoEncerramentoEmTx(
-        tx,
-        { ...comum, historico: `Encerramento ${exercicio.codigo} — apuramento dos resultados`, partidas: partidasResultados },
-        ctx,
-      );
+      const lancResultados =
+        partidasResultados.length > 0
+          ? await criarLancamentoEncerramentoEmTx(
+              tx,
+              { ...comum, historico: `Encerramento ${exercicio.codigo} — apuramento dos resultados`, partidas: partidasResultados },
+              ctx,
+            )
+          : null;
       const lancImposto = estimativa.greaterThan(0)
         ? await criarLancamentoEncerramentoEmTx(
             tx,
@@ -274,11 +377,30 @@ export async function encerrarExercicio(
             ctx,
           )
         : null;
-      const lancLiquido = await criarLancamentoEncerramentoEmTx(
-        tx,
-        { ...comum, historico: `Encerramento ${exercicio.codigo} — resultado líquido do exercício`, partidas: partidasLiquido },
-        ctx,
-      );
+      const lancLiquido =
+        partidasLiquido.length > 0
+          ? await criarLancamentoEncerramentoEmTx(
+              tx,
+              { ...comum, historico: `Encerramento ${exercicio.codigo} — resultado líquido do exercício`, partidas: partidasLiquido },
+              ctx,
+            )
+          : null;
+
+      // 4f. Abertura do exercício seguinte (#363) — depois dos lançamentos EN, que põem o
+      //     resultado no 88. Uma abertura efectiva que lá esteja (só por estado legado: a
+      //     reabertura estorna-a) é estornada antes, para ficar uma só.
+      if (seguinte) {
+        aberturasEstornadas = await aberturasAutomaticasEfectivasEmTx(tx, { exercicioId: seguinte.id }, ctx);
+        for (const lancamentoId of aberturasEstornadas) {
+          await estornarLancamentoAberturaEmTx(
+            tx,
+            { lancamentoId, motivo: `Regeneração da abertura no encerramento de ${exercicio.codigo}` },
+            ctx,
+          );
+        }
+        const ab = await gerarAberturaEmTx(tx, { exercicioAnteriorId: exercicio.id, exercicioId: seguinte.id }, ctx);
+        aberturaSeguinteId = ab?.id ?? null;
+      }
 
       // 5. Estados e registo (ids vindos das leituras trancadas, já filtradas por tenant).
       const agora = new Date();
@@ -294,10 +416,7 @@ export async function encerrarExercicio(
       const anteriores = await tx.encerramentoExercicio.count({
         where: { tenantId: ctx.tenantId, exercicioId: exercicio.id },
       });
-      const utilizador = await tx.user.findFirst({
-        where: { id: ctx.userId, tenantId: ctx.tenantId },
-        select: { keycloakSub: true },
-      });
+      const keycloakSub = await keycloakSubDe(tx, ctx);
 
       const encerramento = await tx.encerramentoExercicio.create({
         data: {
@@ -305,15 +424,36 @@ export async function encerrarExercicio(
           exercicioId: exercicio.id,
           versao: anteriores + 1,
           estimativaImposto: estimativa,
-          lancamentoResultadosId: lancResultados.id,
+          lancamentoResultadosId: lancResultados?.id ?? null,
           lancamentoImpostoId: lancImposto?.id ?? null,
-          lancamentoLiquidoId: lancLiquido.id,
+          lancamentoLiquidoId: lancLiquido?.id ?? null,
           fotografia: fotografia as unknown as Prisma.InputJsonValue,
           totalDebito,
           totalCredito,
           encerradoPorId: ctx.userId,
-          keycloakSub: utilizador?.keycloakSub ?? ctx.userId,
+          keycloakSub,
           requestId: getRequestContext()?.requestId ?? null,
+        },
+      });
+      await auditar(tx, ctx, keycloakSub, {
+        entity: 'ExercicioContabil',
+        entityId: exercicio.id,
+        action: 'UPDATE',
+        data: transicaoExercicio(exercicio.estado, estadoAlvo),
+      });
+      await auditar(tx, ctx, keycloakSub, {
+        entity: 'EncerramentoExercicio',
+        entityId: encerramento.id,
+        action: 'CREATE',
+        // Sem a fotografia: fica no próprio registo, que é imutável.
+        data: {
+          after: {
+            versao: encerramento.versao,
+            estimativaImposto: estimativa.toFixed(2),
+            lancamentoResultadosId: encerramento.lancamentoResultadosId,
+            lancamentoImpostoId: encerramento.lancamentoImpostoId,
+            lancamentoLiquidoId: encerramento.lancamentoLiquidoId,
+          },
         },
       });
 
@@ -337,6 +477,8 @@ export async function encerrarExercicio(
         exercicioId: input.exercicioId,
         versao: resultado.encerramento.versao,
         partidasPorLancamento,
+        aberturaSeguinteId,
+        aberturasEstornadas,
         duracaoMs: Date.now() - inicio,
       },
       '[encerramento] exercício encerrado provisoriamente',
@@ -357,6 +499,15 @@ export async function encerrarExercicio(
  * está fechado e assim fica); anula esse encerramento; regista a `ReaberturaExercicio`; e o
  * exercício volta a ABERTO. Os doze mensais continuam fechados — cada um reabre-se depois,
  * pelo `reabrirPeriodo`, com o seu motivo.
+ *
+ * Exercício seguinte (#363, ADR-0035 §6): trancado a seguir ao período 13 (ordem das trancas no
+ * topo). Com algum período dele FECHADO recusa com `EXERCICIO_SEGUINTE_COM_PERIODO_FECHADO`, antes
+ * de qualquer escrita — a correcção passa a ser um lançamento de correcção de exercícios
+ * anteriores. Senão estorna-lhe a abertura gerada a partir deste (período 1 dele, diário AB), e
+ * o id entra em `lancamentosEstornados` com os do encerramento: é o rasto completo da reabertura.
+ *
+ * Aplicação do resultado (#364, ADR-0035 §5): com uma aplicação activa deste exercício recusa com
+ * `APLICACAO_DO_RESULTADO_REGISTADA`, também antes de qualquer escrita — anula-se primeiro.
  */
 export async function reabrirExercicio(
   input: { exercicioId: string; motivo: string },
@@ -367,6 +518,7 @@ export async function reabrirExercicio(
   if (!validado.success) throw new ValidationError('Dados inválidos', validado.error.flatten());
   const motivo = validado.data.motivo;
   const inicio = Date.now();
+  let aberturasEstornadas: string[] = [];
 
   const reabertura = await prismaBase.$transaction(
     async (tx) => {
@@ -384,6 +536,30 @@ export async function reabrirExercicio(
         FOR UPDATE
       `;
       if (!periodo13) throw new NotFoundError(`Período de encerramento do exercício ${exercicio.codigo} não encontrado`);
+
+      const seguinte = await trancarSeguinte(tx, exercicio.id, ctx);
+      if (seguinte && seguinte.periodos.some((p) => p.estado === 'FECHADO')) {
+        throw new BusinessRuleError(
+          'EXERCICIO_SEGUINTE_COM_PERIODO_FECHADO',
+          `Não é possível reabrir: o exercício seguinte (${seguinte.codigo}) já tem períodos fechados e o ` +
+            'lançamento de abertura dele já não pode ser refeito. Registe o ajustamento como correcção de ' +
+            'exercícios anteriores.',
+        );
+      }
+
+      // ADR-0035 §5 (#364): com o resultado aplicado no seguinte, reabrir deixava a aplicação a
+      // transportar um resultado que vai mudar. Decidido com o exercício trancado — a aplicação
+      // tranca-o também, antes de escrever.
+      const aplicacoesActivas = await tx.aplicacaoResultado.count({
+        where: { tenantId: ctx.tenantId, exercicioId: exercicio.id, anuladaEm: null },
+      });
+      if (aplicacoesActivas > 0) {
+        throw new BusinessRuleError(
+          'APLICACAO_DO_RESULTADO_REGISTADA',
+          `Não é possível reabrir: o resultado do exercício ${exercicio.codigo} já foi aplicado no exercício ` +
+            'seguinte. Anule primeiro a aplicação do resultado.',
+        );
+      }
 
       const encerramento = await tx.encerramentoExercicio.findFirst({
         where: { tenantId: ctx.tenantId, exercicioId: exercicio.id, anuladoEm: null },
@@ -412,6 +588,19 @@ export async function reabrirExercicio(
         );
       }
 
+      // Depois dos EN: diários na mesma ordem do encerramento (EN → AB).
+      const idsAB = seguinte
+        ? await aberturasAutomaticasEfectivasEmTx(
+            tx,
+            { exercicioId: seguinte.id, exercicioAnteriorId: exercicio.id },
+            ctx,
+          )
+        : [];
+      for (const lancamentoId of idsAB) {
+        await estornarLancamentoAberturaEmTx(tx, { lancamentoId, motivo }, ctx);
+      }
+      aberturasEstornadas = idsAB;
+
       await tx.encerramentoExercicio.update({
         where: { id: encerramento.id },
         data: { anuladoEm: new Date() },
@@ -421,22 +610,38 @@ export async function reabrirExercicio(
         data: { estado: estadoAlvo },
       });
 
-      const utilizador = await tx.user.findFirst({
-        where: { id: ctx.userId, tenantId: ctx.tenantId },
-        select: { keycloakSub: true },
-      });
-      return tx.reaberturaExercicio.create({
+      const keycloakSub = await keycloakSubDe(tx, ctx);
+      const criada = await tx.reaberturaExercicio.create({
         data: {
           tenantId: ctx.tenantId,
           exercicioId: exercicio.id,
           encerramentoId: encerramento.id,
           motivo,
-          lancamentosEstornados: idsEN,
+          lancamentosEstornados: [...idsEN, ...idsAB],
           reabertoPorId: ctx.userId,
-          keycloakSub: utilizador?.keycloakSub ?? ctx.userId,
+          keycloakSub,
           requestId: getRequestContext()?.requestId ?? null,
         },
       });
+      await auditar(tx, ctx, keycloakSub, {
+        entity: 'ExercicioContabil',
+        entityId: exercicio.id,
+        action: 'UPDATE',
+        data: transicaoExercicio(exercicio.estado, estadoAlvo),
+      });
+      await auditar(tx, ctx, keycloakSub, {
+        entity: 'ReaberturaExercicio',
+        entityId: criada.id,
+        action: 'CREATE',
+        data: {
+          after: {
+            encerramentoId: criada.encerramentoId,
+            motivo: criada.motivo,
+            lancamentosEstornados: criada.lancamentosEstornados,
+          },
+        },
+      });
+      return criada;
     },
     { timeout: 60_000, maxWait: 10_000 },
   );
@@ -447,6 +652,7 @@ export async function reabrirExercicio(
       exercicioId: input.exercicioId,
       encerramentoId: reabertura.encerramentoId,
       lancamentosEstornados: reabertura.lancamentosEstornados.length,
+      aberturasEstornadas,
       duracaoMs: Date.now() - inicio,
     },
     '[encerramento] exercício reaberto',
@@ -471,10 +677,17 @@ export async function encerrarExercicioDefinitivo(
     `;
     if (!linha) throw new NotFoundError('Exercício não encontrado');
     const estadoAlvo = transitarExercicio(linha.estado, 'ENCERRADO');
-    return tx.exercicioContabil.update({
+    const actualizado = await tx.exercicioContabil.update({
       where: { id: linha.id },
       data: { estado: estadoAlvo, encerradoDefinitivoEm: new Date(), encerradoDefinitivoPorId: ctx.userId },
     });
+    await auditar(tx, ctx, await keycloakSubDe(tx, ctx), {
+      entity: 'ExercicioContabil',
+      entityId: linha.id,
+      action: 'UPDATE',
+      data: transicaoExercicio(linha.estado, estadoAlvo),
+    });
+    return actualizado;
   });
 
   logger.info(
@@ -482,4 +695,265 @@ export async function encerrarExercicioDefinitivo(
     '[encerramento] exercício encerrado em definitivo',
   );
   return exercicio as unknown as ExercicioContabil;
+}
+
+// ---------------------------------------------------------------------------
+// Arquivo em PDF do encerramento (ADR-0035 §8, #365)
+// ---------------------------------------------------------------------------
+
+/** Os três documentos arquivados com cada encerramento e o campo da key de cada um. */
+export const DOCUMENTOS_ARQUIVO_ENCERRAMENTO = ['balanco', 'dre', 'balancete'] as const;
+export type DocumentoArquivoEncerramento = (typeof DOCUMENTOS_ARQUIVO_ENCERRAMENTO)[number];
+
+const CAMPO_KEY_ARQUIVO = {
+  balanco: 'balancoStorageKey',
+  dre: 'dreStorageKey',
+  balancete: 'balanceteStorageKey',
+} as const satisfies Record<DocumentoArquivoEncerramento, string>;
+
+/** O estado do arquivo de um encerramento — as três keys e `arquivadoEm` (todas presentes). */
+export interface EstadoArquivoEncerramento {
+  balancoStorageKey: string | null;
+  dreStorageKey: string | null;
+  balanceteStorageKey: string | null;
+  arquivadoEm: Date | null;
+}
+
+const COLUNAS_TOTAIS_BV = ['movD', 'movC', 'acumD', 'acumC', 'saldoDevedor', 'saldoCredor'] as const;
+
+type ExercicioDoArquivo = { id: string; codigo: string; dataInicio: Date; dataFim: Date };
+
+/**
+ * Os PDF dos documentos em falta, e só desses. Balanço e balancete saem do MESMO balancete de
+ * verificação (1..13, incluído o período 13); a DRE é por datas — e por isso, como todos os
+ * leitores por datas, não conta o período 13 (mostra o resultado antes da estimativa do imposto).
+ * Corre com o contexto de tenant (os leitores usam o cliente estendido).
+ */
+async function gerarPdfsEmFalta(
+  exercicio: ExercicioDoArquivo,
+  emFalta: DocumentoArquivoEncerramento[],
+  ctx: Ctx,
+): Promise<Partial<Record<DocumentoArquivoEncerramento, Uint8Array>>> {
+  const { entidade, emissao } = await emissaoDosMapas(ctx);
+  const pdfs: Partial<Record<DocumentoArquivoEncerramento, Uint8Array>> = {};
+
+  if (emFalta.includes('balanco') || emFalta.includes('balancete')) {
+    const bv = await gerarBalanceteVerificacao(
+      { exercicioId: exercicio.id, periodoInicial: 1, periodoFinal: 13, incluir13: true },
+      ctx,
+    );
+    if (emFalta.includes('balanco')) {
+      pdfs.balanco = await renderBalancoPdf(
+        { entidade, exercicio: exercicio.codigo, periodoFinal: 13, balanco: montarBalanco(bv.linhas, bv.contas) },
+        emissao,
+      );
+    }
+    if (emFalta.includes('balancete')) {
+      // Sem ninguém a escolher filtros: acima do tecto do arquivo, só as contas de razão.
+      let linhas = filtrarBalancete(hierarquizarBalancete(bv, bv.contas, {}), {});
+      const soRazao = linhas.length > MAX_LINHAS_BALANCETE_ARQUIVO;
+      if (soRazao) linhas = filtrarBalancete(hierarquizarBalancete(bv, bv.contas, { apenasRazao: true }), {});
+      // Como na exportação: se a soma do que se mostra deixa de ser a do balancete (roll-up por
+      // razão, órfãs), a última página separa «linhas mostradas» dos «Totais do balancete».
+      const mostradas = somarLinhasQueContam(zeros(), linhas);
+      pdfs.balancete = await renderBalancetePdf(
+        {
+          entidade,
+          exercicio: exercicio.codigo,
+          periodoInicial: 1,
+          periodoFinal: 13,
+          incluir13: true,
+          tipo: 'AMBOS',
+          filtros: soRazao ? 'Apenas contas de razão' : '',
+          filtrosTiramLinhas: COLUNAS_TOTAIS_BV.some((k) => !mostradas[k].equals(bv.totais[k])),
+          linhas,
+          totais: bv.totais,
+          equilibrio: bv.equilibrio,
+        },
+        emissao,
+      );
+    }
+  }
+  if (emFalta.includes('dre')) {
+    const dre = await gerarDRE({ dataInicio: exercicio.dataInicio, dataFim: exercicio.dataFim }, ctx);
+    pdfs.dre = await renderDrePdf({ entidade, dre }, emissao);
+  }
+  return pdfs;
+}
+
+/**
+ * Arquiva em PDF os documentos EM FALTA de um encerramento — balanço (período 13), DRE (datas do
+ * exercício) e balancete de verificação (períodos 1..13) — e grava as keys deles; `arquivadoEm`
+ * fica preenchido quando os três estão.
+ *
+ * Corre DEPOIS do commit do encerramento e FORA de qualquer transacção: o layout do PDF é CPU
+ * síncrona e o armazenamento é rede — nada disso pode segurar trancas. Uma falha (armazenamento
+ * indisponível, por exemplo) propaga-se ao chamador mas nunca desfaz o encerramento; as keys dos
+ * documentos já gravados ficam, as dos outros ficam nulas, e o arquivo pode correr-se de novo (a
+ * lista de exercícios mostra «Arquivo em falta» e um botão para isso).
+ *
+ * Byte a byte: um documento já arquivado NUNCA se regrava — só se geram e gravam os de key nula,
+ * cada um numa key nova; com os três arquivados é um no-op que devolve o estado. A key só se
+ * grava se ainda estiver nula (duas corridas em simultâneo: fica a primeira; o objecto da segunda
+ * apaga-se). Só um encerramento
+ * em vigor (não anulado) se arquiva. Outro tenant → `NotFoundError`.
+ */
+export async function arquivarEncerramento(encerramentoId: string, ctx: Ctx): Promise<EstadoArquivoEncerramento> {
+  const inicio = Date.now();
+  const encerramento = await prismaBase.encerramentoExercicio.findFirst({
+    where: { id: encerramentoId, tenantId: ctx.tenantId },
+    include: { exercicio: { select: { id: true, codigo: true, dataInicio: true, dataFim: true } } },
+  });
+  if (!encerramento) throw new NotFoundError('Encerramento não encontrado');
+  if (encerramento.anuladoEm) {
+    throw new BusinessRuleError(
+      'ENCERRAMENTO_ANULADO',
+      'Este encerramento foi anulado por uma reabertura do exercício; não se arquiva.',
+    );
+  }
+  const estadoDe = (e: EstadoArquivoEncerramento): EstadoArquivoEncerramento => ({
+    balancoStorageKey: e.balancoStorageKey,
+    dreStorageKey: e.dreStorageKey,
+    balanceteStorageKey: e.balanceteStorageKey,
+    arquivadoEm: e.arquivadoEm,
+  });
+  const emFalta = DOCUMENTOS_ARQUIVO_ENCERRAMENTO.filter((d) => !encerramento[CAMPO_KEY_ARQUIVO[d]]);
+  if (emFalta.length === 0) return estadoDe(encerramento);
+
+  const { exercicio } = encerramento;
+  const pdfs = await runWithTenantContext(ctx, () => gerarPdfsEmFalta(exercicio, emFalta, ctx));
+
+  // Cada documento numa key nova: um objecto já arquivado nunca é substituído.
+  const storage = getObjectStorage();
+  const gravadas: Partial<Record<DocumentoArquivoEncerramento, string>> = {};
+  let falha: unknown = null;
+  for (const d of emFalta) {
+    const key = derivarKey({
+      tenantId: ctx.tenantId,
+      recurso: 'encerramento',
+      recursoId: encerramento.id,
+      nome: `${d}-${exercicio.codigo}.pdf`,
+    });
+    try {
+      await storage.put(key, pdfs[d]!, 'application/pdf');
+      gravadas[d] = key;
+    } catch (e) {
+      falha = e;
+      break;
+    }
+  }
+
+  const documentosGravados = Object.keys(gravadas) as DocumentoArquivoEncerramento[];
+  /** Documentos cuja key ficou gravada (a guarda «key nula» bateu); só esses vão ao trilho. */
+  const fixados: DocumentoArquivoEncerramento[] = [];
+  if (documentosGravados.length > 0) {
+    // As keys e o `AuditLog` (o `prismaBase` não é auditado) numa transacção curta, sem I/O externo.
+    await prismaBase.$transaction(async (tx) => {
+      for (const d of documentosGravados) {
+        const r = await tx.encerramentoExercicio.updateMany({
+          where: { id: encerramento.id, tenantId: ctx.tenantId, anuladoEm: null, [CAMPO_KEY_ARQUIVO[d]]: null },
+          data: { [CAMPO_KEY_ARQUIVO[d]]: gravadas[d] },
+        });
+        if (r.count === 1) fixados.push(d);
+      }
+      const completo = await tx.encerramentoExercicio.updateMany({
+        where: {
+          id: encerramento.id,
+          tenantId: ctx.tenantId,
+          anuladoEm: null,
+          arquivadoEm: null,
+          balancoStorageKey: { not: null },
+          dreStorageKey: { not: null },
+          balanceteStorageKey: { not: null },
+        },
+        data: { arquivadoEm: new Date() },
+      });
+      if (fixados.length === 0 && completo.count === 0) return;
+      await auditar(tx, ctx, await keycloakSubDe(tx, ctx), {
+        entity: 'EncerramentoExercicio',
+        entityId: encerramento.id,
+        action: 'UPDATE',
+        data: {
+          after: {
+            ...Object.fromEntries(fixados.map((d) => [CAMPO_KEY_ARQUIVO[d], gravadas[d]!])),
+            arquivoCompleto: completo.count > 0,
+          },
+        },
+      });
+    });
+  }
+
+  // O que se gravou e não ficou ligado (corrida perdida, ou encerramento anulado entretanto) é
+  // um órfão: apaga-se — melhor esforço, fora da transacção.
+  for (const d of documentosGravados.filter((x) => !fixados.includes(x))) {
+    try {
+      await storage.delete(gravadas[d]!);
+    } catch (e) {
+      logger.warn(
+        { tenantId: ctx.tenantId, encerramentoId: encerramento.id, documento: d, erro: e instanceof Error ? e.message : String(e) },
+        '[encerramento] objecto arquivado sem key não foi apagado',
+      );
+    }
+  }
+
+  if (falha) throw falha;
+
+  const actual = await prismaBase.encerramentoExercicio.findFirst({
+    where: { id: encerramento.id, tenantId: ctx.tenantId },
+    select: { balancoStorageKey: true, dreStorageKey: true, balanceteStorageKey: true, arquivadoEm: true },
+  });
+  logger.info(
+    {
+      tenantId: ctx.tenantId,
+      exercicioId: exercicio.id,
+      encerramentoId: encerramento.id,
+      documentos: fixados,
+      duracaoMs: Date.now() - inicio,
+    },
+    '[encerramento] documentos arquivados',
+  );
+  return estadoDe(actual ?? encerramento);
+}
+
+/**
+ * Situação do arquivo do encerramento EM VIGOR de um exercício (o não anulado), ou `null` se
+ * não houver nenhum. Para a lista de exercícios: ligações aos PDF ou «Arquivo em falta».
+ */
+export async function situacaoArquivoEncerramento(
+  exercicioId: string,
+  ctx: Ctx,
+): Promise<{ encerramentoId: string; arquivadoEm: Date | null; documentos: DocumentoArquivoEncerramento[] } | null> {
+  const e = await prismaBase.encerramentoExercicio.findFirst({
+    where: { tenantId: ctx.tenantId, exercicioId, anuladoEm: null },
+    orderBy: { versao: 'desc' },
+    select: { id: true, arquivadoEm: true, balancoStorageKey: true, dreStorageKey: true, balanceteStorageKey: true },
+  });
+  if (!e) return null;
+  return {
+    encerramentoId: e.id,
+    arquivadoEm: e.arquivadoEm,
+    documentos: DOCUMENTOS_ARQUIVO_ENCERRAMENTO.filter((d) => Boolean(e[CAMPO_KEY_ARQUIVO[d]])),
+  };
+}
+
+/**
+ * A key arquivada de um documento do encerramento EM VIGOR do exercício. `NotFoundError` quando
+ * o exercício é de outro tenant, não tem encerramento em vigor (nunca encerrado ou reaberto), ou
+ * o documento não foi arquivado. Reafirma o prefixo do tenant antes de a devolver.
+ */
+export async function keyArquivoEncerramento(
+  exercicioId: string,
+  documento: DocumentoArquivoEncerramento,
+  ctx: Ctx,
+): Promise<string> {
+  const e = await prismaBase.encerramentoExercicio.findFirst({
+    where: { tenantId: ctx.tenantId, exercicioId, anuladoEm: null },
+    orderBy: { versao: 'desc' },
+    select: { balancoStorageKey: true, dreStorageKey: true, balanceteStorageKey: true },
+  });
+  const key = e?.[CAMPO_KEY_ARQUIVO[documento]];
+  if (!key || !key.startsWith(prefixoTenant(ctx.tenantId))) {
+    throw new NotFoundError('Documento do encerramento não encontrado');
+  }
+  return key;
 }

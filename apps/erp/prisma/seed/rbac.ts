@@ -87,6 +87,8 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'financas:exercicio:encerrar',    descricao: 'Encerrar exercício contabilístico (encerramento provisório)' },
   { code: 'financas:exercicio:encerrar-definitivo', descricao: 'Encerrar exercício contabilístico em definitivo (irreversível)' },
   { code: 'financas:exercicio:reabrir',     descricao: 'Reabrir exercício encerrado provisoriamente (requer motivo)' },
+  // ADR-0035 §5 (#364) — executa uma deliberação dos sócios: só ADMIN.
+  { code: 'financas:exercicio:aplicar-resultado', descricao: 'Aplicar o resultado do exercício (88 → 59) e anular a aplicação' },
   { code: 'financas:fechar_caixa',          descricao: 'Fechar caixa diário' },
   { code: 'financas:conciliar',             descricao: 'Conciliar extractos bancários' },
   { code: 'financas:exportar',              descricao: 'Exportar relatórios financeiros' },
@@ -438,7 +440,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     if (['financas:periodo:reabrir', 'financas:exercicio:abrir'].includes(code)) return false;
     // ADR-0035: encerrar, encerrar em definitivo e reabrir o exercício são só do ADMIN.
     if (['financas:exercicio:encerrar', 'financas:exercicio:encerrar-definitivo',
-         'financas:exercicio:reabrir'].includes(code)) return false;
+         'financas:exercicio:reabrir', 'financas:exercicio:aplicar-resultado'].includes(code)) return false;
     // ADR-0037 E5: validar a versão do mapeamento da DFC é só do ADMIN.
     if (code === 'financas:fluxo-caixa:validar') return false;
     if (code.startsWith('financas:')) return true;
@@ -498,10 +500,13 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
       'financas:plano-contas:escrita',
       'financas:fechar_periodo',
       'financas:periodo:reabrir',
+      // #366 — abrir um exercício novo é decisão do ADMIN.
+      'financas:exercicio:abrir',
       // ADR-0035 — só ADMIN.
       'financas:exercicio:encerrar',
       'financas:exercicio:encerrar-definitivo',
       'financas:exercicio:reabrir',
+      'financas:exercicio:aplicar-resultado',
       'financas:iva:declarar',
       'financas:lancamentos:estornar',
       'financas:fluxo-caixa:configurar',
