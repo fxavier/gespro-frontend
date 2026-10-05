@@ -94,7 +94,9 @@ async function ApuramentoDetalheSection({
 
   if (!periodo) notFound();
 
-  const podeApurar = !apuramento || apuramento.estado === 'ESTORNADO';
+  // O período 13 só recebe o encerramento: não tem IVA a apurar (ADR-0035 §2/§7, #138)
+  const encerramento = periodo.ordem === 13;
+  const podeApurar = !encerramento && (!apuramento || apuramento.estado === 'ESTORNADO');
   const podeEstornar = apuramento?.estado === 'APURADO';
   const podeDeclarar = apuramento?.estado === 'APURADO';
 
@@ -146,10 +148,18 @@ async function ApuramentoDetalheSection({
       {!apuramento ? (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <PercentCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-          <p className="font-medium">Ainda não existe apuramento para este período.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Clique em «Apurar IVA» para calcular o apuramento a partir do razão.
-          </p>
+          {encerramento ? (
+            <p className="font-medium">
+              O período 13 é o do encerramento do exercício e não tem IVA a apurar.
+            </p>
+          ) : (
+            <>
+              <p className="font-medium">Ainda não existe apuramento para este período.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Clique em «Apurar IVA» para calcular o apuramento a partir do razão.
+              </p>
+            </>
+          )}
           {podeApurar && (
             <div className="mt-4">
               <Button asChild>

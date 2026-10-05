@@ -1237,6 +1237,11 @@
       "rubrica": "FIN-02"
     },
     {
+      "conta": "59",
+      "nome": "Resultados transitados",
+      "rubrica": "FIN-02"
+    },
+    {
       "conta": "611",
       "nome": "Custo dos inventários vendidos ou consumidos",
       "rubrica": "OP-00"
@@ -2302,6 +2307,21 @@
       "rubrica": "OP-00"
     },
     {
+      "conta": "81",
+      "nome": "Resultados operacionais",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "82",
+      "nome": "Resultados financeiros",
+      "rubrica": "OP-00"
+    },
+    {
+      "conta": "83",
+      "nome": "Resultados correntes",
+      "rubrica": "OP-00"
+    },
+    {
       "conta": "851",
       "nome": "Imposto corrente",
       "rubrica": "OP-07"
@@ -2310,6 +2330,11 @@
       "conta": "852",
       "nome": "Imposto diferido",
       "rubrica": "OP-07"
+    },
+    {
+      "conta": "88",
+      "nome": "Resultado líquido do período",
+      "rubrica": "OP-00"
     }
   ]
 }

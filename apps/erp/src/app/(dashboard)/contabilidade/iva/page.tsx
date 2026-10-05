@@ -55,6 +55,8 @@ function LinhaPeriodo({
   periodo: PeriodoContabil;
   apuramento: ApuramentoIva | null;
 }) {
+  // O período 13 só recebe o encerramento: não tem IVA a apurar (ADR-0035 §2/§7, #138)
+  const encerramento = periodo.ordem === 13;
   const podeApurar = !apuramento || apuramento.estado === 'ESTORNADO';
 
   return (
@@ -71,15 +73,23 @@ function LinhaPeriodo({
         <StatusBadge status={periodo.estado} />
       </td>
       <td className="py-3 px-4">
-        <BadgeApuramento apuramento={apuramento} />
-        {apuramento && (
-          <span className="ml-2 text-xs text-muted-foreground">
-            v{apuramento.versao}
-          </span>
+        {encerramento && !apuramento ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <>
+            <BadgeApuramento apuramento={apuramento} />
+            {apuramento && (
+              <span className="ml-2 text-xs text-muted-foreground">
+                v{apuramento.versao}
+              </span>
+            )}
+          </>
         )}
       </td>
       <td className="py-3 px-4 text-right">
-        {podeApurar ? (
+        {encerramento && podeApurar ? (
+          <span className="text-muted-foreground">—</span>
+        ) : podeApurar ? (
           <Button asChild size="sm" variant="outline">
             <Link href={`/contabilidade/iva/${periodo.id}/apurar`}>
               Apurar

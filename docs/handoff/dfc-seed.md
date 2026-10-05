@@ -159,6 +159,16 @@ agregadoras são os de `plano-contas-pgc.json`.
 | **INV-03** (parte) | 4541 Empréstimos concedidos · 464 Credores por subscrições não liberadas | 4541: adiantamento/empréstimo feito a terceiros (IAS 7 §16(e)). 464: dívida por participações subscritas — liquida em INV com 31x. | — |
 | **OP-00** Contas de resultados | Classes 6 e 7 inteiras (135 + 78 = 213 folhas) | Representadas pelo `resultadoLiquido` da DRE (I9); o núcleo exclui-as das secções pelo `tipo`. A rubrica existe para o I7 (toda a conta com movimento tem mapeamento). | — |
 
+> **2026-10-05 (#138 N2).** 59, 81, 82, 83 e 88 passaram a aceitar lançamento (ADR-0035 §3: o apuramento e a
+> transferência do resultado lançam directamente nelas) e, pelo I7, ganharam mapeamento. **81, 82, 83, 88 → OP-00**:
+> são contas de resultados da classe 8, e é a rubrica delas no plano. **Atenção ao mecanismo:** o núcleo só exclui das
+> secções as contas de `tipo` GASTO/RENDIMENTO (`dfc.model.ts`); a classe 8 é `RESULTADO` e **não** é excluída — um
+> movimento em 81–88 dentro do intervalo entra como variação OP-00. Não se acrescentou `RESULTADO` à exclusão porque
+> tiraria 851/852 da OP-07. Os lançamentos de encerramento (6/7 → 8x, período 13, data 31/12) ficam fora da DFC
+> **porque os mapas por datas excluem o período 13** (#138 N3), não por causa desta rubrica. **59 → FIN-02**: capital próprio, como 55x/58x (deixa de valer a nota
+> acima de que 59 não tem folha). A **aplicação do resultado 88 → 59** (no exercício seguinte, ainda não construída)
+> vai precisar de tratamento próprio na DFC.
+
 ### ⚠ Estrutura do plano (para o parecer; NIT (b) da revisão)
 
 - **Contas-mãe com `aceitaLancamento: true`** no `plano-contas-pgc.json` (ex.: 492, 461, 454, 467, 494) — são

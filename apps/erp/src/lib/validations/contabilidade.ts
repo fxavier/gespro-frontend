@@ -447,9 +447,12 @@ export const FecharPeriodoSchema = z.object({
 
 export type FecharPeriodoInput = z.infer<typeof FecharPeriodoSchema>;
 
+/** Motivo de uma reabertura — de período (ADR-0033 §7) ou de exercício (ADR-0035 §1). */
+export const MotivoReaberturaSchema = z.string().min(10, 'Motivo deve ter pelo menos 10 caracteres').max(1000);
+
 export const ReabrirPeriodoSchema = z.object({
   id: idEntidade('ID de período inválido'),
-  motivo: z.string().min(10, 'Motivo deve ter pelo menos 10 caracteres').max(1000),
+  motivo: MotivoReaberturaSchema,
 });
 
 export type ReabrirPeriodoInput = z.infer<typeof ReabrirPeriodoSchema>;
@@ -470,6 +473,47 @@ export const AbrirExercicioSchema = z.object({
 });
 
 export type AbrirExercicioInput = z.infer<typeof AbrirExercicioSchema>;
+
+// --- Encerramento do exercício (ADR-0035, #138) ---
+
+/**
+ * Estimativa do imposto sobre o rendimento: ≥ 0 com no máximo duas casas decimais. Aceita a
+ * vírgula decimal portuguesa («100,50») e entrega ao serviço o texto com ponto («100.50»).
+ */
+export const EstimativaImpostoSchema = z
+  .string({ message: 'Indique a estimativa do imposto (0 se não houver).' })
+  .trim()
+  .min(1, 'Indique a estimativa do imposto (0 se não houver).')
+  .transform((texto) => texto.replace(',', '.'))
+  .pipe(
+    z
+      .string()
+      .regex(
+        /^\d+(\.\d{1,2})?$/,
+        'A estimativa tem de ser um valor maior ou igual a zero, com no máximo duas casas decimais.',
+      ),
+  );
+
+export const EncerrarExercicioSchema = z.object({
+  exercicioId: idEntidade('ID de exercício inválido'),
+  estimativaImposto: EstimativaImpostoSchema,
+});
+
+export type EncerrarExercicioInput = z.input<typeof EncerrarExercicioSchema>;
+export type EncerrarExercicioDados = z.output<typeof EncerrarExercicioSchema>;
+
+export const ReabrirExercicioSchema = z.object({
+  exercicioId: idEntidade('ID de exercício inválido'),
+  motivo: MotivoReaberturaSchema,
+});
+
+export type ReabrirExercicioInput = z.infer<typeof ReabrirExercicioSchema>;
+
+export const EncerrarExercicioDefinitivoSchema = z.object({
+  exercicioId: idEntidade('ID de exercício inválido'),
+});
+
+export type EncerrarExercicioDefinitivoInput = z.infer<typeof EncerrarExercicioDefinitivoSchema>;
 
 // ---------------------------------------------------------------------------
 // Balancete de Verificação PHC (ADR-0040, issue #280)

@@ -723,3 +723,56 @@ test.describe('A11y: Contabilidade — Lançamentos (#137)', () => {
     });
   }
 });
+
+// ADR-0035 (#138): o formulário de encerramento do exercício. O id resolve-se pela lista (a
+// ligação «Encerrar exercício» do exercício ABERTO). Com os impedimentos à vista — o estado
+// que o axe mais precisa de ver; no `demo` o exercício tem meses abertos, logo nada se escreve.
+test.describe('A11y: Contabilidade — Encerrar exercício (#138)', () => {
+  for (const tema of TEMAS) {
+    const nomeTema = tema === 'light' ? 'claro' : 'escuro';
+
+    test(`sem violações AA em encerrar exercício — tema ${nomeTema}`, async ({ page }) => {
+      test.setTimeout(120_000);
+      await page.emulateMedia({ colorScheme: tema });
+      await page.goto('/contabilidade/exercicios');
+      await page.waitForLoadState('networkidle');
+      const link = page
+        .locator('#main-content')
+        .getByRole('link', { name: 'Encerrar exercício', exact: true })
+        .first();
+      await expect(link).toBeVisible({ timeout: 30_000 });
+      const href = await link.getAttribute('href');
+      expect(href).toMatch(/\/contabilidade\/exercicios\/[^/]+\/encerrar$/);
+
+      // Salvaguarda do `demo` partilhado: sem um mês aberto, submeter ENCERRARIA o exercício a sério.
+      const cartao = page
+        .locator('#main-content div')
+        .filter({ has: page.getByRole('heading', { name: /^Exercício / }) })
+        .filter({ has: page.locator(`a[href="${href}"]`) })
+        .filter({ has: page.locator('table') })
+        .last();
+      const mesesAbertos = await cartao
+        .locator('tbody tr')
+        .filter({ has: page.getByRole('cell', { name: /^Mês \d+$/ }) })
+        .filter({ has: page.getByText('Aberto', { exact: true }) })
+        .count();
+      expect(
+        mesesAbertos,
+        'PARAR: o exercício do demo não tem nenhum mês aberto — submeter a estimativa ENCERRARIA o ' +
+          'exercício a sério na base partilhada. Reabra um mês ou use uma base isolada.',
+      ).toBeGreaterThan(0);
+
+      await page.goto(href!);
+      await page.waitForLoadState('networkidle');
+      await expect(page.getByLabel('Estimativa do imposto')).toBeVisible({ timeout: 30_000 });
+      await page.getByLabel('Estimativa do imposto').fill('0');
+      await page.getByRole('button', { name: 'Encerrar exercício' }).click();
+      const main = page.locator('#main-content');
+      await expect(
+        main.getByRole('alert').or(main.getByRole('region', { name: 'Não é possível encerrar' })).first(),
+      ).toBeVisible({ timeout: 30_000 });
+
+      await checkA11y(page, `encerrar exercício (${tema})`);
+    });
+  }
+});

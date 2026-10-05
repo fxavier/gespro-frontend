@@ -87,6 +87,14 @@ import {
  */
 export const FILTRO_LANCAMENTO_MAPA = { in: ['LANCADO', 'ESTORNADO'] as StatusLancamento[] };
 
+/**
+ * Mapas por DATAS (balancete por datas, DRE e, por eles, a DFC) excluem o período 13
+ * (ADR-0035, «Decisões de implementação», #138): os lançamentos de encerramento têm a
+ * data do fim do exercício e, contados, punham o resultado do ano a zero. Os mapas por
+ * PERÍODO (`gerarBalanceteVerificacao`, com `incluir13`) e o razão não o usam.
+ */
+const FORA_DO_PERIODO_13 = { periodo: { ordem: { not: 13 } } } satisfies Prisma.LancamentoWhereInput;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -367,12 +375,12 @@ async function proximoNumeroLancamento(
 }
 
 /**
- * Invariante débito = crédito, em Decimal exacto a partir de `number`.
+ * Invariante débito = crédito, em Decimal exacto a partir de `number` ou `Decimal`.
  * Devolve o total a débito (que é o `valorTotal` do lançamento).
- * Partilhado por criar e editar um rascunho (#137, I2).
+ * Partilhado por criar e editar um rascunho (#137, I2) e pelo encerramento (#138).
  */
 function totalDasPartidasEquilibradas(
-  partidas: ReadonlyArray<{ tipo: 'DEBITO' | 'CREDITO'; valor: number }>,
+  partidas: ReadonlyArray<{ tipo: 'DEBITO' | 'CREDITO'; valor: number | Prisma.Decimal }>,
 ): Prisma.Decimal {
   let totalDebito = new Prisma.Decimal(0);
   let totalCredito = new Prisma.Decimal(0);
@@ -828,9 +836,18 @@ export async function estornarLancamentoEmTx(
 ): Promise<Lancamento> {
   const lancamento = await tx.lancamento.findFirst({
     where: { id: input.lancamentoId, tenantId: ctx.tenantId },
-    include: { partidas: true },
+    include: { partidas: true, diario: { select: { tipo: true } } },
   });
   if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
+  // ADR-0035 §1 (#138): o encerramento desfaz-se só pela reabertura do exercício, que estorna
+  // no período 13. Decidido antes de resolver o período de destino — `resolverPeriodo` podia
+  // criar o exercício seguinte só para recusar a seguir.
+  if (lancamento.diario.tipo === 'ENCERRAMENTO') {
+    throw new BusinessRuleError(
+      'LANCAMENTO_DE_ENCERRAMENTO',
+      'Um lançamento de encerramento só se estorna reabrindo o exercício.',
+    );
+  }
   transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
 
   const dataEstorno = input.data ?? new Date();
@@ -847,7 +864,22 @@ export async function estornarLancamentoEmTx(
     throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
   }
 
-  const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodoLocked.codigo, ctx.tenantId);
+  return gravarEstornoEmTx(tx, lancamento, periodoLocked, dataEstorno, input.motivo, ctx);
+}
+
+/**
+ * Núcleo partilhado dos estornos: o lançamento-espelho (partidas invertidas, `lancamentoEstornoId`)
+ * no período já trancado pelo chamador, e o original passa a `ESTORNADO`.
+ */
+async function gravarEstornoEmTx(
+  tx: Prisma.TransactionClient,
+  lancamento: Prisma.LancamentoGetPayload<{ include: { partidas: true } }>,
+  periodo: { id: string; codigo: string },
+  dataEstorno: Date,
+  motivo: string | undefined,
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodo.codigo, ctx.tenantId);
 
   const estorno = await tx.lancamento.create({
     data: {
@@ -857,14 +889,14 @@ export async function estornarLancamentoEmTx(
       tipo: 'ESTORNO',
       origem: lancamento.origem,
       diarioId: lancamento.diarioId,
-      periodoId: periodoLocked.id,
+      periodoId: periodo.id,
       documentoOrigemId: lancamento.id,
       documentoOrigemTipo: 'Lancamento',
       historico: `ESTORNO: ${lancamento.historico}`,
       valorTotal: lancamento.valorTotal,
       status: 'LANCADO',
-      periodoFiscal: periodoLocked.codigo, // cópia de periodo.codigo (ADR-0033 §1)
-      observacoes: input.motivo,
+      periodoFiscal: periodo.codigo, // cópia de periodo.codigo (ADR-0033 §1)
+      observacoes: motivo,
       criadoPorId: ctx.userId,
       lancamentoEstornoId: lancamento.id,
     },
@@ -1182,7 +1214,7 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
   const somas = (data: Prisma.DateTimeFilter) =>
     prisma.partidaLancamento.groupBy({
       by: ['contaId', 'tipo'],
-      where: { tenantId: ctx.tenantId, lancamento: { data, status: FILTRO_LANCAMENTO_MAPA } },
+      where: { tenantId: ctx.tenantId, lancamento: { data, status: FILTRO_LANCAMENTO_MAPA, ...FORA_DO_PERIODO_13 } },
       _sum: { valor: true },
     });
   // #141: o saldo anterior (só quando pedido) é tudo o que foi lançado antes do início.
@@ -1567,6 +1599,7 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
         status: FILTRO_LANCAMENTO_MAPA,
+        ...FORA_DO_PERIODO_13,
       },
     },
     _sum: { valor: true },
@@ -1759,6 +1792,8 @@ export async function listarPeriodos(
  * 6. PERIODO_ANTERIOR_ABERTO   — o período anterior está fechado (ordem estrita)
  *
  * 7. IVA_NAO_APURADO — o apuramento do IVA do período está feito (ADR-0034)
+ *
+ * Período 13 (encerramento): só 1, 5 e 6 — sem operações nem IVA (ADR-0035 §2/§7, #138).
  */
 export async function fecharPeriodo(
   input: FecharPeriodoInput,
@@ -1796,55 +1831,62 @@ export async function fecharPeriodo(
     });
     if (rascunhos > 0) impedimentos.push('RASCUNHOS_NO_PERIODO');
 
-    // 2. Nenhuma sessão de caixa aberta com abertura no período
-    // Usa dataAbertura para determinar a que período pertence a sessão
-    const [perDb] = await tx.$queryRaw<Array<{ data_inicio: Date; data_fim: Date }>>`
-      SELECT "dataInicio" as data_inicio, "dataFim" as data_fim
-      FROM "PeriodoContabil" WHERE id = ${periodo.id}
-    `;
-    if (perDb) {
-      const sessoesPorFechar = await tx.sessaoCaixa.count({
-        where: {
-          tenantId: ctx.tenantId,
-          status: 'ABERTA',
-          dataAbertura: { gte: perDb.data_inicio, lte: perDb.data_fim },
-        },
-      });
-      if (sessoesPorFechar > 0) impedimentos.push('SESSAO_CAIXA_ABERTA');
+    // O período 13 (encerramento) não tem operações nem IVA (ADR-0035 §2/§7, #138):
+    // o seu instante cai dentro do período 12, que já carregou as verificações por
+    // datas e o apuramento. Saltam-se 2, 3, 4 e 7; ficam 1, 5 e 6.
+    const encerramento = periodo.ordem === 13;
 
-      // 3. Nenhum período de reconciliação bancária em curso que se sobreponha (ADR-0038)
-      const periodosReconciliacao = await tx.periodoReconciliacao.count({
-        where: {
-          tenantId: ctx.tenantId,
-          estado: { in: ['ABERTO', 'EM_RECONCILIACAO'] },
-          dataInicio: { lte: perDb.data_fim },
-          dataFim: { gte: perDb.data_inicio },
-        },
-      });
-      if (periodosReconciliacao > 0) impedimentos.push('RECONCILIACAO_EM_ANDAMENTO');
+    if (!encerramento) {
+      // 2. Nenhuma sessão de caixa aberta com abertura no período
+      // Usa dataAbertura para determinar a que período pertence a sessão
+      const [perDb] = await tx.$queryRaw<Array<{ data_inicio: Date; data_fim: Date }>>`
+        SELECT "dataInicio" as data_inicio, "dataFim" as data_fim
+        FROM "PeriodoContabil" WHERE id = ${periodo.id}
+      `;
+      if (perDb) {
+        const sessoesPorFechar = await tx.sessaoCaixa.count({
+          where: {
+            tenantId: ctx.tenantId,
+            status: 'ABERTA',
+            dataAbertura: { gte: perDb.data_inicio, lte: perDb.data_fim },
+          },
+        });
+        if (sessoesPorFechar > 0) impedimentos.push('SESSAO_CAIXA_ABERTA');
+
+        // 3. Nenhum período de reconciliação bancária em curso que se sobreponha (ADR-0038)
+        const periodosReconciliacao = await tx.periodoReconciliacao.count({
+          where: {
+            tenantId: ctx.tenantId,
+            estado: { in: ['ABERTO', 'EM_RECONCILIACAO'] },
+            dataInicio: { lte: perDb.data_fim },
+            dataFim: { gte: perDb.data_inicio },
+          },
+        });
+        if (periodosReconciliacao > 0) impedimentos.push('RECONCILIACAO_EM_ANDAMENTO');
+      }
+
+      // 4. Todo documento fiscal emitido (Fatura, NotaCredito, NotaDebito) tem lancamentoId
+      const periodoFiltro = perDb ? { gte: perDb.data_inicio, lte: perDb.data_fim } : undefined;
+      const [faturasSL, ncSL, ndSL] = await Promise.all([
+        tx.fatura.count({
+          where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+        }),
+        tx.notaCredito.count({
+          where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+        }),
+        tx.notaDebito.count({
+          where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+        }),
+      ]);
+      if (faturasSL + ncSL + ndSL > 0) impedimentos.push('DOCUMENTO_SEM_LANCAMENTO');
     }
-
-    // 4. Todo documento fiscal emitido (Fatura, NotaCredito, NotaDebito) tem lancamentoId
-    const periodoFiltro = perDb ? { gte: perDb.data_inicio, lte: perDb.data_fim } : undefined;
-    const [faturasSL, ncSL, ndSL] = await Promise.all([
-      tx.fatura.count({
-        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
-      }),
-      tx.notaCredito.count({
-        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
-      }),
-      tx.notaDebito.count({
-        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
-      }),
-    ]);
-    if (faturasSL + ncSL + ndSL > 0) impedimentos.push('DOCUMENTO_SEM_LANCAMENTO');
 
     // 5. Balancete equilibrado — total débitos === total créditos no período
     const agregados = await tx.partidaLancamento.groupBy({
       by: ['tipo'],
       where: {
         tenantId: ctx.tenantId,
-        lancamento: { periodoId: periodo.id, status: { in: ['LANCADO', 'ESTORNADO'] } },
+        lancamento: { periodoId: periodo.id, status: FILTRO_LANCAMENTO_MAPA },
       },
       _sum: { valor: true },
     });
@@ -1866,15 +1908,17 @@ export async function fecharPeriodo(
     }
 
     // 7. IVA_NAO_APURADO: apuramento do IVA do período (ADR-0033 §6, ADR-0034)
-    const ivaApurado = await tx.apuramentoIva.findFirst({
-      where: {
-        tenantId: ctx.tenantId,
-        periodoId: periodo.id,
-        estado: { in: ['APURADO', 'DECLARADO'] },
-      },
-      select: { id: true },
-    });
-    if (!ivaApurado) impedimentos.push('IVA_NAO_APURADO');
+    if (!encerramento) {
+      const ivaApurado = await tx.apuramentoIva.findFirst({
+        where: {
+          tenantId: ctx.tenantId,
+          periodoId: periodo.id,
+          estado: { in: ['APURADO', 'DECLARADO'] },
+        },
+        select: { id: true },
+      });
+      if (!ivaApurado) impedimentos.push('IVA_NAO_APURADO');
+    }
 
     if (impedimentos.length > 0) {
       return { ok: false, impedimentos };
@@ -1896,7 +1940,7 @@ export async function fecharPeriodo(
 
 /**
  * Reabre um período contabilístico, exigindo motivo e gravando ReaberturaPeriodo (ADR-0033 §7).
- * Recusa se o exercício estiver ENCERRADO.
+ * Recusa se o exercício estiver ENCERRADO ou ENCERRADO_PROVISORIO (ADR-0035 §1).
  *
  * Recusa a reabertura se o apuramento do IVA do período já estiver `DECLARADO` à AT (ADR-0033 §7).
  */
@@ -1918,6 +1962,14 @@ export async function reabrirPeriodo(
       throw new BusinessRuleError('PERIODO_NAO_FECHADO', `Período ${periodo.codigo} não está fechado`);
     }
 
+    // Lido sem tranca, DEPOIS da tranca do período, e não fica velho (READ COMMITTED, uma
+    // fotografia por instrução): a única transição que passa a proibir a reabertura
+    // (ABERTO → ENCERRADO_PROVISORIO, `encerrarExercicio`) tranca os treze períodos com
+    // `FOR UPDATE` — ou esta transacção esperou por ela e lê aqui o estado já gravado, ou
+    // reabre primeiro e o encerramento vê o período ABERTO e recusa. As outras transições
+    // (→ ENCERRADO, → ABERTO) ou proíbem dos dois lados ou só aliviam. Trancar o exercício
+    // aqui, depois do período, faria ciclo com o encerramento e a reabertura do exercício,
+    // que trancam exercício → períodos.
     const [exercicio] = await tx.$queryRaw<Array<{ estado: string }>>`
       SELECT estado FROM "ExercicioContabil"
       WHERE id = ${periodo.exercicioId} AND "tenantId" = ${ctx.tenantId}
@@ -1926,6 +1978,14 @@ export async function reabrirPeriodo(
       throw new BusinessRuleError(
         'EXERCICIO_ENCERRADO',
         'Não é possível reabrir um período de um exercício encerrado',
+      );
+    }
+    // ADR-0035 §1: num exercício encerrado provisoriamente os períodos não reabrem um a um —
+    // reabre-se o exercício (estorna o encerramento e reabre o período 13).
+    if (exercicio?.estado === 'ENCERRADO_PROVISORIO') {
+      throw new BusinessRuleError(
+        'EXERCICIO_ENCERRADO_PROVISORIO',
+        'O exercício está encerrado provisoriamente. Reabra primeiro o exercício para reabrir um período.',
       );
     }
 
@@ -2137,6 +2197,148 @@ export async function registarLancamentoContabilistico(
   }
 
   return lancamento as unknown as Lancamento;
+}
+
+/**
+ * Grava um lançamento de encerramento (ADR-0035, #138) no período 13, dentro da tx do
+ * chamador (`encerramento-exercicio.service`). Vive aqui por causa do `gate-periodo`: só
+ * este ficheiro escreve em `Lancamento`/`PartidaLancamento`.
+ *
+ * Ao contrário de `registarLancamentoContabilistico`, recebe o período por id: o instante
+ * do período 13 cai dentro de Dezembro e `resolverPeriodo` devolveria o período 12 — e esse
+ * caminho não se alarga. Recusa qualquer período que não seja o 13 ABERTO do tenant, decidido
+ * na leitura trancada (`FOR SHARE`).
+ */
+export async function criarLancamentoEncerramentoEmTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    periodoId: string;
+    data: Date;
+    historico: string;
+    documentoOrigemId?: string;
+    documentoOrigemTipo?: string;
+    partidas: ReadonlyArray<{ contaId: string; tipo: TipoPartida; valor: Prisma.Decimal }>;
+  },
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string; ordem: number }>>`
+    SELECT id, codigo, estado, ordem FROM "PeriodoContabil"
+    WHERE id = ${input.periodoId} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodo.ordem !== 13) {
+    throw new BusinessRuleError(
+      'PERIODO_NAO_E_DE_ENCERRAMENTO',
+      `Os lançamentos de encerramento vão para o período 13; ${periodo.codigo} não o é.`,
+    );
+  }
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+
+  if (input.partidas.length === 0 || input.partidas.some((p) => !p.valor.greaterThan(0))) {
+    throw new BusinessRuleError('PARTIDA_VALOR_INVALIDO', 'Cada partida tem de ter valor positivo.');
+  }
+  const totalDebito = totalDasPartidasEquilibradas(input.partidas);
+
+  const diario = await tx.diario.findFirst({
+    where: { tipo: 'ENCERRAMENTO', tenantId: ctx.tenantId, ativo: true },
+    select: { id: true },
+  });
+  if (!diario) throw new NotFoundError('Diário do tipo "ENCERRAMENTO" não encontrado');
+
+  const numero = await proximoNumeroLancamento(tx, diario.id, periodo.codigo, ctx.tenantId);
+
+  const lancamento = await tx.lancamento.create({
+    data: {
+      tenantId: ctx.tenantId,
+      numero,
+      data: input.data,
+      tipo: 'AUTOMATICO',
+      origem: 'AJUSTE',
+      diarioId: diario.id,
+      periodoId: periodo.id,
+      documentoOrigemId: input.documentoOrigemId ?? null,
+      documentoOrigemTipo: input.documentoOrigemTipo ?? null,
+      historico: input.historico,
+      valorTotal: totalDebito,
+      status: 'LANCADO',
+      periodoFiscal: periodo.codigo, // cópia de periodo.codigo (ADR-0033 §1)
+      criadoPorId: ctx.userId,
+    },
+  });
+
+  for (const p of input.partidas) {
+    await exigirContaDeMovimento(tx, p.contaId, ctx.tenantId);
+    await tx.partidaLancamento.create({
+      data: {
+        tenantId: ctx.tenantId,
+        lancamentoId: lancamento.id,
+        contaId: p.contaId,
+        tipo: p.tipo,
+        valor: new Prisma.Decimal(p.valor.toFixed(2)),
+      },
+    });
+  }
+
+  return lancamento as unknown as Lancamento;
+}
+
+/**
+ * Estorna um lançamento de encerramento DENTRO do período 13 (ADR-0035 §1, #138: reabertura do
+ * exercício), na tx do chamador. `estornarLancamentoEmTx` resolve o período pela data — a do fim
+ * do exercício cai em Dezembro, fechado — por isso aqui o período vem por id: tem de ser o 13 do
+ * tenant, ABERTO (leitura trancada `FOR SHARE`), e o lançamento tem de estar nele, LANCADO. O
+ * estorno fica com a data do original. Vive aqui por causa do `gate-periodo`.
+ */
+export async function estornarLancamentoEncerramentoEmTx(
+  tx: Prisma.TransactionClient,
+  input: { lancamentoId: string; periodoId: string; motivo: string },
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string; ordem: number }>>`
+    SELECT id, codigo, estado, ordem FROM "PeriodoContabil"
+    WHERE id = ${input.periodoId} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodo.ordem !== 13) {
+    throw new BusinessRuleError(
+      'PERIODO_NAO_E_DE_ENCERRAMENTO',
+      `Os lançamentos de encerramento estornam-se no período 13; ${periodo.codigo} não o é.`,
+    );
+  }
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+
+  const lancamento = await tx.lancamento.findFirst({
+    where: { id: input.lancamentoId, tenantId: ctx.tenantId },
+    include: { partidas: true, diario: { select: { tipo: true } } },
+  });
+  if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
+  if (lancamento.diario.tipo !== 'ENCERRAMENTO') {
+    throw new BusinessRuleError(
+      'LANCAMENTO_NAO_E_DE_ENCERRAMENTO',
+      `O lançamento ${lancamento.numero} não é do diário de encerramento.`,
+    );
+  }
+  if (lancamento.status === 'ESTORNADO') {
+    throw new BusinessRuleError(
+      'LANCAMENTO_ENCERRAMENTO_JA_ESTORNADO',
+      `O lançamento de encerramento ${lancamento.numero} já foi estornado.`,
+    );
+  }
+  if (lancamento.periodoId !== periodo.id) {
+    throw new BusinessRuleError(
+      'LANCAMENTO_FORA_DO_PERIODO',
+      `O lançamento ${lancamento.numero} não pertence ao período ${periodo.codigo}.`,
+    );
+  }
+  transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
+
+  return gravarEstornoEmTx(tx, lancamento, periodo, lancamento.data, input.motivo, ctx);
 }
 
 // ---------------------------------------------------------------------------

@@ -72,6 +72,13 @@ const TEXTOS_RECUSA: Record<string, CodigoRecusaInfo> = {
       'Se o apuramento já foi declarado à AT, a correcção tem de ser uma regularização no período ' +
       'seguinte (ADR-0034 §7).',
   },
+  APURAMENTO_PERIODO_ENCERRAMENTO: {
+    titulo: 'O período 13 não tem IVA a apurar',
+    descricao:
+      'O período 13 é o do encerramento do exercício: só recebe os lançamentos de encerramento e ' +
+      'não tem operações. O IVA apura-se nos doze períodos mensais (ADR-0035 §7) — o de Dezembro ' +
+      'inclui as operações do último dia do ano.',
+  },
 };
 
 function TextoRecusa({

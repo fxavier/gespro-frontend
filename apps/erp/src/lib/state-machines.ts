@@ -7,6 +7,9 @@
  * ponytail: pequena duplicação com as interfaces de serviço; unificar se crescer.
  */
 
+import type { EstadoExercicio } from '@prisma/client';
+import { BusinessRuleError } from '@/lib/errors';
+
 export const TRANSICOES_ATIVO: Record<string, string[]> = {
   NOVO: ['EM_USO', 'BAIXADO'],
   EM_USO: ['EM_MANUTENCAO', 'EM_TRANSFERENCIA', 'OBSOLETO', 'BAIXADO'],
@@ -310,3 +313,34 @@ export const TRANSICOES_PERIODO_RECONCILIACAO: Record<string, string[]> = {
   RECONCILIADO: [],
   CANCELADO: [],
 };
+
+// ADR-0035 §1 — o exercício encerra em duas fases: provisório (reabrível, com
+// motivo) e definitivo (terminal). EM_ENCERRAMENTO fica no enum mas não se usa:
+// o encerramento corre numa só transacção, sem estado intermédio visível.
+export type { EstadoExercicio };
+
+export const TRANSICOES_EXERCICIO: Record<EstadoExercicio, EstadoExercicio[]> = {
+  ABERTO: ['ENCERRADO_PROVISORIO'],
+  ENCERRADO_PROVISORIO: ['ABERTO', 'ENCERRADO'],
+  EM_ENCERRAMENTO: [],
+  ENCERRADO: [],
+};
+
+export const ROTULO_ESTADO_EXERCICIO: Record<EstadoExercicio, string> = {
+  ABERTO: 'aberto',
+  EM_ENCERRAMENTO: 'em encerramento',
+  ENCERRADO_PROVISORIO: 'encerrado provisoriamente',
+  ENCERRADO: 'encerrado em definitivo',
+};
+
+/** Lança `BusinessRuleError('TRANSICAO_INVALIDA')` — nunca `Error` cru (não chega ao utilizador como 500). */
+export function transitarExercicio(atual: EstadoExercicio, alvo: EstadoExercicio): EstadoExercicio {
+  if (!TRANSICOES_EXERCICIO[atual]?.includes(alvo)) {
+    throw new BusinessRuleError(
+      'TRANSICAO_INVALIDA',
+      `Um exercício ${ROTULO_ESTADO_EXERCICIO[atual]} não pode passar a ${ROTULO_ESTADO_EXERCICIO[alvo]}.`,
+      { atual, alvo },
+    );
+  }
+  return alvo;
+}

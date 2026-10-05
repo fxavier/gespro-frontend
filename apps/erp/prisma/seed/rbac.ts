@@ -83,6 +83,10 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'financas:fechar_periodo',        descricao: 'Fechar período contabilístico' },
   { code: 'financas:periodo:reabrir',       descricao: 'Reabrir período contabilístico fechado (requer motivo)' },
   { code: 'financas:exercicio:abrir',       descricao: 'Abrir exercício contabilístico para um novo ano' },
+  // ADR-0035 — encerrar, encerrar em definitivo e reabrir o exercício: só ADMIN.
+  { code: 'financas:exercicio:encerrar',    descricao: 'Encerrar exercício contabilístico (encerramento provisório)' },
+  { code: 'financas:exercicio:encerrar-definitivo', descricao: 'Encerrar exercício contabilístico em definitivo (irreversível)' },
+  { code: 'financas:exercicio:reabrir',     descricao: 'Reabrir exercício encerrado provisoriamente (requer motivo)' },
   { code: 'financas:fechar_caixa',          descricao: 'Fechar caixa diário' },
   { code: 'financas:conciliar',             descricao: 'Conciliar extractos bancários' },
   { code: 'financas:exportar',              descricao: 'Exportar relatórios financeiros' },
@@ -432,6 +436,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   FINANCEIRO: allCodes().filter((code) => {
     // Permissões sensíveis que o FINANCEIRO não tem: só ADMIN/roles específicos
     if (['financas:periodo:reabrir', 'financas:exercicio:abrir'].includes(code)) return false;
+    // ADR-0035: encerrar, encerrar em definitivo e reabrir o exercício são só do ADMIN.
+    if (['financas:exercicio:encerrar', 'financas:exercicio:encerrar-definitivo',
+         'financas:exercicio:reabrir'].includes(code)) return false;
     // ADR-0037 E5: validar a versão do mapeamento da DFC é só do ADMIN.
     if (code === 'financas:fluxo-caixa:validar') return false;
     if (code.startsWith('financas:')) return true;
@@ -491,6 +498,10 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
       'financas:plano-contas:escrita',
       'financas:fechar_periodo',
       'financas:periodo:reabrir',
+      // ADR-0035 — só ADMIN.
+      'financas:exercicio:encerrar',
+      'financas:exercicio:encerrar-definitivo',
+      'financas:exercicio:reabrir',
       'financas:iva:declarar',
       'financas:lancamentos:estornar',
       'financas:fluxo-caixa:configurar',

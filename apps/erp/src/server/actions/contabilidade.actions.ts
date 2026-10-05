@@ -23,6 +23,9 @@ import {
   ReabrirPeriodoSchema,
   ListarPeriodosSchema,
   AbrirExercicioSchema,
+  EncerrarExercicioSchema,
+  ReabrirExercicioSchema,
+  EncerrarExercicioDefinitivoSchema,
   DefinirContaMeioPagamentoPOSSchema,
   ProcurarContasLancamentoSchema,
   ProcurarContasMaeSchema,
@@ -30,6 +33,7 @@ import {
 import { CalendarioContabilisticoSchema } from '@/lib/validations/plataforma';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import * as meioPagamento from '@/server/services/financas/meio-pagamento.service';
+import * as encerramento from '@/server/services/financas/encerramento-exercicio.service';
 import { z } from 'zod';
 import { idEntidade } from '@/lib/validations/common';
 
@@ -246,6 +250,31 @@ export const abrirExercicio = createSafeAction({
   permission: 'financas:exercicio:abrir',
   revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/periodos'] },
   handler: (input, ctx) => contabilidade.abrirExercicio(input, ctx),
+});
+
+// --- Encerramento do exercício (ADR-0035, #138) ---
+
+/** Encerramento provisório: devolve `{ ok:false, impedimentos }` sem escrever, ou o encerramento. */
+export const encerrarExercicio = createSafeAction({
+  schema: EncerrarExercicioSchema,
+  permission: 'financas:exercicio:encerrar',
+  revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/exercicios'] },
+  handler: (input, ctx) => encerramento.encerrarExercicio(input, ctx),
+});
+
+export const reabrirExercicio = createSafeAction({
+  schema: ReabrirExercicioSchema,
+  permission: 'financas:exercicio:reabrir',
+  revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/exercicios'] },
+  handler: (input, ctx) => encerramento.reabrirExercicio(input, ctx),
+});
+
+/** Irreversível: ENCERRADO_PROVISORIO → ENCERRADO. */
+export const encerrarExercicioDefinitivo = createSafeAction({
+  schema: EncerrarExercicioDefinitivoSchema,
+  permission: 'financas:exercicio:encerrar-definitivo',
+  revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/exercicios'] },
+  handler: (input, ctx) => encerramento.encerrarExercicioDefinitivo(input, ctx),
 });
 
 // --- Calendário contabilístico (ADR-0033 §3) ---

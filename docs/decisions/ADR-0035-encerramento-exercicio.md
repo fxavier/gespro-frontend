@@ -163,6 +163,48 @@ Além das pré-condições de cada período (ADR-0033 §6), que já são exigida
 - `ExercicioContabil`, `EncerramentoExercicio` e `ReaberturaExercicio` entram na lista síncrona do
   ADR-0015.
 
+## Decisões de implementação (#138, 2026-10-05)
+
+Registadas na implementação do núcleo; não alteram a decisão acima.
+
+- **Lançamento 1 — que conta vai para 81 e para 82.** O PGC-NIRF (Decreto 70/2009) não o define.
+  Usa-se a regra da DRE (`calcularLinhasDRE`): **82 financeiros = 69 e 78**; **81 operacionais =
+  o resto das classes 6 e 7**, incluindo o justo valor (67/79). 81 e 82 transferem para 83 no mesmo
+  lançamento, e o lançamento 3 salda 83 e 85 (851 e 852) para 88. Decisão do responsável do
+  produto, sujeita ao parecer do contabilista.
+- **Lançamento 2 com estimativa zero** não se cria (um lançamento sem partidas não existe); o zero
+  fica registado explicitamente no `EncerramentoExercicio`.
+- **Período 13**: fecha só com rascunhos, balancete equilibrado e período 12 fechado; não tem
+  apuramento de IVA (§7 — o IVA é dos doze meses). Ao contrário do que a §7 diz, as outras
+  pré-condições do ADR-0033 §6 não se aplicam aos treze: as de datas já foram verificadas no
+  período 12.
+- **«Balanço de abertura lançado, ou primeiro exercício»** (§7) passa a ser, enquanto a abertura
+  `AB` do exercício seguinte (§6) não estiver construída: **sem exercício anterior, ou anterior pelo
+  menos `ENCERRADO_PROVISORIO`**. Os saldos de partida vêm da abertura implícita do ADR-0040.
+- **Mapas por datas excluem o período 13** (DRE, DFC): os lançamentos de encerramento têm a data
+  de 31 de Dezembro e, contados, punham o resultado do ano a zero.
+- **DFC**: 81/82/83/88 → `OP-00`, 59 → `FIN-02` (`docs/handoff/dfc-seed.md`). A DFC só exclui das
+  secções as contas de tipo gasto/rendimento; a classe 8 não. Os lançamentos de encerramento ficam
+  fora dela por causa da exclusão do período 13 dos mapas por datas, não pela rubrica.
+- **Consequências da exclusão do período 13 por datas.** A DRE e o balancete por datas
+  (`gerarDRE`, `gerarBalancete`, e por eles a DFC) não vêem os lançamentos de encerramento — também
+  no saldo anterior. Numa vista cumulativa por datas que atravesse anos, as classes 6/7 arrastam os
+  saldos dos anos anteriores e 88/4411 do encerramento não aparecem; «o acumulado é a soma dos
+  treze» (§2) só vale nas vistas por **período** (`gerarBalanceteVerificacao` com `incluir13`). A
+  DFC não sofre (início e fim excluem o mesmo conjunto). A abertura `AB` (§6) é o sítio para
+  reavaliar. **O razão por datas inclui o período 13** de propósito: um razão mostra o fecho.
+- **Trilho do encerramento.** `EncerramentoExercicio` e `ReaberturaExercicio` estão na lista
+  síncrona da auditoria, mas, como a `ReaberturaPeriodo`, são escritos no cliente cru dentro da
+  transacção do encerramento: o próprio registo é o trilho (autor, `keycloakSub`, `requestId`), não
+  uma linha de `AuditLog`.
+- **`EM_ENCERRAMENTO` não se usa.** Fica no enum (ADR-0033 §1) mas sem transições: o encerramento
+  corre numa única transacção — tudo ou nada —, por isso não há estado intermédio observável. A
+  máquina é `ABERTO → ENCERRADO_PROVISORIO → (ABERTO | ENCERRADO)`, em `lib/state-machines.ts`.
+- **§7 «já são exigidas para os treze»** deixa de ser verdade para o período 13 (ver acima).
+- **Fora desta implementação** (issues próprias): abertura `AB` do exercício seguinte (§6),
+  aplicação do resultado (§5), arquivo em PDF do balanço/DRE/balancete (§8 — o balanço e o PDF da
+  DRE ainda não existem).
+
 ## Alternativas consideradas
 
 | Opção | Prós | Contras |
