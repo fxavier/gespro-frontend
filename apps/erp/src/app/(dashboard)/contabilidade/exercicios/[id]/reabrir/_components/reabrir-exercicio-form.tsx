@@ -93,7 +93,8 @@ export function ReabrirExercicioForm({ exercicioId, codigo }: ReabrirExercicioFo
             <div className="mb-4 flex items-start gap-3 rounded-lg border border-info/40 bg-info/10 p-3 text-sm">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden="true" />
               <p className="text-muted-foreground">
-                A reabertura estorna, no período 13, os lançamentos do encerramento do exercício {codigo}. Os doze
+                A reabertura estorna, no período 13, os lançamentos do encerramento do exercício {codigo} e, se o
+                exercício seguinte já existir, o lançamento de abertura dele. Os doze
                 meses continuam fechados — cada um reabre-se depois, com o seu próprio motivo.
               </p>
             </div>

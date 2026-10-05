@@ -46,6 +46,10 @@ const TEXTO_IMPEDIMENTO: Record<string, string> = {
     'O período 13 (período de encerramento) está fechado. Reabra-o antes de encerrar o exercício.',
   EXERCICIO_ANTERIOR_ABERTO:
     'O exercício anterior ainda não está encerrado. Os exercícios encerram-se por ordem: encerre primeiro o anterior.',
+  ABERTURA_EM_FALTA:
+    'O exercício não tem o lançamento de abertura. Encerre o exercício anterior para o gerar — se o anterior foi reaberto, volte a encerrá-lo.',
+  ABERTURA_SEGUINTE_FECHADA:
+    'O primeiro período do exercício seguinte já está fechado e não pode receber o lançamento de abertura. Reabra esse período antes de encerrar.',
   RASCUNHOS_NO_PERIODO_13:
     'Existem lançamentos em rascunho no período 13. Confirme ou anule esses rascunhos antes de encerrar.',
   BALANCETE_DESEQUILIBRADO:

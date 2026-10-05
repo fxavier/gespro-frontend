@@ -3,6 +3,7 @@ import { Prisma, type TipoPartida } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { getRequestContext } from '@/server/observability/context';
+import { logger } from '@/server/observability/logger';
 import { paginate } from '@/server/db/paginate';
 import type {
   CriarContaPGCInput,
@@ -89,7 +90,7 @@ export const FILTRO_LANCAMENTO_MAPA = { in: ['LANCADO', 'ESTORNADO'] as StatusLa
 
 // Predicados dos leitores por DATAS (#363) — vivem num módulo próprio, sem dependências,
 // para os serviços de outros domínios (reconciliação) os importarem sem arrastar este.
-import { FORA_DE_FECHO_E_ABERTURA, SEM_ABERTURA_REAFIRMADA } from './fora-de-fecho-e-abertura';
+import { FORA_DE_FECHO_E_ABERTURA, ORIGEM_ABERTURA, SEM_ABERTURA_REAFIRMADA } from './fora-de-fecho-e-abertura';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -192,15 +193,35 @@ function fimDeMesEmMaputo(ano: number, mes: number): Date {
 }
 
 /**
+ * `userId` das escritas sem utilizador humano: o cron (`/api/cron/abrir-exercicio` chama com
+ * ele) e a criação do exercício pela rede de segurança quando o chamador não passa autor. Num
+ * `ExercicioContabil.criadoPorId` grava-se `null`; num `Lancamento.criadoPorId` (obrigatório)
+ * grava-se este valor.
+ */
+export const USER_ID_AUTOMATICO = 'cron';
+
+/**
  * Cria um exercício contabilístico com os 13 períodos para `ano`.
  * Idempotente via @@unique([tenantId, codigo]).
  * Rede de segurança do ADR-0033 §3: o caminho normal é o cron de 1 de Dezembro.
+ *
+ * Também (#363, ADR-0035 §6):
+ *  - encadeia o exercício SEGUINTE que já exista sem anterior (`anteriorId` só se escrevia na
+ *    criação: criar 2025 depois de 2026 deixava 2026 solto) — salvo se esse seguinte já tiver
+ *    lançamentos no diário AB: abertura manual = tenant migrado, cujo primeiro exercício é ele;
+ *    encadeá-lo tornava os seus saldos iniciais numa «abertura em falta»;
+ *  - gera a abertura (diário AB) quando o anterior já está encerrado — ver
+ *    `garantirAberturaAoCriarEmTx`.
+ *
+ * `autorId` é o autor do lançamento de abertura, se houver (`criadoPorId` do exercício pode ser
+ * nulo no cron; o lançamento não pode).
  */
 async function criarExercicioComPeriodos(
   tx: Prisma.TransactionClient,
   ano: number,
   tenantId: string,
   criadoPorId: string | null = null,
+  autorId: string = criadoPorId ?? USER_ID_AUTOMATICO,
 ): Promise<{ id: string }> {
   // Encadear ao exercício anterior (FK escalar, sem @relation)
   const anterior = await tx.exercicioContabil.findFirst({
@@ -259,7 +280,97 @@ async function criarExercicioComPeriodos(
     update: {},
   });
 
+  // Encadear o seguinte que tenha nascido antes deste (e por isso sem anterior).
+  const seguinteSolto = await tx.exercicioContabil.findFirst({
+    where: { tenantId, codigo: String(ano + 1), anteriorId: null },
+    select: { id: true },
+  });
+  const seguinteTemAberturaManual =
+    seguinteSolto &&
+    (await tx.lancamento.count({
+      where: { tenantId, diario: { tipo: 'ABERTURA' }, periodo: { exercicioId: seguinteSolto.id } },
+    })) > 0;
+  if (seguinteSolto && !seguinteTemAberturaManual) {
+    await tx.exercicioContabil.updateMany({
+      where: { id: seguinteSolto.id, tenantId, anteriorId: null },
+      data: { anteriorId: exercicio.id },
+    });
+  }
+
+  if (anterior) {
+    await garantirAberturaAoCriarEmTx(
+      tx,
+      { exercicioAnteriorId: anterior.id, exercicioId: exercicio.id },
+      { tenantId, userId: autorId },
+    );
+  }
+
   return exercicio;
+}
+
+/**
+ * Abertura gerada na CRIAÇÃO do exercício (#363, ADR-0035 §6, disparo T2): o anterior já está
+ * pelo menos ENCERRADO_PROVISORIO, com um encerramento em vigor, e este ainda não tem abertura
+ * efectiva → gera-a aqui, na mesma transacção. Idempotente: com AB efectivo não faz nada (um
+ * segundo `abrirExercicio` não duplica). Com o período 1 já fechado também não faz nada — a
+ * criação não falha por isso; o encerramento deste exercício recusará com `ABERTURA_EM_FALTA`.
+ *
+ * Trancas (ordem do encerramento: anterior → seguinte): o ANTERIOR `FOR SHARE` primeiro, depois
+ * este `FOR UPDATE`. Fecha a corrida com `encerrarExercicio(anterior)`: se o encerramento tem a
+ * tranca, esperamos pelo commit e lemos ENCERRADO_PROVISORIO (e geramos); se a temos nós, o
+ * encerramento espera pelo nosso commit e já vê este exercício (e gera ele). Este exercício
+ * `FOR UPDATE` serializa duas criações concorrentes. Quando corre dentro de um lançamento
+ * (`resolverPeriodo`), o chamador ainda não trancou diário nenhum deste lançamento; se a sua
+ * transacção já tiver trancado um período do anterior (dois lançamentos em anos diferentes na
+ * mesma transacção), um encerramento concorrente pode dar deadlock — o Postgres detecta-o e
+ * aborta uma das duas, sem estado parcial.
+ */
+async function garantirAberturaAoCriarEmTx(
+  tx: Prisma.TransactionClient,
+  input: { exercicioAnteriorId: string; exercicioId: string },
+  ctx: Ctx,
+): Promise<void> {
+  const [anterior] = await tx.$queryRaw<Array<{ estado: string }>>`
+    SELECT estado FROM "ExercicioContabil"
+    WHERE id = ${input.exercicioAnteriorId} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!anterior || (anterior.estado !== 'ENCERRADO_PROVISORIO' && anterior.estado !== 'ENCERRADO')) return;
+
+  await tx.$queryRaw`
+    SELECT id FROM "ExercicioContabil"
+    WHERE id = ${input.exercicioId} AND "tenantId" = ${ctx.tenantId}
+    FOR UPDATE
+  `;
+  const encerramento = await tx.encerramentoExercicio.findFirst({
+    where: { tenantId: ctx.tenantId, exercicioId: input.exercicioAnteriorId, anuladoEm: null },
+    select: { id: true },
+  });
+  if (!encerramento) return; // encerrado por escrita crua / antes do #138: nada a transportar
+  if (await exercicioTemDiarioAbertura(input.exercicioId, ctx.tenantId, tx)) return;
+
+  // Decidido na leitura TRANCADA: fechado, não se escreve nem se lança para a tx do chamador.
+  const [periodo1] = await tx.$queryRaw<Array<{ estado: string }>>`
+    SELECT estado FROM "PeriodoContabil"
+    WHERE "exercicioId" = ${input.exercicioId} AND "tenantId" = ${ctx.tenantId} AND ordem = 1
+    FOR SHARE
+  `;
+  if (periodo1?.estado !== 'ABERTO') return;
+
+  const ab = await gerarAberturaEmTx(tx, input, ctx);
+  // Registado dentro da tx do chamador (pode ser a de um lançamento, que não conhecemos): se
+  // essa tx desfizer, a linha descreve uma escrita que não ficou. Daí «gerada na transacção».
+  if (ab) {
+    logger.info(
+      {
+        tenantId: ctx.tenantId,
+        exercicioId: input.exercicioId,
+        exercicioAnteriorId: input.exercicioAnteriorId,
+        aberturaId: ab.id,
+      },
+      '[abertura] abertura do exercício gerada na transacção de criação',
+    );
+  }
 }
 
 /**
@@ -272,6 +383,8 @@ export async function resolverPeriodo(
   tx: Prisma.TransactionClient,
   data: Date,
   tenantId: string,
+  /** Autor do lançamento de abertura, se a criação do exercício o gerar (#363). */
+  userId?: string,
 ): Promise<{ id: string; codigo: string; estado: string }> {
   const codigo = periodoFiscalDe(data);
 
@@ -284,7 +397,7 @@ export async function resolverPeriodo(
 
   // Rede de segurança: exercício ainda não existe → criar
   const ano = parseInt(codigo.split('-')[0], 10);
-  await criarExercicioComPeriodos(tx, ano, tenantId);
+  await criarExercicioComPeriodos(tx, ano, tenantId, null, userId ?? USER_ID_AUTOMATICO);
 
   // Agora o período existe
   const criado = await tx.periodoContabil.findFirst({
@@ -730,6 +843,7 @@ export async function listarCentrosCusto(filtro: FiltroCentroCustoInput, ctx: Ct
 // ---------------------------------------------------------------------------
 
 export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Promise<LancamentoComPartidas> {
+  exigirOrigemNaoReservada(input.documentoOrigemTipo);
   return prismaBase.$transaction(async (tx) => {
     const diario = await tx.diario.findFirst({
       where: { id: input.diarioId, tenantId: ctx.tenantId, ativo: true },
@@ -737,7 +851,7 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
     if (!diario) throw new NotFoundError('Diário não encontrado ou inactivo');
 
     // ADR-0033 §5: resolver período + bloquear com FOR SHARE para impedir fecho concorrente
-    const periodoResolvido = await resolverPeriodo(tx, input.data, ctx.tenantId);
+    const periodoResolvido = await resolverPeriodo(tx, input.data, ctx.tenantId, ctx.userId);
     const [periodoLocked] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
       SELECT id, codigo, estado FROM "PeriodoContabil"
       WHERE id = ${periodoResolvido.id} AND "tenantId" = ${ctx.tenantId}
@@ -804,6 +918,19 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
       },
     }) as unknown as LancamentoComPartidas;
   });
+}
+
+/**
+ * Origem reservada (#363): `ORIGEM_ABERTURA` identifica a abertura gerada e é o que tira um
+ * lançamento dos leitores por datas — só o gerador a escreve.
+ */
+function exigirOrigemNaoReservada(documentoOrigemTipo: string | null | undefined): void {
+  if (documentoOrigemTipo === ORIGEM_ABERTURA) {
+    throw new BusinessRuleError(
+      'DOCUMENTO_ORIGEM_RESERVADO',
+      'Esta origem de documento é reservada aos lançamentos gerados pelo encerramento e pela abertura do exercício.',
+    );
+  }
 }
 
 /**
@@ -881,12 +1008,20 @@ export async function estornarLancamentoEmTx(
       'Um lançamento de encerramento só se estorna reabrindo o exercício.',
     );
   }
+  // ADR-0035 §6 (#363): a abertura gerada (e o seu estorno) desfaz-se só pela reabertura do
+  // exercício anterior, que a estorna no período 1. Também antes de resolver período nenhum.
+  if (lancamento.diario.tipo === 'ABERTURA' && (await eAberturaAutomatica(tx, lancamento, ctx.tenantId))) {
+    throw new BusinessRuleError(
+      'LANCAMENTO_DE_ABERTURA',
+      'A abertura do exercício é gerada pelo encerramento do anterior; só se estorna reabrindo o exercício anterior.',
+    );
+  }
   transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
 
   const dataEstorno = input.data ?? new Date();
 
   // ADR-0033 §5: resolver período do estorno + bloqueio FOR SHARE
-  const periodoResolvido = await resolverPeriodo(tx, dataEstorno, ctx.tenantId);
+  const periodoResolvido = await resolverPeriodo(tx, dataEstorno, ctx.tenantId, ctx.userId);
   const [periodoLocked] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
     SELECT id, codigo, estado FROM "PeriodoContabil"
     WHERE id = ${periodoResolvido.id} AND "tenantId" = ${ctx.tenantId}
@@ -911,6 +1046,8 @@ async function gravarEstornoEmTx(
   dataEstorno: Date,
   motivo: string | undefined,
   ctx: Ctx,
+  /** Origem do estorno; por omissão o próprio original (`'Lancamento'`). */
+  origem: { tipo: string; id: string | null } = { tipo: 'Lancamento', id: lancamento.id },
 ): Promise<Lancamento> {
   const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodo.codigo, ctx.tenantId);
 
@@ -923,8 +1060,8 @@ async function gravarEstornoEmTx(
       origem: lancamento.origem,
       diarioId: lancamento.diarioId,
       periodoId: periodo.id,
-      documentoOrigemId: lancamento.id,
-      documentoOrigemTipo: 'Lancamento',
+      documentoOrigemId: origem.id,
+      documentoOrigemTipo: origem.tipo,
       historico: `ESTORNO: ${lancamento.historico}`,
       valorTotal: lancamento.valorTotal,
       status: 'LANCADO',
@@ -973,7 +1110,7 @@ export async function editarLancamentoRascunho(
     const tx = txEstendido as unknown as Prisma.TransactionClient;
     const atual = await trancarRascunho(tx, input.id, ctx.tenantId);
 
-    const periodoDaData = await resolverPeriodo(tx, input.data, ctx.tenantId);
+    const periodoDaData = await resolverPeriodo(tx, input.data, ctx.tenantId, ctx.userId);
     if (periodoDaData.id !== atual.periodoId) {
       throw new BusinessRuleError(
         'LANCAMENTO_MUDA_PERIODO',
@@ -1286,16 +1423,19 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
  * um estorno (`lancamentoEstornoId`). Um AB estornado deixa o exercício sem abertura e a
  * abertura implícita volta. Partilhado por `razaoConta` e `gerarBalanceteVerificacao`.
  */
-async function exercicioTemDiarioAbertura(exercicioId: string, tenantId: string): Promise<boolean> {
-  const count = await prisma.lancamento.count({
-    where: {
-      tenantId,
-      status: 'LANCADO',
-      lancamentoEstornoId: null,
-      diario: { tipo: 'ABERTURA' },
-      periodo: { exercicioId },
-    },
-  });
+async function exercicioTemDiarioAbertura(
+  exercicioId: string,
+  tenantId: string,
+  tx?: Prisma.TransactionClient,
+): Promise<boolean> {
+  const where: Prisma.LancamentoWhereInput = {
+    tenantId,
+    status: 'LANCADO',
+    lancamentoEstornoId: null,
+    diario: { tipo: 'ABERTURA' },
+    periodo: { exercicioId },
+  };
+  const count = tx ? await tx.lancamento.count({ where }) : await prisma.lancamento.count({ where });
   return count > 0;
 }
 
@@ -1781,12 +1921,12 @@ export async function abrirExercicio(
   const { ano } = input;
 
   let seriesCriadas = 0;
-  // userId 'cron' (string literal) indica criação automática — guardamos null
-  const criadoPorId = ctx.userId === 'cron' ? null : ctx.userId;
+  // Criação automática (cron) — o exercício guarda null
+  const criadoPorId = ctx.userId === USER_ID_AUTOMATICO ? null : ctx.userId;
 
   await prismaBase.$transaction(async (tx) => {
     // Cria exercício + 13 períodos; idempotente via @@unique([tenantId, codigo])
-    await criarExercicioComPeriodos(tx, ano, ctx.tenantId, criadoPorId);
+    await criarExercicioComPeriodos(tx, ano, ctx.tenantId, criadoPorId, ctx.userId);
     seriesCriadas = await bootstrapSeriesDocumento(tx, ctx.tenantId, ano);
   });
 
@@ -2160,6 +2300,7 @@ export async function registarLancamentoContabilistico(
   input: RegistarLancamentoContabilisticoInput,
   ctx: Ctx,
 ): Promise<Lancamento> {
+  exigirOrigemNaoReservada(input.documentoOrigemTipo);
   const diario = await tx.diario.findFirst({
     where: { tipo: input.diarioTipo, tenantId: ctx.tenantId, ativo: true },
   });
@@ -2168,7 +2309,7 @@ export async function registarLancamentoContabilistico(
   }
 
   // ADR-0033 §5: resolver período + bloqueio FOR SHARE (mesmo dentro de tx externa)
-  const periodoResolvido = await resolverPeriodo(tx, input.data, ctx.tenantId);
+  const periodoResolvido = await resolverPeriodo(tx, input.data, ctx.tenantId, ctx.userId);
   const [periodoLocked] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
     SELECT id, codigo, estado FROM "PeriodoContabil"
     WHERE id = ${periodoResolvido.id} AND "tenantId" = ${ctx.tenantId}
@@ -2376,6 +2517,265 @@ export async function estornarLancamentoEncerramentoEmTx(
   transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
 
   return gravarEstornoEmTx(tx, lancamento, periodo, lancamento.data, input.motivo, ctx);
+}
+
+// ---------------------------------------------------------------------------
+// Abertura do exercício seguinte (ADR-0035 §6, #363)
+// ---------------------------------------------------------------------------
+
+/**
+ * A abertura gerada, ou um estorno dela: no diário AB, com origem `ORIGEM_ABERTURA` (o estorno
+ * leva a mesma; para dados anteriores a isso segue-se o `lancamentoEstornoId`). Uma abertura
+ * manual não é.
+ */
+async function eAberturaAutomatica(
+  tx: Prisma.TransactionClient,
+  lancamento: { documentoOrigemTipo: string | null; lancamentoEstornoId: string | null },
+  tenantId: string,
+): Promise<boolean> {
+  if (lancamento.documentoOrigemTipo === ORIGEM_ABERTURA) return true;
+  if (!lancamento.lancamentoEstornoId) return false;
+  const original = await tx.lancamento.findFirst({
+    where: { id: lancamento.lancamentoEstornoId, tenantId },
+    select: { documentoOrigemTipo: true },
+  });
+  return original?.documentoOrigemTipo === ORIGEM_ABERTURA;
+}
+
+/**
+ * Ids das aberturas EFECTIVAS do exercício geradas a partir de outro (LANCADO, não estornadas,
+ * não estorno). `exercicioAnteriorId` restringe à origem; omitido, todas as geradas.
+ */
+export async function aberturasAutomaticasEfectivasEmTx(
+  tx: Prisma.TransactionClient,
+  input: { exercicioId: string; exercicioAnteriorId?: string },
+  ctx: Ctx,
+): Promise<string[]> {
+  const linhas = await tx.lancamento.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      status: 'LANCADO',
+      lancamentoEstornoId: null,
+      diario: { tipo: 'ABERTURA' },
+      periodo: { exercicioId: input.exercicioId },
+      documentoOrigemTipo: ORIGEM_ABERTURA,
+      ...(input.exercicioAnteriorId ? { documentoOrigemId: input.exercicioAnteriorId } : {}),
+    },
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  return linhas.map((l) => l.id);
+}
+
+/** «Tem AB» efectivo (ADR-0035, «Decisões de implementação»), na tx do chamador. */
+export async function exercicioTemAberturaEfectivaEmTx(
+  tx: Prisma.TransactionClient,
+  exercicioId: string,
+  ctx: Ctx,
+): Promise<boolean> {
+  return exercicioTemDiarioAbertura(exercicioId, ctx.tenantId, tx);
+}
+
+/**
+ * Grava a abertura do exercício seguinte (#363) na tx do chamador: diário ABERTURA, período de
+ * ordem 1 do exercício seguinte (por id, nunca pela data — `resolverPeriodo` podia criar
+ * exercícios), `data` = `dataInicio` desse exercício, LANCADO, origem = o exercício anterior.
+ * Recusa um período 1 que não esteja ABERTO, decidido na leitura trancada (`FOR SHARE`). Vive
+ * aqui por causa do `gate-periodo`.
+ */
+export async function criarLancamentoAberturaEmTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    exercicioSeguinteId: string;
+    exercicioAnteriorId: string;
+    historico: string;
+    partidas: ReadonlyArray<{ contaId: string; tipo: TipoPartida; valor: Prisma.Decimal }>;
+  },
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string; dataInicio: Date }>>`
+    SELECT p.id, p.codigo, p.estado, e."dataInicio"
+    FROM "PeriodoContabil" p
+    JOIN "ExercicioContabil" e ON e.id = p."exercicioId"
+    WHERE p."exercicioId" = ${input.exercicioSeguinteId} AND p."tenantId" = ${ctx.tenantId}
+      AND e."tenantId" = ${ctx.tenantId} AND p.ordem = 1
+    FOR SHARE OF p
+  `;
+  if (!periodo) throw new NotFoundError('Período 1 do exercício seguinte não encontrado');
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+
+  if (input.partidas.length === 0 || input.partidas.some((p) => !p.valor.greaterThan(0))) {
+    throw new BusinessRuleError('PARTIDA_VALOR_INVALIDO', 'Cada partida tem de ter valor positivo.');
+  }
+  const totalDebito = totalDasPartidasEquilibradas(input.partidas);
+
+  const diario = await tx.diario.findFirst({
+    where: { tipo: 'ABERTURA', tenantId: ctx.tenantId, ativo: true },
+    select: { id: true },
+  });
+  if (!diario) throw new NotFoundError('Diário do tipo "ABERTURA" não encontrado');
+
+  const numero = await proximoNumeroLancamento(tx, diario.id, periodo.codigo, ctx.tenantId);
+
+  const lancamento = await tx.lancamento.create({
+    data: {
+      tenantId: ctx.tenantId,
+      numero,
+      data: periodo.dataInicio,
+      tipo: 'AUTOMATICO',
+      origem: 'AJUSTE',
+      diarioId: diario.id,
+      periodoId: periodo.id,
+      documentoOrigemId: input.exercicioAnteriorId,
+      documentoOrigemTipo: ORIGEM_ABERTURA,
+      historico: input.historico,
+      valorTotal: totalDebito,
+      status: 'LANCADO',
+      periodoFiscal: periodo.codigo, // cópia de periodo.codigo (ADR-0033 §1)
+      criadoPorId: ctx.userId,
+    },
+  });
+
+  for (const p of input.partidas) {
+    await exigirContaDeMovimento(tx, p.contaId, ctx.tenantId);
+    await tx.partidaLancamento.create({
+      data: {
+        tenantId: ctx.tenantId,
+        lancamentoId: lancamento.id,
+        contaId: p.contaId,
+        tipo: p.tipo,
+        valor: new Prisma.Decimal(p.valor.toFixed(2)),
+      },
+    });
+  }
+
+  return lancamento as unknown as Lancamento;
+}
+
+/**
+ * Estorna a abertura gerada (#363: reabertura do exercício anterior, ou a regeração no
+ * re-encerramento) no período DELA — o 1 do exercício seguinte, por id, trancado `FOR SHARE` e
+ * ABERTO —, no mesmo diário, com a data do original. Vive aqui por causa do `gate-periodo`.
+ */
+export async function estornarLancamentoAberturaEmTx(
+  tx: Prisma.TransactionClient,
+  input: { lancamentoId: string; motivo: string },
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const lancamento = await tx.lancamento.findFirst({
+    where: { id: input.lancamentoId, tenantId: ctx.tenantId },
+    include: { partidas: true, diario: { select: { tipo: true } } },
+  });
+  if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
+  if (lancamento.diario.tipo !== 'ABERTURA' || lancamento.documentoOrigemTipo !== ORIGEM_ABERTURA) {
+    throw new BusinessRuleError(
+      'LANCAMENTO_NAO_E_DE_ABERTURA',
+      `O lançamento ${lancamento.numero} não é uma abertura gerada.`,
+    );
+  }
+  transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
+
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
+    SELECT id, codigo, estado FROM "PeriodoContabil"
+    WHERE id = ${lancamento.periodoId} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+
+  // O estorno leva a origem da abertura (o exercício anterior): é o que o tira dos leitores
+  // por datas (`SEM_ABERTURA_REAFIRMADA`) e o liga ao original pelo `lancamentoEstornoId`.
+  return gravarEstornoEmTx(tx, lancamento, periodo, lancamento.data, input.motivo, ctx, {
+    tipo: ORIGEM_ABERTURA,
+    id: lancamento.documentoOrigemId,
+  });
+}
+
+/**
+ * Gera a abertura do exercício `exercicioId` a partir do fecho do anterior (#363, ADR-0035 §6),
+ * na tx do chamador. Saldos de fecho = partidas do anterior nos períodos 1..13 (pelo período do
+ * lançamento, `FILTRO_LANCAMENTO_MAPA`) — o 13 traz os lançamentos de encerramento, que saldam as
+ * classes 6/7 e põem o resultado no 88. Transporta cada folha das classes 1–5 e 8
+ * (`CLASSES_BALANCO`) com saldo não nulo: devedor → débito, credor → crédito. Sem saldos não
+ * escreve nada e devolve `null`. Não verifica estados — é do chamador.
+ */
+export async function gerarAberturaEmTx(
+  tx: Prisma.TransactionClient,
+  input: { exercicioAnteriorId: string; exercicioId: string },
+  ctx: Ctx,
+): Promise<Lancamento | null> {
+  const partidas = await partidasDeAberturaEmTx(tx, input.exercicioAnteriorId, ctx);
+  if (partidas.length === 0) return null;
+
+  const [anterior, seguinte] = await Promise.all(
+    [input.exercicioAnteriorId, input.exercicioId].map((id) =>
+      tx.exercicioContabil.findFirst({ where: { id, tenantId: ctx.tenantId }, select: { codigo: true } }),
+    ),
+  );
+  return criarLancamentoAberturaEmTx(
+    tx,
+    {
+      exercicioSeguinteId: input.exercicioId,
+      exercicioAnteriorId: input.exercicioAnteriorId,
+      historico: `Abertura ${seguinte?.codigo ?? ''} — saldos de fecho do exercício ${anterior?.codigo ?? ''}`.trim(),
+      partidas,
+    },
+    ctx,
+  );
+}
+
+/**
+ * Há abertura a esperar do exercício `exercicioAnteriorId`? Sim quando ele tem saldos de balanço
+ * a transportar (o mesmo agregado que `gerarAberturaEmTx` usa) — um ano a zero não abre nada e
+ * não deixa nada «em falta» (§7, #363). O estado do anterior é outro impedimento.
+ */
+export async function aberturaEsperadaDeEmTx(
+  tx: Prisma.TransactionClient,
+  exercicioAnteriorId: string,
+  ctx: Ctx,
+): Promise<boolean> {
+  return (await partidasDeAberturaEmTx(tx, exercicioAnteriorId, ctx)).length > 0;
+}
+
+/** As partidas da abertura: saldos de fecho de balanço do exercício (ver `gerarAberturaEmTx`). */
+async function partidasDeAberturaEmTx(
+  tx: Prisma.TransactionClient,
+  exercicioAnteriorId: string,
+  ctx: Ctx,
+): Promise<Array<{ contaId: string; tipo: TipoPartida; valor: Prisma.Decimal }>> {
+  const agregados = await tx.partidaLancamento.groupBy({
+    by: ['contaId', 'tipo'],
+    where: {
+      tenantId: ctx.tenantId,
+      lancamento: {
+        status: FILTRO_LANCAMENTO_MAPA,
+        periodo: { exercicioId: exercicioAnteriorId, ordem: { gte: 1, lte: 13 } },
+      },
+    },
+    _sum: { valor: true },
+  });
+  const saldos = new Map<string, Prisma.Decimal>();
+  for (const a of agregados) {
+    const v = a._sum.valor ?? new Prisma.Decimal(0);
+    const atual = saldos.get(a.contaId) ?? new Prisma.Decimal(0);
+    saldos.set(a.contaId, a.tipo === 'DEBITO' ? atual.plus(v) : atual.minus(v));
+  }
+
+  const contas = await tx.contaPGC.findMany({
+    where: { tenantId: ctx.tenantId, id: { in: [...saldos.keys()] } },
+    select: { id: true, classe: true },
+    orderBy: { codigo: 'asc' },
+  });
+  return contas
+    .filter((c) => CLASSES_BALANCO.has(c.classe) && !saldos.get(c.id)!.isZero())
+    .map((c) => {
+      const s = saldos.get(c.id)!;
+      return { contaId: c.id, tipo: (s.greaterThan(0) ? 'DEBITO' : 'CREDITO') as TipoPartida, valor: s.abs() };
+    });
 }
 
 // ---------------------------------------------------------------------------

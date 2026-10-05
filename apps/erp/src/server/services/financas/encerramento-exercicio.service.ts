@@ -9,8 +9,13 @@ import { getRequestContext } from '@/server/observability/context';
 import { logger } from '@/server/observability/logger';
 import {
   FILTRO_LANCAMENTO_MAPA,
+  aberturaEsperadaDeEmTx,
+  aberturasAutomaticasEfectivasEmTx,
   criarLancamentoEncerramentoEmTx,
+  estornarLancamentoAberturaEmTx,
   estornarLancamentoEncerramentoEmTx,
+  exercicioTemAberturaEfectivaEmTx,
+  gerarAberturaEmTx,
 } from './contabilidade.service';
 import type {
   Ctx,
@@ -33,11 +38,17 @@ import type {
  *     período 13, com a data do fim do exercício — cada um só quando tem partidas (#366): um ano
  *     sem saldo nas classes 6/7 encerra sem lançamento nenhum, e as referências ficam nulas;
  *  5. fecha o período 13, passa o exercício a ENCERRADO_PROVISORIO, regista o
- *     `EncerramentoExercicio` e escreve as linhas de `AuditLog` da transição (#366).
+ *     `EncerramentoExercicio` e escreve as linhas de `AuditLog` da transição (#366);
+ *  6. se o exercício SEGUINTE já existe, gera nele a abertura (diário AB, período 1 — #363,
+ *     ADR-0035 §6), estornando antes uma abertura efectiva que ainda lá esteja.
  *
- * Ordem das trancas: exercício → períodos → diário (pela numeração) — a mesma na reabertura e no
- * definitivo (abaixo). `fecharPeriodo` e `reabrirPeriodo` trancam só o período e leem o
- * exercício sem tranca: não há ciclo (o porquê de não ficar velho está no `reabrirPeriodo`).
+ * Ordem das trancas: exercício → os seus períodos → exercício seguinte → os períodos dele →
+ * diários (pela numeração: EN e depois AB) — a mesma na reabertura e no definitivo (abaixo).
+ * Sempre do ano mais antigo para o mais recente: um encerramento de N e outro de N+1 em
+ * simultâneo cruzam-se só na linha de N+1, que ambos pedem antes de qualquer outra coisa de N+1.
+ * A criação de um exercício (`garantirAberturaAoCriarEmTx`) segue a mesma ordem (anterior
+ * `FOR SHARE` → ele `FOR UPDATE`). `fecharPeriodo` e `reabrirPeriodo` trancam só o período e leem
+ * o exercício sem tranca: não há ciclo (o porquê de não ficar velho está no `reabrirPeriodo`).
  *
  * As escritas em `Lancamento`/`PartidaLancamento` passam por `criarLancamentoEncerramentoEmTx`
  * (`contabilidade.service`) — `gate-periodo`.
@@ -88,6 +99,31 @@ function transicaoExercicio(antes: EstadoExercicio, depois: EstadoExercicio): Pr
   return { before: { estado: antes }, after: { estado: depois } };
 }
 
+/**
+ * O exercício seguinte (o que encadeia neste pelo `anteriorId`), trancado `FOR UPDATE`, e os seus
+ * períodos, `FOR UPDATE` por ordem — ou `null` se ainda não existe. Chamado depois de trancar
+ * este exercício e os seus períodos (ordem das trancas no topo do ficheiro).
+ */
+async function trancarSeguinte(
+  tx: Tx,
+  exercicioId: string,
+  ctx: Ctx,
+): Promise<{ id: string; codigo: string; periodos: Array<{ id: string; ordem: number; estado: string }> } | null> {
+  const [seguinte] = await tx.$queryRaw<Array<{ id: string; codigo: string }>>`
+    SELECT id, codigo FROM "ExercicioContabil"
+    WHERE "anteriorId" = ${exercicioId} AND "tenantId" = ${ctx.tenantId}
+    FOR UPDATE
+  `;
+  if (!seguinte) return null;
+  const periodos = await tx.$queryRaw<Array<{ id: string; ordem: number; estado: string }>>`
+    SELECT id, ordem, estado FROM "PeriodoContabil"
+    WHERE "exercicioId" = ${seguinte.id} AND "tenantId" = ${ctx.tenantId}
+    ORDER BY ordem
+    FOR UPDATE
+  `;
+  return { ...seguinte, periodos };
+}
+
 /** Partida que leva `saldo` (D − C) a zero na conta: credita um saldo devedor, debita um credor. */
 function saldar(contaId: string, saldo: Prisma.Decimal): Partida {
   return { contaId, tipo: saldo.greaterThan(0) ? 'CREDITO' : 'DEBITO', valor: saldo.abs() };
@@ -118,6 +154,8 @@ export async function encerrarExercicio(
   const estimativa = lerEstimativa(input.estimativaImposto);
   const inicio = Date.now();
   let partidasPorLancamento: { resultados: number; imposto: number; liquido: number } | null = null;
+  let aberturaSeguinteId: string | null = null;
+  let aberturasEstornadas: string[] = [];
 
   const resultado = await prismaBase.$transaction<ResultadoEncerramentoExercicio>(
     async (tx) => {
@@ -144,6 +182,9 @@ export async function encerrarExercicio(
       if (!periodo13) throw new NotFoundError(`Período de encerramento do exercício ${exercicio.codigo} não encontrado`);
       const mensais = periodos.filter((p) => ORDENS_MENSAIS.includes(p.ordem));
 
+      // 2b. O exercício seguinte, se existir, e os seus períodos — trancados depois dos deste.
+      const seguinte = await trancarSeguinte(tx, exercicio.id, ctx);
+
       // 3. Impedimentos — todos de uma vez.
       const impedimentos: string[] = [];
 
@@ -161,6 +202,19 @@ export async function encerrarExercicio(
         if (anterior && anterior.estado !== 'ENCERRADO_PROVISORIO' && anterior.estado !== 'ENCERRADO') {
           impedimentos.push('EXERCICIO_ANTERIOR_ABERTO');
         }
+        // §7 (#363): com anterior, a abertura gerada tem de estar lá — efectiva (não estornada) —
+        // quando há abertura a esperar: um anterior sem saldos de balanço (ano a zero) não abre
+        // nada e não bloqueia nada. O estado do anterior é o impedimento de cima, à parte.
+        if (
+          !(await exercicioTemAberturaEfectivaEmTx(tx, exercicio.id, ctx)) &&
+          (await aberturaEsperadaDeEmTx(tx, exercicio.anteriorId, ctx))
+        ) {
+          impedimentos.push('ABERTURA_EM_FALTA');
+        }
+      }
+      // §6 (#363): a abertura do seguinte vai para o período 1 dele; fechado, não a recebe.
+      if (seguinte && seguinte.periodos.find((p) => p.ordem === 1)?.estado !== 'ABERTO') {
+        impedimentos.push('ABERTURA_SEGUINTE_FECHADA');
       }
 
       const rascunhos13 = await tx.lancamento.count({
@@ -321,6 +375,22 @@ export async function encerrarExercicio(
             )
           : null;
 
+      // 4f. Abertura do exercício seguinte (#363) — depois dos lançamentos EN, que põem o
+      //     resultado no 88. Uma abertura efectiva que lá esteja (só por estado legado: a
+      //     reabertura estorna-a) é estornada antes, para ficar uma só.
+      if (seguinte) {
+        aberturasEstornadas = await aberturasAutomaticasEfectivasEmTx(tx, { exercicioId: seguinte.id }, ctx);
+        for (const lancamentoId of aberturasEstornadas) {
+          await estornarLancamentoAberturaEmTx(
+            tx,
+            { lancamentoId, motivo: `Regeneração da abertura no encerramento de ${exercicio.codigo}` },
+            ctx,
+          );
+        }
+        const ab = await gerarAberturaEmTx(tx, { exercicioAnteriorId: exercicio.id, exercicioId: seguinte.id }, ctx);
+        aberturaSeguinteId = ab?.id ?? null;
+      }
+
       // 5. Estados e registo (ids vindos das leituras trancadas, já filtradas por tenant).
       const agora = new Date();
       await tx.periodoContabil.update({
@@ -396,6 +466,8 @@ export async function encerrarExercicio(
         exercicioId: input.exercicioId,
         versao: resultado.encerramento.versao,
         partidasPorLancamento,
+        aberturaSeguinteId,
+        aberturasEstornadas,
         duracaoMs: Date.now() - inicio,
       },
       '[encerramento] exercício encerrado provisoriamente',
@@ -416,6 +488,12 @@ export async function encerrarExercicio(
  * está fechado e assim fica); anula esse encerramento; regista a `ReaberturaExercicio`; e o
  * exercício volta a ABERTO. Os doze mensais continuam fechados — cada um reabre-se depois,
  * pelo `reabrirPeriodo`, com o seu motivo.
+ *
+ * Exercício seguinte (#363, ADR-0035 §6): trancado a seguir ao período 13 (ordem das trancas no
+ * topo). Com algum período dele FECHADO recusa com `EXERCICIO_SEGUINTE_COM_PERIODO_FECHADO`, antes
+ * de qualquer escrita — a correcção passa a ser um lançamento de correcção de exercícios
+ * anteriores. Senão estorna-lhe a abertura gerada a partir deste (período 1 dele, diário AB), e
+ * o id entra em `lancamentosEstornados` com os do encerramento: é o rasto completo da reabertura.
  */
 export async function reabrirExercicio(
   input: { exercicioId: string; motivo: string },
@@ -426,6 +504,7 @@ export async function reabrirExercicio(
   if (!validado.success) throw new ValidationError('Dados inválidos', validado.error.flatten());
   const motivo = validado.data.motivo;
   const inicio = Date.now();
+  let aberturasEstornadas: string[] = [];
 
   const reabertura = await prismaBase.$transaction(
     async (tx) => {
@@ -443,6 +522,16 @@ export async function reabrirExercicio(
         FOR UPDATE
       `;
       if (!periodo13) throw new NotFoundError(`Período de encerramento do exercício ${exercicio.codigo} não encontrado`);
+
+      const seguinte = await trancarSeguinte(tx, exercicio.id, ctx);
+      if (seguinte && seguinte.periodos.some((p) => p.estado === 'FECHADO')) {
+        throw new BusinessRuleError(
+          'EXERCICIO_SEGUINTE_COM_PERIODO_FECHADO',
+          `Não é possível reabrir: o exercício seguinte (${seguinte.codigo}) já tem períodos fechados e o ` +
+            'lançamento de abertura dele já não pode ser refeito. Registe o ajustamento como correcção de ' +
+            'exercícios anteriores.',
+        );
+      }
 
       const encerramento = await tx.encerramentoExercicio.findFirst({
         where: { tenantId: ctx.tenantId, exercicioId: exercicio.id, anuladoEm: null },
@@ -471,6 +560,19 @@ export async function reabrirExercicio(
         );
       }
 
+      // Depois dos EN: diários na mesma ordem do encerramento (EN → AB).
+      const idsAB = seguinte
+        ? await aberturasAutomaticasEfectivasEmTx(
+            tx,
+            { exercicioId: seguinte.id, exercicioAnteriorId: exercicio.id },
+            ctx,
+          )
+        : [];
+      for (const lancamentoId of idsAB) {
+        await estornarLancamentoAberturaEmTx(tx, { lancamentoId, motivo }, ctx);
+      }
+      aberturasEstornadas = idsAB;
+
       await tx.encerramentoExercicio.update({
         where: { id: encerramento.id },
         data: { anuladoEm: new Date() },
@@ -487,7 +589,7 @@ export async function reabrirExercicio(
           exercicioId: exercicio.id,
           encerramentoId: encerramento.id,
           motivo,
-          lancamentosEstornados: idsEN,
+          lancamentosEstornados: [...idsEN, ...idsAB],
           reabertoPorId: ctx.userId,
           keycloakSub,
           requestId: getRequestContext()?.requestId ?? null,
@@ -522,6 +624,7 @@ export async function reabrirExercicio(
       exercicioId: input.exercicioId,
       encerramentoId: reabertura.encerramentoId,
       lancamentosEstornados: reabertura.lancamentosEstornados.length,
+      aberturasEstornadas,
       duracaoMs: Date.now() - inicio,
     },
     '[encerramento] exercício reaberto',

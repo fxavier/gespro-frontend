@@ -210,9 +210,22 @@ estornado nem estorno.
 ### Lançamento de abertura (AB)
 O lançamento no diário `AB`, no dia 1 do exercício, que **re-afirma** os saldos do fecho do
 anterior. Gera-se no encerramento do anterior; à mão, só no primeiro exercício (saldos iniciais de
-quem migra). Os leitores por datas não o contam quando o exercício tem anterior — os saldos já lá
-estão pelos lançamentos do ano anterior; as vistas por período usam-no em vez da
-[[Abertura implícita]].
+quem migra). Os leitores por datas não contam o AB **gerado** (origem `ExercicioContabil`, e o
+estorno dele) — os saldos já lá estão pelos lançamentos do ano anterior; um AB **manual** conta
+sempre. As vistas por período usam-no em vez da [[Abertura implícita]]. A origem
+`ExercicioContabil` é reservada: um lançamento manual não a pode ter.
+
+### Abertura do exercício
+O acto que gera o [[Lançamento de abertura (AB)]] de um exercício a partir do fecho do anterior:
+os saldos das folhas das classes 1–5 e 8 nos treze períodos do anterior (o 88 traz o resultado),
+no período 1, com a data de início e origem no exercício anterior. Acontece sozinho — ao
+**encerrar** o anterior quando o seguinte já existe, ou ao **criar** o seguinte (à mão, pelo cron
+ou pelo primeiro lançamento nele) quando o anterior já está encerrado. **Reabrir** o anterior
+estorna-a (recusado se o seguinte tiver algum período fechado); re-encerrar gera uma nova. Não se
+estorna à mão (`LANCAMENTO_DE_ABERTURA`). Sem ela, um exercício com anterior não encerra
+(`ABERTURA_EM_FALTA`) — salvo se o anterior não tiver saldos de balanço (um ano a zero não abre
+nada). Um exercício que já tenha abertura manual não é encadeado num anterior criado depois dele
+(é o primeiro de quem migrou). ADR-0035 §6, issue #363.
 
 ### Saldo devedor / saldo credor
 O saldo de uma conta (`acumulado D − acumulado C`) mostrado do lado onde cai, sempre positivo.
@@ -239,8 +252,8 @@ Financeiro = 69 e 78; operacional = o resto das classes 6/7 (a mesma regra da DR
 ### Encerrado provisoriamente
 O exercício com as contas saldadas e a fotografia guardada. Não aceita escrita corrente, mas
 pode ser **reaberto** — com permissão própria e motivo — para ajustamentos da revisão: a
-reabertura estorna os lançamentos de encerramento e regista-se à parte. Volta a encerrar-se com
-uma fotografia nova.
+reabertura estorna os lançamentos de encerramento (e a [[Abertura do exercício]] seguinte, se
+houver) e regista-se à parte. Volta a encerrar-se com uma fotografia nova.
 
 ### Encerrado
 Definitivo. Nenhuma reabertura, por ninguém. Passa-se a ele depois da entrega da Modelo 22 e da

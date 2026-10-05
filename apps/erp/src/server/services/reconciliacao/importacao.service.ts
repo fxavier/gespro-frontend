@@ -253,7 +253,7 @@ export async function projetarMovimentosContabilisticos(
             documentoOrigemTipo: true,
             documentoOrigemId: true,
             diario: { select: { tipo: true } },
-            periodo: { select: { ordem: true, exercicio: { select: { anteriorId: true } } } },
+            periodo: { select: { ordem: true } },
           },
         },
       },
@@ -262,14 +262,14 @@ export async function projetarMovimentosContabilisticos(
     });
     if (lote.length === 0) break;
     depoisDe = lote[lote.length - 1].id;
-    // #363: a partida do AB re-afirma o saldo do banco — não é movimento a reconciliar.
+    // #363: a partida do AB gerado re-afirma o saldo do banco — não é movimento a reconciliar.
     // Filtrada aqui, não no `where`: o keyset avança pelo lote inteiro.
     const partidas = lote.filter(
       (p) =>
         !eFechoOuAbertura({
           ordem: p.lancamento.periodo?.ordem,
           diarioTipo: p.lancamento.diario?.tipo,
-          anteriorId: p.lancamento.periodo?.exercicio?.anteriorId,
+          documentoOrigemTipo: p.lancamento.documentoOrigemTipo,
         }),
     );
 

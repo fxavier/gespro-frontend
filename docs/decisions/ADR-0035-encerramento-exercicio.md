@@ -181,20 +181,69 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   apuramento de IVA (§7 — o IVA é dos doze meses). Ao contrário do que a §7 diz, as outras
   pré-condições do ADR-0033 §6 não se aplicam aos treze: as de datas já foram verificadas no
   período 12.
-- **«Balanço de abertura lançado, ou primeiro exercício»** (§7) passa a ser, enquanto a abertura
-  `AB` do exercício seguinte (§6) não estiver construída: **sem exercício anterior, ou anterior pelo
-  menos `ENCERRADO_PROVISORIO`**. Os saldos de partida vêm da abertura implícita do ADR-0040.
+- **«Balanço de abertura lançado, ou primeiro exercício»** (§7) — reposto pelo #363: com
+  exercício anterior, o encerramento exige o anterior pelo menos `ENCERRADO_PROVISORIO`
+  (`EXERCICIO_ANTERIOR_ABERTO`) **e**, quando há abertura a esperar, uma abertura `AB` efectiva
+  (`ABERTURA_EM_FALTA`), os dois recolhidos com os outros impedimentos. Há abertura a esperar
+  quando o anterior tem saldos de balanço a transportar — o mesmo agregado que a gera: um ano a
+  zero não abre nada e não bloqueia nada. O estado do anterior não entra nesta condição (um
+  anterior reaberto com saldos dá os dois impedimentos). Sem anterior, nada se exige (o `AB` manual
+  é opcional).
+- **Abertura `AB` do exercício seguinte (§6, #363).** Contrapõe-se à letra da §6 num ponto: é
+  gerada **também** pelo encerramento — os ajustamentos chegam com o ano seguinte já criado (o
+  cron cria-o a 1 de Dezembro), e esperar pela «abertura» deixava-o sem `AB`. Regras:
+  - **Conteúdo**: um lançamento `LANCADO` no diário `AB`, período de ordem 1 do seguinte, `data` =
+    `dataInicio` dele, `documentoOrigemTipo = 'ExercicioContabil'` e `documentoOrigemId` = o
+    exercício **anterior**. Partidas = saldos das folhas das classes 1–5 e 8 (`CLASSES_BALANCO`)
+    nos períodos **1..13** do anterior, pelo período do lançamento e `FILTRO_LANCAMENTO_MAPA` —
+    equivale à fotografia mais os lançamentos `EN`; devedor → débito, credor → crédito. Sem saldos
+    não se escreve nada. Escritor único: `criarLancamentoAberturaEmTx` (gate-periodo).
+  - **Origem reservada**: `'ExercicioContabil'` (`ORIGEM_ABERTURA`) é o que identifica a abertura
+    gerada — e o seu estorno, que leva a mesma origem (e o exercício anterior em
+    `documentoOrigemId`) e aponta o original pelo `lancamentoEstornoId`. `criarLancamento` e
+    `registarLancamentoContabilistico` recusam-na (`DOCUMENTO_ORIGEM_RESERVADO`); a edição de um
+    rascunho não aceita origem.
+  - **Disparos**: `encerrarExercicio(N)` com N+1 existente (na mesma tx, depois dos `EN`; uma
+    abertura efectiva que lá esteja é estornada antes, para ficar uma só); e a **criação** de N+1
+    (`abrirExercicio`, cron, ou `resolverPeriodo` quando o primeiro lançamento cai em N+1) com N
+    pelo menos `ENCERRADO_PROVISORIO`, um `EncerramentoExercicio` em vigor, N+1 sem `AB` efectivo e
+    o seu período 1 aberto — idempotente: um segundo `abrirExercicio` não duplica. N «encerrado» por
+    escrita crua, sem `EncerramentoExercicio`, não gera (e N+1 recusa encerrar com
+    `ABERTURA_EM_FALTA`). O definitivo não toca na abertura.
+  - **Reabrir N** estorna a abertura efectiva de N+1 com origem em N (`estornarLancamentoAberturaEmTx`:
+    no período dela — o 1 de N+1, por id, não pela data de hoje —, no diário `AB`, com a data do
+    original) e o id entra em `ReaberturaExercicio.lancamentosEstornados` a seguir aos dos `EN`.
+    Recusa com `EXERCICIO_SEGUINTE_COM_PERIODO_FECHADO`, antes de qualquer escrita, se algum
+    período de N+1 estiver `FECHADO`.
+  - **Encerrar N** com N+1 existente e o período 1 dele não `ABERTO` → impedimento
+    `ABERTURA_SEGUINTE_FECHADA`.
+  - **Estorno genérico** (`estornarLancamento`) de uma abertura gerada, ou do estorno dela →
+    `LANCAMENTO_DE_ABERTURA`, decidido antes de resolver período (não cria exercícios).
+  - **Trancas**: exercício → os seus períodos → exercício seguinte → os períodos dele → diários
+    (`EN`, depois `AB`), em encerrar e reabrir — sempre do ano mais antigo para o mais recente. A
+    criação de N+1 tranca N `FOR SHARE` e depois N+1 `FOR UPDATE`: fecha a corrida com um
+    encerramento concorrente de N (um dos dois vê o outro já commitado e gera a abertura) e
+    serializa duas criações. Dentro de um lançamento que já tenha trancado um período de N, um
+    encerramento concorrente de N pode dar deadlock — o Postgres aborta uma das transacções.
+  - **`anteriorId` re-encadeado**: criar N quando N+1 já existe sem anterior liga N+1 a N — salvo
+    se N+1 já tiver lançamentos no diário `AB` (abertura manual: tenant migrado, cujo primeiro
+    exercício é N+1; encadeá-lo transformava os saldos iniciais numa abertura «em falta»).
+  - **Registo**: o encerramento regista `aberturaSeguinteId` e `aberturasEstornadas`; a reabertura,
+    `aberturasEstornadas`; a criação regista a abertura que gerou — dentro da transacção do
+    chamador (pode ser a de um lançamento), por isso «gerada na transacção».
+  - Sem `AuditLog` próprio: o lançamento (e o seu estorno) é o rasto; a `ReaberturaExercicio`
+    lista o estorno. `EncerramentoExercicio` não guarda o id da abertura (sem migração).
 - **Leitores por datas excluem o fecho e a abertura** (#363): o período 13 (os lançamentos de
-  encerramento têm a data de 31 de Dezembro e, contados, punham o resultado do ano a zero) e o
-  lançamento de abertura `AB` de um exercício **com anterior** (re-afirma, no dia 1, saldos que já
-  estão no razão — contado, dobrava-os). Predicado único em
+  encerramento têm a data de 31 de Dezembro e, contados, punham o resultado do ano a zero) e a
+  abertura `AB` **gerada** — diário `AB` com origem `ExercicioContabil`, e o seu estorno —, que
+  re-afirma no dia 1 saldos que já estão no razão (contada, dobrava-os). A chave é a origem, não
+  o exercício ter anterior: uma abertura **manual** (saldos iniciais, dados legados) conta sempre. Predicado único em
   `services/financas/fora-de-fecho-e-abertura.ts`: `FORA_DE_FECHO_E_ABERTURA` (e o equivalente SQL)
   nos mapas e na tesouraria — balancete por datas e DFC, DRE, projecção, saldos e importação da
   reconciliação; `SEM_ABERTURA_REAFIRMADA` nos leitores de uma conta — razão por datas, detalhe da
   conta, `saldoContabilAte` — que mantêm o período 13 (ver abaixo) — e no apuramento do IVA
   (agregação do período e crédito reportado do 4438). Também a abertura implícita (ADR-0040) deixa
-  de somar ABs anteriores. O AB do **primeiro** exercício (sem anterior) não re-afirma nada — são os
-  saldos iniciais de quem migra — e conta em todos. As vistas por **período** usam o AB.
+  de somar as aberturas geradas. As vistas por **período** usam o AB (gerado ou manual).
 - **«Tem AB» é efectivo** (#363): um lançamento `LANCADO` no diário `AB` do exercício, que não foi
   estornado nem é um estorno. Com o AB estornado a abertura implícita volta.
 - **Diários reservados** (#363): o lançamento manual recusa o diário `EN`
@@ -221,8 +270,7 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   corre numa única transacção — tudo ou nada —, por isso não há estado intermédio observável. A
   máquina é `ABERTO → ENCERRADO_PROVISORIO → (ABERTO | ENCERRADO)`, em `lib/state-machines.ts`.
 - **§7 «já são exigidas para os treze»** deixa de ser verdade para o período 13 (ver acima).
-- **Fora desta implementação** (issues próprias): abertura `AB` do exercício seguinte (§6),
-  aplicação do resultado (§5), arquivo em PDF do balanço/DRE/balancete (§8 — o balanço e o PDF da
+- **Fora desta implementação** (issues próprias): aplicação do resultado (§5), arquivo em PDF do balanço/DRE/balancete (§8 — o balanço e o PDF da
   DRE ainda não existem).
 
 ## Alternativas consideradas
