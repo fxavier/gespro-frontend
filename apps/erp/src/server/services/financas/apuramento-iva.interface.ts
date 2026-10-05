@@ -1,5 +1,6 @@
 import 'server-only';
 import type { Prisma } from '@prisma/client';
+import { BusinessRuleError } from '@/lib/errors';
 import type { Ctx } from './contabilidade.interface';
 
 // ---------------------------------------------------------------------------
@@ -82,11 +83,10 @@ export function transitarApuramento(
 ): void {
   const permitidos = TRANSICOES_APURAMENTO[atual] ?? [];
   if (!permitidos.includes(alvo)) {
-    const err = new Error(
+    throw new BusinessRuleError(
+      'TRANSICAO_INVALIDA',
       `Transição inválida de apuramento: ${atual} → ${alvo}. Permitidas: [${permitidos.join(', ')}]`,
-    ) as Error & { code: string };
-    err.code = 'TRANSICAO_INVALIDA';
-    throw err;
+    );
   }
 }
 

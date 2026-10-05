@@ -13,6 +13,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { Prisma } from '@prisma/client';
+import { BusinessRuleError } from '@/lib/errors';
 import {
   calcularSaldos,
   montarPartidasApuramento,
@@ -309,6 +310,17 @@ describe('transitarApuramento', () => {
     } catch (e) {
       expect((e as { code?: string }).code).toBe('TRANSICAO_INVALIDA');
     }
+  });
+
+  it('transição inválida lança BusinessRuleError TRANSICAO_INVALIDA (não Error cru → 500) (#354)', () => {
+    let erro: unknown;
+    try {
+      transitarApuramento('ESTORNADO', 'ESTORNADO');
+    } catch (e) {
+      erro = e;
+    }
+    expect(erro).toBeInstanceOf(BusinessRuleError);
+    expect((erro as BusinessRuleError).code).toBe('TRANSICAO_INVALIDA');
   });
 
   it('mapa de transições cobre todos os estados', () => {

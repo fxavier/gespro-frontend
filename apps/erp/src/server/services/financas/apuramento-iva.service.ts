@@ -734,9 +734,23 @@ export async function estornarApuramentoIva(
       );
     }
 
-    return tx.apuramentoIva.update({
-      where: { id: input.apuramentoId },
+    // O estado volta a ser exigido na própria escrita (#354): dois estornos simultâneos
+    // passam ambos o `transitarApuramento` acima. O segundo espera (no Diário, ao numerar
+    // o estorno; sem lançamento, na própria linha) e o WHERE já vê o commit do primeiro —
+    // count 0 → recusa e rollback do estorno duplicado. Sem lock extra de propósito: a
+    // ordem de locks com apurarIva/fecharPeriodo começa no período.
+    const { count } = await tx.apuramentoIva.updateMany({
+      where: { id: input.apuramentoId, tenantId: ctx.tenantId, estado: 'APURADO' },
       data: { estado: 'ESTORNADO' },
+    });
+    if (count !== 1) {
+      throw new BusinessRuleError(
+        'TRANSICAO_INVALIDA',
+        'Transição inválida de apuramento: o apuramento já não está APURADO.',
+      );
+    }
+    return tx.apuramentoIva.findFirstOrThrow({
+      where: { id: input.apuramentoId, tenantId: ctx.tenantId },
     });
   });
 
