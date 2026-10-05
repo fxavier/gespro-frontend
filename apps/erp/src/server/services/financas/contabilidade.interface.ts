@@ -470,9 +470,11 @@ export interface EncerramentoExercicio {
   exercicioId: string;
   versao: number;
   estimativaImposto: Prisma.Decimal;
-  lancamentoResultadosId: string;
+  /** Nulo quando não houve nada a lançar (#366). */
+  lancamentoResultadosId: string | null;
   lancamentoImpostoId: string | null;
-  lancamentoLiquidoId: string;
+  /** Nulo quando o resultado corrente é zero e não há imposto (#366). */
+  lancamentoLiquidoId: string | null;
   fotografia: LinhaFotografiaEncerramento[];
   totalDebito: Prisma.Decimal;
   totalCredito: Prisma.Decimal;

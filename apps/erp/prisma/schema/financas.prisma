@@ -414,9 +414,11 @@ model EncerramentoExercicio {
   exercicioId            String
   versao                 Int       // 1, 2, … por exercício
   estimativaImposto      Decimal   @db.Decimal(18, 2)
-  lancamentoResultadosId String    // FK Lancamento (escalar) — apuramento das classes 6/7 para 8x
+  /// As três referências são nulas quando não houve nada a lançar (#366): sem saldo nas
+  /// classes 6/7 não há apuramento; resultado corrente zero e sem imposto não há líquido.
+  lancamentoResultadosId String?   // FK Lancamento (escalar) — apuramento das classes 6/7 para 8x
   lancamentoImpostoId    String?   // FK Lancamento (escalar); nulo quando a estimativa é zero
-  lancamentoLiquidoId    String    // FK Lancamento (escalar) — transferência para 88
+  lancamentoLiquidoId    String?   // FK Lancamento (escalar) — transferência para 88
   /// Fotografia do balancete à data do encerramento (ADR-0035 §8: código e nome à data).
   /// Forma: Array<{ contaId: string; codigo: string; nome: string; totalDebito: string; totalCredito: string;
   ///                saldoDevedor: string; saldoCredor: string }> — valores em string decimal;

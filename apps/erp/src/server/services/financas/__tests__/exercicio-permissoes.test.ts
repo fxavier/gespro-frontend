@@ -28,4 +28,13 @@ describe('permissões financas:exercicio:* do encerramento (ADR-0035)', () => {
   it.each(CODIGOS)('%s — só o ADMIN (FINANCEIRO, GESTOR, OPERADOR e LEITURA não)', (code) => {
     expect(papeisCom(code)).toEqual(['ADMIN']);
   });
+
+  // #366 — abrir um exercício novo também é decisão do ADMIN: o GESTOR herdava-a por
+  // omissão (a lista `restricted` não a tinha) e o FINANCEIRO já estava fora.
+  it('financas:exercicio:abrir — o ADMIN tem, o GESTOR e o FINANCEIRO não (#366)', () => {
+    const papeis = papeisCom('financas:exercicio:abrir');
+    expect(papeis).toContain('ADMIN');
+    expect(papeis).not.toContain('GESTOR');
+    expect(papeis).not.toContain('FINANCEIRO');
+  });
 });

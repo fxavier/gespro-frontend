@@ -6,8 +6,8 @@
  *     → { ok: true, encerramento } | { ok: false, impedimentos: string[] }
  *   em `src/server/services/financas/encerramento-exercicio.service.ts`.
  *   - Pré-condições recolhidas TODAS de uma vez, sem escrita nenhuma: PERIODOS_MENSAIS_ABERTOS,
- *     EXERCICIO_ANTERIOR_ABERTO, RASCUNHOS_NO_PERIODO_13, BALANCETE_DESEQUILIBRADO,
- *     SEM_RESULTADOS_A_APURAR.
+ *     EXERCICIO_ANTERIOR_ABERTO, RASCUNHOS_NO_PERIODO_13, BALANCETE_DESEQUILIBRADO.
+ *     (#366: SEM_RESULTADOS_A_APURAR deixou de existir — um ano sem resultado encerra; ver o caso 4.)
  *   - Lançados (não impedimentos): exercício não ABERTO → BusinessRuleError TRANSICAO_INVALIDA;
  *     estimativa negativa ou não numérica → BusinessRuleError ESTIMATIVA_IMPOSTO_INVALIDA;
  *     exercício de outro tenant → NotFoundError.
@@ -392,10 +392,10 @@ describe.skipIf(skip)('Encerramento provisório do exercício (#138, ADR-0035) �
   }, 120_000);
 
   // -------------------------------------------------------------------------
-  // 4. Sem resultados a apurar
+  // 4. Sem resultados a apurar — emendado pelo #366 (P1-v): deixou de ser impedimento
   // -------------------------------------------------------------------------
 
-  it('sem movimento nas classes 6 e 7 devolve SEM_RESULTADOS_A_APURAR', async () => {
+  it('sem movimento nas classes 6 e 7 encerra sem lançamentos EN (#366 — SEM_RESULTADOS_A_APURAR já não existe)', async () => {
     const t = await novoTenant();
     await lancar(t.ctx, '2026-03-15T10:00:00Z', '111', '121', '250');
     const ex = await exercicio2026(t.ctx);
@@ -404,9 +404,25 @@ describe.skipIf(skip)('Encerramento provisório do exercício (#138, ADR-0035) �
     const encerrar = await carregarEncerrar();
     const r = await encerrar({ exercicioId: ex.id, estimativaImposto: '0' }, t.ctx);
 
-    expect(r.ok).toBe(false);
-    expect('impedimentos' in r ? r.impedimentos : []).toEqual(['SEM_RESULTADOS_A_APURAR']);
-    await semEscritas(t.ctx, ex.id);
+    expect('impedimentos' in r ? r.impedimentos : []).toEqual([]);
+    expect(r.ok).toBe(true);
+
+    // Nenhum lançamento de encerramento; o registo existe com as três referências nulas.
+    expect(await lancamentosEN(t.ctx)).toHaveLength(0);
+    const enc = await encerramentoDe(t.ctx, ex.id);
+    expect(enc.versao).toBe(1);
+    expect(enc.lancamentoResultadosId).toBeNull();
+    expect(enc.lancamentoImpostoId).toBeNull();
+    expect(enc.lancamentoLiquidoId).toBeNull();
+    expect(f2(enc.totalDebito)).toBe('250.00');
+    expect(f2(enc.totalCredito)).toBe('250.00');
+    expect((enc.fotografia as AnyDb[]).map((x) => x.codigo).sort()).toEqual(['111', '121']);
+
+    expect((await db.exercicioContabil.findFirst({ where: { id: ex.id, tenantId: t.ctx.tenantId } })).estado).toBe(
+      'ENCERRADO_PROVISORIO',
+    );
+    const p13 = await db.periodoContabil.findFirst({ where: { tenantId: t.ctx.tenantId, exercicioId: ex.id, ordem: 13 } });
+    expect(p13.estado).toBe('FECHADO');
   }, 120_000);
 
   // -------------------------------------------------------------------------

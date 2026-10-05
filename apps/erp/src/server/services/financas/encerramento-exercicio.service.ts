@@ -29,10 +29,11 @@ import type {
  *  2. tranca os treze períodos (`FOR UPDATE`, por ordem) — trava reaberturas e lançamentos
  *     concorrentes enquanto o ano se apura;
  *  3. recolhe TODOS os impedimentos e, havendo algum, devolve-os sem escrever nada;
- *  4. fotografa o balancete dos períodos 1..12 e grava os três lançamentos no diário EN,
- *     período 13, com a data do fim do exercício (o 2.º só com estimativa > 0);
- *  5. fecha o período 13, passa o exercício a ENCERRADO_PROVISORIO e regista o
- *     `EncerramentoExercicio`.
+ *  4. fotografa o balancete dos períodos 1..12 e grava até três lançamentos no diário EN,
+ *     período 13, com a data do fim do exercício — cada um só quando tem partidas (#366): um ano
+ *     sem saldo nas classes 6/7 encerra sem lançamento nenhum, e as referências ficam nulas;
+ *  5. fecha o período 13, passa o exercício a ENCERRADO_PROVISORIO, regista o
+ *     `EncerramentoExercicio` e escreve as linhas de `AuditLog` da transição (#366).
  *
  * Ordem das trancas: exercício → períodos → diário (pela numeração) — a mesma na reabertura e no
  * definitivo (abaixo). `fecharPeriodo` e `reabrirPeriodo` trancam só o período e leem o
@@ -40,6 +41,10 @@ import type {
  *
  * As escritas em `Lancamento`/`PartidaLancamento` passam por `criarLancamentoEncerramentoEmTx`
  * (`contabilidade.service`) — `gate-periodo`.
+ *
+ * Auditoria (#366): os três serviços escrevem pelo `prismaBase`, que não passa pela
+ * `audit-extension` — por isso cada transição escreve as suas linhas de `AuditLog` à mão, na
+ * mesma transacção. Uma chamada recusada sai antes de qualquer escrita e não deixa linha.
  */
 
 const ZERO = new Prisma.Decimal(0);
@@ -49,6 +54,39 @@ const PREFIXOS_FINANCEIROS = ['69', '78'];
 const CODIGOS_FIXOS = ['81', '82', '83', '88', '851', '4411'] as const;
 
 type Partida = { contaId: string; tipo: TipoPartida; valor: Prisma.Decimal };
+type Tx = Prisma.TransactionClient;
+
+/** `sub` do autor no Keycloak, para os registos e o `AuditLog`. */
+async function keycloakSubDe(tx: Tx, ctx: Ctx): Promise<string> {
+  const utilizador = await tx.user.findFirst({
+    where: { id: ctx.userId, tenantId: ctx.tenantId },
+    select: { keycloakSub: true },
+  });
+  return utilizador?.keycloakSub ?? ctx.userId;
+}
+
+/** Linha de `AuditLog` escrita na transacção do chamador (o `prismaBase` não é auditado). */
+async function auditar(
+  tx: Tx,
+  ctx: Ctx,
+  keycloakSub: string,
+  linha: { entity: string; entityId: string; action: 'CREATE' | 'UPDATE'; data?: Prisma.InputJsonValue },
+): Promise<void> {
+  await tx.auditLog.create({
+    data: {
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      keycloakSub,
+      requestId: getRequestContext()?.requestId ?? null,
+      ...linha,
+    },
+  });
+}
+
+/** Transição de estado do exercício, no formato da `audit-extension` (antes/depois). */
+function transicaoExercicio(antes: EstadoExercicio, depois: EstadoExercicio): Prisma.InputJsonValue {
+  return { before: { estado: antes }, after: { estado: depois } };
+}
 
 /** Partida que leva `saldo` (D − C) a zero na conta: credita um saldo devedor, debita um credor. */
 function saldar(contaId: string, saldo: Prisma.Decimal): Partida {
@@ -169,8 +207,6 @@ export async function encerrarExercicio(
       const folhasResultados = contasMovimentadas.filter(
         (c) => (c.classe === 'CLASSE_6' || c.classe === 'CLASSE_7') && !saldo(c.id).isZero(),
       );
-      if (folhasResultados.length === 0) impedimentos.push('SEM_RESULTADOS_A_APURAR');
-
       if (impedimentos.length > 0) return { ok: false, impedimentos };
 
       // 4a. Contas da classe 8 e do imposto.
@@ -244,9 +280,8 @@ export async function encerrarExercicio(
         transferido88 = transferido88.plus(s);
       }
       if (!transferido88.isZero()) partidasLiquido.push(movimentar(c('88'), transferido88));
-      // Resultado corrente exactamente zero e sem imposto: não há nada a levar a 88, e o
-      // registo exige o lançamento do resultado líquido.
-      if (partidasLiquido.length === 0) return { ok: false, impedimentos: ['SEM_RESULTADOS_A_APURAR'] };
+      // Sem saldo nas classes 6/7, ou resultado corrente exactamente zero e sem imposto, não há
+      // nada a lançar: o ano encerra na mesma, com a referência a nulo (#366).
 
       // 4e. Escrita.
       const comum = {
@@ -255,11 +290,14 @@ export async function encerrarExercicio(
         documentoOrigemId: exercicio.id,
         documentoOrigemTipo: 'ExercicioContabil',
       };
-      const lancResultados = await criarLancamentoEncerramentoEmTx(
-        tx,
-        { ...comum, historico: `Encerramento ${exercicio.codigo} — apuramento dos resultados`, partidas: partidasResultados },
-        ctx,
-      );
+      const lancResultados =
+        partidasResultados.length > 0
+          ? await criarLancamentoEncerramentoEmTx(
+              tx,
+              { ...comum, historico: `Encerramento ${exercicio.codigo} — apuramento dos resultados`, partidas: partidasResultados },
+              ctx,
+            )
+          : null;
       const lancImposto = estimativa.greaterThan(0)
         ? await criarLancamentoEncerramentoEmTx(
             tx,
@@ -274,11 +312,14 @@ export async function encerrarExercicio(
             ctx,
           )
         : null;
-      const lancLiquido = await criarLancamentoEncerramentoEmTx(
-        tx,
-        { ...comum, historico: `Encerramento ${exercicio.codigo} — resultado líquido do exercício`, partidas: partidasLiquido },
-        ctx,
-      );
+      const lancLiquido =
+        partidasLiquido.length > 0
+          ? await criarLancamentoEncerramentoEmTx(
+              tx,
+              { ...comum, historico: `Encerramento ${exercicio.codigo} — resultado líquido do exercício`, partidas: partidasLiquido },
+              ctx,
+            )
+          : null;
 
       // 5. Estados e registo (ids vindos das leituras trancadas, já filtradas por tenant).
       const agora = new Date();
@@ -294,10 +335,7 @@ export async function encerrarExercicio(
       const anteriores = await tx.encerramentoExercicio.count({
         where: { tenantId: ctx.tenantId, exercicioId: exercicio.id },
       });
-      const utilizador = await tx.user.findFirst({
-        where: { id: ctx.userId, tenantId: ctx.tenantId },
-        select: { keycloakSub: true },
-      });
+      const keycloakSub = await keycloakSubDe(tx, ctx);
 
       const encerramento = await tx.encerramentoExercicio.create({
         data: {
@@ -305,15 +343,36 @@ export async function encerrarExercicio(
           exercicioId: exercicio.id,
           versao: anteriores + 1,
           estimativaImposto: estimativa,
-          lancamentoResultadosId: lancResultados.id,
+          lancamentoResultadosId: lancResultados?.id ?? null,
           lancamentoImpostoId: lancImposto?.id ?? null,
-          lancamentoLiquidoId: lancLiquido.id,
+          lancamentoLiquidoId: lancLiquido?.id ?? null,
           fotografia: fotografia as unknown as Prisma.InputJsonValue,
           totalDebito,
           totalCredito,
           encerradoPorId: ctx.userId,
-          keycloakSub: utilizador?.keycloakSub ?? ctx.userId,
+          keycloakSub,
           requestId: getRequestContext()?.requestId ?? null,
+        },
+      });
+      await auditar(tx, ctx, keycloakSub, {
+        entity: 'ExercicioContabil',
+        entityId: exercicio.id,
+        action: 'UPDATE',
+        data: transicaoExercicio(exercicio.estado, estadoAlvo),
+      });
+      await auditar(tx, ctx, keycloakSub, {
+        entity: 'EncerramentoExercicio',
+        entityId: encerramento.id,
+        action: 'CREATE',
+        // Sem a fotografia: fica no próprio registo, que é imutável.
+        data: {
+          after: {
+            versao: encerramento.versao,
+            estimativaImposto: estimativa.toFixed(2),
+            lancamentoResultadosId: encerramento.lancamentoResultadosId,
+            lancamentoImpostoId: encerramento.lancamentoImpostoId,
+            lancamentoLiquidoId: encerramento.lancamentoLiquidoId,
+          },
         },
       });
 
@@ -421,11 +480,8 @@ export async function reabrirExercicio(
         data: { estado: estadoAlvo },
       });
 
-      const utilizador = await tx.user.findFirst({
-        where: { id: ctx.userId, tenantId: ctx.tenantId },
-        select: { keycloakSub: true },
-      });
-      return tx.reaberturaExercicio.create({
+      const keycloakSub = await keycloakSubDe(tx, ctx);
+      const criada = await tx.reaberturaExercicio.create({
         data: {
           tenantId: ctx.tenantId,
           exercicioId: exercicio.id,
@@ -433,10 +489,29 @@ export async function reabrirExercicio(
           motivo,
           lancamentosEstornados: idsEN,
           reabertoPorId: ctx.userId,
-          keycloakSub: utilizador?.keycloakSub ?? ctx.userId,
+          keycloakSub,
           requestId: getRequestContext()?.requestId ?? null,
         },
       });
+      await auditar(tx, ctx, keycloakSub, {
+        entity: 'ExercicioContabil',
+        entityId: exercicio.id,
+        action: 'UPDATE',
+        data: transicaoExercicio(exercicio.estado, estadoAlvo),
+      });
+      await auditar(tx, ctx, keycloakSub, {
+        entity: 'ReaberturaExercicio',
+        entityId: criada.id,
+        action: 'CREATE',
+        data: {
+          after: {
+            encerramentoId: criada.encerramentoId,
+            motivo: criada.motivo,
+            lancamentosEstornados: criada.lancamentosEstornados,
+          },
+        },
+      });
+      return criada;
     },
     { timeout: 60_000, maxWait: 10_000 },
   );
@@ -471,10 +546,17 @@ export async function encerrarExercicioDefinitivo(
     `;
     if (!linha) throw new NotFoundError('Exercício não encontrado');
     const estadoAlvo = transitarExercicio(linha.estado, 'ENCERRADO');
-    return tx.exercicioContabil.update({
+    const actualizado = await tx.exercicioContabil.update({
       where: { id: linha.id },
       data: { estado: estadoAlvo, encerradoDefinitivoEm: new Date(), encerradoDefinitivoPorId: ctx.userId },
     });
+    await auditar(tx, ctx, await keycloakSubDe(tx, ctx), {
+      entity: 'ExercicioContabil',
+      entityId: linha.id,
+      action: 'UPDATE',
+      data: transicaoExercicio(linha.estado, estadoAlvo),
+    });
+    return actualizado;
   });
 
   logger.info(

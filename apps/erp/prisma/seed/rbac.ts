@@ -498,6 +498,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
       'financas:plano-contas:escrita',
       'financas:fechar_periodo',
       'financas:periodo:reabrir',
+      // #366 — abrir um exercício novo é decisão do ADMIN.
+      'financas:exercicio:abrir',
       // ADR-0035 — só ADMIN.
       'financas:exercicio:encerrar',
       'financas:exercicio:encerrar-definitivo',

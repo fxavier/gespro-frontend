@@ -174,6 +174,9 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   produto, sujeita ao parecer do contabilista.
 - **Lançamento 2 com estimativa zero** não se cria (um lançamento sem partidas não existe); o zero
   fica registado explicitamente no `EncerramentoExercicio`.
+- **Ano sem resultado encerra sem lançamentos** (#366): o mesmo vale para os lançamentos 1 e 3 —
+  sem saldo nas classes 6/7 não há apuramento, e com resultado corrente zero e sem imposto não há
+  líquido; a referência fica nula. O impedimento `SEM_RESULTADOS_A_APURAR` deixou de existir.
 - **Período 13**: fecha só com rascunhos, balancete equilibrado e período 12 fechado; não tem
   apuramento de IVA (§7 — o IVA é dos doze meses). Ao contrário do que a §7 diz, as outras
   pré-condições do ADR-0033 §6 não se aplicam aos treze: as de datas já foram verificadas no
@@ -194,9 +197,11 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   DFC não sofre (início e fim excluem o mesmo conjunto). A abertura `AB` (§6) é o sítio para
   reavaliar. **O razão por datas inclui o período 13** de propósito: um razão mostra o fecho.
 - **Trilho do encerramento.** `EncerramentoExercicio` e `ReaberturaExercicio` estão na lista
-  síncrona da auditoria, mas, como a `ReaberturaPeriodo`, são escritos no cliente cru dentro da
-  transacção do encerramento: o próprio registo é o trilho (autor, `keycloakSub`, `requestId`), não
-  uma linha de `AuditLog`.
+  síncrona da auditoria, mas são escritos no cliente cru dentro da transacção do encerramento, que
+  não passa pela `audit-extension`. Por isso cada transição escreve, na mesma transacção, linhas de
+  `AuditLog` explícitas (#366): `ExercicioContabil` UPDATE com o estado antes/depois em encerrar,
+  reabrir e encerrar em definitivo, mais o CREATE do `EncerramentoExercicio` ou da
+  `ReaberturaExercicio` — com autor, `keycloakSub` e `requestId`. Chamadas recusadas não deixam linha.
 - **`EM_ENCERRAMENTO` não se usa.** Fica no enum (ADR-0033 §1) mas sem transições: o encerramento
   corre numa única transacção — tudo ou nada —, por isso não há estado intermédio observável. A
   máquina é `ABERTO → ENCERRADO_PROVISORIO → (ABERTO | ENCERRADO)`, em `lib/state-machines.ts`.

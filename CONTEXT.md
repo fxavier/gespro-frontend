@@ -219,10 +219,11 @@ Os mapas por datas (DRE, balancete por datas, DFC) não o contam; o **razão** c
 fecho de cada conta.
 
 ### Encerramento do exercício
-O acto que salda as classes 6 e 7 e leva o resultado à classe 8, em três lançamentos no diário
+O acto que salda as classes 6 e 7 e leva o resultado à classe 8, em até três lançamentos no diário
 `EN` com a data do fim do exercício e no [[Período 13]]: **apuramento dos resultados** (6/7 → 81
 operacionais e 82 financeiros, que passam a 83 correntes), **estimativa do imposto** (D 851 /
-C 4411; omitido quando é zero) e **resultado líquido** (83 e 85 → 88). Guarda a **fotografia do
+C 4411; omitido quando é zero) e **resultado líquido** (83 e 85 → 88). Cada um só existe quando
+tem partidas: um ano sem resultado encerra sem lançamentos (#366). Guarda a **fotografia do
 balancete** — saldos por conta, com o código e o nome à data — e não se recalcula. ADR-0035.
 Financeiro = 69 e 78; operacional = o resto das classes 6/7 (a mesma regra da DRE). Decidido em
 2026-10-05 (issue #138).

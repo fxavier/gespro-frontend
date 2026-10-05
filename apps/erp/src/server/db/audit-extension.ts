@@ -30,7 +30,10 @@ export const AUDIT_MODELS = new Set<string>([
   // de cada vez. Criar e os automáticos continuam pelo `prismaBase` (dívida, D5).
   'Lancamento', 'PartidaLancamento',
   // ADR-0035 §8 — encerrar, reabrir e encerrar em definitivo o exercício ficam no
-  // trilho, na mesma transacção (ver CRITICAL_ENTITIES).
+  // trilho, na mesma transacção (ver CRITICAL_ENTITIES). Hoje os três modelos são
+  // escritos pelo `prismaBase`, que esta extensão não vê: o trilho deles é escrito
+  // explicitamente por `encerramento-exercicio.service.ts` (#366). A presença aqui
+  // fica para qualquer escrita futura pelo cliente estendido.
   'ExercicioContabil', 'EncerramentoExercicio', 'ReaberturaExercicio',
 ]);
 
