@@ -259,8 +259,18 @@ houver) e regista-se à parte. Volta a encerrar-se com uma fotografia nova.
 Definitivo. Nenhuma reabertura, por ninguém. Passa-se a ele depois da entrega da Modelo 22 e da
 aprovação de contas.
 
-_Não confundir_ o encerramento com a **aplicação do resultado** (88 → 59 «Resultados
-transitados»): essa é do exercício **seguinte**, com a data da deliberação dos sócios.
+_Não confundir_ o encerramento com a [[Aplicação do resultado]]: essa é do exercício
+**seguinte**, com a data da deliberação dos sócios.
+
+### Aplicação do resultado
+O transporte do resultado de um exercício encerrado de 88 «Resultado líquido do período» para 59
+«Resultados transitados» (`AplicacaoResultado`, ADR-0035 §5, #364). É um lançamento do exercício
+**seguinte**, no diário de operações, com a **data da deliberação** e a **referência da acta**;
+transfere o saldo **inteiro** de 88 nesse ano (abertura + correcções) — lucro D 88 / C 59, prejuízo
+o inverso. Exige o exercício encerrado e a [[Abertura do exercício]] seguinte lançada; uma só activa
+por exercício. **Não é** a distribuição (reservas, dividendos), que se faz depois, à mão, a partir de
+59. Desfaz-se só por **anulação** (com motivo: estorna no período do original), nunca pelo estorno
+genérico; enquanto activa, o exercício não reabre.
 
 ### Conta de razão
 Conta de nível 2 do PGC-NIRF (dois dígitos, ex.: `11` Caixa, `12` Bancos). O filtro «ver apenas

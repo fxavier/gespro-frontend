@@ -494,6 +494,9 @@ export async function encerrarExercicio(
  * de qualquer escrita — a correcção passa a ser um lançamento de correcção de exercícios
  * anteriores. Senão estorna-lhe a abertura gerada a partir deste (período 1 dele, diário AB), e
  * o id entra em `lancamentosEstornados` com os do encerramento: é o rasto completo da reabertura.
+ *
+ * Aplicação do resultado (#364, ADR-0035 §5): com uma aplicação activa deste exercício recusa com
+ * `APLICACAO_DO_RESULTADO_REGISTADA`, também antes de qualquer escrita — anula-se primeiro.
  */
 export async function reabrirExercicio(
   input: { exercicioId: string; motivo: string },
@@ -530,6 +533,20 @@ export async function reabrirExercicio(
           `Não é possível reabrir: o exercício seguinte (${seguinte.codigo}) já tem períodos fechados e o ` +
             'lançamento de abertura dele já não pode ser refeito. Registe o ajustamento como correcção de ' +
             'exercícios anteriores.',
+        );
+      }
+
+      // ADR-0035 §5 (#364): com o resultado aplicado no seguinte, reabrir deixava a aplicação a
+      // transportar um resultado que vai mudar. Decidido com o exercício trancado — a aplicação
+      // tranca-o também, antes de escrever.
+      const aplicacoesActivas = await tx.aplicacaoResultado.count({
+        where: { tenantId: ctx.tenantId, exercicioId: exercicio.id, anuladaEm: null },
+      });
+      if (aplicacoesActivas > 0) {
+        throw new BusinessRuleError(
+          'APLICACAO_DO_RESULTADO_REGISTADA',
+          `Não é possível reabrir: o resultado do exercício ${exercicio.codigo} já foi aplicado no exercício ` +
+            'seguinte. Anule primeiro a aplicação do resultado.',
         );
       }
 

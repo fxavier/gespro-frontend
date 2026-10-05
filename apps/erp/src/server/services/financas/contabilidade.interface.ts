@@ -1,5 +1,5 @@
 import 'server-only'; // A5: serviços são server-only
-import type { Prisma } from '@prisma/client';
+import type { Prisma, AplicacaoResultado as AplicacaoResultadoModelo } from '@prisma/client';
 import type {
   CriarContaPGCInput,
   AtualizarContaPGCInput,
@@ -486,6 +486,24 @@ export interface EncerramentoExercicio {
 }
 
 /** Registo append-only da reabertura de um exercício encerrado provisoriamente (ADR-0035 §1, #138). */
+/**
+ * Aplicação do resultado de um exercício (ADR-0035 §5, #364) — a linha do modelo, tal como o
+ * Prisma a devolve (`aplicacao-resultado.service.ts`).
+ */
+export type AplicacaoResultado = AplicacaoResultadoModelo;
+
+/** O que a página de exercícios precisa para oferecer ou mostrar a aplicação do resultado. */
+export interface SituacaoAplicacaoResultado {
+  /** A aplicação em vigor, se houver. */
+  activa: Pick<AplicacaoResultado, 'id' | 'dataDeliberacao' | 'referenciaActa' | 'valor' | 'lancamentoId'> | null;
+  /** O exercício seguinte, se existir. */
+  seguinte: { id: string; codigo: string; dataInicio: Date; dataFim: Date } | null;
+  /** N ≥ ENCERRADO_PROVISORIO, N+1 com abertura efectiva e nenhuma aplicação activa. */
+  disponivel: boolean;
+  /** Saldo de 88 em N+1 (D − C) — negativo é lucro; zero quando não há N+1. */
+  saldo88: Prisma.Decimal;
+}
+
 export interface ReaberturaExercicio {
   id: string;
   tenantId: string;

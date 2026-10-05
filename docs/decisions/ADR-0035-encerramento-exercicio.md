@@ -250,7 +250,7 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   (`DIARIO_DE_ENCERRAMENTO`, e o formulário não o oferece) e o diário `AB` num exercício com
   anterior (`ABERTURA_AUTOMATICA` — a abertura gera-se no encerramento do anterior); no primeiro
   exercício o `AB` manual é a forma de lançar os saldos iniciais.
-- **DFC**: 81/82/83/88 → `OP-00`, 59 → `FIN-02` (`docs/handoff/dfc-seed.md`). A DFC só exclui das
+- **DFC**: 81/82/83/88 → `OP-00`, 59 → `OP-00` desde o #364 (era `FIN-02`; `docs/handoff/dfc-seed.md`). A DFC só exclui das
   secções as contas de tipo gasto/rendimento; a classe 8 não. Os lançamentos de encerramento ficam
   fora dela por causa da exclusão do período 13 dos mapas por datas, não pela rubrica.
 - **Consequências da exclusão do período 13 por datas.** A DRE e o balancete por datas
@@ -270,7 +270,39 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   corre numa única transacção — tudo ou nada —, por isso não há estado intermédio observável. A
   máquina é `ABERTO → ENCERRADO_PROVISORIO → (ABERTO | ENCERRADO)`, em `lib/state-machines.ts`.
 - **§7 «já são exigidas para os treze»** deixa de ser verdade para o período 13 (ver acima).
-- **Fora desta implementação** (issues próprias): aplicação do resultado (§5), arquivo em PDF do balanço/DRE/balancete (§8 — o balanço e o PDF da
+- **Aplicação do resultado (§5, #364)** — `aplicacao-resultado.service.ts`, permissão
+  `financas:exercicio:aplicar-resultado` (só ADMIN), modelo `AplicacaoResultado`:
+  - **Conteúdo**: transfere o saldo **inteiro** de 88 no exercício seguinte (N+1) — abertura mais
+    o movimento que já lá esteja, meses 1..12, `FILTRO_LANCAMENTO_MAPA` — para 59, num lançamento
+    `LANCADO` do diário regular `OPERACOES`, `data` = data da deliberação, período = o mês dessa
+    data em N+1 (dia fiscal de Maputo), `documentoOrigemTipo = 'AplicacaoResultado'` e
+    `documentoOrigemId` = a aplicação. Lucro (88 credor) → D 88 / C 59; prejuízo → o inverso. A
+    distribuição (reservas, dividendos) faz-se depois por lançamentos manuais a partir de 59.
+  - **Recusas**, por esta ordem, antes de qualquer escrita: referência da acta vazia
+    (`VALIDACAO`); outro tenant (404); N não `ENCERRADO_PROVISORIO`/`ENCERRADO`
+    (`EXERCICIO_NAO_ENCERRADO`); N+1 inexistente ou sem `AB` efectivo (`ABERTURA_EM_FALTA` — a
+    recusa não cria N+1); data fora dos doze meses de N+1 (`DATA_FORA_DO_EXERCICIO_SEGUINTE`);
+    esse mês fechado (`PERIODO_FECHADO`); aplicação activa de N (`RESULTADO_JA_APLICADO`); 88 a
+    zero em N+1 (`SEM_RESULTADO_A_APLICAR`).
+  - **Uma activa por exercício** (`anuladaEm` nulo) não se exprime em Prisma: decide-se com N
+    trancado. **Trancas**: N `FOR UPDATE` → N+1 `FOR UPDATE` → o período da data (`FOR SHARE`) →
+    o diário (numeração) — do ano mais antigo para o mais recente, como no encerramento.
+  - **Anulação** (`anularAplicacaoResultado`, motivo pela regra da reabertura): estorna o
+    lançamento no **período dele** (por id, não pela data de hoje), com a data do original e a
+    mesma origem reservada; marca `anuladaEm`, `motivoAnulacao`, `lancamentoAnulacaoId`. Depois
+    pode aplicar-se de novo. O estorno genérico do lançamento (ou do seu estorno) recusa com
+    `LANCAMENTO_DE_APLICACAO`, antes de resolver período; a origem `'AplicacaoResultado'` é
+    reservada (`DOCUMENTO_ORIGEM_RESERVADO`). Escritores únicos em `contabilidade.service.ts`
+    (`criarLancamentoAplicacaoResultadoEmTx`, `estornarLancamentoAplicacaoResultadoEmTx`; gate-periodo).
+  - **Reabrir N** com uma aplicação activa recusa com `APLICACAO_DO_RESULTADO_REGISTADA`, decidido
+    com N trancado e antes de qualquer escrita: anula-se primeiro.
+  - **Trilho**: `AuditLog` explícito na mesma transacção — `AplicacaoResultado` CREATE ao aplicar,
+    UPDATE ao anular, com autor, `keycloakSub` e `requestId`.
+  - **DFC**: 59 passa de `FIN-02` a `OP-00`, com 88 — a aplicação fica neutra numa só linha.
+  - **UI**: em `/contabilidade/exercicios`, «Aplicar resultado» (rota `[id]/aplicar-resultado`) num
+    exercício encerrado cujo seguinte tem abertura e sem aplicação activa; com uma activa, a data,
+    a acta e «Anular aplicação» (rota `[id]/aplicacao/anular`, motivo).
+- **Fora desta implementação** (issues próprias): arquivo em PDF do balanço/DRE/balancete (§8 — o balanço e o PDF da
   DRE ainda não existem).
 
 ## Alternativas consideradas

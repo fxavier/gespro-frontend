@@ -26,6 +26,8 @@ import {
   EncerrarExercicioSchema,
   ReabrirExercicioSchema,
   EncerrarExercicioDefinitivoSchema,
+  AplicarResultadoSchema,
+  AnularAplicacaoResultadoSchema,
   DefinirContaMeioPagamentoPOSSchema,
   ProcurarContasLancamentoSchema,
   ProcurarContasMaeSchema,
@@ -34,8 +36,10 @@ import { CalendarioContabilisticoSchema } from '@/lib/validations/plataforma';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import * as meioPagamento from '@/server/services/financas/meio-pagamento.service';
 import * as encerramento from '@/server/services/financas/encerramento-exercicio.service';
+import * as aplicacaoResultado from '@/server/services/financas/aplicacao-resultado.service';
 import { z } from 'zod';
 import { idEntidade } from '@/lib/validations/common';
+import { diaIsoParaData } from '@/lib/format-date';
 
 // --- Plano de contas ---
 
@@ -275,6 +279,32 @@ export const encerrarExercicioDefinitivo = createSafeAction({
   permission: 'financas:exercicio:encerrar-definitivo',
   revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/exercicios'] },
   handler: (input, ctx) => encerramento.encerrarExercicioDefinitivo(input, ctx),
+});
+
+// --- Aplicação do resultado (ADR-0035 §5, #364) — só ADMIN ---
+
+/** 88 → 59 no exercício seguinte, com a data da deliberação (meio-dia de Maputo) e a acta. */
+export const aplicarResultado = createSafeAction({
+  schema: AplicarResultadoSchema,
+  permission: 'financas:exercicio:aplicar-resultado',
+  revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/exercicios'] },
+  handler: (input, ctx) =>
+    aplicacaoResultado.aplicarResultado(
+      {
+        exercicioId: input.exercicioId,
+        dataDeliberacao: diaIsoParaData(input.dataDeliberacao),
+        referenciaActa: input.referenciaActa,
+      },
+      ctx,
+    ),
+});
+
+/** Estorna o lançamento da aplicação no período dele; depois disso pode aplicar-se de novo. */
+export const anularAplicacaoResultado = createSafeAction({
+  schema: AnularAplicacaoResultadoSchema,
+  permission: 'financas:exercicio:aplicar-resultado',
+  revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/exercicios'] },
+  handler: (input, ctx) => aplicacaoResultado.anularAplicacaoResultado(input, ctx),
 });
 
 // --- Calendário contabilístico (ADR-0033 §3) ---

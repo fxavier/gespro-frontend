@@ -7,14 +7,23 @@
  * Acções por exercício (ADR-0035, #138), por estado E permissão: ABERTO → «Encerrar exercício»
  * (rota dedicada); ENCERRADO_PROVISORIO → «Reabrir exercício» (rota, exige motivo) e
  * «Encerrar definitivamente» (AlertDialog — irreversível).
+ * Aplicação do resultado (ADR-0035 §5, #364), com `financas:exercicio:aplicar-resultado`: num
+ * exercício encerrado cujo seguinte já tem abertura e sem aplicação activa, «Aplicar resultado»
+ * (rota dedicada); com uma aplicação activa, a data e a acta dela e «Anular aplicação» (rota, motivo).
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { Plus, CalendarDays, Lock, LockOpen } from 'lucide-react';
+import { Plus, CalendarDays, Lock, LockOpen, ArrowRightLeft, Undo2 } from 'lucide-react';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
-import type { ExercicioContabil, PeriodoContabil } from '@/server/services/financas/contabilidade.interface';
+import type {
+  ExercicioContabil,
+  PeriodoContabil,
+  SituacaoAplicacaoResultado,
+} from '@/server/services/financas/contabilidade.interface';
+import * as aplicacaoResultadoService from '@/server/services/financas/aplicacao-resultado.service';
+import { formatMZN } from '@/lib/format-currency';
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge, EmptyState } from '@/components/patterns';
 import { formatarData } from '@/lib/format-date';
@@ -112,13 +121,71 @@ function AcoesExercicio({
   return null;
 }
 
+function AplicacaoResultadoLinha({
+  exercicio,
+  situacao,
+  acesso,
+}: {
+  exercicio: ExercicioContabil;
+  situacao: SituacaoAplicacaoResultado | null;
+  acesso: AcessoExercicios;
+}) {
+  if (!situacao) return null;
+  const base = `/contabilidade/exercicios/${exercicio.id}`;
+  if (situacao.activa) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b bg-muted/20 text-sm">
+        <p>
+          <Link
+            href={`/contabilidade/lancamentos/${situacao.activa.lancamentoId}`}
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Resultado aplicado em {formatarData(situacao.activa.dataDeliberacao)}
+          </Link>{' '}
+          <span className="text-muted-foreground">
+            (acta {situacao.activa.referenciaActa}) — {formatMZN(situacao.activa.valor.toString())} transferidos de 88
+            para 59{situacao.seguinte ? ` no exercício ${situacao.seguinte.codigo}` : ''}.
+          </span>
+        </p>
+        {acesso.podeAplicarResultado && (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${base}/aplicacao/anular`}>
+              <Undo2 className="h-3.5 w-3.5 mr-1.5" />
+              Anular aplicação
+            </Link>
+          </Button>
+        )}
+      </div>
+    );
+  }
+  if (situacao.disponivel && acesso.podeAplicarResultado) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b bg-muted/20 text-sm">
+        <p className="text-muted-foreground">
+          O resultado do exercício {exercicio.codigo} ainda não foi aplicado
+          {situacao.seguinte ? ` no exercício ${situacao.seguinte.codigo}` : ''}.
+        </p>
+        <Button asChild size="sm" variant="outline">
+          <Link href={`${base}/aplicar-resultado`}>
+            <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
+            Aplicar resultado
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+  return null;
+}
+
 function CartaoExercicio({
   exercicio,
   periodos,
+  situacao,
   acesso,
 }: {
   exercicio: ExercicioContabil;
   periodos: PeriodoContabil[];
+  situacao: SituacaoAplicacaoResultado | null;
   acesso: AcessoExercicios;
 }) {
   const abertos = periodos.filter((p) => p.estado === 'ABERTO').length;
@@ -149,6 +216,7 @@ function CartaoExercicio({
           <AcoesExercicio exercicio={exercicio} acesso={acesso} />
         </div>
       </div>
+      <AplicacaoResultadoLinha exercicio={exercicio} situacao={situacao} acesso={acesso} />
       <div className="p-4">
         <GrelhaperiodosExercicio periodos={periodos} />
       </div>
@@ -194,6 +262,18 @@ async function ExerciciosSection({ acesso }: { acesso: AcessoExercicios }) {
       periodosMap.set(e.id, periodos);
     })
   );
+  // Aplicação do resultado (#364): só os exercícios encerrados a podem ter.
+  const situacoes = new Map<string, SituacaoAplicacaoResultado | null>();
+  await Promise.all(
+    exercicios
+      .filter((e) => e.estado !== 'ABERTO')
+      .map(async (e) => {
+        situacoes.set(
+          e.id,
+          await runWithTenantContext(ctx, () => aplicacaoResultadoService.obterSituacaoAplicacaoResultado(e.id, ctx)),
+        );
+      }),
+  );
 
   return (
     <div className="space-y-6">
@@ -202,6 +282,7 @@ async function ExerciciosSection({ acesso }: { acesso: AcessoExercicios }) {
           key={e.id}
           exercicio={e}
           periodos={periodosMap.get(e.id) ?? []}
+          situacao={situacoes.get(e.id) ?? null}
           acesso={acesso}
         />
       ))}

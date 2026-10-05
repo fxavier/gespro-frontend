@@ -515,6 +515,42 @@ export const EncerrarExercicioDefinitivoSchema = z.object({
 
 export type EncerrarExercicioDefinitivoInput = z.infer<typeof EncerrarExercicioDefinitivoSchema>;
 
+// --- Aplicação do resultado (ADR-0035 §5, #364) ---
+
+/** Referência da acta da deliberação que aprova as contas — obrigatória. */
+export const ReferenciaActaSchema = z
+  .string({ message: 'Indique a referência da acta.' })
+  .trim()
+  .min(1, 'Indique a referência da acta.')
+  .max(200, 'A referência da acta tem no máximo 200 caracteres.');
+
+/**
+ * Formulário de aplicação: a data da deliberação vem de um `<input type="date">` como texto
+ * `aaaa-mm-dd` e só é convertida no servidor, por `diaIsoParaData` (meio-dia de Maputo) —
+ * `new Date('aaaa-mm-dd')` lê-a como UTC e pode mudar o dia.
+ */
+export const AplicarResultadoSchema = z.object({
+  exercicioId: idEntidade('ID de exercício inválido'),
+  dataDeliberacao: z
+    .string({ message: 'Indique a data da deliberação.' })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Indique a data da deliberação.')
+    .refine((texto) => {
+      const [ano, mes, dia] = texto.split('-').map(Number);
+      const d = new Date(Date.UTC(ano, mes - 1, dia));
+      return d.getUTCFullYear() === ano && d.getUTCMonth() === mes - 1 && d.getUTCDate() === dia;
+    }, 'Data inválida.'),
+  referenciaActa: ReferenciaActaSchema,
+});
+
+export type AplicarResultadoInput = z.infer<typeof AplicarResultadoSchema>;
+
+export const AnularAplicacaoResultadoSchema = z.object({
+  aplicacaoId: idEntidade('ID da aplicação inválido'),
+  motivo: MotivoReaberturaSchema,
+});
+
+export type AnularAplicacaoResultadoInput = z.infer<typeof AnularAplicacaoResultadoSchema>;
+
 // ---------------------------------------------------------------------------
 // Balancete de Verificação PHC (ADR-0040, issue #280)
 // ---------------------------------------------------------------------------
