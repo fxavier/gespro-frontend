@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Formulário de criação de encomenda — Client Component.
+ * Formulário de criação e de edição de encomenda — Client Component.
+ * Sem `encomenda` cria; com `encomenda` (só RASCUNHO) edita a existente.
  *
  * Cliente, vendedor e produto escolhem-se por caixa de pesquisa, não por cuid
  * escrito à mão. O nome e o SKU do produto deixaram de ser campos livres: eram
@@ -21,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ComboboxRemoto, type ComboboxOption } from '@/components/patterns';
 import {
+  atualizarEncomenda,
   criarEncomenda,
   procurarProdutos,
   procurarVendedores,
@@ -49,6 +51,16 @@ export interface ProdutoOpcao {
   taxaIva: string;
 }
 
+/**
+ * Valores iniciais de uma encomenda em edição: Decimal já convertido em número e
+ * `dataPrevista` como `aaaa-mm-dd` (o que o `<input type="date">` lê).
+ */
+export interface EncomendaEmEdicao {
+  id: string;
+  numero: string;
+  valores: Omit<CreateEncomendaInput, 'dataPrevista'> & { dataPrevista?: string };
+}
+
 const LINHA_VAZIA = {
   produtoId: '',
   nomeProduto: '',
@@ -65,10 +77,12 @@ export function NovaEncomendaForm({
   clientesIniciais,
   vendedoresIniciais,
   produtosIniciais,
+  encomenda,
 }: {
   clientesIniciais: ClienteOpcao[];
   vendedoresIniciais: VendedorOpcao[];
   produtosIniciais: ProdutoOpcao[];
+  encomenda?: EncomendaEmEdicao;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -79,7 +93,8 @@ export function NovaEncomendaForm({
 
   const form = useForm<CreateEncomendaInput>({
     resolver: zodResolver(CreateEncomendaSchema),
-    defaultValues: {
+    // O `<input type="date">` registado guarda a string; o schema coage-a em Date.
+    defaultValues: (encomenda?.valores as CreateEncomendaInput | undefined) ?? {
       clienteId: '',
       vendedorId: undefined,
       dataPrevista: undefined,
@@ -89,8 +104,9 @@ export function NovaEncomendaForm({
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'itens' });
-  const [clienteId, setClienteId] = useState('');
-  const [vendedorId, setVendedorId] = useState('');
+  const [clienteId, setClienteId] = useState(encomenda?.valores.clienteId ?? '');
+  const [vendedorId, setVendedorId] = useState(encomenda?.valores.vendedorId ?? '');
+  const destinoSaida = encomenda ? `/vendas/pedidos/${encomenda.id}` : '/vendas/pedidos';
 
   const buscarClientes = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
     const res = await procurarClientes({ q });
@@ -125,6 +141,26 @@ export function NovaEncomendaForm({
 
   function onSubmit(data: CreateEncomendaInput) {
     startTransition(async () => {
+      if (encomenda) {
+        // Em edição, um campo opcional esvaziado tem de limpar o valor gravado:
+        // `undefined` deixaria o antigo intacto.
+        const result = await atualizarEncomenda({
+          id: encomenda.id,
+          data: {
+            ...data,
+            vendedorId: data.vendedorId ?? null,
+            dataPrevista: data.dataPrevista ?? null,
+            notas: data.notas ?? null,
+          },
+        });
+        if (result.ok) {
+          toast.success('Encomenda actualizada');
+          router.push(destinoSaida);
+        } else {
+          toast.error(result.error.message);
+        }
+        return;
+      }
       const result = await criarEncomenda(data);
       if (result.ok) {
         toast.success('Encomenda criada com sucesso');
@@ -356,7 +392,7 @@ export function NovaEncomendaForm({
 
       {form.formState.isSubmitted && Object.keys(form.formState.errors).length > 0 && (
         <p role="alert" className="text-sm text-destructive">
-          Há campos por corrigir acima — a encomenda não foi criada.
+          Há campos por corrigir acima — a encomenda não foi {encomenda ? 'guardada' : 'criada'}.
         </p>
       )}
 
@@ -364,14 +400,14 @@ export function NovaEncomendaForm({
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push('/vendas/pedidos')}
+          onClick={() => router.push(destinoSaida)}
           disabled={isPending}
         >
           Cancelar
         </Button>
         <Button type="submit" disabled={isPending}>
           {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Criar Encomenda
+          {encomenda ? 'Guardar Alterações' : 'Criar Encomenda'}
         </Button>
       </div>
     </form>

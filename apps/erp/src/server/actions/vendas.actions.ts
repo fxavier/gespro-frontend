@@ -233,6 +233,7 @@ export const atualizarEncomenda = createSafeAction({
   permission: 'vendas:encomendas:editar',
   revalidate: {
     tags: ['encomendas'],
+    paths: ['/vendas/pedidos'],
   },
   handler: async ({ id, data }, ctx) => {
     return encomendaService.atualizar(id, data, ctx);

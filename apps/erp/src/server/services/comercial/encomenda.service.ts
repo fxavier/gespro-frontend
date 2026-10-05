@@ -170,6 +170,37 @@ function mapItem(i: PrismaItemEncomenda): ItemEncomendaRow {
   };
 }
 
+type ItemEncomendaInput = CreateEncomendaInput['itens'][number];
+
+/**
+ * Valores de uma linha, arredondados a 2dp por linha (igual ao Postgres
+ * @db.Decimal(18,2)) para evitar 1-cêntimo de desequilíbrio no lançamento
+ * contabilístico. Usado pelo `criar` e pelo `atualizar` — uma só regra.
+ */
+function linhaEncomenda(item: ItemEncomendaInput, tenantId: string) {
+  const qty = new Prisma.Decimal(item.quantidade);
+  const preco = new Prisma.Decimal(item.precoUnitario);
+  const descontoPct = new Prisma.Decimal(item.desconto ?? 0);
+  const taxa = new Prisma.Decimal(item.taxaIva ?? 0.16);
+  const baseItem = qty.mul(preco).mul(new Prisma.Decimal(1).minus(descontoPct.div(100))).toDP(2);
+  const ivaItem = baseItem.mul(taxa).toDP(2);
+
+  return {
+    tenantId,
+    produtoId: item.produtoId,
+    varianteId: item.varianteId ?? null,
+    nomeProduto: item.nomeProduto,
+    sku: item.sku ?? null,
+    quantidade: qty,
+    precoUnitario: preco,
+    desconto: descontoPct,
+    taxaIva: taxa,
+    subtotal: baseItem,
+    ivaItem,
+    total: baseItem.plus(ivaItem),
+  };
+}
+
 function calcularTotaisItens(itens: CreateEncomendaInput['itens']): {
   subtotal: Prisma.Decimal;
   iva: Prisma.Decimal;
@@ -179,18 +210,9 @@ function calcularTotaisItens(itens: CreateEncomendaInput['itens']): {
   let iva = new Prisma.Decimal(0);
 
   for (const item of itens) {
-    const qty = new Prisma.Decimal(item.quantidade);
-    const preco = new Prisma.Decimal(item.precoUnitario);
-    const desc = new Prisma.Decimal(item.desconto ?? 0).div(100);
-    const taxa = new Prisma.Decimal(item.taxaIva ?? 0.16);
-
-    // Arredondar por linha a 2dp (igual ao Postgres @db.Decimal(18,2))
-    // para evitar 1-cêntimo de desequilíbrio no lançamento contabilístico.
-    const baseItem = qty.mul(preco).mul(new Prisma.Decimal(1).minus(desc)).toDP(2);
-    const ivaItem = baseItem.mul(taxa).toDP(2);
-
-    subtotal = subtotal.plus(baseItem);
-    iva = iva.plus(ivaItem);
+    const linha = linhaEncomenda(item, '');
+    subtotal = subtotal.plus(linha.subtotal);
+    iva = iva.plus(linha.ivaItem);
   }
 
   // total = sum das linhas já arredondadas → round(s+i) == round(s)+round(i)
@@ -283,29 +305,7 @@ export class EncomendaService {
           total,
           notas: input.notas ?? null,
           itens: {
-            create: input.itens.map((item) => {
-              const qty = new Prisma.Decimal(item.quantidade);
-              const preco = new Prisma.Decimal(item.precoUnitario);
-              const desc = new Prisma.Decimal(item.desconto ?? 0).div(100);
-              const taxa = new Prisma.Decimal(item.taxaIva ?? 0.16);
-              const baseItem = qty.mul(preco).mul(new Prisma.Decimal(1).minus(desc));
-              const ivaItem = baseItem.mul(taxa);
-
-              return {
-                tenantId: ctx.tenantId,
-                produtoId: item.produtoId,
-                varianteId: item.varianteId ?? null,
-                nomeProduto: item.nomeProduto,
-                sku: item.sku ?? null,
-                quantidade: qty,
-                precoUnitario: preco,
-                desconto: new Prisma.Decimal(item.desconto ?? 0),
-                taxaIva: taxa,
-                subtotal: baseItem,
-                ivaItem,
-                total: baseItem.plus(ivaItem),
-              };
-            }),
+            create: input.itens.map((item) => linhaEncomenda(item, ctx.tenantId)),
           },
         },
       });
@@ -369,31 +369,45 @@ export class EncomendaService {
   }
 
   async atualizar(id: string, input: UpdateEncomendaInput, ctx: Ctx): Promise<EncomendaRow> {
-    const existente = await prismaBase.encomenda.findFirst({
-      where: { id, tenantId: ctx.tenantId, deletedAt: null },
-      select: { id: true, status: true },
+    const totais = input.itens ? calcularTotaisItens(input.itens) : null;
+
+    return prismaBase.$transaction(async (tx) => {
+      // Verificação de RASCUNHO atómica com a escrita: o WHERE do updateMany
+      // tranca a linha e só escreve se o estado ainda for RASCUNHO.
+      const { count } = await tx.encomenda.updateMany({
+        where: { id, tenantId: ctx.tenantId, status: 'RASCUNHO', deletedAt: null },
+        data: {
+          ...(input.clienteId !== undefined && { clienteId: input.clienteId }),
+          ...(input.dataPrevista !== undefined && { dataPrevista: input.dataPrevista }),
+          ...(input.enderecoEntregaId !== undefined && { enderecoEntregaId: input.enderecoEntregaId }),
+          ...(input.notas !== undefined && { notas: input.notas }),
+          ...(input.vendedorId !== undefined && { vendedorId: input.vendedorId }),
+          ...(totais && { subtotal: totais.subtotal, iva: totais.iva, total: totais.total }),
+        },
+      });
+
+      if (count === 0) {
+        const existente = await tx.encomenda.findFirst({
+          where: { id, tenantId: ctx.tenantId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!existente) throw new NotFoundError('Encomenda não encontrada');
+        throw new BusinessRuleError(
+          'ENCOMENDA_NAO_EDITAVEL',
+          'Só é possível editar encomendas em rascunho.',
+        );
+      }
+
+      if (input.itens) {
+        await tx.itemEncomenda.deleteMany({ where: { tenantId: ctx.tenantId, encomendaId: id } });
+        await tx.itemEncomenda.createMany({
+          data: input.itens.map((item) => ({ ...linhaEncomenda(item, ctx.tenantId), encomendaId: id })),
+        });
+      }
+
+      const row = await tx.encomenda.findFirstOrThrow({ where: { id, tenantId: ctx.tenantId } });
+      return mapEncomenda(row as unknown as PrismaEncomenda);
     });
-    if (!existente) throw new NotFoundError('Encomenda não encontrada');
-
-    // Só pode editar RASCUNHO
-    if (existente.status !== 'RASCUNHO') {
-      throw new BusinessRuleError(
-        'ENCOMENDA_NAO_EDITAVEL',
-        'Só é possível editar encomendas em rascunho.',
-      );
-    }
-
-    const row = await prismaBase.encomenda.update({
-      where: { id },
-      data: {
-        ...(input.dataPrevista !== undefined && { dataPrevista: input.dataPrevista }),
-        ...(input.enderecoEntregaId !== undefined && { enderecoEntregaId: input.enderecoEntregaId }),
-        ...(input.notas !== undefined && { notas: input.notas }),
-        ...(input.vendedorId !== undefined && { vendedorId: input.vendedorId }),
-      },
-    });
-
-    return mapEncomenda(row as unknown as PrismaEncomenda);
   }
 
   /**
