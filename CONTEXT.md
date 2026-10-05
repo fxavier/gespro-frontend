@@ -210,6 +210,36 @@ nada na base; desaparece quando o `AB` existir (ADR-0035).
 O saldo de uma conta (`acumulado D − acumulado C`) mostrado do lado onde cai, sempre positivo.
 Um saldo **contra natureza** (ex.: Caixa credora) é assinalado, não recusado.
 
+### Período 13
+O período de **encerramento** de cada exercício: um instante (o último milissegundo do ano), sem
+operações. Só recebe os lançamentos de [[Encerramento do exercício]] (diário `EN`). Não tem IVA a
+apurar e fecha sem as verificações de caixa, reconciliação e documentos, que são do período 12.
+_Não confundir com_ **Dezembro**: o balancete de Dezembro continua a ser só Dezembro.
+Os mapas por datas (DRE, balancete por datas, DFC) não o contam; o **razão** conta-o — mostra o
+fecho de cada conta.
+
+### Encerramento do exercício
+O acto que salda as classes 6 e 7 e leva o resultado à classe 8, em três lançamentos no diário
+`EN` com a data do fim do exercício e no [[Período 13]]: **apuramento dos resultados** (6/7 → 81
+operacionais e 82 financeiros, que passam a 83 correntes), **estimativa do imposto** (D 851 /
+C 4411; omitido quando é zero) e **resultado líquido** (83 e 85 → 88). Guarda a **fotografia do
+balancete** — saldos por conta, com o código e o nome à data — e não se recalcula. ADR-0035.
+Financeiro = 69 e 78; operacional = o resto das classes 6/7 (a mesma regra da DRE). Decidido em
+2026-10-05 (issue #138).
+
+### Encerrado provisoriamente
+O exercício com as contas saldadas e a fotografia guardada. Não aceita escrita corrente, mas
+pode ser **reaberto** — com permissão própria e motivo — para ajustamentos da revisão: a
+reabertura estorna os lançamentos de encerramento e regista-se à parte. Volta a encerrar-se com
+uma fotografia nova.
+
+### Encerrado
+Definitivo. Nenhuma reabertura, por ninguém. Passa-se a ele depois da entrega da Modelo 22 e da
+aprovação de contas.
+
+_Não confundir_ o encerramento com a **aplicação do resultado** (88 → 59 «Resultados
+transitados»): essa é do exercício **seguinte**, com a data da deliberação dos sócios.
+
 ### Conta de razão
 Conta de nível 2 do PGC-NIRF (dois dígitos, ex.: `11` Caixa, `12` Bancos). O filtro «ver apenas
 contas de razão» do balancete mostra só este nível.

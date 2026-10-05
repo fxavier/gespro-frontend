@@ -2636,7 +2636,7 @@
     "classe": 5,
     "nivel": 2,
     "contaMaeCodigo": "5",
-    "aceitaLancamento": false,
+    "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
   {
@@ -4976,7 +4976,7 @@
     "classe": 8,
     "nivel": 2,
     "contaMaeCodigo": "8",
-    "aceitaLancamento": false,
+    "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
   {
@@ -4986,7 +4986,7 @@
     "classe": 8,
     "nivel": 2,
     "contaMaeCodigo": "8",
-    "aceitaLancamento": false,
+    "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
   {
@@ -4996,7 +4996,7 @@
     "classe": 8,
     "nivel": 2,
     "contaMaeCodigo": "8",
-    "aceitaLancamento": false,
+    "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
   {
@@ -5036,7 +5036,7 @@
     "classe": 8,
     "nivel": 2,
     "contaMaeCodigo": "8",
-    "aceitaLancamento": false,
+    "aceitaLancamento": true,
     "natureza": "CREDORA"
   },
   {
