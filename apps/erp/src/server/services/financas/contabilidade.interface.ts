@@ -483,6 +483,20 @@ export interface EncerramentoExercicio {
   createdAt: Date;
 }
 
+/** Registo append-only da reabertura de um exercício encerrado provisoriamente (ADR-0035 §1, #138). */
+export interface ReaberturaExercicio {
+  id: string;
+  tenantId: string;
+  exercicioId: string;
+  encerramentoId: string;
+  motivo: string;
+  lancamentosEstornados: string[];
+  reabertoPorId: string;
+  keycloakSub: string;
+  requestId: string | null;
+  createdAt: Date;
+}
+
 /** Como o fecho de período: impedimentos devolvidos todos de uma vez, sem escrita. */
 export type ResultadoEncerramentoExercicio =
   | { ok: true; encerramento: EncerramentoExercicio }

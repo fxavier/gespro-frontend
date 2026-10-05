@@ -1,15 +1,23 @@
 import 'server-only';
 import { Prisma, type EstadoExercicio, type TipoPartida } from '@prisma/client';
+import { z } from 'zod';
 import { prismaBase } from '@/server/db/client';
-import { BusinessRuleError, NotFoundError } from '@/lib/errors';
+import { BusinessRuleError, NotFoundError, ValidationError } from '@/lib/errors';
+import { MotivoReaberturaSchema } from '@/lib/validations/contabilidade';
 import { transitarExercicio } from '@/lib/state-machines';
 import { getRequestContext } from '@/server/observability/context';
 import { logger } from '@/server/observability/logger';
-import { FILTRO_LANCAMENTO_MAPA, criarLancamentoEncerramentoEmTx } from './contabilidade.service';
+import {
+  FILTRO_LANCAMENTO_MAPA,
+  criarLancamentoEncerramentoEmTx,
+  estornarLancamentoEncerramentoEmTx,
+} from './contabilidade.service';
 import type {
   Ctx,
   EncerramentoExercicio,
+  ExercicioContabil,
   LinhaFotografiaEncerramento,
+  ReaberturaExercicio,
   ResultadoEncerramentoExercicio,
 } from './contabilidade.interface';
 
@@ -26,8 +34,9 @@ import type {
  *  5. fecha o período 13, passa o exercício a ENCERRADO_PROVISORIO e regista o
  *     `EncerramentoExercicio`.
  *
- * Ordem das trancas: exercício → períodos → diário (pela numeração). `fecharPeriodo` e
- * `reabrirPeriodo` trancam só o período e leem o exercício sem tranca: não há ciclo.
+ * Ordem das trancas: exercício → períodos → diário (pela numeração) — a mesma na reabertura e no
+ * definitivo (abaixo). `fecharPeriodo` e `reabrirPeriodo` trancam só o período e leem o
+ * exercício sem tranca: não há ciclo (o porquê de não ficar velho está no `reabrirPeriodo`).
  *
  * As escritas em `Lancamento`/`PartidaLancamento` passam por `criarLancamentoEncerramentoEmTx`
  * (`contabilidade.service`) — `gate-periodo`.
@@ -339,4 +348,138 @@ export async function encerrarExercicio(
     );
   }
   return resultado;
+}
+
+/**
+ * Reabertura do exercício encerrado provisoriamente (ADR-0035 §1, #138). Numa só transacção:
+ * tranca o exercício (`FOR UPDATE`) e decide a transição pelo estado trancado; tranca o
+ * período 13; reabre-o; estorna, nele, os lançamentos do encerramento em vigor (o período 12
+ * está fechado e assim fica); anula esse encerramento; regista a `ReaberturaExercicio`; e o
+ * exercício volta a ABERTO. Os doze mensais continuam fechados — cada um reabre-se depois,
+ * pelo `reabrirPeriodo`, com o seu motivo.
+ */
+export async function reabrirExercicio(
+  input: { exercicioId: string; motivo: string },
+  ctx: Ctx,
+): Promise<ReaberturaExercicio> {
+  // A mesma regra de motivo que o `reabrirPeriodo` (ADR-0033 §7).
+  const validado = z.object({ motivo: MotivoReaberturaSchema }).safeParse({ motivo: input.motivo });
+  if (!validado.success) throw new ValidationError('Dados inválidos', validado.error.flatten());
+  const motivo = validado.data.motivo;
+  const inicio = Date.now();
+
+  const reabertura = await prismaBase.$transaction(
+    async (tx) => {
+      const [exercicio] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: EstadoExercicio }>>`
+        SELECT id, codigo, estado FROM "ExercicioContabil"
+        WHERE id = ${input.exercicioId} AND "tenantId" = ${ctx.tenantId}
+        FOR UPDATE
+      `;
+      if (!exercicio) throw new NotFoundError('Exercício não encontrado');
+      const estadoAlvo = transitarExercicio(exercicio.estado, 'ABERTO');
+
+      const [periodo13] = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "PeriodoContabil"
+        WHERE "exercicioId" = ${exercicio.id} AND "tenantId" = ${ctx.tenantId} AND ordem = 13
+        FOR UPDATE
+      `;
+      if (!periodo13) throw new NotFoundError(`Período de encerramento do exercício ${exercicio.codigo} não encontrado`);
+
+      const encerramento = await tx.encerramentoExercicio.findFirst({
+        where: { tenantId: ctx.tenantId, exercicioId: exercicio.id, anuladoEm: null },
+        orderBy: { versao: 'desc' },
+      });
+      if (!encerramento) {
+        throw new NotFoundError(`Encerramento em vigor do exercício ${exercicio.codigo} não encontrado`);
+      }
+
+      // Reabrir o 13 antes de estornar: o estorno exige-o ABERTO.
+      await tx.periodoContabil.update({
+        where: { id: periodo13.id },
+        data: { estado: 'ABERTO', fechadoEm: null, fechadoPorId: null },
+      });
+
+      const idsEN = [
+        encerramento.lancamentoResultadosId,
+        encerramento.lancamentoImpostoId,
+        encerramento.lancamentoLiquidoId,
+      ].filter((id): id is string => id !== null);
+      for (const lancamentoId of idsEN) {
+        await estornarLancamentoEncerramentoEmTx(
+          tx,
+          { lancamentoId, periodoId: periodo13.id, motivo },
+          ctx,
+        );
+      }
+
+      await tx.encerramentoExercicio.update({
+        where: { id: encerramento.id },
+        data: { anuladoEm: new Date() },
+      });
+      await tx.exercicioContabil.update({
+        where: { id: exercicio.id },
+        data: { estado: estadoAlvo },
+      });
+
+      const utilizador = await tx.user.findFirst({
+        where: { id: ctx.userId, tenantId: ctx.tenantId },
+        select: { keycloakSub: true },
+      });
+      return tx.reaberturaExercicio.create({
+        data: {
+          tenantId: ctx.tenantId,
+          exercicioId: exercicio.id,
+          encerramentoId: encerramento.id,
+          motivo,
+          lancamentosEstornados: idsEN,
+          reabertoPorId: ctx.userId,
+          keycloakSub: utilizador?.keycloakSub ?? ctx.userId,
+          requestId: getRequestContext()?.requestId ?? null,
+        },
+      });
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
+
+  logger.info(
+    {
+      tenantId: ctx.tenantId,
+      exercicioId: input.exercicioId,
+      encerramentoId: reabertura.encerramentoId,
+      lancamentosEstornados: reabertura.lancamentosEstornados.length,
+      duracaoMs: Date.now() - inicio,
+    },
+    '[encerramento] exercício reaberto',
+  );
+  return reabertura;
+}
+
+/**
+ * Encerramento definitivo (ADR-0035 §1): ENCERRADO_PROVISORIO → ENCERRADO, irreversível, com
+ * autor e data. Decidido na leitura trancada (`FOR UPDATE`) — uma reabertura concorrente
+ * espera pela tranca e sai com TRANSICAO_INVALIDA, ou vice-versa.
+ */
+export async function encerrarExercicioDefinitivo(
+  input: { exercicioId: string },
+  ctx: Ctx,
+): Promise<ExercicioContabil> {
+  const exercicio = await prismaBase.$transaction(async (tx) => {
+    const [linha] = await tx.$queryRaw<Array<{ id: string; estado: EstadoExercicio }>>`
+      SELECT id, estado FROM "ExercicioContabil"
+      WHERE id = ${input.exercicioId} AND "tenantId" = ${ctx.tenantId}
+      FOR UPDATE
+    `;
+    if (!linha) throw new NotFoundError('Exercício não encontrado');
+    const estadoAlvo = transitarExercicio(linha.estado, 'ENCERRADO');
+    return tx.exercicioContabil.update({
+      where: { id: linha.id },
+      data: { estado: estadoAlvo, encerradoDefinitivoEm: new Date(), encerradoDefinitivoPorId: ctx.userId },
+    });
+  });
+
+  logger.info(
+    { tenantId: ctx.tenantId, exercicioId: input.exercicioId },
+    '[encerramento] exercício encerrado em definitivo',
+  );
+  return exercicio as unknown as ExercicioContabil;
 }

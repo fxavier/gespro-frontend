@@ -836,9 +836,18 @@ export async function estornarLancamentoEmTx(
 ): Promise<Lancamento> {
   const lancamento = await tx.lancamento.findFirst({
     where: { id: input.lancamentoId, tenantId: ctx.tenantId },
-    include: { partidas: true },
+    include: { partidas: true, diario: { select: { tipo: true } } },
   });
   if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
+  // ADR-0035 §1 (#138): o encerramento desfaz-se só pela reabertura do exercício, que estorna
+  // no período 13. Decidido antes de resolver o período de destino — `resolverPeriodo` podia
+  // criar o exercício seguinte só para recusar a seguir.
+  if (lancamento.diario.tipo === 'ENCERRAMENTO') {
+    throw new BusinessRuleError(
+      'LANCAMENTO_DE_ENCERRAMENTO',
+      'Um lançamento de encerramento só se estorna reabrindo o exercício.',
+    );
+  }
   transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
 
   const dataEstorno = input.data ?? new Date();
@@ -855,7 +864,22 @@ export async function estornarLancamentoEmTx(
     throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
   }
 
-  const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodoLocked.codigo, ctx.tenantId);
+  return gravarEstornoEmTx(tx, lancamento, periodoLocked, dataEstorno, input.motivo, ctx);
+}
+
+/**
+ * Núcleo partilhado dos estornos: o lançamento-espelho (partidas invertidas, `lancamentoEstornoId`)
+ * no período já trancado pelo chamador, e o original passa a `ESTORNADO`.
+ */
+async function gravarEstornoEmTx(
+  tx: Prisma.TransactionClient,
+  lancamento: Prisma.LancamentoGetPayload<{ include: { partidas: true } }>,
+  periodo: { id: string; codigo: string },
+  dataEstorno: Date,
+  motivo: string | undefined,
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const numero = await proximoNumeroLancamento(tx, lancamento.diarioId, periodo.codigo, ctx.tenantId);
 
   const estorno = await tx.lancamento.create({
     data: {
@@ -865,14 +889,14 @@ export async function estornarLancamentoEmTx(
       tipo: 'ESTORNO',
       origem: lancamento.origem,
       diarioId: lancamento.diarioId,
-      periodoId: periodoLocked.id,
+      periodoId: periodo.id,
       documentoOrigemId: lancamento.id,
       documentoOrigemTipo: 'Lancamento',
       historico: `ESTORNO: ${lancamento.historico}`,
       valorTotal: lancamento.valorTotal,
       status: 'LANCADO',
-      periodoFiscal: periodoLocked.codigo, // cópia de periodo.codigo (ADR-0033 §1)
-      observacoes: input.motivo,
+      periodoFiscal: periodo.codigo, // cópia de periodo.codigo (ADR-0033 §1)
+      observacoes: motivo,
       criadoPorId: ctx.userId,
       lancamentoEstornoId: lancamento.id,
     },
@@ -1916,7 +1940,7 @@ export async function fecharPeriodo(
 
 /**
  * Reabre um período contabilístico, exigindo motivo e gravando ReaberturaPeriodo (ADR-0033 §7).
- * Recusa se o exercício estiver ENCERRADO.
+ * Recusa se o exercício estiver ENCERRADO ou ENCERRADO_PROVISORIO (ADR-0035 §1).
  *
  * Recusa a reabertura se o apuramento do IVA do período já estiver `DECLARADO` à AT (ADR-0033 §7).
  */
@@ -1938,6 +1962,14 @@ export async function reabrirPeriodo(
       throw new BusinessRuleError('PERIODO_NAO_FECHADO', `Período ${periodo.codigo} não está fechado`);
     }
 
+    // Lido sem tranca, DEPOIS da tranca do período, e não fica velho (READ COMMITTED, uma
+    // fotografia por instrução): a única transição que passa a proibir a reabertura
+    // (ABERTO → ENCERRADO_PROVISORIO, `encerrarExercicio`) tranca os treze períodos com
+    // `FOR UPDATE` — ou esta transacção esperou por ela e lê aqui o estado já gravado, ou
+    // reabre primeiro e o encerramento vê o período ABERTO e recusa. As outras transições
+    // (→ ENCERRADO, → ABERTO) ou proíbem dos dois lados ou só aliviam. Trancar o exercício
+    // aqui, depois do período, faria ciclo com o encerramento e a reabertura do exercício,
+    // que trancam exercício → períodos.
     const [exercicio] = await tx.$queryRaw<Array<{ estado: string }>>`
       SELECT estado FROM "ExercicioContabil"
       WHERE id = ${periodo.exercicioId} AND "tenantId" = ${ctx.tenantId}
@@ -1946,6 +1978,14 @@ export async function reabrirPeriodo(
       throw new BusinessRuleError(
         'EXERCICIO_ENCERRADO',
         'Não é possível reabrir um período de um exercício encerrado',
+      );
+    }
+    // ADR-0035 §1: num exercício encerrado provisoriamente os períodos não reabrem um a um —
+    // reabre-se o exercício (estorna o encerramento e reabre o período 13).
+    if (exercicio?.estado === 'ENCERRADO_PROVISORIO') {
+      throw new BusinessRuleError(
+        'EXERCICIO_ENCERRADO_PROVISORIO',
+        'O exercício está encerrado provisoriamente. Reabra primeiro o exercício para reabrir um período.',
       );
     }
 
@@ -2243,6 +2283,62 @@ export async function criarLancamentoEncerramentoEmTx(
   }
 
   return lancamento as unknown as Lancamento;
+}
+
+/**
+ * Estorna um lançamento de encerramento DENTRO do período 13 (ADR-0035 §1, #138: reabertura do
+ * exercício), na tx do chamador. `estornarLancamentoEmTx` resolve o período pela data — a do fim
+ * do exercício cai em Dezembro, fechado — por isso aqui o período vem por id: tem de ser o 13 do
+ * tenant, ABERTO (leitura trancada `FOR SHARE`), e o lançamento tem de estar nele, LANCADO. O
+ * estorno fica com a data do original. Vive aqui por causa do `gate-periodo`.
+ */
+export async function estornarLancamentoEncerramentoEmTx(
+  tx: Prisma.TransactionClient,
+  input: { lancamentoId: string; periodoId: string; motivo: string },
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string; ordem: number }>>`
+    SELECT id, codigo, estado, ordem FROM "PeriodoContabil"
+    WHERE id = ${input.periodoId} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodo.ordem !== 13) {
+    throw new BusinessRuleError(
+      'PERIODO_NAO_E_DE_ENCERRAMENTO',
+      `Os lançamentos de encerramento estornam-se no período 13; ${periodo.codigo} não o é.`,
+    );
+  }
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+
+  const lancamento = await tx.lancamento.findFirst({
+    where: { id: input.lancamentoId, tenantId: ctx.tenantId },
+    include: { partidas: true, diario: { select: { tipo: true } } },
+  });
+  if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
+  if (lancamento.diario.tipo !== 'ENCERRAMENTO') {
+    throw new BusinessRuleError(
+      'LANCAMENTO_NAO_E_DE_ENCERRAMENTO',
+      `O lançamento ${lancamento.numero} não é do diário de encerramento.`,
+    );
+  }
+  if (lancamento.status === 'ESTORNADO') {
+    throw new BusinessRuleError(
+      'LANCAMENTO_ENCERRAMENTO_JA_ESTORNADO',
+      `O lançamento de encerramento ${lancamento.numero} já foi estornado.`,
+    );
+  }
+  if (lancamento.periodoId !== periodo.id) {
+    throw new BusinessRuleError(
+      'LANCAMENTO_FORA_DO_PERIODO',
+      `O lançamento ${lancamento.numero} não pertence ao período ${periodo.codigo}.`,
+    );
+  }
+  transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
+
+  return gravarEstornoEmTx(tx, lancamento, periodo, lancamento.data, input.motivo, ctx);
 }
 
 // ---------------------------------------------------------------------------
