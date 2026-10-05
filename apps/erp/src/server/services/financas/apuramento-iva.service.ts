@@ -276,15 +276,23 @@ export async function apurarIva(
         estado: string;
         dataInicio: Date;
         dataFim: Date;
+        ordem: number;
       }>
     >`
-      SELECT id, codigo, estado, "dataInicio", "dataFim"
+      SELECT id, codigo, estado, "dataInicio", "dataFim", ordem
       FROM "PeriodoContabil"
       WHERE id = ${input.periodoId} AND "tenantId" = ${ctx.tenantId}
       FOR UPDATE
     `;
     if (!periodos.length) throw new NotFoundError('Período não encontrado');
     const periodo = periodos[0];
+    // O período 13 só recebe o encerramento; o IVA apura-se nos doze mensais (ADR-0035 §2/§7, #138)
+    if (periodo.ordem === 13) {
+      throw new BusinessRuleError(
+        'APURAMENTO_PERIODO_ENCERRAMENTO',
+        `O período ${periodo.codigo} é o do encerramento do exercício e não tem IVA a apurar.`,
+      );
+    }
     if (periodo.estado !== 'ABERTO') {
       throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
     }

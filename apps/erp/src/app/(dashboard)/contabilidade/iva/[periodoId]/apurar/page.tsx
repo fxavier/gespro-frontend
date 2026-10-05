@@ -32,6 +32,8 @@ export default async function ApurarIvaPage({
   );
   const periodo = periodos.find((p) => p.id === periodoId);
   if (!periodo) notFound();
+  // O período 13 só recebe o encerramento: não tem IVA a apurar (ADR-0035 §2/§7, #138)
+  if (periodo.ordem === 13) redirect(`/contabilidade/iva/${periodoId}`);
 
   return (
     <div className="p-6 space-y-6">

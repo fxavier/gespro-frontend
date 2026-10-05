@@ -1759,6 +1759,8 @@ export async function listarPeriodos(
  * 6. PERIODO_ANTERIOR_ABERTO   — o período anterior está fechado (ordem estrita)
  *
  * 7. IVA_NAO_APURADO — o apuramento do IVA do período está feito (ADR-0034)
+ *
+ * Período 13 (encerramento): só 1, 5 e 6 — sem operações nem IVA (ADR-0035 §2/§7, #138).
  */
 export async function fecharPeriodo(
   input: FecharPeriodoInput,
@@ -1796,55 +1798,62 @@ export async function fecharPeriodo(
     });
     if (rascunhos > 0) impedimentos.push('RASCUNHOS_NO_PERIODO');
 
-    // 2. Nenhuma sessão de caixa aberta com abertura no período
-    // Usa dataAbertura para determinar a que período pertence a sessão
-    const [perDb] = await tx.$queryRaw<Array<{ data_inicio: Date; data_fim: Date }>>`
-      SELECT "dataInicio" as data_inicio, "dataFim" as data_fim
-      FROM "PeriodoContabil" WHERE id = ${periodo.id}
-    `;
-    if (perDb) {
-      const sessoesPorFechar = await tx.sessaoCaixa.count({
-        where: {
-          tenantId: ctx.tenantId,
-          status: 'ABERTA',
-          dataAbertura: { gte: perDb.data_inicio, lte: perDb.data_fim },
-        },
-      });
-      if (sessoesPorFechar > 0) impedimentos.push('SESSAO_CAIXA_ABERTA');
+    // O período 13 (encerramento) não tem operações nem IVA (ADR-0035 §2/§7, #138):
+    // o seu instante cai dentro do período 12, que já carregou as verificações por
+    // datas e o apuramento. Saltam-se 2, 3, 4 e 7; ficam 1, 5 e 6.
+    const encerramento = periodo.ordem === 13;
 
-      // 3. Nenhum período de reconciliação bancária em curso que se sobreponha (ADR-0038)
-      const periodosReconciliacao = await tx.periodoReconciliacao.count({
-        where: {
-          tenantId: ctx.tenantId,
-          estado: { in: ['ABERTO', 'EM_RECONCILIACAO'] },
-          dataInicio: { lte: perDb.data_fim },
-          dataFim: { gte: perDb.data_inicio },
-        },
-      });
-      if (periodosReconciliacao > 0) impedimentos.push('RECONCILIACAO_EM_ANDAMENTO');
+    if (!encerramento) {
+      // 2. Nenhuma sessão de caixa aberta com abertura no período
+      // Usa dataAbertura para determinar a que período pertence a sessão
+      const [perDb] = await tx.$queryRaw<Array<{ data_inicio: Date; data_fim: Date }>>`
+        SELECT "dataInicio" as data_inicio, "dataFim" as data_fim
+        FROM "PeriodoContabil" WHERE id = ${periodo.id}
+      `;
+      if (perDb) {
+        const sessoesPorFechar = await tx.sessaoCaixa.count({
+          where: {
+            tenantId: ctx.tenantId,
+            status: 'ABERTA',
+            dataAbertura: { gte: perDb.data_inicio, lte: perDb.data_fim },
+          },
+        });
+        if (sessoesPorFechar > 0) impedimentos.push('SESSAO_CAIXA_ABERTA');
+
+        // 3. Nenhum período de reconciliação bancária em curso que se sobreponha (ADR-0038)
+        const periodosReconciliacao = await tx.periodoReconciliacao.count({
+          where: {
+            tenantId: ctx.tenantId,
+            estado: { in: ['ABERTO', 'EM_RECONCILIACAO'] },
+            dataInicio: { lte: perDb.data_fim },
+            dataFim: { gte: perDb.data_inicio },
+          },
+        });
+        if (periodosReconciliacao > 0) impedimentos.push('RECONCILIACAO_EM_ANDAMENTO');
+      }
+
+      // 4. Todo documento fiscal emitido (Fatura, NotaCredito, NotaDebito) tem lancamentoId
+      const periodoFiltro = perDb ? { gte: perDb.data_inicio, lte: perDb.data_fim } : undefined;
+      const [faturasSL, ncSL, ndSL] = await Promise.all([
+        tx.fatura.count({
+          where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+        }),
+        tx.notaCredito.count({
+          where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+        }),
+        tx.notaDebito.count({
+          where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
+        }),
+      ]);
+      if (faturasSL + ncSL + ndSL > 0) impedimentos.push('DOCUMENTO_SEM_LANCAMENTO');
     }
-
-    // 4. Todo documento fiscal emitido (Fatura, NotaCredito, NotaDebito) tem lancamentoId
-    const periodoFiltro = perDb ? { gte: perDb.data_inicio, lte: perDb.data_fim } : undefined;
-    const [faturasSL, ncSL, ndSL] = await Promise.all([
-      tx.fatura.count({
-        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
-      }),
-      tx.notaCredito.count({
-        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
-      }),
-      tx.notaDebito.count({
-        where: { tenantId: ctx.tenantId, status: { in: ['EMITIDA', 'LIQUIDADA'] }, lancamentoId: null, dataEmissao: periodoFiltro },
-      }),
-    ]);
-    if (faturasSL + ncSL + ndSL > 0) impedimentos.push('DOCUMENTO_SEM_LANCAMENTO');
 
     // 5. Balancete equilibrado — total débitos === total créditos no período
     const agregados = await tx.partidaLancamento.groupBy({
       by: ['tipo'],
       where: {
         tenantId: ctx.tenantId,
-        lancamento: { periodoId: periodo.id, status: { in: ['LANCADO', 'ESTORNADO'] } },
+        lancamento: { periodoId: periodo.id, status: FILTRO_LANCAMENTO_MAPA },
       },
       _sum: { valor: true },
     });
@@ -1866,15 +1875,17 @@ export async function fecharPeriodo(
     }
 
     // 7. IVA_NAO_APURADO: apuramento do IVA do período (ADR-0033 §6, ADR-0034)
-    const ivaApurado = await tx.apuramentoIva.findFirst({
-      where: {
-        tenantId: ctx.tenantId,
-        periodoId: periodo.id,
-        estado: { in: ['APURADO', 'DECLARADO'] },
-      },
-      select: { id: true },
-    });
-    if (!ivaApurado) impedimentos.push('IVA_NAO_APURADO');
+    if (!encerramento) {
+      const ivaApurado = await tx.apuramentoIva.findFirst({
+        where: {
+          tenantId: ctx.tenantId,
+          periodoId: periodo.id,
+          estado: { in: ['APURADO', 'DECLARADO'] },
+        },
+        select: { id: true },
+      });
+      if (!ivaApurado) impedimentos.push('IVA_NAO_APURADO');
+    }
 
     if (impedimentos.length > 0) {
       return { ok: false, impedimentos };
