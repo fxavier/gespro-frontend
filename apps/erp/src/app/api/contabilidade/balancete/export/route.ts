@@ -27,13 +27,13 @@ import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limit
 import { listarExercicios, periodoFiscalDe } from '@/server/services/financas/contabilidade.service';
 import { balanceteApresentado } from '@/server/services/financas/balancete-apresentado';
 import { tenantAdminService } from '@/server/services/plataforma/tenant-admin.service';
-import { somarLinhasQueContam, zeros } from '@/lib/documents/balancete-paginas';
+import { MAX_LINHAS_PDF_BALANCETE, somarLinhasQueContam, zeros } from '@/lib/documents/balancete-paginas';
 import { prisma } from '@/server/db/client';
 
 export const runtime = 'nodejs';
 
 /** Tecto do PDF em linhas mostradas (subtotais incluídos): acima disto, CSV/Excel ou filtros. */
-const MAX_LINHAS_PDF = 3000;
+const MAX_LINHAS_PDF = MAX_LINHAS_PDF_BALANCETE;
 
 const COLUNAS_TOTAIS = ['movD', 'movC', 'acumD', 'acumC', 'saldoDevedor', 'saldoCredor'] as const;
 

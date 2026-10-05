@@ -65,7 +65,9 @@ export default async function NovoLancamentoPage({
         Promise.all(prefillIds.map((id) => contabilidadeService.obterConta(id, ctx))),
       ]);
 
-      diarios = listarDiariosResult.map((d: any) => ({
+      // O diário de encerramento só recebe o encerramento (#363); o de abertura fica — o
+      // serviço recusa-o fora do primeiro exercício (ABERTURA_AUTOMATICA).
+      diarios = listarDiariosResult.filter((d: any) => d.tipo !== 'ENCERRAMENTO').map((d: any) => ({
         id: d.id,
         codigo: d.codigo,
         nome: d.nome,

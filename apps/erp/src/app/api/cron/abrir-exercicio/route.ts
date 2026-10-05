@@ -3,6 +3,7 @@ import { withApi } from '@/lib/api/with-api';
 import { logger } from '@/server/observability/logger';
 import { prismaBase } from '@/server/db/client';
 import {
+  USER_ID_AUTOMATICO,
   abrirExercicio,
   deveAbrirHoje,
   diaCivilEmMaputo,
@@ -137,7 +138,7 @@ export const GET = withApi(
           // Modo forçado: abre exactamente o ano pedido.
           const resultado = await abrirExercicio(
             { ano: anoForcado! },
-            { tenantId: tenant.id, userId: 'cron' },
+            { tenantId: tenant.id, userId: USER_ID_AUTOMATICO },
           );
           seriesCriadas = resultado.seriesCriadas;
         } else {
@@ -147,7 +148,7 @@ export const GET = withApi(
           for (const ano of [anoMaputo, anoMaputo + 1]) {
             const resultado = await abrirExercicio(
               { ano },
-              { tenantId: tenant.id, userId: 'cron' },
+              { tenantId: tenant.id, userId: USER_ID_AUTOMATICO },
             );
             seriesCriadas += resultado.seriesCriadas;
           }

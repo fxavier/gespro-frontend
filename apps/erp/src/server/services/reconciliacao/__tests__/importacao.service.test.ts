@@ -217,4 +217,39 @@ describe('projetarMovimentosContabilisticos', () => {
     expect(await projetarMovimentosContabilisticos('conta-1', ctx)).toEqual({ criados: 1001 });
     expect(db.partidaLancamento.findMany.mock.calls[1][0].where.id).toEqual({ gt: 'p0999' });
   });
+
+  it('#363: um lote inteiro de partidas do AB (exercício com anterior) não projecta nada e o keyset avança para o lote seguinte', async () => {
+    const doAB = (id: string) =>
+      partida(id, {
+        lancamento: {
+          data: new Date(2027, 0, 1, 0), numero: 'AB/000001', historico: 'Abertura 2027',
+          // AB automático: gerado a partir do exercício anterior (origem = ExercicioContabil).
+          documentoOrigemTipo: 'ExercicioContabil', documentoOrigemId: 'ex-2026',
+          diario: { tipo: 'ABERTURA' },
+          periodo: { ordem: 1 },
+        },
+      });
+    const real = partida('p9999', {
+      lancamento: {
+        data: new Date(2027, 2, 10, 12), numero: 'BCO/000300', historico: 'Recebimento real',
+        documentoOrigemTipo: null, documentoOrigemId: null,
+        diario: { tipo: 'BANCO' },
+        periodo: { ordem: 3 },
+      },
+    });
+    const loteAB = Array.from({ length: 1000 }, (_, i) => doAB(`p${String(i).padStart(4, '0')}`));
+    db.partidaLancamento.findMany.mockResolvedValueOnce(loteAB).mockResolvedValueOnce([real]);
+
+    expect(await projetarMovimentosContabilisticos('conta-1', ctx)).toEqual({ criados: 1 });
+
+    // O lote filtrado não trava a paginação: a segunda leitura parte do último id do lote do AB.
+    expect(db.partidaLancamento.findMany).toHaveBeenCalledTimes(2);
+    expect(db.partidaLancamento.findMany.mock.calls[1][0].where.id).toEqual({ gt: 'p0999' });
+    // O código chama o createMany também para o lote vazio — com `data: []`.
+    expect(db.movimentoContabilistico.createMany).toHaveBeenCalledTimes(2);
+    expect(db.movimentoContabilistico.createMany.mock.calls[0][0].data).toEqual([]);
+    const { data } = db.movimentoContabilistico.createMany.mock.calls[1][0];
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ partidaId: 'p9999', lancamentoId: 'l-p9999', documento: 'BCO/000300' });
+  });
 });

@@ -125,6 +125,12 @@ const MODULOS = [
     icon: BarChart3,
   },
   {
+    title: 'Balanço',
+    description: 'Balanço por classes — activo, capital próprio e passivo por conta de razão',
+    href: '/contabilidade/balanco',
+    icon: Scale,
+  },
+  {
     title: 'DRE',
     description: 'Demonstração de Resultados por Exercício (DRE)',
     href: '/contabilidade/dre',

@@ -130,6 +130,7 @@ export const ESQUEMA: Readonly<Record<Modelo, Esquema>> = {
       periodos: { alvo: 'periodoContabil', lista: true, local: 'id', remoto: 'exercicioId' },
       encerramentos: { alvo: null, lista: true, local: 'id', remoto: 'exercicioId' },
       reaberturas: { alvo: null, lista: true, local: 'id', remoto: 'exercicioId' },
+      aplicacoesResultado: { alvo: null, lista: true, local: 'id', remoto: 'exercicioId' },
     },
   },
   rubricaFluxoCaixa: {
