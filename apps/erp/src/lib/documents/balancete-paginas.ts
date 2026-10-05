@@ -9,6 +9,18 @@
  * somas dessas linhas — contá-las duplicava valores.
  */
 import { Prisma } from '@prisma/client';
+
+/**
+ * Tecto do PDF interactivo do balancete (`/api/contabilidade/balancete/export`), em linhas
+ * mostradas: acima disto, 422 — CSV/Excel ou filtros. O layout é CPU síncrona (~3,7 ms/linha).
+ */
+export const MAX_LINHAS_PDF_BALANCETE = 3000;
+
+/**
+ * Tecto do balancete ARQUIVADO no encerramento (#365), que corre sem ninguém a escolher filtros:
+ * acima disto arquiva-se só as contas de razão, para o arquivo não segurar a instância segundos.
+ */
+export const MAX_LINHAS_BALANCETE_ARQUIVO = 500;
 import type { LinhaHierarquica, TotaisBV } from '@/server/services/financas/balancete-verificacao';
 
 export interface PaginaBalancete {

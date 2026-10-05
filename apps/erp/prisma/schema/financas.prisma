@@ -406,7 +406,9 @@ model ReaberturaPeriodo {
 
 /// Encerramento (provisório) de um exercício (ADR-0035 §1, §3 e §8). Uma linha por
 /// encerramento: re-encerrar depois de uma reabertura cria uma linha nova com a
-/// versão seguinte; a anterior fica com anuladoEm preenchido. Append-only salvo anuladoEm.
+/// versão seguinte; a anterior fica com anuladoEm preenchido. Append-only salvo anuladoEm e
+/// os quatro campos do arquivo (balancoStorageKey, dreStorageKey, balanceteStorageKey,
+/// arquivadoEm), que o arquivador (`arquivarEncerramento`) escreve DEPOIS do commit — ADR-0035 §8.
 /// Os três lançamentos (apuramento dos resultados, estimativa do imposto, transferência
 /// do resultado líquido) vivem no período 13 e são referidos por FK escalar.
 model EncerramentoExercicio {
@@ -432,6 +434,12 @@ model EncerramentoExercicio {
   keycloakSub            String    // sub do Keycloak para correlação com trilho de auditoria
   requestId              String?   // correlação com registo estruturado
   createdAt              DateTime  @default(now())
+  /// PDF arquivados no armazenamento de objectos (ADR-0035 §8, #365): keys sob
+  /// `tenant/<tenantId>/encerramento/<id>/`. Nulas até o arquivo correr (ou se falhou).
+  balancoStorageKey      String?
+  dreStorageKey          String?
+  balanceteStorageKey    String?
+  arquivadoEm            DateTime?
 
   exercicio   ExercicioContabil     @relation(fields: [exercicioId], references: [id])
   reaberturas ReaberturaExercicio[]

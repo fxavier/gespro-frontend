@@ -249,6 +249,20 @@ balancete** — saldos por conta, com o código e o nome à data — e não se r
 Financeiro = 69 e 78; operacional = o resto das classes 6/7 (a mesma regra da DRE). Decidido em
 2026-10-05 (issue #138).
 
+### Balanço (por classes)
+O mapa da posição do exercício até um período (por omissão o 13 num exercício encerrado, senão o
+12): **Activo** (classes 1–3 e as contas de razão da classe 4 de saldo devedor), **Passivo** (as
+da classe 4 de saldo credor) e **Capital próprio** (classes 5 e 8 mais o resultado do período
+ainda por apurar das classes 6/7), por conta de razão. Lê o [[Acumulado]] do balancete — não
+recalcula. _Não confundir com_ o **balanço oficial** do PGC-NIRF: não separa corrente e não
+corrente. ADR-0035 §8, issue #365.
+
+### Arquivo do encerramento
+Os PDF do balanço (período 13), da DRE (datas do exercício) e do balancete de verificação (1..13)
+gravados no armazenamento de objectos e ligados ao encerramento em vigor. Faz-se **depois** do
+encerramento: se falhar, o encerramento mantém-se e a lista de exercícios mostra «Arquivo em
+falta» com a acção para o repetir. ADR-0035 §8, issue #365.
+
 ### Encerrado provisoriamente
 O exercício com as contas saldadas e a fotografia guardada. Não aceita escrita corrente, mas
 pode ser **reaberto** — com permissão própria e motivo — para ajustamentos da revisão: a

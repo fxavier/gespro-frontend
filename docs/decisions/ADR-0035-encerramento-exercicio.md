@@ -302,8 +302,41 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   - **UI**: em `/contabilidade/exercicios`, «Aplicar resultado» (rota `[id]/aplicar-resultado`) num
     exercício encerrado cujo seguinte tem abertura e sem aplicação activa; com uma activa, a data,
     a acta e «Anular aplicação» (rota `[id]/aplicacao/anular`, motivo).
-- **Fora desta implementação** (issues próprias): arquivo em PDF do balanço/DRE/balancete (§8 — o balanço e o PDF da
-  DRE ainda não existem).
+- **Arquivo em PDF (§8, #365)** — balanço, DRE e balancete arquivados por encerramento:
+  - **Balanço simples por classes** (`balanco.service.ts` → núcleo puro `balanco.ts`): lê o
+    `gerarBalanceteVerificacao` (acumulado por período 1..N, com AB ou abertura implícita) e agrupa
+    as folhas por conta de razão (dois dígitos). Activo = classes 1–3 e as razões da classe 4 de
+    saldo líquido devedor; Passivo = razões da classe 4 de saldo líquido credor; Capital próprio =
+    classes 5 e 8, a linha sintética dos resultados anteriores por encerrar e o resultado do período
+    (classes 6/7 por apurar, credor positivo). Período final por omissão: 13 com o exercício
+    encerrado, senão 12. Sem reclassificação por prazo — não é o modelo oficial de balanço.
+    Página `/contabilidade/balanco` e `GET /api/contabilidade/balanco/export` (PDF).
+  - **DRE em PDF**: `GET /api/contabilidade/dre/export`, mesmas datas e schema da página.
+  - **Arquivo DEPOIS do commit**: `arquivarEncerramento(encerramentoId, ctx)` gera os PDF EM FALTA
+    (balanço até ao período 13 e balancete de verificação 1..13, ambos do mesmo balancete — só
+    contas de razão acima de 500 linhas, `MAX_LINHAS_BALANCETE_ARQUIVO`; DRE sobre as datas do
+    exercício) FORA de qualquer transacção, grava cada um com `ObjectStorage.put` numa key nova sob
+    `tenant/<t>/encerramento/<id>/` e escreve a key só se ainda estiver nula (o objecto que não fica ligado — corrida perdida,
+    encerramento anulado entretanto — apaga-se, em melhor esforço); `arquivadoEm` fica
+    preenchido quando as três estão. São as únicas escritas em `EncerramentoExercicio` depois da
+    criação além de `anuladoEm`, com linha de `AuditLog`. **Byte a byte**: um documento arquivado
+    nunca se regrava nem se substitui; com os três arquivados, a chamada é um no-op. Só um
+    encerramento em vigor se arquiva.
+  - **DRE e balanço arquivados não mostram o mesmo resultado, e é o correcto**: a DRE (por datas,
+    sem o período 13) mostra o resultado antes da estimativa do imposto; o balanço do período 13
+    mostra em 88 o resultado líquido depois dela.
+  - **Semântica de falha**: o serviço `encerrarExercicio` não arquiva — a Server Action dispara o
+    arquivo com `after()` (depois da resposta: o utilizador não espera os PDF) quando o serviço
+    devolve `ok`, e engole a falha (log `warn`). Uma falha de armazenamento nunca desfaz o
+    encerramento: as keys dos documentos em falta ficam nulas, a lista de exercícios mostra
+    «Arquivo em falta» e «Arquivar documentos» (action `arquivarEncerramento`, permissão
+    `financas:exercicio:encerrar`) gera só os que faltam. Logo a seguir a encerrar, a lista pode
+    mostrar «Arquivo em falta» enquanto o arquivo corre. Num encerramento reaberto e re-encerrado,
+    o novo encerramento tem o seu próprio arquivo; o do anulado fica no armazenamento.
+  - **Download**: `GET /api/contabilidade/exercicios/[id]/encerramento/[balanco|dre|balancete]`
+    (`financas:exportar`) → 302 para um URL assinado de 300 s da key do encerramento em vigor;
+    404 para outro tenant, sem encerramento em vigor ou sem arquivo. O recurso `encerramento` do
+    armazenamento só se grava pelo servidor — o presign de upload recusa-o.
 
 ## Alternativas consideradas
 

@@ -483,6 +483,11 @@ export interface EncerramentoExercicio {
   keycloakSub: string;
   requestId: string | null;
   createdAt: Date;
+  /** PDF arquivados depois do commit (ADR-0035 §8, #365); nulos até o arquivo correr. */
+  balancoStorageKey: string | null;
+  dreStorageKey: string | null;
+  balanceteStorageKey: string | null;
+  arquivadoEm: Date | null;
 }
 
 /** Registo append-only da reabertura de um exercício encerrado provisoriamente (ADR-0035 §1, #138). */
