@@ -11,6 +11,8 @@ export const PERM_REABRIR = 'financas:exercicio:reabrir';
 export const PERM_ENCERRAR_DEFINITIVO = 'financas:exercicio:encerrar-definitivo';
 /** Aplicar o resultado e anular a aplicação (ADR-0035 §5, #364) — a mesma das duas actions. */
 export const PERM_APLICAR_RESULTADO = 'financas:exercicio:aplicar-resultado';
+/** Descarregar os PDF arquivados do encerramento (ADR-0035 §8, #365) — a da rota de download. */
+export const PERM_EXPORTAR = 'financas:exportar';
 
 export interface AcessoExercicios {
   ctx: { tenantId: string; userId: string };
@@ -18,6 +20,7 @@ export interface AcessoExercicios {
   podeReabrir: boolean;
   podeEncerrarDefinitivo: boolean;
   podeAplicarResultado: boolean;
+  podeExportar: boolean;
 }
 
 /** Sessão + permissões do encerramento e da aplicação do resultado. Sem sessão, vai para o login. */
@@ -31,6 +34,7 @@ export async function acessoExercicios(): Promise<AcessoExercicios> {
     podeReabrir: permissions.includes(PERM_REABRIR),
     podeEncerrarDefinitivo: permissions.includes(PERM_ENCERRAR_DEFINITIVO),
     podeAplicarResultado: permissions.includes(PERM_APLICAR_RESULTADO),
+    podeExportar: permissions.includes(PERM_EXPORTAR),
   };
 }
 

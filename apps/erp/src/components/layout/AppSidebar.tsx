@@ -12,7 +12,7 @@ import {
   Clock, Wallet, Ticket, UserCog, Calendar,
   Award, GraduationCap, Factory, FileBarChart2, PackageSearch, LineChart,
   RotateCcw, FilePlus2, AlertCircle, BookMarked as JournalIcon, CreditCard,
-  PanelLeftClose, PanelLeftOpen, Settings, PercentCircle, ListOrdered,
+  PanelLeftClose, PanelLeftOpen, Settings, PercentCircle, ListOrdered, Scale,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -113,6 +113,7 @@ const menuItems: MenuItem[] = [
       { title: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText },
       { title: 'Razão Geral', href: '/contabilidade/razao-geral', icon: BookText },
       { title: 'Balancete', href: '/contabilidade/balancete', icon: FileBarChart2 },
+      { title: 'Balanço', href: '/contabilidade/balanco', icon: Scale },
       { title: 'Demonstração do Resultado do Exercício', href: '/contabilidade/dre', icon: BarChart3 },
       // A DFC fica junto dos outros mapas. Com permissão: o OPERADOR não tem
       // `financas:fluxo-caixa:leitura` e não deve ver um atalho para «Sem permissão».

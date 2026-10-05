@@ -22,6 +22,7 @@ import {
   CONTENT_TYPES_PERMITIDOS,
   MAX_DOCUMENTO_BYTES,
   RECURSOS_DOCUMENTO,
+  RECURSOS_SO_SERVIDOR,
   PERMISSAO_ESCRITA_POR_RECURSO,
 } from '@/lib/storage/documento-config';
 import { presignLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
@@ -29,7 +30,9 @@ import { presignLimiter, rateLimitedResponse } from '@/server/security/rate-limi
 export const runtime = 'nodejs';
 
 const PresignSchema = z.object({
-  recurso: z.enum(RECURSOS_DOCUMENTO),
+  recurso: z
+    .enum(RECURSOS_DOCUMENTO)
+    .refine((r) => !RECURSOS_SO_SERVIDOR.includes(r), 'Recurso sem upload directo'),
   recursoId: z.string().cuid(),
   nome: z.string().min(1).max(200),
   contentType: z.enum(CONTENT_TYPES_PERMITIDOS),

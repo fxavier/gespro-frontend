@@ -515,6 +515,13 @@ export const EncerrarExercicioDefinitivoSchema = z.object({
 
 export type EncerrarExercicioDefinitivoInput = z.infer<typeof EncerrarExercicioDefinitivoSchema>;
 
+/** Repetir o arquivo em PDF de um encerramento (ADR-0035 §8, #365). */
+export const ArquivarEncerramentoSchema = z.object({
+  encerramentoId: idEntidade('ID de encerramento inválido'),
+});
+
+export type ArquivarEncerramentoInput = z.infer<typeof ArquivarEncerramentoSchema>;
+
 // --- Aplicação do resultado (ADR-0035 §5, #364) ---
 
 /** Referência da acta da deliberação que aprova as contas — obrigatória. */

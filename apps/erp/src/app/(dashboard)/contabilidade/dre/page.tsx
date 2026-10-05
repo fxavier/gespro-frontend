@@ -3,6 +3,8 @@
  */
 
 import { Suspense } from 'react';
+import { Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
@@ -132,6 +134,24 @@ export default async function DrePage({ searchParams }: PageProps) {
           { label: 'Contabilidade', href: '/contabilidade' },
           { label: 'DRE' },
         ]}
+        actions={
+          parseResult.success ? (
+            <Button asChild size="sm" variant="outline">
+              {/* As datas da página, tal como estão no URL: a rota lê-as pelo mesmo schema. */}
+              <a
+                href={`/api/contabilidade/dre/export?${new URLSearchParams({
+                  ...periodo,
+                  ...(parseResult.data.centroCustoId ? { centroCustoId: parseResult.data.centroCustoId } : {}),
+                  formato: 'pdf',
+                }).toString()}`}
+                download
+              >
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                Exportar PDF
+              </a>
+            </Button>
+          ) : undefined
+        }
       />
 
       <SeletorPeriodo

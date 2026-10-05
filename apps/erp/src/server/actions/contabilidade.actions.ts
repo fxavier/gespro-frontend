@@ -26,6 +26,7 @@ import {
   EncerrarExercicioSchema,
   ReabrirExercicioSchema,
   EncerrarExercicioDefinitivoSchema,
+  ArquivarEncerramentoSchema,
   AplicarResultadoSchema,
   AnularAplicacaoResultadoSchema,
   DefinirContaMeioPagamentoPOSSchema,
@@ -38,6 +39,9 @@ import * as meioPagamento from '@/server/services/financas/meio-pagamento.servic
 import * as encerramento from '@/server/services/financas/encerramento-exercicio.service';
 import * as aplicacaoResultado from '@/server/services/financas/aplicacao-resultado.service';
 import { z } from 'zod';
+import { after } from 'next/server';
+import { revalidatePath } from 'next/cache';
+import { logger } from '@/server/observability/logger';
 import { idEntidade } from '@/lib/validations/common';
 import { diaIsoParaData } from '@/lib/format-date';
 
@@ -263,7 +267,39 @@ export const encerrarExercicio = createSafeAction({
   schema: EncerrarExercicioSchema,
   permission: 'financas:exercicio:encerrar',
   revalidate: { tags: ['contabilidade', 'periodos', 'exercicios'], paths: ['/contabilidade/exercicios'] },
-  handler: (input, ctx) => encerramento.encerrarExercicio(input, ctx),
+  handler: async (input, ctx) => {
+    const resultado = await encerramento.encerrarExercicio(input, ctx);
+    // Arquivo em PDF (ADR-0035 §8, #365) DEPOIS do commit e da resposta (`after`): três PDF são
+    // segundos de CPU que o utilizador não espera. Uma falha não desfaz o encerramento — fica
+    // registada e a lista de exercícios oferece «Arquivar documentos» para repetir.
+    if (resultado.ok) {
+      const encerramentoId = resultado.encerramento.id;
+      after(() => arquivarSemFalhar(encerramentoId, { tenantId: ctx.tenantId, userId: ctx.userId }));
+    }
+    return resultado;
+  },
+});
+
+/** Corre o arquivo do encerramento e engole a falha (log `warn`): o encerramento já está feito. */
+async function arquivarSemFalhar(encerramentoId: string, ctx: { tenantId: string; userId: string }) {
+  try {
+    await encerramento.arquivarEncerramento(encerramentoId, ctx);
+  } catch (e) {
+    logger.warn(
+      { tenantId: ctx.tenantId, encerramentoId, erro: e instanceof Error ? e.message : String(e) },
+      '[encerramento] arquivo dos documentos falhou — o encerramento mantém-se',
+    );
+  }
+  // Corre em `after()`, depois da revalidação da action: a lista tem de ver as keys novas.
+  revalidatePath('/contabilidade/exercicios');
+}
+
+/** Repete o arquivo em PDF do encerramento em vigor (quando falhou depois do commit). */
+export const arquivarEncerramento = createSafeAction({
+  schema: ArquivarEncerramentoSchema,
+  permission: 'financas:exercicio:encerrar',
+  revalidate: { tags: ['exercicios'], paths: ['/contabilidade/exercicios'] },
+  handler: (input, ctx) => encerramento.arquivarEncerramento(input.encerramentoId, ctx),
 });
 
 export const reabrirExercicio = createSafeAction({

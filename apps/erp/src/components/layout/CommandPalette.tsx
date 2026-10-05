@@ -35,6 +35,7 @@ import {
   Settings,
   PercentCircle,
   ListOrdered,
+  Scale,
 } from 'lucide-react';
 
 interface NavItem {
@@ -71,6 +72,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Contabilidade', href: '/contabilidade', icon: Landmark, group: 'Finanças' },
   { label: 'Plano de Contas', href: '/contabilidade/plano-contas', icon: BookOpen, group: 'Finanças' },
   { label: 'Lançamentos', href: '/contabilidade/lancamentos', icon: FileText, group: 'Finanças' },
+  { label: 'Balanço', href: '/contabilidade/balanco', icon: Scale, group: 'Finanças' },
   { label: 'Demonstração do Resultado do Exercício', href: '/contabilidade/dre', icon: BarChart3, group: 'Finanças' },
   { label: 'Demonstração de Fluxos de Caixa', href: '/contabilidade/dfc', icon: BarChart3, group: 'Finanças' },
   { label: 'Exercícios Contabilísticos', href: '/contabilidade/exercicios', icon: Calendar, group: 'Finanças' },

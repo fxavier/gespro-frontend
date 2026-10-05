@@ -38,9 +38,15 @@ export const RECURSOS_DOCUMENTO = [
   'viatura',
   'motorista',
   'colaborador',
+  // PDF arquivados no encerramento do exercício (ADR-0035 §8): gravados SÓ pelo servidor
+  // (`ObjectStorage.put`) — o presign recusa-o (`RECURSOS_SO_SERVIDOR`).
+  'encerramento',
 ] as const;
 
 export type RecursoDocumento = (typeof RECURSOS_DOCUMENTO)[number];
+
+/** Recursos cujos objectos só o servidor grava: nunca há upload directo do cliente. */
+export const RECURSOS_SO_SERVIDOR: readonly RecursoDocumento[] = ['encerramento'];
 
 /**
  * Mapa recurso → permissão de escrita do recurso (ver `prisma/seed/rbac.ts`).
@@ -53,6 +59,8 @@ export const PERMISSAO_ESCRITA_POR_RECURSO: Record<RecursoDocumento, string> = {
   viatura: 'transporte:viatura:documentos',
   motorista: 'transporte:motorista:documentos',
   colaborador: 'rh:colaboradores:update',
+  // Ler os PDF arquivados do encerramento é exportar mapas contabilísticos.
+  encerramento: 'financas:exportar',
 };
 
 /** True se o content-type está na allowlist. */
