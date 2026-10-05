@@ -215,6 +215,8 @@ O período de **encerramento** de cada exercício: um instante (o último miliss
 operações. Só recebe os lançamentos de [[Encerramento do exercício]] (diário `EN`). Não tem IVA a
 apurar e fecha sem as verificações de caixa, reconciliação e documentos, que são do período 12.
 _Não confundir com_ **Dezembro**: o balancete de Dezembro continua a ser só Dezembro.
+Os mapas por datas (DRE, balancete por datas, DFC) não o contam; o **razão** conta-o — mostra o
+fecho de cada conta.
 
 ### Encerramento do exercício
 O acto que salda as classes 6 e 7 e leva o resultado à classe 8, em três lançamentos no diário

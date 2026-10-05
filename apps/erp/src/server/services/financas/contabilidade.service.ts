@@ -87,6 +87,14 @@ import {
  */
 export const FILTRO_LANCAMENTO_MAPA = { in: ['LANCADO', 'ESTORNADO'] as StatusLancamento[] };
 
+/**
+ * Mapas por DATAS (balancete por datas, DRE e, por eles, a DFC) excluem o período 13
+ * (ADR-0035, «Decisões de implementação», #138): os lançamentos de encerramento têm a
+ * data do fim do exercício e, contados, punham o resultado do ano a zero. Os mapas por
+ * PERÍODO (`gerarBalanceteVerificacao`, com `incluir13`) e o razão não o usam.
+ */
+const FORA_DO_PERIODO_13 = { periodo: { ordem: { not: 13 } } } satisfies Prisma.LancamentoWhereInput;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -367,12 +375,12 @@ async function proximoNumeroLancamento(
 }
 
 /**
- * Invariante débito = crédito, em Decimal exacto a partir de `number`.
+ * Invariante débito = crédito, em Decimal exacto a partir de `number` ou `Decimal`.
  * Devolve o total a débito (que é o `valorTotal` do lançamento).
- * Partilhado por criar e editar um rascunho (#137, I2).
+ * Partilhado por criar e editar um rascunho (#137, I2) e pelo encerramento (#138).
  */
 function totalDasPartidasEquilibradas(
-  partidas: ReadonlyArray<{ tipo: 'DEBITO' | 'CREDITO'; valor: number }>,
+  partidas: ReadonlyArray<{ tipo: 'DEBITO' | 'CREDITO'; valor: number | Prisma.Decimal }>,
 ): Prisma.Decimal {
   let totalDebito = new Prisma.Decimal(0);
   let totalCredito = new Prisma.Decimal(0);
@@ -1182,7 +1190,7 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
   const somas = (data: Prisma.DateTimeFilter) =>
     prisma.partidaLancamento.groupBy({
       by: ['contaId', 'tipo'],
-      where: { tenantId: ctx.tenantId, lancamento: { data, status: FILTRO_LANCAMENTO_MAPA } },
+      where: { tenantId: ctx.tenantId, lancamento: { data, status: FILTRO_LANCAMENTO_MAPA, ...FORA_DO_PERIODO_13 } },
       _sum: { valor: true },
     });
   // #141: o saldo anterior (só quando pedido) é tudo o que foi lançado antes do início.
@@ -1567,6 +1575,7 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
         status: FILTRO_LANCAMENTO_MAPA,
+        ...FORA_DO_PERIODO_13,
       },
     },
     _sum: { valor: true },
@@ -2143,6 +2152,92 @@ export async function registarLancamentoContabilistico(
         tipo: p.tipo,
         valor: new Prisma.Decimal(String(p.valor)),
         historico: p.historico ?? null,
+      },
+    });
+  }
+
+  return lancamento as unknown as Lancamento;
+}
+
+/**
+ * Grava um lançamento de encerramento (ADR-0035, #138) no período 13, dentro da tx do
+ * chamador (`encerramento-exercicio.service`). Vive aqui por causa do `gate-periodo`: só
+ * este ficheiro escreve em `Lancamento`/`PartidaLancamento`.
+ *
+ * Ao contrário de `registarLancamentoContabilistico`, recebe o período por id: o instante
+ * do período 13 cai dentro de Dezembro e `resolverPeriodo` devolveria o período 12 — e esse
+ * caminho não se alarga. Recusa qualquer período que não seja o 13 ABERTO do tenant, decidido
+ * na leitura trancada (`FOR SHARE`).
+ */
+export async function criarLancamentoEncerramentoEmTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    periodoId: string;
+    data: Date;
+    historico: string;
+    documentoOrigemId?: string;
+    documentoOrigemTipo?: string;
+    partidas: ReadonlyArray<{ contaId: string; tipo: TipoPartida; valor: Prisma.Decimal }>;
+  },
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string; ordem: number }>>`
+    SELECT id, codigo, estado, ordem FROM "PeriodoContabil"
+    WHERE id = ${input.periodoId} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodo.ordem !== 13) {
+    throw new BusinessRuleError(
+      'PERIODO_NAO_E_DE_ENCERRAMENTO',
+      `Os lançamentos de encerramento vão para o período 13; ${periodo.codigo} não o é.`,
+    );
+  }
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+
+  if (input.partidas.length === 0 || input.partidas.some((p) => !p.valor.greaterThan(0))) {
+    throw new BusinessRuleError('PARTIDA_VALOR_INVALIDO', 'Cada partida tem de ter valor positivo.');
+  }
+  const totalDebito = totalDasPartidasEquilibradas(input.partidas);
+
+  const diario = await tx.diario.findFirst({
+    where: { tipo: 'ENCERRAMENTO', tenantId: ctx.tenantId, ativo: true },
+    select: { id: true },
+  });
+  if (!diario) throw new NotFoundError('Diário do tipo "ENCERRAMENTO" não encontrado');
+
+  const numero = await proximoNumeroLancamento(tx, diario.id, periodo.codigo, ctx.tenantId);
+
+  const lancamento = await tx.lancamento.create({
+    data: {
+      tenantId: ctx.tenantId,
+      numero,
+      data: input.data,
+      tipo: 'AUTOMATICO',
+      origem: 'AJUSTE',
+      diarioId: diario.id,
+      periodoId: periodo.id,
+      documentoOrigemId: input.documentoOrigemId ?? null,
+      documentoOrigemTipo: input.documentoOrigemTipo ?? null,
+      historico: input.historico,
+      valorTotal: totalDebito,
+      status: 'LANCADO',
+      periodoFiscal: periodo.codigo, // cópia de periodo.codigo (ADR-0033 §1)
+      criadoPorId: ctx.userId,
+    },
+  });
+
+  for (const p of input.partidas) {
+    await exigirContaDeMovimento(tx, p.contaId, ctx.tenantId);
+    await tx.partidaLancamento.create({
+      data: {
+        tenantId: ctx.tenantId,
+        lancamentoId: lancamento.id,
+        contaId: p.contaId,
+        tipo: p.tipo,
+        valor: new Prisma.Decimal(p.valor.toFixed(2)),
       },
     });
   }

@@ -186,6 +186,17 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
 - **DFC**: 81/82/83/88 → `OP-00`, 59 → `FIN-02` (`docs/handoff/dfc-seed.md`). A DFC só exclui das
   secções as contas de tipo gasto/rendimento; a classe 8 não. Os lançamentos de encerramento ficam
   fora dela por causa da exclusão do período 13 dos mapas por datas, não pela rubrica.
+- **Consequências da exclusão do período 13 por datas.** A DRE e o balancete por datas
+  (`gerarDRE`, `gerarBalancete`, e por eles a DFC) não vêem os lançamentos de encerramento — também
+  no saldo anterior. Numa vista cumulativa por datas que atravesse anos, as classes 6/7 arrastam os
+  saldos dos anos anteriores e 88/4411 do encerramento não aparecem; «o acumulado é a soma dos
+  treze» (§2) só vale nas vistas por **período** (`gerarBalanceteVerificacao` com `incluir13`). A
+  DFC não sofre (início e fim excluem o mesmo conjunto). A abertura `AB` (§6) é o sítio para
+  reavaliar. **O razão por datas inclui o período 13** de propósito: um razão mostra o fecho.
+- **Trilho do encerramento.** `EncerramentoExercicio` e `ReaberturaExercicio` estão na lista
+  síncrona da auditoria, mas, como a `ReaberturaPeriodo`, são escritos no cliente cru dentro da
+  transacção do encerramento: o próprio registo é o trilho (autor, `keycloakSub`, `requestId`), não
+  uma linha de `AuditLog`.
 - **`EM_ENCERRAMENTO` não se usa.** Fica no enum (ADR-0033 §1) mas sem transições: o encerramento
   corre numa única transacção — tudo ou nada —, por isso não há estado intermédio observável. A
   máquina é `ABERTO → ENCERRADO_PROVISORIO → (ABERTO | ENCERRADO)`, em `lib/state-machines.ts`.

@@ -416,6 +416,8 @@ export interface ExercicioContabil {
   estado: EstadoExercicio;
   anteriorId: string | null;
   criadoPorId: string | null;
+  encerradoDefinitivoEm: Date | null;   // ADR-0035 §1 — segunda fase
+  encerradoDefinitivoPorId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -450,6 +452,42 @@ export interface ReaberturaPeriodo {
  * Resultado do fecho de período. Quando `ok: false`, `impedimentos` lista todos os
  * códigos que falharam (devolvidos de uma vez para o ecrã os mostrar todos).
  */
+/** Uma linha da fotografia do balancete guardada no encerramento (ADR-0035 §8); valores em string decimal. */
+export interface LinhaFotografiaEncerramento {
+  contaId: string;
+  codigo: string;
+  nome: string;
+  totalDebito: string;
+  totalCredito: string;
+  saldoDevedor: string;
+  saldoCredor: string;
+}
+
+/** Registo do encerramento provisório de um exercício (ADR-0035, #138). */
+export interface EncerramentoExercicio {
+  id: string;
+  tenantId: string;
+  exercicioId: string;
+  versao: number;
+  estimativaImposto: Prisma.Decimal;
+  lancamentoResultadosId: string;
+  lancamentoImpostoId: string | null;
+  lancamentoLiquidoId: string;
+  fotografia: LinhaFotografiaEncerramento[];
+  totalDebito: Prisma.Decimal;
+  totalCredito: Prisma.Decimal;
+  anuladoEm: Date | null;
+  encerradoPorId: string;
+  keycloakSub: string;
+  requestId: string | null;
+  createdAt: Date;
+}
+
+/** Como o fecho de período: impedimentos devolvidos todos de uma vez, sem escrita. */
+export type ResultadoEncerramentoExercicio =
+  | { ok: true; encerramento: EncerramentoExercicio }
+  | { ok: false; impedimentos: string[] };
+
 export type ResultadoFechoPeriodo =
   | { ok: true; periodo: PeriodoContabil }
   | { ok: false; impedimentos: string[] };
