@@ -447,9 +447,12 @@ export const FecharPeriodoSchema = z.object({
 
 export type FecharPeriodoInput = z.infer<typeof FecharPeriodoSchema>;
 
+/** Motivo de uma reabertura — de período (ADR-0033 §7) ou de exercício (ADR-0035 §1). */
+export const MotivoReaberturaSchema = z.string().min(10, 'Motivo deve ter pelo menos 10 caracteres').max(1000);
+
 export const ReabrirPeriodoSchema = z.object({
   id: idEntidade('ID de período inválido'),
-  motivo: z.string().min(10, 'Motivo deve ter pelo menos 10 caracteres').max(1000),
+  motivo: MotivoReaberturaSchema,
 });
 
 export type ReabrirPeriodoInput = z.infer<typeof ReabrirPeriodoSchema>;
