@@ -27,6 +27,7 @@ import type {
   PerfilAtraso,
   ProjecaoTesouraria,
 } from './projecao.interface';
+import { FORA_DE_FECHO_E_ABERTURA } from './fora-de-fecho-e-abertura';
 
 /**
  * Projecção de Tesouraria (spec 22 · WS-1).
@@ -531,6 +532,8 @@ export async function saldoTesourariaAte(
         lancamento: {
           status: FILTRO_LANCAMENTO_MAPA,
           data: { lte: data },
+          // #363: o AB re-afirma o saldo do banco no dia 1 — contado, o banco dobrava.
+          ...FORA_DE_FECHO_E_ABERTURA,
         },
       },
       _sum: { valor: true },

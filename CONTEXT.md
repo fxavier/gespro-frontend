@@ -204,7 +204,15 @@ abertura**. _Não confundir com_ **saldo anterior** (o modelo antigo, que somava
 Enquanto um exercício não tiver lançamento de abertura (diário `AB`), o balancete calcula-a: os
 saldos das classes 1–5 e 8 anteriores ao exercício entram no acumulado, e o resultado anterior das
 classes 6/7 entra numa linha **«Resultados de exercícios anteriores por encerrar»**. Não se escreve
-nada na base; desaparece quando o `AB` existir (ADR-0035).
+nada na base; desaparece quando o `AB` existir (ADR-0035) — um `AB` **efectivo**: lançado, nem
+estornado nem estorno.
+
+### Lançamento de abertura (AB)
+O lançamento no diário `AB`, no dia 1 do exercício, que **re-afirma** os saldos do fecho do
+anterior. Gera-se no encerramento do anterior; à mão, só no primeiro exercício (saldos iniciais de
+quem migra). Os leitores por datas não o contam quando o exercício tem anterior — os saldos já lá
+estão pelos lançamentos do ano anterior; as vistas por período usam-no em vez da
+[[Abertura implícita]].
 
 ### Saldo devedor / saldo credor
 O saldo de uma conta (`acumulado D − acumulado C`) mostrado do lado onde cai, sempre positivo.
@@ -215,8 +223,8 @@ O período de **encerramento** de cada exercício: um instante (o último miliss
 operações. Só recebe os lançamentos de [[Encerramento do exercício]] (diário `EN`). Não tem IVA a
 apurar e fecha sem as verificações de caixa, reconciliação e documentos, que são do período 12.
 _Não confundir com_ **Dezembro**: o balancete de Dezembro continua a ser só Dezembro.
-Os mapas por datas (DRE, balancete por datas, DFC) não o contam; o **razão** conta-o — mostra o
-fecho de cada conta.
+Os mapas por datas (DRE, balancete por datas, DFC) e a tesouraria não o contam; o **razão** (e o
+detalhe da conta) conta-o — mostra o fecho de cada conta.
 
 ### Encerramento do exercício
 O acto que salda as classes 6 e 7 e leva o resultado à classe 8, em até três lançamentos no diário

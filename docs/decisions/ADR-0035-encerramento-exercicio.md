@@ -184,8 +184,23 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
 - **«Balanço de abertura lançado, ou primeiro exercício»** (§7) passa a ser, enquanto a abertura
   `AB` do exercício seguinte (§6) não estiver construída: **sem exercício anterior, ou anterior pelo
   menos `ENCERRADO_PROVISORIO`**. Os saldos de partida vêm da abertura implícita do ADR-0040.
-- **Mapas por datas excluem o período 13** (DRE, DFC): os lançamentos de encerramento têm a data
-  de 31 de Dezembro e, contados, punham o resultado do ano a zero.
+- **Leitores por datas excluem o fecho e a abertura** (#363): o período 13 (os lançamentos de
+  encerramento têm a data de 31 de Dezembro e, contados, punham o resultado do ano a zero) e o
+  lançamento de abertura `AB` de um exercício **com anterior** (re-afirma, no dia 1, saldos que já
+  estão no razão — contado, dobrava-os). Predicado único em
+  `services/financas/fora-de-fecho-e-abertura.ts`: `FORA_DE_FECHO_E_ABERTURA` (e o equivalente SQL)
+  nos mapas e na tesouraria — balancete por datas e DFC, DRE, projecção, saldos e importação da
+  reconciliação; `SEM_ABERTURA_REAFIRMADA` nos leitores de uma conta — razão por datas, detalhe da
+  conta, `saldoContabilAte` — que mantêm o período 13 (ver abaixo) — e no apuramento do IVA
+  (agregação do período e crédito reportado do 4438). Também a abertura implícita (ADR-0040) deixa
+  de somar ABs anteriores. O AB do **primeiro** exercício (sem anterior) não re-afirma nada — são os
+  saldos iniciais de quem migra — e conta em todos. As vistas por **período** usam o AB.
+- **«Tem AB» é efectivo** (#363): um lançamento `LANCADO` no diário `AB` do exercício, que não foi
+  estornado nem é um estorno. Com o AB estornado a abertura implícita volta.
+- **Diários reservados** (#363): o lançamento manual recusa o diário `EN`
+  (`DIARIO_DE_ENCERRAMENTO`, e o formulário não o oferece) e o diário `AB` num exercício com
+  anterior (`ABERTURA_AUTOMATICA` — a abertura gera-se no encerramento do anterior); no primeiro
+  exercício o `AB` manual é a forma de lançar os saldos iniciais.
 - **DFC**: 81/82/83/88 → `OP-00`, 59 → `FIN-02` (`docs/handoff/dfc-seed.md`). A DFC só exclui das
   secções as contas de tipo gasto/rendimento; a classe 8 não. Os lançamentos de encerramento ficam
   fora dela por causa da exclusão do período 13 dos mapas por datas, não pela rubrica.
@@ -194,8 +209,8 @@ Registadas na implementação do núcleo; não alteram a decisão acima.
   no saldo anterior. Numa vista cumulativa por datas que atravesse anos, as classes 6/7 arrastam os
   saldos dos anos anteriores e 88/4411 do encerramento não aparecem; «o acumulado é a soma dos
   treze» (§2) só vale nas vistas por **período** (`gerarBalanceteVerificacao` com `incluir13`). A
-  DFC não sofre (início e fim excluem o mesmo conjunto). A abertura `AB` (§6) é o sítio para
-  reavaliar. **O razão por datas inclui o período 13** de propósito: um razão mostra o fecho.
+  DFC não sofre (início e fim excluem o mesmo conjunto); a abertura `AB` (§6) também não muda
+  isto, porque fica de fora pelo mesmo predicado. **O razão por datas inclui o período 13** de propósito: um razão mostra o fecho.
 - **Trilho do encerramento.** `EncerramentoExercicio` e `ReaberturaExercicio` estão na lista
   síncrona da auditoria, mas são escritos no cliente cru dentro da transacção do encerramento, que
   não passa pela `audit-extension`. Por isso cada transição escreve, na mesma transacção, linhas de

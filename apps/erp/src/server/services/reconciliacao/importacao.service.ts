@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError, ValidationError } from '@/lib/errors';
 import { FILTRO_LANCAMENTO_MAPA } from '../financas/contabilidade.service';
+import { eFechoOuAbertura } from '../financas/fora-de-fecho-e-abertura';
 import type { Ctx } from '../types';
 import { chaveIdempotenciaBanco, normalizarReferencia } from './reconciliacao.model';
 import { interpretarGrelha, parserPara, type ErroLinhaExtracto } from './extracto.parser';
@@ -231,7 +232,7 @@ export async function projetarMovimentosContabilisticos(
   // janela); uma marca de água por createdAt falharia com lançamentos que passam de
   // RASCUNHO a LANCADO depois. Se o volume o pedir, marcar a partida projectada.
   for (;;) {
-    const partidas = await prisma.partidaLancamento.findMany({
+    const lote = await prisma.partidaLancamento.findMany({
       where: {
         tenantId: ctx.tenantId,
         contaId: conta.contaContabilId,
@@ -245,14 +246,32 @@ export async function projetarMovimentosContabilisticos(
         valor: true,
         historico: true,
         lancamento: {
-          select: { data: true, numero: true, historico: true, documentoOrigemTipo: true, documentoOrigemId: true },
+          select: {
+            data: true,
+            numero: true,
+            historico: true,
+            documentoOrigemTipo: true,
+            documentoOrigemId: true,
+            diario: { select: { tipo: true } },
+            periodo: { select: { ordem: true, exercicio: { select: { anteriorId: true } } } },
+          },
         },
       },
       orderBy: { id: 'asc' },
       take: LOTE_PROJECCAO,
     });
-    if (partidas.length === 0) break;
-    depoisDe = partidas[partidas.length - 1].id;
+    if (lote.length === 0) break;
+    depoisDe = lote[lote.length - 1].id;
+    // #363: a partida do AB re-afirma o saldo do banco — não é movimento a reconciliar.
+    // Filtrada aqui, não no `where`: o keyset avança pelo lote inteiro.
+    const partidas = lote.filter(
+      (p) =>
+        !eFechoOuAbertura({
+          ordem: p.lancamento.periodo?.ordem,
+          diarioTipo: p.lancamento.diario?.tipo,
+          anteriorId: p.lancamento.periodo?.exercicio?.anteriorId,
+        }),
+    );
 
     const numeros = await numerosDeDocumento(
       partidas.map((p) => ({ tipo: p.lancamento.documentoOrigemTipo, id: p.lancamento.documentoOrigemId })),
@@ -282,7 +301,7 @@ export async function projetarMovimentosContabilisticos(
       skipDuplicates: true,
     });
     criados += count;
-    if (partidas.length < LOTE_PROJECCAO) break;
+    if (lote.length < LOTE_PROJECCAO) break;
   }
   return { criados };
 }

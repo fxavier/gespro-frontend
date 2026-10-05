@@ -87,13 +87,9 @@ import {
  */
 export const FILTRO_LANCAMENTO_MAPA = { in: ['LANCADO', 'ESTORNADO'] as StatusLancamento[] };
 
-/**
- * Mapas por DATAS (balancete por datas, DRE e, por eles, a DFC) excluem o período 13
- * (ADR-0035, «Decisões de implementação», #138): os lançamentos de encerramento têm a
- * data do fim do exercício e, contados, punham o resultado do ano a zero. Os mapas por
- * PERÍODO (`gerarBalanceteVerificacao`, com `incluir13`) e o razão não o usam.
- */
-const FORA_DO_PERIODO_13 = { periodo: { ordem: { not: 13 } } } satisfies Prisma.LancamentoWhereInput;
+// Predicados dos leitores por DATAS (#363) — vivem num módulo próprio, sem dependências,
+// para os serviços de outros domínios (reconciliação) os importarem sem arrastar este.
+import { FORA_DE_FECHO_E_ABERTURA, SEM_ABERTURA_REAFIRMADA } from './fora-de-fecho-e-abertura';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -589,6 +585,7 @@ export async function obterContaDetalhe(
       lancamento: {
         data: { gte: intervalo.dataInicio, lte: intervalo.dataFim },
         status: FILTRO_LANCAMENTO_MAPA,
+        ...SEM_ABERTURA_REAFIRMADA,
       },
     },
     _sum: { valor: true },
@@ -750,6 +747,8 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
     if (periodoLocked.estado !== 'ABERTO') {
       throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
     }
+    // Na mesma tx: se `resolverPeriodo` criou um exercício, a recusa desfá-lo.
+    await exigirDiarioDeLancamentoManual(tx, diario.tipo, periodoLocked.id, ctx.tenantId);
 
     const numero = await proximoNumeroLancamento(tx, diario.id, periodoLocked.codigo, ctx.tenantId);
 
@@ -807,10 +806,44 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
   });
 }
 
+/**
+ * Diários reservados (ADR-0035, #363) — mesma regra na criação manual e na confirmação de
+ * um rascunho: o diário de encerramento só recebe o encerramento; o de abertura, num
+ * exercício com anterior, só a abertura gerada no encerramento do anterior (à mão, só no
+ * primeiro exercício — saldos iniciais).
+ */
+async function exigirDiarioDeLancamentoManual(
+  db: Prisma.TransactionClient,
+  diarioTipo: string,
+  periodoId: string,
+  tenantId: string,
+): Promise<void> {
+  if (diarioTipo === 'ENCERRAMENTO') {
+    throw new BusinessRuleError(
+      'DIARIO_DE_ENCERRAMENTO',
+      'O diário de encerramento só recebe os lançamentos gerados pelo encerramento do exercício.',
+    );
+  }
+  if (diarioTipo !== 'ABERTURA') return;
+  const comAnterior = await db.exercicioContabil.count({
+    where: { tenantId, anteriorId: { not: null }, periodos: { some: { id: periodoId } } },
+  });
+  if (comAnterior > 0) {
+    throw new BusinessRuleError(
+      'ABERTURA_AUTOMATICA',
+      'A abertura deste exercício é gerada no encerramento do anterior; não se lança à mão.',
+    );
+  }
+}
+
 export async function confirmarLancamento(id: string, ctx: Ctx): Promise<Lancamento> {
-  const lancamento = await prisma.lancamento.findFirst({ where: { id, tenantId: ctx.tenantId } });
+  const lancamento = await prisma.lancamento.findFirst({
+    where: { id, tenantId: ctx.tenantId },
+    include: { diario: { select: { tipo: true } } },
+  });
   if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
   transitarEstado(lancamento.status as StatusLancamento, 'LANCADO');
+  await exigirDiarioDeLancamentoManual(prismaBase, lancamento.diario.tipo, lancamento.periodoId, ctx.tenantId);
   return prisma.lancamento.update({ where: { id }, data: { status: 'LANCADO' } }) as unknown as Lancamento;
 }
 
@@ -1214,7 +1247,7 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
   const somas = (data: Prisma.DateTimeFilter) =>
     prisma.partidaLancamento.groupBy({
       by: ['contaId', 'tipo'],
-      where: { tenantId: ctx.tenantId, lancamento: { data, status: FILTRO_LANCAMENTO_MAPA, ...FORA_DO_PERIODO_13 } },
+      where: { tenantId: ctx.tenantId, lancamento: { data, status: FILTRO_LANCAMENTO_MAPA, ...FORA_DE_FECHO_E_ABERTURA } },
       _sum: { valor: true },
     });
   // #141: o saldo anterior (só quando pedido) é tudo o que foi lançado antes do início.
@@ -1248,15 +1281,17 @@ export async function gerarBalancete(filtro: FiltroBalanceteInput, ctx: Ctx): Pr
 // ---------------------------------------------------------------------------
 
 /**
- * True se o exercício tiver pelo menos um lançamento no diário de tipo ABERTURA
- * com status em FILTRO_LANCAMENTO_MAPA. Partilhado por `razaoConta` e
- * `gerarBalanceteVerificacao` para evitar duplicação da lógica.
+ * True se o exercício tiver um lançamento de abertura EFECTIVO (#363): `LANCADO` no diário
+ * de tipo ABERTURA, que não foi estornado (o original passa a `ESTORNADO`) nem é ele próprio
+ * um estorno (`lancamentoEstornoId`). Um AB estornado deixa o exercício sem abertura e a
+ * abertura implícita volta. Partilhado por `razaoConta` e `gerarBalanceteVerificacao`.
  */
 async function exercicioTemDiarioAbertura(exercicioId: string, tenantId: string): Promise<boolean> {
   const count = await prisma.lancamento.count({
     where: {
       tenantId,
-      status: FILTRO_LANCAMENTO_MAPA,
+      status: 'LANCADO',
+      lancamentoEstornoId: null,
       diario: { tipo: 'ABERTURA' },
       periodo: { exercicioId },
     },
@@ -1345,8 +1380,9 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Ra
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
         status: FILTRO_LANCAMENTO_MAPA,
+        ...SEM_ABERTURA_REAFIRMADA,
       },
-    } as const;
+    } satisfies Prisma.PartidaLancamentoWhereInput;
 
     const [antRaw, totaisRaw, partidas] = await Promise.all([
       // saldoAnterior: tudo com data < dataInicio
@@ -1355,7 +1391,7 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Ra
         where: {
           tenantId: ctx.tenantId,
           contaId: filtro.contaId,
-          lancamento: { status: FILTRO_LANCAMENTO_MAPA, data: { lt: filtro.dataInicio } },
+          lancamento: { status: FILTRO_LANCAMENTO_MAPA, data: { lt: filtro.dataInicio }, ...SEM_ABERTURA_REAFIRMADA },
         },
         _sum: { valor: true },
       }),
@@ -1440,7 +1476,7 @@ export async function razaoConta(filtro: FiltroRazaoInput, ctx: Ctx): Promise<Ra
           where: {
             tenantId: ctx.tenantId,
             contaId: filtro.contaId,
-            lancamento: { status: FILTRO_LANCAMENTO_MAPA, data: { lt: exercicio.dataInicio } },
+            lancamento: { status: FILTRO_LANCAMENTO_MAPA, data: { lt: exercicio.dataInicio }, ...SEM_ABERTURA_REAFIRMADA },
           },
           _sum: { valor: true },
         })
@@ -1599,7 +1635,7 @@ export async function gerarDRE(filtro: FiltroDREInput, ctx: Ctx): Promise<DRE> {
       lancamento: {
         data: { gte: filtro.dataInicio, lte: filtro.dataFim },
         status: FILTRO_LANCAMENTO_MAPA,
-        ...FORA_DO_PERIODO_13,
+        ...FORA_DE_FECHO_E_ABERTURA,
       },
     },
     _sum: { valor: true },
@@ -1712,6 +1748,7 @@ export async function saldoContabilAte(
       lancamento: {
         status: 'LANCADO',
         data: opts?.exclusivo ? { lt: ate } : { lte: ate },
+        ...SEM_ABERTURA_REAFIRMADA,
       },
     },
     _sum: { valor: true },
@@ -2439,9 +2476,12 @@ export async function gerarBalanceteVerificacao(
           by: ['contaId', 'tipo'],
           where: {
             tenantId,
+            // Abertura implícita: o período 13 dos anteriores CONTA (é ele que põe o
+            // resultado no 88); só o AB re-afirmado sai, senão os saldos dobram.
             lancamento: {
               status: FILTRO_LANCAMENTO_MAPA,
               data: { lt: exercicio.dataInicio },
+              ...SEM_ABERTURA_REAFIRMADA,
             },
           },
           _sum: { valor: true },

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError, ValidationError } from '@/lib/errors';
 import { FILTRO_LANCAMENTO_MAPA, diaCivilEmMaputo } from '../financas/contabilidade.service';
+import { sqlForaDeFechoEAbertura } from '../financas/fora-de-fecho-e-abertura';
 import type { Ctx } from '../types';
 import {
   ESTADOS_CORRESPONDIDOS,
@@ -73,6 +74,7 @@ async function saldoRazao(db: Db, contaPgcId: string, dia: number, modo: 'ate' |
       AND p."contaId" = ${contaPgcId}
       AND l.status::text IN (${estados})
       AND (l.data AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Maputo')::date ${comparacao} ${diaIso(dia)}::date
+      AND ${sqlForaDeFechoEAbertura('l')}
     GROUP BY p.tipo`;
   const total = (t: Natureza) => new Prisma.Decimal(linhas.find((l) => l.tipo === t)?.total ?? 0);
   return total('DEBITO').minus(total('CREDITO'));

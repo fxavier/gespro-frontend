@@ -21,6 +21,7 @@ import {
   estornarLancamentoEmTx,
   FILTRO_LANCAMENTO_MAPA,
 } from './contabilidade.service';
+import { SEM_ABERTURA_REAFIRMADA } from './fora-de-fecho-e-abertura';
 import type {
   ApuramentoIvaComLinhas,
   ApuramentoIva,
@@ -430,6 +431,8 @@ export async function apurarIva(
         lancamento: {
           periodoId: input.periodoId,
           status: FILTRO_LANCAMENTO_MAPA,
+          // #363: o AB re-afirma o 4438 do fecho do anterior — não é operação do período.
+          ...SEM_ABERTURA_REAFIRMADA,
         },
         conta: { codigo: { in: CONTAS_IVA_FILTRO } },
       },
@@ -459,6 +462,8 @@ export async function apurarIva(
         lancamento: {
           periodoId: { not: input.periodoId },
           status: FILTRO_LANCAMENTO_MAPA,
+          // #363: sem o AB re-afirmado, senão o crédito do anterior conta duas vezes.
+          ...SEM_ABERTURA_REAFIRMADA,
         },
       },
       _sum: { valor: true },
