@@ -18,7 +18,7 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { getRequestContext } from '@/server/observability/context';
 import {
   registarLancamentoContabilistico,
-  estornarLancamento,
+  estornarLancamentoEmTx,
   FILTRO_LANCAMENTO_MAPA,
 } from './contabilidade.service';
 import type {
@@ -707,49 +707,38 @@ export async function estornarApuramentoIva(
   input: EstornarApuramentoInput,
   ctx: Ctx,
 ): Promise<ApuramentoIva> {
-  // Verificar o apuramento, ler o período e marcar como ESTORNADO numa transacção.
-  // A data do período é necessária para o estorno: o lançamento de estorno tem de
-  // ficar no mesmo período que o lançamento de apuramento (§7), não no período de hoje.
-  // Se ficasse hoje, o razão do mês corrigido não seria revertido, e a segunda corrida
+  // Verificar o apuramento, estornar o lançamento e marcar como ESTORNADO numa só
+  // transacção (#89): se o estorno falhar (período fechado, lançamento já estornado),
+  // o apuramento continua APURADO — nunca ESTORNADO com o lançamento activo.
+  // O estorno leva a data do fim do período do apuramento: tem de ficar no mesmo
+  // período que o lançamento de apuramento (§7), não no período de hoje. Se ficasse
+  // hoje, o razão do mês corrigido não seria revertido, e a segunda corrida
   // encontraria as contas a zero (testado e confirmado pelo orquestrador).
-  const { apuramento, lancamentoId, periodoDataFim } = await prismaBase.$transaction(async (tx) => {
+  const apuramento = await prismaBase.$transaction(async (tx) => {
     const ap = await tx.apuramentoIva.findFirst({
       where: { id: input.apuramentoId, tenantId: ctx.tenantId },
-      select: {
-        id: true, estado: true, lancamentoId: true, periodoId: true,
-        versao: true, tenantId: true, apuradoPorId: true, keycloakSub: true,
-        requestId: true, createdAt: true,
-        totalIvaLiquidado: true, totalIvaDedutivel: true, totalRegularizacoes: true,
-        saldoApuramento: true, creditoReportado: true,
-        declaradoPorId: true, declaradoEm: true, referenciaEntrega: true,
-      },
+      select: { id: true, estado: true, lancamentoId: true, periodoId: true },
     });
     if (!ap) throw new NotFoundError('Apuramento não encontrado');
     transitarApuramento(ap.estado as 'APURADO' | 'ESTORNADO' | 'DECLARADO', 'ESTORNADO');
 
-    // Buscar o último dia do período para usar na data do estorno
-    const periodo = await tx.periodoContabil.findFirst({
-      where: { id: ap.periodoId, tenantId: ctx.tenantId },
-      select: { dataFim: true },
-    });
+    if (ap.lancamentoId) {
+      const periodo = await tx.periodoContabil.findFirst({
+        where: { id: ap.periodoId, tenantId: ctx.tenantId },
+        select: { dataFim: true },
+      });
+      await estornarLancamentoEmTx(
+        tx,
+        { lancamentoId: ap.lancamentoId, motivo: input.motivo, data: periodo?.dataFim ?? undefined },
+        ctx,
+      );
+    }
 
-    const updated = await tx.apuramentoIva.update({
+    return tx.apuramentoIva.update({
       where: { id: input.apuramentoId },
       data: { estado: 'ESTORNADO' },
     });
-    return { apuramento: updated, lancamentoId: ap.lancamentoId, periodoDataFim: periodo?.dataFim ?? null };
   });
-
-  // Estornar o lançamento fora da transacção anterior (tem a sua própria transacção).
-  // Passa a data do período: o estorno pertence ao mesmo período que o apuramento
-  // que está a corrigir — é a única forma de o razão desse período voltar ao estado
-  // anterior e a versão seguinte ser calculável.
-  if (lancamentoId) {
-    await estornarLancamento(
-      { lancamentoId, motivo: input.motivo, data: periodoDataFim ?? undefined },
-      ctx,
-    );
-  }
 
   return apuramento as unknown as ApuramentoIva;
 }
