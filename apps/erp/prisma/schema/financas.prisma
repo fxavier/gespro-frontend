@@ -352,6 +352,7 @@ model ExercicioContabil {
   periodos    PeriodoContabil[]
   encerramentos EncerramentoExercicio[]
   reaberturas   ReaberturaExercicio[]
+  aplicacoesResultado AplicacaoResultado[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, estado])
@@ -405,7 +406,9 @@ model ReaberturaPeriodo {
 
 /// Encerramento (provisório) de um exercício (ADR-0035 §1, §3 e §8). Uma linha por
 /// encerramento: re-encerrar depois de uma reabertura cria uma linha nova com a
-/// versão seguinte; a anterior fica com anuladoEm preenchido. Append-only salvo anuladoEm.
+/// versão seguinte; a anterior fica com anuladoEm preenchido. Append-only salvo anuladoEm e
+/// os quatro campos do arquivo (balancoStorageKey, dreStorageKey, balanceteStorageKey,
+/// arquivadoEm), que o arquivador (`arquivarEncerramento`) escreve DEPOIS do commit — ADR-0035 §8.
 /// Os três lançamentos (apuramento dos resultados, estimativa do imposto, transferência
 /// do resultado líquido) vivem no período 13 e são referidos por FK escalar.
 model EncerramentoExercicio {
@@ -431,6 +434,12 @@ model EncerramentoExercicio {
   keycloakSub            String    // sub do Keycloak para correlação com trilho de auditoria
   requestId              String?   // correlação com registo estruturado
   createdAt              DateTime  @default(now())
+  /// PDF arquivados no armazenamento de objectos (ADR-0035 §8, #365): keys sob
+  /// `tenant/<tenantId>/encerramento/<id>/`. Nulas até o arquivo correr (ou se falhou).
+  balancoStorageKey      String?
+  dreStorageKey          String?
+  balanceteStorageKey    String?
+  arquivadoEm            DateTime?
 
   exercicio   ExercicioContabil     @relation(fields: [exercicioId], references: [id])
   reaberturas ReaberturaExercicio[]
@@ -458,6 +467,35 @@ model ReaberturaExercicio {
 
   @@index([tenantId, exercicioId])
   @@index([tenantId, createdAt])
+}
+
+/// Aplicação do resultado de um exercício (ADR-0035 §5, #364): o saldo de 88 transportado para
+/// 59 — Resultados transitados, no exercício SEGUINTE, com a data da deliberação e a referência
+/// da acta. Append-only salvo a anulação (anuladaEm, motivo e o estorno). «Uma activa por
+/// exercício» (anuladaEm nulo) não se exprime em Prisma: impõe-a o serviço, decidida com o
+/// exercício trancado (`aplicacao-resultado.service.ts`).
+model AplicacaoResultado {
+  id                   String    @id @default(cuid())
+  tenantId             String
+  exercicioId          String    // N — o exercício cujo resultado se aplica
+  exercicioDestinoId   String    // N+1 — FK escalar (sem @relation: uma segunda relação ao mesmo modelo obrigava a nomeá-las)
+  lancamentoId         String    // FK Lancamento (escalar) — D 88 / C 59 (lucro) ou o inverso
+  valor                Decimal   @db.Decimal(18, 2) // valor absoluto transportado
+  dataDeliberacao      DateTime
+  referenciaActa       String
+  anuladaEm            DateTime?
+  motivoAnulacao       String?
+  lancamentoAnulacaoId String?   // FK Lancamento (escalar) — o estorno
+  anuladaPorId         String?   // FK User (escalar)
+  criadoPorId          String    // FK User (escalar)
+  keycloakSub          String    // sub do Keycloak para correlação com trilho de auditoria
+  requestId            String?   // correlação com registo estruturado
+  createdAt            DateTime  @default(now())
+
+  exercicio ExercicioContabil @relation(fields: [exercicioId], references: [id])
+
+  @@index([tenantId, exercicioId])
+  @@index([tenantId, exercicioDestinoId])
 }
 
 /// Plano Geral de Contas (PGC-NIRF, Decreto 70/2009).

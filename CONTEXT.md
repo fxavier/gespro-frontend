@@ -249,6 +249,20 @@ balancete** — saldos por conta, com o código e o nome à data — e não se r
 Financeiro = 69 e 78; operacional = o resto das classes 6/7 (a mesma regra da DRE). Decidido em
 2026-10-05 (issue #138).
 
+### Balanço (por classes)
+O mapa da posição do exercício até um período (por omissão o 13 num exercício encerrado, senão o
+12): **Activo** (classes 1–3 e as contas de razão da classe 4 de saldo devedor), **Passivo** (as
+da classe 4 de saldo credor) e **Capital próprio** (classes 5 e 8 mais o resultado do período
+ainda por apurar das classes 6/7), por conta de razão. Lê o [[Acumulado]] do balancete — não
+recalcula. _Não confundir com_ o **balanço oficial** do PGC-NIRF: não separa corrente e não
+corrente. ADR-0035 §8, issue #365.
+
+### Arquivo do encerramento
+Os PDF do balanço (período 13), da DRE (datas do exercício) e do balancete de verificação (1..13)
+gravados no armazenamento de objectos e ligados ao encerramento em vigor. Faz-se **depois** do
+encerramento: se falhar, o encerramento mantém-se e a lista de exercícios mostra «Arquivo em
+falta» com a acção para o repetir. ADR-0035 §8, issue #365.
+
 ### Encerrado provisoriamente
 O exercício com as contas saldadas e a fotografia guardada. Não aceita escrita corrente, mas
 pode ser **reaberto** — com permissão própria e motivo — para ajustamentos da revisão: a
@@ -259,8 +273,18 @@ houver) e regista-se à parte. Volta a encerrar-se com uma fotografia nova.
 Definitivo. Nenhuma reabertura, por ninguém. Passa-se a ele depois da entrega da Modelo 22 e da
 aprovação de contas.
 
-_Não confundir_ o encerramento com a **aplicação do resultado** (88 → 59 «Resultados
-transitados»): essa é do exercício **seguinte**, com a data da deliberação dos sócios.
+_Não confundir_ o encerramento com a [[Aplicação do resultado]]: essa é do exercício
+**seguinte**, com a data da deliberação dos sócios.
+
+### Aplicação do resultado
+O transporte do resultado de um exercício encerrado de 88 «Resultado líquido do período» para 59
+«Resultados transitados» (`AplicacaoResultado`, ADR-0035 §5, #364). É um lançamento do exercício
+**seguinte**, no diário de operações, com a **data da deliberação** e a **referência da acta**;
+transfere o saldo **inteiro** de 88 nesse ano (abertura + correcções) — lucro D 88 / C 59, prejuízo
+o inverso. Exige o exercício encerrado e a [[Abertura do exercício]] seguinte lançada; uma só activa
+por exercício. **Não é** a distribuição (reservas, dividendos), que se faz depois, à mão, a partir de
+59. Desfaz-se só por **anulação** (com motivo: estorna no período do original), nunca pelo estorno
+genérico; enquanto activa, o exercício não reabre.
 
 ### Conta de razão
 Conta de nível 2 do PGC-NIRF (dois dígitos, ex.: `11` Caixa, `12` Bancos). O filtro «ver apenas

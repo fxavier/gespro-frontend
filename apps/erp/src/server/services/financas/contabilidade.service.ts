@@ -92,6 +92,13 @@ export const FILTRO_LANCAMENTO_MAPA = { in: ['LANCADO', 'ESTORNADO'] as StatusLa
 // para os serviços de outros domínios (reconciliação) os importarem sem arrastar este.
 import { FORA_DE_FECHO_E_ABERTURA, ORIGEM_ABERTURA, SEM_ABERTURA_REAFIRMADA } from './fora-de-fecho-e-abertura';
 
+/**
+ * `documentoOrigemTipo` do lançamento da aplicação do resultado (#364, ADR-0035 §5) e do estorno
+ * dele; `documentoOrigemId` = a `AplicacaoResultado`. Reservada: só
+ * `criarLancamentoAplicacaoResultadoEmTx` / `estornarLancamentoAplicacaoResultadoEmTx` a escrevem.
+ */
+export const ORIGEM_APLICACAO_RESULTADO = 'AplicacaoResultado';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -925,10 +932,12 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
  * lançamento dos leitores por datas — só o gerador a escreve.
  */
 function exigirOrigemNaoReservada(documentoOrigemTipo: string | null | undefined): void {
-  if (documentoOrigemTipo === ORIGEM_ABERTURA) {
+  // #364: `ORIGEM_APLICACAO_RESULTADO` idem — é o que tira o lançamento da aplicação (e o seu
+  // estorno) do estorno genérico.
+  if (documentoOrigemTipo === ORIGEM_ABERTURA || documentoOrigemTipo === ORIGEM_APLICACAO_RESULTADO) {
     throw new BusinessRuleError(
       'DOCUMENTO_ORIGEM_RESERVADO',
-      'Esta origem de documento é reservada aos lançamentos gerados pelo encerramento e pela abertura do exercício.',
+      'Esta origem de documento é reservada aos lançamentos gerados pelo encerramento, pela abertura do exercício e pela aplicação do resultado.',
     );
   }
 }
@@ -1014,6 +1023,14 @@ export async function estornarLancamentoEmTx(
     throw new BusinessRuleError(
       'LANCAMENTO_DE_ABERTURA',
       'A abertura do exercício é gerada pelo encerramento do anterior; só se estorna reabrindo o exercício anterior.',
+    );
+  }
+  // ADR-0035 §5 (#364): a aplicação do resultado (e o seu estorno) desfaz-se só pela anulação
+  // da aplicação, que estorna no período do original. Antes de resolver período nenhum.
+  if (lancamento.documentoOrigemTipo === ORIGEM_APLICACAO_RESULTADO) {
+    throw new BusinessRuleError(
+      'LANCAMENTO_DE_APLICACAO',
+      'O lançamento da aplicação do resultado só se estorna anulando a aplicação, em Contabilidade › Exercícios.',
     );
   }
   transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
@@ -2776,6 +2793,133 @@ async function partidasDeAberturaEmTx(
       const s = saldos.get(c.id)!;
       return { contaId: c.id, tipo: (s.greaterThan(0) ? 'DEBITO' : 'CREDITO') as TipoPartida, valor: s.abs() };
     });
+}
+
+// ---------------------------------------------------------------------------
+// Aplicação do resultado (ADR-0035 §5, #364)
+// ---------------------------------------------------------------------------
+
+/**
+ * Grava o lançamento da aplicação do resultado (88 ↔ 59) na tx do chamador
+ * (`aplicacao-resultado.service`): diário OPERACOES, período recebido por id (o da data da
+ * deliberação no exercício seguinte, já escolhido pelo chamador — `resolverPeriodo` podia criar
+ * exercícios), trancado `FOR SHARE` e ABERTO, LANCADO, origem reservada
+ * `ORIGEM_APLICACAO_RESULTADO` com a aplicação em `documentoOrigemId`. Vive aqui por causa do
+ * `gate-periodo`.
+ */
+export async function criarLancamentoAplicacaoResultadoEmTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    periodoId: string;
+    data: Date;
+    aplicacaoId: string;
+    historico: string;
+    partidas: ReadonlyArray<{ contaId: string; tipo: TipoPartida; valor: Prisma.Decimal }>;
+  },
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string; ordem: number }>>`
+    SELECT id, codigo, estado, ordem FROM "PeriodoContabil"
+    WHERE id = ${input.periodoId} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodo.ordem === 13) {
+    throw new BusinessRuleError(
+      'PERIODO_DE_ENCERRAMENTO',
+      `A aplicação do resultado vai para um período mensal; ${periodo.codigo} é o de encerramento.`,
+    );
+  }
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+
+  if (input.partidas.length === 0 || input.partidas.some((p) => !p.valor.greaterThan(0))) {
+    throw new BusinessRuleError('PARTIDA_VALOR_INVALIDO', 'Cada partida tem de ter valor positivo.');
+  }
+  const totalDebito = totalDasPartidasEquilibradas(input.partidas);
+
+  const diario = await tx.diario.findFirst({
+    where: { tipo: 'OPERACOES', tenantId: ctx.tenantId, ativo: true },
+    select: { id: true },
+  });
+  if (!diario) throw new NotFoundError('Diário do tipo "OPERACOES" não encontrado');
+
+  const numero = await proximoNumeroLancamento(tx, diario.id, periodo.codigo, ctx.tenantId);
+
+  const lancamento = await tx.lancamento.create({
+    data: {
+      tenantId: ctx.tenantId,
+      numero,
+      data: input.data,
+      tipo: 'AUTOMATICO',
+      origem: 'AJUSTE',
+      diarioId: diario.id,
+      periodoId: periodo.id,
+      documentoOrigemId: input.aplicacaoId,
+      documentoOrigemTipo: ORIGEM_APLICACAO_RESULTADO,
+      historico: input.historico,
+      valorTotal: totalDebito,
+      status: 'LANCADO',
+      periodoFiscal: periodo.codigo, // cópia de periodo.codigo (ADR-0033 §1)
+      criadoPorId: ctx.userId,
+    },
+  });
+
+  for (const p of input.partidas) {
+    await exigirContaDeMovimento(tx, p.contaId, ctx.tenantId);
+    await tx.partidaLancamento.create({
+      data: {
+        tenantId: ctx.tenantId,
+        lancamentoId: lancamento.id,
+        contaId: p.contaId,
+        tipo: p.tipo,
+        valor: new Prisma.Decimal(p.valor.toFixed(2)),
+      },
+    });
+  }
+
+  return lancamento as unknown as Lancamento;
+}
+
+/**
+ * Estorna o lançamento da aplicação do resultado (#364: anulação da aplicação) no período DELE —
+ * por id, não pela data de hoje —, trancado `FOR SHARE` e ABERTO, no mesmo diário, com a data do
+ * original. O estorno leva a mesma origem reservada (e a aplicação em `documentoOrigemId`): o
+ * estorno genérico recusa-o também. Vive aqui por causa do `gate-periodo`.
+ */
+export async function estornarLancamentoAplicacaoResultadoEmTx(
+  tx: Prisma.TransactionClient,
+  input: { lancamentoId: string; motivo: string },
+  ctx: Ctx,
+): Promise<Lancamento> {
+  const lancamento = await tx.lancamento.findFirst({
+    where: { id: input.lancamentoId, tenantId: ctx.tenantId },
+    include: { partidas: true },
+  });
+  if (!lancamento) throw new NotFoundError('Lançamento não encontrado');
+  if (lancamento.documentoOrigemTipo !== ORIGEM_APLICACAO_RESULTADO || lancamento.lancamentoEstornoId !== null) {
+    throw new BusinessRuleError(
+      'LANCAMENTO_NAO_E_DE_APLICACAO',
+      `O lançamento ${lancamento.numero} não é uma aplicação do resultado.`,
+    );
+  }
+  transitarEstado(lancamento.status as StatusLancamento, 'ESTORNADO');
+
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; codigo: string; estado: string }>>`
+    SELECT id, codigo, estado FROM "PeriodoContabil"
+    WHERE id = ${lancamento.periodoId} AND "tenantId" = ${ctx.tenantId}
+    FOR SHARE
+  `;
+  if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
+  if (periodo.estado !== 'ABERTO') {
+    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+  }
+
+  return gravarEstornoEmTx(tx, lancamento, periodo, lancamento.data, input.motivo, ctx, {
+    tipo: ORIGEM_APLICACAO_RESULTADO,
+    id: lancamento.documentoOrigemId,
+  });
 }
 
 // ---------------------------------------------------------------------------

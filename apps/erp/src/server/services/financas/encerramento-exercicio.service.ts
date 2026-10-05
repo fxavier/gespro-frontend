@@ -7,6 +7,15 @@ import { MotivoReaberturaSchema } from '@/lib/validations/contabilidade';
 import { transitarExercicio } from '@/lib/state-machines';
 import { getRequestContext } from '@/server/observability/context';
 import { logger } from '@/server/observability/logger';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { derivarKey, getObjectStorage, prefixoTenant } from '@/lib/storage/objeto';
+import { renderBalancoPdf } from '@/lib/documents/pdf/balanco-pdf';
+import { renderBalancetePdf } from '@/lib/documents/pdf/balancete-pdf';
+import { renderDrePdf } from '@/lib/documents/pdf/dre-pdf';
+import { montarBalanco } from './balanco';
+import { emissaoDosMapas } from './emissao-mapas';
+import { filtrarBalancete, hierarquizarBalancete } from './balancete-verificacao';
+import { MAX_LINHAS_BALANCETE_ARQUIVO, somarLinhasQueContam, zeros } from '@/lib/documents/balancete-paginas';
 import {
   FILTRO_LANCAMENTO_MAPA,
   aberturaEsperadaDeEmTx,
@@ -16,6 +25,8 @@ import {
   estornarLancamentoEncerramentoEmTx,
   exercicioTemAberturaEfectivaEmTx,
   gerarAberturaEmTx,
+  gerarBalanceteVerificacao,
+  gerarDRE,
 } from './contabilidade.service';
 import type {
   Ctx,
@@ -494,6 +505,9 @@ export async function encerrarExercicio(
  * de qualquer escrita — a correcção passa a ser um lançamento de correcção de exercícios
  * anteriores. Senão estorna-lhe a abertura gerada a partir deste (período 1 dele, diário AB), e
  * o id entra em `lancamentosEstornados` com os do encerramento: é o rasto completo da reabertura.
+ *
+ * Aplicação do resultado (#364, ADR-0035 §5): com uma aplicação activa deste exercício recusa com
+ * `APLICACAO_DO_RESULTADO_REGISTADA`, também antes de qualquer escrita — anula-se primeiro.
  */
 export async function reabrirExercicio(
   input: { exercicioId: string; motivo: string },
@@ -530,6 +544,20 @@ export async function reabrirExercicio(
           `Não é possível reabrir: o exercício seguinte (${seguinte.codigo}) já tem períodos fechados e o ` +
             'lançamento de abertura dele já não pode ser refeito. Registe o ajustamento como correcção de ' +
             'exercícios anteriores.',
+        );
+      }
+
+      // ADR-0035 §5 (#364): com o resultado aplicado no seguinte, reabrir deixava a aplicação a
+      // transportar um resultado que vai mudar. Decidido com o exercício trancado — a aplicação
+      // tranca-o também, antes de escrever.
+      const aplicacoesActivas = await tx.aplicacaoResultado.count({
+        where: { tenantId: ctx.tenantId, exercicioId: exercicio.id, anuladaEm: null },
+      });
+      if (aplicacoesActivas > 0) {
+        throw new BusinessRuleError(
+          'APLICACAO_DO_RESULTADO_REGISTADA',
+          `Não é possível reabrir: o resultado do exercício ${exercicio.codigo} já foi aplicado no exercício ` +
+            'seguinte. Anule primeiro a aplicação do resultado.',
         );
       }
 
@@ -667,4 +695,265 @@ export async function encerrarExercicioDefinitivo(
     '[encerramento] exercício encerrado em definitivo',
   );
   return exercicio as unknown as ExercicioContabil;
+}
+
+// ---------------------------------------------------------------------------
+// Arquivo em PDF do encerramento (ADR-0035 §8, #365)
+// ---------------------------------------------------------------------------
+
+/** Os três documentos arquivados com cada encerramento e o campo da key de cada um. */
+export const DOCUMENTOS_ARQUIVO_ENCERRAMENTO = ['balanco', 'dre', 'balancete'] as const;
+export type DocumentoArquivoEncerramento = (typeof DOCUMENTOS_ARQUIVO_ENCERRAMENTO)[number];
+
+const CAMPO_KEY_ARQUIVO = {
+  balanco: 'balancoStorageKey',
+  dre: 'dreStorageKey',
+  balancete: 'balanceteStorageKey',
+} as const satisfies Record<DocumentoArquivoEncerramento, string>;
+
+/** O estado do arquivo de um encerramento — as três keys e `arquivadoEm` (todas presentes). */
+export interface EstadoArquivoEncerramento {
+  balancoStorageKey: string | null;
+  dreStorageKey: string | null;
+  balanceteStorageKey: string | null;
+  arquivadoEm: Date | null;
+}
+
+const COLUNAS_TOTAIS_BV = ['movD', 'movC', 'acumD', 'acumC', 'saldoDevedor', 'saldoCredor'] as const;
+
+type ExercicioDoArquivo = { id: string; codigo: string; dataInicio: Date; dataFim: Date };
+
+/**
+ * Os PDF dos documentos em falta, e só desses. Balanço e balancete saem do MESMO balancete de
+ * verificação (1..13, incluído o período 13); a DRE é por datas — e por isso, como todos os
+ * leitores por datas, não conta o período 13 (mostra o resultado antes da estimativa do imposto).
+ * Corre com o contexto de tenant (os leitores usam o cliente estendido).
+ */
+async function gerarPdfsEmFalta(
+  exercicio: ExercicioDoArquivo,
+  emFalta: DocumentoArquivoEncerramento[],
+  ctx: Ctx,
+): Promise<Partial<Record<DocumentoArquivoEncerramento, Uint8Array>>> {
+  const { entidade, emissao } = await emissaoDosMapas(ctx);
+  const pdfs: Partial<Record<DocumentoArquivoEncerramento, Uint8Array>> = {};
+
+  if (emFalta.includes('balanco') || emFalta.includes('balancete')) {
+    const bv = await gerarBalanceteVerificacao(
+      { exercicioId: exercicio.id, periodoInicial: 1, periodoFinal: 13, incluir13: true },
+      ctx,
+    );
+    if (emFalta.includes('balanco')) {
+      pdfs.balanco = await renderBalancoPdf(
+        { entidade, exercicio: exercicio.codigo, periodoFinal: 13, balanco: montarBalanco(bv.linhas, bv.contas) },
+        emissao,
+      );
+    }
+    if (emFalta.includes('balancete')) {
+      // Sem ninguém a escolher filtros: acima do tecto do arquivo, só as contas de razão.
+      let linhas = filtrarBalancete(hierarquizarBalancete(bv, bv.contas, {}), {});
+      const soRazao = linhas.length > MAX_LINHAS_BALANCETE_ARQUIVO;
+      if (soRazao) linhas = filtrarBalancete(hierarquizarBalancete(bv, bv.contas, { apenasRazao: true }), {});
+      // Como na exportação: se a soma do que se mostra deixa de ser a do balancete (roll-up por
+      // razão, órfãs), a última página separa «linhas mostradas» dos «Totais do balancete».
+      const mostradas = somarLinhasQueContam(zeros(), linhas);
+      pdfs.balancete = await renderBalancetePdf(
+        {
+          entidade,
+          exercicio: exercicio.codigo,
+          periodoInicial: 1,
+          periodoFinal: 13,
+          incluir13: true,
+          tipo: 'AMBOS',
+          filtros: soRazao ? 'Apenas contas de razão' : '',
+          filtrosTiramLinhas: COLUNAS_TOTAIS_BV.some((k) => !mostradas[k].equals(bv.totais[k])),
+          linhas,
+          totais: bv.totais,
+          equilibrio: bv.equilibrio,
+        },
+        emissao,
+      );
+    }
+  }
+  if (emFalta.includes('dre')) {
+    const dre = await gerarDRE({ dataInicio: exercicio.dataInicio, dataFim: exercicio.dataFim }, ctx);
+    pdfs.dre = await renderDrePdf({ entidade, dre }, emissao);
+  }
+  return pdfs;
+}
+
+/**
+ * Arquiva em PDF os documentos EM FALTA de um encerramento — balanço (período 13), DRE (datas do
+ * exercício) e balancete de verificação (períodos 1..13) — e grava as keys deles; `arquivadoEm`
+ * fica preenchido quando os três estão.
+ *
+ * Corre DEPOIS do commit do encerramento e FORA de qualquer transacção: o layout do PDF é CPU
+ * síncrona e o armazenamento é rede — nada disso pode segurar trancas. Uma falha (armazenamento
+ * indisponível, por exemplo) propaga-se ao chamador mas nunca desfaz o encerramento; as keys dos
+ * documentos já gravados ficam, as dos outros ficam nulas, e o arquivo pode correr-se de novo (a
+ * lista de exercícios mostra «Arquivo em falta» e um botão para isso).
+ *
+ * Byte a byte: um documento já arquivado NUNCA se regrava — só se geram e gravam os de key nula,
+ * cada um numa key nova; com os três arquivados é um no-op que devolve o estado. A key só se
+ * grava se ainda estiver nula (duas corridas em simultâneo: fica a primeira; o objecto da segunda
+ * apaga-se). Só um encerramento
+ * em vigor (não anulado) se arquiva. Outro tenant → `NotFoundError`.
+ */
+export async function arquivarEncerramento(encerramentoId: string, ctx: Ctx): Promise<EstadoArquivoEncerramento> {
+  const inicio = Date.now();
+  const encerramento = await prismaBase.encerramentoExercicio.findFirst({
+    where: { id: encerramentoId, tenantId: ctx.tenantId },
+    include: { exercicio: { select: { id: true, codigo: true, dataInicio: true, dataFim: true } } },
+  });
+  if (!encerramento) throw new NotFoundError('Encerramento não encontrado');
+  if (encerramento.anuladoEm) {
+    throw new BusinessRuleError(
+      'ENCERRAMENTO_ANULADO',
+      'Este encerramento foi anulado por uma reabertura do exercício; não se arquiva.',
+    );
+  }
+  const estadoDe = (e: EstadoArquivoEncerramento): EstadoArquivoEncerramento => ({
+    balancoStorageKey: e.balancoStorageKey,
+    dreStorageKey: e.dreStorageKey,
+    balanceteStorageKey: e.balanceteStorageKey,
+    arquivadoEm: e.arquivadoEm,
+  });
+  const emFalta = DOCUMENTOS_ARQUIVO_ENCERRAMENTO.filter((d) => !encerramento[CAMPO_KEY_ARQUIVO[d]]);
+  if (emFalta.length === 0) return estadoDe(encerramento);
+
+  const { exercicio } = encerramento;
+  const pdfs = await runWithTenantContext(ctx, () => gerarPdfsEmFalta(exercicio, emFalta, ctx));
+
+  // Cada documento numa key nova: um objecto já arquivado nunca é substituído.
+  const storage = getObjectStorage();
+  const gravadas: Partial<Record<DocumentoArquivoEncerramento, string>> = {};
+  let falha: unknown = null;
+  for (const d of emFalta) {
+    const key = derivarKey({
+      tenantId: ctx.tenantId,
+      recurso: 'encerramento',
+      recursoId: encerramento.id,
+      nome: `${d}-${exercicio.codigo}.pdf`,
+    });
+    try {
+      await storage.put(key, pdfs[d]!, 'application/pdf');
+      gravadas[d] = key;
+    } catch (e) {
+      falha = e;
+      break;
+    }
+  }
+
+  const documentosGravados = Object.keys(gravadas) as DocumentoArquivoEncerramento[];
+  /** Documentos cuja key ficou gravada (a guarda «key nula» bateu); só esses vão ao trilho. */
+  const fixados: DocumentoArquivoEncerramento[] = [];
+  if (documentosGravados.length > 0) {
+    // As keys e o `AuditLog` (o `prismaBase` não é auditado) numa transacção curta, sem I/O externo.
+    await prismaBase.$transaction(async (tx) => {
+      for (const d of documentosGravados) {
+        const r = await tx.encerramentoExercicio.updateMany({
+          where: { id: encerramento.id, tenantId: ctx.tenantId, anuladoEm: null, [CAMPO_KEY_ARQUIVO[d]]: null },
+          data: { [CAMPO_KEY_ARQUIVO[d]]: gravadas[d] },
+        });
+        if (r.count === 1) fixados.push(d);
+      }
+      const completo = await tx.encerramentoExercicio.updateMany({
+        where: {
+          id: encerramento.id,
+          tenantId: ctx.tenantId,
+          anuladoEm: null,
+          arquivadoEm: null,
+          balancoStorageKey: { not: null },
+          dreStorageKey: { not: null },
+          balanceteStorageKey: { not: null },
+        },
+        data: { arquivadoEm: new Date() },
+      });
+      if (fixados.length === 0 && completo.count === 0) return;
+      await auditar(tx, ctx, await keycloakSubDe(tx, ctx), {
+        entity: 'EncerramentoExercicio',
+        entityId: encerramento.id,
+        action: 'UPDATE',
+        data: {
+          after: {
+            ...Object.fromEntries(fixados.map((d) => [CAMPO_KEY_ARQUIVO[d], gravadas[d]!])),
+            arquivoCompleto: completo.count > 0,
+          },
+        },
+      });
+    });
+  }
+
+  // O que se gravou e não ficou ligado (corrida perdida, ou encerramento anulado entretanto) é
+  // um órfão: apaga-se — melhor esforço, fora da transacção.
+  for (const d of documentosGravados.filter((x) => !fixados.includes(x))) {
+    try {
+      await storage.delete(gravadas[d]!);
+    } catch (e) {
+      logger.warn(
+        { tenantId: ctx.tenantId, encerramentoId: encerramento.id, documento: d, erro: e instanceof Error ? e.message : String(e) },
+        '[encerramento] objecto arquivado sem key não foi apagado',
+      );
+    }
+  }
+
+  if (falha) throw falha;
+
+  const actual = await prismaBase.encerramentoExercicio.findFirst({
+    where: { id: encerramento.id, tenantId: ctx.tenantId },
+    select: { balancoStorageKey: true, dreStorageKey: true, balanceteStorageKey: true, arquivadoEm: true },
+  });
+  logger.info(
+    {
+      tenantId: ctx.tenantId,
+      exercicioId: exercicio.id,
+      encerramentoId: encerramento.id,
+      documentos: fixados,
+      duracaoMs: Date.now() - inicio,
+    },
+    '[encerramento] documentos arquivados',
+  );
+  return estadoDe(actual ?? encerramento);
+}
+
+/**
+ * Situação do arquivo do encerramento EM VIGOR de um exercício (o não anulado), ou `null` se
+ * não houver nenhum. Para a lista de exercícios: ligações aos PDF ou «Arquivo em falta».
+ */
+export async function situacaoArquivoEncerramento(
+  exercicioId: string,
+  ctx: Ctx,
+): Promise<{ encerramentoId: string; arquivadoEm: Date | null; documentos: DocumentoArquivoEncerramento[] } | null> {
+  const e = await prismaBase.encerramentoExercicio.findFirst({
+    where: { tenantId: ctx.tenantId, exercicioId, anuladoEm: null },
+    orderBy: { versao: 'desc' },
+    select: { id: true, arquivadoEm: true, balancoStorageKey: true, dreStorageKey: true, balanceteStorageKey: true },
+  });
+  if (!e) return null;
+  return {
+    encerramentoId: e.id,
+    arquivadoEm: e.arquivadoEm,
+    documentos: DOCUMENTOS_ARQUIVO_ENCERRAMENTO.filter((d) => Boolean(e[CAMPO_KEY_ARQUIVO[d]])),
+  };
+}
+
+/**
+ * A key arquivada de um documento do encerramento EM VIGOR do exercício. `NotFoundError` quando
+ * o exercício é de outro tenant, não tem encerramento em vigor (nunca encerrado ou reaberto), ou
+ * o documento não foi arquivado. Reafirma o prefixo do tenant antes de a devolver.
+ */
+export async function keyArquivoEncerramento(
+  exercicioId: string,
+  documento: DocumentoArquivoEncerramento,
+  ctx: Ctx,
+): Promise<string> {
+  const e = await prismaBase.encerramentoExercicio.findFirst({
+    where: { tenantId: ctx.tenantId, exercicioId, anuladoEm: null },
+    orderBy: { versao: 'desc' },
+    select: { balancoStorageKey: true, dreStorageKey: true, balanceteStorageKey: true },
+  });
+  const key = e?.[CAMPO_KEY_ARQUIVO[documento]];
+  if (!key || !key.startsWith(prefixoTenant(ctx.tenantId))) {
+    throw new NotFoundError('Documento do encerramento não encontrado');
+  }
+  return key;
 }
