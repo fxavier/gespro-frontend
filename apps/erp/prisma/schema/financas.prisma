@@ -344,10 +344,14 @@ model ExercicioContabil {
   estado      EstadoExercicio @default(ABERTO)
   anteriorId  String?         // FK escalar ao exercício precedente (sem @relation — escalar)
   criadoPorId String?         // FK User (escalar); pode ser nulo quando criado pelo cron
+  encerradoDefinitivoEm   DateTime? // ADR-0035 §1 — segunda fase, irreversível
+  encerradoDefinitivoPorId String?  // FK User (escalar)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   periodos    PeriodoContabil[]
+  encerramentos EncerramentoExercicio[]
+  reaberturas   ReaberturaExercicio[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, estado])
@@ -396,6 +400,61 @@ model ReaberturaPeriodo {
   periodo PeriodoContabil @relation(fields: [periodoId], references: [id])
 
   @@index([tenantId, periodoId])
+  @@index([tenantId, createdAt])
+}
+
+/// Encerramento (provisório) de um exercício (ADR-0035 §1, §3 e §8). Uma linha por
+/// encerramento: re-encerrar depois de uma reabertura cria uma linha nova com a
+/// versão seguinte; a anterior fica com anuladoEm preenchido. Append-only salvo anuladoEm.
+/// Os três lançamentos (apuramento dos resultados, estimativa do imposto, transferência
+/// do resultado líquido) vivem no período 13 e são referidos por FK escalar.
+model EncerramentoExercicio {
+  id                     String    @id @default(cuid())
+  tenantId               String
+  exercicioId            String
+  versao                 Int       // 1, 2, … por exercício
+  estimativaImposto      Decimal   @db.Decimal(18, 2)
+  lancamentoResultadosId String    // FK Lancamento (escalar) — apuramento das classes 6/7 para 8x
+  lancamentoImpostoId    String?   // FK Lancamento (escalar); nulo quando a estimativa é zero
+  lancamentoLiquidoId    String    // FK Lancamento (escalar) — transferência para 88
+  /// Fotografia do balancete à data do encerramento (ADR-0035 §8: código e nome à data).
+  /// Forma: Array<{ contaId: string; codigo: string; nome: string; totalDebito: string; totalCredito: string;
+  ///                saldoDevedor: string; saldoCredor: string }> — valores em string decimal;
+  /// contaId serve para reconciliar com o plano na reabertura.
+  fotografia             Json
+  totalDebito            Decimal   @db.Decimal(18, 2)
+  totalCredito           Decimal   @db.Decimal(18, 2)
+  anuladoEm              DateTime? // preenchido quando o exercício é reaberto
+  encerradoPorId         String    // FK User (escalar)
+  keycloakSub            String    // sub do Keycloak para correlação com trilho de auditoria
+  requestId              String?   // correlação com registo estruturado
+  createdAt              DateTime  @default(now())
+
+  exercicio   ExercicioContabil     @relation(fields: [exercicioId], references: [id])
+  reaberturas ReaberturaExercicio[]
+
+  @@unique([tenantId, exercicioId, versao])
+  @@index([tenantId, exercicioId])
+}
+
+/// Registo imutável de cada reabertura de um exercício encerrado provisoriamente
+/// (ADR-0035 §1 e §8). Append-only.
+model ReaberturaExercicio {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  exercicioId           String
+  encerramentoId        String   // o encerramento anulado por esta reabertura
+  motivo                String
+  lancamentosEstornados String[] // ids (escalares) dos lançamentos de encerramento estornados
+  reabertoPorId         String   // FK User (escalar)
+  keycloakSub           String   // sub do Keycloak para correlação com trilho de auditoria
+  requestId             String?  // correlação com registo estruturado
+  createdAt             DateTime @default(now())
+
+  exercicio    ExercicioContabil     @relation(fields: [exercicioId], references: [id])
+  encerramento EncerramentoExercicio @relation(fields: [encerramentoId], references: [id])
+
+  @@index([tenantId, exercicioId])
   @@index([tenantId, createdAt])
 }
 

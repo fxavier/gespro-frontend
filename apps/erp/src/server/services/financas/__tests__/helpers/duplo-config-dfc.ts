@@ -119,7 +119,7 @@ export const ESQUEMA: Readonly<Record<Modelo, Esquema>> = {
   },
   exercicioContabil: {
     nome: 'ExercicioContabil',
-    campos: ['id', 'tenantId', 'codigo', 'dataInicio', 'dataFim', 'estado', 'anteriorId', 'criadoPorId', 'createdAt', 'updatedAt'],
+    campos: ['id', 'tenantId', 'codigo', 'dataInicio', 'dataFim', 'estado', 'anteriorId', 'criadoPorId', 'encerradoDefinitivoEm', 'encerradoDefinitivoPorId', 'createdAt', 'updatedAt'],
     obrigatorios: [],
     omissoes: {},
     unicos: [['id'], ['tenantId', 'codigo']],
@@ -128,6 +128,8 @@ export const ESQUEMA: Readonly<Record<Modelo, Esquema>> = {
     soLeitura: true,
     relacoes: {
       periodos: { alvo: 'periodoContabil', lista: true, local: 'id', remoto: 'exercicioId' },
+      encerramentos: { alvo: null, lista: true, local: 'id', remoto: 'exercicioId' },
+      reaberturas: { alvo: null, lista: true, local: 'id', remoto: 'exercicioId' },
     },
   },
   rubricaFluxoCaixa: {

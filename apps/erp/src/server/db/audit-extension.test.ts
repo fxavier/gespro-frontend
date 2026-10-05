@@ -28,3 +28,13 @@ describe('audit-extension — lançamentos (#137, D5)', () => {
     expect(AUDIT_MODELS.has('PartidaLancamento')).toBe(true);
   });
 });
+
+describe('audit-extension — encerramento do exercício (ADR-0035, #138)', () => {
+  it.each(['ExercicioContabil', 'EncerramentoExercicio', 'ReaberturaExercicio'])(
+    '%s está em AUDIT_MODELS e em CRITICAL_ENTITIES',
+    (modelo) => {
+      expect(AUDIT_MODELS.has(modelo)).toBe(true);
+      expect(CRITICAL_ENTITIES.has(modelo)).toBe(true);
+    },
+  );
+});

@@ -29,6 +29,9 @@ export const AUDIT_MODELS = new Set<string>([
   // #137 — editar e anular um rascunho escrevem pelo cliente estendido, uma linha
   // de cada vez. Criar e os automáticos continuam pelo `prismaBase` (dívida, D5).
   'Lancamento', 'PartidaLancamento',
+  // ADR-0035 §8 — encerrar, reabrir e encerrar em definitivo o exercício ficam no
+  // trilho, na mesma transacção (ver CRITICAL_ENTITIES).
+  'ExercicioContabil', 'EncerramentoExercicio', 'ReaberturaExercicio',
 ]);
 
 /**
@@ -39,6 +42,8 @@ export const CRITICAL_ENTITIES = new Set<string>([
   // Serão adicionados na Wave 2: 'LancamentoContabil', 'Fatura', 'MovimentoCaixa'
   'User', 'Role',
   'CorrespondenciaBancaria', 'PeriodoReconciliacao',
+  // ADR-0035 §8 — o encerramento e a reabertura do exercício.
+  'ExercicioContabil', 'EncerramentoExercicio', 'ReaberturaExercicio',
 ]);
 
 // ---------------------------------------------------------------------------
