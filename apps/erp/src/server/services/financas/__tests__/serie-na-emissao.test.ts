@@ -106,6 +106,28 @@ const LINHA = LinhaDocumentoSchema.parse({
  * do documento). A série de 2026 existe e está activa — se o serviço a for
  * buscar pelo id do input, encontra-a; é exactamente o defeito da #93.
  */
+/**
+ * Duplo das duas leituras que a emissão de ND faz antes de numerar (ADR-0039 §1):
+ * a omissão do bootstrap (ACERTO_PRECO → 711, activa, de movimento, classe 7) e a conta
+ * PGC. Semântica do Prisma: filtro `undefined` não filtra; `select` só devolve o pedido.
+ */
+function duploContasNaturezaND(tenantId: string) {
+  const linhas = [{ id: 'cnnd-711', tenantId, natureza: 'ACERTO_PRECO', contaId: 'conta-711' }];
+  const contas = [
+    { id: 'conta-711', tenantId, codigo: '711', nome: 'Mercadorias', classe: 'CLASSE_7', aceitaLancamento: true, ativo: true },
+  ];
+  const procurar = <T extends Record<string, unknown>>(regs: T[]) =>
+    vi.fn(async ({ where = {}, select }: { where?: Record<string, unknown>; select?: Record<string, boolean> } = {}) => {
+      const r = regs.find((reg) => Object.entries(where).every(([k, v]) => v === undefined || reg[k] === v));
+      if (!r) return null;
+      return select ? Object.fromEntries(Object.keys(select).filter((k) => select[k]).map((k) => [k, r[k]])) : { ...r };
+    });
+  return {
+    contaNaturezaNotaDebito: { findFirst: procurar(linhas) },
+    contaPGC: { findFirst: procurar(contas) },
+  };
+}
+
 function criarTx(numeracao: unknown[] | 'por-tipo' = 'por-tipo') {
   const criados: Record<string, any[]> = {};
   const linhaOrigem = {
@@ -181,6 +203,7 @@ function criarTx(numeracao: unknown[] | 'por-tipo' = 'por-tipo') {
       ),
     },
     cliente: { findFirst: vi.fn(async () => ({ id: 'cli-93' })) },
+    ...duploContasNaturezaND(ctx.tenantId),
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-93' })) },
     fatura: modelo('fatura'),
     linhaFatura: modelo('linhaFatura'),

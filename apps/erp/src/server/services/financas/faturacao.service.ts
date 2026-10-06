@@ -18,6 +18,7 @@ import {
   registarLancamentoContabilistico,
 } from './contabilidade.service';
 import { resolverContaMeioPagamento } from './meio-pagamento.service';
+import { resolverContaNaturezaNotaDebito, validarContaParaNatureza } from './natureza-nota-debito.service';
 import { registarMovimentoCaixa } from './caixa.service';
 import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
@@ -333,8 +334,10 @@ export function construirLancamentoNotaDebito(nd: {
   subtotal: Prisma.Decimal;
   ivaTotal: Prisma.Decimal;
   dataEmissao: Date;
+  /** Conta creditada pelo subtotal, decidida pela natureza (ADR-0039 §1); omissão 711. */
+  contaCreditoCodigo?: string;
 }): RegistarLancamentoContabilisticoInput {
-  // Nota de débito: o cliente passa a dever mais → D Clientes, C Receita (+IVA)
+  // Nota de débito: o cliente passa a dever mais → D Clientes, C conta da natureza (+IVA)
   // É o espelho contabilístico da nota de crédito.
   const partidas: RegistarLancamentoContabilisticoInput['partidas'] = [
     {
@@ -344,10 +347,10 @@ export function construirLancamentoNotaDebito(nd: {
       historico: `ND ${nd.numero} — débito clientes`,
     },
     {
-      contaCodigo: PGC_FATURACAO.RECEITA_VENDAS,
+      contaCodigo: nd.contaCreditoCodigo ?? PGC_FATURACAO.RECEITA_VENDAS,
       tipo: 'CREDITO',
       valor: nd.subtotal.toFixed(2),
-      historico: `ND ${nd.numero} — receita adicional`,
+      historico: `ND ${nd.numero} — débito adicional`,
     },
   ];
 
@@ -967,12 +970,15 @@ export async function marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura>
 export async function procurarFaturasCreditaveis(
   q: string | undefined,
   ctx: Ctx,
+  /** Só as deste cliente — a factura de referência de uma ND (#85). */
+  clienteId?: string,
 ): Promise<Array<{ id: string; numero: string; dataEmissao: Date; total: Prisma.Decimal }>> {
   const termo = q?.trim();
   return prisma.fatura.findMany({
     where: {
       tenantId: ctx.tenantId,
       status: { in: [...ESTADOS_FATURA_CREDITAVEL] },
+      ...(clienteId ? { clienteId } : {}),
       ...(termo ? { numero: { contains: termo, mode: 'insensitive' as const } } : {}),
     },
     orderBy: { dataEmissao: 'desc' },
@@ -1519,12 +1525,60 @@ export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx):
 // Notas de débito
 // ---------------------------------------------------------------------------
 
+/**
+ * Conta a crédito da ND: a escolhida no acto, senão a omissão do tenant para a
+ * natureza; validada pela mesma regra da configuração. Nenhuma → recusa.
+ */
+async function resolverContaCreditoNotaDebito(
+  tx: Prisma.TransactionClient,
+  input: Pick<EmitirNotaDebitoInput, 'natureza' | 'contaCreditoId'>,
+  ctx: Ctx,
+): Promise<{ id: string; codigo: string }> {
+  const contaId = input.contaCreditoId ?? (await resolverContaNaturezaNotaDebito(tx, input.natureza, ctx))?.id;
+  if (!contaId) {
+    throw new BusinessRuleError(
+      'CONTA_CREDITO_OBRIGATORIA',
+      'Esta natureza não tem conta a crédito por omissão: escolha a conta na nota de débito.',
+    );
+  }
+  // A omissão também passa pela regra: uma conta configurada e depois desactivada não serve.
+  return validarContaParaNatureza(tx, contaId, input.natureza, ctx);
+}
+
+/** Factura de referência: do tenant, do mesmo cliente, e já emitida (não rascunho nem cancelada). */
+async function validarFaturaReferenciaNotaDebito(
+  tx: Prisma.TransactionClient,
+  faturaId: string,
+  clienteId: string,
+  ctx: Ctx,
+): Promise<void> {
+  const fatura = await tx.fatura.findFirst({
+    where: { id: faturaId, tenantId: ctx.tenantId },
+    select: { numero: true, clienteId: true, status: true },
+  });
+  if (!fatura) throw new NotFoundError('Factura de referência não encontrada');
+  if (fatura.clienteId !== clienteId) {
+    throw new BusinessRuleError('FATURA_DE_OUTRO_CLIENTE', `A factura ${fatura.numero} é de outro cliente.`);
+  }
+  // Referenciável = o mesmo conjunto que a NC credita: emitida, nunca rascunho nem cancelada.
+  if (!ESTADOS_FATURA_CREDITAVEL.includes(fatura.status)) {
+    throw new BusinessRuleError(
+      'FATURA_NAO_REFERENCIAVEL',
+      `A factura ${fatura.numero} está ${fatura.status === 'RASCUNHO' ? 'em rascunho' : 'cancelada'} e não pode ser referenciada.`,
+    );
+  }
+}
+
 export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): Promise<NotaDebitoCompleta> {
   await exigirEmailConfirmadoParaEmitir();
   return prismaBase.$transaction(async (tx) => {
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
     if (!cliente) throw new NotFoundError('Cliente não encontrado');
+
+    // Tudo o que pode recusar vem ANTES da numeração (ADR-0039 §1).
+    const contaCredito = await resolverContaCreditoNotaDebito(tx, input, ctx);
+    if (input.faturaReferenciaId) await validarFaturaReferenciaNotaDebito(tx, input.faturaReferenciaId, input.clienteId, ctx);
 
     const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_DEBITO', ctx, input.dataEmissao);
 
@@ -1543,6 +1597,8 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
         clienteId: input.clienteId,
         faturaReferenciaId: input.faturaReferenciaId ?? null,
         motivo: input.motivo,
+        natureza: input.natureza,
+        contaCreditoId: contaCredito.id,
         moeda: input.moeda ?? 'MZN',
         subtotal,
         descontoTotal: new Prisma.Decimal(0),
@@ -1588,6 +1644,7 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
         subtotal,
         ivaTotal,
         dataEmissao: input.dataEmissao,
+        contaCreditoCodigo: contaCredito.codigo,
       }),
       ctx,
     );

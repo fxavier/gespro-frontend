@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
+import { NATUREZAS_NOTA_DEBITO } from '@/lib/nota-debito';
 import { dataDocumento, idEntidade, inicioDoDia, fimDoDia } from './common';
 
 // ---------------------------------------------------------------------------
@@ -212,6 +213,10 @@ export const EmitirNotaDebitoSchema = z.object({
   clienteId: z.string().min(1, 'Cliente obrigatório'),
   faturaReferenciaId: z.string().cuid().optional(),
   motivo: z.string().min(1, 'Motivo obrigatório').max(500),
+  /** Escolhe a conta de crédito do lançamento (ADR-0039 §1). */
+  natureza: z.enum(NATUREZAS_NOTA_DEBITO).default('ACERTO_PRECO'),
+  /** Conta a crédito escolhida no acto; sem ela, vale a omissão do tenant para a natureza. */
+  contaCreditoId: idEntidade('ID de conta inválido').optional(),
   moeda: z.string().length(3).default('MZN'),
   dataEmissao: dataDocumento('Data de emissão'),
   linhas: z.array(LinhaDocumentoSchema).min(1, 'Mínimo 1 linha'),

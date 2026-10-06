@@ -67,6 +67,28 @@ const LINHA = { descricao: 'Serviço', quantidade: 1, precoUnitario: 100, descon
 
 const SERIE = { id: ID, tipo: 'FATURA', prefixo: 'FT', ano: 2026, formatoNumero: '{prefixo}/{ano}/{numero:6}' };
 
+/**
+ * Duplo das duas leituras que a emissão de ND faz antes de numerar (ADR-0039 §1):
+ * a omissão do bootstrap (ACERTO_PRECO → 711, activa, de movimento, classe 7) e a conta
+ * PGC. Semântica do Prisma: filtro `undefined` não filtra; `select` só devolve o pedido.
+ */
+function duploContasNaturezaND(tenantId: string) {
+  const linhas = [{ id: 'cnnd-711', tenantId, natureza: 'ACERTO_PRECO', contaId: 'conta-711' }];
+  const contas = [
+    { id: 'conta-711', tenantId, codigo: '711', nome: 'Mercadorias', classe: 'CLASSE_7', aceitaLancamento: true, ativo: true },
+  ];
+  const procurar = <T extends Record<string, unknown>>(regs: T[]) =>
+    vi.fn(async ({ where = {}, select }: { where?: Record<string, unknown>; select?: Record<string, boolean> } = {}) => {
+      const r = regs.find((reg) => Object.entries(where).every(([k, v]) => v === undefined || reg[k] === v));
+      if (!r) return null;
+      return select ? Object.fromEntries(Object.keys(select).filter((k) => select[k]).map((k) => [k, r[k]])) : { ...r };
+    });
+  return {
+    contaNaturezaNotaDebito: { findFirst: procurar(linhas) },
+    contaPGC: { findFirst: procurar(contas) },
+  };
+}
+
 /** `tx` com o mínimo que cada caminho feliz precisa de encontrar. */
 function novaTx() {
   const doc = (id: string) => async () => ({ id, numero: 'FT/2026/000001', status: 'EMITIDA', linhas: [] });
@@ -74,6 +96,7 @@ function novaTx() {
     // #93: a numeração devolve o id da série que numerou; não há pré-verificação de série escolhida.
     $queryRaw: vi.fn(async () => [{ id: SERIE.id, numero: 1, prefixo: 'FT', ano: 2026, formatoNumero: SERIE.formatoNumero }]),
     cliente: { findFirst: vi.fn(async () => ({ id: 'cli-1' })) },
+    ...duploContasNaturezaND(CTX.tenantId),
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-1' })) },
     fatura: {
       create: vi.fn(doc('fat-1')),
