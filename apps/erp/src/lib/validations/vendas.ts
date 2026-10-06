@@ -343,6 +343,8 @@ export const CreateEncomendaSchema = z.object({
 });
 
 export const UpdateEncomendaSchema = z.object({
+  clienteId: z.string().cuid('ID de cliente inválido').optional(),
+  itens: z.array(CreateItemEncomendaSchema).min(1, 'Encomenda deve ter pelo menos um item').optional(),
   dataPrevista: z.coerce.date().optional().nullable(),
   enderecoEntregaId: z.string().cuid().optional().nullable(),
   notas: z.string().max(2000).optional().nullable(),

@@ -79,3 +79,70 @@ test('a encomenda é criada e aparece na listagem', async ({ page }) => {
   await page.waitForURL(/\/vendas\/pedidos$/, { timeout: 60_000 });
   await expect(page.locator('tbody tr').first()).toContainText(/^ENC\/\d{4}\/\d+/);
 });
+
+test('uma encomenda em rascunho edita-se e o detalhe mostra os valores novos', async ({ page }) => {
+  test.setTimeout(120_000);
+
+  // 1. Criar pelo formulário real (como o teste anterior): 2 × TONER-001.
+  await page.goto('/vendas/pedidos/novo');
+  await expect(page.getByRole('heading', { name: 'Nova Encomenda de Venda' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.waitForLoadState('networkidle');
+
+  await page.getByRole('combobox', { name: 'Cliente *' }).click();
+  await page.getByPlaceholder(/Pesquisar por código/).fill('Maria');
+  await page.getByRole('option', { name: /Maria/ }).click();
+  const rotuloCliente = (await page.getByRole('combobox', { name: 'Cliente *' }).innerText()).trim();
+  expect(rotuloCliente).toMatch(/Maria/);
+
+  await page.getByRole('combobox', { name: 'Produto *' }).click();
+  await page.getByPlaceholder(/Pesquisar por nome, SKU/).fill('Toner');
+  await page.getByRole('option', { name: /TONER-001/ }).click();
+  await expect(page.getByLabel('Preço unitário do item 1')).toHaveValue('3500');
+
+  await page.getByLabel('Quantidade do item 1').fill('2');
+  await page.getByRole('button', { name: 'Criar Encomenda' }).click();
+  await page.waitForURL(/\/vendas\/pedidos$/, { timeout: 60_000 });
+
+  // 2. A listagem ordena por createdAt desc: a primeira linha é a acabada de criar.
+  //    Guarda-se o número e entra-se pelo link desse número (único por tenant).
+  const ligacao = page.locator('tbody tr').first().getByRole('link', { name: /^ENC\/\d{4}\/\d+/ });
+  const numero = (await ligacao.innerText()).trim();
+  expect(numero).toMatch(/^ENC\/\d{4}\/\d+$/);
+  await ligacao.click();
+  await expect(page.getByRole('heading', { name: `Encomenda ${numero}` })).toBeVisible({ timeout: 30_000 });
+  const urlDetalhe = page.url();
+  expect(urlDetalhe).toMatch(/\/vendas\/pedidos\/[^/]+$/);
+  const caminhoDetalhe = new URL(urlDetalhe).pathname;
+
+  // 3. Editar: o mesmo formulário do /novo, pré-preenchido.
+  await page.getByRole('link', { name: 'Editar' }).click();
+  await page.waitForURL(`**${caminhoDetalhe}/editar`, { timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: `Editar Encomenda ${numero}` })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.waitForLoadState('networkidle');
+
+  await expect(page.getByRole('combobox', { name: 'Cliente *' })).toHaveText(rotuloCliente);
+  await expect(page.getByRole('combobox', { name: 'Produto *' })).toHaveText(/TONER-001/);
+  await expect(page.getByLabel('Quantidade do item 1')).toHaveValue('2');
+  await expect(page.getByLabel('Preço unitário do item 1')).toHaveValue('3500');
+
+  await page.getByLabel('Quantidade do item 1').fill('3');
+  await page.getByRole('button', { name: 'Guardar Alterações' }).click();
+
+  // 4. Volta ao detalhe, que mostra a quantidade e o total recalculados:
+  //    3 × 3500 = 10 500; IVA 16% = 1 680; total 12 180.
+  await page.waitForURL((url) => url.pathname === caminhoDetalhe, { timeout: 60_000 });
+  await expect(page.getByRole('heading', { name: `Encomenda ${numero}` })).toBeVisible({ timeout: 30_000 });
+
+  const linhas = page.locator('tbody tr');
+  await expect(linhas).toHaveCount(1);
+  const celulas = linhas.first().locator('td');
+  await expect(celulas.nth(0)).toContainText('TONER-001');
+  await expect(celulas.nth(1)).toHaveText('3');
+  await expect(celulas.nth(3)).toHaveText(/1[\s  .]?680,00/);
+  await expect(celulas.nth(4)).toHaveText(/12[\s  .]?180,00/);
+  await expect(page.locator('tfoot')).toContainText(/12[\s  .]?180,00/);
+});
