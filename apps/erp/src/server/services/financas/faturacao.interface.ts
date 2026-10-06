@@ -383,6 +383,9 @@ export const TRANSICOES_NOTA_DEBITO: Record<StatusNotaDebito, StatusNotaDebito[]
  * EXPIRADA   → []  (terminal)
  * CANCELADA  → []  (terminal)
  */
+/** P2 (fatura-pdf-pagamento) — estados em que a factura aceita um pagamento (serviço e UI). */
+export const ESTADOS_FATURA_PAGAVEL: readonly StatusFatura[] = ['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'];
+
 /** #148 — estados em que a factura original aceita compensação de uma NC (serviço e UI). */
 export const ESTADOS_FATURA_COMPENSAVEL: readonly StatusFatura[] = ['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'];
 
@@ -604,7 +607,7 @@ export interface IFaturacaoService {
   ): Promise<PaginacaoFaturacao<FaturaCompleta>>;
   registarPagamento(
     input: RegistarPagamentoFaturaInput,
-    ctx: Ctx,
+    ctx: Ctx & { permissions?: ReadonlySet<string> },
   ): Promise<FaturaCompleta>;
   marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura>;
 

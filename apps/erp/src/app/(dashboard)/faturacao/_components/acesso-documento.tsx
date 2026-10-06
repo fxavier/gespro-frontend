@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
  * recusar. O ecrã só esconde o que a action recusaria; nunca decide sozinho.
  */
 export const PERM = {
+  faturaPagar: 'faturacao:fatura:pagar',
   ncLiquidar: 'faturacao:nc:liquidar',
   ncCancelar: 'faturacao:nc:cancelar',
   proformaCancelar: 'faturacao:proforma:cancelar',

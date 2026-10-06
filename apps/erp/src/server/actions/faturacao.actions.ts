@@ -91,7 +91,9 @@ export const obterFatura = createSafeAction({
 export const registarPagamentoFatura = createSafeAction({
   schema: RegistarPagamentoFaturaSchema,
   permission: 'faturacao:fatura:pagar',
-  revalidate: { tags: ['faturacao', 'faturas'] },
+  // O pagamento lança (D meio / C 411) e, em numerário, entra na caixa; a permissão do meio
+  // vem no ctx (`ctx.permissions`) e o serviço confere-a.
+  revalidate: { tags: ['faturacao', 'faturas', 'contabilidade', 'caixa'] },
   handler: (input, ctx) => faturacao.registarPagamento(input, ctx),
 });
 

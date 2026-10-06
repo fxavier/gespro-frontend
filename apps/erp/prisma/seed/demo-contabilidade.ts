@@ -52,20 +52,30 @@ export async function seedDemoContabilidade(
     return;
   }
 
-  // Já lançadas: qualquer lançamento que aponte para a factura como origem,
-  // seja o da emissão ou o do recebimento.
+  // Já lançadas, pelo significado do lançamento: a emissão é o de `construirLancamentoFatura`
+  // (origem VENDA, tipo 'Fatura'); recebimento é qualquer um com origem RECEBIMENTO (o deste
+  // seed) ou PAGAMENTO (o `registarPagamento` da aplicação, tipo 'Fatura' também).
   const existentes = await prisma.lancamento.findMany({
     where: { tenantId, documentoOrigemId: { in: faturas.map((f) => f.id) } },
-    select: { documentoOrigemId: true, documentoOrigemTipo: true },
+    select: { documentoOrigemId: true, documentoOrigemTipo: true, origem: true },
   });
-  const lancado = new Set(existentes.map((l) => `${l.documentoOrigemTipo}:${l.documentoOrigemId}`));
+  const emitida = new Set(
+    existentes
+      .filter((l) => l.origem === 'VENDA' && l.documentoOrigemTipo === 'Fatura')
+      .map((l) => l.documentoOrigemId),
+  );
+  const recebida = new Set(
+    existentes
+      .filter((l) => l.origem === 'RECEBIMENTO' || l.origem === 'PAGAMENTO')
+      .map((l) => l.documentoOrigemId),
+  );
 
   let emissoes = 0;
   let recebimentos = 0;
 
   for (const f of faturas) {
     await runWithTenantContext(ctx, async () => {
-      if (!lancado.has(`Fatura:${f.id}`)) {
+      if (!emitida.has(f.id)) {
         await prisma.$transaction(async (tx) => {
           await registarLancamentoContabilistico(
             tx,
@@ -87,11 +97,13 @@ export async function seedDemoContabilidade(
         emissoes++;
       }
 
-      // Recebimento do cliente. A aplicação ainda não o lança (o
-      // `registarPagamentoFatura` mexe no `totalPago` e mais nada) — sem isto,
-      // a conta de clientes só cresce e o banco nunca recebe nada.
+      // Recebimento do cliente das facturas que o funil do seed deu como pagas (o
+      // `totalPago` foi escrito sem passar pelo `registarPagamento`, que lança D meio /
+      // C 411). Basta UM recebimento já lançado para saltar: se o `totalPago` exceder os
+      // recebimentos lançados (pagamentos parciais pela UI sobre um seed antigo), a
+      // diferença fica por lançar — não se tenta reconciliar o resto aqui.
       const pago = new Prisma.Decimal(f.totalPago);
-      if (pago.greaterThan(0) && !lancado.has(`Recebimento:${f.id}`)) {
+      if (pago.greaterThan(0) && !recebida.has(f.id)) {
         await prisma.$transaction(async (tx) => {
           await registarLancamentoContabilistico(
             tx,

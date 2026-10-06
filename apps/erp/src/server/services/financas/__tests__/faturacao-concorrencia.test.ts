@@ -131,14 +131,37 @@ vi.mock('@/server/db/client', () => {
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(async () => ({ user: { emailVerificado: true } })) }));
 
+// P2 (fatura-pdf-pagamento): o pagamento passa a lançar (D meio / C 411) e a resolver o
+// meio. As funções de contrato de outros módulos são o seam — mockadas como no
+// nc-accoes.test.ts; o resto da contabilidade (diaCivilEmMaputo…) corre a sério.
+vi.mock('../contabilidade.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../contabilidade.service')>()),
+  registarLancamentoContabilistico: vi.fn(async () => ({ id: 'clanc0000000000000000001' })),
+}));
+vi.mock('../meio-pagamento.service', () => ({
+  resolverContaMeioPagamento: vi.fn(async () => ({ contaCodigo: '123', diarioTipo: 'BANCO' })),
+}));
+vi.mock('../caixa.service', () => ({
+  registarMovimentoCaixa: vi.fn(async () => ({ id: 'cmov00000000000000000001' })),
+}));
+
 import { registarPagamento, marcarVencida } from '../faturacao.service';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 
 const TA = 'tenant-a';
 const TB = 'tenant-b';
-const CTX_A = { tenantId: TA, userId: 'user-a' };
+// P2: a permissão do meio vem do ctx (como na liquidação da NC por devolução).
+const CTX_A = { tenantId: TA, userId: 'user-a', permissions: new Set(['faturacao:fatura:pagar', 'financas:banca:escrita']) };
 const ID_FAT = 'cfat000000000000000000001';
 const DATA_PAG = new Date('2026-09-20T10:00:00Z');
+/** Input no contrato P2: forma bancária + conta (a sessão de caixa deixou de vir do cliente). */
+const PAGAR_100 = {
+  faturaId: ID_FAT,
+  valor: 100,
+  dataPagamento: DATA_PAG,
+  formaPagamento: 'TRANSFERENCIA_BANCARIA' as const,
+  contaBancariaId: 'cconta000000000000000001',
+};
 
 let d: Duplo;
 
@@ -151,6 +174,11 @@ function semearFatura(extra: Row = {}): Row {
     totalPago: new Prisma.Decimal('0'),
     status: 'EMITIDA',
     dataPagamento: null,
+    // Emitida e vencida bem antes do pagamento e de «hoje»: as regras de data do P2
+    // (pagamento não anterior à emissão) e do P3 (só vence no dia seguinte ao
+    // vencimento) não são o que este oráculo de concorrência prova.
+    dataEmissao: new Date('2026-09-01T10:00:00Z'),
+    dataVencimento: new Date('2026-09-10T10:00:00Z'),
     ...extra,
   };
   d.faturas.push(f);
@@ -188,7 +216,7 @@ describe('registarPagamento — tranca da factura', () => {
   it('tranca a factura com FOR UPDATE (id + tenant) ANTES de a ler', async () => {
     semearFatura();
 
-    await registarPagamento({ faturaId: ID_FAT, valor: 100, dataPagamento: DATA_PAG }, CTX_A);
+    await registarPagamento(PAGAR_100, CTX_A);
 
     expect(indiceTranca()).toBeGreaterThanOrEqual(0);
     expect(indiceLeitura()).toBeGreaterThanOrEqual(0);
@@ -204,7 +232,7 @@ describe('registarPagamento — tranca da factura', () => {
       f.status = 'PARCIALMENTE_PAGA';
     };
 
-    await registarPagamento({ faturaId: ID_FAT, valor: 100, dataPagamento: DATA_PAG }, CTX_A);
+    await registarPagamento(PAGAR_100, CTX_A);
 
     const f = d.faturas[0];
     expect(num(f.totalPago)).toBe(216);
@@ -218,7 +246,7 @@ describe('registarPagamento — tranca da factura', () => {
       f.status = 'PARCIALMENTE_PAGA';
     };
 
-    await registarPagamento({ faturaId: ID_FAT, valor: 100, dataPagamento: DATA_PAG }, CTX_A);
+    await registarPagamento(PAGAR_100, CTX_A);
 
     const f = d.faturas[0];
     expect(num(f.totalPago)).toBe(1160);
@@ -229,7 +257,7 @@ describe('registarPagamento — tranca da factura', () => {
   it('cross-tenant ⇒ NotFoundError, sem escrita', async () => {
     semearFatura({ tenantId: TB });
 
-    const e = await erroDe(registarPagamento({ faturaId: ID_FAT, valor: 100, dataPagamento: DATA_PAG }, CTX_A));
+    const e = await erroDe(registarPagamento(PAGAR_100, CTX_A));
 
     expect(e).toBeInstanceOf(NotFoundError);
     expect(d.registo.filter((x) => x.tipo === 'escrita')).toHaveLength(0);

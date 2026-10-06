@@ -40,13 +40,24 @@ describe.skipIf(skip)('Acções sobre notas de crédito — DB efémera (Testcon
   const TENANT = `tenant-nc-accoes-${sufixo}`;
   const USER = `user-nc-accoes-${sufixo}`;
   // O ctx do createSafeAction traz as permissões; a compensação não precisa de caixa/banca.
+  // O pagamento da factura (P2, fatura-pdf-pagamento) é por transferência: precisa da banca.
   const ctx = {
     tenantId: TENANT,
     userId: USER,
-    permissions: new Set(['faturacao:nc:liquidar', 'faturacao:nc:cancelar']),
+    permissions: new Set(['faturacao:nc:liquidar', 'faturacao:nc:cancelar', 'faturacao:fatura:pagar', 'financas:banca:escrita']),
   };
   let faturaId: string;
   let clienteId: string;
+  let contaBancariaId: string;
+
+  /** Pagamento de 200 por transferência (contrato P2: meio obrigatório, lança D 123 / C 411). */
+  const pagamento200 = (idFatura: string) => ({
+    faturaId: idFatura,
+    valor: 200,
+    dataPagamento: new Date(),
+    formaPagamento: 'TRANSFERENCIA_BANCARIA' as const,
+    contaBancariaId,
+  });
 
   const noCtx = <T>(fn: () => Promise<T>) => runCtx(ctx, fn);
 
@@ -109,6 +120,21 @@ describe.skipIf(skip)('Acções sobre notas de crédito — DB efémera (Testcon
     });
 
     clienteId = cliente.id;
+
+    const pgc123 = await db.contaPGC.findFirst({ where: { tenantId: TENANT, codigo: '123' } });
+    const conta = await db.contaBancaria.create({
+      data: {
+        tenantId: TENANT,
+        banco: 'Banco NC',
+        agencia: '0001',
+        numeroConta: `NC-${sufixo}`,
+        tipoConta: 'CORRENTE',
+        contaContabilId: pgc123.id,
+        ativo: true,
+      },
+    });
+    contaBancariaId = conta.id;
+
     faturaId = await emitirFatura();
   });
 
@@ -215,7 +241,7 @@ describe.skipIf(skip)('Acções sobre notas de crédito — DB efémera (Testcon
 
       const [rl, rp] = await Promise.allSettled([
         noCtx(() => fat.liquidarNotaCredito({ id: nc.id, forma: 'COMPENSACAO', data: new Date() }, ctx)),
-        noCtx(() => fat.registarPagamento({ faturaId: idFatura, valor: 200, dataPagamento: new Date() }, ctx)),
+        noCtx(() => fat.registarPagamento(pagamento200(idFatura), ctx)),
       ]);
 
       expect(rl.status, `ronda ${ronda}: ${rl.status === 'rejected' ? String(rl.reason) : ''}`).toBe('fulfilled');
@@ -249,7 +275,7 @@ describe.skipIf(skip)('Acções sobre notas de crédito — DB efémera (Testcon
       await conc.query('SELECT id FROM "Fatura" WHERE id = $1 AND "tenantId" = $2 FOR UPDATE', [idFatura, TENANT]);
 
       const pagamento = noCtx(() =>
-        fat.registarPagamento({ faturaId: idFatura, valor: 200, dataPagamento: new Date() }, ctx),
+        fat.registarPagamento(pagamento200(idFatura), ctx),
       );
       const falhou = pagamento.then(
         () => null,

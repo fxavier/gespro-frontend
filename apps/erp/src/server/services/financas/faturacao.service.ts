@@ -46,6 +46,7 @@ import {
   TRANSICOES_COTACAO_COMERCIAL,
   ESTADOS_FATURA_COMPENSAVEL,
   ESTADOS_FATURA_CREDITAVEL,
+  ESTADOS_FATURA_PAGAVEL,
   type StatusFatura,
   type StatusNotaCredito,
   type StatusNotaDebito,
@@ -896,7 +897,37 @@ export async function listarFaturas(filtro: FiltroFaturaInput, ctx: Ctx): Promis
   ) as unknown as Promise<PaginacaoFaturacao<FaturaCompleta>>;
 }
 
-export async function registarPagamento(input: RegistarPagamentoFaturaInput, ctx: Ctx): Promise<FaturaCompleta> {
+/**
+ * O dinheiro de um recebimento ou de uma devolução passa pelo caixa (numerário) ou pela
+ * banca (o resto): a permissão do meio confere-se ANTES de tudo o resto.
+ */
+function exigirPermissaoDoMeio(
+  forma: RegistarPagamentoFaturaInput['formaPagamento'],
+  permissions: ReadonlySet<string> | undefined,
+  operacao: string,
+): void {
+  const numerario = forma === 'NUMERARIO';
+  if (!permissions?.has(numerario ? 'caixa:operar' : 'financas:banca:escrita')) {
+    throw new BusinessRuleError(
+      'MEIO_PAGAMENTO_SEM_PERMISSAO',
+      numerario
+        ? `Não tem permissão para operar o caixa: ${operacao} em numerário não é possível.`
+        : `Não tem permissão para movimentar contas bancárias: ${operacao} por esta forma não é possível.`,
+    );
+  }
+}
+
+/**
+ * Recebimento de uma factura (P2, fatura-pdf-pagamento). O lançamento é o registo do
+ * pagamento: D conta do meio / C 411 pelo valor, no diário do meio; em numerário também
+ * entra na sessão de caixa aberta do utilizador. Qualquer recusa desfaz tudo.
+ */
+export async function registarPagamento(
+  input: RegistarPagamentoFaturaInput,
+  ctx: Ctx & { permissions?: ReadonlySet<string> },
+): Promise<FaturaCompleta> {
+  exigirPermissaoDoMeio(input.formaPagamento, ctx.permissions, 'o recebimento');
+
   return prisma.$transaction(async (rawTx) => {
     const tx = rawTx as unknown as Prisma.TransactionClient;
     // Tranca antes de ler: uma compensação de NC concorrente não se perde (#148).
@@ -905,20 +936,72 @@ export async function registarPagamento(input: RegistarPagamentoFaturaInput, ctx
       where: { id: input.faturaId, tenantId: ctx.tenantId },
     });
     if (!fatura) throw new NotFoundError('Factura não encontrada');
-    if (!['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'].includes(fatura.status)) {
+    if (!ESTADOS_FATURA_PAGAVEL.includes(fatura.status as StatusFatura)) {
       throw new BusinessRuleError('FATURA_NAO_PAGAVEL', `Factura no estado ${fatura.status} não pode ser paga`);
     }
 
     const valorPagamento = new Prisma.Decimal(input.valor.toFixed(2));
-    const novoTotalPago = fatura.totalPago.plus(valorPagamento);
-    const pendente = fatura.total.minus(novoTotalPago);
+    const total = new Prisma.Decimal(String(fatura.total));
+    const totalPago = new Prisma.Decimal(String(fatura.totalPago));
+    const pendenteAntes = total.minus(totalPago);
+    if (valorPagamento.greaterThan(pendenteAntes)) {
+      throw new BusinessRuleError(
+        'PAGAMENTO_EXCEDE_SALDO',
+        `O valor (${valorPagamento.toFixed(2)}) excede o saldo em aberto da factura ${fatura.numero} (${pendenteAntes.toFixed(2)}).`,
+      );
+    }
+    // Dias civis de Maputo, não instantes: receber no próprio dia da emissão é válido.
+    if (diaMaputo(input.dataPagamento) < diaMaputo(fatura.dataEmissao)) {
+      throw new BusinessRuleError(
+        'PAGAMENTO_DATA_ANTERIOR_EMISSAO',
+        `A data do pagamento não pode ser anterior à data de emissão da factura ${fatura.numero}.`,
+      );
+    }
 
-    let novoStatus: StatusFatura;
-    if (pendente.lessThanOrEqualTo(0)) novoStatus = 'PAGA';
-    else novoStatus = 'PARCIALMENTE_PAGA';
-
+    const novoTotalPago = totalPago.plus(valorPagamento);
+    const novoStatus: StatusFatura = total.minus(novoTotalPago).lessThanOrEqualTo(0) ? 'PAGA' : 'PARCIALMENTE_PAGA';
     // Um segundo pagamento parcial mantém PARCIALMENTE_PAGA — não é transição.
     if (novoStatus !== fatura.status) transitarFatura(fatura.status as StatusFatura, novoStatus);
+
+    const meio = await resolverContaMeioPagamento(
+      tx,
+      { forma: input.formaPagamento, contaBancariaId: input.contaBancariaId },
+      ctx,
+    );
+    const valor = valorPagamento.toFixed(2);
+    const descricao = `Recebimento da factura ${fatura.numero}`;
+
+    await registarLancamentoContabilistico(
+      tx,
+      {
+        data: input.dataPagamento,
+        diarioTipo: meio.diarioTipo,
+        origem: 'PAGAMENTO',
+        documentoOrigemId: fatura.id,
+        documentoOrigemTipo: 'Fatura',
+        historico: descricao,
+        partidas: [
+          { contaCodigo: meio.contaCodigo, tipo: 'DEBITO', valor },
+          { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'CREDITO', valor },
+        ],
+      },
+      ctx,
+    );
+
+    if (meio.sessaoCaixaId) {
+      await registarMovimentoCaixa(
+        tx,
+        {
+          sessaoCaixaId: meio.sessaoCaixaId,
+          tipo: 'RECEBIMENTO',
+          valor,
+          descricao,
+          documentoOrigemId: fatura.id,
+          documentoOrigemTipo: 'Fatura',
+        },
+        ctx,
+      );
+    }
 
     await tx.fatura.update({
       where: { id: fatura.id },
@@ -1154,17 +1237,7 @@ export async function liquidarNotaCredito(
   ctx: Ctx & { permissions?: ReadonlySet<string> },
 ): Promise<NotaCredito> {
   // A devolução mexe em caixa/banca: a permissão confere-se antes de tudo o resto.
-  if (input.forma === 'DEVOLUCAO') {
-    const exigida = input.formaPagamento === 'NUMERARIO' ? 'caixa:operar' : 'financas:banca:escrita';
-    if (!ctx.permissions?.has(exigida)) {
-      throw new BusinessRuleError(
-        'MEIO_PAGAMENTO_SEM_PERMISSAO',
-        input.formaPagamento === 'NUMERARIO'
-          ? 'Não tem permissão para operar o caixa: a devolução em numerário não é possível.'
-          : 'Não tem permissão para movimentar contas bancárias: a devolução por esta forma não é possível.',
-      );
-    }
-  }
+  if (input.forma === 'DEVOLUCAO') exigirPermissaoDoMeio(input.formaPagamento, ctx.permissions, 'a devolução');
 
   return prisma.$transaction(async (rawTx) => {
     const tx = rawTx as unknown as Prisma.TransactionClient;
