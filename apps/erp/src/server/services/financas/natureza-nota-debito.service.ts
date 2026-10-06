@@ -67,20 +67,7 @@ export async function definirContaNaturezaNotaDebito(
     return null;
   }
 
-  const conta = await prisma.contaPGC.findFirst({
-    where: { id: input.contaId, tenantId: ctx.tenantId },
-    select: { id: true, codigo: true, classe: true, aceitaLancamento: true, ativo: true },
-  });
-  if (!conta) throw new NotFoundError('Conta PGC não encontrada');
-
-  const classe = classeAdmitidaParaNatureza(input.natureza);
-  if (!conta.ativo || !conta.aceitaLancamento || conta.classe !== classe) {
-    throw new BusinessRuleError(
-      'CONTA_NATUREZA_INVALIDA',
-      `A conta ${conta.codigo} não serve para ${input.natureza}: tem de ser uma conta de movimento activa da ` +
-        `classe ${classe.replace('CLASSE_', '')}.`,
-    );
-  }
+  const conta = await validarContaParaNatureza(prisma, input.contaId, input.natureza, ctx);
 
   // ponytail: dois pedidos concorrentes à mesma natureza sem linha → o segundo
   // create colide no @@unique e falha; é uma acção de configuração rara.
@@ -109,4 +96,32 @@ export async function resolverContaNaturezaNotaDebito(
     where: { id: linha.contaId, tenantId: ctx.tenantId },
     select: { id: true, codigo: true },
   });
+}
+
+/**
+ * A conta serve de crédito a uma natureza: do tenant (senão NotFoundError),
+ * activa, de movimento e da classe que a natureza admite (senão
+ * CONTA_NATUREZA_INVALIDA). Regra única da configuração e da emissão.
+ */
+export async function validarContaParaNatureza(
+  client: Prisma.TransactionClient | typeof prisma,
+  contaId: string,
+  natureza: NaturezaNotaDebito,
+  ctx: Ctx,
+): Promise<{ id: string; codigo: string }> {
+  const conta = await client.contaPGC.findFirst({
+    where: { id: contaId, tenantId: ctx.tenantId },
+    select: { id: true, codigo: true, classe: true, aceitaLancamento: true, ativo: true },
+  });
+  if (!conta) throw new NotFoundError('Conta PGC não encontrada');
+
+  const classe = classeAdmitidaParaNatureza(natureza);
+  if (!conta.ativo || !conta.aceitaLancamento || conta.classe !== classe) {
+    throw new BusinessRuleError(
+      'CONTA_NATUREZA_INVALIDA',
+      `A conta ${conta.codigo} não serve para ${natureza}: tem de ser uma conta de movimento activa da ` +
+        `classe ${classe.replace('CLASSE_', '')}.`,
+    );
+  }
+  return { id: conta.id, codigo: conta.codigo };
 }
