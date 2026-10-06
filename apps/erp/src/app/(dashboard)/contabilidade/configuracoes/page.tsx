@@ -71,6 +71,19 @@ export default async function ConfiguracoesContabilidadePage() {
           </Link>
         </p>
       </div>
+      <div className="rounded-lg border p-4 text-sm">
+        <p className="font-medium">Naturezas de nota de débito</p>
+        <p className="mt-1 text-muted-foreground">
+          Conta que cada nota de débito credita, por natureza (acerto de preço, juros de mora, despesas
+          repercutidas, penalização, outro).{' '}
+          <Link
+            href="/contabilidade/configuracoes/naturezas-nota-debito"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Configurar contas por natureza de nota de débito
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

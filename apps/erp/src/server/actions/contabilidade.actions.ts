@@ -30,12 +30,16 @@ import {
   AplicarResultadoSchema,
   AnularAplicacaoResultadoSchema,
   DefinirContaMeioPagamentoPOSSchema,
+  DefinirContaNaturezaNotaDebitoSchema,
+  ProcurarContasNaturezaNotaDebitoSchema,
   ProcurarContasLancamentoSchema,
   ProcurarContasMaeSchema,
 } from '@/lib/validations/contabilidade';
 import { CalendarioContabilisticoSchema } from '@/lib/validations/plataforma';
 import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import * as meioPagamento from '@/server/services/financas/meio-pagamento.service';
+import * as naturezaNotaDebito from '@/server/services/financas/natureza-nota-debito.service';
+import { classeAdmitidaParaNatureza } from '@/lib/nota-debito';
 import * as encerramento from '@/server/services/financas/encerramento-exercicio.service';
 import * as aplicacaoResultado from '@/server/services/financas/aplicacao-resultado.service';
 import { z } from 'zod';
@@ -202,6 +206,41 @@ export const definirContaMeioPagamentoPOS = createSafeAction({
   permission: 'financas:configurar',
   revalidate: { paths: ['/contabilidade/configuracoes/meios-pagamento-pos'] },
   handler: (input, ctx) => meioPagamento.definirContaMeioPagamentoPOS(input, ctx),
+});
+
+// Conta a crédito por natureza de nota de débito (ADR-0039 §1, issue #139)
+export const definirContaNaturezaNotaDebitoAction = createSafeAction({
+  schema: DefinirContaNaturezaNotaDebitoSchema,
+  permission: 'financas:configurar',
+  revalidate: { paths: ['/contabilidade/configuracoes/naturezas-nota-debito'] },
+  handler: async (input, ctx) => {
+    await naturezaNotaDebito.definirContaNaturezaNotaDebito(input, ctx);
+    return { natureza: input.natureza, contaId: input.contaId };
+  },
+});
+
+/**
+ * Pesquisa para o `ComboboxRemoto` de cada natureza: só contas de movimento
+ * activas da classe que a natureza admite (6 para despesas repercutidas, 7
+ * para as outras). Leitura (ADR-0032); nunca é chamada com termo vazio.
+ */
+export const procurarContasNaturezaNotaDebitoAction = createSafeAction({
+  schema: ProcurarContasNaturezaNotaDebitoSchema,
+  permission: 'financas:configurar',
+  permiteEmLeitura: true,
+  handler: async (input, ctx) => {
+    const pagina = await contabilidade.listarContas(
+      {
+        search: input.q,
+        classe: classeAdmitidaParaNatureza(input.natureza),
+        aceitaLancamento: true,
+        ativo: true,
+        take: 30,
+      },
+      ctx,
+    );
+    return pagina.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
+  },
 });
 
 export const criarContaBancaria = createSafeAction({

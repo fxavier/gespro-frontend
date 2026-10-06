@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Combobox, type ComboboxOption } from './combobox';
 
-interface ComboboxRemotoProps {
+/** `aria-*` (ex.: `aria-label`) seguem para o botão do `Combobox`. */
+interface ComboboxRemotoProps extends React.AriaAttributes {
   /** Primeira página, carregada pelo Server Component. */
   opcoesIniciais: ComboboxOption[];
   /**

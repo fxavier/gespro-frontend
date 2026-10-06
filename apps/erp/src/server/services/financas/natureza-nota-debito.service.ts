@@ -2,7 +2,7 @@ import 'server-only';
 import type { ContaNaturezaNotaDebito, NaturezaNotaDebito, Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
-import { classeAdmitidaParaNatureza } from '@/lib/nota-debito';
+import { NATUREZAS_NOTA_DEBITO, classeAdmitidaParaNatureza } from '@/lib/nota-debito';
 import type { Ctx } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -14,6 +14,37 @@ import type { Ctx } from '../types';
 // muda-a. Quem a lê é `resolverContaNaturezaNotaDebito`, que o nó
 // contabilizacao liga a `construirLancamentoNotaDebito`.
 // ---------------------------------------------------------------------------
+
+export interface LinhaContaNaturezaNotaDebito {
+  natureza: NaturezaNotaDebito;
+  contaId: string | null;
+  codigo: string | null;
+  nome: string | null;
+}
+
+/**
+ * Uma linha por natureza, pela ordem de `NATUREZAS_NOTA_DEBITO`, com a conta
+ * por omissão (ou nulos quando a conta se escolhe em cada nota de débito).
+ */
+export async function listarContasNaturezaNotaDebito(ctx: Ctx): Promise<LinhaContaNaturezaNotaDebito[]> {
+  const linhas = await prisma.contaNaturezaNotaDebito.findMany({
+    where: { tenantId: ctx.tenantId },
+    select: { natureza: true, contaId: true },
+  });
+  const contas = linhas.length
+    ? await prisma.contaPGC.findMany({
+        where: { tenantId: ctx.tenantId, id: { in: linhas.map((l) => l.contaId) } },
+        select: { id: true, codigo: true, nome: true },
+      })
+    : [];
+  const contaPorId = new Map(contas.map((c) => [c.id, c]));
+  const contaPorNatureza = new Map(linhas.map((l) => [l.natureza, contaPorId.get(l.contaId)]));
+
+  return NATUREZAS_NOTA_DEBITO.map((natureza) => {
+    const conta = contaPorNatureza.get(natureza);
+    return { natureza, contaId: conta?.id ?? null, codigo: conta?.codigo ?? null, nome: conta?.nome ?? null };
+  });
+}
 
 /**
  * Define (ou, com `contaId: null`, retira) a conta por omissão de uma natureza.
@@ -36,20 +67,7 @@ export async function definirContaNaturezaNotaDebito(
     return null;
   }
 
-  const conta = await prisma.contaPGC.findFirst({
-    where: { id: input.contaId, tenantId: ctx.tenantId },
-    select: { id: true, codigo: true, classe: true, aceitaLancamento: true, ativo: true },
-  });
-  if (!conta) throw new NotFoundError('Conta PGC não encontrada');
-
-  const classe = classeAdmitidaParaNatureza(input.natureza);
-  if (!conta.ativo || !conta.aceitaLancamento || conta.classe !== classe) {
-    throw new BusinessRuleError(
-      'CONTA_NATUREZA_INVALIDA',
-      `A conta ${conta.codigo} não serve para ${input.natureza}: tem de ser uma conta de movimento activa da ` +
-        `classe ${classe.replace('CLASSE_', '')}.`,
-    );
-  }
+  const conta = await validarContaParaNatureza(prisma, input.contaId, input.natureza, ctx);
 
   // ponytail: dois pedidos concorrentes à mesma natureza sem linha → o segundo
   // create colide no @@unique e falha; é uma acção de configuração rara.
@@ -78,4 +96,32 @@ export async function resolverContaNaturezaNotaDebito(
     where: { id: linha.contaId, tenantId: ctx.tenantId },
     select: { id: true, codigo: true },
   });
+}
+
+/**
+ * A conta serve de crédito a uma natureza: do tenant (senão NotFoundError),
+ * activa, de movimento e da classe que a natureza admite (senão
+ * CONTA_NATUREZA_INVALIDA). Regra única da configuração e da emissão.
+ */
+export async function validarContaParaNatureza(
+  client: Prisma.TransactionClient | typeof prisma,
+  contaId: string,
+  natureza: NaturezaNotaDebito,
+  ctx: Ctx,
+): Promise<{ id: string; codigo: string }> {
+  const conta = await client.contaPGC.findFirst({
+    where: { id: contaId, tenantId: ctx.tenantId },
+    select: { id: true, codigo: true, classe: true, aceitaLancamento: true, ativo: true },
+  });
+  if (!conta) throw new NotFoundError('Conta PGC não encontrada');
+
+  const classe = classeAdmitidaParaNatureza(natureza);
+  if (!conta.ativo || !conta.aceitaLancamento || conta.classe !== classe) {
+    throw new BusinessRuleError(
+      'CONTA_NATUREZA_INVALIDA',
+      `A conta ${conta.codigo} não serve para ${natureza}: tem de ser uma conta de movimento activa da ` +
+        `classe ${classe.replace('CLASSE_', '')}.`,
+    );
+  }
+  return { id: conta.id, codigo: conta.codigo };
 }

@@ -18,7 +18,10 @@ import {
   CriarCotacaoComercialSchema,
   FiltroCotacaoComercialSchema,
 } from '@/lib/validations/faturacao';
+import { ProcurarContasNaturezaNotaDebitoSchema } from '@/lib/validations/contabilidade';
+import { classeAdmitidaParaNatureza } from '@/lib/nota-debito';
 import * as faturacao from '@/server/services/financas/faturacao.service';
+import * as contabilidade from '@/server/services/financas/contabilidade.service';
 import { z } from 'zod';
 import { rotuloFaturaCreditavel } from '@/lib/documentos/rotulo-fatura';
 
@@ -160,6 +163,44 @@ export const emitirNotaDebito = createSafeAction({
   permission: 'faturacao:nd:emitir',
   revalidate: { tags: ['faturacao', 'notas-debito'] },
   handler: (input, ctx) => faturacao.emitirNotaDebito(input, ctx),
+});
+
+/**
+ * Combobox «Factura de referência» da ND (#85): só facturas emitidas DESTE
+ * cliente (as que o serviço aceita referenciar), pesquisadas pelo número.
+ */
+export const procurarFaturasParaNotaDebito = createSafeAction({
+  schema: z.object({ clienteId: z.string().min(1), q: z.string().max(50).optional() }),
+  permission: 'faturacao:nd:emitir',
+  permiteEmLeitura: true,
+  handler: async ({ clienteId, q }, ctx) =>
+    (await faturacao.procurarFaturasCreditaveis(q, ctx, clienteId)).map((f) => ({
+      id: f.id,
+      rotulo: rotuloFaturaCreditavel(f),
+    })),
+});
+
+/**
+ * Combobox «Conta a crédito» da ND (#85): contas de movimento activas da
+ * classe que a natureza admite. Nunca é chamada com termo vazio.
+ */
+export const procurarContasCreditoNotaDebito = createSafeAction({
+  schema: ProcurarContasNaturezaNotaDebitoSchema,
+  permission: 'faturacao:nd:emitir',
+  permiteEmLeitura: true,
+  handler: async (input, ctx) => {
+    const pagina = await contabilidade.listarContas(
+      {
+        search: input.q,
+        classe: classeAdmitidaParaNatureza(input.natureza),
+        aceitaLancamento: true,
+        ativo: true,
+        take: 30,
+      },
+      ctx,
+    );
+    return pagina.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
+  },
 });
 
 export const listarNotasDebito = createSafeAction({

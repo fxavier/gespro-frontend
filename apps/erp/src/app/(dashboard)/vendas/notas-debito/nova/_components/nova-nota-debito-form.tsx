@@ -2,12 +2,13 @@
 
 /**
  * Formulário de emissão de nota de débito — CLIENT COMPONENT.
- * RHF + zodResolver + useActionState + useFieldArray; zero Dialog.
+ * RHF + zodResolver + useTransition + useFieldArray; zero Dialog.
+ * A natureza escolhe a conta a crédito (ADR-0039 §1, #85).
  */
 
-import { useActionState, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, X } from 'lucide-react';
@@ -29,20 +30,44 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard, Combobox, CampoDia } from '@/components/patterns';
+import {
+  FormPage,
+  FormSection,
+  UnsavedChangesGuard,
+  Combobox,
+  ComboboxRemoto,
+  CampoDia,
+  type ComboboxOption,
+} from '@/components/patterns';
 import { diaIsoParaData } from '@/lib/format-date';
-import { emitirNotaDebito } from '@/server/actions/faturacao.actions';
+import {
+  emitirNotaDebito,
+  procurarContasCreditoNotaDebito,
+  procurarFaturasParaNotaDebito,
+} from '@/server/actions/faturacao.actions';
 import { EmitirNotaDebitoSchema, type EmitirNotaDebitoInput } from '@/lib/validations/faturacao';
+import { NATUREZAS_NOTA_DEBITO, ROTULO_NATUREZA_ND, rotuloContaPGC } from '@/lib/nota-debito';
 
-type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
+type Natureza = (typeof NATUREZAS_NOTA_DEBITO)[number];
 
 interface ClienteOption { id: string; nome: string }
 
+/** Por natureza: a conta por omissão do tenant (ou nenhuma) e a primeira página da classe admitida. */
+export interface ContasNatureza {
+  natureza: Natureza;
+  omissaoId: string | null;
+  opcoes: ComboboxOption[];
+}
+
 interface NovaNotaDebitoFormProps {
   clientes: ClienteOption[];
+  contasPorNatureza: ContasNatureza[];
   /** Dia civil de Maputo (`aaaa-mm-dd`), calculado no servidor (#242). */
   hoje: string;
 }
+
+const SEM_FATURA = 'sem-fatura';
+const OPCAO_SEM_FATURA: ComboboxOption = { value: SEM_FATURA, label: 'Sem factura de referência' };
 
 const MOTIVOS = [
   'Serviços adicionais não faturados',
@@ -52,17 +77,17 @@ const MOTIVOS = [
   'Outro',
 ];
 
-export function NovaNotaDebitoForm({ clientes, hoje }: NovaNotaDebitoFormProps) {
+export function NovaNotaDebitoForm({ clientes, contasPorNatureza, hoje }: NovaNotaDebitoFormProps) {
   const router = useRouter();
-  const [state, dispatch, isPending] = useActionState<FormState, EmitirNotaDebitoInput>(
-    (_prev, data) => emitirNotaDebito(data),
-    null
-  );
+  const [isPending, startTransition] = useTransition();
+  const contasDe = (n: Natureza) => contasPorNatureza.find((c) => c.natureza === n);
 
   const form = useForm<EmitirNotaDebitoInput>({
     resolver: zodResolver(EmitirNotaDebitoSchema),
     defaultValues: {
       moeda: 'MZN',
+      natureza: 'ACERTO_PRECO',
+      contaCreditoId: contasDe('ACERTO_PRECO')?.omissaoId ?? undefined,
       // O dia que o campo mostra está no estado desde o início (#242).
       dataEmissao: diaIsoParaData(hoje),
       linhas: [{ descricao: '', quantidade: 1, precoUnitario: 0, desconto: 0, taxaIva: 0.16, ordemLinha: 0, subtotal: 0, ivaItem: 0, total: 0 }],
@@ -72,24 +97,76 @@ export function NovaNotaDebitoForm({ clientes, hoje }: NovaNotaDebitoFormProps) 
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'linhas' });
 
-  useEffect(() => {
-    if (!state) return;
-    if (!state.ok) {
-      const details = state.error.details as { fieldErrors?: Record<string, string[]> } | undefined;
-      if (details?.fieldErrors) {
-        Object.entries(details.fieldErrors).forEach(([field, messages]) => {
-          form.setError(field as keyof EmitirNotaDebitoInput, { type: 'server', message: messages[0] });
+  const natureza = useWatch({ control: form.control, name: 'natureza' });
+  const clienteId = useWatch({ control: form.control, name: 'clienteId' });
+  const contasNatureza = contasDe(natureza);
+  const contaObrigatoria = !contasNatureza?.omissaoId;
+
+  // Primeira página das facturas do cliente escolhido, carregada ao escolhê-lo
+  // (a combobox nunca pesquisa com termo vazio). Só vale para o cliente a que pertence.
+  const [faturasIniciais, setFaturasIniciais] = useState<{ clienteId: string; opcoes: ComboboxOption[] } | null>(null);
+  const opcoesFaturas = faturasIniciais && faturasIniciais.clienteId === clienteId ? faturasIniciais.opcoes : null;
+
+  const procurarContas = async (q: string): Promise<ComboboxOption[] | null> => {
+    const r = await procurarContasCreditoNotaDebito({ natureza, q });
+    return r.ok ? r.data.map((c) => ({ value: c.id, label: rotuloContaPGC(c) })) : null;
+  };
+
+  const procurarFaturas = async (q: string): Promise<ComboboxOption[] | null> => {
+    if (!clienteId) return null;
+    const r = await procurarFaturasParaNotaDebito({ clienteId, q });
+    return r.ok ? [OPCAO_SEM_FATURA, ...r.data.map((f) => ({ value: f.id, label: f.rotulo }))] : null;
+  };
+
+  const mudarCliente = (novo: string, onChange: (v: string) => void) => {
+    onChange(novo);
+    // A factura de referência é do cliente: muda o cliente, apaga-se.
+    form.setValue('faturaReferenciaId', undefined);
+    void procurarFaturasParaNotaDebito({ clienteId: novo }).then((r) => {
+      if (r.ok) {
+        setFaturasIniciais({
+          clienteId: novo,
+          opcoes: [OPCAO_SEM_FATURA, ...r.data.map((f) => ({ value: f.id, label: f.rotulo }))],
         });
-      } else {
-        toast.error(state.error.message ?? 'Ocorreu um erro ao emitir a nota de débito.');
       }
-    } else {
+    });
+  };
+
+  const mudarNatureza = (nova: Natureza, onChange: (v: Natureza) => void) => {
+    onChange(nova);
+    // A conta é da natureza: repõe a omissão da nova (ou nenhuma).
+    form.setValue('contaCreditoId', contasDe(nova)?.omissaoId ?? undefined, { shouldValidate: false });
+    form.clearErrors('contaCreditoId');
+  };
+
+  const onSubmit = form.handleSubmit((data) => {
+    if (contaObrigatoria && !data.contaCreditoId) {
+      form.setError('contaCreditoId', {
+        type: 'manual',
+        message: 'Esta natureza não tem conta por omissão: escolha a conta a crédito.',
+      });
+      return;
+    }
+    // Dentro de uma transição (regra da casa): a navegação no fim aplica-se.
+    startTransition(async () => {
+      const res = await emitirNotaDebito(data);
+      if (!res.ok) {
+        const details = res.error.details as { fieldErrors?: Record<string, string[]> } | undefined;
+        if (details?.fieldErrors) {
+          Object.entries(details.fieldErrors).forEach(([field, messages]) => {
+            form.setError(field as keyof EmitirNotaDebitoInput, { type: 'server', message: messages[0] });
+          });
+        } else if (res.error.code === 'CONTA_CREDITO_OBRIGATORIA' || res.error.code === 'CONTA_NATUREZA_INVALIDA') {
+          form.setError('contaCreditoId', { type: 'server', message: res.error.message });
+        } else {
+          toast.error(res.error.message ?? 'Ocorreu um erro ao emitir a nota de débito.');
+        }
+        return;
+      }
       toast.success('Nota de débito emitida com sucesso!');
       router.push('/vendas/notas-debito');
-    }
-  }, [state, form, router]);
-
-  const onSubmit = form.handleSubmit((data) => dispatch(data));
+    });
+  });
   const isDirty = form.formState.isDirty;
 
   const handleCancel = () => {
@@ -125,7 +202,7 @@ export function NovaNotaDebitoForm({ clientes, hoje }: NovaNotaDebitoFormProps) 
                   <FormControl>
                     <Combobox
                       value={field.value}
-                      onChange={field.onChange}
+                      onChange={(v) => mudarCliente(v, field.onChange)}
                       placeholder="Seleccionar cliente…"
                       options={clientes.map((c) => ({ value: c.id, label: c.nome }))}
                     />
@@ -148,6 +225,83 @@ export function NovaNotaDebitoForm({ clientes, hoje }: NovaNotaDebitoFormProps) 
                   <p className="text-xs text-muted-foreground">
                     Numerada na série activa de nota de débito do ano da data de emissão.
                   </p>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="natureza"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Natureza *</FormLabel>
+                  <Select onValueChange={(v) => mudarNatureza(v as Natureza, field.onChange)} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar natureza…">{ROTULO_NATUREZA_ND[field.value]}</SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {NATUREZAS_NOTA_DEBITO.map((n) => (
+                        <SelectItem key={n} value={n}>{ROTULO_NATUREZA_ND[n]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="contaCreditoId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{contaObrigatoria ? 'Conta a crédito *' : 'Conta a crédito'}</FormLabel>
+                  <FormControl>
+                    <ComboboxRemoto
+                      // As opções iniciais são da natureza: outra natureza, outra combobox.
+                      key={natureza}
+                      opcoesIniciais={contasNatureza?.opcoes ?? []}
+                      procurar={procurarContas}
+                      value={field.value ?? ''}
+                      onChange={(v) => field.onChange(v || undefined)}
+                      placeholder="Seleccionar conta…"
+                      searchPlaceholder="Pesquisar por código ou nome…"
+                      emptyText="Nenhuma conta encontrada"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    {natureza === 'DESPESAS_REPERCUTIDAS'
+                      ? 'Conta de gasto (classe 6) que a despesa repercutida recupera.'
+                      : 'Conta de rendimento (classe 7) creditada pelo valor sem IVA.'}
+                  </p>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="faturaReferenciaId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Factura de referência</FormLabel>
+                  <FormControl>
+                    <ComboboxRemoto
+                      // As opções iniciais são do cliente: outro cliente, outra combobox.
+                      key={`${clienteId ?? ''}:${opcoesFaturas ? 'carregadas' : 'vazias'}`}
+                      opcoesIniciais={opcoesFaturas ?? [OPCAO_SEM_FATURA]}
+                      procurar={procurarFaturas}
+                      value={field.value ?? SEM_FATURA}
+                      onChange={(v) => field.onChange(v === SEM_FATURA || !v ? undefined : v)}
+                      placeholder={clienteId ? OPCAO_SEM_FATURA.label : 'Escolha primeiro o cliente'}
+                      searchPlaceholder="Pesquisar pelo número…"
+                      emptyText="Nenhuma factura deste cliente"
+                      disabled={!clienteId}
+                    />
+                  </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
