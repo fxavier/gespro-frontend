@@ -93,9 +93,12 @@ const columns: TableColumn<FaturaResumo>[] = [
               Ver detalhe
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Download className="mr-2 h-4 w-4" />
-            Descarregar PDF
+          {/* Descarga de ficheiro: <a download> simples, não next/link. O clique não sobe à linha (rowHref). */}
+          <DropdownMenuItem asChild>
+            <a href={`/api/faturacao/${row.id}/pdf`} download onClick={(e) => e.stopPropagation()}>
+              <Download className="mr-2 h-4 w-4" />
+              Descarregar PDF
+            </a>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
