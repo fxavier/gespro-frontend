@@ -2,7 +2,7 @@ import 'server-only';
 import type { ContaNaturezaNotaDebito, NaturezaNotaDebito, Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
-import { classeAdmitidaParaNatureza } from '@/lib/nota-debito';
+import { NATUREZAS_NOTA_DEBITO, classeAdmitidaParaNatureza } from '@/lib/nota-debito';
 import type { Ctx } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -14,6 +14,37 @@ import type { Ctx } from '../types';
 // muda-a. Quem a lê é `resolverContaNaturezaNotaDebito`, que o nó
 // contabilizacao liga a `construirLancamentoNotaDebito`.
 // ---------------------------------------------------------------------------
+
+export interface LinhaContaNaturezaNotaDebito {
+  natureza: NaturezaNotaDebito;
+  contaId: string | null;
+  codigo: string | null;
+  nome: string | null;
+}
+
+/**
+ * Uma linha por natureza, pela ordem de `NATUREZAS_NOTA_DEBITO`, com a conta
+ * por omissão (ou nulos quando a conta se escolhe em cada nota de débito).
+ */
+export async function listarContasNaturezaNotaDebito(ctx: Ctx): Promise<LinhaContaNaturezaNotaDebito[]> {
+  const linhas = await prisma.contaNaturezaNotaDebito.findMany({
+    where: { tenantId: ctx.tenantId },
+    select: { natureza: true, contaId: true },
+  });
+  const contas = linhas.length
+    ? await prisma.contaPGC.findMany({
+        where: { tenantId: ctx.tenantId, id: { in: linhas.map((l) => l.contaId) } },
+        select: { id: true, codigo: true, nome: true },
+      })
+    : [];
+  const contaPorId = new Map(contas.map((c) => [c.id, c]));
+  const contaPorNatureza = new Map(linhas.map((l) => [l.natureza, contaPorId.get(l.contaId)]));
+
+  return NATUREZAS_NOTA_DEBITO.map((natureza) => {
+    const conta = contaPorNatureza.get(natureza);
+    return { natureza, contaId: conta?.id ?? null, codigo: conta?.codigo ?? null, nome: conta?.nome ?? null };
+  });
+}
 
 /**
  * Define (ou, com `contaId: null`, retira) a conta por omissão de uma natureza.

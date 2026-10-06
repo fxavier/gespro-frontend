@@ -12,6 +12,18 @@ export const NATUREZAS_NOTA_DEBITO = [
   'OUTRO',
 ] as const satisfies readonly NaturezaNotaDebito[];
 
+/** Rótulo PT de cada natureza, para ecrãs e mensagens. */
+export const ROTULO_NATUREZA_ND = {
+  ACERTO_PRECO: 'Acerto de preço',
+  JUROS_MORA: 'Juros de mora',
+  DESPESAS_REPERCUTIDAS: 'Despesas repercutidas',
+  PENALIZACAO: 'Penalização',
+  OUTRO: 'Outro',
+} as const satisfies Record<NaturezaNotaDebito, string>;
+
+/** Rótulo de uma conta PGC nas comboboxes da conta a crédito: «<código> — <nome>». */
+export const rotuloContaPGC = (c: { codigo: string; nome: string }) => `${c.codigo} — ${c.nome}`;
+
 /**
  * Conta de crédito por omissão, por código PGC-NIRF (ADR-0039 §1, decisão M4).
  * DESPESAS_REPERCUTIDAS e OUTRO não têm omissão: a conta escolhe-se no acto.

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { idEntidade, inicioDoDia, fimDoDia } from '@/lib/validations/common';
 import { METODOS_POS_CONFIGURAVEIS } from '@/lib/meios-pagamento';
+import { NATUREZAS_NOTA_DEBITO } from '@/lib/nota-debito';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -366,6 +367,25 @@ export const DefinirContaMeioPagamentoPOSSchema = z.object({
 });
 
 export type DefinirContaMeioPagamentoPOSInput = z.infer<typeof DefinirContaMeioPagamentoPOSSchema>;
+
+// ---------------------------------------------------------------------------
+// Conta a crédito por natureza de nota de débito (ADR-0039 §1, issue #139)
+// ---------------------------------------------------------------------------
+
+/** `contaId: null` retira a omissão (a conta passa a escolher-se em cada ND). */
+export const DefinirContaNaturezaNotaDebitoSchema = z.object({
+  natureza: z.enum(NATUREZAS_NOTA_DEBITO),
+  contaId: idEntidade('ID de conta inválido').nullable(),
+});
+
+export type DefinirContaNaturezaNotaDebitoInput = z.infer<typeof DefinirContaNaturezaNotaDebitoSchema>;
+
+export const ProcurarContasNaturezaNotaDebitoSchema = z.object({
+  natureza: z.enum(NATUREZAS_NOTA_DEBITO),
+  q: z.string().trim().max(100).default(''),
+});
+
+export type ProcurarContasNaturezaNotaDebitoInput = z.infer<typeof ProcurarContasNaturezaNotaDebitoSchema>;
 
 /** Modo por datas: filtra pelo campo `data` do lançamento. */
 export const FiltroRazaoDatasSchema = z.object({
