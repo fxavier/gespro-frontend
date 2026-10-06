@@ -38,6 +38,7 @@ import type {
   FiltroCotacaoComercialInput,
 } from '@/lib/validations/faturacao';
 import { TipoSerieDocumentoEnum } from '@/lib/validations/faturacao';
+import { formatarData } from '@/lib/format-date';
 import {
   TRANSICOES_FATURA,
   TRANSICOES_NOTA_CREDITO,
@@ -1022,6 +1023,14 @@ export async function registarPagamento(
   });
 }
 
+/**
+ * O vencimento já passou? Só a partir do dia civil de Maputo SEGUINTE ao do
+ * `dataVencimento` — no próprio dia a factura ainda está dentro do prazo.
+ */
+export function vencimentoJaPassou(dataVencimento: Date, agora: Date = new Date()): boolean {
+  return diaMaputo(agora) > diaMaputo(dataVencimento);
+}
+
 export async function marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura> {
   // A recusa por estado sai DEPOIS da transacção (só leu, nada a desfazer): quem a
   // decidiu foi a leitura trancada, que pode já ver o commit de um pagamento concorrente.
@@ -1032,6 +1041,14 @@ export async function marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura>
     if (!fatura) throw new NotFoundError('Factura não encontrada');
     if (!TRANSICOES_FATURA[fatura.status as StatusFatura].includes('VENCIDA')) {
       return { recusa: new BusinessRuleError('TRANSICAO_INVALIDA', `Fatura: transição inválida ${fatura.status} → VENCIDA`) };
+    }
+    if (!vencimentoJaPassou(fatura.dataVencimento)) {
+      return {
+        recusa: new BusinessRuleError(
+          'FATURA_NAO_VENCIDA',
+          `A factura vence a ${formatarData(fatura.dataVencimento)}: só pode ser marcada como vencida a partir do dia seguinte.`,
+        ),
+      };
     }
     return { fatura: (await tx.fatura.update({ where: { id: faturaId }, data: { status: 'VENCIDA' } })) as unknown as Fatura };
   });

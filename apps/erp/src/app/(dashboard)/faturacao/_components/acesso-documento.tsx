@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
  */
 export const PERM = {
   faturaPagar: 'faturacao:fatura:pagar',
+  faturaGerir: 'faturacao:fatura:gerir',
   ncLiquidar: 'faturacao:nc:liquidar',
   ncCancelar: 'faturacao:nc:cancelar',
   proformaCancelar: 'faturacao:proforma:cancelar',
