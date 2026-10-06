@@ -131,6 +131,28 @@ export const IdSerieDocumentoSchema = z.object({ id: idEntidade() });
 export type IdSerieDocumentoInput = z.infer<typeof IdSerieDocumentoSchema>;
 
 // ---------------------------------------------------------------------------
+// Meio de pagamento (recebimento de factura e devolução de NC)
+// ---------------------------------------------------------------------------
+
+const FormaPagamentoEnum = z.enum(
+  FORMAS_PAGAMENTO.map((f) => f.value) as [FormaPagamento, ...FormaPagamento[]],
+);
+
+/** Fora do numerário, o dinheiro passa por uma conta bancária — tem de vir escolhida. */
+function exigirContaBancariaForaDoNumerario(
+  d: { formaPagamento: FormaPagamento; contaBancariaId?: string },
+  ctx: z.RefinementCtx,
+): void {
+  if (d.formaPagamento !== 'NUMERARIO' && !d.contaBancariaId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['contaBancariaId'],
+      message: 'A conta bancária é obrigatória para esta forma de pagamento.',
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Fatura
 // ---------------------------------------------------------------------------
 
@@ -151,16 +173,23 @@ export const EmitirFaturaSchema = z
 
 export type EmitirFaturaInput = z.infer<typeof EmitirFaturaSchema>;
 
-export const RegistarPagamentoFaturaSchema = z.object({
-  faturaId: z.string().cuid('ID de factura inválido'),
-  valor: z
-    .number({ required_error: 'Valor de pagamento obrigatório' })
-    .positive('Valor deve ser positivo')
-    .multipleOf(0.01),
-  dataPagamento: z.coerce.date().default(() => new Date()),
-  sessaoCaixaId: z.string().cuid().optional(),
-  observacoes: z.string().max(500).optional(),
-});
+/**
+ * Recebimento de uma factura (P2, fatura-pdf-pagamento): lança D meio / C 411. O meio
+ * resolve-se como na devolução da NC — a sessão de caixa nunca vem do cliente.
+ */
+export const RegistarPagamentoFaturaSchema = z
+  .object({
+    faturaId: idEntidade('ID de factura inválido'),
+    valor: z
+      .number({ required_error: 'Valor de pagamento obrigatório', invalid_type_error: 'Valor inválido' })
+      .positive('Valor deve ser positivo')
+      .multipleOf(0.01),
+    dataPagamento: dataDocumento('Data do pagamento'),
+    formaPagamento: FormaPagamentoEnum,
+    contaBancariaId: idEntidade().optional(),
+    observacoes: z.string().max(500).optional(),
+  })
+  .superRefine(exigirContaBancariaForaDoNumerario);
 
 export type RegistarPagamentoFaturaInput = z.infer<typeof RegistarPagamentoFaturaSchema>;
 
@@ -306,10 +335,6 @@ export const CancelarDocumentoSchema = z.object({
 
 export type CancelarDocumentoInput = z.infer<typeof CancelarDocumentoSchema>;
 
-const FormaPagamentoNCEnum = z.enum(
-  FORMAS_PAGAMENTO.map((f) => f.value) as [FormaPagamento, ...FormaPagamento[]],
-);
-
 /**
  * Liquidação TOTAL da NC. DEVOLUCAO: dinheiro ao cliente pelo meio escolhido
  * (lançamento 411 → meio). COMPENSACAO: abate ao saldo da factura original.
@@ -325,18 +350,12 @@ export const LiquidarNotaCreditoSchema = z
       id: idEntidade(),
       forma: z.literal('DEVOLUCAO'),
       data: dataDocumento('Data da liquidação'),
-      formaPagamento: FormaPagamentoNCEnum,
+      formaPagamento: FormaPagamentoEnum,
       contaBancariaId: idEntidade().optional(),
     }),
   ])
   .superRefine((d, ctx) => {
-    if (d.forma === 'DEVOLUCAO' && d.formaPagamento !== 'NUMERARIO' && !d.contaBancariaId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['contaBancariaId'],
-        message: 'A conta bancária é obrigatória para esta forma de pagamento.',
-      });
-    }
+    if (d.forma === 'DEVOLUCAO') exigirContaBancariaForaDoNumerario(d, ctx);
   });
 
 export type LiquidarNotaCreditoInput = z.infer<typeof LiquidarNotaCreditoSchema>;

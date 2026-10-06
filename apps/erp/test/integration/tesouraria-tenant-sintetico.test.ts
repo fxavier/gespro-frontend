@@ -390,7 +390,13 @@ describe.skipIf(skip)('spec 22 — tenant sintético semeado pelos serviços (or
     // ── 6. Vinte facturas PAGAS com atrasos POSITIVOS e VARIADOS (média 6, σ>0)
     //       Vencimento hoje−60; pagamento no vencimento + atraso — tudo dentro
     //       da janela dos 180 dias do perfil.
+    //       O recebimento lança (P2, fatura-pdf-pagamento): é em NUMERÁRIO (D 111 / C 411),
+    //       numa sessão de caixa que fecha logo a seguir — nem o razão do 121 nem as sessões
+    //       abertas, que são o saldo de tesouraria afirmado abaixo, mudam por causa disto.
     const sVencPagas = sHoje - 60;
+    const { abrirSessao, fecharSessao } = await import('@/server/services/financas/caixa.service');
+    const ctxCaixa = { ...ctx, permissions: new Set(['faturacao:fatura:pagar', 'caixa:operar']) };
+    const sessaoRecebimentos = await runCtx(ctx, () => abrirSessao({ fundoInicial: 0 }, ctx));
     for (const [i, atraso] of ATRASOS.entries()) {
       const fatura = await emitir(dataDoSerial(sVencPagas - 10), dataDoSerial(sVencPagas), 1000);
       await runCtx(ctx, () =>
@@ -399,8 +405,9 @@ describe.skipIf(skip)('spec 22 — tenant sintético semeado pelos serviços (or
             faturaId: fatura.id,
             valor: 1000,
             dataPagamento: dataDoSerial(sVencPagas + atraso),
+            formaPagamento: 'NUMERARIO',
           }),
-          ctx,
+          ctxCaixa,
         ),
       );
       if (i === ATRASOS.length - 1) {
@@ -409,6 +416,9 @@ describe.skipIf(skip)('spec 22 — tenant sintético semeado pelos serviços (or
         if (paga?.status !== 'PAGA') throw new Error('Seed degradado: factura da amostra não ficou PAGA.');
       }
     }
+    await runCtx(ctx, () =>
+      fecharSessao({ sessaoCaixaId: sessaoRecebimentos.id, fundoFinal: ATRASOS.length * 1000 }, ctx),
+    );
 
     // ── 7. Duas facturas EM ABERTO, futuras — as entradas que o cenário desloca
     const fatA = await emitir(dataDoSerial(sHoje), dataDoSerial(sHoje + VENC_A_DIAS), 10000);

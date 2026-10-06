@@ -5,10 +5,11 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Banknote, Download } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
+import { ESTADOS_FATURA_PAGAVEL } from '@/server/services/financas/faturacao.interface';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +21,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
+import { PERM } from '../_components/acesso-documento';
+import { MarcarVencidaButton } from './_components/marcar-vencida-button';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -36,7 +39,7 @@ export default async function FaturaDetalhePage({ params }: Props) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
 
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };
 
   let fatura;
@@ -58,6 +61,13 @@ export default async function FaturaDetalhePage({ params }: Props) {
   }
 
   const pendente = n(fatura.total) - n(fatura.totalPago);
+  const podePagar =
+    ESTADOS_FATURA_PAGAVEL.includes(fatura.status) && permissions.includes(PERM.faturaPagar);
+  // Mesma regra que o serviço impõe: só a partir do dia de Maputo seguinte ao vencimento.
+  const podeMarcarVencida =
+    (fatura.status === 'EMITIDA' || fatura.status === 'PARCIALMENTE_PAGA') &&
+    faturacaoService.vencimentoJaPassou(fatura.dataVencimento) &&
+    permissions.includes(PERM.faturaGerir);
 
   const tabLinhas = (
     <div className="rounded-lg border overflow-hidden">
@@ -172,6 +182,15 @@ export default async function FaturaDetalhePage({ params }: Props) {
             badge={<StatusBadge status={fatura.status} />}
             actions={
               <div className="flex gap-2">
+                {podePagar && (
+                  <Button size="sm" asChild>
+                    <Link href={`/faturacao/${fatura.id}/pagamento`}>
+                      <Banknote className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      Registar pagamento
+                    </Link>
+                  </Button>
+                )}
+                {podeMarcarVencida && <MarcarVencidaButton faturaId={fatura.id} numero={fatura.numero} />}
                 {/* PDF gerado a pedido pela rota fiscal; `caminhoArquivoPdf` nunca é escrito (#133). */}
                 <Button variant="outline" size="sm" asChild>
                   <a href={`/api/faturacao/${fatura.id}/pdf`}>
