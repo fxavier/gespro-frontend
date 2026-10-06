@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
 import { PERM } from '../_components/acesso-documento';
+import { MarcarVencidaButton } from './_components/marcar-vencida-button';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -62,6 +63,11 @@ export default async function FaturaDetalhePage({ params }: Props) {
   const pendente = n(fatura.total) - n(fatura.totalPago);
   const podePagar =
     ESTADOS_FATURA_PAGAVEL.includes(fatura.status) && permissions.includes(PERM.faturaPagar);
+  // Mesma regra que o serviço impõe: só a partir do dia de Maputo seguinte ao vencimento.
+  const podeMarcarVencida =
+    (fatura.status === 'EMITIDA' || fatura.status === 'PARCIALMENTE_PAGA') &&
+    faturacaoService.vencimentoJaPassou(fatura.dataVencimento) &&
+    permissions.includes(PERM.faturaGerir);
 
   const tabLinhas = (
     <div className="rounded-lg border overflow-hidden">
@@ -184,6 +190,7 @@ export default async function FaturaDetalhePage({ params }: Props) {
                     </Link>
                   </Button>
                 )}
+                {podeMarcarVencida && <MarcarVencidaButton faturaId={fatura.id} numero={fatura.numero} />}
                 {/* PDF gerado a pedido pela rota fiscal; `caminhoArquivoPdf` nunca é escrito (#133). */}
                 <Button variant="outline" size="sm" asChild>
                   <a href={`/api/faturacao/${fatura.id}/pdf`}>
