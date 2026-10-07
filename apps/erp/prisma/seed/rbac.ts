@@ -465,6 +465,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     // #76 — quem trabalha no tenant e o trilho de auditoria são da administração:
     // o OPERADOR não as leva pelo isReadOnly (a migração retira-as aos tenants existentes).
     if (['admin:ver_utilizadores', 'admin:ver_auditoria'].includes(code)) return false;
+    // #299 — exportar mapas financeiros (balancete, balanço, DRE, DFC, encerramento) não é
+    // operacional: o `:exportar` de finanças não entra pelo isReadOnly (a migração retira-o).
+    if (code.startsWith('financas:') && code.includes('exportar')) return false;
     if (isReadOnly(code)) return true;
     // Inventário — #81: aprovar discrepância de contagem é de ADMIN/GESTOR.
     if (code === 'inventario:contagens:aprovar-discrepancia') return false;
