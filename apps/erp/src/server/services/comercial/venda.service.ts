@@ -50,6 +50,7 @@ import {
 } from '@/server/services/financas';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
+import { exigirClienteAtivoParaCredito } from '@/lib/cliente-credito';
 import type { IComissaoService } from './comissao.interface';
 import {
   TRANSICOES_VENDA,
@@ -270,7 +271,8 @@ export function linhaDocumentoFiscal(
 
 /**
  * Cliente de uma venda POS com parte a crédito (ADR-0041 §4): tem de ser identificado —
- * nem anónimo nem o Consumidor Final, que não tem conta corrente a que se cobrar.
+ * nem anónimo nem o Consumidor Final, que não tem conta corrente a que se cobrar —
+ * e activo e não apagado (#317).
  */
 async function _clienteDoCredito(
   tx: Prisma.TransactionClient,
@@ -280,10 +282,11 @@ async function _clienteDoCredito(
   const cliente = input.clienteId
     ? await tx.cliente.findFirst({
         where: { id: input.clienteId, tenantId: ctx.tenantId },
-        select: { id: true, codigo: true, diasPagamento: true },
+        select: { id: true, codigo: true, diasPagamento: true, status: true, deletedAt: true },
       })
     : null;
   if (input.clienteId && !cliente) throw new NotFoundError('Cliente não encontrado');
+  if (cliente) exigirClienteAtivoParaCredito(cliente);
   if (!cliente || cliente.codigo === CLIENTE_CONSUMIDOR_FINAL.codigo) {
     throw new BusinessRuleError(
       'CLIENTE_OBRIGATORIO_CREDITO',

@@ -40,6 +40,7 @@ import type {
 } from '@/lib/validations/faturacao';
 import { TipoSerieDocumentoEnum } from '@/lib/validations/faturacao';
 import { formatarData } from '@/lib/format-date';
+import { exigirClienteAtivoParaCredito } from '@/lib/cliente-credito';
 import {
   TRANSICOES_FATURA,
   TRANSICOES_NOTA_CREDITO,
@@ -782,9 +783,11 @@ export async function emitirDocumentoEmTx(
   // W9: validar FKs cross-domínio contra tenant
   const cliente = await tx.cliente.findFirst({
     where: { id: input.clienteId, tenantId: ctx.tenantId },
-    select: { id: true, nuit: true },
+    select: { id: true, nuit: true, status: true, deletedAt: true },
   });
   if (!cliente) throw new NotFoundError('Cliente não encontrado');
+  // Factura não paga = crédito ao cliente (#317); a Factura-Recibo (pronto) não é afectada.
+  if (tipoSerie === 'FATURA') exigirClienteAtivoParaCredito(cliente);
 
   if (input.vendaId) {
     const venda = await tx.venda.findFirst({

@@ -202,7 +202,7 @@ function criarTx(numeracao: unknown[] | 'por-tipo' = 'por-tipo') {
         where?.id === SERIE_2026 ? { id: SERIE_2026, tipo: h.tipoEscolhido, ano: 2026, ativo: true } : null,
       ),
     },
-    cliente: { findFirst: vi.fn(async () => ({ id: 'cli-93' })) },
+    cliente: { findFirst: vi.fn(async () => ({ id: 'cli-93', status: 'ATIVO', deletedAt: null })) },
     ...duploContasNaturezaND(ctx.tenantId),
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-93' })) },
     fatura: modelo('fatura'),
