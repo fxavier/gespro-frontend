@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
+import { exigirLugarNoPlano } from '@/server/billing/limites-plano';
 import type {
   BaixaStockInput,
   EntradaStockInput,
@@ -96,7 +97,20 @@ export async function obterLocalizacao(id: string, ctx: Ctx): Promise<Localizaca
   return mapLoc(l);
 }
 
+/**
+ * Limite do plano (ADR-0027 §2–§3, #98): passar a existir mais um ARMAZEM activo
+ * conta os activos do tenant e recusa no limite. Desactivar nunca passa por aqui.
+ */
+function exigirLugarDeArmazem(ctx: Ctx): Promise<void> {
+  return exigirLugarNoPlano(prisma, ctx.tenantId, 'armazens', () =>
+    prisma.localizacao.count({
+      where: { tenantId: ctx.tenantId, tipo: 'ARMAZEM', ativa: true, deletedAt: null },
+    }),
+  );
+}
+
 export async function criarLocalizacao(data: LocalizacaoCreate, ctx: Ctx): Promise<LocalizacaoDto> {
+  if (data.tipo === 'ARMAZEM' && (data.ativa ?? true)) await exigirLugarDeArmazem(ctx);
   const l = await prisma.localizacao.create({
     data: { ...data, tenantId: ctx.tenantId, tipo: data.tipo as never },
     select: LOC_SELECT,
@@ -105,7 +119,10 @@ export async function criarLocalizacao(data: LocalizacaoCreate, ctx: Ctx): Promi
 }
 
 export async function actualizarLocalizacao(id: string, data: LocalizacaoUpdate, ctx: Ctx): Promise<LocalizacaoDto> {
-  await obterLocalizacao(id, ctx);
+  const actual = await obterLocalizacao(id, ctx);
+  const eraArmazemActivo = actual.tipo === 'ARMAZEM' && actual.ativa;
+  const seraArmazemActivo = (data.tipo ?? actual.tipo) === 'ARMAZEM' && (data.ativa ?? actual.ativa);
+  if (seraArmazemActivo && !eraArmazemActivo) await exigirLugarDeArmazem(ctx);
   const l = await prisma.localizacao.update({ where: { id }, data: { ...data, ...(data.tipo ? { tipo: data.tipo as never } : {}) }, select: LOC_SELECT });
   return mapLoc(l);
 }
