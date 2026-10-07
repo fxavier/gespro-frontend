@@ -138,6 +138,8 @@ enum TipoSerieDocumento {
   NOTA_DEVOLUCAO
   // ADR-0041: Factura-Recibo da venda POS paga no acto (delta aditivo; não reordenar)
   FATURA_RECIBO
+  // #331: número da troca pela série (era `TRC-${Date.now()}`) (delta aditivo; não reordenar)
+  TROCA
 }
 
 enum StatusFatura {

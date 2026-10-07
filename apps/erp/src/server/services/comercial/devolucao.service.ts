@@ -163,7 +163,9 @@ export async function lerDevolucaoTrancada(tx: Prisma.TransactionClient, id: str
 
 /**
  * NC dos bens devolvidos, na transacção do chamador (processar e troca): reutiliza a que a
- * devolução já traga (resíduo do desenho antigo); senão, com factura, emite-a pelo núcleo
+ * devolução já traga (resíduo do desenho antigo) — trancada (`FOR UPDATE`) ANTES de a ler, para
+ * que o estado que o chamador verifica (`exigirNotaCreditoComCredito`) seja o de depois de
+ * qualquer liquidação/cancelamento concorrente (#331); senão, com factura, emite-a pelo núcleo
  * `emitirNotaCreditoEmTx` (contrato D). Sem factura → `null`.
  */
 export async function notaCreditoDaDevolucaoEmTx(
@@ -175,6 +177,7 @@ export async function notaCreditoDaDevolucaoEmTx(
   ctx: Ctx,
 ): Promise<{ id: string; numero: string; total: Prisma.Decimal; status: string } | null> {
   if (devolucao.notaCreditoId) {
+    await tx.$queryRaw`SELECT id FROM "NotaCredito" WHERE id = ${devolucao.notaCreditoId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
     const existente = await tx.notaCredito.findFirst({
       where: { id: devolucao.notaCreditoId, tenantId: ctx.tenantId },
       select: { id: true, numero: true, total: true, status: true },
@@ -209,6 +212,22 @@ export async function notaCreditoDaDevolucaoEmTx(
     ctx,
   );
   return { id: nc.id, numero: nc.numero, total: new Prisma.Decimal(String(nc.total)), status: nc.status };
+}
+
+/**
+ * A NC só tem crédito a abater/devolver enquanto `EMITIDA`. Códigos separados (#331):
+ * `NC_JA_LIQUIDADA` (LIQUIDADA) e `NC_CANCELADA` (CANCELADA). `nc` tem de vir da leitura trancada.
+ */
+export function exigirNotaCreditoComCredito(
+  nc: { numero: string; status: string },
+  devolucaoNumero: string,
+  consequencia: string,
+): void {
+  if (nc.status === 'EMITIDA') return;
+  throw new BusinessRuleError(
+    nc.status === 'CANCELADA' ? 'NC_CANCELADA' : 'NC_JA_LIQUIDADA',
+    `A nota de crédito ${nc.numero} da devolução ${devolucaoNumero} está ${nc.status}: ${consequencia}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -456,12 +475,7 @@ export class DevolucaoService {
           ctx,
         );
         if (nc) {
-          if (nc.status !== 'EMITIDA') {
-            throw new BusinessRuleError(
-              'NC_JA_LIQUIDADA',
-              `A nota de crédito ${nc.numero} da devolução ${devolucao.numero} está ${nc.status}: o valor não se devolve outra vez.`,
-            );
-          }
+          exigirNotaCreditoComCredito(nc, devolucao.numero, 'o valor não se devolve outra vez.');
           await this.faturacaoService.liquidarNotaCreditoEmTx(
             tx,
             { notaCreditoId: nc.id, data: agora, numerario: valor, compensado: new Prisma.Decimal(0) },

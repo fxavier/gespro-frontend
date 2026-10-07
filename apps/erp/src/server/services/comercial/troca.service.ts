@@ -17,7 +17,7 @@
  *     substituto vale menos, o excesso da NC devolve-se em dinheiro (D 411 / C 111 na liquidação
  *     + MovimentoCaixa DEVOLUCAO). Efeito líquido: 411 a zero, caixa/banco = diferença.
  *  6. Caixa: só a parte em DINHEIRO entra na gaveta (MovimentoCaixa VENDA).
- *  7. Devolução PROCESSADA com `notaCreditoId`; Troca criada.
+ *  7. Devolução PROCESSADA com `notaCreditoId`; Troca criada, numerada pela série TROCA (#331).
  */
 import 'server-only';
 
@@ -31,7 +31,7 @@ import { exigirEmailConfirmadoParaEmitir } from '@/server/services/financas';
 import { TRANSICOES_DEVOLUCAO } from '@/lib/state-machines';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 import type { CreateTrocaInput } from '@/lib/validations/vendas';
-import { lerDevolucaoTrancada, notaCreditoDaDevolucaoEmTx } from './devolucao.service';
+import { exigirNotaCreditoComCredito, lerDevolucaoTrancada, notaCreditoDaDevolucaoEmTx } from './devolucao.service';
 import { linhaDocumentoFiscal } from './venda.service';
 
 // ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ export class TrocaService {
    * A venda de substituição não se anula pelo POS (VENDA_DE_TROCA em `vendaService.anular`).
    *
    * Recusa sem escrever: TRANSICAO_INVALIDA (devolução não APROVADA), TROCA_SEM_FATURA,
-   * SERIE_NC_OBRIGATORIA, NC_JA_LIQUIDADA, PAGAMENTOS_NAO_BATEM_TOTAL, TROCA_SEM_CREDITO,
+   * SERIE_NC_OBRIGATORIA, NC_JA_LIQUIDADA, NC_CANCELADA, PAGAMENTOS_NAO_BATEM_TOTAL, TROCA_SEM_CREDITO,
    * SESSAO_CAIXA_NECESSARIA, e as dos núcleos (NC_EXCEDE_FATURA, PERIODO_FECHADO…).
    */
   async criar(input: CreateTrocaInput, ctx: Ctx): Promise<TrocaRow> {
@@ -140,12 +140,7 @@ export class TrocaService {
         ctx,
       );
       if (!nc) throw new NotFoundError('Nota de crédito da devolução não encontrada');
-      if (nc.status !== 'EMITIDA') {
-        throw new BusinessRuleError(
-          'NC_JA_LIQUIDADA',
-          `A nota de crédito ${nc.numero} da devolução ${devolucao.numero} está ${nc.status}: já não tem crédito a abater na troca.`,
-        );
-      }
+      exigirNotaCreditoComCredito(nc, devolucao.numero, 'já não tem crédito a abater na troca.');
 
       // 5. Compensação: o crédito da NC paga a FR até ao total dela; o resto é diferença.
       const compensado = Prisma.Decimal.min(nc.total, totais.total);
@@ -339,10 +334,11 @@ export class TrocaService {
         },
       });
 
+      const numeroTroca = await this.faturacaoService.proximoNumeroSerie(tx, 'TROCA', ctx, agora);
       const troca = await tx.troca.create({
         data: {
           tenantId: ctx.tenantId,
-          numero: `TRC-${Date.now()}`,
+          numero: numeroTroca,
           devolucaoId: devolucao.id,
           vendaSubstituicaoId: venda.id,
           // positiva = cliente pagou; negativa = crédito devolvido ao cliente
