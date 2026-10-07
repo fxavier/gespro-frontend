@@ -33,5 +33,5 @@ export const GET = withApi(
       },
     });
   },
-  { permission: 'faturacao:leitura' },
+  { permission: 'faturacao:leitura', limitarExportacao: true },
 );

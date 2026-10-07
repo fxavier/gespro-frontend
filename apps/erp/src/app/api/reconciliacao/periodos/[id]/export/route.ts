@@ -9,16 +9,12 @@ import { withApi } from '@/lib/api/with-api';
 import { ValidationError } from '@/lib/errors';
 import { exportResponse, isFormatoExport } from '@/lib/reporting';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 import { obterFechoPeriodo } from '@/server/services/reconciliacao/consulta.service';
 
 export const runtime = 'nodejs';
 
 export const GET = withApi(
   async (req: NextRequest, ctx) => {
-    const rl = await exportLimiter.consume(`${ctx.userId}::export`);
-    if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
-
     const formato = new URL(req.url).searchParams.get('formato') ?? 'csv';
     if (!isFormatoExport(formato)) throw new ValidationError('Formato inválido — use csv ou xlsx');
 
@@ -57,5 +53,5 @@ export const GET = withApi(
       formato,
     );
   },
-  { permission: 'financas:banca:reconciliacao' },
+  { permission: 'financas:banca:reconciliacao', limitarExportacao: true },
 );

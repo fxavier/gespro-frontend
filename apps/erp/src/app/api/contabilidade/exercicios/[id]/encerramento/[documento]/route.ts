@@ -39,5 +39,5 @@ export const GET = withApi(
     const destino = /^https?:\/\//i.test(assinado) ? assinado : new URL(assinado, req.nextUrl.origin).toString();
     return NextResponse.redirect(destino, 302);
   },
-  { permission: 'financas:exportar' },
+  { permission: 'financas:exportar', limitarExportacao: true },
 );

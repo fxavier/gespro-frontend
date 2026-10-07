@@ -23,7 +23,6 @@ import { AppError, NotFoundError } from '@/lib/errors';
 import { datasetBalancete, descreverFiltros, lerParametrosBalancete } from '@/lib/balancete-params';
 import { renderBalancetePdf } from '@/lib/documents/pdf/balancete-pdf';
 import { exportResponse, isFormatoExport, safeFilename } from '@/lib/reporting';
-import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 import { listarExercicios, periodoFiscalDe } from '@/server/services/financas/contabilidade.service';
 import { balanceteApresentado } from '@/server/services/financas/balancete-apresentado';
 import { tenantAdminService } from '@/server/services/plataforma/tenant-admin.service';
@@ -39,9 +38,6 @@ const COLUNAS_TOTAIS = ['movD', 'movC', 'acumD', 'acumC', 'saldoDevedor', 'saldo
 
 export const GET = withApi(
   async (req: NextRequest, api) => {
-    const rl = await exportLimiter.consume(`${api.userId}::export`);
-    if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
-
     const ctx = { tenantId: api.tenantId, userId: api.userId };
     const qs = req.nextUrl.searchParams;
     const mesAtual = parseInt(periodoFiscalDe(new Date()).split('-')[1] ?? '12', 10);
@@ -107,5 +103,5 @@ export const GET = withApi(
     const ds = datasetBalancete({ totais: balancete.totais, linhas }, p.tipo, cabecalho);
     return exportResponse(ds, isFormatoExport(formato) ? formato : 'csv');
   },
-  { permission: 'financas:exportar' },
+  { permission: 'financas:exportar', limitarExportacao: true },
 );

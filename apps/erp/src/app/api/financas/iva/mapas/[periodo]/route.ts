@@ -78,7 +78,7 @@ export const GET = withApi(
         throw new ValidationError('Tipo de mapa inválido');
     }
   },
-  { permission: 'financas:iva:mapas' },
+  { permission: 'financas:iva:mapas', limitarExportacao: true },
 );
 
 // ---------------------------------------------------------------------------
