@@ -495,10 +495,10 @@ test('11. sync selector: checkbox e «Grau máximo» reflectem URL após navigat
 //
 // Contrato: .scratch/sdlc/balancete-phc/S3-contrato.md («Página / URL», §3, §4).
 // Filtros são APRESENTAÇÃO: «Totais» e o indicador de equilíbrio nunca mudam.
-// Contra natureza no seed (períodos 1..6/2026, SQL de leitura 2026-10-01):
-//   421   Fornecedores c/c  DEVEDORA  D 80 000,00  C 162 100,00   → saldo credor
-//   44331 Operações gerais  DEVEDORA  D 0          C 442 404,68   → saldo credor
-//   121 e 711 estão na sua natureza.
+// Natureza no seed (períodos 1..6/2026, SQL de leitura 2026-10-01; #295 corrigiu a classe 4):
+//   421   Fornecedores c/c  CREDORA   D 80 000,00  C 162 100,00   → saldo credor, na natureza
+//   44331 Operações gerais  CREDORA   D 0          C 442 404,68   → saldo credor, na natureza
+//   121, 411, 6112, 63299 e 711 também estão na sua natureza — o seed não tem contas contra natureza.
 // ===========================================================================
 
 const BASE_S3 = 'exercicio=2026&de=1&ate=6';
@@ -824,9 +824,11 @@ test('19. selector reflecte ci/cf/excluir/q/classe/comSaldo/zeradas/tipo do URL,
 // 20. Marcador de saldo contra natureza
 // ---------------------------------------------------------------------------
 
-test('20. contas contra natureza (421, 44331) têm marcador acessível «Saldo contra natureza»; 121 e 711 não', async ({
+test('20. #295 — 421 e 44331 (passivos, CREDORA) e as outras contas com movimento NÃO têm o marcador «Saldo contra natureza»', async ({
   page,
 }) => {
+  // Antes da #295 a classe 4 era toda DEVEDORA e 421/44331 apareciam contra natureza.
+  // O aviso estava certo face aos dados; os dados é que estavam errados.
   await navegar(page, BASE_S3);
 
   const linha = (codigo: string) =>
@@ -834,42 +836,21 @@ test('20. contas contra natureza (421, 44331) têm marcador acessível «Saldo c
       has: page.locator('td:first-child', { hasText: new RegExp(`^${codigo}$`) }),
     });
 
-  for (const codigo of ['421', '44331']) {
+  for (const codigo of ['421', '44331', '121', '411', '6112', '63299', '711']) {
     await expect(linha(codigo), `linha ${codigo} visível`).toHaveCount(1);
-    const marcador = linha(codigo).locator('[aria-label="Saldo contra natureza"]');
-    await expect(marcador, `${codigo} deve ter o marcador`).toHaveCount(1);
-    await expect(marcador).toHaveAttribute('title', 'Saldo contra natureza');
-    // Esclarecimentos 2: `text-warning` só na célula de saldo não nula (aqui, Credor = última td)
-    const aviso = await linha(codigo).evaluate((tr) => {
-      const tds = Array.from(tr.querySelectorAll('td'));
-      const temAviso = (el: Element) =>
-        el.classList.contains('text-warning') || el.querySelector('.text-warning') !== null;
-      return {
-        linha: tr.classList.contains('text-warning'),
-        credor: temAviso(tds[tds.length - 1]!),
-        devedor: temAviso(tds[tds.length - 2]!),
-        outras: tds.slice(0, -2).some(temAviso),
-      };
-    });
-    expect(aviso, `${codigo}: text-warning só na célula Credor`).toEqual({
-      linha: false,
-      credor: true,
-      devedor: false,
-      outras: false,
-    });
-  }
-  for (const codigo of ['121', '711']) {
-    await expect(linha(codigo)).toHaveCount(1);
     await expect(
       linha(codigo).locator('[aria-label="Saldo contra natureza"]'),
       `${codigo} está na sua natureza`,
     ).toHaveCount(0);
+    const aviso = await linha(codigo).evaluate(
+      (tr) => tr.classList.contains('text-warning') || tr.querySelector('.text-warning') !== null,
+    );
+    expect(aviso, `${codigo}: sem text-warning`).toBe(false);
   }
 
-  // Todos os marcadores da página têm o title acessível
+  // Qualquer marcador que apareça (resíduo da base) continua com o title acessível.
   const marcadores = page.locator('[aria-label="Saldo contra natureza"]');
   const n = await marcadores.count();
-  expect(n).toBeGreaterThanOrEqual(2);
   for (let i = 0; i < n; i++) {
     await expect(marcadores.nth(i)).toHaveAttribute('title', 'Saldo contra natureza');
   }

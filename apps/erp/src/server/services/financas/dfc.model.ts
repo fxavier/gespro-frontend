@@ -47,8 +47,8 @@ import {
  *   Logo `resultadoLiquido + Σ_outras efeitoCaixa = Σ_caixa Δ(c) = Δcaixa`.
  *   O sinal traduz-se pela NATUREZA da conta, porque `saldoAtual` do
  *   balancete já vem assinado por ela: numa DEVEDORA `variacao = Δ(c)`, numa
- *   CREDORA `variacao = −Δ(c)`. É conta a conta (421 e 44331 são DEVEDORAS no
- *   seed; 3281 é ATIVO e CREDORA) — nunca por `tipo`, nunca por prefixo.
+ *   CREDORA `variacao = −Δ(c)`. É conta a conta (421 e 44331 são CREDORAS desde
+ *   a #295; 3281 é ATIVO e CREDORA) — nunca por `tipo`, nunca por prefixo.
  */
 
 const ZERO = new Prisma.Decimal(0);

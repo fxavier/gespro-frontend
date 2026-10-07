@@ -524,6 +524,139 @@ describe('plano-contas-pgc.json — natureza das classes', () => {
 });
 
 // ===========================================================================
+// ORÁCULO da issue #295 (verificador): a classe 4 (Terceiros) é natureza CONTA
+// A CONTA. O ficheiro tinha-a toda DEVEDORA — 421 Fornecedores e 44331 IVA
+// liquidado apareciam «contra natureza» no balancete PHC (#283) e o
+// `derivarTipoConta` fazia de todos os passivos ATIVO. Escrito ANTES da
+// correcção do JSON: tem de ficar vermelho até lá.
+//
+// Contrato (decisão do orquestrador): CREDORA — 419, 42x excepto 429, 43x, 442,
+// 4433/44331-3, 44342, 4436, 449, 46x, 47x, 48x, 491, 492; DEVEDORA — 41x
+// excepto 419, 429, 4431/4432, 44341, 4437, 45x, 493, 494; ambíguas (441, 4435,
+// 445, 446) ficam DEVEDORA. Um prefixo «NNx» cobre as contas-filhas (código
+// mais comprido); um código explícito cobre-se a si e às suas filhas. As contas
+// de grupo de nível 2 (41…49) e as não listadas (4434, 4438, 4439, 444…) NÃO são
+// trancadas aqui — o contrato não as decide.
+// ===========================================================================
+
+describe('plano-contas-pgc.json — natureza da classe 4 conta a conta (#295)', () => {
+  type ContaNat = { codigo: string; classe: number; natureza: string; nivel: number };
+  const classe4 = (planoContasJson as ContaNat[]).filter((c) => c.classe === 4);
+  const porCodigo = new Map(classe4.map((c) => [c.codigo, c]));
+
+  /** Filhas estritas de um grupo «NNx» (código mais comprido que o prefixo). */
+  const filhasDe = (prefixo: string) => classe4.filter((c) => c.codigo.length > prefixo.length && c.codigo.startsWith(prefixo));
+  /** O próprio código e todas as suas filhas. */
+  const subarvore = (codigo: string) => classe4.filter((c) => c.codigo.startsWith(codigo));
+  const fora = (lista: ContaNat[], excluir: string[]) =>
+    lista.filter((c) => !excluir.some((e) => c.codigo.startsWith(e)));
+
+  const CREDORAS_EXPLICITAS = ['419', '442', '4433', '44331', '44332', '44333', '44342', '4436', '449', '491', '492'];
+  const DEVEDORAS_EXPLICITAS = ['429', '4431', '4432', '44341', '4437', '493', '494'];
+  const AMBIGUAS = ['441', '4435', '445', '446'];
+
+  const credorasEsperadas = (): ContaNat[] => [
+    ...subarvore('419'),
+    ...fora(filhasDe('42'), ['429']),
+    ...filhasDe('43'),
+    ...subarvore('442'),
+    ...subarvore('4433'),
+    ...subarvore('44342'),
+    ...subarvore('4436'),
+    ...subarvore('449'),
+    ...filhasDe('46'),
+    ...filhasDe('47'),
+    ...filhasDe('48'),
+    ...subarvore('491'),
+    ...subarvore('492'),
+  ];
+  const devedorasEsperadas = (): ContaNat[] => [
+    ...fora(filhasDe('41'), ['419']),
+    ...subarvore('429'),
+    ...subarvore('4431'),
+    ...subarvore('4432'),
+    ...subarvore('44341'),
+    ...subarvore('4437'),
+    ...filhasDe('45'),
+    ...subarvore('493'),
+    ...subarvore('494'),
+  ];
+
+  it('todos os códigos que o contrato nomeia existem no ficheiro (nenhum fica decidido sobre o vazio)', () => {
+    const emFalta = [...CREDORAS_EXPLICITAS, ...DEVEDORAS_EXPLICITAS, ...AMBIGUAS, '411', '421', '422', '461', '481']
+      .filter((c) => !porCodigo.has(c));
+    expect(emFalta).toEqual([]);
+    for (const g of ['41', '42', '43', '45', '46', '47', '48']) {
+      expect(filhasDe(g).length, `grupo ${g} tem contas-filhas`).toBeGreaterThan(0);
+    }
+  });
+
+  it.each([
+    ['421', 'CREDORA'],
+    ['422', 'CREDORA'],
+    ['4433', 'CREDORA'],
+    ['44331', 'CREDORA'],
+    ['449', 'CREDORA'],
+    ['461', 'CREDORA'],
+    ['481', 'CREDORA'],
+    ['489', 'CREDORA'],
+    ['492', 'CREDORA'],
+    ['411', 'DEVEDORA'],
+    ['429', 'DEVEDORA'],
+    ['4432', 'DEVEDORA'],
+  ])('conta-chave %s é %s', (codigo, natureza) => {
+    expect(porCodigo.get(codigo)?.natureza, `natureza de ${codigo}`).toBe(natureza);
+  });
+
+  it('passivos a crédito: 419, 42x (excepto 429), 43x, 442, 4433/4433x, 44342, 4436, 449, 46x, 47x, 48x, 491, 492 e filhas são CREDORA', () => {
+    const esperadas = credorasEsperadas();
+    expect(esperadas.length).toBeGreaterThan(60);
+    const erradas = esperadas.filter((c) => c.natureza !== 'CREDORA').map((c) => c.codigo);
+    expect(erradas).toEqual([]);
+  });
+
+  it('activos a débito: 41x (excepto 419), 429, 4431/4432 e filhas, 44341, 4437, 45x, 493, 494 e filhas são DEVEDORA', () => {
+    const erradas = devedorasEsperadas().filter((c) => c.natureza !== 'DEVEDORA').map((c) => c.codigo);
+    expect(erradas).toEqual([]);
+  });
+
+  it('ambíguas (441, 4435, 445, 446) ficam DEVEDORA', () => {
+    expect(AMBIGUAS.map((c) => [c, porCodigo.get(c)?.natureza])).toEqual(AMBIGUAS.map((c) => [c, 'DEVEDORA']));
+  });
+
+  it('as listas do contrato não se contradizem (nenhuma conta é CREDORA e DEVEDORA ao mesmo tempo)', () => {
+    const cred = new Set(credorasEsperadas().map((c) => c.codigo));
+    const ambas = devedorasEsperadas().filter((c) => cred.has(c.codigo)).map((c) => c.codigo);
+    expect(ambas).toEqual([]);
+  });
+
+  it('bootstrapPlanoContas grava PASSIVO nas CREDORA e ATIVO nas DEVEDORA da classe 4 (tipo pela natureza)', async () => {
+    await bootstrapPlanoContas(tx as never, 'tenant-1');
+    const linhas = tx.contaPGC.createMany.mock.calls.flatMap((c) => c[0].data) as Array<
+      Partial<Linha> & { codigo?: string; natureza?: string }
+    >;
+    const gravada = new Map(linhas.map((l) => [l.codigo, l]));
+    for (const [codigo, natureza, tipo] of [
+      ['421', 'CREDORA', 'PASSIVO'],
+      ['44331', 'CREDORA', 'PASSIVO'],
+      ['431', 'CREDORA', 'PASSIVO'],
+      ['4622', 'CREDORA', 'PASSIVO'],
+      ['411', 'DEVEDORA', 'ATIVO'],
+      ['4432', 'DEVEDORA', 'ATIVO'],
+    ] as const) {
+      const l = gravada.get(codigo);
+      expect(l, `linha ${codigo} gravada`).toBeDefined();
+      expect([codigo, l!.natureza, l!.tipo]).toEqual([codigo, natureza, tipo]);
+    }
+    // Nenhuma CREDORA da classe 4 fica ATIVO (era o efeito do erro).
+    const credorasAtivo = linhas
+      .filter((l) => (l as { classe?: string }).classe === 'CLASSE_4' && l.natureza === 'CREDORA' && l.tipo !== 'PASSIVO')
+      .map((l) => l.codigo);
+    expect(credorasAtivo).toEqual([]);
+  });
+});
+
+// ===========================================================================
 // ORÁCULO do nó `seed-v` (ticket 4.4) — spec 22 · WS-2 · ADR-0037 §2, §3, E1,
 // E2, I7, I10, V1. Escrito pelo verificador ANTES de `semearRubricasFluxo`
 // existir; tem de ficar vermelho até o nó `seed` a entregar.

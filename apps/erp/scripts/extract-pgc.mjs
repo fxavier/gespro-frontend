@@ -27,10 +27,29 @@ function contaPaiCodigo(codigoSemPontos) {
   return codigoSemPontos.slice(0, -1);
 }
 
-function inferNatureza(classe) {
+// A FONTE DE VERDADE da natureza é prisma/seed/data/plano-contas-pgc.json, revisto à mão
+// (classes 6/7 em 2026-09; classe 4 conta a conta na #295) e trancado por testes em
+// tenant-bootstrap.test.ts. Esta tabela só reproduz o ficheiro para uma re-extracção não
+// o estragar; se divergirem, quem manda é o JSON.
+//
+// Classe 4 (Terceiros) não tem natureza única: é decidida por prefixo de código.
+// Credoras (passivos e contrapartidas a crédito): 419, 42 (excepto 429), 43, 442, 4433
+// (IVA liquidado), 44342, 4436, 449, 46, 47, 48, 491, 492. O resto é DEVEDORA — incluindo
+// as ambíguas 441 (IRPC), 4435 (apuramento do IVA), 445 e 446, cujo saldo muda de lado
+// com o período: ficam DEVEDORA por convenção, e o balancete mostra o lado do saldo.
+const CLASSE_4_CREDORA = ['419', '42', '43', '442', '4433', '44342', '4436', '449', '46', '47', '48', '491', '492'];
+const CLASSE_4_DEVEDORA_EXCEPCOES = ['429'];
+
+function inferNatureza(classe, codigo = String(classe)) {
   // PGC-NIRF Moçambique (Decreto 70/2009):
-  if ([1, 2, 3, 4, 7].includes(classe)) return 'DEVEDORA';
-  return 'CREDORA'; // 5 (Capitais Próprios), 6 (Proveitos), 8 (Resultados)
+  if (classe === 4) {
+    const credora =
+      CLASSE_4_CREDORA.some((p) => codigo.startsWith(p)) &&
+      !CLASSE_4_DEVEDORA_EXCEPCOES.some((p) => codigo.startsWith(p));
+    return credora ? 'CREDORA' : 'DEVEDORA';
+  }
+  if ([1, 2, 3, 6].includes(classe)) return 'DEVEDORA'; // activos e gastos
+  return 'CREDORA'; // 5 (Capital próprio), 7 (Rendimentos), 8 (Resultados)
 }
 
 async function main() {
@@ -100,7 +119,7 @@ async function main() {
       nivel,
       contaPaiCodigo: pai,
       aceitaLancamento,
-      natureza: inferNatureza(classe),
+      natureza: inferNatureza(classe, codigoSemPontos),
     });
   }
 

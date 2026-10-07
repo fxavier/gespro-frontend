@@ -8,7 +8,8 @@
     "Se gerarDFC discordar, o defeito é da implementação até prova documentada em contrário. NUNCA `vitest -u`.",
     "O seed gera datas RELATIVAS ao dia em que corre: re-semear noutro dia muda os números — as sentinelas acusam-no",
     "(«a base tem resíduos») e a fixture tem de ser RE-DERIVADA à mão.",
-    "$nota 2026-10-05 (#138 N2, ADR-0035 §1/§3): 59, 81, 82, 83 e 88 passaram a aceitar lançamento e entraram no mapeamento semeado (59 → FIN-02; 81/82/83/88 → OP-00): `mapeamento.mapeamentos` 435 → 440, apurado à mão (440 contas distintas em rubricas-fluxo-caixa.json; SQL independente sobre MapeamentoContaFluxo e ContaPGC.aceitaLancamento do demo acabado de semear = 440; instantâneo da versão 1 com 440). Nenhuma das cinco tem partidas no seed (0 em qualquer estado), logo NENHUM valor da DFC muda — verificado num Postgres efémero semeado com o relógio pinado em 2026-09-23T16:30Z, onde a única divergência da sentinela era esta contagem. Nota: num tenant JÁ existente, a migração 20261005120000 cria uma versão 2 (440) acima da versão 1 (435) semeada em 2026-09-23 — a sentinela das versões recusa-o de propósito («mapeamento alterado»); a base local de referência tem de ser re-semeada limpa para esta fixture voltar a bater."
+    "$nota 2026-10-05 (#138 N2, ADR-0035 §1/§3): 59, 81, 82, 83 e 88 passaram a aceitar lançamento e entraram no mapeamento semeado (59 → FIN-02; 81/82/83/88 → OP-00): `mapeamento.mapeamentos` 435 → 440, apurado à mão (440 contas distintas em rubricas-fluxo-caixa.json; SQL independente sobre MapeamentoContaFluxo e ContaPGC.aceitaLancamento do demo acabado de semear = 440; instantâneo da versão 1 com 440). Nenhuma das cinco tem partidas no seed (0 em qualquer estado), logo NENHUM valor da DFC muda — verificado num Postgres efémero semeado com o relógio pinado em 2026-09-23T16:30Z, onde a única divergência da sentinela era esta contagem. Nota: num tenant JÁ existente, a migração 20261005120000 cria uma versão 2 (440) acima da versão 1 (435) semeada em 2026-09-23 — a sentinela das versões recusa-o de propósito («mapeamento alterado»); a base local de referência tem de ser re-semeada limpa para esta fixture voltar a bater.",
+    "$nota 2026-10-07 (#295): 421 e 44331 passaram a CREDORA (classe 4 conta a conta; migração <ts>_natureza_classe_4). saldoInicial/saldoFinal/variacao de 421 e 44331 em TODOS os casos, e movimento/saldoFinal das duas em `impedimentos.contasNaoMapeadas`, re-derivados À MÃO por troca de sinal (o balancete assina pela natureza: numa CREDORA saldo = Σ C − Σ D). efeitoCaixa, valor das rubricas, totais, caixa e resultado NÃO mudam (efeitoCaixa = −Δ(c) em termos de débito, independente da natureza). As outras contas com movimento (121, 411, 6112, 63299, 711) não mudam de natureza. Derivação em docs/handoff/dfc-servico-v.md, secção #295."
   ],
   "tenant": "demo",
   "sentinelasDoSeed": {
@@ -78,10 +79,10 @@
               { "codigo": "411", "saldoInicial": "1063029.64", "saldoFinal": "1095190.64", "variacao": "32161.00", "efeitoCaixa": "-32161.00" }
             ] },
             { "codigo": "OP-05", "valor": "722050.00", "contas": [
-              { "codigo": "421", "saldoInicial": "-603500.00", "saldoFinal": "-1325550.00", "variacao": "-722050.00", "efeitoCaixa": "722050.00" }
+              { "codigo": "421", "saldoInicial": "603500.00", "saldoFinal": "1325550.00", "variacao": "722050.00", "efeitoCaixa": "722050.00" }
             ] },
             { "codigo": "OP-06", "valor": "45563.84", "contas": [
-              { "codigo": "44331", "saldoInicial": "-658550.00", "saldoFinal": "-704113.84", "variacao": "-45563.84", "efeitoCaixa": "45563.84" }
+              { "codigo": "44331", "saldoInicial": "658550.00", "saldoFinal": "704113.84", "variacao": "45563.84", "efeitoCaixa": "45563.84" }
             ] }
           ]
         },
@@ -111,10 +112,10 @@
               { "codigo": "411", "saldoInicial": "0", "saldoFinal": "1095190.64", "variacao": "1095190.64", "efeitoCaixa": "-1095190.64" }
             ] },
             { "codigo": "OP-05", "valor": "1325550.00", "contas": [
-              { "codigo": "421", "saldoInicial": "0", "saldoFinal": "-1325550.00", "variacao": "-1325550.00", "efeitoCaixa": "1325550.00" }
+              { "codigo": "421", "saldoInicial": "0", "saldoFinal": "1325550.00", "variacao": "1325550.00", "efeitoCaixa": "1325550.00" }
             ] },
             { "codigo": "OP-06", "valor": "704113.84", "contas": [
-              { "codigo": "44331", "saldoInicial": "0", "saldoFinal": "-704113.84", "variacao": "-704113.84", "efeitoCaixa": "704113.84" }
+              { "codigo": "44331", "saldoInicial": "0", "saldoFinal": "704113.84", "variacao": "704113.84", "efeitoCaixa": "704113.84" }
             ] }
           ]
         },
@@ -130,7 +131,7 @@
       "nome": "trimestre — 2026-04..2026-06 (abertura não nula; 421 sem saldo na véspera)",
       "periodoInicio": "2026-04",
       "periodoFim": "2026-06",
-      "$derivacao": "Véspera 31/03: 121 1325889.20, 411 475725.08, 44331 −227729.28, 421 ausente (0). Fim 30/06: 121 2454248.29, 411 993560.14, 421 −82100.00, 44331 −442404.68. DRE 01/04–30/06: 1511518.75 − 152300.00 − 9800.00 = 1349418.75. OP = 1349418.75 − 517835.06 + 82100.00 + 214675.40 = 1128359.09 = Δcaixa.",
+      "$derivacao": "Véspera 31/03: 121 1325889.20, 411 475725.08, 44331 227729.28 (CREDORA, #295), 421 ausente (0). Fim 30/06: 121 2454248.29, 411 993560.14, 421 82100.00, 44331 442404.68 (CREDORAS, #295). DRE 01/04–30/06: 1511518.75 − 152300.00 − 9800.00 = 1349418.75. OP = 1349418.75 − 517835.06 + 82100.00 + 214675.40 = 1128359.09 = Δcaixa.",
       "esperado": {
         "exercicio": "2026",
         "provisorio": true,
@@ -144,10 +145,10 @@
               { "codigo": "411", "saldoInicial": "475725.08", "saldoFinal": "993560.14", "variacao": "517835.06", "efeitoCaixa": "-517835.06" }
             ] },
             { "codigo": "OP-05", "valor": "82100.00", "contas": [
-              { "codigo": "421", "saldoInicial": "0", "saldoFinal": "-82100.00", "variacao": "-82100.00", "efeitoCaixa": "82100.00" }
+              { "codigo": "421", "saldoInicial": "0", "saldoFinal": "82100.00", "variacao": "82100.00", "efeitoCaixa": "82100.00" }
             ] },
             { "codigo": "OP-06", "valor": "214675.40", "contas": [
-              { "codigo": "44331", "saldoInicial": "-227729.28", "saldoFinal": "-442404.68", "variacao": "-214675.40", "efeitoCaixa": "214675.40" }
+              { "codigo": "44331", "saldoInicial": "227729.28", "saldoFinal": "442404.68", "variacao": "214675.40", "efeitoCaixa": "214675.40" }
             ] }
           ]
         },
@@ -167,8 +168,8 @@
     "desmapear": ["131", "411", "421", "44331", "711"],
     "contasNaoMapeadas": [
       { "codigo": "411", "movimento": "32161.00", "saldoFinal": "1095190.64" },
-      { "codigo": "421", "movimento": "-722050.00", "saldoFinal": "-1325550.00" },
-      { "codigo": "44331", "movimento": "-45563.84", "saldoFinal": "-704113.84" },
+      { "codigo": "421", "movimento": "722050.00", "saldoFinal": "1325550.00" },
+      { "codigo": "44331", "movimento": "45563.84", "saldoFinal": "704113.84" },
       { "codigo": "711", "movimento": "314704.00", "saldoFinal": "5015158.00" }
     ],
     "rubricaAlheia": {
