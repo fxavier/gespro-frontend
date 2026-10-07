@@ -9,6 +9,7 @@ import { ArrowLeft } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
+import { formatarData } from '@/lib/format-date';
 import { Button } from '@/components/ui/button';
 import { PageHeader, EmptyState } from '@/components/patterns';
 import NovaSolicitacaoFeriasForm from './_components/nova-solicitacao-ferias-form';
@@ -39,8 +40,8 @@ export default async function NovaSolicitacaoFeriasPage() {
     id: p.id,
     colaboradorNome: p.colaborador.nome,
     colaboradorCodigo: p.colaborador.codigo,
-    inicio: p.periodoAquisitivoInicio.toLocaleDateString('pt-PT'),
-    fim: p.periodoAquisitivoFim.toLocaleDateString('pt-PT'),
+    inicio: formatarData(p.periodoAquisitivoInicio),
+    fim: formatarData(p.periodoAquisitivoFim),
     saldo: p.diasDisponiveis - p.diasUsados,
   }));
 

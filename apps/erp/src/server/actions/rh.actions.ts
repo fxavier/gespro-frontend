@@ -10,6 +10,7 @@ import {
   CreateFeriasSchema,
   CreateSolicitacaoFeriasSchema,
   AprovarSolicitacaoFeriasSchema,
+  CancelarSolicitacaoFeriasSchema,
   CreateRegistoAssiduidadeSchema,
   FilterAssiduidadeSchema,
   CreateAvaliacaoSchema,
@@ -73,7 +74,7 @@ export const listarColaboradoresAction = createSafeAction({
 export const iniciarPeriodoFeriasAction = createSafeAction({
   schema: CreateFeriasSchema,
   permission: 'rh:ferias:create',
-  revalidate: { tags: ['rh:ferias'] },
+  revalidate: { tags: ['rh:ferias'], paths: ['/rh/ferias'] },
   handler: (input, ctx) => FeriasService.iniciarPeriodo(input, ctx),
 });
 
@@ -87,8 +88,16 @@ export const solicitarFeriasAction = createSafeAction({
 export const aprovarFeriasAction = createSafeAction({
   schema: AprovarSolicitacaoFeriasSchema,
   permission: 'rh:ferias:aprovar',
-  revalidate: { tags: ['rh:ferias'] },
+  revalidate: { tags: ['rh:ferias'], paths: ['/rh/ferias'] },
   handler: (input, ctx) => FeriasService.aprovar(input, ctx),
+});
+
+// #156 — só o próprio (quem submeteu) e só PENDENTE; a regra vive no serviço.
+export const cancelarSolicitacaoFeriasAction = createSafeAction({
+  schema: CancelarSolicitacaoFeriasSchema,
+  permission: 'rh:ferias:solicitar',
+  revalidate: { tags: ['rh:ferias'], paths: ['/rh/ferias'] },
+  handler: ({ solicitacaoId }, ctx) => FeriasService.cancelarSolicitacao(solicitacaoId, ctx),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
