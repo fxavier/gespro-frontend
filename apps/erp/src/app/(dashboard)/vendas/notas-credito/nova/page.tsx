@@ -1,13 +1,15 @@
 /**
  * Nova Nota de Crédito — Server Component.
- * Pré-carrega as faturas elegíveis (sem Dialog). A série não se escolhe (#93):
+ * Pré-carrega as 20 facturas creditáveis mais recentes; a partir daí a combobox
+ * pesquisa no servidor (#86) — a mesma de /faturacao/nota-credito/nova (sem Dialog). A série não se escolhe (#93):
  * é a activa de NOTA_CREDITO no ano da data de emissão.
  */
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { listarFaturas } from '@/server/services/financas/faturacao.service';
+import { procurarFaturasCreditaveis } from '@/server/services/financas/faturacao.service';
+import { rotuloFaturaCreditavel } from '@/lib/documentos/rotulo-fatura';
 import { PageHeader } from '@/components/patterns';
 import { NovaNotaCreditoForm } from './_components/nova-nota-credito-form';
 import { diaIsoMaputo } from '@/lib/format-date';
@@ -19,16 +21,16 @@ export default async function NovaNotaCreditoPage() {
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 
-  const paginaFaturas = await runWithTenantContext(ctx, () =>
-    listarFaturas({ status: 'EMITIDA', take: 100 }, ctx)
-  );
-
-  // Apenas faturas emitidas ou pagas podem ter nota de crédito
-  const faturas = paginaFaturas.items.map((f) => ({
-    id: f.id,
-    numero: f.numero,
-    total: f.total.toString(),
-  }));
+  // Só facturas com saldo creditável, com o saldo no rótulo (#86, #266).
+  let faturas: { value: string; label: string }[] = [];
+  try {
+    faturas = (await runWithTenantContext(ctx, () => procurarFaturasCreditaveis(undefined, ctx))).map((f) => ({
+      value: f.id,
+      label: rotuloFaturaCreditavel(f),
+    }));
+  } catch {
+    // Lista vazia: a pesquisa continua a funcionar.
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -41,7 +43,7 @@ export default async function NovaNotaCreditoPage() {
           { label: 'Nova Nota de Crédito' },
         ]}
       />
-      <NovaNotaCreditoForm faturas={faturas} hoje={diaIsoMaputo()} />
+      <NovaNotaCreditoForm faturasIniciais={faturas} hoje={diaIsoMaputo()} />
     </div>
   );
 }

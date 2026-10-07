@@ -17,6 +17,7 @@ import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx, TxClient } from '@/server/services/types';
 import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
+import { creditoUtilizadoDoCliente } from '@/server/services/financas';
 import type {
   IClienteService,
   ClienteRow,
@@ -385,7 +386,7 @@ export class ClienteService implements IClienteService {
   async desativar(id: string, ctx: Ctx): Promise<void> {
     const cliente = await prisma.cliente.findUnique({
       where: { id },
-      select: { tenantId: true, deletedAt: true, creditoUtilizadoMT: true, codigo: true },
+      select: { tenantId: true, deletedAt: true, codigo: true },
     });
 
     if (!cliente || cliente.tenantId !== ctx.tenantId || cliente.deletedAt) {
@@ -393,10 +394,12 @@ export class ClienteService implements IClienteService {
     }
     _recusarClienteTecnico(cliente.codigo);
 
-    if (cliente.creditoUtilizadoMT && cliente.creditoUtilizadoMT.greaterThan(0)) {
+    // A dívida é a das facturas em aberto (#318), não um contador armazenado.
+    const divida = await prismaBase.$transaction((tx) => creditoUtilizadoDoCliente(tx, id, ctx));
+    if (divida.greaterThan(0)) {
       throw new BusinessRuleError(
         'CLIENTE_COM_DEBITOS_PENDENTES',
-        `Cliente tem crédito utilizado de ${dec(cliente.creditoUtilizadoMT)} MT`,
+        `Cliente tem ${divida.toFixed(2)} MT em facturas por pagar`,
       );
     }
 
@@ -663,68 +666,6 @@ export class ClienteService implements IClienteService {
       items: (page.items as unknown as PrismaHistorico[]).map(mapHistoricoRow),
       nextCursor: page.nextCursor,
     };
-  }
-
-  // --- Crédito ---
-
-  async incrementarCreditoUtilizado(
-    tx: TxClient,
-    clienteId: string,
-    valor: string,
-    ctx: Ctx,
-  ): Promise<void> {
-    const txClient = tx as Prisma.TransactionClient;
-
-    const cliente = await txClient.cliente.findUnique({
-      where: { id: clienteId },
-      select: { tenantId: true, limiteCreditoMT: true, creditoUtilizadoMT: true },
-    });
-
-    if (!cliente || cliente.tenantId !== ctx.tenantId) {
-      throw new NotFoundError(`Cliente ${clienteId} não encontrado`);
-    }
-
-    const novoUtilizado = new Prisma.Decimal(dec(cliente.creditoUtilizadoMT)).plus(new Prisma.Decimal(valor));
-    const limite = new Prisma.Decimal(dec(cliente.limiteCreditoMT));
-
-    if (limite.greaterThan(0) && novoUtilizado.greaterThan(limite)) {
-      throw new BusinessRuleError(
-        'LIMITE_CREDITO_EXCEDIDO',
-        `Limite de crédito (${limite.toFixed(2)} MT) seria excedido`,
-      );
-    }
-
-    await txClient.cliente.update({
-      where: { id: clienteId },
-      data: { creditoUtilizadoMT: novoUtilizado },
-    });
-  }
-
-  async liberarCredito(
-    tx: TxClient,
-    clienteId: string,
-    valor: string,
-    ctx: Ctx,
-  ): Promise<void> {
-    const txClient = tx as Prisma.TransactionClient;
-
-    const cliente = await txClient.cliente.findUnique({
-      where: { id: clienteId },
-      select: { tenantId: true, creditoUtilizadoMT: true },
-    });
-
-    if (!cliente || cliente.tenantId !== ctx.tenantId) {
-      throw new NotFoundError(`Cliente ${clienteId} não encontrado`);
-    }
-
-    const atual = new Prisma.Decimal(dec(cliente.creditoUtilizadoMT));
-    const liberar = new Prisma.Decimal(valor);
-    const novo = atual.minus(liberar);
-
-    await txClient.cliente.update({
-      where: { id: clienteId },
-      data: { creditoUtilizadoMT: novo.lessThan(0) ? new Prisma.Decimal(0) : novo },
-    });
   }
 }
 

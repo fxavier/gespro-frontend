@@ -473,6 +473,9 @@ export interface FaturaCompleta extends Fatura {
   serieDocumento: Pick<SerieDocumento, 'id' | 'tipo' | 'prefixo' | 'ano'>;
 }
 
+/** Factura emitida a crédito com os avisos que não bloqueiam a emissão (#318: limite de crédito). */
+export type FaturaEmitida = FaturaCompleta & { avisos: string[] };
+
 export interface NotaCreditoCompleta extends NotaCredito {
   linhas: LinhaNotaCredito[];
   faturaOriginal: Pick<Fatura, 'id' | 'numero' | 'total'>;
@@ -580,7 +583,7 @@ export interface IFaturacaoService {
   ): Promise<{ numero: string; serieDocumentoId: string }>;
 
   // --- Facturas ---
-  emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta>;
+  emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaEmitida>;
   /**
    * Núcleo da emissão (ADR-0041 §3), na transacção do chamador e sem consultar a sessão.
    * Contrato publicado para WS C (venda POS → Factura-Recibo).
@@ -591,6 +594,11 @@ export interface IFaturacaoService {
     ctx: Ctx,
     opcoes?: OpcoesEmissaoDocumento,
   ): Promise<FaturaCompleta>;
+  /**
+   * Avisos (#318) depois de dar crédito ao cliente na tx: crédito utilizado acima do limite.
+   * Não bloqueia; limite 0 = sem limite definido.
+   */
+  avisosLimiteCreditoEmTx(tx: Prisma.TransactionClient, clienteId: string, ctx: Ctx): Promise<string[]>;
   /**
    * Lançamento da venda POS (ADR-0041 §3, §4): D conta do meio por pagamento, C 711, C 44331.
    * @throws BusinessRuleError('PAGAMENTOS_NAO_BATEM_TOTAL')

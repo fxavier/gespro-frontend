@@ -43,7 +43,7 @@ import { EmitirFaturaSchema, type EmitirFaturaInput } from '@/lib/validations/fa
 import { diaIsoParaData } from '@/lib/format-date';
 
 // Tipos inline — evita importar server-only num Client Component.
-type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
+type FormState = { ok: true; data: { avisos?: string[] } } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
 
 interface ClienteOption { id: string; codigo: string; nome: string }
 
@@ -115,6 +115,8 @@ export function NovaFaturaForm({ clientes, hoje, vencimento }: NovaFaturaFormPro
       }
     } else {
       toast.success('Fatura emitida com sucesso!');
+      // Crédito acima do limite não bloqueia: avisa (#318).
+      state.data.avisos?.forEach((aviso) => toast.warning(aviso, { duration: 10_000 }));
       router.push('/vendas/faturas');
     }
   }, [state, form, router]);

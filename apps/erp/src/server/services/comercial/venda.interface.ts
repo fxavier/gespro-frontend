@@ -216,6 +216,8 @@ export interface VendaRow {
   itens?: ItemVendaRow[];
   pagamentos?: PagamentoVendaRow[];
   historicoEstado?: HistoricoEstadoVendaRow[];
+  /** Avisos que não bloquearam a criação (#318: crédito acima do limite). Só no retorno de `criar`. */
+  avisos?: string[];
 }
 
 export interface VendaSummary {
