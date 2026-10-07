@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { dataDocumento, idEntidade } from './common';
+import { FormaPagamentoEnum, exigirContaBancariaForaDoNumerario } from './faturacao';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Payroll (Spec 06) — schemas partilhados cliente/servidor
@@ -31,12 +33,18 @@ export const MarcarProcessadaSchema = z.object({
 });
 export type MarcarProcessadaInput = z.infer<typeof MarcarProcessadaSchema>;
 
-export const MarcarPagaSchema = z.object({
-  folhaId: z.string().cuid('ID de folha inválido'),
-  dataPagamento: z.coerce.date().optional(),
-  /** sessão de caixa aberta — só quando o pagamento sai do caixa físico */
-  sessaoCaixaId: z.string().cuid().optional(),
-});
+/**
+ * Pagamento da folha (#96) — meio, conta e data, como no pagamento de factura. A sessão
+ * de caixa nunca vem do cliente: resolve-se pelo meio (numerário → sessão aberta do utilizador).
+ */
+export const MarcarPagaSchema = z
+  .object({
+    folhaId: z.string().cuid('ID de folha inválido'),
+    formaPagamento: FormaPagamentoEnum,
+    contaBancariaId: idEntidade().optional(),
+    dataPagamento: dataDocumento('Data do pagamento'),
+  })
+  .superRefine(exigirContaBancariaForaDoNumerario);
 export type MarcarPagaInput = z.infer<typeof MarcarPagaSchema>;
 
 export const CancelarFolhaSchema = z.object({

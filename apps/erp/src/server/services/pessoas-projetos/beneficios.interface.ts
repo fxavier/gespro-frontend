@@ -24,7 +24,7 @@ export type { Ctx };
  * - tipo='PROVENTO': a empresa custeia parte tributável (aumenta base IRPS)
  * - tipo='DESCONTO': desconto da parte do colaborador (reduz líquido)
  *
- * O payroll.service chama `linhasPayrollDeBeneficios` dentro da transacção de
+ * O payroll.service aplica a mesma regra (`linhasDaAtribuicao`) em lote, dentro da transacção de
  * processamento para compor proventos/descontos por colaborador.
  */
 export interface LinhaPayrollBeneficio {
