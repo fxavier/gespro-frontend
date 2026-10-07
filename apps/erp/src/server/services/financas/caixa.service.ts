@@ -24,6 +24,7 @@ import {
   type Ctx,
 } from './caixa.interface';
 import { proximoNumeroSerie } from './faturacao.service';
+import { fecharSessoesPOSDoCaixaEmTx } from '@/server/services/comercial/sessao-pos-caixa';
 
 // ---------------------------------------------------------------------------
 // Helpers internos
@@ -108,50 +109,55 @@ export async function fecharSessao(
   input: FecharSessaoCaixaInput,
   ctx: Ctx,
 ): Promise<SessaoCaixa> {
-  const sessao = await prisma.sessaoCaixa.findFirst({
-    where: { id: input.sessaoCaixaId, tenantId: ctx.tenantId },
+  return prismaBase.$transaction(async (tx) => {
+    const sessao = await tx.sessaoCaixa.findFirst({
+      where: { id: input.sessaoCaixaId, tenantId: ctx.tenantId },
+    });
+    if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
+
+    transitarEstado(sessao.status as StatusSessaoCaixa, 'FECHADA');
+
+    // #270: as sessões POS deste caixa fecham com ele (ou o fecho é recusado se houver vendas pendentes).
+    await fecharSessoesPOSDoCaixaEmTx(tx, sessao.id, ctx);
+
+    // Calcular totais por tipo de movimento
+    const movimentos = await tx.movimentoCaixa.findMany({
+      where: { sessaoCaixaId: sessao.id, tenantId: ctx.tenantId },
+    });
+
+    // #91: ABERTURA e FECHAMENTO fora — o fundo entra uma vez, por fundoInicial.
+    const { totalEntradas, totalSaidas, saldoEsperado } = totaisSessaoCaixa(movimentos, sessao.fundoInicial);
+
+    const fundoFinal = new Prisma.Decimal(String(input.fundoFinal));
+    const diferenca = fundoFinal.minus(saldoEsperado);
+
+    const sessaoFechada = await tx.sessaoCaixa.update({
+      where: { id: sessao.id },
+      data: {
+        status: 'FECHADA',
+        dataFechamento: new Date(),
+        fundoFinal,
+        totalEntradas,
+        totalSaidas,
+        diferenca,
+        observacoes: input.observacoes ?? sessao.observacoes,
+      },
+    });
+
+    // Registar movimento de fechamento
+    await tx.movimentoCaixa.create({
+      data: {
+        tenantId: ctx.tenantId,
+        sessaoCaixaId: sessao.id,
+        tipo: 'FECHAMENTO',
+        valor: fundoFinal,
+        descricao: `Fecho de caixa — fundo final ${fundoFinal.toFixed(2)} MZN`,
+        responsavelId: ctx.userId,
+      },
+    });
+
+    return sessaoFechada as SessaoCaixa;
   });
-  if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
-
-  transitarEstado(sessao.status as StatusSessaoCaixa, 'FECHADA');
-
-  // Calcular totais por tipo de movimento
-  const movimentos = await prisma.movimentoCaixa.findMany({
-    where: { sessaoCaixaId: sessao.id, tenantId: ctx.tenantId },
-  });
-
-  // #91: ABERTURA e FECHAMENTO fora — o fundo entra uma vez, por fundoInicial.
-  const { totalEntradas, totalSaidas, saldoEsperado } = totaisSessaoCaixa(movimentos, sessao.fundoInicial);
-
-  const fundoFinal = new Prisma.Decimal(String(input.fundoFinal));
-  const diferenca = fundoFinal.minus(saldoEsperado);
-
-  const sessaoFechada = await prisma.sessaoCaixa.update({
-    where: { id: sessao.id },
-    data: {
-      status: 'FECHADA',
-      dataFechamento: new Date(),
-      fundoFinal,
-      totalEntradas,
-      totalSaidas,
-      diferenca,
-      observacoes: input.observacoes ?? sessao.observacoes,
-    },
-  });
-
-  // Registar movimento de fechamento
-  await prisma.movimentoCaixa.create({
-    data: {
-      tenantId: ctx.tenantId,
-      sessaoCaixaId: sessao.id,
-      tipo: 'FECHAMENTO',
-      valor: fundoFinal,
-      descricao: `Fecho de caixa — fundo final ${fundoFinal.toFixed(2)} MZN`,
-      responsavelId: ctx.userId,
-    },
-  });
-
-  return sessaoFechada as SessaoCaixa;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,36 +169,41 @@ export async function cancelarSessao(
   motivo: string,
   ctx: Ctx,
 ): Promise<SessaoCaixa> {
-  const sessao = await prisma.sessaoCaixa.findFirst({
-    where: { id: sessaoCaixaId, tenantId: ctx.tenantId },
+  return prismaBase.$transaction(async (tx) => {
+    const sessao = await tx.sessaoCaixa.findFirst({
+      where: { id: sessaoCaixaId, tenantId: ctx.tenantId },
+    });
+    if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
+
+    transitarEstado(sessao.status as StatusSessaoCaixa, 'CANCELADA');
+
+    // Verificar se há movimentos (além da abertura)
+    const movimentos = await tx.movimentoCaixa.count({
+      where: {
+        sessaoCaixaId,
+        tenantId: ctx.tenantId,
+        tipo: { not: 'ABERTURA' },
+      },
+    });
+    if (movimentos > 0) {
+      throw new BusinessRuleError(
+        'CAIXA_COM_PENDENCIAS',
+        'Sessão não pode ser cancelada com movimentos registados. Use o fecho.',
+      );
+    }
+
+    // #270: as sessões POS deste caixa fecham com ele (ou o cancelamento é recusado se houver vendas pendentes).
+    await fecharSessoesPOSDoCaixaEmTx(tx, sessao.id, ctx);
+
+    return tx.sessaoCaixa.update({
+      where: { id: sessaoCaixaId },
+      data: {
+        status: 'CANCELADA',
+        dataFechamento: new Date(),
+        observacoes: motivo,
+      },
+    }) as unknown as SessaoCaixa;
   });
-  if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
-
-  transitarEstado(sessao.status as StatusSessaoCaixa, 'CANCELADA');
-
-  // Verificar se há movimentos (além da abertura)
-  const movimentos = await prisma.movimentoCaixa.count({
-    where: {
-      sessaoCaixaId,
-      tenantId: ctx.tenantId,
-      tipo: { not: 'ABERTURA' },
-    },
-  });
-  if (movimentos > 0) {
-    throw new BusinessRuleError(
-      'CAIXA_COM_PENDENCIAS',
-      'Sessão não pode ser cancelada com movimentos registados. Use o fecho.',
-    );
-  }
-
-  return prisma.sessaoCaixa.update({
-    where: { id: sessaoCaixaId },
-    data: {
-      status: 'CANCELADA',
-      dataFechamento: new Date(),
-      observacoes: motivo,
-    },
-  }) as unknown as SessaoCaixa;
 }
 
 // ---------------------------------------------------------------------------
