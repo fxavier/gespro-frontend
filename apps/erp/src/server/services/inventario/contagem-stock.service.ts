@@ -273,15 +273,21 @@ export async function justificar(
 
 // ─── reconciliar ─────────────────────────────────────────────────────────────
 
+/**
+ * Limiar de discrepância (%) acima do qual a reconciliação exige aprovação (#81).
+ * Constante do servidor — nunca parâmetro do cliente.
+ */
+export const LIMIAR_DISCREPANCIA_PCT = 5;
+
 export async function reconciliar(
   contagemId: string,
   opcoes: {
-    aprovadoPorId?: string;
-    limiarDiscrepanciaPct?: number;
+    /** O utilizador da sessão tem `inventario:contagens:aprovar-discrepancia`. */
+    podeAprovarDiscrepancia: boolean;
   },
   ctx: Ctx,
 ): Promise<ReconciliacaoResultado> {
-  const limiar = opcoes.limiarDiscrepanciaPct ?? 5;
+  const limiar = LIMIAR_DISCREPANCIA_PCT;
 
   // Contadores actualizados dentro da tx e devolvidos fora.
   // Se a tx falhar estes valores ficam incorrectos mas a throw propaga-se antes do return.
@@ -298,7 +304,7 @@ export async function reconciliar(
     // ── 1. Claim atómico de estado ────────────────────────────────────────────
     const claimed = await tx.contagemStock.updateMany({
       where: { id: contagemId, tenantId: ctx.tenantId, status: 'EM_CONTAGEM' },
-      data: { status: 'RECONCILIADA', aprovadoPorId: opcoes.aprovadoPorId ?? null },
+      data: { status: 'RECONCILIADA' },
     });
     if (claimed.count === 0) {
       throw new BusinessRuleError(
@@ -336,26 +342,38 @@ export async function reconciliar(
       (i) =>
         i.diferenca !== null &&
         !new Prisma.Decimal(i.diferenca.toString()).isZero() &&
-        i.status !== 'AJUSTADO',
+        i.status !== 'AJUSTADO' &&
+        // #81: a diferença justificada é aceite como está — não gera ajuste.
+        i.status !== 'JUSTIFICADO',
     );
 
     itensIgnorados = itens.filter((i) => i.status === 'AJUSTADO').length;
 
-    if (limiar < 100 && itensParaAjuste.length > 0) {
-      for (const item of itensParaAjuste) {
-        const saldo = new Prisma.Decimal(item.saldoSistema.toString());
-        const dif = new Prisma.Decimal(item.diferenca!.toString());
-        if (!saldo.isZero()) {
-          const pct = dif.abs().div(saldo).times(100);
-          if (pct.greaterThan(limiar) && !opcoes.aprovadoPorId) {
-            throw new BusinessRuleError(
-              'DISCREPANCIA_SEM_APROVACAO',
-              `Item ${item.produtoId}: discrepância de ${pct.toFixed(2)}% excede o limiar de ${limiar}%. Aprovação obrigatória.`,
-              { produtoId: item.produtoId, pct: pct.toFixed(2), limiar },
-            );
-          }
-        }
+    // #81: acima do limiar só passa quem tem a permissão de aprovar; o aprovador é a sessão.
+    // saldoSistema 0 com diferença ≠ 0 é discrepância infinita — sempre acima do limiar.
+    let exigeAprovacao = false;
+    for (const item of itensParaAjuste) {
+      const saldo = new Prisma.Decimal(item.saldoSistema.toString());
+      const dif = new Prisma.Decimal(item.diferenca!.toString());
+      const pct = saldo.isZero() ? null : dif.abs().div(saldo.abs()).times(100);
+      if (pct !== null && !pct.greaterThan(limiar)) continue;
+      exigeAprovacao = true;
+      if (!opcoes.podeAprovarDiscrepancia) {
+        const desc = pct === null
+          ? `diferença de ${dif.toString()} sobre saldo em sistema 0`
+          : `discrepância de ${pct.toFixed(2)}%`;
+        throw new BusinessRuleError(
+          'DISCREPANCIA_SEM_APROVACAO',
+          `Item ${item.produtoId}: ${desc} acima do limiar de ${limiar}%. A reconciliação requer aprovação de um utilizador com permissão para aprovar discrepâncias.`,
+          { produtoId: item.produtoId, pct: pct?.toFixed(2) ?? null, limiar },
+        );
       }
+    }
+    if (exigeAprovacao) {
+      await tx.contagemStock.updateMany({
+        where: { id: contagemId, tenantId: ctx.tenantId },
+        data: { aprovadoPorId: ctx.userId },
+      });
     }
 
     // ── 4. Ajustes de stock por item ──────────────────────────────────────────

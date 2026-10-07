@@ -74,6 +74,8 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'inventario:contagens:registar',    descricao: 'Registar contagem de itens' },
   { code: 'inventario:contagens:justificar',  descricao: 'Justificar discrepâncias de contagem' },
   { code: 'inventario:contagens:reconciliar', descricao: 'Reconciliar contagem (gera ajustes de stock)' },
+  // #81 — ADMIN e GESTOR; o OPERADOR reconcilia, não aprova a própria discrepância.
+  { code: 'inventario:contagens:aprovar-discrepancia', descricao: 'Aprovar discrepância de contagem acima do limiar' },
   { code: 'inventario:contagens:concluir',    descricao: 'Concluir contagem de stock' },
   { code: 'inventario:contagens:cancelar',    descricao: 'Cancelar contagem de stock' },
 
@@ -461,7 +463,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     // A DFC não é operacional: o `:leitura` dela não entra pelo isReadOnly.
     if (code.startsWith('financas:fluxo-caixa:')) return false;
     if (isReadOnly(code)) return true;
-    // Inventário
+    // Inventário — #81: aprovar discrepância de contagem é de ADMIN/GESTOR.
+    if (code === 'inventario:contagens:aprovar-discrepancia') return false;
     if (code.startsWith('inventario:')) return true;
     // Produção
     if (code.startsWith('producao:')) return true;
