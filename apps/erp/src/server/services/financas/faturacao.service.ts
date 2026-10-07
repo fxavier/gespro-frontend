@@ -1146,27 +1146,45 @@ export async function marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura>
 // ---------------------------------------------------------------------------
 
 /**
+ * Crédito já concedido sobre a factura de alias `f`: Σ total das NC sobre ela que não estão
+ * `CANCELADA` (EMITIDA e LIQUIDADA contam). Fonte única da guarda `NC_EXCEDE_FATURA` e do
+ * saldo creditável da procura (#86, #266) — as duas contas não podem divergir.
+ */
+const SQL_CREDITADO_FATURA = Prisma.sql`(SELECT COALESCE(SUM(nc.total), 0)
+     FROM "NotaCredito" nc
+    WHERE nc."faturaOriginalId" = f.id AND nc."tenantId" = f."tenantId" AND nc.status <> 'CANCELADA')`;
+
+/**
  * Pesquisa da combobox «Factura a creditar» (#258): as 20 creditáveis mais
- * recentes, filtradas por parte do número sem distinguir maiúsculas.
+ * recentes, filtradas por parte do número sem distinguir maiúsculas. Só as que
+ * ainda têm saldo creditável (total − crédito já concedido > 0, #86/#266) — as
+ * creditadas por inteiro não voltam nem gastam lugares no top-20.
  */
 export async function procurarFaturasCreditaveis(
   q: string | undefined,
   ctx: Ctx,
   /** Só as deste cliente — a factura de referência de uma ND (#85). */
   clienteId?: string,
-): Promise<Array<{ id: string; numero: string; dataEmissao: Date; total: Prisma.Decimal }>> {
+): Promise<
+  Array<{ id: string; numero: string; dataEmissao: Date; total: Prisma.Decimal; saldoCreditavel: Prisma.Decimal }>
+> {
   const termo = q?.trim();
-  return prisma.fatura.findMany({
-    where: {
-      tenantId: ctx.tenantId,
-      status: { in: [...ESTADOS_FATURA_CREDITAVEL] },
-      ...(clienteId ? { clienteId } : {}),
-      ...(termo ? { numero: { contains: termo, mode: 'insensitive' as const } } : {}),
-    },
-    orderBy: { dataEmissao: 'desc' },
-    take: 20,
-    select: { id: true, numero: true, dataEmissao: true, total: true },
-  });
+  // Mesmo `contains` insensível do Prisma: os curingas do LIKE no termo são literais.
+  const padrao = termo ? `%${termo.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+  return prisma.$queryRaw<
+    Array<{ id: string; numero: string; dataEmissao: Date; total: Prisma.Decimal; saldoCreditavel: Prisma.Decimal }>
+  >(
+    Prisma.sql`SELECT f.id, f.numero, f."dataEmissao", f.total,
+                      f.total - ${SQL_CREDITADO_FATURA} AS "saldoCreditavel"
+                 FROM "Fatura" f
+                WHERE f."tenantId" = ${ctx.tenantId}
+                  AND f.status::text IN (${Prisma.join([...ESTADOS_FATURA_CREDITAVEL])})
+                  ${clienteId ? Prisma.sql`AND f."clienteId" = ${clienteId}` : Prisma.empty}
+                  ${padrao ? Prisma.sql`AND f.numero ILIKE ${padrao}` : Prisma.empty}
+                  AND f.total - ${SQL_CREDITADO_FATURA} > 0
+                ORDER BY f."dataEmissao" DESC
+                LIMIT 20`,
+  );
 }
 
 export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx): Promise<NotaCreditoCompleta> {
@@ -1202,13 +1220,10 @@ export async function emitirNotaCreditoEmTx(
   // trancada acima, duas NC concorrentes não passam ambas esta verificação (ADR-0041 §8).
   const [credito] = await tx.$queryRaw<Array<{ excede: boolean; total: Prisma.Decimal; creditado: Prisma.Decimal }>>(
     Prisma.sql`SELECT f.total,
-                      COALESCE(SUM(nc.total), 0) AS creditado,
-                      COALESCE(SUM(nc.total), 0) + ${subtotal.plus(ivaTotal).toFixed(2)}::numeric > f.total AS excede
+                      ${SQL_CREDITADO_FATURA} AS creditado,
+                      ${SQL_CREDITADO_FATURA} + ${subtotal.plus(ivaTotal).toFixed(2)}::numeric > f.total AS excede
                  FROM "Fatura" f
-                 LEFT JOIN "NotaCredito" nc
-                   ON nc."faturaOriginalId" = f.id AND nc."tenantId" = f."tenantId" AND nc.status <> 'CANCELADA'
-                WHERE f.id = ${input.faturaOriginalId} AND f."tenantId" = ${ctx.tenantId}
-                GROUP BY f.id, f.total`,
+                WHERE f.id = ${input.faturaOriginalId} AND f."tenantId" = ${ctx.tenantId}`,
   );
   if (credito?.excede === true) {
     throw new BusinessRuleError(

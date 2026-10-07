@@ -5,7 +5,7 @@
  * RHF + zodResolver + useActionState + useFieldArray; zero Dialog.
  */
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -29,17 +29,17 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard, Combobox, CampoDia } from '@/components/patterns';
+import { FormPage, FormSection, UnsavedChangesGuard, ComboboxRemoto, CampoDia } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
 import { diaIsoParaData } from '@/lib/format-date';
-import { emitirNotaCredito } from '@/server/actions/faturacao.actions';
+import { emitirNotaCredito, procurarFaturasParaNotaCredito } from '@/server/actions/faturacao.actions';
 import { EmitirNotaCreditoSchema, type EmitirNotaCreditoInput } from '@/lib/validations/faturacao';
 
 type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
 
-interface FaturaOption { id: string; numero: string; total: string }
-
 interface NovaNotaCreditoFormProps {
-  faturas: FaturaOption[];
+  /** As 20 creditáveis mais recentes, com o saldo no rótulo (#86); o resto pesquisa-se no servidor. */
+  faturasIniciais: ComboboxOption[];
   /** Dia civil de Maputo (`aaaa-mm-dd`), calculado no servidor (#242). */
   hoje: string;
 }
@@ -53,8 +53,13 @@ const MOTIVOS = [
   'Outro motivo',
 ];
 
-export function NovaNotaCreditoForm({ faturas, hoje }: NovaNotaCreditoFormProps) {
+export function NovaNotaCreditoForm({ faturasIniciais, hoje }: NovaNotaCreditoFormProps) {
   const router = useRouter();
+
+  const buscarFaturas = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
+    const res = await procurarFaturasParaNotaCredito({ q });
+    return res.ok ? res.data.map((f) => ({ value: f.id, label: f.rotulo })) : null;
+  }, []);
   const [state, dispatch, isPending] = useActionState<FormState, EmitirNotaCreditoInput>(
     (_prev, data) => emitirNotaCredito(data),
     null
@@ -122,13 +127,16 @@ export function NovaNotaCreditoForm({ faturas, hoje }: NovaNotaCreditoFormProps)
               name="faturaOriginalId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Fatura original *</FormLabel>
+                  <FormLabel>Factura a creditar *</FormLabel>
                   <FormControl>
-                    <Combobox
+                    <ComboboxRemoto
+                      opcoesIniciais={faturasIniciais}
+                      procurar={buscarFaturas}
                       value={field.value}
                       onChange={field.onChange}
-                      placeholder="Seleccionar fatura…"
-                      options={faturas.map((f) => ({ value: f.id, label: `${f.numero} — MT ${parseFloat(f.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2})}` }))}
+                      placeholder="Seleccionar factura"
+                      searchPlaceholder="Pesquisar pelo número…"
+                      emptyText="Nenhuma factura com esse número."
                     />
                   </FormControl>
                   <FormMessage />
