@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { MoverEtapaActions } from '../../_components/mover-etapa-actions';
 import { EntrevistaFormInline } from '../../_components/entrevista-form-inline';
 import { AdmitirButton } from '../../_components/admitir-button';
+import { candidaturaAdmissivel } from '@/lib/state-machines';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -49,7 +50,7 @@ export default async function CandidaturaDetalhePage({ params }: Props) {
     variant: h.etapaNova === 'CONTRATADO' ? 'success' : h.etapaNova === 'REJEITADO' || h.etapaNova === 'DESISTIU' ? 'destructive' : 'default',
   }));
 
-  const podeAdmitir = candidatura.etapa === 'PROPOSTA';
+  const podeAdmitir = candidaturaAdmissivel(candidatura);
   const eTerminal = ['CONTRATADO', 'REJEITADO', 'DESISTIU'].includes(candidatura.etapa);
 
   const tabs: DetailTab[] = [
