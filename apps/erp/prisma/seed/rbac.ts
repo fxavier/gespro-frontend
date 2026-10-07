@@ -221,6 +221,8 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'rh:ferias:create',         descricao: 'Criar marcação de férias' },
   { code: 'rh:ferias:aprovar',        descricao: 'Aprovar pedido de férias' },
   { code: 'rh:ausencias:create',      descricao: 'Registar ausência de colaborador' },
+  // #94 — mesma matriz que rh:ferias:aprovar (ADMIN e GESTOR); o OPERADOR regista, não aprova.
+  { code: 'rh:ausencias:aprovar',     descricao: 'Aprovar ou rejeitar ausência de colaborador' },
   { code: 'rh:assiduidade:read',      descricao: 'Consultar registos de assiduidade' },
   { code: 'rh:assiduidade:create',    descricao: 'Registar ponto/assiduidade' },
   { code: 'rh:avaliacoes:create',     descricao: 'Criar avaliação de desempenho' },

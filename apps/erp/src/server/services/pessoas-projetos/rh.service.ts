@@ -395,12 +395,18 @@ export const AusenciaService = {
 
     transitar(TRANSICOES_AUSENCIA, ausencia.status, input.status);
 
+    const motivoRejeicao = input.motivoRejeicao?.trim();
+    if (input.status === 'REJEITADA' && !motivoRejeicao) {
+      throw new BusinessRuleError('MOTIVO_REJEICAO_OBRIGATORIO', 'Motivo de rejeição é obrigatório');
+    }
+
     await prisma.ausencia.update({
       where: { id },
       data: {
         status: input.status,
         aprovadoPorId: ctx.userId,
         dataAprovacao: new Date(),
+        ...(input.status === 'REJEITADA' ? { motivoRejeicao } : {}),
         observacoes: input.observacoes,
       },
     });
