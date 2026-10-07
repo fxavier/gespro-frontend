@@ -311,6 +311,7 @@ export class VendaService implements IVendaService {
       IFaturacaoService,
       | 'proximoNumeroSerie'
       | 'emitirDocumentoEmTx'
+      | 'avisosLimiteCreditoEmTx'
       | 'construirLancamentoVendaPOS'
       | 'emitirNotaCreditoEmTx'
       | 'devolverNotaCreditoPelosMeiosOriginaisEmTx'
@@ -485,6 +486,7 @@ export class VendaService implements IVendaService {
   ): Promise<VendaRow> {
     const { subtotal: subtotalTotal, ivaTotal: ivaTotalAcc, total } = totais;
     return prisma.$transaction(async (tx) => {
+      let avisos: string[] = [];
       // 3a. Crédito exige cliente identificado (ADR-0041 §4) — antes de gastar qualquer número.
       const clienteCredito = posACredito ? await _clienteDoCredito(tx as Prisma.TransactionClient, input, ctx) : null;
 
@@ -575,6 +577,14 @@ export class VendaService implements IVendaService {
           ctx,
         );
         venda.faturaId = fatura.id;
+        // Crédito acima do limite não bloqueia a venda: segue como aviso (#318).
+        if (clienteCredito) {
+          avisos = await this.faturacaoService.avisosLimiteCreditoEmTx(
+            tx as Prisma.TransactionClient,
+            clienteCredito.id,
+            ctx,
+          );
+        }
 
         // Só o dinheiro entra na gaveta (ADR-0041 §4).
         const dinheiro = venda.pagamentos
@@ -621,7 +631,7 @@ export class VendaService implements IVendaService {
         },
       });
 
-      return mapVendaRow({ ...venda, historicoEstado: [] });
+      return { ...mapVendaRow({ ...venda, historicoEstado: [] }), ...(avisos.length ? { avisos } : {}) };
     });
   }
 

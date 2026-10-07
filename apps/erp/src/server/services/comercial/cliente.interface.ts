@@ -161,7 +161,8 @@ export interface IClienteService {
   atualizar(id: string, input: UpdateClienteInput, ctx: Ctx): Promise<ClienteRow>;
   /**
    * Soft delete — marca deletedAt; não remove registos transaccionais.
-   * Lança BusinessRuleError('CLIENTE_COM_DEBITOS_PENDENTES') se creditoUtilizadoMT > 0.
+   * Lança BusinessRuleError('CLIENTE_COM_DEBITOS_PENDENTES') se tiver facturas em aberto
+   * (`creditoUtilizadoDoCliente` > 0, #318).
    */
   desativar(id: string, ctx: Ctx): Promise<void>;
 
@@ -207,24 +208,4 @@ export interface IClienteService {
     filtro: { dataInicio?: Date; dataFim?: Date; cursor?: string; take?: number },
     ctx: Ctx,
   ): Promise<{ items: HistoricoTransacaoRow[]; nextCursor: string | null }>;
-
-  // --- Crédito (chamado internamente dentro de $transaction pelo VendaService) ---
-  /**
-   * Incrementa o crédito utilizado do cliente.
-   * valor como string decimal (ADR A9 — evita imprecisão de float JS).
-   * Lança BusinessRuleError('LIMITE_CREDITO_EXCEDIDO') se ultrapassar o limite.
-   */
-  incrementarCreditoUtilizado(
-    tx: TxClient,
-    clienteId: string,
-    valor: string,
-    ctx: Ctx,
-  ): Promise<void>;
-
-  liberarCredito(
-    tx: TxClient,
-    clienteId: string,
-    valor: string,
-    ctx: Ctx,
-  ): Promise<void>;
 }

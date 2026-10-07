@@ -59,6 +59,7 @@ export type {
   Ctx as FaturacaoCtx,
   Fatura,
   FaturaCompleta,
+  FaturaEmitida,
   SerieDocumento,
   StatusFatura,
   StatusNotaCredito,
@@ -102,3 +103,6 @@ export { exigirSessaoCaixaAbertaDoUtilizador } from './caixa.service';
 
 // Leitura publicada de um documento (ex.: o detalhe da venda mostra o documento fiscal que a emitiu).
 export { obterFatura } from './faturacao.service';
+
+// Crédito utilizado do cliente derivado das facturas em aberto (#318).
+export { creditoUtilizadoDoCliente, creditoUtilizadoPorCliente } from './faturacao.service';

@@ -202,6 +202,8 @@ model Cliente {
   telefoneSec           String?
   diasPagamento         Int              @default(30)
   limiteCreditoMT       Decimal          @db.Decimal(18, 2) @default(0)
+  // MORTO (#318): não é escrito nem decide nada; o crédito utilizado deriva das facturas em
+  // aberto — creditoUtilizadoDoCliente (financas/faturacao.service). Fica sem migração.
   creditoUtilizadoMT    Decimal          @db.Decimal(18, 2) @default(0)
   status                StatusCliente    @default(ATIVO)
   categoria             CategoriaCliente @default(NOVO)

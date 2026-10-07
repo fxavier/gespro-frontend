@@ -8,7 +8,9 @@
  */
 import 'server-only';
 import { unstable_cache } from 'next/cache';
+import { Prisma } from '@prisma/client';
 import { prismaBase } from '@/server/db/client';
+import { creditoUtilizadoPorCliente } from '@/server/services/financas';
 import type { Ctx } from '@/server/services/types';
 import { ANALYTICS_TAGS } from './analytics.interface';
 
@@ -83,12 +85,14 @@ export interface RelatorioClientes {
 }
 
 export async function relatorioClientesImpl(tenantId: string): Promise<RelatorioClientes> {
-  const [total, ativos, agg, grupos, top] = await Promise.all([
+  // Dívida = facturas em aberto (#318), não o contador armazenado no cliente.
+  const dividas = await prismaBase.$transaction((tx) => creditoUtilizadoPorCliente(tx, { tenantId }));
+  const [total, ativos, agg, grupos, devedores] = await Promise.all([
     prismaBase.cliente.count({ where: { tenantId, deletedAt: null } }),
     prismaBase.cliente.count({ where: { tenantId, deletedAt: null, status: 'ATIVO' } }),
     prismaBase.cliente.aggregate({
       where: { tenantId, deletedAt: null },
-      _sum: { creditoUtilizadoMT: true, limiteCreditoMT: true },
+      _sum: { limiteCreditoMT: true },
     }),
     prismaBase.cliente.groupBy({
       by: ['categoria'],
@@ -96,25 +100,28 @@ export async function relatorioClientesImpl(tenantId: string): Promise<Relatorio
       _count: { _all: true },
     }),
     prismaBase.cliente.findMany({
-      where: { tenantId, deletedAt: null, creditoUtilizadoMT: { gt: 0 } },
-      select: { nome: true, codigo: true, creditoUtilizadoMT: true },
-      orderBy: { creditoUtilizadoMT: 'desc' },
-      take: 5,
+      where: { tenantId, deletedAt: null, id: { in: [...dividas.keys()] } },
+      select: { id: true, nome: true, codigo: true },
     }),
   ]);
+
+  const comDivida = devedores
+    .map((c) => ({ ...c, divida: dividas.get(c.id)! }))
+    .sort((a, b) => b.divida.comparedTo(a.divida));
+  const dividaTotal = comDivida.reduce((acc, c) => acc.plus(c.divida), new Prisma.Decimal(0));
 
   return {
     totalClientes: total,
     clientesAtivos: ativos,
-    dividaTotal: fmt(dec(agg._sum.creditoUtilizadoMT)),
+    dividaTotal: dividaTotal.toFixed(2),
     limiteTotal: fmt(dec(agg._sum.limiteCreditoMT)),
     porCategoria: grupos
       .map((g) => ({ categoria: String(g.categoria), total: g._count._all }))
       .sort((a, b) => b.total - a.total),
-    topDivida: top.map((c) => ({
+    topDivida: comDivida.slice(0, 5).map((c) => ({
       nome: c.nome,
       codigo: c.codigo,
-      divida: fmt(dec(c.creditoUtilizadoMT)),
+      divida: c.divida.toFixed(2),
     })),
   };
 }

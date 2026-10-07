@@ -59,6 +59,7 @@ import {
   type SerieDocumento,
   type Fatura,
   type FaturaCompleta,
+  type FaturaEmitida,
   type NotaCredito,
   type NotaCreditoCompleta,
   type NotaDebito,
@@ -746,9 +747,87 @@ export async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
 // Facturas
 // ---------------------------------------------------------------------------
 
-export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta> {
+export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaEmitida> {
   await exigirEmailConfirmadoParaEmitir();
-  return prismaBase.$transaction((tx) => emitirDocumentoEmTx(tx, input, ctx));
+  return prismaBase.$transaction(async (tx) => {
+    const fatura = await emitirDocumentoEmTx(tx, input, ctx);
+    return { ...fatura, avisos: await avisosLimiteCreditoEmTx(tx, input.clienteId, ctx) };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Crédito utilizado (#318) — derivado das facturas, sem contador armazenado
+// ---------------------------------------------------------------------------
+
+/** Estados em que a factura ainda é dívida do cliente. */
+const STATUS_FATURA_EM_ABERTO = ['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'] as const;
+
+/**
+ * Crédito utilizado por cliente: o saldo em aberto na 411 —
+ * Σ (total − totalPago) das facturas EMITIDA/PARCIALMENTE_PAGA/VENCIDA
+ * − Σ total das NC ainda EMITIDAS sobre essas facturas (a NC cancelada foi estornada; a
+ * liquidada por compensação já está no `totalPago`). Clientes sem dívida não aparecem.
+ * `clienteIds` omisso = todos os clientes do tenant.
+ */
+export async function creditoUtilizadoPorCliente(
+  tx: Prisma.TransactionClient,
+  ctx: Pick<Ctx, 'tenantId'>,
+  clienteIds?: string[],
+): Promise<Map<string, Prisma.Decimal>> {
+  const filtroFatura = {
+    tenantId: ctx.tenantId,
+    status: { in: [...STATUS_FATURA_EM_ABERTO] },
+    ...(clienteIds ? { clienteId: { in: clienteIds } } : {}),
+  };
+  const [faturas, ncs] = await Promise.all([
+    tx.fatura.groupBy({ by: ['clienteId'], where: filtroFatura, _sum: { total: true, totalPago: true } }),
+    tx.notaCredito.findMany({
+      where: { tenantId: ctx.tenantId, status: 'EMITIDA', faturaOriginal: filtroFatura },
+      select: { total: true, faturaOriginal: { select: { clienteId: true } } },
+    }),
+  ]);
+  const saldo = new Map<string, Prisma.Decimal>();
+  const somar = (clienteId: string, v: Prisma.Decimal) =>
+    saldo.set(clienteId, (saldo.get(clienteId) ?? new Prisma.Decimal(0)).plus(v));
+  for (const f of faturas) {
+    somar(f.clienteId, new Prisma.Decimal(f._sum.total ?? 0).minus(f._sum.totalPago ?? 0));
+  }
+  for (const nc of ncs) somar(nc.faturaOriginal.clienteId, nc.total.negated());
+  for (const [id, v] of saldo) if (!v.greaterThan(0)) saldo.delete(id);
+  return saldo;
+}
+
+/** Crédito utilizado de um cliente (0 sem dívida em aberto) — ver `creditoUtilizadoPorCliente`. */
+export async function creditoUtilizadoDoCliente(
+  tx: Prisma.TransactionClient,
+  clienteId: string,
+  ctx: Pick<Ctx, 'tenantId'>,
+): Promise<Prisma.Decimal> {
+  const saldo = await creditoUtilizadoPorCliente(tx, ctx, [clienteId]);
+  return saldo.get(clienteId) ?? new Prisma.Decimal(0);
+}
+
+/**
+ * Avisos (não bloqueia) a emitir depois de dar crédito ao cliente na tx: o crédito utilizado
+ * excede o limite de crédito? Limite 0 = sem limite definido; igualar o limite não avisa.
+ */
+export async function avisosLimiteCreditoEmTx(
+  tx: Prisma.TransactionClient,
+  clienteId: string,
+  ctx: Ctx,
+): Promise<string[]> {
+  const cliente = await tx.cliente.findFirst({
+    where: { id: clienteId, tenantId: ctx.tenantId },
+    select: { nome: true, limiteCreditoMT: true },
+  });
+  const limite = new Prisma.Decimal(cliente?.limiteCreditoMT ?? 0);
+  if (!limite.greaterThan(0)) return [];
+  const utilizado = await creditoUtilizadoDoCliente(tx, clienteId, ctx);
+  if (!utilizado.greaterThan(limite)) return [];
+  return [
+    `O cliente ${cliente!.nome} passa a ter ${utilizado.toFixed(2)} MT de crédito utilizado, ` +
+      `acima do limite de crédito de ${limite.toFixed(2)} MT.`,
+  ];
 }
 
 /**
@@ -2168,6 +2247,7 @@ export const faturacaoService = {
   numerarDocumento,
   emitirFatura,
   emitirDocumentoEmTx,
+  avisosLimiteCreditoEmTx,
   construirLancamentoVendaPOS,
   obterFatura,
   listarFaturas,
