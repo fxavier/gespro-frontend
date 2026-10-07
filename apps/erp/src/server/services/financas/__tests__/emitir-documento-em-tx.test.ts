@@ -63,7 +63,7 @@ function criarTx() {
     ]),
     $executeRaw: vi.fn(async () => 1),
     cliente: {
-      findFirst: vi.fn(async () => ({ id: 'cli-305', nuit: NUIT })),
+      findFirst: vi.fn(async () => ({ id: 'cli-305', nuit: NUIT, status: 'ATIVO', deletedAt: null })),
       findUnique: vi.fn(async () => ({ id: 'cli-305', nuit: NUIT })),
     },
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-305' })) },

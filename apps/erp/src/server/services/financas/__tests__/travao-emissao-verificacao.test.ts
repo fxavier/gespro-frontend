@@ -95,7 +95,7 @@ function novaTx() {
   return {
     // #93: a numeração devolve o id da série que numerou; não há pré-verificação de série escolhida.
     $queryRaw: vi.fn(async () => [{ id: SERIE.id, numero: 1, prefixo: 'FT', ano: 2026, formatoNumero: SERIE.formatoNumero }]),
-    cliente: { findFirst: vi.fn(async () => ({ id: 'cli-1' })) },
+    cliente: { findFirst: vi.fn(async () => ({ id: 'cli-1', status: 'ATIVO', deletedAt: null })) },
     ...duploContasNaturezaND(CTX.tenantId),
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-1' })) },
     fatura: {
