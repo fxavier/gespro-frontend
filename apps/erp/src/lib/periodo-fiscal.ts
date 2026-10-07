@@ -15,6 +15,11 @@ const DIA_CIVIL_MAPUTO = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 
+/** Dia civil de Maputo (`aaaa-mm-dd`) que contém o instante `d`; comparável como string. */
+export function diaCivilMaputo(d: Date): string {
+  return DIA_CIVIL_MAPUTO.format(d);
+}
+
 /**
  * Exercício corrente — o período em que um contabilista pensa por omissão. O ano
  * é o do dia civil de Maputo: o servidor corre em UTC e, a 31/12 às 22h30 UTC,
