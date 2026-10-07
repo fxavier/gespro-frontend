@@ -34,6 +34,7 @@ export {
   derivarKey,
   sanitizarSegmento,
   prefixoTenant,
+  recursoDaKey,
   keyParaUrlRef,
   urlRefParaKey,
   ESQUEMA_REF,

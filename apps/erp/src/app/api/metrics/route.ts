@@ -1,9 +1,12 @@
 /**
  * GET /api/metrics — Métricas em formato Prometheus text (prom-client).
  *
- * Protegido por `Authorization: Bearer <METRICS_SECRET>` quando a variável
- * está definida. Em desenvolvimento, sem METRICS_SECRET o endpoint fica aberto.
- * Em produção DEVE estar definido e o acesso deve ser restrito por rede.
+ * Protegido por `Authorization: Bearer <METRICS_SECRET>`. Sem METRICS_SECRET
+ * (ausente ou vazio) o endpoint RECUSA em qualquer ambiente — fail-closed
+ * (issue #191); o docker-compose define um valor de dev. Em produção o acesso
+ * deve, além disso, ser restrito por rede. Uma falha a gerar as métricas cai
+ * no envelope do withApi: o cliente recebe um 500 genérico e o detalhe vai
+ * para o logger com o `requestId` (issue #190).
  *
  * O Prometheus do otel-lgtm raspa este endpoint (configuração em
  * infra/local/observabilidade/prometheus.yaml, job 'gespro-erp').
@@ -33,40 +36,38 @@ import { timingSafeEqual, createHash } from 'node:crypto';
 
 export const GET = withApi(
   async (req: NextRequest) => {
-    // Protecção adicional por bearer token (configurável por env).
+    // Bearer token obrigatório (fail-closed, #191).
     // Comparação timing-safe para evitar timing oracle attacks (NIT fix).
     const secret = process.env.METRICS_SECRET;
-    if (secret) {
-      const auth = req.headers.get('authorization') ?? '';
-      const expected = `Bearer ${secret}`;
-
-      // timingSafeEqual exige buffers do mesmo tamanho — usa hash para normalizar
-      const authHash = createHash('sha256').update(auth).digest();
-      const expectedHash = createHash('sha256').update(expected).digest();
-
-      if (!timingSafeEqual(authHash, expectedHash)) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
-    try {
-      const metricsText = await registry.metrics();
-      return new Response(metricsText, {
-        status: 200,
-        headers: {
-          'Content-Type': registry.contentType,
-          'Cache-Control': 'no-store',
-        },
+    if (!secret) {
+      return new Response(JSON.stringify({ error: 'Métricas desactivadas' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
       });
-    } catch (e) {
-      return new Response(
-        JSON.stringify({ error: 'Erro ao gerar métricas', detail: (e as Error)?.message }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } },
-      );
     }
+
+    const auth = req.headers.get('authorization') ?? '';
+    const expected = `Bearer ${secret}`;
+
+    // timingSafeEqual exige buffers do mesmo tamanho — usa hash para normalizar
+    const authHash = createHash('sha256').update(auth).digest();
+    const expectedHash = createHash('sha256').update(expected).digest();
+
+    if (!timingSafeEqual(authHash, expectedHash)) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const metricsText = await registry.metrics();
+    return new Response(metricsText, {
+      status: 200,
+      headers: {
+        'Content-Type': registry.contentType,
+        'Cache-Control': 'no-store',
+      },
+    });
   },
   { public: true },
 );

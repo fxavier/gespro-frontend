@@ -220,7 +220,7 @@ agendadores recebem 307 em vez de 200.
 |---|---|---|
 | Sessão Auth.js (cookie JWT) + permissão | todas as de negócio | `withApi` sem `public` |
 | `Authorization: Bearer <CRON_SECRET>` | `/api/cron/*` | comparação simples no handler; `CRON_SECRET` ausente → 401 sempre |
-| `Authorization: Bearer <METRICS_SECRET>` | `/api/metrics` | comparação timing-safe (SHA-256 dos dois lados); **sem `METRICS_SECRET` o endpoint fica aberto** |
+| `Authorization: Bearer <METRICS_SECRET>` | `/api/metrics` | comparação timing-safe (SHA-256 dos dois lados); **sem `METRICS_SECRET` o endpoint recusa (503)** |
 | `Stripe-Signature` | `/api/webhooks/stripe` | `stripe.webhooks.constructEvent` sobre o corpo cru com `STRIPE_WEBHOOK_SECRET` |
 | Token HMAC-SHA256 na query (`?t=`) | `/api/publico/verificar-email` | `EMAIL_VERIFY_SECRET`, prazo de 24 h na carga assinada |
 | Nenhuma (+ captcha, limite, `Idempotency-Key`) | `/api/publico/registo`, `/api/publico/planos`, `/api/health`, `/api/ready` | — |
@@ -245,7 +245,7 @@ agendadores recebem 307 em vez de 200.
 | GET | `/api/faturacao/[id]/pdf` | sessão + `faturacao:ver` | PDF fiscal da factura |
 | GET | `/api/financas/iva/mapas/[periodo]` | sessão + `financas:iva:mapas` | Mapas de suporte ao IVA (CSV) |
 | GET | `/api/health` | público | Liveness |
-| GET | `/api/metrics` | `METRICS_SECRET` (se definido) | Métricas Prometheus |
+| GET | `/api/metrics` | `METRICS_SECRET` (obrigatório) | Métricas Prometheus |
 | GET, OPTIONS | `/api/publico/planos` | público (CORS) | Catálogo de planos para o site |
 | POST, OPTIONS | `/api/publico/registo` | público (CORS, captcha, `Idempotency-Key`) | Registo self-service de uma empresa |
 | GET | `/api/publico/verificar-email` | token HMAC na query | Confirma o e-mail do administrador |
@@ -727,7 +727,8 @@ curl -s "$ERP/api/health"
 Readiness: `SELECT 1` via `prismaBase`.
 
 - `200` → `{ "status": "ready", "db": "ok", "timestamp": "…" }`
-- `503` → `{ "status": "not_ready", "db": "error", "error": "<mensagem do driver>", "timestamp": "…" }`
+- `503` → `{ "status": "not_ready", "db": "error", "timestamp": "…" }` — a mensagem do driver vai só
+  para o log estruturado, com o `requestId` do `x-request-id` (#190)
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' "$ERP/api/ready"
@@ -738,11 +739,13 @@ curl -s -o /dev/null -w '%{http_code}\n' "$ERP/api/ready"
 Métricas Prometheus (prom-client), raspadas pelo job `gespro-erp` do otel-lgtm
 (`infra/local/observabilidade/prometheus.yaml`).
 
-- Com `METRICS_SECRET` definido exige `Authorization: Bearer <METRICS_SECRET>` (comparação
-  timing-safe); falhando → `401 {"error":"Unauthorized"}`. **Sem `METRICS_SECRET` fica aberto.**
+- Exige `Authorization: Bearer <METRICS_SECRET>` (comparação timing-safe); falhando →
+  `401 {"error":"Unauthorized"}`. **Sem `METRICS_SECRET` (ausente ou vazio) recusa** com `503`, em
+  qualquer ambiente (#191); o `docker-compose.yml` define um valor de dev.
 - Sucesso: `200`, `Content-Type` = `registry.contentType` (formato de texto Prometheus),
   `Cache-Control: no-store`.
-- Falha a gerar: `500 {"error":"Erro ao gerar métricas","detail":"…"}`.
+- Falha a gerar: envelope genérico do `withApi` (`500 {"error":{"code":"ERRO_INTERNO",…}}`); o detalhe
+  vai só para o log, com o `requestId` (#190).
 - Séries: `http_requests_total{method,route,status_code,tenant_id}`,
   `http_request_duration_ms{method,route,tenant_id}`, `keycloak_available`,
   `keycloak_health_probe_duration_ms`, `keycloak_failures_total{reason}`, `valkey_available`,
@@ -1065,8 +1068,6 @@ Encontradas ao escrever este capítulo; o código é o que vale, nada disto foi 
 - `docs/runbooks/agendador.md` diz que as rotas de cron «**não** estão em `PUBLIC_PATHS`»; o comentário
   de `expirar-trials` diz o mesmo. Falso: `middleware.ts` tem `'/api/cron/'`. (O comentário de
   `expirar-registos-nao-verificados` está certo.)
-- `/api/metrics` fica **aberto** quando `METRICS_SECRET` não está definido (comportamento documentado
-  no código, mas não há verificação de arranque que o impeça em produção).
 
 **Permissões**
 

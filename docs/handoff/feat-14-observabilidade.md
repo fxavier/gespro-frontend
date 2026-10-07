@@ -68,7 +68,7 @@ O orquestrador é responsável pela instalação. O código compila e corre sem 
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Endpoint OTLP; sem este, tracing desactivado |
 | `OTEL_SERVICE_NAME` | `gespro` | Nome do serviço nos traces |
 | `OTEL_SAMPLE_RATE` | `1` | Taxa de amostragem (0–1); 1 = 100% |
-| `METRICS_SECRET` | — | Bearer token para /api/metrics; sem este, endpoint é aberto |
+| `METRICS_SECRET` | — | Bearer token para /api/metrics; sem este, o endpoint recusa (503, fail-closed — #191) |
 
 ---
 

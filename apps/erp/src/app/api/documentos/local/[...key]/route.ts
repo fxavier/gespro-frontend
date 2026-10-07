@@ -9,10 +9,10 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { withApi } from '@/lib/api/with-api';
-import { NotFoundError, ValidationError } from '@/lib/errors';
-import { driverAtual, prefixoTenant } from '@/lib/storage/objeto';
+import { ForbiddenError, NotFoundError, ValidationError } from '@/lib/errors';
+import { driverAtual, prefixoTenant, recursoDaKey } from '@/lib/storage/objeto';
 import { guardarObjetoLocal, lerObjetoLocal } from '@/lib/storage/objeto/local';
-import { MAX_DOCUMENTO_BYTES } from '@/lib/storage/documento-config';
+import { MAX_DOCUMENTO_BYTES, permissaoUploadDirecto } from '@/lib/storage/documento-config';
 
 export const runtime = 'nodejs';
 
@@ -33,13 +33,51 @@ function garantirLocal() {
   if (driverAtual() !== 'local') throw new NotFoundError();
 }
 
+const EXCEDE_TAMANHO = 'Ficheiro excede o tamanho máximo';
+
+/**
+ * Lê o corpo com tecto de `MAX_DOCUMENTO_BYTES` (#195): recusa pelo `Content-Length` antes de
+ * ler, e conta os bytes efectivamente recebidos (um `Content-Length` mentiroso ou ausente não
+ * passa) — nunca acumula mais do que o máximo em memória.
+ */
+async function lerCorpoLimitado(req: NextRequest): Promise<Uint8Array> {
+  const declarado = Number(req.headers.get('content-length'));
+  if (Number.isFinite(declarado) && declarado > MAX_DOCUMENTO_BYTES) {
+    throw new ValidationError(EXCEDE_TAMANHO);
+  }
+  if (!req.body) return new Uint8Array(0);
+  const reader = req.body.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_DOCUMENTO_BYTES) {
+      await reader.cancel().catch(() => {});
+      throw new ValidationError(EXCEDE_TAMANHO);
+    }
+    partes.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let pos = 0;
+  for (const p of partes) {
+    bytes.set(p, pos);
+    pos += p.byteLength;
+  }
+  return bytes;
+}
+
 export const PUT = withApi(async (req: NextRequest, ctx) => {
   garantirLocal();
   const key = keyDeParams(ctx.params, ctx.tenantId);
-  const bytes = new Uint8Array(await req.arrayBuffer());
-  if (bytes.byteLength > MAX_DOCUMENTO_BYTES) {
-    throw new ValidationError('Ficheiro excede o tamanho máximo');
-  }
+  // #194: a mesma permissão de recurso que o presign exige — o recurso vem da própria key.
+  // Recurso desconhecido, só-servidor ou key sem recurso → o cliente nunca escreve aqui.
+  const recurso = recursoDaKey(key, ctx.tenantId);
+  const permissao = recurso ? permissaoUploadDirecto(recurso) : null;
+  if (!permissao) throw new NotFoundError();
+  if (!ctx.permissions.has(permissao)) throw new ForbiddenError();
+  const bytes = await lerCorpoLimitado(req);
   const contentType = req.headers.get('content-type') ?? 'application/octet-stream';
   await guardarObjetoLocal(key, bytes, contentType);
   return new NextResponse(null, { status: 200 });

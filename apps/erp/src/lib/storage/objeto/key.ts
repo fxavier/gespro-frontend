@@ -66,6 +66,18 @@ export function prefixoTenant(tenantId: string): string {
 }
 
 /**
+ * Segmento `{recurso}` de uma key `tenant/{tenantId}/{recurso}/{recursoId}/…` do tenant dado.
+ * `null` se a key não pertence ao tenant ou não tem a forma esperada (recurso + id + objecto).
+ */
+export function recursoDaKey(key: string, tenantId: string): string | null {
+  const prefixo = prefixoTenant(tenantId);
+  if (!key.startsWith(prefixo)) return null;
+  const segmentos = key.slice(prefixo.length).split('/');
+  if (segmentos.length < 3 || segmentos.some((s) => !s)) return null;
+  return segmentos[0];
+}
+
+/**
  * Converte uma key numa URL-ref opaca (`gestpro-storage:{key}`) que passa
  * a validação `z.string().url()` das actions de registo existentes, mantendo
  * a key recuperável no download. Ver ADR do WS-DOC-CORE / handoff.
