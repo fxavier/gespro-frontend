@@ -40,6 +40,7 @@ import type {
 } from '@/lib/validations/faturacao';
 import { TipoSerieDocumentoEnum } from '@/lib/validations/faturacao';
 import { formatarData } from '@/lib/format-date';
+import { vencimentoJaPassou } from '@/lib/periodo-fiscal';
 import {
   TRANSICOES_FATURA,
   TRANSICOES_NOTA_CREDITO,
@@ -1026,13 +1027,8 @@ export async function registarPagamento(
   });
 }
 
-/**
- * O vencimento já passou? Só a partir do dia civil de Maputo SEGUINTE ao do
- * `dataVencimento` — no próprio dia a factura ainda está dentro do prazo.
- */
-export function vencimentoJaPassou(dataVencimento: Date, agora: Date = new Date()): boolean {
-  return diaMaputo(agora) > diaMaputo(dataVencimento);
-}
+/** Predicado partilhado com as contas a pagar (#79) — vive em `@/lib/periodo-fiscal`. */
+export { vencimentoJaPassou };
 
 export async function marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura> {
   // A recusa por estado sai DEPOIS da transacção (só leu, nada a desfazer): quem a

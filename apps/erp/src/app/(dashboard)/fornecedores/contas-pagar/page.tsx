@@ -39,14 +39,13 @@ const FILTROS_DEFAULT: FiltroContaPagarUrl = {
 // KPIs
 // ─────────────────────────────────────────────────────────────────────────────
 
+const STATUS_EM_DIVIDA = new Set<string>(['ABERTA', 'PARCIALMENTE_PAGA', 'VENCIDA']);
+
 async function ContasPagarKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
-  const [todas, pendentes, vencidas, liquidadas] = await Promise.all([
+  const [todas, vencidas, liquidadas] = await Promise.all([
     runWithTenantContext(ctx, () =>
       contaPagarService.listar({ take: 1000, orderBy: 'dataVencimento', orderDir: 'asc' }, ctx)
-    ),
-    runWithTenantContext(ctx, () =>
-      contaPagarService.listar({ status: 'ABERTA', take: 1000, orderBy: 'dataVencimento', orderDir: 'asc' }, ctx)
     ),
     runWithTenantContext(ctx, () =>
       contaPagarService.listar({ vencidas: true, take: 1000, orderBy: 'dataVencimento', orderDir: 'asc' }, ctx)
@@ -56,7 +55,10 @@ async function ContasPagarKpis({ tenantId, userId }: { tenantId: string; userId:
     ),
   ]);
 
-  const totalPendente = pendentes.items.reduce((sum, c) => sum + c.valorRestante, 0);
+  // Em dívida: tudo o que ainda tem valor por pagar, vencido ou não (#79).
+  const totalPendente = todas.items
+    .filter((c) => STATUS_EM_DIVIDA.has(c.status))
+    .reduce((sum, c) => sum + c.valorRestante, 0);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

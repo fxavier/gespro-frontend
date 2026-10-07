@@ -67,3 +67,21 @@ export function intervaloDiasDosPeriodos(
     dataFim: DIA_CIVIL_MAPUTO.format(pFim.dataFim),
   };
 }
+
+/**
+ * Instante em que começa (00:00 de Maputo) o dia civil de Maputo que contém `agora`.
+ * Fronteira de vencimento: o que vence antes disto já passou do prazo.
+ */
+export function inicioDoDiaCivilMaputo(agora: Date = new Date()): Date {
+  return new Date(inicioDoDiaMaputo(DIA_CIVIL_MAPUTO.format(agora)) as string);
+}
+
+/**
+ * O vencimento já passou? Só a partir do dia civil de Maputo SEGUINTE ao do
+ * `dataVencimento` — no próprio dia o documento ainda está dentro do prazo.
+ * Partilhado por facturas e contas a pagar (#79); em SQL é
+ * `dataVencimento < inicioDoDiaCivilMaputo(agora)`.
+ */
+export function vencimentoJaPassou(dataVencimento: Date, agora: Date = new Date()): boolean {
+  return dataVencimento < inicioDoDiaCivilMaputo(agora);
+}
