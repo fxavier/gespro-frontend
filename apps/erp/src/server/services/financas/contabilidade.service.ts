@@ -1103,10 +1103,19 @@ async function gravarEstornoEmTx(
     });
   }
 
-  await tx.lancamento.update({
-    where: { id: lancamento.id },
+  // #356: transição condicional ao estado lido. Dois estornos concorrentes do mesmo
+  // lançamento serializam-se na numeração do diário; o segundo, ao voltar a avaliar o
+  // WHERE depois do commit do primeiro, vê count 0 — e a recusa desfaz o estorno duplicado.
+  const { count } = await tx.lancamento.updateMany({
+    where: { id: lancamento.id, tenantId: ctx.tenantId, status: lancamento.status },
     data: { status: 'ESTORNADO' },
   });
+  if (count !== 1) {
+    throw new BusinessRuleError(
+      'TRANSICAO_INVALIDA',
+      'O lançamento já foi estornado ou mudou de estado entretanto.',
+    );
+  }
   return estorno as unknown as Lancamento;
 }
 
