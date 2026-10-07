@@ -2,11 +2,13 @@
 
 /**
  * Folhas mensais (lotes) com acções de ciclo de vida — CLIENT COMPONENT.
- * PENDENTE → Processar (lançamento SALARIOS) → PAGO (pagamento).
+ * PENDENTE → Processar (lançamento SALARIOS) → PAGO (pagamento numa rota própria,
+ * /rh/payroll/folhas/[id]/pagar — meio, conta e data, #96).
  * Cancelamento (com estorno se processada) confirma-se por AlertDialog —
  * a única excepção permitida à regra sem-modais.
  */
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { BookCheck, Banknote, Ban, FileDown } from 'lucide-react';
@@ -23,11 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { StatusBadge, EmptyState } from '@/components/patterns';
-import {
-  marcarProcessadaAction,
-  marcarPagaAction,
-  cancelarFolhaAction,
-} from '@/server/actions/payroll.actions';
+import { marcarProcessadaAction, cancelarFolhaAction } from '@/server/actions/payroll.actions';
 
 export interface FolhaRow {
   id: string;
@@ -60,18 +58,6 @@ export function FolhasSection({ folhas }: { folhas: FolhaRow[] }) {
       const r = await marcarProcessadaAction({ folhaId: folha.id });
       if (r.ok) {
         toast.success(`Folha ${periodoLabel(folha)} processada — lançamento contabilístico gerado.`);
-        router.refresh();
-      } else {
-        toast.error(r.error.message);
-      }
-    });
-  }
-
-  function pagar(folha: FolhaRow) {
-    startTransition(async () => {
-      const r = await marcarPagaAction({ folhaId: folha.id });
-      if (r.ok) {
-        toast.success(`Folha ${periodoLabel(folha)} marcada como paga.`);
         router.refresh();
       } else {
         toast.error(r.error.message);
@@ -129,9 +115,11 @@ export function FolhasSection({ folhas }: { folhas: FolhaRow[] }) {
               </Button>
             )}
             {f.status === 'PROCESSADO' && (
-              <Button size="sm" onClick={() => pagar(f)} disabled={isPending}>
-                <Banknote className="h-4 w-4 mr-1.5" />
-                Marcar como paga
+              <Button size="sm" asChild>
+                <Link href={`/rh/payroll/folhas/${f.id}/pagar`}>
+                  <Banknote className="h-4 w-4 mr-1.5" />
+                  Marcar como paga
+                </Link>
               </Button>
             )}
             {['PROCESSADO', 'PAGO'].includes(f.status) && (

@@ -6,7 +6,8 @@
  *    @@unique([tenantId, colaboradorId, anoReferencia, mesReferencia]);
  *  - marcarProcessada: lançamento contabilístico da massa salarial (WS D,
  *    diário SALARIOS, débito == crédito por construção);
- *  - marcarPaga: lançamento de pagamento + movimento de caixa opcional (WS D);
+ *  - marcarPaga: lançamento de pagamento (D 4622 / C conta do meio) e, em
+ *    numerário, movimento de caixa na sessão do utilizador (WS D, #96);
  *  - cancelar: estorno do lançamento (append-only) + estados CANCELADO;
  *  - recalcularPayroll / ajustarLinhaManual: só com payroll PENDENTE
  *    (após PROCESSADO os valores são imutáveis).
@@ -23,6 +24,8 @@ import {
   obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
+import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
+import { diaIsoMaputo } from '@/lib/format-date';
 import type { RegistarLancamentoContabilisticoInput } from '@/server/services/financas';
 import {
   calcularPayroll,
@@ -71,9 +74,25 @@ export const PGC_PAYROLL = {
   OUTRAS_RETENCOES: '451',
   /** 4622 — Remunerações a pagar aos trabalhadores (crédito: líquido) */
   REMUNERACOES_A_PAGAR: '4622',
-  /** 121 — Depósitos à ordem (crédito no pagamento; alinhado com conta-pagar) */
+  /** 121 — Depósitos à ordem. O pagamento já não credita 121 à força: credita a conta do meio (#96). */
   BANCO_DEPOSITOS_ORDEM: '121',
 } as const;
+
+/**
+ * O pagamento passa pelo caixa (numerário → `caixa:operar`) ou pela banca (o resto →
+ * `financas:banca:escrita`) — a mesma regra do pagamento de factura (#96).
+ */
+function exigirPermissaoDoMeio(forma: MarcarPagaInput['formaPagamento'], permissions: ReadonlySet<string> | undefined): void {
+  const numerario = forma === 'NUMERARIO';
+  if (!permissions?.has(numerario ? 'caixa:operar' : 'financas:banca:escrita')) {
+    throw new BusinessRuleError(
+      'MEIO_PAGAMENTO_SEM_PERMISSAO',
+      numerario
+        ? 'Não tem permissão para operar o caixa: o pagamento da folha em numerário não é possível.'
+        : 'Não tem permissão para movimentar contas bancárias: o pagamento da folha por esta forma não é possível.',
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Montagem dos lançamentos (funções puras — alvo dos property tests)
@@ -165,13 +184,15 @@ export function montarLancamentoFolha(
 }
 
 /**
- * Lançamento do pagamento da folha: débito Remunerações a pagar (4622),
- * crédito Depósitos à ordem (121). Débito == crédito por construção.
+ * Lançamento do pagamento da folha: débito Remunerações a pagar (4622), crédito a
+ * conta do meio de pagamento (`contaCredito`: 111 em numerário, a PGC da conta
+ * bancária nas outras formas — #96). Diário SALARIOS. Débito == crédito por construção.
  */
 export function montarLancamentoPagamentoFolha(
   folha: { id: string; mesReferencia: number; anoReferencia: number },
   totalLiquido: Prisma.Decimal,
   data: Date,
+  contaCredito: string,
 ): RegistarLancamentoContabilisticoInput {
   const periodo = `${String(folha.mesReferencia).padStart(2, '0')}/${folha.anoReferencia}`;
   return {
@@ -189,10 +210,10 @@ export function montarLancamentoPagamentoFolha(
         historico: `Liquidação de remunerações ${periodo}`,
       },
       {
-        contaCodigo: PGC_PAYROLL.BANCO_DEPOSITOS_ORDEM,
+        contaCodigo: contaCredito,
         tipo: 'CREDITO',
         valor: totalLiquido.toFixed(2),
-        historico: `Saída banco — salários ${periodo}`,
+        historico: `Saída de meios — salários ${periodo}`,
       },
     ],
   };
@@ -887,10 +908,14 @@ export const PayrollService = {
   },
 
   /**
-   * PROCESSADO → PAGO: lançamento de pagamento (4622 → 121) e, se for pago do
-   * caixa físico (sessaoCaixaId), movimento de caixa via contrato WS D.
+   * PROCESSADO → PAGO (#96, molde: pagamento de factura). A permissão do meio confere-se
+   * antes de tudo; o meio resolve-se na tx antes de qualquer escrita; o lançamento
+   * D 4622 / C conta do meio sai na data do pagamento (dia de Maputo entre o do
+   * processamento e hoje); em numerário, movimento PAGAMENTO na sessão do utilizador.
    */
-  async marcarPaga(input: MarcarPagaInput, ctx: Ctx): Promise<void> {
+  async marcarPaga(input: MarcarPagaInput, ctx: Ctx & { permissions?: ReadonlySet<string> }): Promise<void> {
+    exigirPermissaoDoMeio(input.formaPagamento, ctx.permissions);
+
     await prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
       const folha = await tx.folhaPagamento.findFirst({
@@ -899,19 +924,36 @@ export const PayrollService = {
       if (!folha) throw new NotFoundError('Folha de pagamento não encontrada');
       transitar(TRANSICOES_PAYROLL, folha.status, 'PAGO');
 
-      const dataPagamento = input.dataPagamento ?? new Date();
-      const lancamento = await registarLancamentoContabilistico(
+      const dataPagamento = input.dataPagamento;
+      const dia = diaIsoMaputo(0, dataPagamento);
+      if (folha.dataProcessamento && dia < diaIsoMaputo(0, folha.dataProcessamento)) {
+        throw new BusinessRuleError(
+          'PAGAMENTO_DATA_ANTERIOR_PROCESSAMENTO',
+          'A data do pagamento não pode ser anterior à data de processamento da folha.',
+        );
+      }
+      if (dia > diaIsoMaputo()) {
+        throw new BusinessRuleError('PAGAMENTO_DATA_FUTURA', 'A data do pagamento não pode ser futura.');
+      }
+
+      const meio = await resolverContaMeioPagamento(
         tx,
-        montarLancamentoPagamentoFolha(folha, folha.totalLiquido, dataPagamento),
+        { forma: input.formaPagamento, contaBancariaId: input.contaBancariaId },
         ctx,
       );
 
-      if (input.sessaoCaixaId) {
+      const lancamento = await registarLancamentoContabilistico(
+        tx,
+        montarLancamentoPagamentoFolha(folha, folha.totalLiquido, dataPagamento, meio.contaCodigo),
+        ctx,
+      );
+
+      if (meio.sessaoCaixaId) {
         await registarMovimentoCaixa(
           tx,
           {
-            sessaoCaixaId: input.sessaoCaixaId,
-            tipo: 'SANGRIA',
+            sessaoCaixaId: meio.sessaoCaixaId,
+            tipo: 'PAGAMENTO',
             valor: folha.totalLiquido.toFixed(2),
             descricao: `Pagamento de salários ${String(folha.mesReferencia).padStart(2, '0')}/${folha.anoReferencia}`,
             documentoOrigemId: folha.id,
