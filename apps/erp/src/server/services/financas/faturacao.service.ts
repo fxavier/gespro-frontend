@@ -42,6 +42,8 @@ import { TipoSerieDocumentoEnum } from '@/lib/validations/faturacao';
 import { formatarData } from '@/lib/format-date';
 import { vencimentoJaPassou } from '@/lib/periodo-fiscal';
 import { exigirClienteAtivoParaCredito } from '@/lib/cliente-credito';
+import { motivoIsencaoEmFalta } from '@/lib/nota-debito';
+import { motivoIsencaoAutomatico } from '@/lib/documents/fatura-model';
 import {
   TRANSICOES_FATURA,
   TRANSICOES_NOTA_CREDITO,
@@ -832,6 +834,37 @@ export async function avisosLimiteCreditoEmTx(
 }
 
 /**
+ * #329 (ADR-0039 §4): uma linha a 0% de Factura/NC/ND tem de dizer porquê. Vive nos núcleos
+ * de emissão (não no schema, que Proforma/Cotação partilham) e corre antes de qualquer escrita.
+ */
+function exigirMotivoIsencao(linhas: ReadonlyArray<{ taxaIva: number; motivoIsencao?: string | null }>): void {
+  const em = linhas.findIndex((l) => motivoIsencaoEmFalta(l));
+  if (em >= 0) {
+    throw new BusinessRuleError(
+      'MOTIVO_ISENCAO_EM_FALTA',
+      `A linha ${em + 1} tem IVA a 0%: indique o motivo de isenção ou de não sujeição.`,
+    );
+  }
+}
+
+/** O motivo só se grava na linha a 0%; numa tributada não tem sentido e fica `null`. */
+function motivoIsencaoDaLinha(l: { taxaIva: number; motivoIsencao?: string | null }): string | null {
+  return l.taxaIva === 0 ? l.motivoIsencao?.trim() || null : null;
+}
+
+/**
+ * Motivo de isenção das linhas a 0% emitidas sem ninguém que o escreva (POS, anulação, devolução,
+ * troca, conversão de proforma): texto legal fixo, derivado do regime de IVA do tenant (#329).
+ */
+export async function motivoIsencaoAutomaticoEmTx(tx: Prisma.TransactionClient, ctx: Ctx): Promise<string> {
+  const cfg = await tx.configuracaoFiscal.findUnique({
+    where: { tenantId: ctx.tenantId },
+    select: { regimeIva: true },
+  });
+  return motivoIsencaoAutomatico(cfg?.regimeIva);
+}
+
+/**
  * Núcleo da emissão de factura (ADR-0041 §3): corre na transacção do chamador e
  * NÃO consulta a sessão — o travão de e-mail é de quem chama (`emitirFatura`,
  * `converterProformaEmFatura`; o POS aplica-o na abertura da sessão, §6).
@@ -843,6 +876,7 @@ export async function emitirDocumentoEmTx(
   opcoes: OpcoesEmissaoDocumento = {},
 ): Promise<FaturaCompleta> {
   const { tipoSerie = 'FATURA', construirLancamento = construirLancamentoFatura } = opcoes;
+  exigirMotivoIsencao(input.linhas);
   const totais = calcularTotaisLinhas(input.linhas);
   // Factura-Recibo ⇔ PAGA (ADR-0041 §1); factura com parte recebida ⇔ PARCIALMENTE_PAGA (§4).
   // O estado deriva da série e do valor recebido; contradizê-los é recusado.
@@ -914,6 +948,7 @@ export async function emitirDocumentoEmTx(
           subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
           ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
           total: new Prisma.Decimal(l.total.toFixed(2)),
+          motivoIsencao: motivoIsencaoDaLinha(l),
           ordemLinha: l.ordemLinha ?? i,
         },
       }),
@@ -1194,6 +1229,7 @@ export async function emitirNotaCreditoEmTx(
   input: EmitirNotaCreditoInput,
   ctx: Ctx,
 ): Promise<NotaCreditoCompleta> {
+  exigirMotivoIsencao(input.linhas);
   // Tranca a factura ANTES de a ler: o estado e o crédito já concedido que decidem vêm da
   // leitura trancada, e outra NC sobre a mesma factura espera pelo commit desta.
   await trancarLinha(tx, 'Fatura', input.faturaOriginalId, ctx.tenantId);
@@ -1266,6 +1302,7 @@ export async function emitirNotaCreditoEmTx(
           subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
           ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
           total: new Prisma.Decimal(l.total.toFixed(2)),
+          motivoIsencao: motivoIsencaoDaLinha(l),
           ordemLinha: l.ordemLinha ?? i,
         },
       }),
@@ -1754,6 +1791,7 @@ async function validarFaturaReferenciaNotaDebito(
 
 export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): Promise<NotaDebitoCompleta> {
   await exigirEmailConfirmadoParaEmitir();
+  exigirMotivoIsencao(input.linhas);
   return prismaBase.$transaction(async (tx) => {
     // W9: validar clienteId pertence ao tenant
     const cliente = await tx.cliente.findFirst({ where: { id: input.clienteId, tenantId: ctx.tenantId }, select: { id: true } });
@@ -1809,6 +1847,7 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
             subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
             ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
             total: new Prisma.Decimal(l.total.toFixed(2)),
+            motivoIsencao: motivoIsencaoDaLinha(l),
             ordemLinha: l.ordemLinha ?? i,
           },
         }),
@@ -1987,6 +2026,10 @@ export async function converterProformaEmFatura(id: string, ctx: Ctx): Promise<F
     // (antes a factura convertida ficava sem lançamento ⇒ DOCUMENTO_SEM_LANCAMENTO).
     // As linhas da proforma já vêm calculadas pelo mesmo Zod — os totais coincidem.
     const dataEmissao = new Date();
+    // A proforma não guarda motivo de isenção: a linha a 0% leva o texto legal do tenant (#329).
+    const motivoIsencao = proforma.linhas.some((l) => l.taxaIva.isZero())
+      ? await motivoIsencaoAutomaticoEmTx(tx, ctx)
+      : undefined;
     const fatura = await emitirDocumentoEmTx(
       tx,
       {
@@ -2004,6 +2047,7 @@ export async function converterProformaEmFatura(id: string, ctx: Ctx): Promise<F
           subtotal: l.subtotal.toNumber(),
           ivaItem: l.ivaItem.toNumber(),
           total: l.total.toNumber(),
+          ...(l.taxaIva.isZero() ? { motivoIsencao } : {}),
           ordemLinha: l.ordemLinha,
         })),
       },
@@ -2266,6 +2310,7 @@ export const faturacaoService = {
   marcarVencida,
   emitirNotaCredito,
   emitirNotaCreditoEmTx,
+  motivoIsencaoAutomaticoEmTx,
   obterNotaCredito,
   listarNotasCredito,
   liquidarNotaCredito,

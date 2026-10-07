@@ -380,6 +380,7 @@ describe.skipIf(skip)('spec 22 — tenant sintético semeado pelos serviços (or
                 quantidade: 1,
                 precoUnitario: preco,
                 taxaIva: 0, // isento — mantém os totais redondos, apurados à mão
+                motivoIsencao: 'Isento nos termos do Código do IVA', // #329: exigido a 0%
               },
             ],
           }),

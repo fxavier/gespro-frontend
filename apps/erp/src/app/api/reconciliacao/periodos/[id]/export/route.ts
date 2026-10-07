@@ -45,7 +45,7 @@ export const GET = withApi(
         nome: `reconciliacao-${periodo.id}`,
         colunas: [
           { key: 'rubrica', header: 'Rubrica' },
-          { key: 'valor', header: 'Valor', type: 'text' },
+          { key: 'valor', header: 'Valor', type: 'decimal' },
         ],
         linhas: linhas.map(([rubrica, valor]) => ({ rubrica, valor: valor.toString() })),
         meta: [

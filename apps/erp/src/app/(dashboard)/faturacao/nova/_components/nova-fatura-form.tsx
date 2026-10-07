@@ -30,6 +30,7 @@ import { procurarClientes } from '@/server/actions/clientes.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
 import { diaIsoParaData } from '@/lib/format-date';
+import { exigirMotivoIsencaoNasLinhas } from '@/lib/validations/faturacao';
 
 // ponytail: simplified schema for the form
 const LinhaFormSchema = z.object({
@@ -38,6 +39,7 @@ const LinhaFormSchema = z.object({
   precoUnitario: z.coerce.number().nonnegative('Preço não negativo'),
   desconto: z.coerce.number().nonnegative().default(0),
   taxaIva: taxaIvaSchema(),
+  motivoIsencao: z.string().optional(),
 });
 
 const FormSchema = z.object({
@@ -46,7 +48,9 @@ const FormSchema = z.object({
   dataVencimento: z.string().min(1, 'Data obrigatória'),
   observacoes: z.string().optional(),
   linhas: z.array(LinhaFormSchema).min(1, 'Mínimo 1 linha'),
-});
+})
+  // #329: a linha a 0% exige «Motivo de isenção» — marcado no campo antes de ir ao servidor.
+  .superRefine(exigirMotivoIsencaoNasLinhas);
 
 type FormValues = z.infer<typeof FormSchema>;
 
@@ -130,6 +134,7 @@ export function NovaFaturaForm({ clientesIniciais, hoje }: Props) {
           precoUnitario: Number(l.precoUnitario),
           desconto: Number(l.desconto) || 0,
           taxaIva: lerTaxaIva(l.taxaIva),
+          motivoIsencao: l.motivoIsencao,
           ordemLinha: i,
         })),
       } as any);
@@ -283,6 +288,20 @@ export function NovaFaturaForm({ clientesIniciais, hoje }: Props) {
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
+                {Number(taxaAtual) === 0 && (
+                  <div className="col-span-12 space-y-1">
+                    <Label className="text-xs" htmlFor={`linha-motivo-isencao-${i}`}>Motivo de isenção *</Label>
+                    <Input
+                      id={`linha-motivo-isencao-${i}`}
+                      {...register(`linhas.${i}.motivoIsencao`)}
+                      placeholder="Ex.: Isento nos termos do artigo 9.º do Código do IVA"
+                      aria-invalid={!!errors.linhas?.[i]?.motivoIsencao}
+                    />
+                    {errors.linhas?.[i]?.motivoIsencao && (
+                      <p className="text-xs text-destructive">{errors.linhas[i]?.motivoIsencao?.message}</p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

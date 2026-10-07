@@ -24,6 +24,7 @@ import type {
   StatusPagamento,
 } from './conta-pagar.service.interface';
 import {
+  ESTADOS_CONTA_PAGAR_EM_DIVIDA,
   TRANSICOES_CONTA_PAGAR,
   TRANSICOES_PAGAMENTO,
   transitarContaPagar,
@@ -308,7 +309,7 @@ export const contaPagarService: IContaPagarService = {
       ...(vencidas
         ? {
             dataVencimento: { lt: inicioDoDiaCivilMaputo() },
-            status: { in: ['ABERTA', 'PARCIALMENTE_PAGA', 'VENCIDA'] },
+            status: { in: [...ESTADOS_CONTA_PAGAR_EM_DIVIDA] },
           }
         : {}),
     };
@@ -483,7 +484,7 @@ export const contaPagarService: IContaPagarService = {
     const contas = await db.contaPagar.findMany({
       where: {
         tenantId: ctx.tenantId,
-        status: { in: ['ABERTA', 'PARCIALMENTE_PAGA', 'VENCIDA'] },
+        status: { in: [...ESTADOS_CONTA_PAGAR_EM_DIVIDA] },
       },
       include: { fornecedor: { select: { nome: true } } },
     });
@@ -523,7 +524,7 @@ export const contaPagarService: IContaPagarService = {
     const contas = await db.contaPagar.findMany({
       where: {
         tenantId: ctx.tenantId, fornecedorId,
-        status: { in: ['ABERTA', 'PARCIALMENTE_PAGA', 'VENCIDA'] },
+        status: { in: [...ESTADOS_CONTA_PAGAR_EM_DIVIDA] },
       },
     });
 

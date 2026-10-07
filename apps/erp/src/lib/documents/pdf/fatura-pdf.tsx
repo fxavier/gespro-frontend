@@ -40,7 +40,12 @@ function TabelaLinhas({ model }: { model: DocumentoFiscalModel }) {
       </View>
       {model.linhas.map((l, i) => (
         <View style={estilos.tabelaLinha} key={i} wrap={false}>
-          <Text style={[estilos.celula, COL.descricao]}>{l.descricao}</Text>
+          <View style={[estilos.celula, COL.descricao]}>
+            <Text>{l.descricao}</Text>
+            {l.motivoIsencao ? (
+              <Text style={[estilos.pequena, estilos.suave]}>Motivo de isenção: {l.motivoIsencao}</Text>
+            ) : null}
+          </View>
           <Text style={[estilos.celula, COL.qtd, estilos.num]}>{l.quantidade}</Text>
           <Text style={[estilos.celula, COL.preco, estilos.num]}>{l.precoUnitario}</Text>
           <Text style={[estilos.celula, COL.desc, estilos.num]}>{l.desconto}</Text>

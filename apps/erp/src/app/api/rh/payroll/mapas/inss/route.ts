@@ -3,6 +3,7 @@
  * INSS (CSV) para submissão às autoridades (Spec 06).
  */
 import { withApi } from '@/lib/api/with-api';
+import { celulaTextoCsv, neutralizarFormula } from '@/lib/reporting/csv';
 import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
 import { ProcessarFolhaSchema } from '@/lib/validations/payroll';
 import { ValidationError } from '@/lib/errors';
@@ -28,10 +29,10 @@ export const GET = withApi(
     const cabecalho = 'Codigo;Nome;NUIT;NISS;SalarioBruto;INSS_Trabalhador;INSS_Entidade;INSS_Total';
     const corpo = linhas.map((l) =>
       [
-        l.colaboradorCodigo,
-        `"${l.colaboradorNome.replace(/"/g, '""')}"`,
-        l.nuit,
-        l.niss ?? '',
+        celulaTextoCsv(l.colaboradorCodigo),
+        `"${neutralizarFormula(l.colaboradorNome).replace(/"/g, '""')}"`,
+        celulaTextoCsv(l.nuit),
+        celulaTextoCsv(l.niss ?? ''),
         l.salarioBruto.toFixed(2),
         l.inssTrabalhador.toFixed(2),
         l.inssEntidade.toFixed(2),

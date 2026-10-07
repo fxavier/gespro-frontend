@@ -1,7 +1,9 @@
 import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { prismaBase } from '@/server/db/client';
-import { MOVIMENTOS_SAIDA } from '@/lib/caixa-movimentos';
+import { MOVIMENTOS_SAIDA, totaisSessaoCaixa } from '@/lib/caixa-movimentos';
+import { inicioDoDiaCivilMaputo } from '@/lib/periodo-fiscal';
+import { ESTADOS_CONTA_PAGAR_EM_DIVIDA } from '@/server/services/compras/conta-pagar.service.interface';
 import type { Ctx } from '@/server/services/types';
 import {
   ANALYTICS_TAGS,
@@ -189,13 +191,15 @@ export async function kpiComprasImpl(tenantId: string): Promise<KpiCompras> {
     prismaBase.contaPagar.aggregate({
       where: {
         tenantId,
-        status: { in: ['ABERTA', 'VENCIDA'] },
-        dataVencimento: { lt: hoje },
+        // #398: o mesmo predicado de «vencida» do #388 — em dívida e vencida antes do dia
+        // civil de hoje em Maputo, quer já marcada VENCIDA pelo job quer não.
+        status: { in: [...ESTADOS_CONTA_PAGAR_EM_DIVIDA] },
+        dataVencimento: { lt: inicioDoDiaCivilMaputo(hoje) },
       },
       _sum: { valorRestante: true },
     }),
     prismaBase.contaPagar.findMany({
-      where: { tenantId, status: { in: ['ABERTA', 'VENCIDA', 'PARCIALMENTE_PAGA'] } },
+      where: { tenantId, status: { in: [...ESTADOS_CONTA_PAGAR_EM_DIVIDA] } },
       select: { dataVencimento: true },
     }),
   ]);
@@ -224,15 +228,38 @@ export async function kpiComprasImpl(tenantId: string): Promise<KpiCompras> {
 // Invalidado por: ANALYTICS_TAGS.financas
 // ---------------------------------------------------------------------------
 
+/**
+ * #397: saldo esperado das sessões ABERTAS, derivado dos movimentos. As colunas
+ * `SessaoCaixa.totalEntradas/totalSaidas` só são escritas no fecho — numa sessão aberta
+ * estão a zero. Corre dentro de `unstable_cache`, sem contexto de tenant: daí `prismaBase`
+ * com `tenantId` explícito e a aritmética única de `totaisSessaoCaixa` (#91/#92).
+ */
+async function saldoCaixasAbertas(tenantId: string): Promise<number> {
+  const sessoes = await prismaBase.sessaoCaixa.findMany({
+    where: { tenantId, status: 'ABERTA' },
+    select: { id: true, fundoInicial: true },
+  });
+  if (sessoes.length === 0) return 0;
+  const agregados = await prismaBase.movimentoCaixa.groupBy({
+    by: ['sessaoCaixaId', 'tipo'],
+    where: { tenantId, sessaoCaixaId: { in: sessoes.map((s) => s.id) } },
+    _sum: { valor: true },
+  });
+  let saldo = 0;
+  for (const s of sessoes) {
+    const movimentos = agregados
+      .filter((a) => a.sessaoCaixaId === s.id)
+      .map((a) => ({ tipo: a.tipo, valor: a._sum.valor ?? 0 }));
+    saldo += dec(totaisSessaoCaixa(movimentos, s.fundoInicial).saldoEsperado);
+  }
+  return saldo;
+}
+
 export async function kpiFinancasImpl(tenantId: string): Promise<KpiFinancas> {
   const som = startOfMonth();
 
-  const [caixaAgg, receitaAgg, despesaAgg, totalItensRecon, itensConciliados] = await Promise.all([
-    // Saldo das caixas abertas: fundo_inicial + entradas - saídas
-    prismaBase.sessaoCaixa.aggregate({
-      where: { tenantId, status: 'ABERTA' },
-      _sum: { fundoInicial: true, totalEntradas: true, totalSaidas: true },
-    }),
+  const [saldoCaixa, receitaAgg, despesaAgg, totalItensRecon, itensConciliados] = await Promise.all([
+    saldoCaixasAbertas(tenantId),
     // Movimentos de entrada no mês
     prismaBase.movimentoCaixa.aggregate({
       where: {
@@ -257,11 +284,6 @@ export async function kpiFinancasImpl(tenantId: string): Promise<KpiFinancas> {
       where: { tenantId, estado: { in: ['RECONCILIADO', 'RECONCILIADO_MANUALMENTE'] } },
     }),
   ]);
-
-  const saldoCaixa =
-    dec(caixaAgg._sum.fundoInicial) +
-    dec(caixaAgg._sum.totalEntradas) -
-    dec(caixaAgg._sum.totalSaidas);
 
   const receita = dec(receitaAgg._sum.valor);
   const despesa = dec(despesaAgg._sum.valor);

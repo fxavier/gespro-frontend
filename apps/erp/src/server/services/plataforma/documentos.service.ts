@@ -53,6 +53,7 @@ export async function obterModeloFatura(id: string, ctx: Ctx): Promise<Documento
       subtotal: l.subtotal,
       ivaItem: l.ivaItem,
       total: l.total,
+      motivoIsencao: l.motivoIsencao,
     })),
   };
 

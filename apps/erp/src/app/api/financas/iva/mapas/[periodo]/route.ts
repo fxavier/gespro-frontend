@@ -12,6 +12,7 @@
  *  4. `antiguidade`  — saldo 4438 por período de origem (para reembolsos)
  */
 import { withApi } from '@/lib/api/with-api';
+import { celulaTextoCsv, neutralizarFormula } from '@/lib/reporting/csv';
 import { ValidationError, NotFoundError } from '@/lib/errors';
 import { ObterMapaIvaSchema } from '@/lib/validations/apuramento-iva';
 import { prismaBase } from '@/server/db/client';
@@ -155,9 +156,9 @@ function construirCsvDeclaracao(
   const header = 'Conta;Nome;Lado;BaseImponivel;Taxa;Imposto;Divergencia';
   const corpo = linhas.map((l) =>
     [
-      l.conta,
-      `"${l.contaNome.replace(/"/g, '""')}"`,
-      l.lado,
+      celulaTextoCsv(l.conta),
+      `"${neutralizarFormula(l.contaNome).replace(/"/g, '""')}"`,
+      celulaTextoCsv(l.lado),
       l.baseImponivel ?? '',
       l.taxa ?? '',
       l.imposto,
@@ -219,10 +220,10 @@ async function gerarMapaClientes(
       ? 'NUIT actual do cliente, não o do documento'
       : '';
     return [
-      f.numero,
+      celulaTextoCsv(f.numero),
       new Date(f.dataEmissao).toISOString().split('T')[0],
-      nuit ?? '',
-      avisoNuit,
+      celulaTextoCsv(nuit ?? ''),
+      celulaTextoCsv(avisoNuit),
       f.baseIva.toFixed(2),
       f.ivaTotal.toFixed(2),
       f.total.toFixed(2),
@@ -276,10 +277,10 @@ async function gerarMapaFornecedores(
   const header = 'NumeroDocumento;Data;NUIT;TipoAquisicao;Base;Taxa;IVA';
   const corpo = cpagar.map((r) =>
     [
-      r.numeroDocumento ?? '',
+      celulaTextoCsv(r.numeroDocumento ?? ''),
       r.dataDocumento ? new Date(r.dataDocumento).toISOString().split('T')[0] : '',
-      r.nuitFornecedor ?? '',
-      r.tipoAquisicao ?? '',
+      celulaTextoCsv(r.nuitFornecedor ?? ''),
+      celulaTextoCsv(r.tipoAquisicao ?? ''),
       r.baseIva?.toFixed(2) ?? '',
       r.taxaIva ? `${r.taxaIva.times(100).toFixed(0)}%` : '',
       r.valorIva?.toFixed(2) ?? '',
@@ -316,10 +317,10 @@ async function gerarMapaAntiguidade(tenantId: string): Promise<Response> {
   const header = 'Periodo;DataInicio;SaldoOriginal;Estado;DeclaradoEm';
   const corpo = apuramentos.map((ap) =>
     [
-      ap.periodo.codigo,
+      celulaTextoCsv(ap.periodo.codigo),
       new Date(ap.periodo.dataInicio).toISOString().split('T')[0],
       ap.saldoApuramento.negated().toFixed(2), // negated → positivo = valor a recuperar
-      ap.estado,
+      celulaTextoCsv(ap.estado),
       ap.declaradoEm ? new Date(ap.declaradoEm).toISOString().split('T')[0] : '',
     ].join(';'),
   );

@@ -94,6 +94,16 @@ async function escolherTaxa(page: Page, seletor: Locator, rotulo: RegExp) {
 }
 
 /**
+ * #329: uma linha a 0% numa factura exige «Motivo de isenção» (ADR-0039 §4) — o campo
+ * aparece quando a taxa é 0%. Preenche-se para que estes testes continuem a provar o #77.
+ */
+async function preencherMotivoIsencao(page: Page) {
+  const campo = page.getByLabel(/^Motivo de isenção/).first();
+  await expect(campo).toBeVisible({ timeout: 15_000 });
+  await campo.fill('Isento nos termos do Código do IVA');
+}
+
+/**
  * Preenche um `<input type="date">` com `aaaa-mm-dd` pelo `fill`, que fixa o
  * valor e dispara `input`/`change` de uma vez. Escrever `ddmmaaaa` tecla a tecla
  * dependia do locale e da ordem dos segmentos do browser: no Chromium/Linux da
@@ -128,6 +138,7 @@ test.describe('/faturacao/nova — linha isenta', () => {
     await page.getByLabel('Descrição da linha 1').fill('Livro escolar (isento) — E2E #77');
     await page.getByLabel('Preço unitário linha 1').fill('1000');
     await escolherTaxa(page, ivaLinha(page, 0), /^0%/);
+    await preencherMotivoIsencao(page);
 
     // O que o ecrã mostra ANTES de gravar.
     await esperarValor(valorAoLado(page, 'IVA').last(), 0, 'IVA mostrado antes de emitir');
@@ -151,6 +162,7 @@ test.describe('/faturacao/nova — linha isenta', () => {
     await page.getByLabel('Descrição da linha 1').fill('Isento — E2E #77');
     await page.getByLabel('Preço unitário linha 1').fill('1000');
     await escolherTaxa(page, ivaLinha(page, 0), /^0%/);
+    await preencherMotivoIsencao(page);
 
     await page.getByRole('button', { name: 'Adicionar linha' }).click();
     await page.getByLabel('Descrição da linha 2').fill('Normal — E2E #77');
@@ -227,6 +239,7 @@ test.describe('/vendas/faturas/nova — linha isenta', () => {
     await page.getByLabel(/Descrição/).first().fill('Livro escolar (isento) — E2E #77 vendas');
     await page.getByLabel(/Preço Unit/).first().fill('1000');
     await escolherTaxa(page, page.getByRole('combobox', { name: /^IVA/ }).first(), /^0%/);
+    await preencherMotivoIsencao(page);
 
     const { id, corpo } = await submeterECapturar(page, page.getByRole('button', { name: 'Emitir Fatura' }));
     expect(id, `a emissão não devolveu o documento: ${corpo.slice(0, 400)}`).not.toBeNull();
@@ -252,6 +265,7 @@ test.describe('/vendas/faturas/nova — linha isenta', () => {
     await page.getByLabel(/Descrição/).first().fill('Livro escolar (isento) — E2E #77 vendas, datas por omissão');
     await page.getByLabel(/Preço Unit/).first().fill('1000');
     await escolherTaxa(page, page.getByRole('combobox', { name: /^IVA/ }).first(), /^0%/);
+    await preencherMotivoIsencao(page);
 
     const { id, corpo } = await submeterECapturar(page, page.getByRole('button', { name: 'Emitir Fatura' }));
     expect(id, `a emissão não devolveu o documento: ${corpo.slice(0, 400)}`).not.toBeNull();
