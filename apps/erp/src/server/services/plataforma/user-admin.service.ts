@@ -218,6 +218,38 @@ async function exigirEmailConfirmadoParaGerirUtilizadores(
   );
 }
 
+/**
+ * #181 — quem gere papéis só delega o que tem. Recusa quando `pedidas` contém
+ * alguma permissão que o actor (`ctx.userId`) não tem; o ADMIN (todas as
+ * permissões do catálogo) passa sempre. A fonte é a BD, não a sessão: é a
+ * mesma leitura que concede o acesso, sem a janela de 15 minutos do JWT.
+ * Corre ANTES de qualquer escrita (Keycloak incluído).
+ */
+async function exigirPermissoesDelegaveis(pedidas: Iterable<string>, ctx: Ctx): Promise<void> {
+  const actor = await prismaBase.user.findFirst({
+    where: { id: ctx.userId, tenantId: ctx.tenantId, deletedAt: null },
+    include: USER_INCLUDE,
+  });
+  const doActor = new Set(actor ? mapUser(actor as unknown as PrismaUserWithRoles).permissoes : []);
+  const alheias = [...new Set(pedidas)].filter((code) => !doActor.has(code));
+  if (alheias.length > 0) {
+    throw new BusinessRuleError(
+      'PERMISSAO_NAO_DELEGAVEL',
+      `Não pode conceder permissões que não tem: ${alheias.sort().join(', ')}.`,
+    );
+  }
+}
+
+/** Permissões que os papéis `roleIds` (do tenant) conferem, em conjunto. */
+async function permissoesDosPapeis(roleIds: string[], ctx: Ctx): Promise<string[]> {
+  if (roleIds.length === 0) return [];
+  const rps = await prismaBase.rolePermission.findMany({
+    where: { roleId: { in: roleIds }, role: { tenantId: ctx.tenantId } },
+    include: { permission: true },
+  });
+  return rps.map((rp) => rp.permission.code);
+}
+
 async function findUser(userId: string, ctx: Ctx): Promise<PrismaUserWithRoles> {
   const user = await prismaBase.user.findFirst({
     where: { id: userId, tenantId: ctx.tenantId, deletedAt: null },
@@ -293,6 +325,10 @@ export const userAdminService: IUserAdminService = {
     // Limite do plano (#98): antes do limitador (não gasta quota num pedido que
     // não passa) e antes do Keycloak. Um convite criado inactivo não ocupa lugar.
     if (input.ativo ?? true) await exigirLugarDeUtilizador(ctx.tenantId);
+
+    // #181: convidar com papéis é atribuí-los — o actor só delega o que tem.
+    // Antes do limitador e do Keycloak: recusado, nada é escrito.
+    await exigirPermissoesDelegaveis(await permissoesDosPapeis(input.roleIds, ctx), ctx);
 
     // Limitação de tráfego por tenant (ADR-0014). Vive aqui, e não na action,
     // por duas razões: o `createSafeAction` não tem gancho de limitação, e é
@@ -481,6 +517,7 @@ export const userAdminService: IUserAdminService = {
 
   async atribuirRoles(input: AssignRoleInput, ctx: Ctx) {
     await findUser(input.userId, ctx);
+    await exigirPermissoesDelegaveis(await permissoesDosPapeis(input.roleIds, ctx), ctx); // #181
 
     const roles = await prismaBase.role.findMany({
       where: { id: { in: input.roleIds }, tenantId: ctx.tenantId },
@@ -519,6 +556,7 @@ export const userAdminService: IUserAdminService = {
       where: { tenantId: ctx.tenantId, nome: input.nome },
     });
     if (existing) throw new BusinessRuleError('ROLE_DUPLICADO', 'Papel com este nome já existe');
+    await exigirPermissoesDelegaveis(input.permissionCodes, ctx); // #181
 
     const allPerms = input.permissionCodes.length > 0
       ? await prismaBase.permission.findMany({ where: { code: { in: input.permissionCodes } } })
@@ -545,6 +583,9 @@ export const userAdminService: IUserAdminService = {
 
   async actualizarRole(roleId: string, input: UpdateRoleInput, ctx: Ctx) {
     await findRole(roleId, ctx);
+    if (input.permissionCodes !== undefined) {
+      await exigirPermissoesDelegaveis(input.permissionCodes, ctx); // #181
+    }
 
     await prismaBase.$transaction(async (tx) => {
       const data: Record<string, unknown> = {};
