@@ -72,13 +72,7 @@ export type JustificarItemInput = z.infer<typeof JustificarItemSchema>;
 
 export const ReconciliarSchema = z.object({
   contagemId: z.string().cuid('ID de contagem inválido'),
-  aprovadoPorId: z.string().cuid('ID de aprovador inválido').optional(),
-  // Limiar: percentagem máxima de discrepância que não exige aprovação (0-100)
-  limiarDiscrepanciaPct: z
-    .number()
-    .min(0)
-    .max(100)
-    .default(5),
+  // #81: o aprovador é a sessão e o limiar é constante do servidor — nunca vêm do cliente.
   // TODO(debt): gerarLancamentoContabilistico — requer valorização ao custo por produto.
 });
 

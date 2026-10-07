@@ -583,6 +583,8 @@ model Ausencia {
   // FK escalar → User (cross-WS)
   aprovadoPorId String?
   dataAprovacao DateTime?
+  // #94 — obrigatório quando REJEITADA.
+  motivoRejeicao String?
   observacoes   String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt

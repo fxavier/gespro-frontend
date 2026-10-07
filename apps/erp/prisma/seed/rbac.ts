@@ -74,6 +74,8 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'inventario:contagens:registar',    descricao: 'Registar contagem de itens' },
   { code: 'inventario:contagens:justificar',  descricao: 'Justificar discrepâncias de contagem' },
   { code: 'inventario:contagens:reconciliar', descricao: 'Reconciliar contagem (gera ajustes de stock)' },
+  // #81 — ADMIN e GESTOR; o OPERADOR reconcilia, não aprova a própria discrepância.
+  { code: 'inventario:contagens:aprovar-discrepancia', descricao: 'Aprovar discrepância de contagem acima do limiar' },
   { code: 'inventario:contagens:concluir',    descricao: 'Concluir contagem de stock' },
   { code: 'inventario:contagens:cancelar',    descricao: 'Cancelar contagem de stock' },
 
@@ -221,6 +223,8 @@ export const PERMISSIONS: { code: string; descricao: string }[] = [
   { code: 'rh:ferias:create',         descricao: 'Criar marcação de férias' },
   { code: 'rh:ferias:aprovar',        descricao: 'Aprovar pedido de férias' },
   { code: 'rh:ausencias:create',      descricao: 'Registar ausência de colaborador' },
+  // #94 — mesma matriz que rh:ferias:aprovar (ADMIN e GESTOR); o OPERADOR regista, não aprova.
+  { code: 'rh:ausencias:aprovar',     descricao: 'Aprovar ou rejeitar ausência de colaborador' },
   { code: 'rh:assiduidade:read',      descricao: 'Consultar registos de assiduidade' },
   { code: 'rh:assiduidade:create',    descricao: 'Registar ponto/assiduidade' },
   { code: 'rh:avaliacoes:create',     descricao: 'Criar avaliação de desempenho' },
@@ -459,7 +463,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     // A DFC não é operacional: o `:leitura` dela não entra pelo isReadOnly.
     if (code.startsWith('financas:fluxo-caixa:')) return false;
     if (isReadOnly(code)) return true;
-    // Inventário
+    // Inventário — #81: aprovar discrepância de contagem é de ADMIN/GESTOR.
+    if (code === 'inventario:contagens:aprovar-discrepancia') return false;
     if (code.startsWith('inventario:')) return true;
     // Produção
     if (code.startsWith('producao:')) return true;

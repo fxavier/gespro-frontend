@@ -216,6 +216,15 @@ export const UpdateAusenciaSchema = z.object({
   observacoes: z.string().max(1000).optional(),
 });
 
+/** #94 — aprovar uma ausência PENDENTE. */
+export const AprovarAusenciaSchema = z.object({ id: idEntidade() });
+
+/** #94 — rejeitar exige motivo (gravado em `Ausencia.motivoRejeicao`). */
+export const RejeitarAusenciaSchema = z.object({
+  id: idEntidade(),
+  motivoRejeicao: z.string().trim().min(1, 'Motivo de rejeição é obrigatório').max(500),
+});
+
 export const FilterAusenciaSchema = z.object({
   colaboradorId: z.string().cuid().optional(),
   tipo: TipoAusenciaEnum.optional(),

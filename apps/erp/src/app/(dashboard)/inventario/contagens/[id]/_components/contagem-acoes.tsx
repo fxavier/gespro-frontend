@@ -38,10 +38,7 @@ export function ContagemAcoes({ contagemId, status }: ContagemAcoesProps) {
 
   function handleReconciliar() {
     startTransition(async () => {
-      const result = await reconciliarContagemAction({
-        contagemId,
-        limiarDiscrepanciaPct: 5,
-      });
+      const result = await reconciliarContagemAction({ contagemId });
       if (result.ok) {
         toast.success(`Reconciliação concluída: ${result.data.ajustesGerados} ajuste(s) gerado(s)`);
         router.refresh();

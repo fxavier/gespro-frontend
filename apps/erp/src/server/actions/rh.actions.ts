@@ -5,6 +5,8 @@ import {
   UpdateColaboradorSchema,
   FilterColaboradorSchema,
   CreateAusenciaSchema,
+  AprovarAusenciaSchema,
+  RejeitarAusenciaSchema,
   CreateFeriasSchema,
   CreateSolicitacaoFeriasSchema,
   AprovarSolicitacaoFeriasSchema,
@@ -98,6 +100,22 @@ export const registarAusenciaAction = createSafeAction({
   permission: 'rh:ausencias:create',
   revalidate: { tags: ['rh:ausencias'] },
   handler: (input, ctx) => AusenciaService.registar(input, ctx),
+});
+
+// #94 — só ausências APROVADA entram na folha; a folha já processada tem de ser recalculada.
+export const aprovarAusenciaAction = createSafeAction({
+  schema: AprovarAusenciaSchema,
+  permission: 'rh:ausencias:aprovar',
+  revalidate: { tags: ['rh:ausencias'], paths: ['/rh/ausencias'] },
+  handler: ({ id }, ctx) => AusenciaService.aprovar(id, { status: 'APROVADA' }, ctx),
+});
+
+export const rejeitarAusenciaAction = createSafeAction({
+  schema: RejeitarAusenciaSchema,
+  permission: 'rh:ausencias:aprovar',
+  revalidate: { tags: ['rh:ausencias'], paths: ['/rh/ausencias'] },
+  handler: ({ id, motivoRejeicao }, ctx) =>
+    AusenciaService.aprovar(id, { status: 'REJEITADA', motivoRejeicao }, ctx),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

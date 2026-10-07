@@ -108,16 +108,17 @@ export interface IContagemStockService {
    * uma única $transaction. Grava movimentoStockId em cada item.
    * Status da contagem passa a RECONCILIADA.
    *
+   * Itens JUSTIFICADO não são ajustados (#81).
    * Lança BusinessRuleError('DISCREPANCIA_SEM_APROVACAO') se diferença percentual
-   * acima do limiar e aprovadoPorId ausente.
+   * acima do limiar do servidor (5 %; saldo 0 conta como acima) e o utilizador não
+   * puder aprovar; quando aprova, aprovadoPorId = ctx.userId.
    * Lança BusinessRuleError('ITENS_PENDENTES') se existirem itens PENDENTE
    * sem justificativa.
    */
   reconciliar(
     contagemId: string,
     opcoes: {
-      aprovadoPorId?: string;
-      limiarDiscrepanciaPct?: number;
+      podeAprovarDiscrepancia: boolean;
       // TODO(debt): gerarLancamentoContabilistico — requer valorização ao custo por produto.
     },
     ctx: Ctx,

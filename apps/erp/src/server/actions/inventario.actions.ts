@@ -390,10 +390,10 @@ export const reconciliarContagemAction = createSafeAction({
   schema: ReconciliarSchema,
   permission: 'inventario:contagens:reconciliar',
   revalidate: { tags: ['contagens-stock', 'movimentos-stock'], paths: ['/inventario/contagens'] },
-  handler: ({ contagemId, aprovadoPorId, limiarDiscrepanciaPct }, ctx) =>
+  handler: ({ contagemId }, ctx) =>
     contagemStockService.reconciliar(
       contagemId,
-      { aprovadoPorId, limiarDiscrepanciaPct },
+      { podeAprovarDiscrepancia: ctx.permissions.has('inventario:contagens:aprovar-discrepancia') },
       ctx,
     ),
 });
