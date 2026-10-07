@@ -40,13 +40,13 @@ const TEXTOS_RECUSA: Record<string, CodigoRecusaInfo> = {
   PRORATA_NAO_SUPORTADO: {
     titulo: 'Pro rata não suportado — apuramento recusado',
     descricao:
-      'Este período tem operações à taxa reduzida de 5 %, isentas ou fora do campo do imposto. ' +
+      'Este período tem operações isentas (a 0 %), à taxa reduzida de 5 % ou fora do campo do imposto. ' +
       'Nessas situações, a dedução do IVA é limitada pelo coeficiente de pro rata, cujo cálculo ' +
       'o produto ainda não implementa. ' +
       'O sistema recusa produzir um número em vez de devolver um número que não sabe calcular — ' +
       'um valor incorrecto numa declaração assinada é pior do que nenhum valor. ' +
       'Para apurar, lance as regularizações manuais nas contas 44341/44342/44343 e confirme que ' +
-      'não existem operações à taxa reduzida no razão antes de tentar novamente.',
+      'não existem operações isentas ou à taxa reduzida no razão antes de tentar novamente.',
     isProrataWarning: true,
   },
   PERIODO_COM_RASCUNHOS: {
@@ -194,8 +194,8 @@ export function ApurarIvaForm({ periodoId, periodoCodigo }: ApurarIvaFormProps) 
           <Info className="h-4 w-4 mt-0.5 text-info shrink-0" />
           <p className="text-muted-foreground">
             O apuramento recusa-se a calcular quando não tem certeza do resultado correcto.
-            Se houver operações à taxa reduzida (5 %), o sistema não implementa o cálculo
-            do pro rata e diz isso claramente em vez de devolver um número incorrecto.
+            Se houver operações isentas (0 %) ou à taxa reduzida (5 %), o sistema não
+            implementa o cálculo do pro rata e diz isso claramente em vez de devolver um número incorrecto.
           </p>
         </div>
       </div>
