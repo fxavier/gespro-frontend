@@ -432,7 +432,7 @@ export const procurarContasLancamentoAction = createSafeAction({
  * campo «Conta Mãe» no formulário de plano de contas (issue #344).
  *
  * Aceita um `excluirId` opcional para que o formulário de edição exclua a
- * própria conta dos resultados (uma conta não pode ser mãe de si própria).
+ * própria conta e as suas descendentes (criariam um ciclo — #296).
  *
  * Leitura: corre em modo de Leitura (ADR-0032). Esta action só é invocada
  * quando o utilizador escreve algo — quando o campo está limpo o
@@ -443,13 +443,11 @@ export const procurarContasMaeAction = createSafeAction({
   permission: 'financas:leitura',
   permiteEmLeitura: true,
   handler: async (input, ctx) => {
-    const pagina = await contabilidade.listarContas(
-      { search: input.q, take: 30 },
-      ctx,
-    );
-    const items = input.excluirId
-      ? pagina.items.filter((c) => c.id !== input.excluirId)
-      : pagina.items;
-    return items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
+    // Em edição, nem a própria conta nem as descendentes podem ser mãe (#296).
+    const excluirIds = input.excluirId
+      ? [input.excluirId, ...(await contabilidade.idsDescendentes(input.excluirId, ctx))]
+      : undefined;
+    const pagina = await contabilidade.listarContas({ search: input.q, take: 30 }, ctx, { excluirIds });
+    return pagina.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
   },
 });
