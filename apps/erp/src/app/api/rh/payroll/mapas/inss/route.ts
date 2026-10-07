@@ -25,7 +25,7 @@ export const GET = withApi(
     const { mes, ano } = parsed.data;
 
     const { linhas } = await PayrollService.mapaMensal('INSS', mes, ano, ctx);
-    const cabecalho = 'Codigo;Nome;NUIT;NISS;SalarioBruto;INSS_Trabalhador_3;INSS_Entidade_4;INSS_Total';
+    const cabecalho = 'Codigo;Nome;NUIT;NISS;SalarioBruto;INSS_Trabalhador;INSS_Entidade;INSS_Total';
     const corpo = linhas.map((l) =>
       [
         l.colaboradorCodigo,
