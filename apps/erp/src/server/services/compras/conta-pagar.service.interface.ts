@@ -31,6 +31,12 @@ export type Dinheiro = number; // Decimal(18,2) — implementação usa Prisma.D
 export type StatusContaPagar = 'ABERTA' | 'PARCIALMENTE_PAGA' | 'PAGA' | 'CANCELADA' | 'VENCIDA';
 
 /**
+ * Estados de uma conta a pagar ainda em dívida (#388/#398): a base do predicado de
+ * «vencida», do aging e do saldo em aberto — no serviço e nos KPI do dashboard.
+ */
+export const ESTADOS_CONTA_PAGAR_EM_DIVIDA = ['ABERTA', 'PARCIALMENTE_PAGA', 'VENCIDA'] as const satisfies readonly StatusContaPagar[];
+
+/**
  * Transições válidas para ContaPagar.
  * ABERTA → PARCIALMENTE_PAGA: primeiro pagamento parcial.
  * ABERTA | PARCIALMENTE_PAGA → PAGA: liquidação total.

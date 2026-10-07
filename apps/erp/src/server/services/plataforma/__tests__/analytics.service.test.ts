@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('next/cache', () => ({
   unstable_cache: vi.fn(<T extends (...args: unknown[]) => unknown>(fn: T) => fn),
@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => ({
   contaPagarAggregate: vi.fn(),
   contaPagarFindMany: vi.fn(),
   sessaoCaixaAggregate: vi.fn(),
+  sessaoCaixaFindMany: vi.fn(), // #397: sessões ABERTA (id + fundoInicial)
   movimentoCaixaAggregate: vi.fn(),
+  movimentoCaixaGroupBy: vi.fn(), // #397: totais das sessões abertas derivados dos movimentos
   movimentoBancarioCount: vi.fn(), // Wave 3: reconciliacaoRatio
   colaboradorCount: vi.fn(),
   registoAssiduidadeCount: vi.fn(),
@@ -30,6 +32,16 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/server/db/client', () => ({
+  // #397: os KPI correm dentro de unstable_cache, SEM contexto de tenant — o cliente estendido
+  // rebentaria em produção com SEM_CONTEXTO_TENANT. Aqui rebenta em qualquer uso.
+  prisma: new Proxy(
+    {},
+    {
+      get() {
+        throw new Error('SEM_CONTEXTO_TENANT: o analytics tem de usar prismaBase com tenantId explícito');
+      },
+    },
+  ),
   prismaBase: {
     venda: { aggregate: mocks.vendaAggregate, findMany: mocks.vendaFindMany },
     comissao: { aggregate: mocks.comissaoAggregate },
@@ -38,8 +50,8 @@ vi.mock('@/server/db/client', () => ({
     produto: { count: mocks.produtoCount },
     pedidoCompra: { aggregate: mocks.pedidoCompraAggregate, count: mocks.pedidoCompraCount },
     contaPagar: { aggregate: mocks.contaPagarAggregate, findMany: mocks.contaPagarFindMany },
-    sessaoCaixa: { aggregate: mocks.sessaoCaixaAggregate },
-    movimentoCaixa: { aggregate: mocks.movimentoCaixaAggregate },
+    sessaoCaixa: { aggregate: mocks.sessaoCaixaAggregate, findMany: mocks.sessaoCaixaFindMany },
+    movimentoCaixa: { aggregate: mocks.movimentoCaixaAggregate, groupBy: mocks.movimentoCaixaGroupBy },
     movimentoBancario: { count: mocks.movimentoBancarioCount },
     colaborador: { count: mocks.colaboradorCount },
     registoAssiduidade: { count: mocks.registoAssiduidadeCount },
@@ -80,6 +92,8 @@ function setupZeros() {
   mocks.contaPagarAggregate.mockResolvedValue({ _sum: { valorRestante: null } });
   mocks.contaPagarFindMany.mockResolvedValue([]);
   mocks.sessaoCaixaAggregate.mockResolvedValue({ _sum: { fundoInicial: null, totalEntradas: null, totalSaidas: null } });
+  mocks.sessaoCaixaFindMany.mockResolvedValue([]);
+  mocks.movimentoCaixaGroupBy.mockResolvedValue([]);
   mocks.movimentoCaixaAggregate.mockResolvedValue({ _sum: { valor: null } });
   mocks.movimentoBancarioCount.mockResolvedValue(0); // total + conciliados
   mocks.colaboradorCount.mockResolvedValue(0);
@@ -208,14 +222,119 @@ describe('kpiComprasImpl', () => {
   });
 });
 
+describe('kpiComprasImpl — #398 vencidas pelo predicado do #388', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('#398: where das vencidas inclui PARCIALMENTE_PAGA e compara com o início do dia de Maputo', async () => {
+    // 2026-06-30T23:00Z = 2026-07-01 01:00 em Maputo ⇒ o dia começou às 2026-06-30T22:00Z.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-06-30T23:00:00.000Z'));
+
+    await kpiComprasImpl('tenant-1');
+
+    const chamadas = (mocks.contaPagarAggregate as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const vencidas = chamadas
+      .map((c) => c[0] as { where: Record<string, unknown>; _sum?: Record<string, unknown> })
+      .find((a) => a._sum && 'valorRestante' in a._sum);
+    expect(vencidas, 'contasAPagarVencidas sai de um aggregate de valorRestante').toBeDefined();
+    const where = vencidas!.where as {
+      tenantId: string;
+      status: { in: string[] };
+      dataVencimento: { lt: Date };
+    };
+
+    expect(where.tenantId).toBe('tenant-1');
+    expect([...where.status.in].sort()).toEqual(['ABERTA', 'PARCIALMENTE_PAGA', 'VENCIDA']);
+    expect(where.dataVencimento.lt).toBeInstanceOf(Date);
+    expect(
+      where.dataVencimento.lt.toISOString(),
+      'a fronteira é o início do dia civil de Maputo, não o instante actual',
+    ).toBe('2026-06-30T22:00:00.000Z');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // kpiFinancasImpl — reconciliacaoRatio via MovimentoBancario.estado (ADR-0038; antes ItemReconciliacaoBancaria)
 // ---------------------------------------------------------------------------
+/**
+ * #397: base de caixa em memória. Os três mocks (sessaoCaixa.findMany / .aggregate e
+ * movimentoCaixa.groupBy) respondem de forma coerente com o `where` recebido, para que o
+ * oráculo julgue o resultado e não a forma exacta da consulta.
+ */
+type SessaoMem = {
+  id: string;
+  tenantId: string;
+  status: 'ABERTA' | 'FECHADA';
+  fundoInicial: number;
+  totalEntradas: number;
+  totalSaidas: number;
+};
+type MovMem = { tenantId: string; sessaoCaixaId: string; tipo: string; valor: number };
+
+function correspondeA(valor: unknown, filtro: unknown): boolean {
+  if (filtro === undefined) return true;
+  if (filtro && typeof filtro === 'object' && 'in' in (filtro as object)) {
+    return ((filtro as { in: unknown[] }).in).includes(valor);
+  }
+  if (filtro && typeof filtro === 'object' && 'equals' in (filtro as object)) {
+    return (filtro as { equals: unknown }).equals === valor;
+  }
+  return filtro === valor;
+}
+
+function baseCaixa(sessoes: SessaoMem[], movimentos: MovMem[]) {
+  const filtrarSessoes = (where: Record<string, unknown> = {}) =>
+    sessoes.filter(
+      (s) =>
+        correspondeA(s.tenantId, where.tenantId) &&
+        correspondeA(s.status, where.status) &&
+        correspondeA(s.id, where.id),
+    );
+  mocks.sessaoCaixaFindMany.mockImplementation(async (args: { where?: Record<string, unknown> } = {}) =>
+    filtrarSessoes(args.where).map((s) => ({ ...s })),
+  );
+  mocks.sessaoCaixaAggregate.mockImplementation(async (args: { where?: Record<string, unknown> } = {}) => {
+    const sel = filtrarSessoes(args.where);
+    const soma = (k: 'fundoInicial' | 'totalEntradas' | 'totalSaidas') =>
+      sel.length ? sel.reduce((a, s) => a + s[k], 0) : null;
+    return {
+      _sum: { fundoInicial: soma('fundoInicial'), totalEntradas: soma('totalEntradas'), totalSaidas: soma('totalSaidas') },
+    };
+  });
+  mocks.movimentoCaixaGroupBy.mockImplementation(
+    async (args: { by: Array<keyof MovMem>; where?: Record<string, unknown> }) => {
+      const where = args.where ?? {};
+      const sel = movimentos.filter(
+        (m) =>
+          correspondeA(m.tenantId, where.tenantId) &&
+          correspondeA(m.sessaoCaixaId, where.sessaoCaixaId) &&
+          correspondeA(m.tipo, where.tipo),
+      );
+      const grupos = new Map<string, { chave: Partial<MovMem>; soma: number }>();
+      for (const m of sel) {
+        const chave = Object.fromEntries(args.by.map((k) => [k, m[k]])) as Partial<MovMem>;
+        const k = JSON.stringify(chave);
+        const g = grupos.get(k) ?? { chave, soma: 0 };
+        g.soma += m.valor;
+        grupos.set(k, g);
+      }
+      return [...grupos.values()].map((g) => ({ ...g.chave, _sum: { valor: g.soma } }));
+    },
+  );
+}
+
 describe('kpiFinancasImpl', () => {
-  it('calcula saldo de caixa: fundo + entradas - saídas', async () => {
-    mocks.sessaoCaixaAggregate.mockResolvedValue({
-      _sum: { fundoInicial: 5000, totalEntradas: 3000, totalSaidas: 1000 },
-    });
+  it('calcula saldo de caixa: fundo + entradas - saídas (derivados dos movimentos da sessão aberta)', async () => {
+    baseCaixa(
+      [{ id: 's1', tenantId: 'tenant-1', status: 'ABERTA', fundoInicial: 5000, totalEntradas: 0, totalSaidas: 0 }],
+      [
+        { tenantId: 'tenant-1', sessaoCaixaId: 's1', tipo: 'ABERTURA', valor: 5000 },
+        { tenantId: 'tenant-1', sessaoCaixaId: 's1', tipo: 'VENDA', valor: 3000 },
+        { tenantId: 'tenant-1', sessaoCaixaId: 's1', tipo: 'SANGRIA', valor: 1000 },
+      ],
+    );
     mocks.movimentoCaixaAggregate
       .mockResolvedValueOnce({ _sum: { valor: 3000 } })
       .mockResolvedValueOnce({ _sum: { valor: 1000 } });
@@ -224,10 +343,48 @@ describe('kpiFinancasImpl', () => {
       .mockResolvedValueOnce(7); // conciliados
 
     const kpi = await kpiFinancasImpl('tenant-1');
+    // À mão: 5000 + 3000 − 1000 = 7000 (a ABERTURA já está no fundo).
     expect(kpi.saldoCaixaAtual).toBe('7000.00');
     expect(kpi.receitaMes).toBe('3000.00');
     expect(kpi.despesaMes).toBe('1000.00');
     expect(kpi.resultadoLiquido).toBe('2000.00');
+  });
+
+  it('#397: sessão ABERTA com movimento VENDA e colunas a zero ⇒ o KPI inclui a venda', async () => {
+    baseCaixa(
+      [
+        { id: 's1', tenantId: 'tenant-1', status: 'ABERTA', fundoInicial: 1000, totalEntradas: 0, totalSaidas: 0 },
+        // FECHADA: fotografia do fecho escrita; não entra no saldo das caixas abertas.
+        { id: 's2', tenantId: 'tenant-1', status: 'FECHADA', fundoInicial: 500, totalEntradas: 100, totalSaidas: 0 },
+      ],
+      [
+        { tenantId: 'tenant-1', sessaoCaixaId: 's1', tipo: 'ABERTURA', valor: 1000 },
+        { tenantId: 'tenant-1', sessaoCaixaId: 's1', tipo: 'VENDA', valor: 300 },
+        { tenantId: 'tenant-1', sessaoCaixaId: 's2', tipo: 'ABERTURA', valor: 500 },
+        { tenantId: 'tenant-1', sessaoCaixaId: 's2', tipo: 'VENDA', valor: 100 },
+        { tenantId: 'tenant-1', sessaoCaixaId: 's2', tipo: 'FECHAMENTO', valor: 600 },
+      ],
+    );
+
+    const kpi = await kpiFinancasImpl('tenant-1');
+
+    // À mão: fundo 1000 + VENDA 300 = 1300 (hoje: só o fundo, 1000).
+    expect(kpi.saldoCaixaAtual, 'a venda de uma sessão aberta tem de entrar antes do fecho').toBe('1300.00');
+  });
+
+  it('#397: o groupBy dos movimentos das sessões abertas é por sessão e tipo, com tenantId explícito', async () => {
+    baseCaixa(
+      [{ id: 's1', tenantId: 'tenant-1', status: 'ABERTA', fundoInicial: 0, totalEntradas: 0, totalSaidas: 0 }],
+      [{ tenantId: 'tenant-1', sessaoCaixaId: 's1', tipo: 'VENDA', valor: 50 }],
+    );
+
+    await kpiFinancasImpl('tenant-1');
+
+    const chamadas = (mocks.movimentoCaixaGroupBy as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(chamadas.length, 'os totais das sessões abertas saem de um groupBy de MovimentoCaixa').toBeGreaterThan(0);
+    const args = chamadas[0][0] as { by: string[]; where: Record<string, unknown> };
+    expect([...args.by].sort()).toEqual(['sessaoCaixaId', 'tipo']);
+    expect(args.where).toEqual(expect.objectContaining({ tenantId: 'tenant-1' }));
   });
 
   it('ADR-0038: reconciliacaoRatio conta movimentos bancários reconciliados sobre o total', async () => {
