@@ -181,7 +181,32 @@ export const CreateColaboradorSchema = z.object({
   observacoes: z.string().max(1000).optional(),
 });
 
-export const UpdateColaboradorSchema = CreateColaboradorSchema.partial().omit({ codigo: true });
+/**
+ * Só os campos que `ColaboradorService.actualizar` grava (#272/#275). Qualquer outro é RECUSADO
+ * (`strict`), nunca despido em silêncio — «sucesso e nada muda» era o defeito.
+ */
+export const UpdateColaboradorSchema = CreateColaboradorSchema.pick({
+  nome: true,
+  email: true,
+  telefone: true,
+  tipoContrato: true,
+  regimeTrabalho: true,
+  departamentoId: true,
+  cargoId: true,
+  supervisorId: true,
+  salarioBase: true,
+  subsidioAlimentacao: true,
+  subsidioTransporte: true,
+  subsidioHabitacao: true,
+  subsidiosOutros: true,
+  horarioTrabalho: true,
+  localizacao: true,
+  nivelAcesso: true,
+  observacoes: true,
+  fotoUrl: true,
+})
+  .partial()
+  .strict();
 
 export const FilterColaboradorSchema = z.object({
   search: z.string().optional(),
