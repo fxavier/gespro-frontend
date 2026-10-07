@@ -6,7 +6,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { CalendarPlus, Plus } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -31,10 +31,14 @@ async function FeriasTableSection({
   filtros,
   tenantId,
   userId,
+  podeAprovar,
+  podeSolicitar,
 }: {
   filtros: Filtro;
   tenantId: string;
   userId: string;
+  podeAprovar: boolean;
+  podeSolicitar: boolean;
 }) {
   const ctx = { tenantId, userId };
 
@@ -51,6 +55,7 @@ async function FeriasTableSection({
         diasSolicitados: true,
         tipo: true,
         status: true,
+        solicitadoPorId: true,
         ferias: {
           select: {
             colaborador: { select: { nome: true } },
@@ -71,11 +76,13 @@ async function FeriasTableSection({
     diasSolicitados: s.diasSolicitados,
     tipo: s.tipo,
     status: s.status,
+    // #156 — «Cancelar» só nos pedidos PENDENTES de quem os submeteu.
+    podeCancelar: podeSolicitar && s.status === 'PENDENTE' && s.solicitadoPorId === userId,
   }));
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <FeriasTable data={data} nextCursor={nextCursor} />;
+  return <FeriasTable data={data} nextCursor={nextCursor} podeAprovar={podeAprovar} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [
@@ -100,6 +107,10 @@ export default async function FeriasPage({
   if (!session?.user) redirect('/auth/login');
 
   const { tenantId, id: userId } = session.user;
+  const permissoes = session.user.permissions ?? [];
+  const podeAprovar = permissoes.includes('rh:ferias:aprovar');
+  const podeSolicitar = permissoes.includes('rh:ferias:solicitar');
+  const podeIniciarPeriodo = permissoes.includes('rh:ferias:create');
 
   const rawParams = await searchParams;
   const flatParams: Record<string, string> = {};
@@ -121,12 +132,22 @@ export default async function FeriasPage({
           { label: 'Férias' },
         ]}
         actions={
-          <Button size="sm" asChild>
-            <Link href="/rh/ferias/nova">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Nova Solicitação
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {podeIniciarPeriodo && (
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/rh/ferias/periodos/novo">
+                  <CalendarPlus className="h-4 w-4 mr-1.5" />
+                  Iniciar período aquisitivo
+                </Link>
+              </Button>
+            )}
+            <Button size="sm" asChild>
+              <Link href="/rh/ferias/nova">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Nova Solicitação
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -136,7 +157,13 @@ export default async function FeriasPage({
         key={JSON.stringify(filtros)}
         fallback={<TableSkeleton rows={8} cols={6} />}
       >
-        <FeriasTableSection filtros={filtros} tenantId={tenantId} userId={userId} />
+        <FeriasTableSection
+          filtros={filtros}
+          tenantId={tenantId}
+          userId={userId}
+          podeAprovar={podeAprovar}
+          podeSolicitar={podeSolicitar}
+        />
       </Suspense>
     </div>
   );
