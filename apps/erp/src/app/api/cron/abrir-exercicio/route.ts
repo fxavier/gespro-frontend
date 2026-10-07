@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { withApi } from '@/lib/api/with-api';
 import { logger } from '@/server/observability/logger';
 import { prismaBase } from '@/server/db/client';
+import { listarTenantsComAcesso } from '@/server/provisioning/tenants-com-acesso';
 import {
   USER_ID_AUTOMATICO,
   abrirExercicio,
@@ -71,19 +72,8 @@ export const GET = withApi(
       );
     }
 
-    // A `Assinatura` liga-se ao `Tenant` por `tenantId` escalar, sem `@relation`
-    // (regra de FK cross-domínio; está escrita no comentário de `tenant.prisma`).
-    const assinaturas = await prismaBase.assinatura.findMany({
-      where: { estado: { in: ['TRIAL', 'ATIVA', 'LEITURA'] } },
-      select: { tenantId: true },
-    });
-
-    const tenantIds = assinaturas.map((a) => a.tenantId);
-
-    const tenants = await prismaBase.tenant.findMany({
-      where: { deletedAt: null, id: { in: tenantIds } },
-      select: { id: true, slug: true },
-    });
+    const tenants = await listarTenantsComAcesso();
+    const tenantIds = tenants.map((t) => t.id);
 
     // Lê a configuração de todos os tenants activos de uma só vez para evitar N+1.
     // Tenants sem `ConfiguracaoFiscal` recebem os valores por omissão do schema.
