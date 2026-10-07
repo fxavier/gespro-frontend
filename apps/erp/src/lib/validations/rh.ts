@@ -306,9 +306,10 @@ export const CriterioAvaliacaoSchema = z.object({
   comentario: z.string().max(1000).optional(),
 });
 
+// O avaliador não vem do cliente: é o Colaborador do utilizador da sessão, resolvido no serviço
+// (#155). Um `avaliadorId` no input é descartado pelo Zod.
 export const CreateAvaliacaoSchema = z.object({
   colaboradorId: z.string().cuid(),
-  avaliadorId: z.string().cuid(),
   periodo: z.string().min(1).max(20),
   tipo: TipoAvaliacaoEnum,
   dataInicio: z.coerce.date(),
@@ -317,10 +318,7 @@ export const CreateAvaliacaoSchema = z.object({
   pontosDesenvolvimento: z.array(z.string().max(200)).default([]),
   planoAcao: z.array(z.string().max(200)).default([]),
   comentarios: z.string().max(2000).optional(),
-}).refine(
-  (d) => d.colaboradorId !== d.avaliadorId,
-  { message: 'O colaborador não pode avaliar-se a si próprio', path: ['avaliadorId'] },
-);
+});
 
 export const UpdateAvaliacaoSchema = z.object({
   criterios: z.array(CriterioAvaliacaoSchema).optional(),
