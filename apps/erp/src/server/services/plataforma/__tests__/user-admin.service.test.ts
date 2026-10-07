@@ -1,14 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => {
+  // #98: o limite do plano lê a Assinatura (ausente = ilimitado) e conta os
+  // `User` activos — pode fazê-lo no client cru ou numa tx. Ambos dobrados;
+  // por omissão sem Assinatura, para que estes testes continuem a exercitar o
+  // que exercitavam. Os limites têm o seu oráculo em
+  // test/integration/limites-plano-98.test.ts.
+  const assinaturaFind = vi.fn(async () => null);
   const mockTx = {
-    user: { create: vi.fn() },
+    user: { create: vi.fn(), count: vi.fn(async () => 1) },
+    assinatura: { findUnique: assinaturaFind, findFirst: assinaturaFind },
     userRole: { createMany: vi.fn(), deleteMany: vi.fn() },
     role: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     rolePermission: { createMany: vi.fn(), deleteMany: vi.fn() },
   };
   return {
     mockTx,
+    assinaturaFind,
     userFindFirst: vi.fn(),
     userFindMany: vi.fn(),
     userCount: vi.fn(), // Wave 3: contarAdminsAtivos
@@ -57,6 +65,7 @@ vi.mock('@/server/db/client', () => ({
       delete: mocks.roleDelete,
     },
     permission: { findMany: mocks.permFindMany },
+    assinatura: { findUnique: mocks.assinaturaFind, findFirst: mocks.assinaturaFind },
     userRole: { upsert: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
     rolePermission: { deleteMany: vi.fn(), createMany: vi.fn() },
     $transaction: mocks.$transaction,
