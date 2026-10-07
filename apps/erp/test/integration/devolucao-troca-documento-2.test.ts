@@ -128,7 +128,10 @@ describe.skipIf(skip)('Devolução/troca → NC, iteração 2 (compensação, ex
   }
 
   /** NC pela via pública de Facturação: uma linha de A com os valores dados. */
-  function emitirNC(faturaId: string, linha: { precoUnitario: number; subtotal: number; ivaItem: number; total: number; taxaIva: number }) {
+  function emitirNC(
+    faturaId: string,
+    linha: { precoUnitario: number; subtotal: number; ivaItem: number; total: number; taxaIva: number; motivoIsencao?: string },
+  ) {
     return runCtx(op.ctx, () =>
       faturacao.emitirNotaCredito(
         {
@@ -417,7 +420,8 @@ describe.skipIf(skip)('Devolução/troca → NC, iteração 2 (compensação, ex
 
     antes = await contagens();
     const erroUmCentimo = await capturarErro(() =>
-      emitirNC(fatura.id, { precoUnitario: 0.01, subtotal: 0.01, ivaItem: 0, total: 0.01, taxaIva: 0 }),
+      // #329: com motivo, para que a recusa seja a do excesso e não a da isenção.
+      emitirNC(fatura.id, { precoUnitario: 0.01, subtotal: 0.01, ivaItem: 0, total: 0.01, taxaIva: 0, motivoIsencao: 'Isento nos termos do Código do IVA' }),
     );
     expect(erroUmCentimo, 'factura já creditada por inteiro: mais 0,01 excede').toBeInstanceOf(BusinessRuleError);
     expect(erroUmCentimo.code).toBe('NC_EXCEDE_FATURA');

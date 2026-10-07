@@ -252,6 +252,8 @@ export function linhaDocumentoFiscal(
     total: Prisma.Decimal;
   },
   ordemLinha: number,
+  /** Texto legal da linha a 0% (#329) — `motivoIsencaoAutomaticoEmTx`; ignorado nas tributadas. */
+  motivoIsencao: string,
 ) {
   const bruto = new Prisma.Decimal(String(l.quantidade)).mul(new Prisma.Decimal(String(l.precoUnitario)));
   return {
@@ -265,6 +267,7 @@ export function linhaDocumentoFiscal(
     subtotal: l.subtotal.toNumber(),
     ivaItem: l.ivaItem.toNumber(),
     total: l.total.toNumber(),
+    ...(Number(l.taxaIva) === 0 ? { motivoIsencao } : {}),
     ordemLinha,
   };
 }
@@ -315,6 +318,7 @@ export class VendaService implements IVendaService {
       | 'construirLancamentoVendaPOS'
       | 'emitirNotaCreditoEmTx'
       | 'devolverNotaCreditoPelosMeiosOriginaisEmTx'
+      | 'motivoIsencaoAutomaticoEmTx'
     >,
     private readonly comissaoService: Pick<
       IComissaoService,
@@ -674,6 +678,7 @@ export class VendaService implements IVendaService {
     const pagamentos = input.pagamentos.map((p) => ({ tipo: p.tipo, valor: new Prisma.Decimal(String(p.valor)) }));
     // Conta a débito por meio configurada pelo tenant; os ausentes caem na omissão (ADR-0041 §4).
     const contas = await this.meioPagamentoPOSService.resolverContasPagamentoPOS(tx, ctx);
+    const motivoIsencao = await this.faturacaoService.motivoIsencaoAutomaticoEmTx(tx, ctx);
     const fatura = await this.faturacaoService.emitirDocumentoEmTx(
       tx,
       {
@@ -685,7 +690,7 @@ export class VendaService implements IVendaService {
           ? new Date(dataVenda.getTime() + clienteCredito.diasPagamento * DIA_MS)
           : dataVenda,
         linhas: itensTotais.map(({ item, subtotal, ivaItem, total }, i) =>
-          linhaDocumentoFiscal({ ...item, subtotal, ivaItem, total }, i),
+          linhaDocumentoFiscal({ ...item, subtotal, ivaItem, total }, i, motivoIsencao),
         ),
       },
       ctx,
@@ -878,6 +883,7 @@ export class VendaService implements IVendaService {
       const agora = new Date();
 
       // 1. NC de todas as linhas, pela mesma derivação das linhas da Factura-Recibo.
+      const motivoIsencao = await this.faturacaoService.motivoIsencaoAutomaticoEmTx(tx, ctx);
       const nc = await this.faturacaoService.emitirNotaCreditoEmTx(
         tx,
         {
@@ -898,6 +904,7 @@ export class VendaService implements IVendaService {
                 total: i.total,
               },
               k,
+              motivoIsencao,
             ),
           ),
         },

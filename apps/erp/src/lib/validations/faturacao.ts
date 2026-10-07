@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
-import { NATUREZAS_NOTA_DEBITO } from '@/lib/nota-debito';
+import { NATUREZAS_NOTA_DEBITO, motivoIsencaoEmFalta } from '@/lib/nota-debito';
 import { dataDocumento, idEntidade, inicioDoDia, fimDoDia } from './common';
 
 // ---------------------------------------------------------------------------
@@ -77,6 +77,9 @@ export const LinhaDocumentoSchema = z
       .multipleOf(0.01),
     desconto: z.number().nonnegative().multipleOf(0.01).default(0),
     taxaIva: taxaIvaSchema(),
+    // #329 (ADR-0039 §4): obrigatório a 0% em Factura/NC/ND — exigido no núcleo de emissão,
+    // não aqui: Proforma e Cotação partilham este schema e aceitam 0% sem motivo.
+    motivoIsencao: z.string().trim().max(500).optional(),
     ordemLinha: z.number().int().nonnegative().default(0),
   })
   .transform((l) => {
@@ -88,6 +91,27 @@ export const LinhaDocumentoSchema = z
   });
 
 export type LinhaDocumentoInput = z.infer<typeof LinhaDocumentoSchema>;
+
+/**
+ * #329 — refinamento dos FORMULÁRIOS de Factura, NC e ND: a linha a 0% sem motivo fica marcada
+ * no próprio campo antes de ir ao servidor. A regra que manda é a do núcleo de emissão
+ * (`MOTIVO_ISENCAO_EM_FALTA`); os schemas de emissão não a levam porque Proforma/Cotação
+ * partilham a linha e porque os caminhos automáticos (POS) preenchem o motivo no serviço.
+ */
+export function exigirMotivoIsencaoNasLinhas(
+  d: { linhas: ReadonlyArray<{ taxaIva: number; motivoIsencao?: string }> },
+  ctx: z.RefinementCtx,
+): void {
+  d.linhas.forEach((l, i) => {
+    if (motivoIsencaoEmFalta(l)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['linhas', i, 'motivoIsencao'],
+        message: 'Indique o motivo de isenção (IVA a 0%).',
+      });
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // SerieDocumento

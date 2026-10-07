@@ -147,6 +147,8 @@ export interface LinhaFatura {
   subtotal: Prisma.Decimal;
   ivaItem: Prisma.Decimal;
   total: Prisma.Decimal;
+  /** Obrigatório quando taxaIva = 0 (#329, ADR-0039 §4). */
+  motivoIsencao: string | null;
   ordemLinha: number;
   createdAt: Date;
 }
@@ -192,6 +194,8 @@ export interface LinhaNotaCredito {
   subtotal: Prisma.Decimal;
   ivaItem: Prisma.Decimal;
   total: Prisma.Decimal;
+  /** Obrigatório quando taxaIva = 0 (#329, ADR-0039 §4). */
+  motivoIsencao: string | null;
   ordemLinha: number;
   createdAt: Date;
 }
@@ -231,6 +235,8 @@ export interface LinhaNotaDebito {
   subtotal: Prisma.Decimal;
   ivaItem: Prisma.Decimal;
   total: Prisma.Decimal;
+  /** Obrigatório quando taxaIva = 0 (#329, ADR-0039 §4). */
+  motivoIsencao: string | null;
   ordemLinha: number;
   createdAt: Date;
 }
@@ -631,6 +637,11 @@ export interface IFaturacaoService {
     input: EmitirNotaCreditoInput,
     ctx: Ctx,
   ): Promise<NotaCreditoCompleta>;
+  /**
+   * #329 — texto legal fixo do motivo de isenção para as linhas a 0% dos caminhos automáticos
+   * (POS, anulação, devolução, troca), derivado do regime de IVA do tenant.
+   */
+  motivoIsencaoAutomaticoEmTx(tx: Prisma.TransactionClient, ctx: Ctx): Promise<string>;
   obterNotaCredito(id: string, ctx: Ctx): Promise<NotaCreditoCompleta | null>;
   listarNotasCredito(
     filtro: FiltroNotaCreditoInput,

@@ -106,7 +106,15 @@ function criarTx() {
 }
 
 const dec = (v: unknown) => new Prisma.Decimal(String(v));
-const LINHA_ISENTA = { descricao: 'Serviço isento', quantidade: 1, precoUnitario: 1000, desconto: 0, taxaIva: 0 };
+// #329: uma linha a 0% emitida (factura/NC) exige motivo de isenção; na Proforma/Cotação é inofensivo.
+const LINHA_ISENTA = {
+  descricao: 'Serviço isento',
+  quantidade: 1,
+  precoUnitario: 1000,
+  desconto: 0,
+  taxaIva: 0,
+  motivoIsencao: 'Isento nos termos do Código do IVA',
+};
 const LINHA_16 = { descricao: 'Serviço normal', quantidade: 1, precoUnitario: 1000, desconto: 0, taxaIva: 0.16 };
 
 function partidasDoLancamento() {

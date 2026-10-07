@@ -45,6 +45,8 @@ export interface LinhaDocumentoInput {
   subtotal: DecimalLike;
   ivaItem: DecimalLike;
   total: DecimalLike;
+  /** Motivo de isenção/não sujeição gravado na linha a 0% (#329, ADR-0039 §4). */
+  motivoIsencao?: string | null;
 }
 
 export interface FaturaInput {
@@ -74,6 +76,8 @@ export interface LinhaDocumentoModel {
   incidencia: string;
   iva: string;
   total: string;
+  /** Motivo de isenção gravado (só nas linhas a 0%); `null` nas tributadas. */
+  motivoIsencao: string | null;
 }
 
 export interface ResumoIva {
@@ -155,6 +159,7 @@ export function construirDocumentoFatura(
     incidencia: displayCell(l.subtotal, 'decimal'),
     iva: displayCell(l.ivaItem, 'decimal'),
     total: displayCell(l.total, 'decimal'),
+    motivoIsencao: l.motivoIsencao?.trim() || null,
   }));
 
   // Resumo por taxa — soma dos valores PERSISTIDOS por linha (re-apresentação).
@@ -220,6 +225,17 @@ export function construirMencoesLegais(regime: string, linhas: LinhaDocumentoInp
   mencoes.push('Documento processado por programa informático.');
   mencoes.push('Documento emitido nos termos do Código do IVA (Moçambique).');
   return mencoes;
+}
+
+/**
+ * Texto legal fixo do motivo de isenção nos documentos emitidos AUTOMATICAMENTE (POS, troca,
+ * devolução, anulação) — #329, ADR-0039 §4. Deriva só do regime de IVA do tenant: as linhas a
+ * 0% destes caminhos não têm quem escreva o motivo, e o POS nunca pode falhar por falta dele.
+ */
+export function motivoIsencaoAutomatico(regimeIva: string | null | undefined): string {
+  return regimeIva === 'ISENTO'
+    ? 'Isento de IVA — sujeito passivo enquadrado no regime de isenção (Código do IVA).'
+    : 'Isento de IVA nos termos do Código do IVA.';
 }
 
 /** Serialização canónica (para hash/validação determinística e testes). */

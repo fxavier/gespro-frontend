@@ -69,7 +69,12 @@ export class TrocaService {
     private readonly caixaService: Pick<ICaixaService, 'registarMovimentoCaixa'>,
     private readonly faturacaoService: Pick<
       IFaturacaoService,
-      'proximoNumeroSerie' | 'emitirNotaCreditoEmTx' | 'liquidarNotaCreditoEmTx' | 'emitirDocumentoEmTx' | 'construirLancamentoVendaPOS'
+      | 'proximoNumeroSerie'
+      | 'emitirNotaCreditoEmTx'
+      | 'liquidarNotaCreditoEmTx'
+      | 'emitirDocumentoEmTx'
+      | 'construirLancamentoVendaPOS'
+      | 'motivoIsencaoAutomaticoEmTx'
     >,
     private readonly meioPagamentoPOSService: IMeioPagamentoPOSService,
   ) {}
@@ -253,6 +258,7 @@ export class TrocaService {
       // 4. Factura-Recibo do substituto: D meios da diferença + D 411 pelo crédito compensado.
       const meios = compensado.greaterThan(0) ? [...pagos, { tipo: 'CREDITO' as const, valor: compensado }] : pagos;
       const contas = await this.meioPagamentoPOSService.resolverContasPagamentoPOS(tx, ctx);
+      const motivoIsencao = await this.faturacaoService.motivoIsencaoAutomaticoEmTx(tx, ctx);
       const fatura = await this.faturacaoService.emitirDocumentoEmTx(
         tx,
         {
@@ -273,6 +279,7 @@ export class TrocaService {
                 ...linha,
               },
               0,
+              motivoIsencao,
             ),
           ],
         },
