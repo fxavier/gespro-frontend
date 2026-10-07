@@ -12,6 +12,15 @@
  *    utilizador como `BusinessRuleError` (`TRANSICAO_INVALIDA`), não como `Error`
  *    cru («Erro interno», 500).
  *
+ * 3. (#356) Declarar e estornar o mesmo apuramento ao mesmo tempo nunca pode
+ *    deixar o apuramento DECLARADO sobre um lançamento já estornado. Hoje o
+ *    `marcarDeclarado` decide com um `findFirst` sem tranca e escreve com um
+ *    `update` incondicional: se o estorno fizer commit entre a leitura e a
+ *    escrita, o declarar sobrescreve ESTORNADO. O entrelaçamento é forçado de
+ *    forma determinística: uma terceira transacção tranca a linha do apuramento,
+ *    o estorno e o declarar ficam ambos à espera (por essa ordem) e só então a
+ *    tranca é largada.
+ *
  * Setup copiado de `apuramento-iva-estorno-periodo-fechado.test.ts` (#89).
  *
  * Requer: Docker em execução + @testcontainers/postgresql
@@ -254,5 +263,144 @@ describe.skipIf(skip)('Estorno do apuramento de IVA — corrida e transição in
       expect(apuramentoDepois.declaradoEm).toBeNull();
     },
     60_000,
+  );
+
+  // ── #356: declarar vs estornar ────────────────────────────────────────────
+
+  /** Número de backends desta base à espera de uma tranca de linha/transacção. */
+  async function emEsperaDeTranca(): Promise<number> {
+    const [linha] = await db.$queryRaw<Array<{ n: bigint }>>`
+      SELECT count(*)::bigint AS n FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'
+    `;
+    return Number(linha.n);
+  }
+
+  async function esperarAte(cond: () => Promise<boolean>, rotulo: string, limiteMs = 20_000) {
+    const fim = Date.now() + limiteMs;
+    while (Date.now() < fim) {
+      if (await cond()) return;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error(`Tempo esgotado à espera de: ${rotulo}`);
+  }
+
+  /**
+   * Invariante do #356: o par (apuramento, lançamento) fica coerente.
+   * - DECLARADO ⇒ lançamento LANCADO e nenhum estorno dele;
+   * - ESTORNADO ⇒ lançamento ESTORNADO, exactamente um estorno, e sem declaração.
+   */
+  async function afirmarCoerente(apuramentoId: string, lancamentoId: string, rotulo: string) {
+    const ap = await db.apuramentoIva.findFirst({ where: { id: apuramentoId } });
+    const lanc = await db.lancamento.findFirst({ where: { id: lancamentoId } });
+    const estornos = await db.lancamento.count({
+      where: { tenantId: TENANT_ID, lancamentoEstornoId: lancamentoId },
+    });
+    // A afirmação que decide: nunca DECLARADO com o lançamento estornado.
+    expect(
+      { apuramento: ap.estado, lancamento: lanc.status },
+      `${rotulo}: apuramento DECLARADO sobre lançamento estornado`,
+    ).not.toEqual({ apuramento: 'DECLARADO', lancamento: 'ESTORNADO' });
+    if (ap.estado === 'DECLARADO') {
+      expect(lanc.status, `${rotulo}: lançamento do apuramento declarado`).toBe('LANCADO');
+      expect(estornos, `${rotulo}: estornos do apuramento declarado`).toBe(0);
+    } else {
+      expect(ap.estado, `${rotulo}: estado final do apuramento`).toBe('ESTORNADO');
+      expect(lanc.status, `${rotulo}: lançamento do apuramento estornado`).toBe('ESTORNADO');
+      expect(estornos, `${rotulo}: estornos do apuramento estornado`).toBe(1);
+      expect(ap.declaradoEm, `${rotulo}: declaradoEm do apuramento estornado`).toBeNull();
+    }
+  }
+
+  it(
+    'declarar vs estornar (estorno faz commit primeiro): o declarar é recusado e o apuramento fica ESTORNADO (#356)',
+    async () => {
+      const { apuramento, lancamentoId } = await periodoApurado(8);
+      const { estornarApuramentoIva, marcarDeclarado } = await import(
+        '@/server/services/financas/apuramento-iva.service'
+      );
+
+      // Tranca a linha do apuramento numa transacção à parte, para forçar a ordem:
+      // o estorno chega primeiro à escrita do apuramento, o declarar (que já leu
+      // APURADO sem tranca) chega depois.
+      let largar!: () => void;
+      const largada = new Promise<void>((r) => (largar = r));
+      let trancado!: () => void;
+      const trancada = new Promise<void>((r) => (trancado = r));
+      const tranca = db.$transaction(
+        async (tx: AnyDb) => {
+          await tx.$queryRaw`SELECT id FROM "ApuramentoIva" WHERE id = ${apuramento.id} FOR UPDATE`;
+          trancado();
+          await largada;
+        },
+        { timeout: 60_000, maxWait: 10_000 },
+      );
+      await trancada;
+
+      const base = await emEsperaDeTranca();
+      const estornar = estornarApuramentoIva(
+        { apuramentoId: apuramento.id, motivo: 'Estorno contra declarar #356' },
+        CTX,
+      );
+      const estornarSettled = estornar.then(
+        (v) => ({ status: 'fulfilled' as const, value: v }),
+        (e) => ({ status: 'rejected' as const, reason: e }),
+      );
+      await esperarAte(async () => (await emEsperaDeTranca()) >= base + 1, 'estorno bloqueado no apuramento');
+
+      const declarar = marcarDeclarado(
+        { apuramentoId: apuramento.id, declaradoEm: new Date(), referenciaEntrega: 'REF-356-A' },
+        CTX,
+      );
+      const declararSettled = declarar.then(
+        (v) => ({ status: 'fulfilled' as const, value: v }),
+        (e) => ({ status: 'rejected' as const, reason: e }),
+      );
+      await esperarAte(async () => (await emEsperaDeTranca()) >= base + 2, 'declarar bloqueado no apuramento');
+
+      largar();
+      await tranca;
+      const [rEstornar, rDeclarar] = await Promise.all([estornarSettled, declararSettled]);
+
+      expect(rEstornar.status, 'o estorno, que chegou primeiro, passa').toBe('fulfilled');
+      expect(rDeclarar.status, 'o declarar, que leu APURADO antes do commit do estorno, é recusado').toBe('rejected');
+      expect((rDeclarar as { reason: unknown }).reason).toMatchObject({ name: 'BusinessRuleError' });
+
+      await afirmarCoerente(apuramento.id, lancamentoId, 'estorno primeiro');
+      const ap = await db.apuramentoIva.findFirst({ where: { id: apuramento.id } });
+      expect(ap.estado).toBe('ESTORNADO');
+      expect(ap.referenciaEntrega).toBeNull();
+    },
+    90_000,
+  );
+
+  it(
+    'declarar vs estornar em rondas com Promise.allSettled: um passa, o outro é recusado, estado coerente (#356)',
+    async () => {
+      const { estornarApuramentoIva, marcarDeclarado } = await import(
+        '@/server/services/financas/apuramento-iva.service'
+      );
+
+      for (const mes of [9, 10, 12]) {
+        const { apuramento, lancamentoId } = await periodoApurado(mes);
+
+        const resultados = await Promise.allSettled([
+          estornarApuramentoIva({ apuramentoId: apuramento.id, motivo: `Corrida declarar #356 (${mes})` }, CTX),
+          marcarDeclarado(
+            { apuramentoId: apuramento.id, declaradoEm: new Date(), referenciaEntrega: `REF-356-${mes}` },
+            CTX,
+          ),
+        ]);
+
+        const cumpridos = resultados.filter((r) => r.status === 'fulfilled');
+        const rejeitados = resultados.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+        expect(cumpridos, `ronda ${mes}: pedidos que passaram`).toHaveLength(1);
+        expect(rejeitados, `ronda ${mes}: pedidos recusados`).toHaveLength(1);
+        expect(rejeitados[0].reason).toMatchObject({ name: 'BusinessRuleError' });
+
+        await afirmarCoerente(apuramento.id, lancamentoId, `ronda ${mes}`);
+      }
+    },
+    120_000,
   );
 });
