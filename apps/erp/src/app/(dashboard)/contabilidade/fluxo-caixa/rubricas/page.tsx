@@ -21,7 +21,8 @@ import { PageHeader, StatusBadge } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { acessoDFC, SemPermissao } from './_components/acesso';
+import { acessoDFC } from './_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { BREADCRUMBS_BASE, ROTA_RUBRICAS, ROTULO_ATIVIDADE, ROTULO_SINAL } from './_components/rotulos';
 import { DesmapearConta } from './_components/desmapear-conta';
 import { EliminarRubrica } from './_components/eliminar-rubrica';
@@ -40,7 +41,7 @@ export default async function RubricasPage() {
     return (
       <div className="p-6 space-y-6">
         <PageHeader {...CABECALHO} />
-        <SemPermissao mensagem="Não tem permissão para consultar a configuração da DFC. Contacte o administrador do sistema." />
+        <SemPermissao testId="dfc-config-sem-permissao" mensagem="Não tem permissão para consultar a configuração da DFC. Contacte o administrador do sistema." />
       </div>
     );
   }

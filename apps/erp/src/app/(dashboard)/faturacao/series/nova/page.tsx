@@ -1,7 +1,8 @@
 /** Nova série de documento — Server Component; formulário em componente-folha (#149, ticket 7). */
 import { PageHeader } from '@/components/patterns';
 import { anosPermitidos } from '@/lib/series-documento';
-import { acessoSeries, SemPermissao } from '../_components/acesso';
+import { acessoSeries } from '../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { SerieForm } from '../_components/serie-form';
 
 export default async function NovaSeriePage() {
@@ -21,7 +22,7 @@ export default async function NovaSeriePage() {
     return (
       <div className="p-6 space-y-6">
         {cabecalho}
-        <SemPermissao mensagem="Não tem permissão para configurar as séries de documento." />
+        <SemPermissao testId="series-sem-permissao" mensagem="Não tem permissão para configurar as séries de documento." />
       </div>
     );
   }

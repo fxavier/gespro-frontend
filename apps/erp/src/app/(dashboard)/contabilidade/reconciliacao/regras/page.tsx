@@ -12,7 +12,8 @@ import { PageHeader } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarRegrasSugestao } from '@/server/services/reconciliacao/regras-sugestao.service';
-import { acessoRegras, SemPermissao } from './_components/acesso';
+import { acessoRegras } from './_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { RegrasTable, type RegraLinha } from './_components/regras-table';
 import { ROTA_REGRAS, ROTULO_NATUREZA_REGRA } from './_components/rotulos';
 
@@ -33,7 +34,7 @@ export default async function RegrasSugestaoPage() {
     return (
       <div className="p-6 space-y-6">
         <PageHeader {...CABECALHO} />
-        <SemPermissao mensagem="Não tem permissão para consultar as regras de sugestão. Contacte o administrador do sistema." />
+        <SemPermissao testId="regras-sem-permissao" mensagem="Não tem permissão para consultar as regras de sugestão. Contacte o administrador do sistema." />
       </div>
     );
   }

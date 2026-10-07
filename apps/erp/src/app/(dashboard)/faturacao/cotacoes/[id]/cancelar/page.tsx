@@ -12,7 +12,8 @@ import { TRANSICOES_COTACAO_COMERCIAL } from '@/server/services/financas/faturac
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { formatarData } from '@/lib/format-date';
-import { PERM, AvisoEstado, SemPermissao, acessoDocumento } from '../../../_components/acesso-documento';
+import { PERM, AvisoEstado, acessoDocumento } from '../../../_components/acesso-documento';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { CancelarDocumentoForm } from '../../../_components/cancelar-documento-form';
 
 export default async function CancelarCotacaoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +41,7 @@ export default async function CancelarCotacaoPage({ params }: { params: Promise<
   let bloqueio: React.ReactNode = null;
   if (!tem(PERM.cotacaoGerir)) {
     bloqueio = (
-      <SemPermissao mensagem="Cancelar uma cotação exige a permissão faturacao:cotacao:gerir." voltar={detalhe} />
+      <SemPermissao testId="documento-sem-permissao" mensagem="Cancelar uma cotação exige a permissão faturacao:cotacao:gerir." voltar={{ href: detalhe, rotulo: 'Voltar ao documento' }} />
     );
   } else if (!TRANSICOES_COTACAO_COMERCIAL[cotacao.status].includes('CANCELADA')) {
     bloqueio = (
