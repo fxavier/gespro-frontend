@@ -50,6 +50,7 @@ import {
 } from '@/server/services/financas';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
+import { exigirClienteAtivoParaCredito } from '@/lib/cliente-credito';
 import type { IComissaoService } from './comissao.interface';
 import {
   TRANSICOES_VENDA,
@@ -270,7 +271,8 @@ export function linhaDocumentoFiscal(
 
 /**
  * Cliente de uma venda POS com parte a crédito (ADR-0041 §4): tem de ser identificado —
- * nem anónimo nem o Consumidor Final, que não tem conta corrente a que se cobrar.
+ * nem anónimo nem o Consumidor Final, que não tem conta corrente a que se cobrar —
+ * e activo e não apagado (#317).
  */
 async function _clienteDoCredito(
   tx: Prisma.TransactionClient,
@@ -280,10 +282,11 @@ async function _clienteDoCredito(
   const cliente = input.clienteId
     ? await tx.cliente.findFirst({
         where: { id: input.clienteId, tenantId: ctx.tenantId },
-        select: { id: true, codigo: true, diasPagamento: true },
+        select: { id: true, codigo: true, diasPagamento: true, status: true, deletedAt: true },
       })
     : null;
   if (input.clienteId && !cliente) throw new NotFoundError('Cliente não encontrado');
+  if (cliente) exigirClienteAtivoParaCredito(cliente);
   if (!cliente || cliente.codigo === CLIENTE_CONSUMIDOR_FINAL.codigo) {
     throw new BusinessRuleError(
       'CLIENTE_OBRIGATORIO_CREDITO',
@@ -308,6 +311,7 @@ export class VendaService implements IVendaService {
       IFaturacaoService,
       | 'proximoNumeroSerie'
       | 'emitirDocumentoEmTx'
+      | 'avisosLimiteCreditoEmTx'
       | 'construirLancamentoVendaPOS'
       | 'emitirNotaCreditoEmTx'
       | 'devolverNotaCreditoPelosMeiosOriginaisEmTx'
@@ -482,6 +486,7 @@ export class VendaService implements IVendaService {
   ): Promise<VendaRow> {
     const { subtotal: subtotalTotal, ivaTotal: ivaTotalAcc, total } = totais;
     return prisma.$transaction(async (tx) => {
+      let avisos: string[] = [];
       // 3a. Crédito exige cliente identificado (ADR-0041 §4) — antes de gastar qualquer número.
       const clienteCredito = posACredito ? await _clienteDoCredito(tx as Prisma.TransactionClient, input, ctx) : null;
 
@@ -572,6 +577,14 @@ export class VendaService implements IVendaService {
           ctx,
         );
         venda.faturaId = fatura.id;
+        // Crédito acima do limite não bloqueia a venda: segue como aviso (#318).
+        if (clienteCredito) {
+          avisos = await this.faturacaoService.avisosLimiteCreditoEmTx(
+            tx as Prisma.TransactionClient,
+            clienteCredito.id,
+            ctx,
+          );
+        }
 
         // Só o dinheiro entra na gaveta (ADR-0041 §4).
         const dinheiro = venda.pagamentos
@@ -618,7 +631,7 @@ export class VendaService implements IVendaService {
         },
       });
 
-      return mapVendaRow({ ...venda, historicoEstado: [] });
+      return { ...mapVendaRow({ ...venda, historicoEstado: [] }), ...(avisos.length ? { avisos } : {}) };
     });
   }
 

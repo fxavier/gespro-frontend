@@ -24,7 +24,8 @@ import { PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { diaIsoMaputo, formatarData } from '@/lib/format-date';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
-import { PERM, AvisoEstado, SemPermissao, acessoDocumento } from '../../../_components/acesso-documento';
+import { PERM, AvisoEstado, acessoDocumento } from '../../../_components/acesso-documento';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { LiquidarNotaCreditoForm } from './_components/liquidar-nota-credito-form';
 
 
@@ -55,8 +56,9 @@ export default async function LiquidarNotaCreditoPage({ params }: { params: Prom
       <div className="p-6 space-y-6">
         {cabecalho}
         <SemPermissao
+          testId="documento-sem-permissao"
           mensagem="Liquidar uma nota de crédito exige a permissão faturacao:nc:liquidar."
-          voltar={detalhe}
+          voltar={{ href: detalhe, rotulo: 'Voltar ao documento' }}
         />
       </div>
     );

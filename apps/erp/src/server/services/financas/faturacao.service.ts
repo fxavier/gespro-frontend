@@ -41,6 +41,7 @@ import type {
 import { TipoSerieDocumentoEnum } from '@/lib/validations/faturacao';
 import { formatarData } from '@/lib/format-date';
 import { vencimentoJaPassou } from '@/lib/periodo-fiscal';
+import { exigirClienteAtivoParaCredito } from '@/lib/cliente-credito';
 import {
   TRANSICOES_FATURA,
   TRANSICOES_NOTA_CREDITO,
@@ -59,6 +60,7 @@ import {
   type SerieDocumento,
   type Fatura,
   type FaturaCompleta,
+  type FaturaEmitida,
   type NotaCredito,
   type NotaCreditoCompleta,
   type NotaDebito,
@@ -746,9 +748,87 @@ export async function exigirEmailConfirmadoParaEmitir(): Promise<void> {
 // Facturas
 // ---------------------------------------------------------------------------
 
-export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaCompleta> {
+export async function emitirFatura(input: EmitirFaturaInput, ctx: Ctx): Promise<FaturaEmitida> {
   await exigirEmailConfirmadoParaEmitir();
-  return prismaBase.$transaction((tx) => emitirDocumentoEmTx(tx, input, ctx));
+  return prismaBase.$transaction(async (tx) => {
+    const fatura = await emitirDocumentoEmTx(tx, input, ctx);
+    return { ...fatura, avisos: await avisosLimiteCreditoEmTx(tx, input.clienteId, ctx) };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Crédito utilizado (#318) — derivado das facturas, sem contador armazenado
+// ---------------------------------------------------------------------------
+
+/** Estados em que a factura ainda é dívida do cliente. */
+const STATUS_FATURA_EM_ABERTO = ['EMITIDA', 'PARCIALMENTE_PAGA', 'VENCIDA'] as const;
+
+/**
+ * Crédito utilizado por cliente: o saldo em aberto na 411 —
+ * Σ (total − totalPago) das facturas EMITIDA/PARCIALMENTE_PAGA/VENCIDA
+ * − Σ total das NC ainda EMITIDAS sobre essas facturas (a NC cancelada foi estornada; a
+ * liquidada por compensação já está no `totalPago`). Clientes sem dívida não aparecem.
+ * `clienteIds` omisso = todos os clientes do tenant.
+ */
+export async function creditoUtilizadoPorCliente(
+  tx: Prisma.TransactionClient,
+  ctx: Pick<Ctx, 'tenantId'>,
+  clienteIds?: string[],
+): Promise<Map<string, Prisma.Decimal>> {
+  const filtroFatura = {
+    tenantId: ctx.tenantId,
+    status: { in: [...STATUS_FATURA_EM_ABERTO] },
+    ...(clienteIds ? { clienteId: { in: clienteIds } } : {}),
+  };
+  const [faturas, ncs] = await Promise.all([
+    tx.fatura.groupBy({ by: ['clienteId'], where: filtroFatura, _sum: { total: true, totalPago: true } }),
+    tx.notaCredito.findMany({
+      where: { tenantId: ctx.tenantId, status: 'EMITIDA', faturaOriginal: filtroFatura },
+      select: { total: true, faturaOriginal: { select: { clienteId: true } } },
+    }),
+  ]);
+  const saldo = new Map<string, Prisma.Decimal>();
+  const somar = (clienteId: string, v: Prisma.Decimal) =>
+    saldo.set(clienteId, (saldo.get(clienteId) ?? new Prisma.Decimal(0)).plus(v));
+  for (const f of faturas) {
+    somar(f.clienteId, new Prisma.Decimal(f._sum.total ?? 0).minus(f._sum.totalPago ?? 0));
+  }
+  for (const nc of ncs) somar(nc.faturaOriginal.clienteId, nc.total.negated());
+  for (const [id, v] of saldo) if (!v.greaterThan(0)) saldo.delete(id);
+  return saldo;
+}
+
+/** Crédito utilizado de um cliente (0 sem dívida em aberto) — ver `creditoUtilizadoPorCliente`. */
+export async function creditoUtilizadoDoCliente(
+  tx: Prisma.TransactionClient,
+  clienteId: string,
+  ctx: Pick<Ctx, 'tenantId'>,
+): Promise<Prisma.Decimal> {
+  const saldo = await creditoUtilizadoPorCliente(tx, ctx, [clienteId]);
+  return saldo.get(clienteId) ?? new Prisma.Decimal(0);
+}
+
+/**
+ * Avisos (não bloqueia) a emitir depois de dar crédito ao cliente na tx: o crédito utilizado
+ * excede o limite de crédito? Limite 0 = sem limite definido; igualar o limite não avisa.
+ */
+export async function avisosLimiteCreditoEmTx(
+  tx: Prisma.TransactionClient,
+  clienteId: string,
+  ctx: Ctx,
+): Promise<string[]> {
+  const cliente = await tx.cliente.findFirst({
+    where: { id: clienteId, tenantId: ctx.tenantId },
+    select: { nome: true, limiteCreditoMT: true },
+  });
+  const limite = new Prisma.Decimal(cliente?.limiteCreditoMT ?? 0);
+  if (!limite.greaterThan(0)) return [];
+  const utilizado = await creditoUtilizadoDoCliente(tx, clienteId, ctx);
+  if (!utilizado.greaterThan(limite)) return [];
+  return [
+    `O cliente ${cliente!.nome} passa a ter ${utilizado.toFixed(2)} MT de crédito utilizado, ` +
+      `acima do limite de crédito de ${limite.toFixed(2)} MT.`,
+  ];
 }
 
 /**
@@ -783,9 +863,11 @@ export async function emitirDocumentoEmTx(
   // W9: validar FKs cross-domínio contra tenant
   const cliente = await tx.cliente.findFirst({
     where: { id: input.clienteId, tenantId: ctx.tenantId },
-    select: { id: true, nuit: true },
+    select: { id: true, nuit: true, status: true, deletedAt: true },
   });
   if (!cliente) throw new NotFoundError('Cliente não encontrado');
+  // Factura não paga = crédito ao cliente (#317); a Factura-Recibo (pronto) não é afectada.
+  if (tipoSerie === 'FATURA') exigirClienteAtivoParaCredito(cliente);
 
   if (input.vendaId) {
     const venda = await tx.venda.findFirst({
@@ -1060,27 +1142,45 @@ export async function marcarVencida(faturaId: string, ctx: Ctx): Promise<Fatura>
 // ---------------------------------------------------------------------------
 
 /**
+ * Crédito já concedido sobre a factura de alias `f`: Σ total das NC sobre ela que não estão
+ * `CANCELADA` (EMITIDA e LIQUIDADA contam). Fonte única da guarda `NC_EXCEDE_FATURA` e do
+ * saldo creditável da procura (#86, #266) — as duas contas não podem divergir.
+ */
+const SQL_CREDITADO_FATURA = Prisma.sql`(SELECT COALESCE(SUM(nc.total), 0)
+     FROM "NotaCredito" nc
+    WHERE nc."faturaOriginalId" = f.id AND nc."tenantId" = f."tenantId" AND nc.status <> 'CANCELADA')`;
+
+/**
  * Pesquisa da combobox «Factura a creditar» (#258): as 20 creditáveis mais
- * recentes, filtradas por parte do número sem distinguir maiúsculas.
+ * recentes, filtradas por parte do número sem distinguir maiúsculas. Só as que
+ * ainda têm saldo creditável (total − crédito já concedido > 0, #86/#266) — as
+ * creditadas por inteiro não voltam nem gastam lugares no top-20.
  */
 export async function procurarFaturasCreditaveis(
   q: string | undefined,
   ctx: Ctx,
   /** Só as deste cliente — a factura de referência de uma ND (#85). */
   clienteId?: string,
-): Promise<Array<{ id: string; numero: string; dataEmissao: Date; total: Prisma.Decimal }>> {
+): Promise<
+  Array<{ id: string; numero: string; dataEmissao: Date; total: Prisma.Decimal; saldoCreditavel: Prisma.Decimal }>
+> {
   const termo = q?.trim();
-  return prisma.fatura.findMany({
-    where: {
-      tenantId: ctx.tenantId,
-      status: { in: [...ESTADOS_FATURA_CREDITAVEL] },
-      ...(clienteId ? { clienteId } : {}),
-      ...(termo ? { numero: { contains: termo, mode: 'insensitive' as const } } : {}),
-    },
-    orderBy: { dataEmissao: 'desc' },
-    take: 20,
-    select: { id: true, numero: true, dataEmissao: true, total: true },
-  });
+  // Mesmo `contains` insensível do Prisma: os curingas do LIKE no termo são literais.
+  const padrao = termo ? `%${termo.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+  return prisma.$queryRaw<
+    Array<{ id: string; numero: string; dataEmissao: Date; total: Prisma.Decimal; saldoCreditavel: Prisma.Decimal }>
+  >(
+    Prisma.sql`SELECT f.id, f.numero, f."dataEmissao", f.total,
+                      f.total - ${SQL_CREDITADO_FATURA} AS "saldoCreditavel"
+                 FROM "Fatura" f
+                WHERE f."tenantId" = ${ctx.tenantId}
+                  AND f.status::text IN (${Prisma.join([...ESTADOS_FATURA_CREDITAVEL])})
+                  ${clienteId ? Prisma.sql`AND f."clienteId" = ${clienteId}` : Prisma.empty}
+                  ${padrao ? Prisma.sql`AND f.numero ILIKE ${padrao}` : Prisma.empty}
+                  AND f.total - ${SQL_CREDITADO_FATURA} > 0
+                ORDER BY f."dataEmissao" DESC
+                LIMIT 20`,
+  );
 }
 
 export async function emitirNotaCredito(input: EmitirNotaCreditoInput, ctx: Ctx): Promise<NotaCreditoCompleta> {
@@ -1116,13 +1216,10 @@ export async function emitirNotaCreditoEmTx(
   // trancada acima, duas NC concorrentes não passam ambas esta verificação (ADR-0041 §8).
   const [credito] = await tx.$queryRaw<Array<{ excede: boolean; total: Prisma.Decimal; creditado: Prisma.Decimal }>>(
     Prisma.sql`SELECT f.total,
-                      COALESCE(SUM(nc.total), 0) AS creditado,
-                      COALESCE(SUM(nc.total), 0) + ${subtotal.plus(ivaTotal).toFixed(2)}::numeric > f.total AS excede
+                      ${SQL_CREDITADO_FATURA} AS creditado,
+                      ${SQL_CREDITADO_FATURA} + ${subtotal.plus(ivaTotal).toFixed(2)}::numeric > f.total AS excede
                  FROM "Fatura" f
-                 LEFT JOIN "NotaCredito" nc
-                   ON nc."faturaOriginalId" = f.id AND nc."tenantId" = f."tenantId" AND nc.status <> 'CANCELADA'
-                WHERE f.id = ${input.faturaOriginalId} AND f."tenantId" = ${ctx.tenantId}
-                GROUP BY f.id, f.total`,
+                WHERE f.id = ${input.faturaOriginalId} AND f."tenantId" = ${ctx.tenantId}`,
   );
   if (credito?.excede === true) {
     throw new BusinessRuleError(
@@ -2161,6 +2258,7 @@ export const faturacaoService = {
   numerarDocumento,
   emitirFatura,
   emitirDocumentoEmTx,
+  avisosLimiteCreditoEmTx,
   construirLancamentoVendaPOS,
   obterFatura,
   listarFaturas,

@@ -12,7 +12,8 @@ import { PageHeader, StatusBadge } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { acessoDFC, SemPermissao } from '../_components/acesso';
+import { acessoDFC } from '../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { BREADCRUMBS_BASE, ROTA_RUBRICAS } from '../_components/rotulos';
 
 export default async function VersoesPage() {
@@ -21,7 +22,7 @@ export default async function VersoesPage() {
     return (
       <div className="p-6 space-y-6">
         <PageHeader title="Versões do mapeamento" breadcrumbs={[...BREADCRUMBS_BASE, { label: 'Versões' }]} />
-        <SemPermissao mensagem="Não tem permissão para consultar a configuração da DFC." />
+        <SemPermissao testId="dfc-config-sem-permissao" mensagem="Não tem permissão para consultar a configuração da DFC." />
       </div>
     );
   }

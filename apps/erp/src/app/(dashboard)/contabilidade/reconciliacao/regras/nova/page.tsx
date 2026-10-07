@@ -1,6 +1,7 @@
 /** Nova regra de sugestão — Server Component; formulário em componente-folha (issue #140). */
 import { PageHeader } from '@/components/patterns';
-import { acessoRegras, SemPermissao } from '../_components/acesso';
+import { acessoRegras } from '../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { opcoesFormularioRegra } from '../_components/opcoes';
 import { RegraForm } from '../_components/regra-form';
 
@@ -22,7 +23,7 @@ export default async function NovaRegraSugestaoPage() {
     return (
       <div className="p-6 space-y-6">
         {cabecalho}
-        <SemPermissao mensagem="Não tem permissão para configurar as regras de sugestão." />
+        <SemPermissao testId="regras-sem-permissao" mensagem="Não tem permissão para configurar as regras de sugestão." />
       </div>
     );
   }

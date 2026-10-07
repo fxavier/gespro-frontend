@@ -17,7 +17,8 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as aplicacaoResultadoService from '@/server/services/financas/aplicacao-resultado.service';
 import { diaIsoMaputo, formatarData, formatarDiaIso } from '@/lib/format-date';
 import { formatMZN } from '@/lib/format-currency';
-import { acessoExercicios, obterExercicioDoTenant, SemPermissao } from '../../_lib/acesso';
+import { acessoExercicios, obterExercicioDoTenant } from '../../_lib/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { AplicarResultadoForm } from './_components/aplicar-resultado-form';
 
 function Aviso({ titulo, texto }: { titulo: string; texto: string }) {

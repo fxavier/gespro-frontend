@@ -47,11 +47,3 @@ export async function obterExercicioDoTenant(
   return exercicios.find((e) => e.id === id && e.tenantId === ctx.tenantId) ?? null;
 }
 
-export function SemPermissao({ mensagem }: { mensagem: string }) {
-  return (
-    <div className="max-w-2xl rounded-lg border border-destructive/40 bg-destructive/10 p-5 text-sm">
-      <p className="font-medium text-destructive">Sem permissão</p>
-      <p className="mt-1 text-muted-foreground">{mensagem}</p>
-    </div>
-  );
-}

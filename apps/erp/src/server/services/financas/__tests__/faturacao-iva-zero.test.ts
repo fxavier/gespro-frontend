@@ -70,7 +70,7 @@ function criarTx() {
     $queryRaw: vi.fn(async () => [
       { id: SERIE, numero: 1, prefixo: 'DOC', ano: 2026, formatoNumero: '{prefixo}/{ano}/{numero:06}' },
     ]),
-    cliente: { findFirst: vi.fn(async () => ({ id: 'cli-77' })) },
+    cliente: { findFirst: vi.fn(async () => ({ id: 'cli-77', status: 'ATIVO', deletedAt: null })) },
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-77' })) },
     fatura: modelo('fatura', {
       findFirst: vi.fn(async ({ where }: any) =>

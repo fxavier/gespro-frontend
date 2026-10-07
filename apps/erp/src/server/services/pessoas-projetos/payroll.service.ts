@@ -6,7 +6,8 @@
  *    @@unique([tenantId, colaboradorId, anoReferencia, mesReferencia]);
  *  - marcarProcessada: lançamento contabilístico da massa salarial (WS D,
  *    diário SALARIOS, débito == crédito por construção);
- *  - marcarPaga: lançamento de pagamento + movimento de caixa opcional (WS D);
+ *  - marcarPaga: lançamento de pagamento (D 4622 / C conta do meio) e, em
+ *    numerário, movimento de caixa na sessão do utilizador (WS D, #96);
  *  - cancelar: estorno do lançamento (append-only) + estados CANCELADO;
  *  - recalcularPayroll / ajustarLinhaManual: só com payroll PENDENTE
  *    (após PROCESSADO os valores são imutáveis).
@@ -23,6 +24,8 @@ import {
   obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
+import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
+import { diaIsoMaputo } from '@/lib/format-date';
 import type { RegistarLancamentoContabilisticoInput } from '@/server/services/financas';
 import {
   calcularPayroll,
@@ -35,6 +38,11 @@ import {
 } from './payroll-calculo';
 import { TRANSICOES_PAYROLL, type StatusPayroll, type ReciboDados } from './payroll.interface';
 import { transitar } from './rh.service';
+import {
+  filtroAtribuicoesVigentes,
+  linhasDaAtribuicao,
+  SELECT_BENEFICIO_PAYROLL,
+} from './beneficios.service';
 import type {
   ProcessarFolhaInput,
   MarcarPagaInput,
@@ -66,9 +74,25 @@ export const PGC_PAYROLL = {
   OUTRAS_RETENCOES: '451',
   /** 4622 — Remunerações a pagar aos trabalhadores (crédito: líquido) */
   REMUNERACOES_A_PAGAR: '4622',
-  /** 121 — Depósitos à ordem (crédito no pagamento; alinhado com conta-pagar) */
+  /** 121 — Depósitos à ordem. O pagamento já não credita 121 à força: credita a conta do meio (#96). */
   BANCO_DEPOSITOS_ORDEM: '121',
 } as const;
+
+/**
+ * O pagamento passa pelo caixa (numerário → `caixa:operar`) ou pela banca (o resto →
+ * `financas:banca:escrita`) — a mesma regra do pagamento de factura (#96).
+ */
+function exigirPermissaoDoMeio(forma: MarcarPagaInput['formaPagamento'], permissions: ReadonlySet<string> | undefined): void {
+  const numerario = forma === 'NUMERARIO';
+  if (!permissions?.has(numerario ? 'caixa:operar' : 'financas:banca:escrita')) {
+    throw new BusinessRuleError(
+      'MEIO_PAGAMENTO_SEM_PERMISSAO',
+      numerario
+        ? 'Não tem permissão para operar o caixa: o pagamento da folha em numerário não é possível.'
+        : 'Não tem permissão para movimentar contas bancárias: o pagamento da folha por esta forma não é possível.',
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Montagem dos lançamentos (funções puras — alvo dos property tests)
@@ -160,13 +184,15 @@ export function montarLancamentoFolha(
 }
 
 /**
- * Lançamento do pagamento da folha: débito Remunerações a pagar (4622),
- * crédito Depósitos à ordem (121). Débito == crédito por construção.
+ * Lançamento do pagamento da folha: débito Remunerações a pagar (4622), crédito a
+ * conta do meio de pagamento (`contaCredito`: 111 em numerário, a PGC da conta
+ * bancária nas outras formas — #96). Diário SALARIOS. Débito == crédito por construção.
  */
 export function montarLancamentoPagamentoFolha(
   folha: { id: string; mesReferencia: number; anoReferencia: number },
   totalLiquido: Prisma.Decimal,
   data: Date,
+  contaCredito: string,
 ): RegistarLancamentoContabilisticoInput {
   const periodo = `${String(folha.mesReferencia).padStart(2, '0')}/${folha.anoReferencia}`;
   return {
@@ -184,10 +210,10 @@ export function montarLancamentoPagamentoFolha(
         historico: `Liquidação de remunerações ${periodo}`,
       },
       {
-        contaCodigo: PGC_PAYROLL.BANCO_DEPOSITOS_ORDEM,
+        contaCodigo: contaCredito,
         tipo: 'CREDITO',
         valor: totalLiquido.toFixed(2),
-        historico: `Saída banco — salários ${periodo}`,
+        historico: `Saída de meios — salários ${periodo}`,
       },
     ],
   };
@@ -274,12 +300,6 @@ interface LinhaManual {
   valor: Prisma.Decimal;
 }
 
-// PONTO DE EXTENSÃO (Spec 08 — benefícios): proventos/descontos adicionais por
-// colaborador entram como linhas manuais (`LinhaPayroll.manual=true`, via
-// `ajustarLinhaManual`) e sobrevivem ao recálculo. Alternativa futura: o spec 08
-// expõe um contrato `obterBeneficiosDoMes(colaboradorId, periodo)` que
-// `montarEntrada` consome ao lado de assiduidade/comissões — sem dependência hoje.
-
 /** Agregados mensais por colaborador (horas extras + dias de falta). */
 interface AgregadosMes {
   horasExtras: Map<string, Prisma.Decimal>;
@@ -332,12 +352,63 @@ async function agregadosDoMes(
   };
 }
 
+/** Benefícios do mês de um colaborador, já na forma que o motor consome. */
+interface BeneficiosColaborador {
+  /** comparticipação da empresa em benefícios tributáveis → provento */
+  proventos: { descricao: string; valor: Prisma.Decimal }[];
+  /** parte do colaborador → desconto diverso OUTRO (reduz o líquido, não a base) */
+  descontos: { descricao: string; valor: Prisma.Decimal }[];
+}
+
+/**
+ * Benefícios (spec 08) vigentes no mês para TODOS os colaboradores numa só
+ * query, dentro da transacção do chamador. Mesma regra do contrato
+ * `linhasPayrollDeBeneficios` (`filtroAtribuicoesVigentes` + `linhasDaAtribuicao`),
+ * sem o N+1 nem o `prisma` global dessa função avulsa.
+ *
+ * Benefícios NÃO tributáveis (`tributavel=false`): a comparticipação da empresa
+ * não entra na folha. O motor só conhece um bruto, que é base de INSS e de
+ * IRPS, e é pago ao colaborador no líquido; um benefício não tributável é um
+ * custo da entidade pago a terceiros (seguradora, operadora…) — somá-lo ao
+ * bruto tributá-lo-ia e aumentaria o líquido a transferir com dinheiro que o
+ * colaborador nunca recebe. O desconto do colaborador entra sempre.
+ */
+async function beneficiosDoMes(
+  tx: Tx,
+  colaboradorIds: string[],
+  periodo: { inicio: Date; fim: Date },
+  tenantId: string,
+): Promise<Map<string, BeneficiosColaborador>> {
+  const atribuicoes = await tx.beneficioColaborador.findMany({
+    where: {
+      tenantId,
+      colaboradorId: { in: colaboradorIds },
+      // `periodo.fim` é exclusivo (1.º instante do mês seguinte)
+      ...filtroAtribuicoesVigentes(periodo.inicio, new Date(periodo.fim.getTime() - 1)),
+    },
+    include: { beneficio: { select: SELECT_BENEFICIO_PAYROLL } },
+    orderBy: { dataInicio: 'asc' },
+  });
+
+  const porColaborador = new Map<string, BeneficiosColaborador>();
+  for (const at of atribuicoes) {
+    const b = porColaborador.get(at.colaboradorId) ?? { proventos: [], descontos: [] };
+    for (const l of linhasDaAtribuicao(at)) {
+      if (l.tipo === 'DESCONTO') b.descontos.push({ descricao: l.descricao, valor: l.valor });
+      else if (l.tributavel) b.proventos.push({ descricao: l.descricao, valor: l.valor });
+    }
+    porColaborador.set(at.colaboradorId, b);
+  }
+  return porColaborador;
+}
+
 /** Monta a entrada do motor a partir de snapshots pré-agregados — SEM I/O. */
 function montarEntrada(
   col: ColaboradorSnapshot,
   tabelas: { inss: TabelaINSSVigente; irps: EscalaoIRPSVigente[] },
   snapshot: { horasExtras: Prisma.Decimal; diasFalta: number; comissoes: Prisma.Decimal },
   linhasManuais: LinhaManual[] = [],
+  beneficios: BeneficiosColaborador = { proventos: [], descontos: [] },
 ): EntradaCalculoPayroll {
   // Horas extras do mês (RegistoAssiduidade), valorizadas com majoração 50%
   const valorHorasExtras = valorizarHorasExtras(col.salarioBase, snapshot.horasExtras);
@@ -350,6 +421,11 @@ function montarEntrada(
       descricao: `Faltas não remuneradas (${diasFalta} dia${diasFalta > 1 ? 's' : ''})`,
       valor: calcularDescontoFalta(col.salarioBase, diasFalta),
     });
+  }
+
+  // Parte do colaborador nos benefícios do mês (spec 08)
+  for (const d of beneficios.descontos) {
+    descontosDiversos.push({ natureza: 'OUTRO', descricao: d.descricao, valor: d.valor });
   }
 
   // Ajustes manuais persistidos (sobrevivem ao recálculo)
@@ -385,6 +461,7 @@ function montarEntrada(
       bonus: bonusManual,
       outros: proventosOutrosManual,
     },
+    proventosBeneficio: beneficios.proventos,
     descontosDiversos,
     tabelaInss: tabelas.inss,
     escaloesIrps: tabelas.irps,
@@ -469,7 +546,10 @@ async function gravarPayroll(
     proventoSubHabitacao: e.subsidios.habitacao,
     proventoComissoes: e.variaveis.comissoes,
     proventoBonus: e.variaveis.bonus,
-    proventoOutros: e.subsidios.outros.plus(e.variaveis.outros),
+    proventoOutros: (e.proventosBeneficio ?? []).reduce(
+      (s, b) => s.plus(b.valor),
+      e.subsidios.outros.plus(e.variaveis.outros),
+    ),
     salarioLiquido: r.liquido,
     encargoInssEntidade: r.inssEntidade,
     custoTotalEntidade: r.custoTotalEntidade,
@@ -591,6 +671,7 @@ async function recalcularPayrollNoTx(tx: Tx, payrollId: string, ctx: Ctx): Promi
   const tabelas = await obterTabelasVigentes(tx, ref, ctx.tenantId);
   const comissoes = await comissoesPorColaborador(tx, [payroll.colaborador], periodo, ctx.tenantId);
   const agregados = await agregadosDoMes(tx, [payroll.colaboradorId], periodo, ctx.tenantId);
+  const beneficios = await beneficiosDoMes(tx, [payroll.colaboradorId], periodo, ctx.tenantId);
   const linhasManuais = await tx.linhaPayroll.findMany({
     where: { tenantId: ctx.tenantId, payrollId, manual: true },
     select: { tipo: true, natureza: true, descricao: true, valor: true },
@@ -600,7 +681,7 @@ async function recalcularPayrollNoTx(tx: Tx, payrollId: string, ctx: Ctx): Promi
     horasExtras: agregados.horasExtras.get(payroll.colaboradorId) ?? ZERO,
     diasFalta: agregados.diasFalta.get(payroll.colaboradorId) ?? 0,
     comissoes: comissoes.get(payroll.colaboradorId) ?? ZERO,
-  }, linhasManuais);
+  }, linhasManuais, beneficios.get(payroll.colaboradorId));
   const resultado = calcularPayroll(entrada);
 
   if (resultado.liquido.lt(ZERO)) {
@@ -702,11 +783,12 @@ export const PayrollService = {
       }
 
       // Pré-agregação fora do loop (evita N+1 dentro da transacção):
-      // comissões, assiduidade/ausências (2 groupBy), payrolls existentes e
+      // comissões, assiduidade/ausências (2 groupBy), benefícios, payrolls existentes e
       // linhas manuais — número de queries constante face ao n.º de colaboradores.
       const colaboradorIds = colaboradores.map((c) => c.id);
       const comissoes = await comissoesPorColaborador(tx, colaboradores, periodo, ctx.tenantId);
       const agregados = await agregadosDoMes(tx, colaboradorIds, periodo, ctx.tenantId);
+      const beneficios = await beneficiosDoMes(tx, colaboradorIds, periodo, ctx.tenantId);
 
       const payrollsExistentes = await tx.payroll.findMany({
         where: {
@@ -749,7 +831,7 @@ export const PayrollService = {
           horasExtras: agregados.horasExtras.get(col.id) ?? ZERO,
           diasFalta: agregados.diasFalta.get(col.id) ?? 0,
           comissoes: comissoes.get(col.id) ?? ZERO,
-        }, linhasManuais);
+        }, linhasManuais, beneficios.get(col.id));
         const resultado = calcularPayroll(entrada);
         await gravarPayroll(tx, {
           tenantId: ctx.tenantId,
@@ -826,10 +908,14 @@ export const PayrollService = {
   },
 
   /**
-   * PROCESSADO → PAGO: lançamento de pagamento (4622 → 121) e, se for pago do
-   * caixa físico (sessaoCaixaId), movimento de caixa via contrato WS D.
+   * PROCESSADO → PAGO (#96, molde: pagamento de factura). A permissão do meio confere-se
+   * antes de tudo; o meio resolve-se na tx antes de qualquer escrita; o lançamento
+   * D 4622 / C conta do meio sai na data do pagamento (dia de Maputo entre o do
+   * processamento e hoje); em numerário, movimento PAGAMENTO na sessão do utilizador.
    */
-  async marcarPaga(input: MarcarPagaInput, ctx: Ctx): Promise<void> {
+  async marcarPaga(input: MarcarPagaInput, ctx: Ctx & { permissions?: ReadonlySet<string> }): Promise<void> {
+    exigirPermissaoDoMeio(input.formaPagamento, ctx.permissions);
+
     await prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
       const folha = await tx.folhaPagamento.findFirst({
@@ -838,19 +924,36 @@ export const PayrollService = {
       if (!folha) throw new NotFoundError('Folha de pagamento não encontrada');
       transitar(TRANSICOES_PAYROLL, folha.status, 'PAGO');
 
-      const dataPagamento = input.dataPagamento ?? new Date();
-      const lancamento = await registarLancamentoContabilistico(
+      const dataPagamento = input.dataPagamento;
+      const dia = diaIsoMaputo(0, dataPagamento);
+      if (folha.dataProcessamento && dia < diaIsoMaputo(0, folha.dataProcessamento)) {
+        throw new BusinessRuleError(
+          'PAGAMENTO_DATA_ANTERIOR_PROCESSAMENTO',
+          'A data do pagamento não pode ser anterior à data de processamento da folha.',
+        );
+      }
+      if (dia > diaIsoMaputo()) {
+        throw new BusinessRuleError('PAGAMENTO_DATA_FUTURA', 'A data do pagamento não pode ser futura.');
+      }
+
+      const meio = await resolverContaMeioPagamento(
         tx,
-        montarLancamentoPagamentoFolha(folha, folha.totalLiquido, dataPagamento),
+        { forma: input.formaPagamento, contaBancariaId: input.contaBancariaId },
         ctx,
       );
 
-      if (input.sessaoCaixaId) {
+      const lancamento = await registarLancamentoContabilistico(
+        tx,
+        montarLancamentoPagamentoFolha(folha, folha.totalLiquido, dataPagamento, meio.contaCodigo),
+        ctx,
+      );
+
+      if (meio.sessaoCaixaId) {
         await registarMovimentoCaixa(
           tx,
           {
-            sessaoCaixaId: input.sessaoCaixaId,
-            tipo: 'SANGRIA',
+            sessaoCaixaId: meio.sessaoCaixaId,
+            tipo: 'PAGAMENTO',
             valor: folha.totalLiquido.toFixed(2),
             descricao: `Pagamento de salários ${String(folha.mesReferencia).padStart(2, '0')}/${folha.anoReferencia}`,
             documentoOrigemId: folha.id,

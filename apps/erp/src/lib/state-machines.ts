@@ -233,9 +233,15 @@ export function transicaoAssinaturaValida(
  * - `leitura` — vê e exporta tudo o que é seu, não escreve nada, e pode pagar
  *               para sair de lá. Pagar e exportar NUNCA se travam: um estado de
  *               onde o cliente não pudesse sair seria uma armadilha.
+ * - `pagamento` — a Assinatura FECHADA comercial (issue #99): só entra quem
+ *               gere a subscrição, e só para a regularizar. Os pipelines
+ *               tratam-no como a Leitura (escrita recusada salvo o que declara
+ *               `permiteEmLeitura`); o middleware leva todas as páginas a
+ *               `/definicoes/faturacao`. Sem isto a FECHADA era um beco sem
+ *               saída: ninguém entrava para pagar.
  * - `fechado` — não entra. Os dados ficam.
  */
-export type EstadoAcesso = 'aberto' | 'leitura' | 'fechado';
+export type EstadoAcesso = 'aberto' | 'leitura' | 'pagamento' | 'fechado';
 
 /**
  * Arbitra os DOIS donos do acesso, e é a única a fazê-lo (ADR-0032 §4).
@@ -259,8 +265,12 @@ export function estadoDeAcesso(
   if (fechadoPelaGestPro) return 'fechado';
   if (estado === 'TRIAL' || estado === 'ATIVA') return 'aberto';
   if (estado === 'LEITURA') return 'leitura';
+  if (estado === 'FECHADA') return 'pagamento';
   return 'fechado';
 }
+
+/** Rota única onde a sessão em `pagamento` pode estar (issue #99). */
+export const ROTA_REGULARIZAR_SUBSCRICAO = '/definicoes/faturacao';
 
 /** Dias de Leitura antes de o acesso fechar (ADR-0027 §6). */
 export const LEITURA_DIAS = 30;

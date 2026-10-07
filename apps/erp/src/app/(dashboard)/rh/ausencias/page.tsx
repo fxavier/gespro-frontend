@@ -27,14 +27,19 @@ const FiltroUrlSchema = z.object({
 type Filtro = z.infer<typeof FiltroUrlSchema>;
 const FILTROS_DEFAULT: Filtro = { take: 25 };
 
+/** Mês da folha a que a ausência pertence — o payroll agrupa por mês UTC de `dataInicio`. */
+const mesDaFolha = (d: Date) => `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
+
 async function AusenciasTableSection({
   filtros,
   tenantId,
   userId,
+  podeAprovar,
 }: {
   filtros: Filtro;
   tenantId: string;
   userId: string;
+  podeAprovar: boolean;
 }) {
   const ctx = { tenantId, userId };
 
@@ -53,6 +58,24 @@ async function AusenciasTableSection({
     })
   );
 
+  // #94 — aprovar uma ausência de um mês com folha já criada obriga a recalcular essa folha.
+  const pendentes = rows.filter((a) => a.status === 'PENDENTE');
+  const folhas = pendentes.length
+    ? await runWithTenantContext(ctx, () =>
+        prisma.folhaPagamento.findMany({
+          where: {
+            tenantId,
+            OR: pendentes.map((a) => ({
+              anoReferencia: a.dataInicio.getUTCFullYear(),
+              mesReferencia: a.dataInicio.getUTCMonth() + 1,
+            })),
+          },
+          select: { anoReferencia: true, mesReferencia: true },
+        })
+      )
+    : [];
+  const mesesComFolha = new Set(folhas.map((f) => `${f.anoReferencia}-${f.mesReferencia}`));
+
   const data: AusenciaRow[] = rows.map((a) => ({
     id: a.id,
     colaboradorNome: a.colaborador?.nome ?? '—',
@@ -62,11 +85,12 @@ async function AusenciasTableSection({
     diasAusencia: a.diasAusencia,
     justificada: a.justificada,
     status: a.status,
+    folhaDoMesExiste: mesesComFolha.has(mesDaFolha(a.dataInicio)),
   }));
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;
 
-  return <AusenciasTable data={data} nextCursor={nextCursor} />;
+  return <AusenciasTable data={data} nextCursor={nextCursor} podeAprovar={podeAprovar} />;
 }
 
 const FILTER_CONFIG: FilterConfig[] = [
@@ -90,6 +114,7 @@ export default async function AusenciasPage({
   if (!session?.user) redirect('/auth/login');
 
   const { tenantId, id: userId } = session.user;
+  const podeAprovar = (session.user.permissions ?? []).includes('rh:ausencias:aprovar');
 
   const rawParams = await searchParams;
   const flatParams: Record<string, string> = {};
@@ -126,7 +151,7 @@ export default async function AusenciasPage({
         key={JSON.stringify(filtros)}
         fallback={<TableSkeleton rows={8} cols={6} />}
       >
-        <AusenciasTableSection filtros={filtros} tenantId={tenantId} userId={userId} />
+        <AusenciasTableSection filtros={filtros} tenantId={tenantId} userId={userId} podeAprovar={podeAprovar} />
       </Suspense>
     </div>
   );

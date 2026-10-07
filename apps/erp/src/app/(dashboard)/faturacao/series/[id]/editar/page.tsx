@@ -15,7 +15,8 @@ import {
   previsualizarNumero,
   serieUsada,
 } from '@/lib/series-documento';
-import { acessoSeries, listarSeriesGeriveis, SemPermissao } from '../../_components/acesso';
+import { acessoSeries, listarSeriesGeriveis } from '../../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { SerieForm } from '../../_components/serie-form';
 
 interface PageProps {
@@ -33,7 +34,7 @@ export default async function EditarSeriePage({ params }: PageProps) {
     return (
       <div className="p-6 space-y-6">
         <PageHeader title="Editar série" breadcrumbs={[...BREADCRUMBS, { label: 'Editar' }]} />
-        <SemPermissao mensagem="Não tem permissão para configurar as séries de documento." />
+        <SemPermissao testId="series-sem-permissao" mensagem="Não tem permissão para configurar as séries de documento." />
       </div>
     );
   }

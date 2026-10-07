@@ -86,7 +86,9 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
       // Leitura: a sessão abre, a escrita não passa (ADR-0027 §6, ADR-0032 §2).
       // Depois da permissão de propósito — quem não tem permissão nenhuma
       // continua a receber 403, e não uma explicação sobre a subscrição.
-      if (session.user.acesso === 'leitura' && !opts.permiteEmLeitura) {
+      // `pagamento` (FECHADA comercial, issue #99) é a mesma fechadura.
+      const soLeitura = session.user.acesso === 'leitura' || session.user.acesso === 'pagamento';
+      if (soLeitura && !opts.permiteEmLeitura) {
         throw new AcessoLeituraError();
       }
 

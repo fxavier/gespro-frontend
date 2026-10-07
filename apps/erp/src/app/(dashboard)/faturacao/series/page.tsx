@@ -20,7 +20,8 @@ import {
   previsualizarNumero,
   serieUsada,
 } from '@/lib/series-documento';
-import { acessoSeries, listarSeriesGeriveis, SemPermissao } from './_components/acesso';
+import { acessoSeries, listarSeriesGeriveis } from './_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { SeriesTable, type SerieLinha } from './_components/series-table';
 
 const TODOS_OS_ANOS = 'todos';
@@ -51,7 +52,7 @@ export default async function SeriesPage({ searchParams }: PageProps) {
     return (
       <div className="p-6 space-y-6">
         <PageHeader {...CABECALHO} />
-        <SemPermissao mensagem="Não tem permissão para consultar as séries de documento. Contacte o administrador do sistema." />
+        <SemPermissao testId="series-sem-permissao" mensagem="Não tem permissão para consultar as séries de documento. Contacte o administrador do sistema." />
       </div>
     );
   }

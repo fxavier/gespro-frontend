@@ -103,9 +103,10 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
         perms = new Set(permissions);
         if (opts?.permission && !perms.has(opts.permission)) throw new ForbiddenError();
 
-        // Leitura: vê e exporta tudo, não grava nada (ADR-0027 §6).
+        // Leitura: vê e exporta tudo, não grava nada (ADR-0027 §6). O
+        // `pagamento` (FECHADA comercial, issue #99) é a mesma fechadura.
         if (
-          session.user.acesso === 'leitura' &&
+          (session.user.acesso === 'leitura' || session.user.acesso === 'pagamento') &&
           !opts?.permiteEmLeitura &&
           METODOS_DE_ESCRITA.has(method)
         ) {

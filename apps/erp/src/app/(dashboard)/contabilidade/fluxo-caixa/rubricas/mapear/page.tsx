@@ -9,7 +9,8 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarContas } from '@/server/services/financas/contabilidade.service';
 import { listarRubricas, obterContaParaMapear } from '@/server/services/financas/dfc.service';
 import { PageHeader } from '@/components/patterns';
-import { acessoDFC, lerVoltar, SemPermissao } from '../_components/acesso';
+import { acessoDFC, lerVoltar } from '../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { BREADCRUMBS_BASE, ROTULO_ATIVIDADE } from '../_components/rotulos';
 import { MapearContaForm } from '../_components/mapear-conta-form';
 
@@ -30,7 +31,7 @@ export default async function MapearContaPage({ searchParams }: PageProps) {
     return (
       <div className="p-6 space-y-6">
         {cabecalho}
-        <SemPermissao mensagem="Não tem permissão para configurar o mapeamento da DFC." />
+        <SemPermissao testId="dfc-config-sem-permissao" mensagem="Não tem permissão para configurar o mapeamento da DFC." />
       </div>
     );
   }

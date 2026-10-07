@@ -33,14 +33,3 @@ export function lerVoltar(v: string | string[] | undefined): string | null {
   return voltarSeguro(Array.isArray(v) ? v[0] : v);
 }
 
-export function SemPermissao({ mensagem }: { mensagem: string }) {
-  return (
-    <div
-      className="rounded-lg border border-destructive/40 bg-destructive/10 p-6 text-sm"
-      data-testid="dfc-config-sem-permissao"
-    >
-      <p className="font-medium text-destructive">Sem permissão</p>
-      <p className="mt-1 text-muted-foreground">{mensagem}</p>
-    </div>
-  );
-}

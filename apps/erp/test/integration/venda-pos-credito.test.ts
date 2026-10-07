@@ -15,6 +15,12 @@
  *       · dataVencimento = dataEmissao + cliente.diasPagamento dias;
  *       · nuitCliente = NUIT do cliente.
  *   - Regressão: venda paga continua a emitir Factura-Recibo PAGA.
+ *   - Issue #317 — crédito só a cliente ATIVO, no servidor (o terminal já filtrava):
+ *       · venda POS com parte CREDITO a cliente SUSPENSO/INATIVO → BusinessRuleError
+ *         `CLIENTE_NAO_ATIVO` (mensagem pt-PT), nada escrito, nenhuma série avança;
+ *       · a cliente apagado (deletedAt) → NotFoundError, nada escrito;
+ *       · `emitirFatura` (factura FATURA não paga = a crédito) aplica a mesma regra;
+ *       · controlo: venda a pronto (Factura-Recibo) a cliente SUSPENSO continua a passar.
  *
  * Substitui o oráculo provisório `venda-pos-credito-guarda.test.ts` (PAGAMENTO_CREDITO_NAO_SUPORTADO).
  * O limite de crédito do cliente não faz parte deste contrato (o cliente tem limite folgado).
@@ -58,6 +64,10 @@ describe.skipIf(skip)('Venda POS a crédito → Factura EMITIDA/PARCIALMENTE_PAG
   let sessaoPOSId: string;
   let clienteId: string;
   let consumidorFinalId: string;
+  // #317: clientes que não podem receber crédito
+  let clienteSuspensoId: string;
+  let clienteInativoId: string;
+  let clienteApagadoId: string;
 
   // 1 × 1000 @16% → subtotal 1000, IVA 160, total 1160
   const itensMil = () => [
@@ -254,6 +264,28 @@ describe.skipIf(skip)('Venda POS a crédito → Factura EMITIDA/PARCIALMENTE_PAG
     });
     clienteId = cliente.id;
 
+    // #317 — mesmo perfil do cliente a crédito, só muda o estado (ou o soft delete).
+    const outroCliente = async (sufixoCodigo: string, nuit: string, extra: Record<string, unknown>) =>
+      (
+        await db.cliente.create({
+          data: {
+            tenantId: TENANT,
+            nome: `Cliente ${sufixoCodigo}`,
+            tipo: 'JURIDICA',
+            nuit,
+            email: `cliente-pos-cred-${sufixoCodigo.toLowerCase()}-${sufixo}@test.mz`,
+            telefone: '840000317',
+            codigo: `CLI-POS-CRED-${sufixoCodigo}-${sufixo}`,
+            diasPagamento: DIAS_PAGAMENTO,
+            limiteCreditoMT: 1_000_000,
+            ...extra,
+          },
+        })
+      ).id;
+    clienteSuspensoId = await outroCliente('SUSP', '400000317', { status: 'SUSPENSO' });
+    clienteInativoId = await outroCliente('INAT', '400000316', { status: 'INATIVO' });
+    clienteApagadoId = await outroCliente('APAG', '400000315', { status: 'ATIVO', deletedAt: new Date() });
+
     const sessaoCaixa: any = await noCtx(() => caixa.abrirSessao({ fundoInicial: 1000 }, ctx));
     sessaoCaixaId = sessaoCaixa.id;
     const sessaoPOS = await db.sessaoPOS.create({
@@ -356,6 +388,130 @@ describe.skipIf(skip)('Venda POS a crédito → Factura EMITIDA/PARCIALMENTE_PAG
     expect(fatura.serieDocumento.tipo).toBe('FATURA_RECIBO');
     expect(fatura.status).toBe('PAGA');
     expect(dec(fatura.totalPago).equals(dec(fatura.total))).toBe(true);
+    expect(fatura.lancamentoId).toBeTruthy();
+
+    const depois = await contagens();
+    expect(depois.serieFR).toBe(antes.serieFR + 1);
+    expect(depois.serieFatura).toBe(antes.serieFatura);
+  });
+
+  // -------------------------------------------------------------------------
+  // Issue #317 — crédito só a cliente ATIVO (o servidor decide, não o terminal)
+  // -------------------------------------------------------------------------
+
+  const SO_CREDITO = [{ tipo: 'CREDITO', valor: 1160 }];
+  const MISTO = [{ tipo: 'DINHEIRO', valor: 160 }, { tipo: 'CREDITO', valor: 1000 }];
+
+  function esperarClienteNaoAtivo(erro: any) {
+    expect(erro, 'o crédito a cliente não ATIVO tinha de ser recusado').toBeDefined();
+    expect(erro.name).toBe('BusinessRuleError');
+    expect(erro.code).toBe('CLIENTE_NAO_ATIVO');
+    expect(typeof erro.message).toBe('string');
+    expect(erro.message.length, 'mensagem pt-PT para o utilizador').toBeGreaterThan(10);
+    expect(erro.message).not.toBe(erro.code);
+  }
+
+  it.each([
+    ['só CREDITO, cliente SUSPENSO', SO_CREDITO, 'suspenso'],
+    ['só CREDITO, cliente INATIVO', SO_CREDITO, 'inativo'],
+    ['misto DINHEIRO 160 + CREDITO 1000, cliente SUSPENSO', MISTO, 'suspenso'],
+    ['misto DINHEIRO 160 + CREDITO 1000, cliente INATIVO', MISTO, 'inativo'],
+  ])('#317 venda POS %s → CLIENTE_NAO_ATIVO e nada é escrito (nem número gasto)', async (_nome, pagamentos, quem) => {
+    const antes = await contagens();
+    const id = quem === 'suspenso' ? clienteSuspensoId : clienteInativoId;
+
+    const erro = await capturarErro(() => noCtx(() => vendaService.criar(inputVenda(pagamentos, { clienteId: id }), ctx)));
+
+    esperarClienteNaoAtivo(erro);
+    expect(await contagens()).toEqual(antes);
+  });
+
+  it('#317 venda POS só CREDITO a cliente apagado (deletedAt) → NotFoundError e nada é escrito', async () => {
+    const antes = await contagens();
+
+    const erro = await capturarErro(() =>
+      noCtx(() => vendaService.criar(inputVenda(SO_CREDITO, { clienteId: clienteApagadoId }), ctx)),
+    );
+
+    expect(erro, 'o crédito a cliente apagado tinha de ser recusado').toBeDefined();
+    expect(erro.name).toBe('NotFoundError');
+    expect(erro.code).toBe('NAO_ENCONTRADO');
+    expect(await contagens()).toEqual(antes);
+  });
+
+  describe('#317 emitirFatura (factura a crédito, série FATURA não paga) aplica a mesma regra', () => {
+    let fat: typeof import('@/server/services/financas/faturacao.service');
+    let EmitirFaturaSchema: (typeof import('@/lib/validations/faturacao'))['EmitirFaturaSchema'];
+
+    beforeAll(async () => {
+      fat = await import('@/server/services/financas/faturacao.service');
+      ({ EmitirFaturaSchema } = await import('@/lib/validations/faturacao'));
+    });
+
+    const inputFatura = (cid: string) =>
+      EmitirFaturaSchema.parse({
+        clienteId: cid,
+        dataEmissao: new Date(),
+        dataVencimento: new Date(Date.now() + 30 * DIA_MS),
+        linhas: [{ descricao: 'Serviço', quantidade: 1, precoUnitario: 1000, taxaIva: 0.16 }],
+      });
+
+    it.each([
+      ['SUSPENSO', 'suspenso'],
+      ['INATIVO', 'inativo'],
+    ])('cliente %s → CLIENTE_NAO_ATIVO e nada é escrito (nem número gasto)', async (_nome, quem) => {
+      const antes = await contagens();
+      const id = quem === 'suspenso' ? clienteSuspensoId : clienteInativoId;
+
+      const erro = await capturarErro(() => noCtx(() => (fat as any).emitirFatura(inputFatura(id), ctx)));
+
+      esperarClienteNaoAtivo(erro);
+      expect(await contagens()).toEqual(antes);
+    });
+
+    it('cliente apagado (deletedAt) → NotFoundError e nada é escrito', async () => {
+      const antes = await contagens();
+
+      const erro = await capturarErro(() => noCtx(() => (fat as any).emitirFatura(inputFatura(clienteApagadoId), ctx)));
+
+      expect(erro, 'a factura a crédito a cliente apagado tinha de ser recusada').toBeDefined();
+      expect(erro.name).toBe('NotFoundError');
+      expect(erro.code).toBe('NAO_ENCONTRADO');
+      expect(await contagens()).toEqual(antes);
+    });
+
+    it('controlo: cliente ATIVO continua a receber factura a crédito EMITIDA', async () => {
+      const antes = await contagens();
+
+      const f: any = await noCtx(() => fat.emitirFatura(inputFatura(clienteId), ctx));
+
+      expect(f.status).toBe('EMITIDA');
+      expect(f.lancamentoId).toBeTruthy();
+      const depois = await contagens();
+      expect(depois.faturas).toBe(antes.faturas + 1);
+      expect(depois.serieFatura).toBe(antes.serieFatura + 1);
+    });
+  });
+
+  it.each([
+    ['DINHEIRO', 'suspenso'],
+    ['CARTAO', 'suspenso'],
+    ['DINHEIRO', 'inativo'],
+  ])('#317 controlo: venda a pronto (%s) a cliente %s continua a emitir Factura-Recibo PAGA', async (meio, quem) => {
+    const antes = await contagens();
+    const id = quem === 'suspenso' ? clienteSuspensoId : clienteInativoId;
+
+    const venda = await vender([{ tipo: meio, valor: 1160 }], { clienteId: id });
+
+    expect(venda.status).toBe('CONCLUIDA');
+    expect(venda.clienteId).toBe(id);
+    const fatura = await db.fatura.findFirst({
+      where: { id: venda.faturaId, tenantId: TENANT },
+      include: { serieDocumento: true },
+    });
+    expect(fatura.serieDocumento.tipo).toBe('FATURA_RECIBO');
+    expect(fatura.status).toBe('PAGA');
+    expect(fatura.clienteId).toBe(id);
     expect(fatura.lancamentoId).toBeTruthy();
 
     const depois = await contagens();

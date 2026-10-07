@@ -18,6 +18,10 @@ vi.mock('@/server/services/financas/contabilidade.service', () => ({
 vi.mock('@/server/services/financas/caixa.service', () => ({
   registarMovimentoCaixa: vi.fn().mockResolvedValue({ id: 'mov-001' }),
 }));
+// #96 — o meio de pagamento da folha resolve-se pelo contrato de finanças
+vi.mock('@/server/services/financas/meio-pagamento.service', () => ({
+  resolverContaMeioPagamento: vi.fn(),
+}));
 
 // ── Mock do Prisma (transacção devolve o próprio mock) ───────────────────────
 const txMock = vi.hoisted(() => ({
@@ -40,6 +44,9 @@ const txMock = vi.hoisted(() => ({
   user: { findMany: vi.fn() },
   comissao: { findMany: vi.fn() },
   tenant: { findUnique: vi.fn() },
+  // #95 — o processamento carrega os benefícios do mês em lote (beneficiosDoMes)
+  beneficioColaborador: { findMany: vi.fn(), groupBy: vi.fn() },
+  beneficio: { findMany: vi.fn() },
 }));
 
 vi.mock('@/server/db/client', () => ({
@@ -66,6 +73,7 @@ import {
   obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
+import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
 
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 const ctx = { tenantId: 'tenant-test', userId: 'user-test' };
@@ -86,6 +94,11 @@ function somas(partidas: { tipo: string; valor: Prisma.Decimal | string }[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // #95 — por omissão, nenhum colaborador tem benefícios (os casos abaixo não os exercitam;
+  // o contrato dos benefícios é provado em test/integration/payroll-beneficios.test.ts)
+  txMock.beneficioColaborador.findMany.mockResolvedValue([]);
+  txMock.beneficioColaborador.groupBy.mockResolvedValue([]);
+  txMock.beneficio.findMany.mockResolvedValue([]);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -213,10 +226,18 @@ describe('montarLancamentoFolha', () => {
 });
 
 describe('montarLancamentoPagamentoFolha', () => {
+  // #96 — a conta a crédito é a do meio de pagamento (4.º argumento), nunca 121 fixo.
+  const montar = montarLancamentoPagamentoFolha as unknown as (
+    folha: typeof folhaRef,
+    liquido: Prisma.Decimal,
+    data: Date,
+    contaCredito: string,
+  ) => ReturnType<typeof montarLancamentoPagamentoFolha>;
+
   it('[property] débito == crédito, sempre', () => {
     fc.assert(
-      fc.property(arbValor(100_000_000), (liquido) => {
-        const input = montarLancamentoPagamentoFolha(folhaRef, liquido, new Date());
+      fc.property(arbValor(100_000_000), fc.constantFrom('111', '123', '1211'), (liquido, conta) => {
+        const input = montar(folhaRef, liquido, new Date(), conta);
         const { debito, credito } = somas(input.partidas);
         expect(debito.eq(credito)).toBe(true);
       }),
@@ -224,12 +245,23 @@ describe('montarLancamentoPagamentoFolha', () => {
     );
   });
 
-  it('débito 4622 (remunerações a pagar) e crédito 121 (banco)', () => {
-    const input = montarLancamentoPagamentoFolha(folhaRef, D(80000), new Date());
-    expect(input.partidas).toEqual([
-      expect.objectContaining({ contaCodigo: PGC_PAYROLL.REMUNERACOES_A_PAGAR, tipo: 'DEBITO' }),
-      expect.objectContaining({ contaCodigo: PGC_PAYROLL.BANCO_DEPOSITOS_ORDEM, tipo: 'CREDITO' }),
-    ]);
+  it('débito 4622 (remunerações a pagar) e crédito na conta do meio indicada', () => {
+    for (const conta of ['111', '123']) {
+      const input = montar(folhaRef, D(80000), new Date(), conta);
+      expect(input.partidas).toEqual([
+        expect.objectContaining({ contaCodigo: PGC_PAYROLL.REMUNERACOES_A_PAGAR, tipo: 'DEBITO' }),
+        expect.objectContaining({ contaCodigo: conta, tipo: 'CREDITO' }),
+      ]);
+      expect(input.partidas.some((p) => p.contaCodigo === '121'), `com ${conta} não pode creditar 121`).toBe(false);
+    }
+  });
+
+  it('diário SALARIOS e data = a data de pagamento recebida', () => {
+    const data = new Date('2026-06-28T08:00:00Z');
+    const input = montar(folhaRef, D(80000), data, '111');
+    expect(input.diarioTipo).toBe('SALARIOS');
+    expect(input.data).toBe(data);
+    expect(input.documentoOrigemTipo).toBe('FolhaPagamento');
   });
 });
 
@@ -440,45 +472,112 @@ describe('PayrollService.marcarProcessada', () => {
 });
 
 describe('PayrollService.marcarPaga', () => {
-  const FOLHA_PROCESSADA = { ...FOLHA_PENDENTE, status: 'PROCESSADO', lancamentoId: 'lan-001' };
+  // #96 — input com meio/conta/data e permissões do meio no ctx (como no pagamento de factura)
+  const FOLHA_PROCESSADA = {
+    ...FOLHA_PENDENTE,
+    status: 'PROCESSADO',
+    lancamentoId: 'lan-001',
+    dataProcessamento: new Date('2026-07-05T08:00:00Z'),
+  };
+  const ctxPag = { ...ctx, permissions: new Set(['rh:payroll:pagar', 'caixa:operar', 'financas:banca:escrita']) };
+  const marcarPaga = (input: Record<string, unknown>, c: object = ctxPag) =>
+    (PayrollService as any).marcarPaga(input, c) as Promise<void>;
+  const umMinutoAtras = () => new Date(Date.now() - 60_000);
+  const porBanco = () => ({
+    folhaId: 'f1',
+    formaPagamento: 'TRANSFERENCIA_BANCARIA',
+    contaBancariaId: 'ckqcontabancaria00000000w',
+    dataPagamento: umMinutoAtras(),
+  });
+  const emNumerario = () => ({ folhaId: 'f1', formaPagamento: 'NUMERARIO', dataPagamento: umMinutoAtras() });
+
+  beforeEach(() => {
+    vi.mocked(resolverContaMeioPagamento).mockResolvedValue({ contaCodigo: '123', diarioTipo: 'BANCO' });
+    txMock.payroll.updateMany.mockResolvedValue({ count: 3 });
+    txMock.folhaPagamento.update.mockResolvedValue({});
+  });
 
   it('rejeita pagar folha ainda PENDENTE', async () => {
     txMock.folhaPagamento.findFirst.mockResolvedValue(FOLHA_PENDENTE);
-    await expect(PayrollService.marcarPaga({ folhaId: 'f1' }, ctx)).rejects.toBeInstanceOf(BusinessRuleError);
+    await expect(marcarPaga(porBanco())).rejects.toBeInstanceOf(BusinessRuleError);
+    expect(registarLancamentoContabilistico).not.toHaveBeenCalled();
   });
 
-  it('gera lançamento de pagamento equilibrado e marca payrolls PAGO', async () => {
+  it('sem a permissão do meio recusa antes de ler a folha (MEIO_PAGAMENTO_SEM_PERMISSAO)', async () => {
     txMock.folhaPagamento.findFirst.mockResolvedValue(FOLHA_PROCESSADA);
-    txMock.payroll.updateMany.mockResolvedValue({ count: 3 });
-    txMock.folhaPagamento.update.mockResolvedValue({});
+    const semCaixa = { ...ctx, permissions: new Set(['rh:payroll:pagar', 'financas:banca:escrita']) };
+    await expect(marcarPaga(emNumerario(), semCaixa)).rejects.toMatchObject({ code: 'MEIO_PAGAMENTO_SEM_PERMISSAO' });
+    const semBanca = { ...ctx, permissions: new Set(['rh:payroll:pagar', 'caixa:operar']) };
+    await expect(marcarPaga(porBanco(), semBanca)).rejects.toMatchObject({ code: 'MEIO_PAGAMENTO_SEM_PERMISSAO' });
+    expect(txMock.folhaPagamento.findFirst).not.toHaveBeenCalled();
+    expect(registarLancamentoContabilistico).not.toHaveBeenCalled();
+  });
 
-    await PayrollService.marcarPaga({ folhaId: 'f1' }, ctx);
+  it('por banco: lançamento equilibrado D 4622 / C conta do meio, SALARIOS, na data escolhida; payrolls PAGO', async () => {
+    txMock.folhaPagamento.findFirst.mockResolvedValue(FOLHA_PROCESSADA);
+    const input = porBanco();
 
-    const input = vi.mocked(registarLancamentoContabilistico).mock.calls[0][1];
-    const { debito, credito } = somas(input.partidas);
+    await marcarPaga(input);
+
+    expect(resolverContaMeioPagamento).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ forma: 'TRANSFERENCIA_BANCARIA', contaBancariaId: 'ckqcontabancaria00000000w' }),
+      expect.objectContaining({ tenantId: ctx.tenantId, userId: ctx.userId }),
+    );
+    const lanc = vi.mocked(registarLancamentoContabilistico).mock.calls[0][1];
+    const { debito, credito } = somas(lanc.partidas);
     expect(debito.eq(credito)).toBe(true);
     expect(debito.toString()).toBe('82000'); // líquido
-    expect(registarMovimentoCaixa).not.toHaveBeenCalled(); // sem sessão de caixa
+    expect(lanc.diarioTipo).toBe('SALARIOS');
+    expect((lanc.data as Date).getTime()).toBe(input.dataPagamento.getTime());
+    expect(lanc.partidas).toEqual([
+      expect.objectContaining({ contaCodigo: PGC_PAYROLL.REMUNERACOES_A_PAGAR, tipo: 'DEBITO' }),
+      expect.objectContaining({ contaCodigo: '123', tipo: 'CREDITO' }),
+    ]);
+    expect(registarMovimentoCaixa).not.toHaveBeenCalled(); // fora do numerário
 
     expect(txMock.payroll.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'PAGO' }) }),
+      expect.objectContaining({ data: expect.objectContaining({ status: 'PAGO', dataPagamento: input.dataPagamento }) }),
     );
   });
 
-  it('com sessaoCaixaId regista movimento de caixa (SANGRIA) via contrato WS D', async () => {
+  it('em numerário regista movimento de caixa PAGAMENTO (não SANGRIA) na sessão do meio, contra 111', async () => {
     txMock.folhaPagamento.findFirst.mockResolvedValue(FOLHA_PROCESSADA);
-    txMock.payroll.updateMany.mockResolvedValue({ count: 3 });
-    txMock.folhaPagamento.update.mockResolvedValue({});
+    vi.mocked(resolverContaMeioPagamento).mockResolvedValue({
+      contaCodigo: '111',
+      diarioTipo: 'CAIXA',
+      sessaoCaixaId: 'ckqsessao000000000000000w',
+    });
 
-    await PayrollService.marcarPaga(
-      { folhaId: 'f1', sessaoCaixaId: 'ckqsessao000000000000000w' },
-      ctx,
-    );
+    await marcarPaga(emNumerario());
+
+    const lanc = vi.mocked(registarLancamentoContabilistico).mock.calls[0][1];
+    expect(lanc.partidas.find((p) => p.tipo === 'CREDITO')?.contaCodigo).toBe('111');
+    expect(lanc.diarioTipo).toBe('SALARIOS');
+    expect(registarMovimentoCaixa).toHaveBeenCalledTimes(1);
     expect(registarMovimentoCaixa).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ tipo: 'SANGRIA', valor: '82000.00', documentoOrigemTipo: 'FolhaPagamento' }),
-      ctx,
+      expect.objectContaining({
+        sessaoCaixaId: 'ckqsessao000000000000000w',
+        tipo: 'PAGAMENTO',
+        valor: '82000.00',
+        documentoOrigemTipo: 'FolhaPagamento',
+        documentoOrigemId: 'f1',
+      }),
+      expect.objectContaining({ tenantId: ctx.tenantId }),
     );
+  });
+
+  it('data anterior ao processamento ou futura é recusada sem lançar', async () => {
+    txMock.folhaPagamento.findFirst.mockResolvedValue(FOLHA_PROCESSADA);
+    await expect(
+      marcarPaga({ ...porBanco(), dataPagamento: new Date('2026-07-01T08:00:00Z') }),
+    ).rejects.toBeInstanceOf(BusinessRuleError);
+    await expect(
+      marcarPaga({ ...porBanco(), dataPagamento: new Date(Date.now() + 3 * 86_400_000) }),
+    ).rejects.toBeInstanceOf(BusinessRuleError);
+    expect(registarLancamentoContabilistico).not.toHaveBeenCalled();
+    expect(registarMovimentoCaixa).not.toHaveBeenCalled();
   });
 });
 

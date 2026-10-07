@@ -293,6 +293,8 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
             onClick: () => window.open(`/pos/talao/${vendaId}`, '_blank'),
           },
         });
+        // Crédito acima do limite não bloqueia a venda: avisa (#318).
+        result.data.avisos?.forEach((aviso) => toast.warning(aviso, { duration: 15_000 }));
         setCarrinho([]);
         setValorRecebido('');
         setClienteId('');

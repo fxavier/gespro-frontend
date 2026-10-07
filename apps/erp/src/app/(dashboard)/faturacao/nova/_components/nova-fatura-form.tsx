@@ -136,6 +136,8 @@ export function NovaFaturaForm({ clientesIniciais, hoje }: Props) {
 
       if (result?.ok) {
         toast.success('Fatura emitida com sucesso.');
+        // Crédito acima do limite não bloqueia: avisa (#318).
+        result.data.avisos.forEach((aviso) => toast.warning(aviso, { duration: 10_000 }));
         router.push('/faturacao');
       } else {
         toast.error((result as any)?.error?.message ?? 'Erro ao emitir fatura.');

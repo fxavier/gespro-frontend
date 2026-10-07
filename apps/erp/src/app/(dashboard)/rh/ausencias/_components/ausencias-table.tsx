@@ -9,8 +9,12 @@
  * este wrapper; os dados AusenciaRow são objectos planos e serializam bem.
  */
 
+import Link from 'next/link';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
+import { Button } from '@/components/ui/button';
+import { formatarData } from '@/lib/format-date';
+import { AprovarAusencia } from './aprovar-ausencia';
 
 export interface AusenciaRow {
   id: string;
@@ -21,6 +25,8 @@ export interface AusenciaRow {
   diasAusencia: number;
   justificada: boolean;
   status: string;
+  /** #94 — já existe folha do mês da ausência: aprovar obriga a recalculá-la. */
+  folhaDoMesExiste: boolean;
 }
 
 const TIPO_LABEL: Record<string, string> = {
@@ -48,7 +54,7 @@ const columns: TableColumn<AusenciaRow>[] = [
   {
     key: 'dataInicio',
     label: 'Início',
-    render: (row) => new Date(row.dataInicio).toLocaleDateString('pt-PT'),
+    render: (row) => formatarData(row.dataInicio),
   },
   {
     key: 'diasAusencia',
@@ -69,16 +75,36 @@ const columns: TableColumn<AusenciaRow>[] = [
   },
 ];
 
+const colunaAcoes: TableColumn<AusenciaRow> = {
+  key: 'acoes',
+  label: 'Acções',
+  render: (row) =>
+    row.status === 'PENDENTE' ? (
+      <div className="flex items-center gap-2">
+        <AprovarAusencia
+          id={row.id}
+          colaboradorNome={row.colaboradorNome}
+          folhaDoMesExiste={row.folhaDoMesExiste}
+        />
+        <Button size="sm" variant="outline" asChild>
+          <Link href={`/rh/ausencias/${row.id}/rejeitar`}>Rejeitar</Link>
+        </Button>
+      </div>
+    ) : null,
+};
+
 interface AusenciasTableProps {
   data: AusenciaRow[];
   nextCursor?: string | null;
+  /** Sessão com `rh:ausencias:aprovar`. */
+  podeAprovar?: boolean;
 }
 
-export function AusenciasTable({ data, nextCursor }: AusenciasTableProps) {
+export function AusenciasTable({ data, nextCursor, podeAprovar = false }: AusenciasTableProps) {
   return (
     <DataTable
       data={data}
-      columns={columns}
+      columns={podeAprovar ? [...columns, colunaAcoes] : columns}
       nextCursor={nextCursor}
       emptyState={
         <EmptyState
