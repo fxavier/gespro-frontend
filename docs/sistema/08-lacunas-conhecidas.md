@@ -210,8 +210,6 @@ Detalhe em [API §6](05-api.md).
 | B | `withApi` não devolve `traceId` no corpo do 500 (CLAUDE.md diz que sim) ([#187](https://github.com/fxavier/gespro-frontend/issues/187)) |
 | B | `withApi` sem validação Zod; `/api/audit` com `take=abc` dá 500 ([#188](https://github.com/fxavier/gespro-frontend/issues/188)) |
 | B | Envelope `{ data }` inconsistente (presign, metrics, registo) ([#189](https://github.com/fxavier/gespro-frontend/issues/189)) |
-| M | /api/ready e /api/metrics expõem a mensagem crua do erro sem autenticação ([#190](https://github.com/fxavier/gespro-frontend/issues/190)) |
-| M | /api/metrics aberto quando `METRICS_SECRET` não está definido ([#191](https://github.com/fxavier/gespro-frontend/issues/191)) |
 | B | agendador.md desalinhado: cron em `PUBLIC_PATHS`, «quatro rotas», horários ([#192](https://github.com/fxavier/gespro-frontend/issues/192)) |
 | B | Download exige permissão de escrita; `colaborador` tem upload sem download ([#193](https://github.com/fxavier/gespro-frontend/issues/193)) |
 | M | PUT /api/documentos/local/* não verifica a permissão do recurso ([#194](https://github.com/fxavier/gespro-frontend/issues/194)) |

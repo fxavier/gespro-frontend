@@ -85,7 +85,7 @@ nunca se travam.
 | Anti-abuso no registo | Campo-armadilha + rate-limit; provedor de captcha por fixar ([ADR-0016](../decisions/ADR-0016-anti-abuso-registo.md)) |
 | Webhooks Stripe | Assinatura verificada; idempotência por `EventoWebhookStripe`; transições de assinatura por compare-and-set; eventos não resolvidos → 503 para o Stripe reentregar |
 | Segredos | Zero no repositório; `.env` local não versionado; `.tfvars`/`.tfstate` ignorados |
-| Métricas | `/api/metrics` protegido por `METRICS_SECRET` — **aberto se a variável não estiver definida** |
+| Métricas | `/api/metrics` protegido por `METRICS_SECRET` — **recusa (503) se a variável não estiver definida** (fail-closed, #191) |
 
 ## Auditoria
 
