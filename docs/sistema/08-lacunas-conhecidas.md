@@ -5,6 +5,9 @@
 > reproduzido em runtime** — confirmar antes de abrir issue. O manual avisa o utilizador (caixas
 > «Atenção») onde o defeito o afecta.
 >
+> **Actualizado em 2026-10-07** (onda 1 das lacunas de gravidade A). As linhas marcadas «por fundir» dependem
+> do merge dos PRs indicados; até lá o `main` ainda tem o defeito.
+>
 > Cada lacuna tem issue no GitHub (etiquetas `needs-triage` e `gravidade:A|M|B`), ligada no fim da linha.
 >
 > **Gravidade** — **A**: dados ou valores errados, efeito contabilístico/fiscal, ou segurança ·
@@ -21,7 +24,7 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 
 | G | Lacuna | Onde |
 |---|---|---|
-| A | Visibilidade não filtrada por permissão de consulta: menu e páginas abrem para qualquer perfil (ex.: Operador vê Utilizadores e Auditoria) ([#76](https://github.com/fxavier/gespro-frontend/issues/76)) | `AppSidebar.tsx` (só «Subscrição» filtra), `page.tsx` |
+| — | ~~Visibilidade não filtrada por permissão de consulta: menu e páginas abrem para qualquer perfil (ex.: Operador vê Utilizadores e Auditoria)~~ — **deixou de ser lacuna** (2026-10-07, [#76](https://github.com/fxavier/gespro-frontend/issues/76), PR [#394](https://github.com/fxavier/gespro-frontend/pull/394), por fundir (fundido no branch do PR [#390](https://github.com/fxavier/gespro-frontend/pull/390); chega ao `main` com ele)): cada módulo exige a permissão de consulta num `layout.tsx` próprio, a barra lateral esconde o que o perfil não pode ver e o URL aberto à mão responde «Sem permissão» | `lib/permissoes-rotas.ts`, `layout.tsx` por módulo |
 | M | Grupo «Compras & Procurement» invisível para todos: permissões `compras:requisicao:ver`, `compras:cotacao:ver`, `compras:pedido:ver` não existem em `rbac.ts` ([#100](https://github.com/fxavier/gespro-frontend/issues/100)) | `AppSidebar.tsx` |
 | M | Muitos formulários pedem o **id interno** (CUID) em vez de pesquisa: ausências, benefícios, devoluções, cotação/proforma/NC, BOM/ordens, orçamento de projecto, contagens de stock, contratos ([#101](https://github.com/fxavier/gespro-frontend/issues/101)) | vários |
 | B | `StatusBadge`: `FECHADA` mapeada para «Acesso Fechado» (colide em caixa, vaga, qualidade); estados sem etiqueta (`ACTIVO`, `FERIAS`, `AFASTADO`, `EM_PRODUCAO`, `SUBSTITUIDO`, `PREFERENCIAL`, `TRANSFERENCIA_*`) ([#102](https://github.com/fxavier/gespro-frontend/issues/102)) ([#103](https://github.com/fxavier/gespro-frontend/issues/103)) | `patterns/status-badge.tsx` |
@@ -36,7 +39,7 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 |---|---|
 | M | Circuito pára em Rascunho: sem UI para aprovar/rejeitar requisição, configurar circuitos, enviar/adjudicar cotação, converter em pedido, confirmar/enviar pedido, registar recepção, criar conta a pagar manual. Sem pedido confirmado, a recepção (e a conta a pagar automática) é inalcançável ([#108](https://github.com/fxavier/gespro-frontend/issues/108)) ([#109](https://github.com/fxavier/gespro-frontend/issues/109)) ([#110](https://github.com/fxavier/gespro-frontend/issues/110)) ([#111](https://github.com/fxavier/gespro-frontend/issues/111)) |
 | M | Bug do interceptor `@panel/(.)[id]` que captura `novo` continua (`/compras/requisicoes/novo`) ([#112](https://github.com/fxavier/gespro-frontend/issues/112)) |
-| A | «Vencida» nunca atribuída (`actualizarVencidas` só em testes); indicador «A pagar» ignora parcialmente pagas ([#79](https://github.com/fxavier/gespro-frontend/issues/79)) |
+| — | ~~«Vencida» nunca atribuída (`actualizarVencidas` só em testes); indicador «A pagar» ignora parcialmente pagas~~ — **deixou de ser lacuna** (2026-10-07, [#79](https://github.com/fxavier/gespro-frontend/issues/79), PR [#388](https://github.com/fxavier/gespro-frontend/pull/388), por fundir): a conta vencida deriva-se na leitura (em aberto e vencimento anterior ao dia de Maputo), e o filtro «Vencidas» e o KPI «A pagar» contam as `VENCIDA` e o último dia inteiro |
 | M | FINANCEIRO não pode registar pagamentos a fornecedores (`compras:pagamento:registar`) ([#113](https://github.com/fxavier/gespro-frontend/issues/113)) |
 | B | Rotas inexistentes: `/compras/cotacoes/[id]`, `/compras/pedidos/[id]`, `/servicos/*/[id]`, `/servicos/lista/[id]/editar`; arquivar fornecedor irreversível apesar do texto ([#114](https://github.com/fxavier/gespro-frontend/issues/114)) ([#115](https://github.com/fxavier/gespro-frontend/issues/115)) |
 | B | Valores do formulário ignorados pelo servidor ([#116](https://github.com/fxavier/gespro-frontend/issues/116)) |
@@ -45,8 +48,8 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 
 | G | Lacuna |
 |---|---|
-| A | Nenhum ecrã mostra saldo de stock por produto (`listarSaldos` sem consumidor) ([#80](https://github.com/fxavier/gespro-frontend/issues/80)) |
-| A | Contagem: justificar item já contado não impede o ajuste; limiar fixo de 5% sem aprovação bloqueia a reconciliação (`DISCREPANCIA_SEM_APROVACAO`) ([#81](https://github.com/fxavier/gespro-frontend/issues/81)) |
+| — | ~~Nenhum ecrã mostra saldo de stock por produto (`listarSaldos` sem consumidor)~~ — **deixou de ser lacuna** (2026-10-07, [#80](https://github.com/fxavier/gespro-frontend/issues/80), PR [#391](https://github.com/fxavier/gespro-frontend/pull/391), por fundir (fundido no branch do PR [#388](https://github.com/fxavier/gespro-frontend/pull/388); chega ao `main` com ele)): o detalhe do produto mostra o stock por localização, com indicação de stock baixo por linha |
+| — | ~~Contagem: justificar item já contado não impede o ajuste; limiar fixo de 5% sem aprovação bloqueia a reconciliação (`DISCREPANCIA_SEM_APROVACAO`)~~ — **deixou de ser lacuna** (2026-10-07, [#81](https://github.com/fxavier/gespro-frontend/issues/81), PR [#385](https://github.com/fxavier/gespro-frontend/pull/385)): o item `JUSTIFICADO` não é ajustado; o limiar e o aprovador são resolvidos no servidor e aprovar a discrepância exige `inventario:contagens:aprovar-discrepancia` (correr `pnpm db:seed`) |
 | M | Inventário Físico (activos) só cria e consulta — sem contagem/transições; sem UI de movimentação de activos nem de amortização mensal ([#117](https://github.com/fxavier/gespro-frontend/issues/117)) ([#118](https://github.com/fxavier/gespro-frontend/issues/118)) |
 | M | Não há ecrã de categorias de produto, mas a categoria é obrigatória no produto ([#119](https://github.com/fxavier/gespro-frontend/issues/119)) |
 | B | `/inventario/transferencias` filtra `TRANSFERENCIA` (tipos reais `TRANSFERENCIA_ENTRADA/SAIDA`) → sempre vazia; filtro/pesquisa de movimentações ignorados; dois botões «Concluir» na manutenção; links 404 de edição de localização e inventário físico ([#120](https://github.com/fxavier/gespro-frontend/issues/120)) ([#121](https://github.com/fxavier/gespro-frontend/issues/121)) ([#122](https://github.com/fxavier/gespro-frontend/issues/122)) ([#123](https://github.com/fxavier/gespro-frontend/issues/123)) |
@@ -62,17 +65,17 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 | — | ~~Todos os métodos de pagamento entram no caixa como dinheiro~~ — **deixou de ser lacuna** (ADR-0041 §4): só o `DINHEIRO` entra na gaveta; os outros meios debitam a conta configurada em `/contabilidade/configuracoes/meios-pagamento-pos` (omissão 121) ([#83](https://github.com/fxavier/gespro-frontend/issues/83)) |
 | — | ~~Cancelar venda POS não repõe stock nem retira do caixa~~ — **deixou de ser lacuna** (ADR-0041 §8): venda com documento não transita para `CANCELADA`/`DEVOLVIDA` (`VENDA_COM_DOCUMENTO`); «Anular venda» emite NC total, devolve pelos meios originais, tira o dinheiro da caixa da venda e reentra o stock, numa só transacção ([#84](https://github.com/fxavier/gespro-frontend/issues/84)) |
 | — | ~~Venda POS sem documento fiscal nem lançamento~~ — **deixou de ser lacuna** (ADR-0041): Factura-Recibo (paga) ou Factura (crédito) + D meio / C 711 / C 44331 na transacção da venda. As vendas POS **anteriores** ao ADR-0041 continuam sem documento nem lançamento (não há retroactivo) |
-| A | Custo das vendas não lançado: a baixa de stock da venda não gera D 61 / C 32 — a DRE não mostra margem (ADR-0041 §9, fora de âmbito) |
-| A | Venda a crédito aceita cliente suspenso/inactivo pela API ([#317](https://github.com/fxavier/gespro-frontend/issues/317)) |
-| A | Crédito utilizado e limite de crédito não aplicados ao emitir factura — incluindo a venda POS a crédito ([#318](https://github.com/fxavier/gespro-frontend/issues/318)) |
+| A | Custo das vendas não lançado: a baixa de stock da venda não gera D 61 / C 32 — a DRE não mostra margem (ADR-0041 §9, fora de âmbito). ADR-0042 proposto no PR [#395](https://github.com/fxavier/gespro-frontend/pull/395) (por fundir; a [#332](https://github.com/fxavier/gespro-frontend/issues/332) foi fechada sem código) |
+| — | ~~Venda a crédito aceita cliente suspenso/inactivo pela API~~ — **deixou de ser lacuna** (2026-10-07, [#317](https://github.com/fxavier/gespro-frontend/issues/317), PR [#383](https://github.com/fxavier/gespro-frontend/pull/383)): vender a crédito no POS ou emitir factura não paga a cliente `SUSPENSO`, `INATIVO` ou apagado é recusado com `CLIENTE_NAO_ATIVO`; a venda a pronto continua |
+| — | ~~Crédito utilizado e limite de crédito não aplicados ao emitir factura — incluindo a venda POS a crédito~~ — **deixou de ser lacuna** (2026-10-07, [#318](https://github.com/fxavier/gespro-frontend/issues/318), PR [#389](https://github.com/fxavier/gespro-frontend/pull/389), por fundir): o crédito utilizado deriva dos saldos em aberto das facturas (sem contador) e o limite de crédito passa a aviso não bloqueante |
 | M | Venda POS a crédito ou mista não se anula pelo POS (`VENDA_A_CREDITO_NAO_ANULAVEL`): só por NC em Facturação, liquidada por compensação, e sem reentrada de stock ([#322](https://github.com/fxavier/gespro-frontend/issues/322)) |
 | M | As actions `processarDevolucao` (NC + liquidação + stock) e `criarTroca` (NC + Factura-Recibo) existem sem ecrã: a devolução da UI fica `PENDENTE` e não gera NC |
 | B | Número da troca inventado (`TRC-${Date.now()}` em `troca.service.ts`), fora de `SerieDocumento`: sem sequência nem formato `TRC/aaaa/nnnnnn`, e duas trocas no mesmo milissegundo colidem no `@@unique([tenantId, numero])` |
-| A | Nota de débito sem natureza: `emitirNotaDebito` não grava natureza e credita sempre 711; `resolverContaNaturezaNotaDebito` sem chamador (nó `contabilizacao` do ADR-0039 por fazer) ([#85](https://github.com/fxavier/gespro-frontend/issues/85)) |
-| A | Nota de crédito sem limite face ao valor da factura ([#86](https://github.com/fxavier/gespro-frontend/issues/86)) |
+| — | ~~Nota de débito sem natureza: `emitirNotaDebito` não grava natureza e credita sempre 711; `resolverContaNaturezaNotaDebito` sem chamador~~ — **deixou de ser lacuna** (2026-10-06, [#85](https://github.com/fxavier/gespro-frontend/issues/85), PR [#377](https://github.com/fxavier/gespro-frontend/pull/377)): a natureza decide a conta a crédito (711, 781, 769, ou conta de classe 6/7 escolhida no acto), com a omissão configurável pelo tenant |
+| — | ~~Nota de crédito sem limite face ao valor da factura~~ — **deixou de ser lacuna** (2026-10-07, [#86](https://github.com/fxavier/gespro-frontend/issues/86), [#266](https://github.com/fxavier/gespro-frontend/issues/266), PR [#392](https://github.com/fxavier/gespro-frontend/pull/392), por fundir (fundido no branch do PR [#389](https://github.com/fxavier/gespro-frontend/pull/389); chega ao `main` com ele)): o tecto no servidor já existia; a procura de facturas da NC esconde as que não têm saldo creditável e mostra o saldo no rótulo |
 | M | POS: um só método de pagamento por venda no terminal, 60 primeiros produtos, sem validação do valor recebido ([#128](https://github.com/fxavier/gespro-frontend/issues/128)). O talão existe ([#127](https://github.com/fxavier/gespro-frontend/issues/127), fechada) e não é documento fiscal |
 | M | Encomendas, devoluções, trocas e comissões sem UI de transição; «Submeter» venda em Rascunho falha sempre ([#129](https://github.com/fxavier/gespro-frontend/issues/129)) ([#130](https://github.com/fxavier/gespro-frontend/issues/130)) ([#131](https://github.com/fxavier/gespro-frontend/issues/131)) ([#132](https://github.com/fxavier/gespro-frontend/issues/132)) |
-| ~~M~~ | ~~«Baixar PDF» da factura inerte~~ — deixou de ser lacuna: os dois detalhes de factura ligam a `/api/faturacao/[id]/pdf`, que pede `faturacao:leitura` ([#133](https://github.com/fxavier/gespro-frontend/issues/133)) |
+| ~~M~~ | ~~«Baixar PDF» da factura inerte~~ — deixou de ser lacuna: os dois detalhes de factura ligam a `/api/faturacao/[id]/pdf`, que pede `faturacao:leitura` ([#133](https://github.com/fxavier/gespro-frontend/issues/133)). O «Descarregar PDF» do menu ⋯ da lista também passou a descarregar o PDF fiscal (2026-10-06, PR [#378](https://github.com/fxavier/gespro-frontend/pull/378)) |
 | B | Histórico de clientes só escrito pelo seed; comissões filtradas pelo id errado no perfil do vendedor ([#134](https://github.com/fxavier/gespro-frontend/issues/134)) ([#135](https://github.com/fxavier/gespro-frontend/issues/135)) |
 | B | Motivo da desactivação de cliente não é enviado ([#136](https://github.com/fxavier/gespro-frontend/issues/136)) |
 
@@ -88,8 +91,8 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 | — | ~~Estornar apuramento de IVA em duas transacções: com período fechado fica ESTORNADO com o lançamento activo~~ — **deixou de ser lacuna**: `estornarApuramentoIva` estorna o lançamento (`estornarLancamentoEmTx`) e marca o apuramento `ESTORNADO` na mesma transacção; se o estorno falhar (período fechado, lançamento já estornado), o apuramento fica `APURADO` ([#89](https://github.com/fxavier/gespro-frontend/issues/89)) |
 | — | ~~Rascunhos de lançamento sem editar nem eliminar~~ — **deixou de ser lacuna**: um rascunho edita-se (`/contabilidade/lancamentos/[id]/editar`) e anula-se com motivo (`…/anular`, estado `ANULADO`, a linha e o número ficam) ([#137](https://github.com/fxavier/gespro-frontend/issues/137), PR [#268](https://github.com/fxavier/gespro-frontend/pull/268)) |
 | — | ~~Encerramento do exercício (ADR-0035) não implementado; período 13 sem lançamentos mas exige apuramento~~ — **deixou de ser lacuna** no núcleo: o período 13 fecha sem IVA; encerramento provisório (três lançamentos no diário EN, fotografia do balancete), reabertura com motivo e encerramento definitivo em `/contabilidade/exercicios` ([#138](https://github.com/fxavier/gespro-frontend/issues/138)) |
-| M | Encerramento: falta a abertura do exercício seguinte no diário AB ([#363](https://github.com/fxavier/gespro-frontend/issues/363)), a aplicação do resultado 88 → 59 ([#364](https://github.com/fxavier/gespro-frontend/issues/364)) e o arquivo em PDF do balanço, DRE e balancete — o balanço ainda não existe ([#365](https://github.com/fxavier/gespro-frontend/issues/365)) |
-| M | Sem ecrã para a conta por natureza de ND ([#139](https://github.com/fxavier/gespro-frontend/issues/139)). As regras de sugestão da reconciliação e as tolerâncias da conta bancária já têm ecrã ([#140](https://github.com/fxavier/gespro-frontend/issues/140), fechada) |
+| — | ~~Encerramento: falta a abertura do exercício seguinte no diário AB, a aplicação do resultado 88 → 59 e o arquivo em PDF do balanço, DRE e balancete — o balanço ainda não existe~~ — **deixou de ser lacuna** (2026-10-05, [#363](https://github.com/fxavier/gespro-frontend/issues/363), [#364](https://github.com/fxavier/gespro-frontend/issues/364), [#365](https://github.com/fxavier/gespro-frontend/issues/365), PRs [#370](https://github.com/fxavier/gespro-frontend/pull/370), [#371](https://github.com/fxavier/gespro-frontend/pull/371), [#372](https://github.com/fxavier/gespro-frontend/pull/372)): a abertura de N+1 é gerada no diário AB, `aplicarResultado` transfere a 88 para a 59, e há balanço em `/contabilidade/balanco`, PDF da DRE e arquivo dos mapas no encerramento |
+| — | ~~Sem ecrã para a conta por natureza de ND~~ — **deixou de ser lacuna** (2026-10-06, [#139](https://github.com/fxavier/gespro-frontend/issues/139), PR [#376](https://github.com/fxavier/gespro-frontend/pull/376)): `/contabilidade/configuracoes/naturezas-nota-debito` define a conta a crédito por omissão de cada natureza. As regras de sugestão da reconciliação e as tolerâncias da conta bancária já têm ecrã ([#140](https://github.com/fxavier/gespro-frontend/issues/140), fechada) |
 | B | Etiquetas de classes 2–4 erradas no formulário de conta; GESTOR abre exercício e FINANCEIRO não ([#142](https://github.com/fxavier/gespro-frontend/issues/142)) ([#143](https://github.com/fxavier/gespro-frontend/issues/143)) |
 | — | ~~Balancete: «Saldo Anterior» sempre 0, «Incluir zeradas» e pesquisa sem efeito, último dia de fora~~ — **deixou de ser lacuna** (2026-09-27, [#141](https://github.com/fxavier/gespro-frontend/issues/141)) |
 | B | Mensagens de recusa sugerem acções que não resolvem ([#144](https://github.com/fxavier/gespro-frontend/issues/144)) |
@@ -99,10 +102,11 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 
 | G | Lacuna |
 |---|---|
-| A | Fecho de caixa conta o fundo inicial duas vezes (movimento ABERTURA + `fundoInicial`) — diferença gravada errada ([#91](https://github.com/fxavier/gespro-frontend/issues/91)) |
-| A | `SessaoCaixa.totalEntradas` só escrito no fecho → tesouraria subestima sessões abertas (o golden do seed esconde-o) ([#92](https://github.com/fxavier/gespro-frontend/issues/92)) |
+| — | ~~Fecho de caixa conta o fundo inicial duas vezes (movimento ABERTURA + `fundoInicial`) — diferença gravada errada~~ — **deixou de ser lacuna** (2026-10-07, [#91](https://github.com/fxavier/gespro-frontend/issues/91), PR [#384](https://github.com/fxavier/gespro-frontend/pull/384)): os totais da sessão derivam dos movimentos (`totaisSessaoCaixa`); sessões já fechadas sem retroactivo |
+| — | ~~`SessaoCaixa.totalEntradas` só escrito no fecho → tesouraria subestima sessões abertas~~ — **deixou de ser lacuna** (2026-10-07, [#92](https://github.com/fxavier/gespro-frontend/issues/92), PR [#384](https://github.com/fxavier/gespro-frontend/pull/384)): fechamento e projecção de tesouraria mostram as entradas e saídas reais das sessões abertas; a golden da spec 22 foi re-derivada. O KPI «Saldo de caixa» da analytics ainda tem o defeito ([#397](https://github.com/fxavier/gespro-frontend/issues/397)) |
 | — | ~~Série escolhida ignorada na numeração~~ — **deixou de ser lacuna** (2026-09-26, [#93](https://github.com/fxavier/gespro-frontend/issues/93)): o selector de série saiu dos formulários de emissão e conversão; o documento é numerado na série activa do tipo no ano (Maputo) da data de emissão e grava essa série |
-| M | Sem UI para sangria, reforço, cancelar sessão, pagamento/vencimento de factura ([#146](https://github.com/fxavier/gespro-frontend/issues/146)) ([#147](https://github.com/fxavier/gespro-frontend/issues/147)) |
+| M | Sem UI para sangria, reforço e cancelar sessão ([#146](https://github.com/fxavier/gespro-frontend/issues/146)) |
+| — | ~~Sem UI para pagamento/vencimento de factura~~ — **deixou de ser lacuna** (2026-10-06, [#147](https://github.com/fxavier/gespro-frontend/issues/147), PRs [#379](https://github.com/fxavier/gespro-frontend/pull/379) e [#380](https://github.com/fxavier/gespro-frontend/pull/380)): `/faturacao/[id]/pagamento` regista o pagamento com lançamento (D meio / C 411) e «Marcar como vencida» aparece a partir do dia seguinte ao vencimento |
 | — | ~~Sem UI para liquidar/cancelar NC e cancelar proforma/cotação; detalhe da NC inexistente~~ — **deixou de ser lacuna** (2026-09-27, [#148](https://github.com/fxavier/gespro-frontend/issues/148), [#152](https://github.com/fxavier/gespro-frontend/issues/152)): cancelar a NC estorna o lançamento; liquidar é por compensação ou devolução |
 | — | ~~Sem UI para séries~~ — **deixou de ser lacuna** (2026-09-26, [#149](https://github.com/fxavier/gespro-frontend/issues/149)): `/faturacao/series` gere as séries dos 6 documentos de faturação, com uma só activa por tipo+ano. Séries do ano seguinte a partir da UI: [#235](https://github.com/fxavier/gespro-frontend/issues/235) |
 | B | `/caixa/fechamento` ignora `?sessaoId=` ([#150](https://github.com/fxavier/gespro-frontend/issues/150)) |
@@ -114,10 +118,10 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 
 | G | Lacuna |
 |---|---|
-| A | Ausências nunca aprovadas (sem action/botão) → payroll nunca desconta faltas ([#94](https://github.com/fxavier/gespro-frontend/issues/94)) |
-| A | Benefícios não entram na folha (`linhasPayrollDeBeneficios` sem chamador) ([#95](https://github.com/fxavier/gespro-frontend/issues/95)) |
-| A | «Marcar como paga» sem sessão de caixa: sempre contra 121 com data de hoje ([#96](https://github.com/fxavier/gespro-frontend/issues/96)) |
-| A | Mapa INSS com taxas fixas no cabeçalho do CSV (contra tabelas por vigência) ([#97](https://github.com/fxavier/gespro-frontend/issues/97)) |
+| — | ~~Ausências nunca aprovadas (sem action/botão) → payroll nunca desconta faltas~~ — **deixou de ser lacuna** (2026-10-07, [#94](https://github.com/fxavier/gespro-frontend/issues/94), PR [#382](https://github.com/fxavier/gespro-frontend/pull/382)): ADMIN e GESTOR aprovam ou rejeitam (com motivo) na lista e em `/rh/ausencias/[id]`, com permissão própria (correr `pnpm db:seed`); a folha já processada não é recalculada |
+| — | ~~Benefícios não entram na folha (`linhasPayrollDeBeneficios` sem chamador)~~ — **deixou de ser lacuna** (2026-10-07, [#95](https://github.com/fxavier/gespro-frontend/issues/95), PR [#381](https://github.com/fxavier/gespro-frontend/pull/381)): comparticipações tributáveis somam ao bruto e descontos de benefícios entram em «outros descontos»; proventos não tributáveis ficam de fora |
+| — | ~~«Marcar como paga» sem sessão de caixa: sempre contra 121 com data de hoje~~ — **deixou de ser lacuna** (2026-10-07, [#96](https://github.com/fxavier/gespro-frontend/issues/96), PR [#386](https://github.com/fxavier/gespro-frontend/pull/386), chegou ao `main` pelo [#381](https://github.com/fxavier/gespro-frontend/pull/381)): `/rh/payroll/folhas/[id]/pagar` escolhe o meio e a data efectiva; o crédito vai para a conta do meio e o dinheiro gera movimento na caixa |
+| — | ~~Mapa INSS com taxas fixas no cabeçalho do CSV (contra tabelas por vigência)~~ — **deixou de ser lacuna** (2026-10-07, [#97](https://github.com/fxavier/gespro-frontend/issues/97), PR [#396](https://github.com/fxavier/gespro-frontend/pull/396); o [#387](https://github.com/fxavier/gespro-frontend/pull/387) ficou preso num branch intermédio): o CSV tem cabeçalho neutro, os valores vêm das tabelas por vigência |
 | M | Criar avaliação provavelmente falha (`avaliadorId` = User, FK aponta a Colaborador) ([#155](https://github.com/fxavier/gespro-frontend/issues/155)) |
 | M | Férias sem aprovação na UI; recrutamento «Marcar como Contratado» impede «Admitir como Colaborador» ([#156](https://github.com/fxavier/gespro-frontend/issues/156)) ([#157](https://github.com/fxavier/gespro-frontend/issues/157)) |
 | M | Sem ecrã para tabelas INSS/IRPS, recalcular payroll ou ajustes manuais ([#158](https://github.com/fxavier/gespro-frontend/issues/158)) ([#159](https://github.com/fxavier/gespro-frontend/issues/159)) |
@@ -141,8 +145,8 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 
 | G | Lacuna |
 |---|---|
-| A | Limites do plano (utilizadores, armazéns) anunciados mas não aplicados — contraria ADR-0027 §2 ([#98](https://github.com/fxavier/gespro-frontend/issues/98)) |
-| A | Tenant FECHADO não tem saída pelo produto (ninguém entra; a mensagem manda regularizar nas definições) ([#99](https://github.com/fxavier/gespro-frontend/issues/99)) |
+| — | ~~Limites do plano (utilizadores, armazéns) anunciados mas não aplicados~~ — **deixou de ser lacuna** (2026-10-07, [#98](https://github.com/fxavier/gespro-frontend/issues/98), PR [#393](https://github.com/fxavier/gespro-frontend/pull/393), por fundir (fundido no branch do PR [#388](https://github.com/fxavier/gespro-frontend/pull/388); chega ao `main` com ele)): criar ou reactivar utilizador e criar produto acima do limite do plano é recusado; desactivar e downgrade nunca são travados |
+| — | ~~Tenant FECHADO não tem saída pelo produto~~ — **deixou de ser lacuna** (2026-10-07, [#99](https://github.com/fxavier/gespro-frontend/issues/99), PR [#390](https://github.com/fxavier/gespro-frontend/pull/390), por fundir): a conta fechada por falta de pagamento entra numa sessão restrita que só deixa regularizar a subscrição em `/definicoes/faturacao`; a fechada pela GestPro continua terminal |
 | M | Sem ecrã para mudar papéis de utilizador existente, dados da empresa ou configuração fiscal; sem recuperação de palavra-passe self-service ([#176](https://github.com/fxavier/gespro-frontend/issues/176)) ([#177](https://github.com/fxavier/gespro-frontend/issues/177)) ([#178](https://github.com/fxavier/gespro-frontend/issues/178)) |
 | M | Desactivar utilizador grava `deletedAt` (irreversível), contra o texto da confirmação; «Cancelar subscrição» disponível em LEITURA/FECHADA e texto desactualizado ([#179](https://github.com/fxavier/gespro-frontend/issues/179)) ([#180](https://github.com/fxavier/gespro-frontend/issues/180)) |
 | B | GESTOR com `admin:gerir_roles` pode criar papéis com permissões que não tem; caixa de pesquisa do cabeçalho não abre a paleta; item «Configurações» → `/configuracoes` inexistente ([#181](https://github.com/fxavier/gespro-frontend/issues/181)) ([#182](https://github.com/fxavier/gespro-frontend/issues/182)) |
@@ -150,6 +154,48 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 | B | Em modo Leitura não se marcam notificações como lidas nem se mudam preferências ([#184](https://github.com/fxavier/gespro-frontend/issues/184)) |
 | B | Utilizador convidado que entra antes de concluir o convite vai para «Palavra-passe provisória» ([#185](https://github.com/fxavier/gespro-frontend/issues/185)) |
 | B | Lista de papéis sem linhas clicáveis (ficha `/core-tenancy/roles/[id]` órfã); datas com `toLocaleDateString` ([#202](https://github.com/fxavier/gespro-frontend/issues/202)) |
+
+## Abertas depois de 2026-09-24
+
+Issues abertas depois do apuramento inicial que descrevem lacunas (estado conferido em 2026-10-07). A gravidade
+segue a mesma escala; onde a issue já tem etiqueta `gravidade:`, vale a etiqueta.
+
+| G | Lacuna |
+|---|---|
+| A | IVA: `PRORATA_NAO_SUPORTADO` não recusa operações isentas (ADR-0034 §4) ([#208](https://github.com/fxavier/gespro-frontend/issues/208)) |
+| M | Faturação: criar as séries do ano seguinte a partir da UI ([#235](https://github.com/fxavier/gespro-frontend/issues/235)) |
+| B | Vendas: `serieNotaCreditoId` em devolução/troca virou bandeira sem uso ([#241](https://github.com/fxavier/gespro-frontend/issues/241)) |
+| B | Faturação: menus das listas de cotações e proformas mostram Rejeitar/Converter em qualquer estado ([#259](https://github.com/fxavier/gespro-frontend/issues/259)) |
+| M | UI: 11 formulários pedem ids colados em campo de texto em vez de combobox ([#265](https://github.com/fxavier/gespro-frontend/issues/265)) |
+| M | POS: vários terminais, cada um com a sua caixa aberta e fechada pelo mesmo utilizador ([#267](https://github.com/fxavier/gespro-frontend/issues/267)) |
+| M | Caixa: fechar ou cancelar o caixa deixa sessões POS abertas (órfãs) ([#270](https://github.com/fxavier/gespro-frontend/issues/270)) |
+| M | RH: editar colaborador não grava tipo de contrato nem regime de trabalho ([#272](https://github.com/fxavier/gespro-frontend/issues/272)) |
+| B | RH: `UpdateColaboradorSchema` aceita campos que o actualizar ignora ([#275](https://github.com/fxavier/gespro-frontend/issues/275)) |
+| A | Segurança: exportação CSV não neutraliza fórmulas (CSV injection) ([#294](https://github.com/fxavier/gespro-frontend/issues/294)) |
+| A | Contabilidade: seed com a classe 4 toda `DEVEDORA` — 421 e 44331 aparecem «contra natureza» ([#295](https://github.com/fxavier/gespro-frontend/issues/295)) |
+| A | Contabilidade: editor do plano aceita como mãe uma descendente (ciclos em `contaMaeId`) — provavelmente resolvida pela correcção da [#347](https://github.com/fxavier/gespro-frontend/issues/347) (`CONTA_MAE_CICLO`); confirmar e fechar ([#296](https://github.com/fxavier/gespro-frontend/issues/296)) |
+| B | Balancete: conta órfã de nível acima do «Grau máximo» desaparece do ecrã ([#298](https://github.com/fxavier/gespro-frontend/issues/298)) |
+| M | RBAC: o papel OPERADOR tem `financas:exportar` pelo filtro genérico ([#299](https://github.com/fxavier/gespro-frontend/issues/299)) |
+| M | Relatórios: XLSX grava valores decimais como texto (SOMA não funciona no Excel) ([#300](https://github.com/fxavier/gespro-frontend/issues/300)) |
+| M | POS: anular venda a crédito ou mista (NC + compensação + stock) — ver também a secção Vendas ([#322](https://github.com/fxavier/gespro-frontend/issues/322)) |
+| B | Faturação: unificar os núcleos de liquidação de NC e desambiguar `COMPENSACAO` ([#325](https://github.com/fxavier/gespro-frontend/issues/325)) |
+| B | Faturação: o núcleo de emissão resolve as contas por meio; retirar `opcoes.status` e `IMeioPagamentoPOSService` ([#326](https://github.com/fxavier/gespro-frontend/issues/326)) |
+| M | POS: anular venda no dia seguinte falha (a sessão de caixa da venda está fechada) ([#327](https://github.com/fxavier/gespro-frontend/issues/327)) |
+| B | Vendas: `TRANSICOES_VENDA` já não descreve todas as arestas do histórico ([#328](https://github.com/fxavier/gespro-frontend/issues/328)) |
+| A | Faturação: `motivoIsencao` não exigido em linhas a 0% (factura e Factura-Recibo do POS) ([#329](https://github.com/fxavier/gespro-frontend/issues/329)) |
+| A | Vendas: reutilização de NC em devolução/troca decide `NC_JA_LIQUIDADA` sem tranca; número de troca inventado ([#331](https://github.com/fxavier/gespro-frontend/issues/331)) |
+| M | Faturação: conta de vendas por artigo/família (modelo PHC) ([#333](https://github.com/fxavier/gespro-frontend/issues/333)) |
+| M | POS: modo de integração contabilística diferido, por configuração do tenant ([#334](https://github.com/fxavier/gespro-frontend/issues/334)) |
+| A | POS: regularizar as vendas anteriores ao ADR-0041 (sem documento nem lançamento) ([#335](https://github.com/fxavier/gespro-frontend/issues/335)) |
+| A | Faturação: QR/hash do documento fiscal ([#336](https://github.com/fxavier/gespro-frontend/issues/336)) |
+| B | Contabilidade: selector do razão com os controlos de períodos e exercício do balancete ([#343](https://github.com/fxavier/gespro-frontend/issues/343)) |
+| B | UI: `ComboboxRemoto` deixa de mostrar o valor pré-preenchido depois de uma pesquisa sem escolha ([#345](https://github.com/fxavier/gespro-frontend/issues/345)) |
+| A | Vendas: regra de comissão deixa de valer às 02h00 do último dia (`dataFim` à meia-noite UTC) ([#352](https://github.com/fxavier/gespro-frontend/issues/352)) |
+| A | Contabilidade: corrida no estorno de lançamento e no declarar apuramento grava estorno duplo ou estado incoerente ([#356](https://github.com/fxavier/gespro-frontend/issues/356)) |
+| B | E2E: spec 36 (ciclo do exercício) sem excepção de teste no limite do `/registo`, resíduos de tenants, helpers duplicados ([#373](https://github.com/fxavier/gespro-frontend/issues/373)) |
+| A | Analytics: KPI «Saldo de caixa» lê as colunas do fecho e subestima caixas abertas (o defeito do [#92](https://github.com/fxavier/gespro-frontend/issues/92)) ([#397](https://github.com/fxavier/gespro-frontend/issues/397)) |
+| A | Analytics: contas a pagar vencidas com predicado próprio (sem `PARCIALMENTE_PAGA`, instante em vez do dia de Maputo) ([#398](https://github.com/fxavier/gespro-frontend/issues/398)) |
+| — | Balancete PHC — [#279](https://github.com/fxavier/gespro-frontend/issues/279), [#280](https://github.com/fxavier/gespro-frontend/issues/280), [#281](https://github.com/fxavier/gespro-frontend/issues/281), [#282](https://github.com/fxavier/gespro-frontend/issues/282), [#283](https://github.com/fxavier/gespro-frontend/issues/283), [#284](https://github.com/fxavier/gespro-frontend/issues/284), [#285](https://github.com/fxavier/gespro-frontend/issues/285), [#286](https://github.com/fxavier/gespro-frontend/issues/286): continuam abertas, mas foram **entregues** pelo ADR-0040 (balancete de verificação por períodos, hierarquia, filtros, drill-down, CSV/XLSX/PDF, saída do legado em `localStorage`); falta fechá-las |
 
 ## API e operação
 
