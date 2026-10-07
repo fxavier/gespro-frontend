@@ -9,10 +9,16 @@
  *   B  cartão, 1 × 1000 @16%                         subtotal 1000,00 · IVA 160,00 · total 1160,00
  *   C  DINHEIRO 300 + MPESA 860, 1 × 1000 @16%       subtotal 1000,00 · IVA 160,00 · total 1160,00
  *   D  CREDITO 1160 a cliente identificado, @16%     subtotal 1000,00 · IVA 160,00 · total 1160,00
- *   E  dinheiro, 1 × 1000 @16% + 1 × 500 @0%         subtotal 1500,00 · IVA 160,00 · total 1660,00
- *   Σ  subtotal 4620,08 · IVA 659,20 · total 5279,28
- *      dinheiro 2099,28 (A+C+E) · cartão/MPESA 2020,00 (B+C, sem configuração → 121) · crédito 1160 (D)
- *      base documental @16% = 4120,08 (a linha a 0% não entra na base do 44331)
+ *   E  dinheiro, 1 × 1000 @16% + 1 × 500 @16%        subtotal 1500,00 · IVA 240,00 · total 1740,00
+ *   Σ  subtotal 4620,08 · IVA 739,20 · total 5359,28
+ *      dinheiro 2179,28 (A+C+E) · cartão/MPESA 2020,00 (B+C, sem configuração → 121) · crédito 1160 (D)
+ *      base documental @16% = 4620,08
+ *
+ * Todas as linhas do cenário estão a 16%: desde o #208 (PR #401, ADR-0034 §4) o apuramento RECUSA
+ * com PRORATA_NAO_SUPORTADO qualquer período com uma linha de saída a 0% (o pro rata não está
+ * implementado). A venda E tinha uma linha a 0% e passou a 16%; a linha a 0% mudou-se para o caso
+ * (5), no fim, que prova a recusa:
+ *   F  dinheiro, 1 × 1000 @16% + 1 × 500 @0% — depois de estornado o segundo apuramento.
  *
  * Afirma:
  *   (1) Balancete de verificação do período: movimento em 111/121/411 (D), 711/44331 (C) = somas
@@ -26,6 +32,8 @@
  *       contas desaparece (111, 711, 44331 voltam ao valor sem A; 411 líquido inalterado); o novo
  *       apuramento (o primeiro é estornado pelo serviço, caminho legítimo) reflecte a NC no 44331
  *       e na base, sem divergência.
+ *   (5) Uma venda POS com uma linha a 0% no período faz o apuramento recusar com
+ *       PRORATA_NAO_SUPORTADO e não criar apuramento nenhum (contrato do #208).
  *
  * Ordem: o balancete e a DFC são lidos ANTES do apuramento, porque o lançamento de apuramento
  * salda o 44331 no próprio período (D 44331 / C 4437) — é saída do cálculo, não entrada.
@@ -78,12 +86,12 @@ describe.skipIf(skip)('POS ponta-a-ponta: apuramento do IVA, balancete e DFC —
   // ── esperados (contas à mão, independentes do código) ───────────────────────
   const ESP = {
     subtotal: dec('4620.08'),
-    iva: dec('659.20'),
-    total: dec('5279.28'),
-    dinheiro: dec('2099.28'),
+    iva: dec('739.20'),
+    total: dec('5359.28'),
+    dinheiro: dec('2179.28'),
     bancos: dec('2020.00'),
     credito: dec('1160.00'),
-    base16: dec('4120.08'),
+    base16: dec('4620.08'),
   };
   // Venda A (a anulada)
   const A = { subtotal: dec('120.08'), iva: dec('19.20'), total: dec('139.28') };
@@ -100,6 +108,12 @@ describe.skipIf(skip)('POS ponta-a-ponta: apuramento do IVA, balancete e DFC —
   }
   function itensMil() {
     return [{ produtoId: produto16Id, nomeProduto: 'Artigo 1000', quantidade: 1, precoUnitario: 1000, desconto: 0, taxaIva: 0.16 }];
+  }
+  function itensDuasLinhas16() {
+    return [
+      { produtoId: produto16Id, nomeProduto: 'Artigo 1000', quantidade: 1, precoUnitario: 1000, desconto: 0, taxaIva: 0.16 },
+      { produtoId: produto16Id, nomeProduto: 'Artigo 500', quantidade: 1, precoUnitario: 500, desconto: 0, taxaIva: 0.16 },
+    ];
   }
   function itensTaxasMistas() {
     return [
@@ -246,7 +260,7 @@ describe.skipIf(skip)('POS ponta-a-ponta: apuramento do IVA, balancete e DFC —
   // Vendas
   // -------------------------------------------------------------------------
 
-  it('cinco vendas POS no período corrente (dinheiro, cartão, dinheiro+MPESA, crédito, taxas 16%/0%) emitem documento com lançamento', async () => {
+  it('cinco vendas POS no período corrente (dinheiro, cartão, dinheiro+MPESA, crédito, duas linhas) emitem documento com lançamento', async () => {
     vendas.A = await vender(itensMisturados(), [{ tipo: 'DINHEIRO', valor: 139.28, troco: 10.72 }]);
     vendas.B = await vender(itensMil(), [{ tipo: 'CARTAO', valor: 1160, referencia: 'POS-1' }]);
     vendas.C = await vender(itensMil(), [
@@ -254,7 +268,7 @@ describe.skipIf(skip)('POS ponta-a-ponta: apuramento do IVA, balancete e DFC —
       { tipo: 'MPESA', valor: 860, referencia: 'MP-1' },
     ]);
     vendas.D = await vender(itensMil(), [{ tipo: 'CREDITO', valor: 1160 }], { clienteId });
-    vendas.E = await vender(itensTaxasMistas(), [{ tipo: 'DINHEIRO', valor: 1660 }]);
+    vendas.E = await vender(itensDuasLinhas16(), [{ tipo: 'DINHEIRO', valor: 1740 }]);
 
     const { faturas, iva, base16 } = await documentosEmitidos();
     expect(faturas).toHaveLength(5);
@@ -369,7 +383,7 @@ describe.skipIf(skip)('POS ponta-a-ponta: apuramento do IVA, balancete e DFC —
     expect(delta('44331'), 'Δ 44331').toBe(A.iva.toFixed(2));
     expect(delta('411'), 'Δ 411 (NC C 411 e liquidação D 411 anulam-se)').toBe('0.00');
     expect(delta('121'), 'Δ 121').toBe('0.00');
-    // Valores absolutos, sem a venda A: 111 = 2099,28 − 139,28; 711 = −(4620,08 − 120,08); 44331 = −(659,20 − 19,20).
+    // Valores absolutos, sem a venda A: 111 = 2179,28 − 139,28; 711 = −(4620,08 − 120,08); 44331 = −(739,20 − 19,20).
     // (O apuramento e o seu estorno, se já houvesse, anulam-se no 44331; aqui ainda está activo — ver abaixo.)
 
     // Novo apuramento: o activo tem de ser estornado primeiro (PERIODO_JA_APURADO); caminho legítimo.
@@ -398,5 +412,39 @@ describe.skipIf(skip)('POS ponta-a-ponta: apuramento do IVA, balancete e DFC —
     expect(l.baseImponivel).not.toBeNull();
     expect(dec(l.baseImponivel).toFixed(2), 'base 44331 = facturas − NC (16%)').toBe(docs.base16.toFixed(2));
     expect(l.divergenciaBase, 'sem divergência de base depois da NC').toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // (5) Linha de saída a 0% → PRORATA_NAO_SUPORTADO (#208, ADR-0034 §4)
+  // -------------------------------------------------------------------------
+
+  it('venda POS com uma linha a 0% no período: o apuramento recusa com PRORATA_NAO_SUPORTADO e não cria apuramento', async () => {
+    expect(periodo, 'pré-condição: vendas feitas').toBeDefined();
+    expect(resultadoApuramento?.versao, 'pré-condição: segundo apuramento activo').toBe(2);
+
+    // Tira o apuramento activo do caminho, para que a recusa seja a do pro rata e não PERIODO_JA_APURADO.
+    await noCtx(() =>
+      apuramento.estornarApuramentoIva({ apuramentoId: resultadoApuramento.id, motivo: 'Venda isenta depois do apuramento' }, ctx),
+    );
+
+    // Controlo: sem a linha a 0%, o período ainda apura (o estorno não deixou o período inapurável).
+    const controlo = await apurar();
+    expect(controlo.versao).toBe(3);
+    await noCtx(() =>
+      apuramento.estornarApuramentoIva({ apuramentoId: controlo.id, motivo: 'Controlo antes da venda isenta' }, ctx),
+    );
+
+    const F = await vender(itensTaxasMistas(), [{ tipo: 'DINHEIRO', valor: 1660 }]);
+    const fatF = await db.fatura.findFirst({ where: { id: F.faturaId, tenantId: TENANT }, include: { linhas: true } });
+    expect(fatF.linhas.some((l: any) => dec(l.taxaIva).isZero()), 'documento da venda F com linha a 0%').toBe(true);
+    const lancF = await db.lancamento.findFirst({ where: { id: fatF.lancamentoId, tenantId: TENANT } });
+    expect(lancF.periodoId, 'venda F no mesmo período').toBe(periodo.id);
+
+    const apuramentosAntes = await db.apuramentoIva.count({ where: { tenantId: TENANT } });
+    const erro = await capturarErro(() => noCtx(() => apuramento.apurarIva({ periodoId: periodo.id }, ctx)));
+    expect(erro?.code, `esperava PRORATA_NAO_SUPORTADO, veio: ${erro?.code ?? 'nada'} ${erro?.message ?? ''}`).toBe(
+      'PRORATA_NAO_SUPORTADO',
+    );
+    expect(await db.apuramentoIva.count({ where: { tenantId: TENANT } }), 'nenhum apuramento criado').toBe(apuramentosAntes);
   });
 });
