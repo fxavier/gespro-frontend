@@ -7,7 +7,7 @@
 
 import { useActionState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, X } from 'lucide-react';
@@ -39,7 +39,7 @@ import {
 } from '@/components/patterns';
 import { procurarClientes } from '@/server/actions/clientes.actions';
 import { emitirFatura } from '@/server/actions/faturacao.actions';
-import { EmitirFaturaSchema, type EmitirFaturaInput } from '@/lib/validations/faturacao';
+import { EmitirFaturaSchema, exigirMotivoIsencaoNasLinhas, type EmitirFaturaInput } from '@/lib/validations/faturacao';
 import { diaIsoParaData } from '@/lib/format-date';
 
 // Tipos inline — evita importar server-only num Client Component.
@@ -68,6 +68,9 @@ const linhaVazia = () => ({
 });
 
 
+// #329: a linha a 0% exige «Motivo de isenção» — marcado no campo antes de ir ao servidor.
+const FormSchema = EmitirFaturaSchema.superRefine(exigirMotivoIsencaoNasLinhas);
+
 const rotuloCliente = (c: { codigo: string; nome: string }) => `${c.codigo} — ${c.nome}`;
 
 export function NovaFaturaForm({ clientes, hoje, vencimento }: NovaFaturaFormProps) {
@@ -85,7 +88,7 @@ export function NovaFaturaForm({ clientes, hoje, vencimento }: NovaFaturaFormPro
   );
 
   const form = useForm<EmitirFaturaInput>({
-    resolver: zodResolver(EmitirFaturaSchema),
+    resolver: zodResolver(FormSchema),
     // As datas vêm do servidor (dia de Maputo) e estão no estado desde o início:
     // o que o campo mostra é o que a emissão leva, sem lhes tocar.
     defaultValues: {
@@ -101,6 +104,7 @@ export function NovaFaturaForm({ clientes, hoje, vencimento }: NovaFaturaFormPro
     control: form.control,
     name: 'linhas',
   });
+  const linhasVistas = useWatch({ control: form.control, name: 'linhas' });
 
   useEffect(() => {
     if (!state) return;
@@ -353,6 +357,21 @@ export function NovaFaturaForm({ clientes, hoje, vencimento }: NovaFaturaFormPro
                     )}
                   />
                 </div>
+                {Number(linhasVistas?.[index]?.taxaIva) === 0 && (
+                  <FormField
+                    control={form.control}
+                    name={`linhas.${index}.motivoIsencao`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Motivo de isenção *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex.: Isento nos termos do artigo 9.º do Código do IVA" {...f} value={f.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
             ))}
           </div>

@@ -167,7 +167,7 @@ export async function lerDevolucaoTrancada(tx: Prisma.TransactionClient, id: str
  * `emitirNotaCreditoEmTx` (contrato D). Sem factura → `null`.
  */
 export async function notaCreditoDaDevolucaoEmTx(
-  faturacao: Pick<IFaturacaoService, 'emitirNotaCreditoEmTx'>,
+  faturacao: Pick<IFaturacaoService, 'emitirNotaCreditoEmTx' | 'motivoIsencaoAutomaticoEmTx'>,
   tx: Prisma.TransactionClient,
   devolucao: DevolucaoComItens,
   motivo: string,
@@ -184,6 +184,7 @@ export async function notaCreditoDaDevolucaoEmTx(
   }
   if (!devolucao.faturaId) return null;
 
+  const motivoIsencao = await faturacao.motivoIsencaoAutomaticoEmTx(tx, ctx);
   const nc = await faturacao.emitirNotaCreditoEmTx(
     tx,
     {
@@ -198,6 +199,7 @@ export async function notaCreditoDaDevolucaoEmTx(
         precoUnitario: Number(item.valorUnitario),
         desconto: 0,
         taxaIva: Number(item.taxaIva),
+        ...(Number(item.taxaIva) === 0 ? { motivoIsencao } : {}),
         ordemLinha: idx + 1,
         subtotal: Number(item.subtotal),
         ivaItem: Number(item.ivaItem),
@@ -216,7 +218,10 @@ export async function notaCreditoDaDevolucaoEmTx(
 export class DevolucaoService {
   constructor(
     private readonly stockService: Pick<IStockService, 'entradaStock'>,
-    private readonly faturacaoService: Pick<IFaturacaoService, 'emitirNotaCreditoEmTx' | 'liquidarNotaCreditoEmTx'>,
+    private readonly faturacaoService: Pick<
+      IFaturacaoService,
+      'emitirNotaCreditoEmTx' | 'liquidarNotaCreditoEmTx' | 'motivoIsencaoAutomaticoEmTx'
+    >,
     private readonly caixaService: Pick<ICaixaService, 'registarMovimentoCaixa'>,
   ) {}
 

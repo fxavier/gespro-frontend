@@ -7,7 +7,7 @@
 
 import { useActionState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, X } from 'lucide-react';
@@ -33,7 +33,10 @@ import { FormPage, FormSection, UnsavedChangesGuard, ComboboxRemoto, CampoDia } 
 import type { ComboboxOption } from '@/components/patterns';
 import { diaIsoParaData } from '@/lib/format-date';
 import { emitirNotaCredito, procurarFaturasParaNotaCredito } from '@/server/actions/faturacao.actions';
-import { EmitirNotaCreditoSchema, type EmitirNotaCreditoInput } from '@/lib/validations/faturacao';
+import { EmitirNotaCreditoSchema, exigirMotivoIsencaoNasLinhas, type EmitirNotaCreditoInput } from '@/lib/validations/faturacao';
+
+// #329: a linha a 0% exige «Motivo de isenção» — marcado no campo antes de ir ao servidor.
+const FormSchema = EmitirNotaCreditoSchema.superRefine(exigirMotivoIsencaoNasLinhas);
 
 type FormState = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } } | null;
 
@@ -66,7 +69,7 @@ export function NovaNotaCreditoForm({ faturasIniciais, hoje }: NovaNotaCreditoFo
   );
 
   const form = useForm<EmitirNotaCreditoInput>({
-    resolver: zodResolver(EmitirNotaCreditoSchema),
+    resolver: zodResolver(FormSchema),
     defaultValues: {
       moeda: 'MZN',
       // O dia que o campo mostra está no estado desde o início (#242).
@@ -77,6 +80,7 @@ export function NovaNotaCreditoForm({ faturasIniciais, hoje }: NovaNotaCreditoFo
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'linhas' });
+  const linhasVistas = useWatch({ control: form.control, name: 'linhas' });
 
   useEffect(() => {
     if (!state) return;
@@ -297,6 +301,21 @@ export function NovaNotaCreditoForm({ faturasIniciais, hoje }: NovaNotaCreditoFo
                     )}
                   />
                 </div>
+                {Number(linhasVistas?.[index]?.taxaIva) === 0 && (
+                  <FormField
+                    control={form.control}
+                    name={`linhas.${index}.motivoIsencao`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Motivo de isenção *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex.: Isento nos termos do artigo 9.º do Código do IVA" {...f} value={f.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
             ))}
           </div>

@@ -45,8 +45,11 @@ import {
   procurarContasCreditoNotaDebito,
   procurarFaturasParaNotaDebito,
 } from '@/server/actions/faturacao.actions';
-import { EmitirNotaDebitoSchema, type EmitirNotaDebitoInput } from '@/lib/validations/faturacao';
+import { EmitirNotaDebitoSchema, exigirMotivoIsencaoNasLinhas, type EmitirNotaDebitoInput } from '@/lib/validations/faturacao';
 import { NATUREZAS_NOTA_DEBITO, ROTULO_NATUREZA_ND, rotuloContaPGC } from '@/lib/nota-debito';
+
+// #329: a linha a 0% exige «Motivo de isenção» — marcado no campo antes de ir ao servidor.
+const FormSchema = EmitirNotaDebitoSchema.superRefine(exigirMotivoIsencaoNasLinhas);
 
 type Natureza = (typeof NATUREZAS_NOTA_DEBITO)[number];
 
@@ -83,7 +86,7 @@ export function NovaNotaDebitoForm({ clientes, contasPorNatureza, hoje }: NovaNo
   const contasDe = (n: Natureza) => contasPorNatureza.find((c) => c.natureza === n);
 
   const form = useForm<EmitirNotaDebitoInput>({
-    resolver: zodResolver(EmitirNotaDebitoSchema),
+    resolver: zodResolver(FormSchema),
     defaultValues: {
       moeda: 'MZN',
       natureza: 'ACERTO_PRECO',
@@ -96,6 +99,7 @@ export function NovaNotaDebitoForm({ clientes, contasPorNatureza, hoje }: NovaNo
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'linhas' });
+  const linhasVistas = useWatch({ control: form.control, name: 'linhas' });
 
   const natureza = useWatch({ control: form.control, name: 'natureza' });
   const clienteId = useWatch({ control: form.control, name: 'clienteId' });
@@ -442,6 +446,21 @@ export function NovaNotaDebitoForm({ clientes, contasPorNatureza, hoje }: NovaNo
                     )}
                   />
                 </div>
+                {Number(linhasVistas?.[index]?.taxaIva) === 0 && (
+                  <FormField
+                    control={form.control}
+                    name={`linhas.${index}.motivoIsencao`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Motivo de isenção *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex.: Isento nos termos do artigo 9.º do Código do IVA" {...f} value={f.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
             ))}
           </div>
