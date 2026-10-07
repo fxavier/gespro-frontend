@@ -3,6 +3,7 @@
  * fonte (CSV) para submissão às autoridades (Spec 06).
  */
 import { withApi } from '@/lib/api/with-api';
+import { celulaTextoCsv, neutralizarFormula } from '@/lib/reporting/csv';
 import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
 import { ProcessarFolhaSchema } from '@/lib/validations/payroll';
 import { ValidationError } from '@/lib/errors';
@@ -28,9 +29,9 @@ export const GET = withApi(
     const cabecalho = 'Codigo;Nome;NUIT;SalarioBruto;IRPS_Retido';
     const corpo = linhas.map((l) =>
       [
-        l.colaboradorCodigo,
-        `"${l.colaboradorNome.replace(/"/g, '""')}"`,
-        l.nuit,
+        celulaTextoCsv(l.colaboradorCodigo),
+        `"${neutralizarFormula(l.colaboradorNome).replace(/"/g, '""')}"`,
+        celulaTextoCsv(l.nuit),
         l.salarioBruto.toFixed(2),
         l.irps.toFixed(2),
       ].join(';'),
