@@ -135,12 +135,12 @@ export type IdSerieDocumentoInput = z.infer<typeof IdSerieDocumentoSchema>;
 // Meio de pagamento (recebimento de factura e devolução de NC)
 // ---------------------------------------------------------------------------
 
-const FormaPagamentoEnum = z.enum(
+export const FormaPagamentoEnum = z.enum(
   FORMAS_PAGAMENTO.map((f) => f.value) as [FormaPagamento, ...FormaPagamento[]],
 );
 
 /** Fora do numerário, o dinheiro passa por uma conta bancária — tem de vir escolhida. */
-function exigirContaBancariaForaDoNumerario(
+export function exigirContaBancariaForaDoNumerario(
   d: { formaPagamento: FormaPagamento; contaBancariaId?: string },
   ctx: z.RefinementCtx,
 ): void {

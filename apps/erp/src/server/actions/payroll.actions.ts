@@ -36,7 +36,9 @@ export const marcarProcessadaAction = createSafeAction({
 export const marcarPagaAction = createSafeAction({
   schema: MarcarPagaSchema,
   permission: 'rh:payroll:pagar',
-  revalidate: REVALIDATE,
+  // #96 — lança D 4622 / C conta do meio e, em numerário, sai da caixa; a permissão do
+  // meio vem no ctx (`ctx.permissions`) e o serviço confere-a.
+  revalidate: { paths: ['/rh/payroll'], tags: ['contabilidade', 'caixa'] },
   handler: (input, ctx) => PayrollService.marcarPaga(input, ctx),
 });
 
