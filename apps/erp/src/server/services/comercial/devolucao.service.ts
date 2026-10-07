@@ -440,6 +440,10 @@ export class DevolucaoService {
 
       const agora = new Date();
       const nc = await notaCreditoDaDevolucaoEmTx(this.faturacaoService, tx, devolucao, `Devolução ${devolucao.numero}: ${devolucao.motivo}`, agora, ctx);
+      // NC reutilizada: o estado (lido depois da tranca) decide ANTES de qualquer escrita, em
+      // todos os ramos — sem reembolso também, senão fica PROCESSADA a apontar para uma NC
+      // cancelada ou já liquidada (#412). Uma NC acabada de emitir nasce EMITIDA.
+      if (nc) exigirNotaCreditoComCredito(nc, devolucao.numero, 'não tem crédito para esta devolução.');
 
       // Entrada de stock por item devolvido (contrato A)
       if (options?.localizacaoId) {
@@ -475,7 +479,6 @@ export class DevolucaoService {
           ctx,
         );
         if (nc) {
-          exigirNotaCreditoComCredito(nc, devolucao.numero, 'o valor não se devolve outra vez.');
           await this.faturacaoService.liquidarNotaCreditoEmTx(
             tx,
             { notaCreditoId: nc.id, data: agora, numerario: valor, compensado: new Prisma.Decimal(0) },
