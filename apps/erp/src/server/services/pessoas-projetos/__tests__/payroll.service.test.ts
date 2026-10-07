@@ -40,6 +40,9 @@ const txMock = vi.hoisted(() => ({
   user: { findMany: vi.fn() },
   comissao: { findMany: vi.fn() },
   tenant: { findUnique: vi.fn() },
+  // #95 — o processamento carrega os benefícios do mês em lote (beneficiosDoMes)
+  beneficioColaborador: { findMany: vi.fn(), groupBy: vi.fn() },
+  beneficio: { findMany: vi.fn() },
 }));
 
 vi.mock('@/server/db/client', () => ({
@@ -86,6 +89,11 @@ function somas(partidas: { tipo: string; valor: Prisma.Decimal | string }[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // #95 — por omissão, nenhum colaborador tem benefícios (os casos abaixo não os exercitam;
+  // o contrato dos benefícios é provado em test/integration/payroll-beneficios.test.ts)
+  txMock.beneficioColaborador.findMany.mockResolvedValue([]);
+  txMock.beneficioColaborador.groupBy.mockResolvedValue([]);
+  txMock.beneficio.findMany.mockResolvedValue([]);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

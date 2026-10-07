@@ -69,6 +69,11 @@ export interface EntradaCalculoPayroll {
     bonus: Decimal;
     outros: Decimal;
   };
+  /**
+   * Comparticipações da empresa em benefícios TRIBUTÁVEIS (spec 08) — uma linha
+   * de provento cada, somadas ao bruto (base de INSS e de IRPS). Opcional.
+   */
+  proventosBeneficio?: { descricao: string; valor: Decimal }[];
   /** faltas, adiantamentos, penhoras, etc. — linhas configuráveis */
   descontosDiversos: {
     natureza: 'FALTA' | 'ADIANTAMENTO' | 'PENHORA' | 'OUTRO';
@@ -197,6 +202,8 @@ export function calcularPayroll(e: EntradaCalculoPayroll): ResultadoCalculoPayro
   const comissoes = arredondar2(e.variaveis.comissoes);
   const bonus = arredondar2(e.variaveis.bonus);
   const provOutros = arredondar2(e.variaveis.outros);
+  const beneficios = (e.proventosBeneficio ?? []).map((b) => ({ ...b, valor: arredondar2(b.valor) }));
+  const provBeneficios = beneficios.reduce((s, b) => s.plus(b.valor), ZERO);
 
   const bruto = salarioBase
     .plus(subAlimentacao)
@@ -206,7 +213,8 @@ export function calcularPayroll(e: EntradaCalculoPayroll): ResultadoCalculoPayro
     .plus(horasExtras)
     .plus(comissoes)
     .plus(bonus)
-    .plus(provOutros);
+    .plus(provOutros)
+    .plus(provBeneficios);
 
   // INSS — base = bruto, limitada ao teto de incidência da tabela vigente
   const teto = e.tabelaInss.tetoIncidencia;
@@ -248,6 +256,10 @@ export function calcularPayroll(e: EntradaCalculoPayroll): ResultadoCalculoPayro
     linhas.push({ tipo: 'PROVENTO', natureza: 'BONUS', descricao: 'Bónus', valor: bonus });
   if (provOutros.gt(ZERO))
     linhas.push({ tipo: 'PROVENTO', natureza: 'OUTRO', descricao: 'Outros proventos', valor: provOutros });
+  for (const b of beneficios) {
+    if (b.valor.gt(ZERO))
+      linhas.push({ tipo: 'PROVENTO', natureza: 'SUBSIDIO', descricao: b.descricao, valor: b.valor });
+  }
 
   linhas.push({
     tipo: 'DESCONTO',

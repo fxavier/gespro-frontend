@@ -406,19 +406,73 @@ export const BeneficioColaboradorService = {
 // Contrato de integração com o Payroll — spec 06
 // ─────────────────────────────────────────────────────────────────────────────
 
+type LinhaPayrollBeneficio = import('./beneficios.interface').LinhaPayrollBeneficio;
+
+/**
+ * Regra de vigência partilhada (este contrato e o carregador em lote do
+ * payroll.service): atribuição ACTIVA, vigente no mês de referência
+ * (dataInicio <= último instante do mês e dataFim nula ou >= início do mês).
+ */
+export function filtroAtribuicoesVigentes(primeiroDia: Date, ultimoDia: Date) {
+  return {
+    status: 'ACTIVO' as const,
+    dataInicio: { lte: ultimoDia },
+    OR: [{ dataFim: null }, { dataFim: { gte: primeiroDia } }],
+  };
+}
+
+/** Campos do benefício que a regra de `linhasDaAtribuicao` lê. */
+export const SELECT_BENEFICIO_PAYROLL = {
+  nome: true,
+  tipo: true,
+  tributavel: true,
+  periodicidade: true,
+} as const;
+
+/**
+ * Linhas de payroll de UMA atribuição vigente (função pura, partilhada).
+ * - só periodicidade MENSAL (TRIMESTRAL/ANUAL ficam de fora; pro-rata é extensão);
+ * - comparticipacaoEmpresa > 0 → PROVENTO (tributável conforme flag do benefício);
+ * - descontoColaborador > 0 → DESCONTO (nunca tributável no colaborador).
+ */
+export function linhasDaAtribuicao(at: {
+  comparticipacaoEmpresa: Prisma.Decimal;
+  descontoColaborador: Prisma.Decimal;
+  beneficio: { nome: string; tipo: string; tributavel: boolean; periodicidade: string };
+}): LinhaPayrollBeneficio[] {
+  const b = at.beneficio;
+  if (b.periodicidade !== 'MENSAL') return [];
+
+  const linhas: LinhaPayrollBeneficio[] = [];
+  if (at.comparticipacaoEmpresa.greaterThan(0)) {
+    linhas.push({
+      tipo: 'PROVENTO',
+      natureza: b.tipo,
+      descricao: `Benefício: ${b.nome}`,
+      valor: at.comparticipacaoEmpresa,
+      tributavel: b.tributavel,
+    });
+  }
+  if (at.descontoColaborador.greaterThan(0)) {
+    linhas.push({
+      tipo: 'DESCONTO',
+      natureza: b.tipo,
+      descricao: `Benefício: ${b.nome}`,
+      valor: at.descontoColaborador,
+      tributavel: false,
+    });
+  }
+  return linhas;
+}
+
 /**
  * Gera as linhas de payroll dos benefícios activos de um colaborador para
- * um mês de referência específico.
+ * um mês de referência específico (regras em `filtroAtribuicoesVigentes` e
+ * `linhasDaAtribuicao`).
  *
- * Contrato consumido por `payroll.service` (spec 06) dentro da transacção de
- * processamento da folha salarial. Funciona autonomamente sem o payroll entregue.
- *
- * Regras:
- * - Inclui apenas atribuições ACTIVAS com periodicidade MENSAL que estejam
- *   vigentes no mês de referência (dataInicio <= último dia do mês e
- *   dataFim nula ou >= primeiro dia do mês).
- * - comparticipacaoEmpresa > 0 → gera PROVENTO (tributável conforme flag do benefício)
- * - descontoColaborador > 0 → gera DESCONTO (nunca tributável no colaborador)
+ * Consulta avulsa, fora de transacção. O payroll.service NÃO a usa: carrega
+ * os benefícios de todos os colaboradores em lote, dentro da sua transacção
+ * (`beneficiosDoMes`), com as mesmas duas regras.
  *
  * @param colaboradorId  ID do colaborador (cuid)
  * @param mesRef  Mês de referência no formato 'YYYY-MM' (ex: '2026-07')
@@ -428,7 +482,7 @@ export async function linhasPayrollDeBeneficios(
   colaboradorId: string,
   mesRef: string,
   ctx: Ctx,
-): Promise<import('./beneficios.interface').LinhaPayrollBeneficio[]> {
+): Promise<LinhaPayrollBeneficio[]> {
   const [ano, mes] = mesRef.split('-').map(Number);
   const primeiroDia = new Date(ano, mes - 1, 1);
   const ultimoDia = new Date(ano, mes, 0, 23, 59, 59);
@@ -437,57 +491,10 @@ export async function linhasPayrollDeBeneficios(
     where: {
       tenantId: ctx.tenantId,
       colaboradorId,
-      status: 'ACTIVO',
-      // Vigente no mês de referência
-      dataInicio: { lte: ultimoDia },
-      OR: [
-        { dataFim: null },
-        { dataFim: { gte: primeiroDia } },
-      ],
+      ...filtroAtribuicoesVigentes(primeiroDia, ultimoDia),
     },
-    include: {
-      beneficio: {
-        select: {
-          nome: true,
-          tipo: true,
-          tributavel: true,
-          periodicidade: true,
-        },
-      },
-    },
+    include: { beneficio: { select: SELECT_BENEFICIO_PAYROLL } },
   });
 
-  const linhas: import('./beneficios.interface').LinhaPayrollBeneficio[] = [];
-
-  for (const at of atribuicoes) {
-    const b = at.beneficio;
-
-    // Proventos mensais directos; para outras periodicidades — só MENSAL por defeito
-    // (o payroll poderá implementar lógica pro-rata para TRIMESTRAL/ANUAL)
-    if (b.periodicidade !== 'MENSAL') continue;
-
-    // Comparticipação da empresa — gera PROVENTO se tributável
-    if (at.comparticipacaoEmpresa.greaterThan(0)) {
-      linhas.push({
-        tipo: 'PROVENTO',
-        natureza: b.tipo,
-        descricao: `Benefício: ${b.nome}`,
-        valor: at.comparticipacaoEmpresa,
-        tributavel: b.tributavel,
-      });
-    }
-
-    // Desconto do colaborador — gera DESCONTO (não tributável)
-    if (at.descontoColaborador.greaterThan(0)) {
-      linhas.push({
-        tipo: 'DESCONTO',
-        natureza: b.tipo,
-        descricao: `Benefício: ${b.nome}`,
-        valor: at.descontoColaborador,
-        tributavel: false,
-      });
-    }
-  }
-
-  return linhas;
+  return atribuicoes.flatMap(linhasDaAtribuicao);
 }

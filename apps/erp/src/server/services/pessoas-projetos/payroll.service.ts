@@ -35,6 +35,11 @@ import {
 } from './payroll-calculo';
 import { TRANSICOES_PAYROLL, type StatusPayroll, type ReciboDados } from './payroll.interface';
 import { transitar } from './rh.service';
+import {
+  filtroAtribuicoesVigentes,
+  linhasDaAtribuicao,
+  SELECT_BENEFICIO_PAYROLL,
+} from './beneficios.service';
 import type {
   ProcessarFolhaInput,
   MarcarPagaInput,
@@ -274,12 +279,6 @@ interface LinhaManual {
   valor: Prisma.Decimal;
 }
 
-// PONTO DE EXTENSÃO (Spec 08 — benefícios): proventos/descontos adicionais por
-// colaborador entram como linhas manuais (`LinhaPayroll.manual=true`, via
-// `ajustarLinhaManual`) e sobrevivem ao recálculo. Alternativa futura: o spec 08
-// expõe um contrato `obterBeneficiosDoMes(colaboradorId, periodo)` que
-// `montarEntrada` consome ao lado de assiduidade/comissões — sem dependência hoje.
-
 /** Agregados mensais por colaborador (horas extras + dias de falta). */
 interface AgregadosMes {
   horasExtras: Map<string, Prisma.Decimal>;
@@ -332,12 +331,63 @@ async function agregadosDoMes(
   };
 }
 
+/** Benefícios do mês de um colaborador, já na forma que o motor consome. */
+interface BeneficiosColaborador {
+  /** comparticipação da empresa em benefícios tributáveis → provento */
+  proventos: { descricao: string; valor: Prisma.Decimal }[];
+  /** parte do colaborador → desconto diverso OUTRO (reduz o líquido, não a base) */
+  descontos: { descricao: string; valor: Prisma.Decimal }[];
+}
+
+/**
+ * Benefícios (spec 08) vigentes no mês para TODOS os colaboradores numa só
+ * query, dentro da transacção do chamador. Mesma regra do contrato
+ * `linhasPayrollDeBeneficios` (`filtroAtribuicoesVigentes` + `linhasDaAtribuicao`),
+ * sem o N+1 nem o `prisma` global dessa função avulsa.
+ *
+ * Benefícios NÃO tributáveis (`tributavel=false`): a comparticipação da empresa
+ * não entra na folha. O motor só conhece um bruto, que é base de INSS e de
+ * IRPS, e é pago ao colaborador no líquido; um benefício não tributável é um
+ * custo da entidade pago a terceiros (seguradora, operadora…) — somá-lo ao
+ * bruto tributá-lo-ia e aumentaria o líquido a transferir com dinheiro que o
+ * colaborador nunca recebe. O desconto do colaborador entra sempre.
+ */
+async function beneficiosDoMes(
+  tx: Tx,
+  colaboradorIds: string[],
+  periodo: { inicio: Date; fim: Date },
+  tenantId: string,
+): Promise<Map<string, BeneficiosColaborador>> {
+  const atribuicoes = await tx.beneficioColaborador.findMany({
+    where: {
+      tenantId,
+      colaboradorId: { in: colaboradorIds },
+      // `periodo.fim` é exclusivo (1.º instante do mês seguinte)
+      ...filtroAtribuicoesVigentes(periodo.inicio, new Date(periodo.fim.getTime() - 1)),
+    },
+    include: { beneficio: { select: SELECT_BENEFICIO_PAYROLL } },
+    orderBy: { dataInicio: 'asc' },
+  });
+
+  const porColaborador = new Map<string, BeneficiosColaborador>();
+  for (const at of atribuicoes) {
+    const b = porColaborador.get(at.colaboradorId) ?? { proventos: [], descontos: [] };
+    for (const l of linhasDaAtribuicao(at)) {
+      if (l.tipo === 'DESCONTO') b.descontos.push({ descricao: l.descricao, valor: l.valor });
+      else if (l.tributavel) b.proventos.push({ descricao: l.descricao, valor: l.valor });
+    }
+    porColaborador.set(at.colaboradorId, b);
+  }
+  return porColaborador;
+}
+
 /** Monta a entrada do motor a partir de snapshots pré-agregados — SEM I/O. */
 function montarEntrada(
   col: ColaboradorSnapshot,
   tabelas: { inss: TabelaINSSVigente; irps: EscalaoIRPSVigente[] },
   snapshot: { horasExtras: Prisma.Decimal; diasFalta: number; comissoes: Prisma.Decimal },
   linhasManuais: LinhaManual[] = [],
+  beneficios: BeneficiosColaborador = { proventos: [], descontos: [] },
 ): EntradaCalculoPayroll {
   // Horas extras do mês (RegistoAssiduidade), valorizadas com majoração 50%
   const valorHorasExtras = valorizarHorasExtras(col.salarioBase, snapshot.horasExtras);
@@ -350,6 +400,11 @@ function montarEntrada(
       descricao: `Faltas não remuneradas (${diasFalta} dia${diasFalta > 1 ? 's' : ''})`,
       valor: calcularDescontoFalta(col.salarioBase, diasFalta),
     });
+  }
+
+  // Parte do colaborador nos benefícios do mês (spec 08)
+  for (const d of beneficios.descontos) {
+    descontosDiversos.push({ natureza: 'OUTRO', descricao: d.descricao, valor: d.valor });
   }
 
   // Ajustes manuais persistidos (sobrevivem ao recálculo)
@@ -385,6 +440,7 @@ function montarEntrada(
       bonus: bonusManual,
       outros: proventosOutrosManual,
     },
+    proventosBeneficio: beneficios.proventos,
     descontosDiversos,
     tabelaInss: tabelas.inss,
     escaloesIrps: tabelas.irps,
@@ -469,7 +525,10 @@ async function gravarPayroll(
     proventoSubHabitacao: e.subsidios.habitacao,
     proventoComissoes: e.variaveis.comissoes,
     proventoBonus: e.variaveis.bonus,
-    proventoOutros: e.subsidios.outros.plus(e.variaveis.outros),
+    proventoOutros: (e.proventosBeneficio ?? []).reduce(
+      (s, b) => s.plus(b.valor),
+      e.subsidios.outros.plus(e.variaveis.outros),
+    ),
     salarioLiquido: r.liquido,
     encargoInssEntidade: r.inssEntidade,
     custoTotalEntidade: r.custoTotalEntidade,
@@ -591,6 +650,7 @@ async function recalcularPayrollNoTx(tx: Tx, payrollId: string, ctx: Ctx): Promi
   const tabelas = await obterTabelasVigentes(tx, ref, ctx.tenantId);
   const comissoes = await comissoesPorColaborador(tx, [payroll.colaborador], periodo, ctx.tenantId);
   const agregados = await agregadosDoMes(tx, [payroll.colaboradorId], periodo, ctx.tenantId);
+  const beneficios = await beneficiosDoMes(tx, [payroll.colaboradorId], periodo, ctx.tenantId);
   const linhasManuais = await tx.linhaPayroll.findMany({
     where: { tenantId: ctx.tenantId, payrollId, manual: true },
     select: { tipo: true, natureza: true, descricao: true, valor: true },
@@ -600,7 +660,7 @@ async function recalcularPayrollNoTx(tx: Tx, payrollId: string, ctx: Ctx): Promi
     horasExtras: agregados.horasExtras.get(payroll.colaboradorId) ?? ZERO,
     diasFalta: agregados.diasFalta.get(payroll.colaboradorId) ?? 0,
     comissoes: comissoes.get(payroll.colaboradorId) ?? ZERO,
-  }, linhasManuais);
+  }, linhasManuais, beneficios.get(payroll.colaboradorId));
   const resultado = calcularPayroll(entrada);
 
   if (resultado.liquido.lt(ZERO)) {
@@ -702,11 +762,12 @@ export const PayrollService = {
       }
 
       // Pré-agregação fora do loop (evita N+1 dentro da transacção):
-      // comissões, assiduidade/ausências (2 groupBy), payrolls existentes e
+      // comissões, assiduidade/ausências (2 groupBy), benefícios, payrolls existentes e
       // linhas manuais — número de queries constante face ao n.º de colaboradores.
       const colaboradorIds = colaboradores.map((c) => c.id);
       const comissoes = await comissoesPorColaborador(tx, colaboradores, periodo, ctx.tenantId);
       const agregados = await agregadosDoMes(tx, colaboradorIds, periodo, ctx.tenantId);
+      const beneficios = await beneficiosDoMes(tx, colaboradorIds, periodo, ctx.tenantId);
 
       const payrollsExistentes = await tx.payroll.findMany({
         where: {
@@ -749,7 +810,7 @@ export const PayrollService = {
           horasExtras: agregados.horasExtras.get(col.id) ?? ZERO,
           diasFalta: agregados.diasFalta.get(col.id) ?? 0,
           comissoes: comissoes.get(col.id) ?? ZERO,
-        }, linhasManuais);
+        }, linhasManuais, beneficios.get(col.id));
         const resultado = calcularPayroll(entrada);
         await gravarPayroll(tx, {
           tenantId: ctx.tenantId,
