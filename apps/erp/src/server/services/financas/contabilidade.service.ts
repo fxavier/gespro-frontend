@@ -741,13 +741,37 @@ export async function obterContaDetalhe(
   };
 }
 
-export async function listarContas(filtro: FiltroContaPGCInput, ctx: Ctx): Promise<PaginacaoContabilidade<ContaPGC>> {
+/**
+ * Ids de todas as descendentes de `contaId` no tenant (filhas, netas, …), sem a
+ * própria conta. `UNION` (não `UNION ALL`) faz a CTE terminar sobre ciclos já
+ * gravados; `tenantId` nos dois ramos impede atravessar para outro tenant (#296).
+ */
+export async function idsDescendentes(contaId: string, ctx: Ctx): Promise<string[]> {
+  const linhas = await prisma.$queryRaw<Array<{ id: string }>>`
+    WITH RECURSIVE descendentes(id) AS (
+      SELECT id FROM "ContaPGC" WHERE "contaMaeId" = ${contaId} AND "tenantId" = ${ctx.tenantId}
+      UNION
+      SELECT c.id FROM "ContaPGC" c
+        JOIN descendentes d ON c."contaMaeId" = d.id
+       WHERE c."tenantId" = ${ctx.tenantId}
+    )
+    SELECT id FROM descendentes WHERE id <> ${contaId}
+  `;
+  return linhas.map((l) => l.id);
+}
+
+export async function listarContas(
+  filtro: FiltroContaPGCInput,
+  ctx: Ctx,
+  opcoes: { excluirIds?: string[] } = {},
+): Promise<PaginacaoContabilidade<ContaPGC>> {
   return paginate(
     (a) =>
       prisma.contaPGC.findMany({
         ...a,
         where: {
           tenantId: ctx.tenantId,
+          ...(opcoes.excluirIds?.length ? { id: { notIn: opcoes.excluirIds } } : {}),
           ...(filtro.classe ? { classe: filtro.classe } : {}),
           ...(filtro.tipo ? { tipo: filtro.tipo } : {}),
           ...(filtro.nivel !== undefined ? { nivel: filtro.nivel } : {}),

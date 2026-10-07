@@ -33,13 +33,13 @@ export default async function EditarContaPGCPage({
     if (!detalhe) return { detalhe: null, opcoesIniciais: [] as ComboboxOption[] };
 
     // Primeira página (50 contas) + conta mãe actual (pode estar fora das primeiras 50).
-    const { items } = await contabilidadeService.listarContas({ take: 50 }, ctx);
+    // Sem a própria conta nem as descendentes: qualquer delas criaria um ciclo (#296).
+    const excluirIds = [id, ...(await contabilidadeService.idsDescendentes(id, ctx))];
+    const { items } = await contabilidadeService.listarContas({ take: 50 }, ctx, { excluirIds });
 
-    // Merge por id: primeira página + conta mãe actual (sem duplicados, sem a própria conta).
+    // Merge por id: primeira página + conta mãe actual (sem duplicados).
     const mapaContas = new Map<string, ComboboxOption>(
-      items
-        .filter((c) => c.id !== id)
-        .map((c) => [c.id, { value: c.id, label: `${c.codigo} — ${c.nome}` }]),
+      items.map((c) => [c.id, { value: c.id, label: `${c.codigo} — ${c.nome}` }]),
     );
     const contaMaeActual = detalhe.contaMae;
     if (contaMaeActual) {
