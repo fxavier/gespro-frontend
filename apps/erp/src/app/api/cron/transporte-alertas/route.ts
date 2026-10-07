@@ -11,6 +11,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prismaBase } from '@/server/db/client';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { listarTenantsComAcesso } from '@/server/provisioning/tenants-com-acesso';
+import { USER_ID_AUTOMATICO } from '@/server/services/financas/contabilidade.service';
 import { recalcularEstadosDocumentos, gerarAlertasDocumentos } from '@/server/services/operacoes/alertas.service';
 import { notificacaoService } from '@/server/services/plataforma/notificacao.service';
 
@@ -114,10 +117,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // Obter todos os tenants activos
-    const tenants = await prismaBase.tenant.findMany({
-      select: { id: true, slug: true },
-    });
+    // Só tenants com acesso (não apagados, Assinatura aberta ou em Leitura) — issue #198.
+    const tenants = await listarTenantsComAcesso();
 
     const resultados: Array<{
       tenantId: string;
@@ -129,7 +130,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     for (const tenant of tenants) {
       // 1. Recalcular estados dos documentos
-      const resultado = await recalcularEstadosDocumentos({ tenantId: tenant.id });
+      // O serviço usa o cliente estendido: precisa do contexto do tenant.
+      const resultado = await runWithTenantContext(
+        { tenantId: tenant.id, userId: USER_ID_AUTOMATICO },
+        () => recalcularEstadosDocumentos({ tenantId: tenant.id }),
+      );
 
       // 2. Carregar documentos com alertas para gerar notificações
       const [docsViatura, docsMotorista] = await Promise.all([
