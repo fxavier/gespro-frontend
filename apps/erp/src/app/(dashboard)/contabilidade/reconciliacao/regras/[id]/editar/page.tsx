@@ -6,7 +6,8 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/patterns';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { obterRegraSugestao } from '@/server/services/reconciliacao/regras-sugestao.service';
-import { acessoRegras, SemPermissao } from '../../_components/acesso';
+import { acessoRegras } from '../../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { opcoesFormularioRegra } from '../../_components/opcoes';
 import { RegraForm } from '../../_components/regra-form';
 
@@ -27,7 +28,7 @@ export default async function EditarRegraSugestaoPage({ params }: PageProps) {
     return (
       <div className="p-6 space-y-6">
         <PageHeader title="Editar regra de sugestão" breadcrumbs={BREADCRUMBS} />
-        <SemPermissao mensagem="Não tem permissão para configurar as regras de sugestão." />
+        <SemPermissao testId="regras-sem-permissao" mensagem="Não tem permissão para configurar as regras de sugestão." />
       </div>
     );
   }

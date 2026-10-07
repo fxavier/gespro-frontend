@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Logotipo, Simbolo } from './Logotipo';
 import { COOKIE_BARRA_LATERAL, VALOR_RECOLHIDA, hrefActivo } from '@/lib/barra-lateral';
+import { podeVerRota } from '@/lib/permissoes-rotas';
 
 interface MenuItem {
   title: string;
@@ -41,7 +42,6 @@ interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
   children?: MenuItem[];
-  permission?: string;
 }
 
 /**
@@ -58,9 +58,9 @@ const menuItems: MenuItem[] = [
     title: 'Compras & Procurement',
     icon: PackageSearch,
     children: [
-      { title: 'Requisições', href: '/compras/requisicoes', icon: ClipboardList, permission: 'compras:requisicao:ver' },
-      { title: 'Cotações (RFQ)', href: '/compras/cotacoes', icon: FileText, permission: 'compras:cotacao:ver' },
-      { title: 'Pedidos de Compra', href: '/compras/pedidos', icon: FileCheck, permission: 'compras:pedido:ver' },
+      { title: 'Requisições', href: '/compras/requisicoes', icon: ClipboardList },
+      { title: 'Cotações (RFQ)', href: '/compras/cotacoes', icon: FileText },
+      { title: 'Pedidos de Compra', href: '/compras/pedidos', icon: FileCheck },
     ],
   },
   {
@@ -115,20 +115,14 @@ const menuItems: MenuItem[] = [
       { title: 'Balancete', href: '/contabilidade/balancete', icon: FileBarChart2 },
       { title: 'Balanço', href: '/contabilidade/balanco', icon: Scale },
       { title: 'Demonstração do Resultado do Exercício', href: '/contabilidade/dre', icon: BarChart3 },
-      // A DFC fica junto dos outros mapas. Com permissão: o OPERADOR não tem
-      // `financas:fluxo-caixa:leitura` e não deve ver um atalho para «Sem permissão».
-      {
-        title: 'Demonstração de Fluxos de Caixa',
-        href: '/contabilidade/dfc',
-        icon: ArrowRightLeft,
-        permission: 'financas:fluxo-caixa:leitura',
-      },
+      // A DFC fica junto dos outros mapas; a permissão dela está em `lib/permissoes-rotas`.
+      { title: 'Demonstração de Fluxos de Caixa', href: '/contabilidade/dfc', icon: ArrowRightLeft },
       { title: 'Reconciliação', href: '/contabilidade/reconciliacao', icon: Landmark },
       { title: 'Exercícios', href: '/contabilidade/exercicios', icon: Calendar },
       { title: 'Apuramento de IVA', href: '/contabilidade/iva', icon: PercentCircle },
       { title: 'Faturação', href: '/faturacao/dashboard', icon: Receipt },
       // #149 — numeração dos documentos; quem só lê vê a lista sem acções.
-      { title: 'Séries de documento', href: '/faturacao/series', icon: ListOrdered, permission: 'faturacao:leitura' },
+      { title: 'Séries de documento', href: '/faturacao/series', icon: ListOrdered },
       { title: 'Caixa', href: '/caixa', icon: Wallet },
       { title: 'Tesouraria', href: '/tesouraria', icon: LineChart },
       { title: 'Compromissos', href: '/tesouraria/compromissos', icon: ClipboardList },
@@ -190,18 +184,16 @@ const menuItems: MenuItem[] = [
       { title: 'Analytics', href: '/analytics', icon: BarChart3 },
       { title: 'Core Tenancy', href: '/core-tenancy', icon: Building2 },
       // Spec 19 — subscrição SaaS (plano, trial, Checkout/Portal).
-      {
-        title: 'Subscrição',
-        href: '/definicoes/faturacao',
-        icon: CreditCard,
-        permission: 'assinatura:ver',
-      },
+      { title: 'Subscrição', href: '/definicoes/faturacao', icon: CreditCard },
     ],
   },
 ];
 
 
-/** Filtra items por permissões — recursivo para grupos com filhos. */
+/**
+ * Filtra items por permissões — recursivo; um grupo sem filhos visíveis desaparece.
+ * A decisão é a de `podeVerRota` (#76), a mesma da guarda das páginas.
+ */
 function filtrarPorPermissoes(items: MenuItem[], permissions: string[]): MenuItem[] {
   return items
     .map((item) => {
@@ -209,8 +201,7 @@ function filtrarPorPermissoes(items: MenuItem[], permissions: string[]): MenuIte
         const filhos = filtrarPorPermissoes(item.children, permissions);
         return filhos.length > 0 ? { ...item, children: filhos } : null;
       }
-      if (!item.permission) return item;
-      return permissions.includes(item.permission) ? item : null;
+      return item.href && podeVerRota(item.href, permissions) ? item : null;
     })
     .filter(Boolean) as MenuItem[];
 }
@@ -477,7 +468,7 @@ function escreverCookie(recolhida: boolean) {
  * passam `defaultCollapsed` — a página já nasce no estado certo, sem salto.
  *
  * @param userPermissions Lista de permissões do utilizador (session.user.permissions).
- *   Itens sem campo `permission` são sempre visíveis (ex.: Dashboard).
+ *   Cada item passa por `podeVerRota` (`lib/permissoes-rotas`); o Dashboard é público.
  */
 const CONSULTA_ESTREITO = '(max-width: 767px)';
 

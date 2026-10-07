@@ -8,7 +8,8 @@ import { versaoAtual } from '@/server/services/financas/dfc.service';
 import { formatarDataHora } from '@/lib/format-date';
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { Card, CardContent } from '@/components/ui/card';
-import { acessoDFC, lerVoltar, SemPermissao } from '../_components/acesso';
+import { acessoDFC, lerVoltar } from '../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { BREADCRUMBS_BASE } from '../_components/rotulos';
 import { ValidarVersaoForm } from '../_components/validar-versao-form';
 
@@ -29,7 +30,7 @@ export default async function ValidarVersaoPage({ searchParams }: PageProps) {
     return (
       <div className="p-6 space-y-6">
         {cabecalho}
-        <SemPermissao mensagem="Validar o mapeamento da DFC exige a permissão própria de validação (por omissão, só o administrador)." />
+        <SemPermissao testId="dfc-config-sem-permissao" mensagem="Validar o mapeamento da DFC exige a permissão própria de validação (por omissão, só o administrador)." />
       </div>
     );
   }

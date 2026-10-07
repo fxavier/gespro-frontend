@@ -21,7 +21,8 @@ import { PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { diaIsoMaputo, formatarData } from '@/lib/format-date';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
-import { PERM, SemPermissao, acessoDocumento } from '../../_components/acesso-documento';
+import { PERM, acessoDocumento } from '../../_components/acesso-documento';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { RegistarPagamentoFaturaForm } from './_components/registar-pagamento-fatura-form';
 
 export default async function RegistarPagamentoFaturaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -52,8 +53,9 @@ export default async function RegistarPagamentoFaturaPage({ params }: { params: 
       <div className="p-6 space-y-6">
         {cabecalho}
         <SemPermissao
+          testId="documento-sem-permissao"
           mensagem="Registar o pagamento de uma factura exige a permissão faturacao:fatura:pagar."
-          voltar={detalhe}
+          voltar={{ href: detalhe, rotulo: 'Voltar ao documento' }}
         />
       </div>
     );

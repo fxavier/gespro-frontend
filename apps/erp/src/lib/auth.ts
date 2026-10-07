@@ -16,6 +16,9 @@ import {
 } from '@/lib/state-machines';
 import { autenticarPorPalavraPasse, emailVerificadoDoToken } from '@/server/auth/direct-grant';
 import { loginLimiter } from '@/server/security/rate-limiter';
+import { createElement, type ReactElement } from 'react';
+import { redirect } from 'next/navigation';
+import { podeVerRota } from '@/lib/permissoes-rotas';
 
 /**
  * Autenticação por Direct Access Grant contra o Keycloak (ADR-0029) com a
@@ -402,4 +405,22 @@ export async function can(permission: string): Promise<boolean> {
 
 export async function requirePermission(permission: string): Promise<void> {
   if (!(await can(permission))) throw new ForbiddenError();
+}
+
+/**
+ * Guarda de página por rota (#76), chamada no `layout.tsx` de cada módulo:
+ * `return (await exigirPermissaoPagina('/modulo')) ?? children;`.
+ *
+ * Decide com `podeVerRota` — a mesma função que filtra a barra lateral, logo o
+ * menu nunca mostra o que a página recusa. Sem sessão, vai para o login; sem a
+ * permissão de consulta da rota, devolve o «Sem permissão» partilhado em vez da
+ * página. Com permissão, devolve `null`.
+ */
+export async function exigirPermissaoPagina(rota: string): Promise<ReactElement | null> {
+  const session = await auth();
+  if (!session?.user) redirect('/auth/login');
+  if (podeVerRota(rota, session.user.permissions ?? [])) return null;
+  // Import dinâmico: as rotas de API e as actions que usam este módulo não carregam UI.
+  const { SemPermissao } = await import('@/components/patterns/sem-permissao');
+  return createElement('div', { className: 'p-6' }, createElement(SemPermissao));
 }

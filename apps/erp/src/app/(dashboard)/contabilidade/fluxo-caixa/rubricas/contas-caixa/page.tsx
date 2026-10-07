@@ -3,7 +3,8 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarContas } from '@/server/services/financas/contabilidade.service';
 import { painelConfiguracao } from '@/server/services/financas/dfc.service';
 import { PageHeader } from '@/components/patterns';
-import { acessoDFC, lerVoltar, SemPermissao } from '../_components/acesso';
+import { acessoDFC, lerVoltar } from '../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { BREADCRUMBS_BASE } from '../_components/rotulos';
 import { ContasCaixaForm } from '../_components/contas-caixa-form';
 
@@ -24,7 +25,7 @@ export default async function ContasCaixaPage({ searchParams }: PageProps) {
     return (
       <div className="p-6 space-y-6">
         {cabecalho}
-        <SemPermissao mensagem="Não tem permissão para configurar as contas de caixa da DFC." />
+        <SemPermissao testId="dfc-config-sem-permissao" mensagem="Não tem permissão para configurar as contas de caixa da DFC." />
       </div>
     );
   }
