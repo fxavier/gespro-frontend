@@ -260,8 +260,10 @@ consola passam na mesma. Aconteceu em `/registo` e passou despercebido a uma spe
 `DEVEDORA` e classe 7 (rendimentos) é `CREDORA`. Estiveram trocadas e o balancete mostrava a receita **em
 negativo**: o `montarLinhasBalancete` calcula `saldoAtual` a partir da `natureza`, e o `balancete.test.ts` já
 assumia o correcto — era o ficheiro de dados que discordava do código. Há teste a trancar as duas regras; se
-falhar, o defeito está no JSON, não no teste. (A classe 4 continua toda `DEVEDORA` — `44331 IVA liquidado` e
-`421 Fornecedores c/c` aparecem com o sinal ao contrário. Não há regra única: é conta a conta.)
+falhar, o defeito está no JSON, não no teste. A classe 4 não tem regra única: é **conta a conta** (#295) —
+`CREDORA` (logo `PASSIVO`) em 419, 42x excepto 429, 43x, 442, 4433, 44342, 4436, 449, 46x, 47x, 48x, 491 e 492;
+o resto `DEVEDORA`, incluindo as ambíguas 441, 4435, 445 e 446. Os tenants antigos foram corrigidos pela
+migração `*_natureza_classe_4`; o `scripts/extract-pgc.mjs` só reproduz o JSON, que é a fonte.
 
 **Exercício e período contabilístico (ADR-0033, 0034, 0035)** — cada `Lancamento` pertence a um
 `PeriodoContabil` (`periodoId`, obrigatório) de um `ExercicioContabil`; 13 períodos por exercício (o 13.º

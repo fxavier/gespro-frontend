@@ -325,3 +325,38 @@ cai por decisão dele, não por adaptação do autor). O predicado tem autoteste
 Estado: contra a versão anterior do autor (inline num ficheiro temporário, apagado) 8 dos 9 falham por asserção
 (`..%2f..%2fvendas` já era recusado pelo `includes('..')`); contra a correcção em curso na árvore, a meio da tarefa só falhava o
 `%252e%252e`; na verificação final os 33 casos passam (o autor recusa também o duplo encoding).
+
+## Re-derivação #295 — 421 e 44331 passam a CREDORA (2026-10-07)
+
+A issue #295 corrige a natureza da classe 4 conta a conta (JSON do plano + migração `<ts>_natureza_classe_4` para
+os tenants existentes). Das contas com movimento no seed (121, 411, 421, 44331, 6112, 63299, 711), só **421**
+(Fornecedores c/c) e **44331** (IVA liquidado — operações gerais) mudam: `DEVEDORA` → `CREDORA` (e `tipo` ATIVO →
+PASSIVO). 411 fica `DEVEDORA`; 121, 6112, 63299, 711 não são da classe 4.
+
+Regra aplicada, à mão (nunca `vitest -u`): o balancete assina o saldo pela natureza — numa DEVEDORA
+`saldo = Σ D − Σ C`, numa CREDORA `saldo = Σ C − Σ D`. Os movimentos são os mesmos; só o sinal troca. Logo, para
+421 e 44331, em **todos** os casos:
+
+| Caso | Conta | saldoInicial | saldoFinal | variacao | efeitoCaixa (inalterado) |
+|---|---|---|---|---|---|
+| mês 2026-09 | 421 | −603500.00 → 603500.00 | −1325550.00 → 1325550.00 | −722050.00 → 722050.00 | 722050.00 |
+| mês 2026-09 | 44331 | −658550.00 → 658550.00 | −704113.84 → 704113.84 | −45563.84 → 45563.84 | 45563.84 |
+| 2026-01..09 | 421 | 0 | −1325550.00 → 1325550.00 | −1325550.00 → 1325550.00 | 1325550.00 |
+| 2026-01..09 | 44331 | 0 | −704113.84 → 704113.84 | −704113.84 → 704113.84 | 704113.84 |
+| 2026-04..06 | 421 | 0 | −82100.00 → 82100.00 | −82100.00 → 82100.00 | 82100.00 |
+| 2026-04..06 | 44331 | −227729.28 → 227729.28 | −442404.68 → 442404.68 | −214675.40 → 214675.40 | 214675.40 |
+
+`efeitoCaixa` não muda: `efeitoCaixaDe` converte a variação para termos de débito pela natureza
+(`emTermosDeDebito`: numa CREDORA, `Δ(c) = −variacao`) e devolve `−Δ(c)`. Ex.: 421 em 2026-09, antes
+`−(−722050.00) = 722050.00`; agora `Δ(c) = −722050.00`, efeito `722050.00`. Por isso `valor` das rubricas OP-05/OP-06,
+`operacional.total`, `somaAtividades`, caixa e `resultadoLiquido` ficam iguais — a articulação continua a fechar
+com os mesmos números.
+
+**Impedimentos (2026-09)**: `movimento` é `Σ D − Σ C` numa DEVEDORA e o inverso numa CREDORA, e `saldoFinal` é o
+acumulado a 30/09 pela natureza. 421: movimento −722050.00 → 722050.00, saldoFinal −1325550.00 → 1325550.00;
+44331: −45563.84 → 45563.84, −704113.84 → 704113.84. 411 e 711 inalterados.
+
+As sentinelas não mudam (movimento por período, contas com movimento, mapeamento): a migração só toca em
+`natureza`/`tipo` de `ContaPGC`. Os golden contra a base local (dfc.golden, dfc.impedimentos-isolamento) passam a bater
+**depois** de a migração ser aplicada à base local (`prisma migrate deploy`); antes disso a base tem 421/44331
+DEVEDORA e os sinais acima ficam vermelhos — é o vermelho esperado do nó.
