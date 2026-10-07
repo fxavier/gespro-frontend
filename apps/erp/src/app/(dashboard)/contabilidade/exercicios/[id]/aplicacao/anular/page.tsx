@@ -16,7 +16,8 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as aplicacaoResultadoService from '@/server/services/financas/aplicacao-resultado.service';
 import { formatarData } from '@/lib/format-date';
 import { formatMZN } from '@/lib/format-currency';
-import { acessoExercicios, obterExercicioDoTenant, SemPermissao } from '../../../_lib/acesso';
+import { acessoExercicios, obterExercicioDoTenant } from '../../../_lib/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { AnularAplicacaoForm } from './_components/anular-aplicacao-form';
 
 export default async function AnularAplicacaoPage({ params }: { params: Promise<{ id: string }> }) {

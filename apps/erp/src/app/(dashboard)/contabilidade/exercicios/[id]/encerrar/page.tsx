@@ -12,7 +12,8 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/patterns';
 import { ROTULO_ESTADO_EXERCICIO } from '@/lib/state-machines';
 import { Button } from '@/components/ui/button';
-import { acessoExercicios, obterExercicioDoTenant, SemPermissao } from '../../_lib/acesso';
+import { acessoExercicios, obterExercicioDoTenant } from '../../_lib/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { EncerrarExercicioForm } from './_components/encerrar-exercicio-form';
 
 export default async function EncerrarExercicioPage({ params }: { params: Promise<{ id: string }> }) {

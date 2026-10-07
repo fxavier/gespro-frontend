@@ -12,7 +12,8 @@ import { TRANSICOES_PROFORMA } from '@/server/services/financas/faturacao.interf
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { formatarData } from '@/lib/format-date';
-import { PERM, AvisoEstado, SemPermissao, acessoDocumento } from '../../../_components/acesso-documento';
+import { PERM, AvisoEstado, acessoDocumento } from '../../../_components/acesso-documento';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { CancelarDocumentoForm } from '../../../_components/cancelar-documento-form';
 
 export default async function CancelarProformaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +41,7 @@ export default async function CancelarProformaPage({ params }: { params: Promise
   let bloqueio: React.ReactNode = null;
   if (!tem(PERM.proformaCancelar)) {
     bloqueio = (
-      <SemPermissao mensagem="Cancelar uma proforma exige a permissão faturacao:proforma:cancelar." voltar={detalhe} />
+      <SemPermissao testId="documento-sem-permissao" mensagem="Cancelar uma proforma exige a permissão faturacao:proforma:cancelar." voltar={{ href: detalhe, rotulo: 'Voltar ao documento' }} />
     );
   } else if (!TRANSICOES_PROFORMA[proforma.status].includes('CANCELADA')) {
     bloqueio = (

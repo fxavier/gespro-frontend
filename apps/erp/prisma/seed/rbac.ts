@@ -462,6 +462,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   OPERADOR: allCodes().filter((code) => {
     // A DFC não é operacional: o `:leitura` dela não entra pelo isReadOnly.
     if (code.startsWith('financas:fluxo-caixa:')) return false;
+    // #76 — quem trabalha no tenant e o trilho de auditoria são da administração:
+    // o OPERADOR não as leva pelo isReadOnly (a migração retira-as aos tenants existentes).
+    if (['admin:ver_utilizadores', 'admin:ver_auditoria'].includes(code)) return false;
     if (isReadOnly(code)) return true;
     // Inventário — #81: aprovar discrepância de contagem é de ADMIN/GESTOR.
     if (code === 'inventario:contagens:aprovar-discrepancia') return false;

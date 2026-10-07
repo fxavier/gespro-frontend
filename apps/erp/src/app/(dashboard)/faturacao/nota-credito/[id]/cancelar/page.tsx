@@ -13,7 +13,8 @@ import { TRANSICOES_NOTA_CREDITO } from '@/server/services/financas/faturacao.in
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { formatarData } from '@/lib/format-date';
-import { PERM, AvisoEstado, SemPermissao, acessoDocumento } from '../../../_components/acesso-documento';
+import { PERM, AvisoEstado, acessoDocumento } from '../../../_components/acesso-documento';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { CancelarDocumentoForm } from '../../../_components/cancelar-documento-form';
 
 export default async function CancelarNotaCreditoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,7 +42,7 @@ export default async function CancelarNotaCreditoPage({ params }: { params: Prom
   let bloqueio: React.ReactNode = null;
   if (!tem(PERM.ncCancelar)) {
     bloqueio = (
-      <SemPermissao mensagem="Cancelar uma nota de crédito exige a permissão faturacao:nc:cancelar." voltar={detalhe} />
+      <SemPermissao testId="documento-sem-permissao" mensagem="Cancelar uma nota de crédito exige a permissão faturacao:nc:cancelar." voltar={{ href: detalhe, rotulo: 'Voltar ao documento' }} />
     );
   } else if (!TRANSICOES_NOTA_CREDITO[nc.status].includes('CANCELADA')) {
     bloqueio = (

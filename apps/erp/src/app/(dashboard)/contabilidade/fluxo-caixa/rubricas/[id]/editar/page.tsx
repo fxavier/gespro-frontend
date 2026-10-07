@@ -4,7 +4,8 @@ import { NotFoundError } from '@/lib/errors';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { obterRubrica } from '@/server/services/financas/dfc.service';
 import { PageHeader } from '@/components/patterns';
-import { acessoDFC, lerVoltar, SemPermissao } from '../../_components/acesso';
+import { acessoDFC, lerVoltar } from '../../_components/acesso';
+import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { BREADCRUMBS_BASE } from '../../_components/rotulos';
 import { RubricaForm } from '../../_components/rubrica-form';
 
@@ -19,7 +20,7 @@ export default async function EditarRubricaPage({ params, searchParams }: PagePr
     return (
       <div className="p-6 space-y-6">
         <PageHeader title="Editar rubrica" breadcrumbs={[...BREADCRUMBS_BASE, { label: 'Editar' }]} />
-        <SemPermissao mensagem="Não tem permissão para configurar as rubricas da DFC." />
+        <SemPermissao testId="dfc-config-sem-permissao" mensagem="Não tem permissão para configurar as rubricas da DFC." />
       </div>
     );
   }
