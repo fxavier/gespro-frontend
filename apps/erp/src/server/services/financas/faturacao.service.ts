@@ -1,4 +1,5 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import { Prisma, type MetodoPagamentoTipo, type TipoSerieDocumento as TipoSeriePrisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
@@ -43,7 +44,11 @@ import { formatarData } from '@/lib/format-date';
 import { vencimentoJaPassou } from '@/lib/periodo-fiscal';
 import { exigirClienteAtivoParaCredito } from '@/lib/cliente-credito';
 import { motivoIsencaoEmFalta } from '@/lib/nota-debito';
-import { motivoIsencaoAutomatico } from '@/lib/documents/fatura-model';
+import {
+  motivoIsencaoAutomatico,
+  serializarDocumentoParaHash,
+  type FaturaInput,
+} from '@/lib/documents/fatura-model';
 import {
   TRANSICOES_FATURA,
   TRANSICOES_NOTA_CREDITO,
@@ -865,6 +870,37 @@ export async function motivoIsencaoAutomaticoEmTx(tx: Prisma.TransactionClient, 
 }
 
 /**
+ * #336 — sha256(serialização determinística do documento + hash do último documento da
+ * MESMA série). Chamar depois de `numerarDocumento`, que tranca a série até ao commit.
+ * O primeiro documento de uma série encadeia com a string vazia.
+ */
+async function calcularHashIntegridade(
+  tx: Prisma.TransactionClient,
+  ctx: Ctx,
+  serieDocumentoId: string,
+  documento: FaturaInput,
+  nuitAdquirente: string | null,
+): Promise<string> {
+  const [emitente, anterior] = await Promise.all([
+    // `$queryRaw` (e não `tx.tenant`): os duplos de tx dos testes unitários só expõem os
+    // delegados que a emissão já usava.
+    tx.$queryRaw<Array<{ nuit: string }>>`SELECT nuit FROM "Tenant" WHERE id = ${ctx.tenantId}`,
+    tx.fatura.findFirst({
+      where: { tenantId: ctx.tenantId, serieDocumentoId },
+      orderBy: { numero: 'desc' },
+      select: { hashValidacao: true },
+    }),
+  ]);
+  const serializacao = serializarDocumentoParaHash(documento, {
+    nuitEmitente: emitente[0]?.nuit ?? '',
+    nuitAdquirente,
+  });
+  return createHash('sha256')
+    .update(serializacao + (anterior?.hashValidacao ?? ''))
+    .digest('hex');
+}
+
+/**
  * Núcleo da emissão de factura (ADR-0041 §3): corre na transacção do chamador e
  * NÃO consulta a sessão — o travão de e-mail é de quem chama (`emitirFatura`,
  * `converterProformaEmFatura`; o POS aplica-o na abertura da sessão, §6).
@@ -913,16 +949,45 @@ export async function emitirDocumentoEmTx(
 
   const { numero, serieDocumentoId } = await numerarDocumento(tx, tipoSerie, ctx, input.dataEmissao);
 
+  const linhas = input.linhas.map((l, i) => ({
+    produtoId: l.produtoId ?? null,
+    descricao: l.descricao,
+    quantidade: new Prisma.Decimal(l.quantidade.toFixed(4)),
+    precoUnitario: new Prisma.Decimal(l.precoUnitario.toFixed(2)),
+    desconto: new Prisma.Decimal(l.desconto.toFixed(2)),
+    taxaIva: new Prisma.Decimal(l.taxaIva.toFixed(4)),
+    subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
+    ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
+    total: new Prisma.Decimal(l.total.toFixed(2)),
+    motivoIsencao: motivoIsencaoDaLinha(l),
+    ordemLinha: l.ordemLinha ?? i,
+  }));
+  const moeda = input.moeda ?? 'MZN';
+
+  // #336 — hash de integridade encadeado por série. A série já está trancada por
+  // `numerarDocumento` (FOR UPDATE até ao commit), logo o «último» lido aqui é estável.
+  const hashValidacao = await calcularHashIntegridade(tx, ctx, serieDocumentoId, {
+    numero,
+    serieTipo: tipoSerie,
+    moeda,
+    dataEmissao: input.dataEmissao,
+    dataVencimento: input.dataVencimento,
+    ...totais,
+    linhas,
+  }, cliente.nuit ?? null);
+
   const fatura = await tx.fatura.create({
     data: {
       tenantId: ctx.tenantId,
       serieDocumentoId,
       numero,
+      hashValidacao,
+      qrCode: null,
       clienteId: input.clienteId,
       // NUIT congelado na emissão: o mapa de IVA reproduz-se mesmo que o cliente mude (§8).
       nuitCliente: cliente.nuit ?? null,
       vendaId: input.vendaId ?? null,
-      moeda: input.moeda ?? 'MZN',
+      moeda,
       ...totais,
       totalPago: recebido,
       status,
@@ -934,25 +999,7 @@ export async function emitirDocumentoEmTx(
   });
 
   await Promise.all(
-    input.linhas.map((l, i) =>
-      tx.linhaFatura.create({
-        data: {
-          tenantId: ctx.tenantId,
-          faturaId: fatura.id,
-          produtoId: l.produtoId ?? null,
-          descricao: l.descricao,
-          quantidade: new Prisma.Decimal(l.quantidade.toFixed(4)),
-          precoUnitario: new Prisma.Decimal(l.precoUnitario.toFixed(2)),
-          desconto: new Prisma.Decimal(l.desconto.toFixed(2)),
-          taxaIva: new Prisma.Decimal(l.taxaIva.toFixed(4)),
-          subtotal: new Prisma.Decimal(l.subtotal.toFixed(2)),
-          ivaItem: new Prisma.Decimal(l.ivaItem.toFixed(2)),
-          total: new Prisma.Decimal(l.total.toFixed(2)),
-          motivoIsencao: motivoIsencaoDaLinha(l),
-          ordemLinha: l.ordemLinha ?? i,
-        },
-      }),
-    ),
+    linhas.map((l) => tx.linhaFatura.create({ data: { tenantId: ctx.tenantId, faturaId: fatura.id, ...l } })),
   );
 
   // Wave 3: lançamento contabilístico automático na MESMA transacção.

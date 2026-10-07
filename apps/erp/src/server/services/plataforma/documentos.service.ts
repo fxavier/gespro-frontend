@@ -44,6 +44,7 @@ export async function obterModeloFatura(id: string, ctx: Ctx): Promise<Documento
     total: fatura.total,
     totalPago: fatura.totalPago,
     observacoes: fatura.observacoes,
+    hashValidacao: fatura.hashValidacao,
     linhas: fatura.linhas.map((l) => ({
       descricao: l.descricao,
       quantidade: l.quantidade,

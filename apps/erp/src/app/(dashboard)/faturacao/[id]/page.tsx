@@ -134,7 +134,7 @@ export default async function FaturaDetalhePage({ params }: Props) {
       )}
       {fatura.hashValidacao && (
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Hash de validação</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Hash de integridade</p>{' '}
           <p className="font-mono text-xs break-all">{fatura.hashValidacao}</p>
         </div>
       )}
