@@ -105,6 +105,14 @@ export const ReforcoSchema = z.object({
 
 export type ReforcoInput = z.infer<typeof ReforcoSchema>;
 
+/** Cancelamento de uma sessão só com a abertura (#146) — o motivo fica nas observações. */
+export const CancelarSessaoCaixaSchema = z.object({
+  sessaoCaixaId: z.string().cuid('ID de sessão inválido'),
+  motivo: z.string().trim().min(1, 'Motivo obrigatório').max(500),
+});
+
+export type CancelarSessaoCaixaInput = z.infer<typeof CancelarSessaoCaixaSchema>;
+
 export const FiltroMovimentoCaixaSchema = z.object({
   sessaoCaixaId: z.string().cuid().optional(),
   tipo: TipoMovimentoCaixaEnum.optional(),
