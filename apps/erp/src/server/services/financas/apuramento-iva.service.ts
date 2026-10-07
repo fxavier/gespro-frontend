@@ -186,7 +186,8 @@ export function montarPartidasApuramento(
         regularizacoesEstado = regularizacoesEstado.plus(saldoCredor);
       }
     }
-    // 44343: PRORATA_NAO_SUPORTADO deve ter recusado antes de chegar aqui
+    // 44343 (pro rata): PRORATA_NAO_SUPORTADO recusou antes de chegar aqui — qualquer
+    // saída isenta (0 %) ou a taxa não-standard no período é recusada no passo 5 (#208)
   }
 
   const totalRegularizacoes = regularizacoesEstado.minus(regularizacoesSP);
@@ -385,19 +386,47 @@ export async function apurarIva(
       );
     }
 
-    // 5. PRORATA_NAO_SUPORTADO (ADR-0034 §4)
-    //    A partir de 2026-01, só a taxa 16 % é suportada. Taxa 5 % implica
-    //    dedução limitada e pro rata não implementado — recusa-se a calcular.
+    // 5. PRORATA_NAO_SUPORTADO (ADR-0034 §4, #208)
+    //    A partir de 2026-01, só a taxa 16 % é suportada. Taxa 5 %, operações
+    //    isentas (0 %) ou fora do campo implicam dedução limitada pelo pro rata,
+    //    que não está implementado — recusa-se a calcular.
+    //    Saídas: qualquer linha de factura, nota de débito ou nota de crédito
+    //    emitida no período com taxa ≠ 16 % (apanha 0 % e taxas não-standard).
+    //    A nota de crédito entra porque também altera o volume de negócios
+    //    (isento ou tributado) que compõe o coeficiente de pro rata — e uma NC a
+    //    0 % é a prova de que houve operação isenta a regularizar.
+    //    Compras (ContaPagar) mantêm a regra antiga: aquisições sem IVA (0 %) não
+    //    afectam o pro rata, que se calcula sobre as saídas.
     if (periodo.codigo >= PERIODO_LEI_10_2025) {
       const temTaxaNaoStandardFaturas = await tx.$queryRaw<[{ existe: boolean }]>`
-        SELECT EXISTS (
-          SELECT 1 FROM "LinhaFatura" lf
-          JOIN "Fatura" f ON f.id = lf."faturaId"
-          WHERE f."tenantId" = ${ctx.tenantId}
-            AND f."dataEmissao" >= ${periodo.dataInicio}
-            AND f."dataEmissao" <= ${periodo.dataFim}
-            AND f.status IN ('EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA')
-            AND lf."taxaIva" NOT IN (0::numeric, 0.160000::numeric)
+        SELECT (
+          EXISTS (
+            SELECT 1 FROM "LinhaFatura" lf
+            JOIN "Fatura" f ON f.id = lf."faturaId"
+            WHERE f."tenantId" = ${ctx.tenantId}
+              AND f."dataEmissao" >= ${periodo.dataInicio}
+              AND f."dataEmissao" <= ${periodo.dataFim}
+              AND f.status IN ('EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA')
+              AND lf."taxaIva" <> 0.160000::numeric
+          )
+          OR EXISTS (
+            SELECT 1 FROM "LinhaNotaDebito" lnd
+            JOIN "NotaDebito" nd ON nd.id = lnd."notaDebitoId"
+            WHERE nd."tenantId" = ${ctx.tenantId}
+              AND nd."dataEmissao" >= ${periodo.dataInicio}
+              AND nd."dataEmissao" <= ${periodo.dataFim}
+              AND nd.status IN ('EMITIDA', 'LIQUIDADA')
+              AND lnd."taxaIva" <> 0.160000::numeric
+          )
+          OR EXISTS (
+            SELECT 1 FROM "LinhaNotaCredito" lnc
+            JOIN "NotaCredito" nc ON nc.id = lnc."notaCreditoId"
+            WHERE nc."tenantId" = ${ctx.tenantId}
+              AND nc."dataEmissao" >= ${periodo.dataInicio}
+              AND nc."dataEmissao" <= ${periodo.dataFim}
+              AND nc.status IN ('EMITIDA', 'LIQUIDADA')
+              AND lnc."taxaIva" <> 0.160000::numeric
+          )
         ) AS existe
       `;
       const temTaxaNaoStandardCpagar = await tx.$queryRaw<[{ existe: boolean }]>`
@@ -416,8 +445,9 @@ export async function apurarIva(
       ) {
         throw new BusinessRuleError(
           'PRORATA_NAO_SUPORTADO',
-          `O período ${periodo.codigo} tem operações a taxas não-standard (ex.: 5 %). ` +
-            'O cálculo do pro rata não está implementado. ' +
+          `O período ${periodo.codigo} tem operações isentas (a 0 %) ou a taxas ` +
+            'não-standard (ex.: 5 %). Nesses casos a dedução do IVA depende do pro rata, ' +
+            'cujo cálculo não está implementado. ' +
             'Consulte o seu contabilista para tratar este período manualmente.',
         );
       }
