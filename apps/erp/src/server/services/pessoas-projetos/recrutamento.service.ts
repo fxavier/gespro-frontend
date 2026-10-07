@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { transitar } from './rh.service';
-import { TRANSICOES_VAGA, TRANSICOES_CANDIDATURA, calcularMidpoint } from '@/lib/state-machines';
+import { TRANSICOES_VAGA, TRANSICOES_CANDIDATURA, calcularMidpoint, candidaturaAdmissivel } from '@/lib/state-machines';
 import type { Ctx } from '@/server/services/types';
 import type {
   VagaInput,
@@ -517,7 +517,8 @@ export const CandidaturaService = {
   /**
    * Admite o candidato como Colaborador, numa $transaction atómica:
    * 1. Cria Colaborador (valida unicidade NUIT/BI/email antes)
-   * 2. Marca candidatura.etapa = CONTRATADO, colaboradorId preenchido
+   * 2. Marca candidatura.etapa = CONTRATADO, colaboradorId preenchido (também a partir de
+   *    CONTRATADO sem colaborador — #157)
    * 3. Regista histórico
    * 4. Incrementa vaga.posicoesPreenchidas
    * 5. Fecha vaga automaticamente se posições ficarem preenchidas
@@ -533,11 +534,15 @@ export const CandidaturaService = {
     if (!candidatura || candidatura.tenantId !== ctx.tenantId) {
       throw new NotFoundError('Candidatura não encontrada');
     }
-    if (candidatura.etapa === 'CONTRATADO') {
+    // «Já admitida» decide-se pelo colaborador, não pela etapa (#157): uma candidatura marcada
+    // CONTRATADO no pipeline, sem colaborador, continua admissível.
+    if (candidatura.colaboradorId) {
       throw new BusinessRuleError('CANDIDATURA_JA_ADMITIDA', 'Esta candidatura já foi convertida em colaborador');
     }
-    // Valida transição via máquina de estado (só PROPOSTA→CONTRATADO é permitido)
-    transitar(TRANSICOES_CANDIDATURA, candidatura.etapa, 'CONTRATADO', 'ETAPA_INVALIDA_ADMISSAO');
+    if (!candidaturaAdmissivel(candidatura)) {
+      // Valida transição via máquina de estado (só PROPOSTA→CONTRATADO é permitido)
+      transitar(TRANSICOES_CANDIDATURA, candidatura.etapa, 'CONTRATADO', 'ETAPA_INVALIDA_ADMISSAO');
+    }
 
     // Validar unicidade de Colaborador antes da transacção (melhor UX)
     const [colabNuit, colabBi, colabEmail] = await Promise.all([
@@ -619,13 +624,17 @@ export const CandidaturaService = {
       });
 
       // 2. Actualizar candidatura
-      await tx.candidatura.update({
-        where: { id: input.candidaturaId },
+      // Condicional a não ter colaborador: duas admissões concorrentes não criam dois colaboradores.
+      const ligada = await tx.candidatura.updateMany({
+        where: { id: input.candidaturaId, tenantId: ctx.tenantId, colaboradorId: null },
         data: {
           etapa: 'CONTRATADO',
           colaboradorId: colaborador.id,
         },
       });
+      if (ligada.count === 0) {
+        throw new BusinessRuleError('CANDIDATURA_JA_ADMITIDA', 'Esta candidatura já foi convertida em colaborador');
+      }
 
       // 3. Histórico
       await tx.historicoCandidatura.create({

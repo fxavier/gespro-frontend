@@ -86,6 +86,16 @@ export const TRANSICOES_CANDIDATURA: Record<string, string[]> = {
   DESISTIU: [],
 };
 
+/**
+ * Uma candidatura é admissível como Colaborador enquanto não tiver colaborador e estiver em
+ * CONTRATADO (marcada no pipeline sem admissão, #157) ou numa etapa que transite para CONTRATADO.
+ * «Já admitida» decide-se pelo `colaboradorId`, nunca pela etapa.
+ */
+export function candidaturaAdmissivel(c: { etapa: string; colaboradorId: string | null }): boolean {
+  if (c.colaboradorId) return false;
+  return c.etapa === 'CONTRATADO' || (TRANSICOES_CANDIDATURA[c.etapa] ?? []).includes('CONTRATADO');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WS-10: Encomendas, Devoluções, Trocas, Vendedores (Spec 10)
 // ─────────────────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { CandidaturaService } from '@/server/services/pessoas-projetos/recrutamento.service';
 import { PageHeader } from '@/components/patterns';
+import { candidaturaAdmissivel } from '@/lib/state-machines';
 import { AdmitirForm } from '../../../_components/admitir-form';
 
 interface Props {
@@ -32,8 +33,8 @@ export default async function AdmitirPage({ params }: Props) {
 
   if (!candidatura) notFound();
 
-  // Só pode admitir em PROPOSTA ou ENTREVISTA
-  if (!['PROPOSTA', 'ENTREVISTA'].includes(candidatura.etapa)) {
+  // Só pode admitir enquanto não houver colaborador (PROPOSTA, ou CONTRATADO sem colaborador — #157)
+  if (!candidaturaAdmissivel(candidatura)) {
     redirect(`/rh/recrutamento/candidaturas/${id}`);
   }
 
