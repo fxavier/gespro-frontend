@@ -16,6 +16,7 @@ import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
+import { diaCivilMaputo } from '@/lib/periodo-fiscal';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx, TxClient } from '@/server/services/types';
 import {
@@ -258,7 +259,9 @@ export class ComissaoService implements IComissaoService {
       detalhes.push(`Padrão: ${percentualFinal.toFixed(2)}%`);
     }
 
-    const hoje = new Date();
+    // Vigência por dia civil de Maputo (#352): cobre também as regras gravadas à
+    // meia-noite UTC pelo schema antigo, sem migração.
+    const hoje = diaCivilMaputo(new Date());
 
     for (const regra of regras) {
       const valorMinimo = regra.valorMinimo ? new Prisma.Decimal(dec(regra.valorMinimo)) : null;
@@ -317,7 +320,7 @@ export class ComissaoService implements IComissaoService {
         case 'POR_PERIODO':
           if (
             regra.dataInicio && regra.dataFim &&
-            hoje >= regra.dataInicio && hoje <= regra.dataFim
+            hoje >= diaCivilMaputo(regra.dataInicio) && hoje <= diaCivilMaputo(regra.dataFim)
           ) {
             percentualFinal = percentualBase;
             valorComissao = valor.mul(percentualFinal).div(100);
