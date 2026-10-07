@@ -532,11 +532,33 @@ export const AssiduidadeService = {
 export const AvaliacaoService = {
   async criar(input: CreateAvaliacaoInput, ctx: Ctx): Promise<{ id: string }> {
     const avaliacao = await prisma.$transaction(async (tx) => {
+      // O avaliador é o Colaborador do utilizador da sessão; a correspondência User↔Colaborador
+      // faz-se por email, no mesmo tenant (como nas comissões do payroll). #155
+      const user = await tx.user.findFirst({
+        where: { id: ctx.userId, tenantId: ctx.tenantId },
+        select: { email: true },
+      });
+      const avaliador = user
+        ? await tx.colaborador.findFirst({
+            where: { tenantId: ctx.tenantId, email: user.email },
+            select: { id: true },
+          })
+        : null;
+      if (!avaliador) {
+        throw new BusinessRuleError(
+          'AVALIADOR_SEM_COLABORADOR',
+          'O seu utilizador não tem um colaborador associado nesta empresa (o email tem de coincidir). Peça aos Recursos Humanos que o registe como colaborador para poder avaliar.',
+        );
+      }
+      if (avaliador.id === input.colaboradorId) {
+        throw new BusinessRuleError('AUTO_AVALIACAO', 'O colaborador não pode avaliar-se a si próprio');
+      }
+
       const av = await tx.avaliacao.create({
         data: {
           tenantId: ctx.tenantId,
           colaboradorId: input.colaboradorId,
-          avaliadorId: input.avaliadorId,
+          avaliadorId: avaliador.id,
           periodo: input.periodo,
           tipo: input.tipo,
           status: 'PENDENTE',

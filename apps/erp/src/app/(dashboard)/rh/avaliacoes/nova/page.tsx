@@ -46,7 +46,7 @@ export default async function NovaAvaliacaoPage() {
           </Button>
         }
       />
-      <NovaAvaliacaoForm colaboradores={colaboradores} avaliadorId={userId} />
+      <NovaAvaliacaoForm colaboradores={colaboradores} />
     </div>
   );
 }

@@ -44,7 +44,7 @@ type FormData = z.infer<typeof Schema>;
 type CriterioLocal = z.infer<typeof CriterioSchema>;
 
 interface Colaborador { id: string; nome: string; codigo: string }
-interface Props { colaboradores: Colaborador[]; avaliadorId: string }
+interface Props { colaboradores: Colaborador[] }
 
 const CRITERIO_DEFAULT: Partial<CriterioLocal> = { peso: 10, nota: 5, descricao: '' };
 
@@ -53,7 +53,7 @@ function linesToArray(text: string | undefined): string[] {
   return text.split('\n').map((l) => l.trim()).filter(Boolean);
 }
 
-export default function NovaAvaliacaoForm({ colaboradores, avaliadorId }: Props) {
+export default function NovaAvaliacaoForm({ colaboradores }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [criterios, setCriterios] = useState<CriterioLocal[]>([]);
@@ -94,7 +94,6 @@ export default function NovaAvaliacaoForm({ colaboradores, avaliadorId }: Props)
     startTransition(async () => {
       const result = await criarAvaliacaoAction({
         colaboradorId: data.colaboradorId,
-        avaliadorId,
         periodo: data.periodo,
         tipo: data.tipo,
         dataInicio: new Date(data.dataInicio),
