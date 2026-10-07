@@ -43,20 +43,29 @@ export function VendaAcoes({ id, status, faturaId = null, modoCompacto = false }
   const podeConfirmar = status === 'PENDENTE' || status === 'RASCUNHO';
   const podeCancelar = !faturaId && !['CANCELADA', 'CONCLUIDA', 'DEVOLVIDA'].includes(status);
 
-  const handleConfirmar = () => {
+  // #132: cada botão pede o passo seguinte da máquina (TRANSICOES_VENDA) a partir do estado
+  // mostrado — RASCUNHO → PENDENTE («Submeter»), PENDENTE → CONFIRMADA («Confirmar»).
+  const handleTransitar = (paraStatus: StatusVenda, sucesso: string, erro: string) => () => {
     startConfirmar(async () => {
-      const result = await transitarVendaAction({
-        vendaId: id,
-        paraStatus: 'CONFIRMADA' as StatusVenda,
-      });
+      const result = await transitarVendaAction({ vendaId: id, paraStatus });
       if (result.ok) {
-        toast.success('Venda confirmada com sucesso.');
+        toast.success(sucesso);
         router.refresh();
       } else {
-        toast.error(result.error.message ?? 'Erro ao confirmar a venda.');
+        toast.error(result.error.message ?? erro);
       }
     });
   };
+  const handleConfirmar = handleTransitar(
+    'CONFIRMADA',
+    'Venda confirmada com sucesso.',
+    'Erro ao confirmar a venda.',
+  );
+  const handleSubmeter = handleTransitar(
+    'PENDENTE',
+    'Venda submetida com sucesso.',
+    'Erro ao submeter a venda.',
+  );
 
   const handleCancelar = () => {
     startCancelar(async () => {
@@ -94,7 +103,7 @@ export function VendaAcoes({ id, status, faturaId = null, modoCompacto = false }
           variant="ghost"
           size="sm"
           disabled={confirmarPending}
-          onClick={handleConfirmar}
+          onClick={handleSubmeter}
           className="w-full justify-start"
         >
           <Package className="h-4 w-4 mr-1.5" />
