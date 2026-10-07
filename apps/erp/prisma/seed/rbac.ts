@@ -454,6 +454,10 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     if (isReadOnly(code)) return true;
     // Payroll — o financeiro processa/paga a folha salarial (Spec 06)
     if (code.startsWith('rh:payroll:')) return true;
+    // #113 — contas a pagar: o financeiro regista pagamentos a fornecedores e cria/cancela
+    // contas a pagar (a migração liga-as aos tenants existentes). Nada mais de compras.
+    if (['compras:pagamento:registar', 'compras:conta-pagar:criar',
+         'compras:conta-pagar:cancelar'].includes(code)) return true;
     // Leituras de suporte (para criar facturas precisa de ver clientes/produtos)
     return ['ativos:read', 'admin:ver_auditoria'].includes(code);
   }),
