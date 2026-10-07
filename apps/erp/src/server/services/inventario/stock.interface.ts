@@ -69,6 +69,12 @@ export interface SaldoStockDto {
   updatedAt: Date;
 }
 
+/** Saldo com o produto e a localização — o que um ecrã de stock precisa para o mostrar. */
+export interface SaldoStockComDetalheDto extends SaldoStockDto {
+  produto: { codigo: string; nome: string; unidade: string };
+  localizacao: { nome: string };
+}
+
 export interface ReservaStockDto {
   id: string;
   tenantId: string;
@@ -129,7 +135,7 @@ export interface IStockService {
   desactivarLocalizacao(id: string, ctx: Ctx): Promise<void>;
 
   // Consultas de saldo
-  listarSaldos(filter: SaldoStockFilter, ctx: Ctx): Promise<PaginatedResult<SaldoStockDto>>;
+  listarSaldos(filter: SaldoStockFilter, ctx: Ctx): Promise<PaginatedResult<SaldoStockComDetalheDto>>;
 
   obterSaldo(
     produtoId: string,

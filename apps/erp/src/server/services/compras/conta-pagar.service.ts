@@ -12,6 +12,7 @@ import { registarLancamentoContabilistico } from '@/server/services/financas/con
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
 import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
+import { inicioDoDiaCivilMaputo } from '@/lib/periodo-fiscal';
 import type {
   IContaPagarService,
   ContaPagarDetalhe,
@@ -298,12 +299,18 @@ export const contaPagarService: IContaPagarService = {
 
   async listar(filtros: FilterContaPagarInput, ctx: Ctx) {
     const { status, fornecedorId, vencidas, cursor, take = 25, orderBy = 'dataVencimento', orderDir = 'asc' } = filtros;
-    const agora = new Date();
+    // Vencida = em dívida e com vencimento antes do dia civil de hoje em Maputo
+    // (o mesmo predicado de `vencimentoJaPassou`), quer já esteja marcada VENCIDA quer não.
     const where: any = {
       tenantId: ctx.tenantId,
       ...(status ? { status } : {}),
       ...(fornecedorId ? { fornecedorId } : {}),
-      ...(vencidas ? { dataVencimento: { lt: agora }, status: { in: ['ABERTA', 'PARCIALMENTE_PAGA'] } } : {}),
+      ...(vencidas
+        ? {
+            dataVencimento: { lt: inicioDoDiaCivilMaputo() },
+            status: { in: ['ABERTA', 'PARCIALMENTE_PAGA', 'VENCIDA'] },
+          }
+        : {}),
     };
     return paginate(
       (a) => db.contaPagar.findMany({
@@ -323,12 +330,11 @@ export const contaPagarService: IContaPagarService = {
   },
 
   async actualizarVencidas(ctx: Ctx): Promise<number> {
-    const agora = new Date();
     const result = await db.contaPagar.updateMany({
       where: {
         tenantId: ctx.tenantId,
         status: { in: ['ABERTA', 'PARCIALMENTE_PAGA'] },
-        dataVencimento: { lt: agora },
+        dataVencimento: { lt: inicioDoDiaCivilMaputo() },
       },
       data: { status: 'VENCIDA' },
     });

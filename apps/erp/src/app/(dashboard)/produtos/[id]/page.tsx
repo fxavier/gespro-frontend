@@ -8,6 +8,8 @@ import { Edit, ArrowLeft } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { obterProduto } from '@/server/services/inventario/catalogo.service';
+import { listarSaldos } from '@/server/services/inventario/stock.service';
+import { formatNumero } from '@/lib/format-currency';
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
 import {
@@ -42,6 +44,11 @@ export default async function ProdutoDetalhePage({ params }: Props) {
   }
 
   if (!produto) notFound();
+
+  const podeVerStock = (session.user.permissions ?? []).includes('inventario:ver');
+  const saldos = podeVerStock
+    ? (await runWithTenantContext(ctx, () => listarSaldos({ produtoId: id, take: 100 }, ctx))).items
+    : [];
 
   const metadata = [
     { label: 'SKU', value: <span className="font-medium tabular-nums">{produto.sku}</span> },
@@ -126,6 +133,41 @@ export default async function ProdutoDetalhePage({ params }: Props) {
     </div>
   );
 
+  // Tab: Stock por localização (#80)
+  const tabStock = (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold">Stock por localização</h3>
+      {saldos.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-4 text-center">
+          Sem stock registado em nenhuma localização.
+        </p>
+      ) : (
+        <div className="rounded-lg border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground">Localização</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground text-right">Quantidade</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground text-right">Reservada</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide text-muted-foreground text-right">Disponível</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {saldos.map((s) => (
+                <TableRow key={s.id} className="h-10">
+                  <TableCell className="font-medium">{s.localizacao.nome}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatNumero(s.saldo)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatNumero(s.saldoReservado)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatNumero(s.saldoDisponivel)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="p-6">
       <DetailShell
@@ -164,6 +206,9 @@ export default async function ProdutoDetalhePage({ params }: Props) {
           />
         }
         tabs={[
+          ...(podeVerStock
+            ? [{ key: 'stock', label: 'Stock', count: saldos.length, content: tabStock }]
+            : []),
           {
             key: 'variantes',
             label: 'Variantes',
