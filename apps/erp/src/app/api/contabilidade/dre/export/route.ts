@@ -12,7 +12,6 @@ import { ValidationError } from '@/lib/errors';
 import { renderDrePdf } from '@/lib/documents/pdf/dre-pdf';
 import { safeFilename } from '@/lib/reporting';
 import { FiltroDRESchema } from '@/lib/validations/contabilidade';
-import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 import { gerarDRE } from '@/server/services/financas/contabilidade.service';
 import { emissaoDosMapas } from '@/server/services/financas/emissao-mapas';
 import { respostaPdf } from '../../_lib/pdf-resposta';
@@ -21,9 +20,6 @@ export const runtime = 'nodejs';
 
 export const GET = withApi(
   async (req: NextRequest, api) => {
-    const rl = await exportLimiter.consume(`${api.userId}::export`);
-    if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
-
     const ctx = { tenantId: api.tenantId, userId: api.userId };
     const qs = req.nextUrl.searchParams;
     const lido = FiltroDRESchema.safeParse({
@@ -38,5 +34,5 @@ export const GET = withApi(
     const pdf = await renderDrePdf({ entidade, dre }, emissao);
     return respostaPdf(pdf, safeFilename(`dre-${qs.get('dataInicio')}-${qs.get('dataFim')}`));
   },
-  { permission: 'financas:exportar' },
+  { permission: 'financas:exportar', limitarExportacao: true },
 );

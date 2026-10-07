@@ -7,6 +7,7 @@ import { logger } from '@/server/observability/logger';
 import { runWithRequestContext, newRequestId } from '@/server/observability/context';
 import { recordRequest } from '@/server/observability/metrics';
 import { recordHttpRequest } from '@/server/observability/prom-registry';
+import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 import { normalizeRoute } from './route-utils';
 
 export { normalizeRoute } from './route-utils';
@@ -40,6 +41,13 @@ interface WithApiOptions {
    * e os crons continuam a poder escrever, que é como o cliente sai da Leitura.
    */
   permiteEmLeitura?: boolean;
+  /**
+   * Exportação, PDF ou mapa (issue #196): passa pelo `exportLimiter` (ADR-0014,
+   * 10 pedidos/minuto) com a chave **utilizador + rota normalizada** — esgotar a
+   * exportação da DRE não trava a do balanço. Excedido ⇒ 429 com `Retry-After`,
+   * antes de o handler gerar o que quer que seja.
+   */
+  limitarExportacao?: boolean;
 }
 
 /** Adiciona o header `x-request-id` a qualquer Response sem alterar o body. */
@@ -122,9 +130,13 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
           // Endpoint público: sem contexto de tenant
           return handler(req, { tenantId, userId, permissions: perms, params });
         }
-        return runWithTenantContext({ tenantId, userId }, () =>
-          handler(req, { tenantId, userId, permissions: perms, params }),
-        );
+        return runWithTenantContext({ tenantId, userId }, async () => {
+          if (opts?.limitarExportacao) {
+            const rl = await exportLimiter.consume(`${userId}::export::${route}`);
+            if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
+          }
+          return handler(req, { tenantId, userId, permissions: perms, params });
+        });
       });
 
       const duration = Date.now() - startTime;

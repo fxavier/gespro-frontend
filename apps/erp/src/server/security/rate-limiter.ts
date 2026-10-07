@@ -21,7 +21,8 @@ import { createValkeyRateLimiter } from './rate-limiter-valkey';
  *   Protegidos aqui:
  *     - Registo público (3/h por IP e por e-mail)       → registoLimiter
  *     - Convites de utilizador (20/h por tenant)         → inviteLimiter
- *     - Exportações CSV/XLSX/PDF (10/min por utilizador) → exportLimiter
+ *     - Exportações CSV/XLSX/PDF e mapas (10/min por utilizador e por rota,
+ *       via `withApi({ limitarExportacao: true })`)     → exportLimiter
  *     - Assinatura de URL de armazenamento (30/min/user) → presignLimiter
  *     - Ligação de verificação de e-mail (20/15 min por IP)  → verificacaoEmailLimiter
  *     - Reenvio da verificação (3/h por sub, ADR-0031 §5)     → reenvioVerificacaoLimiter
@@ -186,8 +187,8 @@ export const registoLimiter = createRateLimiterFromEnv({
 });
 
 /**
- * Início de sessão: 10 tentativas/15 min por IP e 5/15 min por identificador
- * (ADR-0029 §4).
+ * Início de sessão: 10 tentativas/15 min por IP e outras tantas por
+ * identificador — um só limitador, duas chaves (ADR-0029 §4).
  *
  * Existe porque o Direct Access Grant tirou o IP de quem tenta ao Keycloak:
  * todas as tentativas lhe chegam com o IP do servidor, e a detecção de força
@@ -227,8 +228,10 @@ export const inviteLimiter = createRateLimiterFromEnv({
 });
 
 /**
- * Exportações CSV/XLSX/PDF: 10 pedidos/minuto por utilizador (ADR-0014 §3).
- * Chave a usar no handler: `${ctx.userId}::export`
+ * Exportações CSV/XLSX/PDF e mapas: 10 pedidos/minuto por utilizador e por
+ * rota (ADR-0014 §3, issue #196). Não se chama à mão: a rota declara
+ * `withApi(…, { limitarExportacao: true })` e a chave é
+ * `${userId}::export::${rota normalizada}`.
  *
  * Falha aberta: uma exportação não limitada é indesejável mas não catastrófica.
  */

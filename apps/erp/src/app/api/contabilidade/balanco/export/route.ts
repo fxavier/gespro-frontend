@@ -13,7 +13,6 @@ import { withApi } from '@/lib/api/with-api';
 import { ValidationError } from '@/lib/errors';
 import { renderBalancoPdf } from '@/lib/documents/pdf/balanco-pdf';
 import { safeFilename } from '@/lib/reporting';
-import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 import { gerarBalanco } from '@/server/services/financas/balanco.service';
 import { emissaoDosMapas } from '@/server/services/financas/emissao-mapas';
 import { respostaPdf } from '../../_lib/pdf-resposta';
@@ -22,9 +21,6 @@ export const runtime = 'nodejs';
 
 export const GET = withApi(
   async (req: NextRequest, api) => {
-    const rl = await exportLimiter.consume(`${api.userId}::export`);
-    if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
-
     const ctx = { tenantId: api.tenantId, userId: api.userId };
     const qs = req.nextUrl.searchParams;
     const exercicioId = (qs.get('exercicioId') ?? '').trim();
@@ -40,5 +36,5 @@ export const GET = withApi(
     );
     return respostaPdf(pdf, safeFilename(`balanco-${balanco.exercicio.codigo}-p${balanco.periodoFinal}`));
   },
-  { permission: 'financas:exportar' },
+  { permission: 'financas:exportar', limitarExportacao: true },
 );

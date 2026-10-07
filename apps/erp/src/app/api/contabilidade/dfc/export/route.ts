@@ -30,7 +30,6 @@ import { ValidationError } from '@/lib/errors';
 import { resolverIntervaloDFC } from '@/lib/dfc-intervalo';
 import { renderDfcPdf } from '@/lib/documents/pdf/dfc-pdf';
 import { safeFilename } from '@/lib/reporting';
-import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 import { listarPeriodos } from '@/server/services/financas/contabilidade.service';
 import { gerarDFC } from '@/server/services/financas/dfc.service';
 import { temImpedimentos } from '@/server/services/financas/dfc.interface';
@@ -42,9 +41,6 @@ const DFC_COM_IMPEDIMENTOS = 'DFC_COM_IMPEDIMENTOS';
 
 export const GET = withApi(
   async (req: NextRequest, api) => {
-    const rl = await exportLimiter.consume(`${api.userId}::export`);
-    if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
-
     // O tenant vem da sessão (`withApi`), nunca da query.
     const ctx = { tenantId: api.tenantId, userId: api.userId };
     const qs = req.nextUrl.searchParams;
@@ -98,5 +94,5 @@ export const GET = withApi(
       },
     });
   },
-  { permission: 'financas:exportar' },
+  { permission: 'financas:exportar', limitarExportacao: true },
 );

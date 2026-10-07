@@ -7,14 +7,9 @@ import { celulaTextoCsv, neutralizarFormula } from '@/lib/reporting/csv';
 import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
 import { ProcessarFolhaSchema } from '@/lib/validations/payroll';
 import { ValidationError } from '@/lib/errors';
-import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 
 export const GET = withApi(
   async (req, ctx) => {
-    // Rate limiting: 20 exportações por utilizador por hora
-    const rl = await exportLimiter.consume(`${ctx.userId}::export`);
-    if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
-
     const url = new URL(req.url);
     const parsed = ProcessarFolhaSchema.safeParse({
       mes: url.searchParams.get('mes'),
@@ -48,5 +43,5 @@ export const GET = withApi(
       },
     });
   },
-  { permission: 'rh:payroll:read' },
+  { permission: 'rh:payroll:read', limitarExportacao: true },
 );

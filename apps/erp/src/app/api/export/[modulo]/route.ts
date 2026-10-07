@@ -33,4 +33,4 @@ export const GET = withApi(async (req: NextRequest, ctx) => {
     userId: ctx.userId,
   });
   return exportResponse(dataset, formato);
-});
+}, { limitarExportacao: true });

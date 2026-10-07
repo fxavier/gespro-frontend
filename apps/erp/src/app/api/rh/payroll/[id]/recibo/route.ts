@@ -6,7 +6,6 @@ import { withApi } from '@/lib/api/with-api';
 import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
 import { gerarPdf, PDF_A4, type PdfLinha, type PdfTexto } from '@/lib/pdf/simple-pdf';
 import { NotFoundError } from '@/lib/errors';
-import { exportLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -19,10 +18,6 @@ function mt(v: { toString(): string }): string {
 
 export const GET = withApi(
   async (_req, ctx) => {
-    // Rate limiting: 20 exportações por utilizador por hora
-    const rl = await exportLimiter.consume(`${ctx.userId}::export`);
-    if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
-
     const id = String(ctx.params.id ?? '');
     if (!id) throw new NotFoundError('Payroll não encontrado');
     const recibo = await PayrollService.obterRecibo(id, ctx);
@@ -111,5 +106,5 @@ export const GET = withApi(
       },
     });
   },
-  { permission: 'rh:payroll:read' },
+  { permission: 'rh:payroll:read', limitarExportacao: true },
 );
