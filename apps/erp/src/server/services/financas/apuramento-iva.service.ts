@@ -815,14 +815,25 @@ export async function marcarDeclarado(
     if (!ap) throw new NotFoundError('Apuramento não encontrado');
     transitarApuramento(ap.estado as 'APURADO' | 'ESTORNADO' | 'DECLARADO', 'DECLARADO');
 
-    return tx.apuramentoIva.update({
-      where: { id: input.apuramentoId },
+    // #356: condicional ao estado APURADO — um estorno concorrente que faça commit primeiro
+    // deixa count 0 e a declaração é recusada, em vez de sobrescrever o ESTORNADO.
+    const { count } = await tx.apuramentoIva.updateMany({
+      where: { id: input.apuramentoId, tenantId: ctx.tenantId, estado: 'APURADO' },
       data: {
         estado: 'DECLARADO',
         declaradoPorId: ctx.userId,
         declaradoEm: input.declaradoEm,
         referenciaEntrega: input.referenciaEntrega,
       },
+    });
+    if (count !== 1) {
+      throw new BusinessRuleError(
+        'TRANSICAO_INVALIDA',
+        'O apuramento já não está apurado (foi estornado ou declarado entretanto).',
+      );
+    }
+    return tx.apuramentoIva.findFirstOrThrow({
+      where: { id: input.apuramentoId, tenantId: ctx.tenantId },
     }) as unknown as ApuramentoIva;
   });
 }
