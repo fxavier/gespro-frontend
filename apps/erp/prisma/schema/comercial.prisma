@@ -650,7 +650,7 @@ model ItemDevolucao {
 model Troca {
   id                  String    @id @default(cuid())
   tenantId            String
-  numero              String    // TRC/2026/000001 (numeração informal, sem série D)
+  numero              String    // TRC/2026/000001 — proximoNumeroSerie(tx, 'TROCA', …), série TROCA (#331)
   devolucaoId         String    // FK escalar → Devolucao (WS-10)
   vendaSubstituicaoId String    // FK escalar → Venda resultante (WS C)
   diferenca           Decimal   @db.Decimal(18, 2) // positiva = cliente deve; negativa = crédito

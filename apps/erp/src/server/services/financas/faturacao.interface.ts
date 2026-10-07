@@ -62,7 +62,9 @@ export type TipoSerieDocumento =
   | 'ENCOMENDA'
   | 'NOTA_DEVOLUCAO'
   // ADR-0041: venda POS paga no acto
-  | 'FATURA_RECIBO';
+  | 'FATURA_RECIBO'
+  // #331: número da troca
+  | 'TROCA';
 
 export type StatusFatura =
   | 'RASCUNHO'

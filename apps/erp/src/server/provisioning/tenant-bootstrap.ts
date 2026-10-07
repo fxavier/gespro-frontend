@@ -179,6 +179,8 @@ export const SERIES_INICIAIS: Array<{ tipo: string; prefixo: string }> = [
   { tipo: 'NOTA_DEVOLUCAO', prefixo: 'NDV' },
   // ADR-0041 §1: Factura-Recibo da venda POS paga no acto.
   { tipo: 'FATURA_RECIBO', prefixo: 'FR' },
+  // #331: número da troca (Troca.numero) pela série, como os outros documentos.
+  { tipo: 'TROCA', prefixo: 'TRC' },
 ];
 
 /** Ano corrente no fuso Africa/Maputo (UTC+2, fixo). */
