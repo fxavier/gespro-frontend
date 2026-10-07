@@ -63,6 +63,19 @@ export const PERMISSAO_ESCRITA_POR_RECURSO: Record<RecursoDocumento, string> = {
   encerramento: 'financas:exportar',
 };
 
+/**
+ * Permissão exigida para um upload DIRECTO do cliente (presign + PUT local) para o recurso.
+ * `null` quando o recurso é desconhecido ou só-servidor — nesse caso o cliente nunca escreve.
+ * Fonte única da regra: o presign autoriza a assinatura e o PUT local autoriza a escrita com
+ * esta mesma função (issue #194).
+ */
+export function permissaoUploadDirecto(recurso: string): string | null {
+  if (!(RECURSOS_DOCUMENTO as readonly string[]).includes(recurso)) return null;
+  const r = recurso as RecursoDocumento;
+  if (RECURSOS_SO_SERVIDOR.includes(r)) return null;
+  return PERMISSAO_ESCRITA_POR_RECURSO[r];
+}
+
 /** True se o content-type está na allowlist. */
 export function contentTypePermitido(ct: string): ct is ContentTypePermitido {
   return (CONTENT_TYPES_PERMITIDOS as readonly string[]).includes(ct);

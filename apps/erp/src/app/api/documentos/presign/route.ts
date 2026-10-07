@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withApi } from '@/lib/api/with-api';
 import { ForbiddenError, ValidationError } from '@/lib/errors';
+import { idEntidade } from '@/lib/validations/common';
 import { logger } from '@/server/observability/logger';
 import { getObjectStorage, derivarKey, keyParaUrlRef } from '@/lib/storage/objeto';
 import {
@@ -23,7 +24,7 @@ import {
   MAX_DOCUMENTO_BYTES,
   RECURSOS_DOCUMENTO,
   RECURSOS_SO_SERVIDOR,
-  PERMISSAO_ESCRITA_POR_RECURSO,
+  permissaoUploadDirecto,
 } from '@/lib/storage/documento-config';
 import { presignLimiter, rateLimitedResponse } from '@/server/security/rate-limiter';
 
@@ -33,7 +34,8 @@ const PresignSchema = z.object({
   recurso: z
     .enum(RECURSOS_DOCUMENTO)
     .refine((r) => !RECURSOS_SO_SERVIDOR.includes(r), 'Recurso sem upload directo'),
-  recursoId: z.string().cuid(),
+  // cuid OU uuid (as contas PGC, por exemplo, têm uuid) — issue #195.
+  recursoId: idEntidade(),
   nome: z.string().min(1).max(200),
   contentType: z.enum(CONTENT_TYPES_PERMITIDOS),
   tamanho: z.number().int().positive().max(MAX_DOCUMENTO_BYTES),
@@ -52,8 +54,8 @@ export const POST = withApi(async (req: NextRequest, ctx) => {
   const { recurso, recursoId, nome, contentType, tamanho } = parsed.data;
 
   // Permissão dinâmica por recurso.
-  const permissao = PERMISSAO_ESCRITA_POR_RECURSO[recurso];
-  if (!ctx.permissions.has(permissao)) throw new ForbiddenError();
+  const permissao = permissaoUploadDirecto(recurso);
+  if (!permissao || !ctx.permissions.has(permissao)) throw new ForbiddenError();
 
   // Key derivada server-side a partir do tenant do contexto — nunca do cliente.
   const key = derivarKey({ tenantId: ctx.tenantId, recurso, recursoId, nome });
