@@ -107,7 +107,10 @@ describe('tipos de movimento de caixa', () => {
     expect(SAIDAS).toContain('SANGRIA');
   });
 
-  it('cálculo de totais com múltiplos movimentos', () => {
+  // #91: este caso somava a ABERTURA às entradas (2800) por uma lista local — era a
+  // aritmética do defeito, escrita no teste. Passa a julgar a função real dos totais
+  // (`totaisSessaoCaixa`), que ignora a ABERTURA porque o fundo entra por fundoInicial.
+  it('cálculo de totais com múltiplos movimentos (pela função real, ABERTURA fora)', async () => {
     const movimentos = [
       { tipo: 'ABERTURA', valor: new Prisma.Decimal('500.00') },
       { tipo: 'VENDA', valor: new Prisma.Decimal('1200.00') },
@@ -116,15 +119,16 @@ describe('tipos de movimento de caixa', () => {
       { tipo: 'REFORCO', valor: new Prisma.Decimal('300.00') },
     ];
 
-    const totalEntradas = movimentos
-      .filter((m) => ENTRADAS.includes(m.tipo))
-      .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
+    const mod = (await import('@/lib/caixa-movimentos')) as Record<string, unknown>;
+    expect(typeof mod.totaisSessaoCaixa, 'totaisSessaoCaixa em src/lib/caixa-movimentos.ts').toBe('function');
+    const t = (mod.totaisSessaoCaixa as (m: unknown, f: Prisma.Decimal) => Record<string, unknown>)(
+      movimentos,
+      new Prisma.Decimal('500.00'),
+    );
 
-    const totalSaidas = movimentos
-      .filter((m) => SAIDAS.includes(m.tipo))
-      .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
-
-    expect(totalEntradas.equals(new Prisma.Decimal('2800'))).toBe(true);
-    expect(totalSaidas.equals(new Prisma.Decimal('200'))).toBe(true);
+    // À mão: entradas 1200 + 800 + 300 = 2300; saídas 200; esperado 500 + 2300 − 200 = 2600.
+    expect(new Prisma.Decimal(String(t.totalEntradas)).equals(new Prisma.Decimal('2300'))).toBe(true);
+    expect(new Prisma.Decimal(String(t.totalSaidas)).equals(new Prisma.Decimal('200'))).toBe(true);
+    expect(new Prisma.Decimal(String(t.saldoEsperado)).equals(new Prisma.Decimal('2600'))).toBe(true);
   });
 });

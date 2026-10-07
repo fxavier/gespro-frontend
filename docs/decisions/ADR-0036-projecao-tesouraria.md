@@ -58,6 +58,13 @@ saldoAbertura(d) = Σ saldoContabilAte(c, d)   ∀ c ∈ contaContabilId DISTINT
                  + Σ (fundoInicial + totalEntradas − totalSaidas)  ∀ SessaoCaixa ABERTA
 ```
 
+**Nota (issues #91/#92, 2026-10).** `SessaoCaixa.totalEntradas/totalSaidas` só são escritos no
+fecho — são a **fotografia do fecho**, e numa sessão ABERTA valem zero. Para as sessões ABERTAS,
+entradas e saídas derivam-se na leitura dos `MovimentoCaixa` (um `groupBy` por sessão e tipo) pela
+função pura `totaisSessaoCaixa` (`src/lib/caixa-movimentos.ts`), a mesma que o fecho e o resumo da
+sessão usam. Essa função ignora `ABERTURA` (o fundo já entra por `fundoInicial`; contá-lo como
+entrada era o #91) e `FECHAMENTO` (é a contagem, não dinheiro que entra).
+
 `saldoContabilAte` já existe (`contabilidade.service.ts:1182`), mas filtra apenas `LANCADO` — **não**
 por `FILTRO_LANCAMENTO_MAPA`, ao contrário do que uma versão anterior deste ADR afirmava. Numa conta
 com estornos as duas coisas não são equivalentes: o estorno cria um lançamento novo `LANCADO` com as
