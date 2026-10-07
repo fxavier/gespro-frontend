@@ -47,14 +47,55 @@ vi.mock('@/lib/auth', () => sessao);
 
 function comEmail(emailVerificado: boolean | undefined) {
   sessao.auth.mockResolvedValue({
-    user: { id: 'caller-id', tenantId: 'tenant-1', permissions: [], emailVerificado },
+    user: { id: 'caller-id', tenantId: 'tenant-1', permissions: CALLER_PERMS, emailVerificado },
   });
 }
+
+// #181: o actor só delega o que tem. O chamador destes testes é um ADMIN com todas
+// as permissões que os casos usam — coerente nas três fontes possíveis (BD, sessão
+// e `ctx.permissions` do createSafeAction), para que os casos continuem a exercitar
+// o que exercitavam. O travão tem o seu oráculo em
+// test/integration/papeis-escalada-181.test.ts.
+const caller = vi.hoisted(() => {
+  const perms = [
+    { id: 'perm-1', code: 'vendas:ver', descricao: null },
+    { id: 'perm-2', code: 'vendas:criar', descricao: null },
+  ];
+  const role = {
+    id: 'role-caller',
+    tenantId: 'tenant-1',
+    nome: 'ADMIN',
+    descricao: null,
+    isSystem: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    permissions: perms.map((permission) => ({ permission })),
+  };
+  const user = {
+    id: 'caller-id',
+    tenantId: 'tenant-1',
+    keycloakSub: 'kc-sub-caller',
+    nome: 'Administrador',
+    email: 'admin@demo.mz',
+    ativo: true,
+    primeiroAcessoEm: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+    roles: [{ role, roleId: role.id, userId: 'caller-id' }],
+  };
+  return { perms, role, user };
+});
+const CALLER_PERMS = caller.perms.map((p) => p.code);
+// Leituras do PRÓPRIO actor (where.id === 'caller-id') devolvem sempre o ADMIN e não
+// consomem as respostas enfileiradas dos casos; tudo o resto vai ao mock do caso.
+const eChamador = (args: any) => args?.where?.id === 'caller-id';
 
 vi.mock('@/server/db/client', () => ({
   prismaBase: {
     user: {
-      findFirst: mocks.userFindFirst,
+      findFirst: vi.fn((args: any) => (eChamador(args) ? Promise.resolve(caller.user) : mocks.userFindFirst(args))),
+      findUnique: vi.fn((args: any) => (eChamador(args) ? Promise.resolve(caller.user) : mocks.userFindFirst(args))),
       findMany: mocks.userFindMany,
       count: mocks.userCount,
       update: mocks.userUpdate,
@@ -66,8 +107,19 @@ vi.mock('@/server/db/client', () => ({
     },
     permission: { findMany: mocks.permFindMany },
     assinatura: { findUnique: mocks.assinaturaFind, findFirst: mocks.assinaturaFind },
-    userRole: { upsert: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
-    rolePermission: { deleteMany: vi.fn(), createMany: vi.fn() },
+    userRole: {
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
+      createMany: vi.fn(),
+      findMany: vi.fn(async () => caller.user.roles),
+    },
+    rolePermission: {
+      deleteMany: vi.fn(),
+      createMany: vi.fn(),
+      findMany: vi.fn(async () =>
+        caller.perms.map((permission) => ({ roleId: caller.role.id, permissionId: permission.id, permission })),
+      ),
+    },
     $transaction: mocks.$transaction,
   },
 }));
@@ -75,7 +127,8 @@ vi.mock('@/server/db/client', () => ({
 import { userAdminService } from '../user-admin.service';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
 
-const CTX = { tenantId: 'tenant-1', userId: 'caller-id' };
+// `permissions` é a forma do ActionCtx que o createSafeAction passa ao handler.
+const CTX = { tenantId: 'tenant-1', userId: 'caller-id', permissions: new Set(CALLER_PERMS) };
 
 const PERM_VER = { id: 'perm-1', code: 'vendas:ver', descricao: null };
 const PERM_CRIAR = { id: 'perm-2', code: 'vendas:criar', descricao: null };
