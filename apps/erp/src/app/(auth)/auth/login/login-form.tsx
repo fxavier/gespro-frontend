@@ -27,7 +27,9 @@ const MENSAGENS: Record<string, string> = {
     'A sua identidade foi reconhecida, mas ainda não existe um utilizador associado numa empresa GestPro. Contacte o administrador da sua empresa.',
   inactivo: 'Este utilizador foi desactivado. Contacte o administrador da sua empresa.',
   subscricao:
-    'A subscrição da sua empresa não está activa. O administrador pode regularizar a situação nas definições.',
+    'O acesso da sua empresa está suspenso pela GestPro. Contacte o suporte GestPro.',
+  'subscricao-so-administrador':
+    'A subscrição da sua empresa está fechada. Só um administrador pode entrar para regularizar o pagamento.',
   indisponivel:
     'O serviço de identidade não respondeu. Tente de novo dentro de momentos — não é problema das suas credenciais.',
 };

@@ -151,12 +151,15 @@ describe('leitura', () => {
     expect(await obterOuNulo(CTX)).toBeNull();
   });
 
-  it('distingue os três níveis de acesso', async () => {
+  it('distingue os níveis de acesso comerciais', async () => {
     mocks.assinaturaFindFirst.mockResolvedValue(assinaturaDb({ estado: 'LEITURA' }));
     expect((await obter(CTX)).acesso).toBe('leitura');
 
+    // Issue #99: a FECHADA comercial deixou de ser `fechado` — é `pagamento`,
+    // a sessão restrita a regularizar a subscrição. `fechado` fica só para a
+    // decisão da GestPro (Tenant.deletedAt), que este serviço não lê.
     mocks.assinaturaFindFirst.mockResolvedValue(assinaturaDb({ estado: 'FECHADA' }));
-    expect((await obter(CTX)).acesso).toBe('fechado');
+    expect((await obter(CTX)).acesso).toBe('pagamento');
   });
 
   it('conta os dias que faltam para o acesso fechar', async () => {

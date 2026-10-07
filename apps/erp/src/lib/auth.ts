@@ -73,7 +73,10 @@ type Resolucao =
       permissions: string[];
       acesso: EstadoAcesso;
     }
-  | { ok: false; motivo: 'nao-provisionado' | 'inactivo' | 'subscricao' };
+  | {
+      ok: false;
+      motivo: 'nao-provisionado' | 'inactivo' | 'subscricao' | 'subscricao-so-administrador';
+    };
 
 /**
  * Arbitra os dois donos do acesso do tenant (ADR-0032 §4).
@@ -100,6 +103,9 @@ async function acessoDoTenant(tenantId: string, tenantApagado: boolean): Promise
   return estadoDeAcesso(assinatura.estado as EstadoAssinatura, tenantApagado);
 }
 
+/** Quem pode entrar com a Assinatura FECHADA (`prisma/seed/rbac.ts`). */
+const PERMISSAO_REGULARIZAR = 'assinatura:gerir';
+
 /**
  * Resolve o `sub` do Keycloak no `User` local e expande papéis em permissões.
  *
@@ -108,7 +114,7 @@ async function acessoDoTenant(tenantId: string, tenantApagado: boolean): Promise
  * porta aberta para qualquer identidade federada obter sessão sem passar
  * pelo provisionamento.
  */
-async function resolverUtilizadorLocal(keycloakSub: string): Promise<Resolucao> {
+export async function resolverUtilizadorLocal(keycloakSub: string): Promise<Resolucao> {
   const user = await prismaBase.user.findUnique({
     where: { keycloakSub },
     include: {
@@ -125,13 +131,19 @@ async function resolverUtilizadorLocal(keycloakSub: string): Promise<Resolucao> 
   // A Leitura ABRE a sessão — é o ponto inteiro do ADR-0027 §6. Quem saiu de
   // uma subscrição activa continua a entrar para ver, exportar e pagar; o que
   // não passa é a escrita, e isso decide-se nos pipelines, não aqui. Só o
-  // `fechado` recusa.
+  // `fechado` recusa (o `pagamento` decide-se abaixo, pela permissão).
   const acesso = await acessoDoTenant(user.tenantId, user.tenant?.deletedAt != null);
   if (acesso === 'fechado') return { ok: false, motivo: 'subscricao' };
 
   const permissions = [
     ...new Set(user.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.code))),
   ];
+
+  // FECHADA comercial (issue #99): a porta abre só a quem pode regularizar.
+  // Os outros continuam fora — e sabem que é o administrador quem entra.
+  if (acesso === 'pagamento' && !permissions.includes(PERMISSAO_REGULARIZAR)) {
+    return { ok: false, motivo: 'subscricao-so-administrador' };
+  }
 
   return { ok: true, userId: user.id, tenantId: user.tenantId, permissions, acesso };
 }
@@ -152,6 +164,7 @@ export type MotivoRecusaLogin =
   | 'nao-provisionado'
   | 'inactivo'
   | 'subscricao'
+  | 'subscricao-so-administrador'
   | 'indisponivel';
 
 /**

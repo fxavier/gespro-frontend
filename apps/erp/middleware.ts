@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { buildSecurityHeaders } from '@/lib/security/headers';
 import { cspRegisto } from '@/app/registo/csp';
+import { ROTA_REGULARIZAR_SUBSCRICAO } from '@/lib/state-machines';
 
 // ---------------------------------------------------------------------------
 // Rotas públicas — não exigem autenticação.
@@ -49,6 +50,24 @@ const PUBLIC_PATHS = [
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+}
+
+/**
+ * Sessão em `pagamento` (Assinatura FECHADA, issue #99): só a página da
+ * subscrição — que é também o regresso do Stripe Checkout/Portal. A API passa
+ * (os pipelines recusam a escrita como na Leitura) e os ficheiros estáticos
+ * de `public/` também, senão a própria página ficava sem imagens.
+ *
+ * Aqui e não no layout: um layout partilhado não volta a correr numa
+ * navegação client-side, e o middleware corre em todos os pedidos.
+ */
+function permitidoEmPagamento(pathname: string): boolean {
+  return (
+    pathname === ROTA_REGULARIZAR_SUBSCRICAO ||
+    pathname.startsWith(`${ROTA_REGULARIZAR_SUBSCRICAO}/`) ||
+    pathname.startsWith('/api/') ||
+    /\.[a-z0-9]+$/i.test(pathname)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +129,12 @@ export async function middleware(req: NextRequest) {
       const loginUrl = new URL('/auth/login', req.url);
       loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname + req.nextUrl.search);
       const redirectResponse = NextResponse.redirect(loginUrl);
+      applyHeaders(redirectResponse, securityHeaders);
+      return redirectResponse;
+    }
+
+    if (token.acesso === 'pagamento' && !permitidoEmPagamento(pathname)) {
+      const redirectResponse = NextResponse.redirect(new URL(ROTA_REGULARIZAR_SUBSCRICAO, req.url));
       applyHeaders(redirectResponse, securityHeaders);
       return redirectResponse;
     }

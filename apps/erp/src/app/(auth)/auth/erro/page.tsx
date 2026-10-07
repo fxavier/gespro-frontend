@@ -25,9 +25,14 @@ const MENSAGENS: Record<string, { titulo: string; corpo: string }> = {
       'Este utilizador foi desactivado. Se acha que se trata de um engano, contacte o administrador da sua empresa.',
   },
   subscricao: {
-    titulo: 'Subscrição suspensa',
+    titulo: 'Acesso suspenso',
     corpo:
-      'A subscrição da sua empresa não está activa neste momento. O administrador pode regularizar a situação na área de definições ou junto do suporte GestPro.',
+      'O acesso da sua empresa está suspenso pela GestPro. Contacte o suporte GestPro.',
+  },
+  'subscricao-so-administrador': {
+    titulo: 'Subscrição fechada',
+    corpo:
+      'A subscrição da sua empresa está fechada. Só um administrador pode entrar para regularizar o pagamento; os dados continuam guardados.',
   },
   'sem-identidade': {
     titulo: 'Não foi possível identificar a sua conta',
