@@ -10,6 +10,7 @@ import { gerarPalavraPasseInicial } from '@/server/auth/palavra-passe';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
 import { inviteLimiter } from '@/server/security/rate-limiter';
 import { paginate } from '@/server/db/paginate';
+import { exigirLugarNoPlano } from '@/server/billing/limites-plano';
 import type { Ctx } from '@/server/services/types';
 import type {
   CreateUserInput,
@@ -110,6 +111,17 @@ const ROLE_INCLUDE = {
 // ---------------------------------------------------------------------------
 // Helpers internos
 // ---------------------------------------------------------------------------
+
+/**
+ * Limite do plano (ADR-0027 §2–§3, #98): criar ou reactivar um `User` conta os
+ * activos do tenant e recusa no limite. Corre ANTES do Keycloak — recusado,
+ * nada é escrito em lado nenhum.
+ */
+function exigirLugarDeUtilizador(tenantId: string): Promise<void> {
+  return exigirLugarNoPlano(prismaBase, tenantId, 'utilizadores', () =>
+    prismaBase.user.count({ where: { tenantId, ativo: true } }), // contagem do ADR-0027 §2
+  );
+}
 
 /**
  * Conta utilizadores activos com o papel ADMIN no tenant.
@@ -278,6 +290,10 @@ export const userAdminService: IUserAdminService = {
     // convites num pedido que nunca vai passar.
     await exigirEmailConfirmadoParaGerirUtilizadores('criar');
 
+    // Limite do plano (#98): antes do limitador (não gasta quota num pedido que
+    // não passa) e antes do Keycloak. Um convite criado inactivo não ocupa lugar.
+    if (input.ativo ?? true) await exigirLugarDeUtilizador(ctx.tenantId);
+
     // Limitação de tráfego por tenant (ADR-0014). Vive aqui, e não na action,
     // por duas razões: o `createSafeAction` não tem gancho de limitação, e é
     // este o caminho que dispara efectivamente o e-mail de acções do Keycloak.
@@ -415,7 +431,10 @@ export const userAdminService: IUserAdminService = {
       // Reactivar é dar entrada nova no produto e conta como criar (ADR-0031).
       // Desactivar NÃO é travado: um estado de onde o cliente não pode sair é
       // uma armadilha, e fechar uma conta nunca pode depender de um e-mail.
-      if (input.ativo) await exigirEmailConfirmadoParaGerirUtilizadores('reactivar');
+      if (input.ativo) {
+        await exigirEmailConfirmadoParaGerirUtilizadores('reactivar');
+        await exigirLugarDeUtilizador(ctx.tenantId); // #98: reactivar ocupa um lugar
+      }
       await definirActivo(actual.keycloakSub, input.ativo);
     }
 
