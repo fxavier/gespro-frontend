@@ -18,16 +18,21 @@ export default async function FechamentoCaixaPage() {
   let sessaoActual = null;
 
   try {
-    const s = await runWithTenantContext({ tenantId, userId }, () =>
-      caixaService.obterSessaoAtual({ tenantId, userId })
-    );
+    const dados = await runWithTenantContext({ tenantId, userId }, async () => {
+      const s = await caixaService.obterSessaoAtual({ tenantId, userId });
+      if (!s) return null;
+      // #91: o esperado vem do servidor (fundo + entradas − saídas, ABERTURA fora).
+      return { s, resumo: await caixaService.resumoSessao(s.id, { tenantId, userId }) };
+    });
 
-    if (s) {
+    if (dados) {
+      const { s, resumo } = dados;
       sessaoActual = {
         id: s.id,
         numero: s.numero,
         dataAbertura: s.dataAbertura.toISOString(),
         fundoInicial: s.fundoInicial.toString(),
+        saldoEsperado: resumo.saldoEsperado.toString(),
         status: s.status,
       };
     }

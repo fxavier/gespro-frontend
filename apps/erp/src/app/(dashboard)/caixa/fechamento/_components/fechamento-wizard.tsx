@@ -59,6 +59,8 @@ interface SessaoInfo {
   numero: string;
   dataAbertura: string;
   fundoInicial: string;
+  /** Saldo esperado calculado pelo servidor (`resumoSessao`, #91) — nunca recalculado aqui. */
+  saldoEsperado: string;
   status: string;
 }
 
@@ -97,7 +99,9 @@ export function FechamentoWizard({ sessaoActual }: FechamentoWizardProps) {
   }, 0);
 
   const fundoInicial = sessaoActual ? parseFloat(sessaoActual.fundoInicial) : 0;
-  const diferenca = totalContado - fundoInicial;
+  const saldoEsperado = sessaoActual ? parseFloat(sessaoActual.saldoEsperado) : 0;
+  // #91: compara com o saldo esperado (não só com o fundo), ao cêntimo.
+  const diferenca = (Math.round(totalContado * 100) - Math.round(saldoEsperado * 100)) / 100;
 
   const handleContagemChange = (key: string, valor: number) => {
     setQuantidades((prev) => ({ ...prev, [key]: Math.max(0, valor) }));
@@ -269,6 +273,10 @@ export function FechamentoWizard({ sessaoActual }: FechamentoWizardProps) {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Fundo Inicial:</span>
                   <span className="tabular-nums font-medium">{formatMZN(fundoInicial)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Saldo Esperado:</span>
+                  <span className="tabular-nums font-medium">{formatMZN(saldoEsperado)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between text-sm">

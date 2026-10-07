@@ -38,6 +38,7 @@ import {
   diaCivilEmMaputo,
   gerarBalancete,
 } from '../contabilidade.service';
+import { registarMovimentoCaixa } from '../caixa.service';
 import { prismaBase } from '@/server/db/client';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 
@@ -72,7 +73,12 @@ const D = (v: string | number) => new Prisma.Decimal(v);
 // O lado direito NÃO chama `saldoTesourariaAte` nem `saldoContabilAte`: deriva
 // o saldo esperado pelo BALANCETE (`gerarBalancete`, caminho da contabilidade,
 // já trancado por `balancete.test.ts`) mais as sessões de caixa ABERTAS pela
-// fórmula do ADR-0036 (§Decisão-2): fundoInicial + totalEntradas − totalSaidas.
+// fórmula do ADR-0036 (§Decisão-2): fundoInicial + entradas − saídas, com
+// entradas e saídas DERIVADAS dos MovimentoCaixa da sessão (#92, nó
+// A:caixa-totais-91-92): as colunas `SessaoCaixa.totalEntradas/totalSaidas` só
+// são escritas no fecho — numa sessão ABERTA são zero (ou, no seed demo, um
+// valor gravado à mão sem movimentos). A ABERTURA não é entrada (o fundo já
+// entra por fundoInicial — #91) e o FECHAMENTO não é movimento de dinheiro.
 // Se os dois lados fossem a mesma função, o teste provaria que ela é igual a
 // si própria — e não provaria nada.
 // ---------------------------------------------------------------------------
@@ -82,6 +88,11 @@ describe.skipIf(!hasDB)(
   () => {
     let ctx: { tenantId: string; userId: string };
     const contasBancariasCriadas: string[] = [];
+    /** Movimento VENDA injectado numa sessão ABERTA do demo (anti-vacuidade do #92). */
+    let movimentoInjectadoId: string | null = null;
+    /** Tipos de movimento, escritos aqui à mão — nunca importados da implementação. */
+    const ENTRADAS_CAIXA = ['VENDA', 'RECEBIMENTO', 'REFORCO'];
+    const SAIDAS_CAIXA = ['SANGRIA', 'DEVOLUCAO', 'PAGAMENTO'];
 
     /**
      * Valor-veneno em `ContaBancaria.saldoAtual`: a coluna não tem escritor em
@@ -158,9 +169,42 @@ describe.skipIf(!hasDB)(
         },
       });
       contasBancariasCriadas.push(ativa.id, ativa2.id, inativa.id);
+
+      // #92 — anti-vacuidade do ramo das sessões ABERTAS: uma venda de 123,45 em
+      // numerário pelo contrato real `registarMovimentoCaixa`, que NÃO escreve a
+      // coluna totalEntradas. Quem ler a coluna fica 123,45 aquém do esperado.
+      // Removida no afterAll (o demo é partilhado).
+      const aberta = await prismaBase.sessaoCaixa.findFirst({
+        where: { tenantId: tenant.id, status: 'ABERTA' },
+        select: { id: true },
+      });
+      if (aberta) {
+        const mov = await runWithTenantContext(ctx, () =>
+          prismaBase.$transaction((tx) =>
+            registarMovimentoCaixa(
+              tx,
+              {
+                sessaoCaixaId: aberta.id,
+                tipo: 'VENDA',
+                valor: '123.45',
+                descricao: `${MARCA} venda em numerário (#92)`,
+                documentoOrigemTipo: 'Oraculo',
+                documentoOrigemId: MARCA,
+              },
+              ctx,
+            ),
+          ),
+        );
+        movimentoInjectadoId = mov.id;
+      }
     });
 
     afterAll(async () => {
+      if (movimentoInjectadoId) {
+        await prismaBase.movimentoCaixa.deleteMany({
+          where: { id: movimentoInjectadoId, tenantId: ctx.tenantId },
+        });
+      }
       if (contasBancariasCriadas.length > 0) {
         await prismaBase.contaBancaria.deleteMany({
           where: { id: { in: contasBancariasCriadas } },
@@ -208,13 +252,24 @@ describe.skipIf(!hasDB)(
 
         const sessoesAbertas = await prismaBase.sessaoCaixa.findMany({
           where: { tenantId: ctx.tenantId, status: 'ABERTA' },
-          select: { fundoInicial: true, totalEntradas: true, totalSaidas: true },
+          select: { id: true, fundoInicial: true },
         });
         for (const s of sessoesAbertas) {
-          total = total
-            .plus(s.fundoInicial)
-            .plus(s.totalEntradas)
-            .minus(s.totalSaidas);
+          // Derivação própria, movimento a movimento — sem groupBy nem a função da implementação.
+          const movimentos = await prismaBase.movimentoCaixa.findMany({
+            where: { tenantId: ctx.tenantId, sessaoCaixaId: s.id },
+            select: { tipo: true, valor: true },
+          });
+          let saldoSessao = s.fundoInicial;
+          for (const m of movimentos) {
+            if (ENTRADAS_CAIXA.includes(m.tipo)) saldoSessao = saldoSessao.plus(m.valor);
+            else if (SAIDAS_CAIXA.includes(m.tipo)) saldoSessao = saldoSessao.minus(m.valor);
+          }
+          total = total.plus(saldoSessao);
+        }
+        if (movimentoInjectadoId) {
+          // O movimento injectado está mesmo lá dentro — senão a anti-vacuidade mentia.
+          expect(sessoesAbertas.length).toBeGreaterThan(0);
         }
         return total;
       });

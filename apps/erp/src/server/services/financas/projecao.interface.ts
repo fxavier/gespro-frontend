@@ -270,8 +270,9 @@ export type CalcularPerfilAtrasoFn = (
  *  - Saldo de abertura = Σ saldo do razão (filtro `FILTRO_LANCAMENTO_MAPA`)
  *    sobre os `contaContabilId` DISTINTOS das ContaBancaria activas (§2-bis:
  *    uma conta PGC entra se ≥ 1 bancária ancorada nela estiver activa, e
- *    entra uma vez, pelo saldo inteiro) + Σ (fundoInicial + totalEntradas −
- *    totalSaidas) das SessaoCaixa ABERTA. `ContaBancaria.saldoAtual` NUNCA
+ *    entra uma vez, pelo saldo inteiro) + Σ (fundoInicial + entradas −
+ *    saídas) das SessaoCaixa ABERTA, derivadas dos MovimentoCaixa (#92 — as
+ *    colunas totalEntradas/totalSaidas são a fotografia do fecho). `ContaBancaria.saldoAtual` NUNCA
  *    se lê; `saldoContabilAte` NUNCA se delega (filtra só `LANCADO` — §2,
  *    issue #66).
  *  - Origens derivadas (ADR-0036 §Decisão-3): Fatura EMITIDA/PARCIALMENTE_PAGA/

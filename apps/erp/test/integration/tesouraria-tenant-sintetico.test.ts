@@ -708,4 +708,65 @@ describe.skipIf(skip)('spec 22 — tenant sintético semeado pelos serviços (or
     });
     expect(new Set(meses).size).toBe(dias.length);
   });
+
+  // -------------------------------------------------------------------------
+  // #92 (nó A:caixa-totais-91-92) — sessão de caixa ABERTA com movimentos.
+  // `SessaoCaixa.totalEntradas/totalSaidas` só são escritos no fecho; o saldo de
+  // tesouraria tem de DERIVAR a sessão aberta dos seus movimentos (ADR-0036
+  // §Decisão-2), contando o fundo inicial UMA vez (#91: a ABERTURA não é entrada).
+  // Os movimentos entram pelos caminhos de produção (`registarMovimentoCaixa`
+  // na tx, `registarSangria`) — nenhum total é escrito à mão. É o último caso
+  // do ficheiro de propósito: fecha as sessões que abre, no fim, para não
+  // contaminar o saldo de 250 000,00 que os casos anteriores afirmam.
+  // -------------------------------------------------------------------------
+
+  it('#92 sessão ABERTA com movimentos entra no saldo de tesouraria pelo que os movimentos dizem', async () => {
+    const caixa = await import('@/server/services/financas/caixa.service');
+    const venda = (sessaoCaixaId: string, valor: string) =>
+      runCtx(ctx, () =>
+        db.$transaction((tx) =>
+          caixa.registarMovimentoCaixa(
+            tx,
+            {
+              sessaoCaixaId,
+              tipo: 'VENDA',
+              valor,
+              descricao: `caixa-totais-91-92 venda ${valor}`,
+              documentoOrigemTipo: 'Oraculo',
+              documentoOrigemId: `oraculo-92-${valor}`,
+            },
+            ctx,
+          ),
+        ),
+      );
+    const saldoHoje = () => runCtx(ctx, () => proj.saldoTesourariaAte(instanteFimDoDia(sHoje), ctx));
+
+    // Pré-condição: nenhuma sessão aberta deste tenant; o saldo é só o razão do 121.
+    expect(await db.sessaoCaixa.count({ where: { tenantId: ctx.tenantId, status: 'ABERTA' } })).toBe(0);
+    expect((await saldoHoje()).equals(D(SALDO_121))).toBe(true);
+
+    // (1) Fundo 0 + VENDA 300 ⇒ 250 000,00 + 0 + 300,00 = 250 300,00.
+    //     Hoje: 250 000,00 (a coluna totalEntradas ainda está a zero).
+    const s1 = await runCtx(ctx, () => caixa.abrirSessao({ fundoInicial: 0 }, ctx));
+    await venda(s1.id, '300.00');
+    const comVenda = await saldoHoje();
+    await runCtx(ctx, () => caixa.fecharSessao({ sessaoCaixaId: s1.id, fundoFinal: 300 }, ctx));
+    expect(
+      comVenda.equals(D('250300.00')),
+      `saldoTesourariaAte devolveu ${comVenda.toString()}; razão 250 000,00 + sessão ABERTA (fundo 0 + venda 300) = 250 300,00`,
+    ).toBe(true);
+
+    // (2) Fundo 1000 + VENDA 300 − SANGRIA 50 ⇒ 250 000,00 + 1 000 + 300 − 50 = 251 250,00.
+    //     Contar a ABERTURA como entrada (#91) daria 252 250,00; ler só as colunas, 251 000,00.
+    const s2 = await runCtx(ctx, () => caixa.abrirSessao({ fundoInicial: 1000 }, ctx));
+    await venda(s2.id, '300.00');
+    await runCtx(ctx, () => caixa.registarSangria({ sessaoCaixaId: s2.id, valor: 50, motivo: 'cofre' }, ctx));
+    const misto = await saldoHoje();
+    await runCtx(ctx, () => caixa.fecharSessao({ sessaoCaixaId: s2.id, fundoFinal: 1250 }, ctx));
+    expect(
+      misto.equals(D('251250.00')),
+      `saldoTesourariaAte devolveu ${misto.toString()}; esperado 251 250,00 ` +
+        '(ABERTURA a dobrar daria 252 250,00; só as colunas, 251 000,00)',
+    ).toBe(true);
+  });
 });

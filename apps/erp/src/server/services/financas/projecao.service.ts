@@ -28,6 +28,7 @@ import type {
   ProjecaoTesouraria,
 } from './projecao.interface';
 import { FORA_DE_FECHO_E_ABERTURA } from './fora-de-fecho-e-abertura';
+import { totaisDerivadosDeSessoes } from './caixa.service';
 
 /**
  * Projecção de Tesouraria (spec 22 · WS-1).
@@ -490,7 +491,8 @@ export function calcularPerfilAtraso(
  * Saldo de tesouraria até `data`, inclusive (ADR-0036 §Decisão-2 e §2-bis):
  *
  *   Σ saldo do razão  ∀ contaContabilId DISTINTO de ContaBancaria com ativo = true
- * + Σ (fundoInicial + totalEntradas − totalSaidas)  ∀ SessaoCaixa ABERTA
+ * + Σ (fundoInicial + entradas − saídas)  ∀ SessaoCaixa ABERTA, derivadas dos
+ *   MovimentoCaixa (`totaisSessaoCaixa`, #92) — as colunas são a fotografia do fecho
  *
  * Responde «quanto dinheiro há», não «quanto há a receber» — contas a receber
  * são compromissos, não tesouraria.
@@ -558,13 +560,13 @@ export async function saldoTesourariaAte(
 
   const sessoesAbertas = await prisma.sessaoCaixa.findMany({
     where: { tenantId: ctx.tenantId, status: 'ABERTA' },
-    select: { fundoInicial: true, totalEntradas: true, totalSaidas: true },
+    select: { id: true, fundoInicial: true },
   });
-  for (const s of sessoesAbertas) {
-    total = total
-      .plus(s.fundoInicial)
-      .plus(s.totalEntradas)
-      .minus(s.totalSaidas);
+  // #92: as colunas totalEntradas/totalSaidas só são escritas no fecho — numa
+  // sessão ABERTA deriva-se dos movimentos (ABERTURA e FECHAMENTO fora, #91).
+  const derivados = await totaisDerivadosDeSessoes(sessoesAbertas, ctx);
+  for (const t of derivados.values()) {
+    total = total.plus(t.saldoEsperado);
   }
 
   return total;

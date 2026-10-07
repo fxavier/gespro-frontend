@@ -1,7 +1,7 @@
 import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
-import { MOVIMENTOS_ENTRADA, MOVIMENTOS_SAIDA } from '@/lib/caixa-movimentos';
+import { totaisSessaoCaixa, type TotaisSessaoCaixa } from '@/lib/caixa-movimentos';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
 import type {
@@ -120,16 +120,10 @@ export async function fecharSessao(
     where: { sessaoCaixaId: sessao.id, tenantId: ctx.tenantId },
   });
 
-  const totalEntradas = movimentos
-    .filter((m) => (MOVIMENTOS_ENTRADA as readonly string[]).includes(m.tipo))
-    .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
-
-  const totalSaidas = movimentos
-    .filter((m) => (MOVIMENTOS_SAIDA as readonly string[]).includes(m.tipo))
-    .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
+  // #91: ABERTURA e FECHAMENTO fora — o fundo entra uma vez, por fundoInicial.
+  const { totalEntradas, totalSaidas, saldoEsperado } = totaisSessaoCaixa(movimentos, sessao.fundoInicial);
 
   const fundoFinal = new Prisma.Decimal(String(input.fundoFinal));
-  const saldoEsperado = sessao.fundoInicial.plus(totalEntradas).minus(totalSaidas);
   const diferenca = fundoFinal.minus(saldoEsperado);
 
   const sessaoFechada = await prisma.sessaoCaixa.update({
@@ -243,11 +237,36 @@ export async function exigirSessaoCaixaAbertaDoUtilizador(sessaoCaixaId: string,
   }
 }
 
+/**
+ * #92: totais de sessões ABERTAS derivados dos movimentos (as colunas
+ * `SessaoCaixa.totalEntradas/totalSaidas` são a fotografia do fecho e, numa
+ * sessão aberta, ainda não foram escritas). Um único `groupBy` por sessão e tipo.
+ */
+export async function totaisDerivadosDeSessoes(
+  sessoes: ReadonlyArray<{ id: string; fundoInicial: Prisma.Decimal }>,
+  ctx: Ctx,
+): Promise<Map<string, TotaisSessaoCaixa>> {
+  const resultado = new Map<string, TotaisSessaoCaixa>();
+  if (sessoes.length === 0) return resultado;
+  const agregados = await prisma.movimentoCaixa.groupBy({
+    by: ['sessaoCaixaId', 'tipo'],
+    where: { tenantId: ctx.tenantId, sessaoCaixaId: { in: sessoes.map((s) => s.id) } },
+    _sum: { valor: true },
+  });
+  for (const s of sessoes) {
+    const movimentos = agregados
+      .filter((a) => a.sessaoCaixaId === s.id)
+      .map((a) => ({ tipo: a.tipo, valor: a._sum.valor ?? new Prisma.Decimal(0) }));
+    resultado.set(s.id, totaisSessaoCaixa(movimentos, s.fundoInicial));
+  }
+  return resultado;
+}
+
 export async function listarSessoes(
   filtro: FiltroSessaoCaixaInput,
   ctx: Ctx,
 ): Promise<PaginacaoCaixa<SessaoCaixa>> {
-  return paginate(
+  const pagina = (await paginate(
     (a) =>
       prisma.sessaoCaixa.findMany({
         ...a,
@@ -267,7 +286,20 @@ export async function listarSessoes(
         orderBy: { dataAbertura: 'desc' },
       }),
     { cursor: filtro.cursor, take: filtro.take },
-  ) as unknown as Promise<PaginacaoCaixa<SessaoCaixa>>;
+  )) as unknown as PaginacaoCaixa<SessaoCaixa>;
+
+  // #92: sessões ABERTAS mostram entradas/saídas derivadas dos movimentos.
+  const derivados = await totaisDerivadosDeSessoes(
+    pagina.items.filter((s) => s.status === 'ABERTA'),
+    ctx,
+  );
+  return {
+    ...pagina,
+    items: pagina.items.map((s) => {
+      const t = derivados.get(s.id);
+      return t ? { ...s, totalEntradas: t.totalEntradas, totalSaidas: t.totalSaidas } : s;
+    }),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -352,15 +384,10 @@ export async function resumoSessao(sessaoCaixaId: string, ctx: Ctx): Promise<Res
   });
   if (!sessao) throw new NotFoundError('Sessão não encontrada');
 
-  const totalEntradas = sessao.movimentos
-    .filter((m) => (MOVIMENTOS_ENTRADA as readonly string[]).includes(m.tipo))
-    .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
-
-  const totalSaidas = sessao.movimentos
-    .filter((m) => (MOVIMENTOS_SAIDA as readonly string[]).includes(m.tipo))
-    .reduce((acc, m) => acc.plus(m.valor), new Prisma.Decimal(0));
-
-  const saldoEsperado = sessao.fundoInicial.plus(totalEntradas).minus(totalSaidas);
+  const { totalEntradas, totalSaidas, saldoEsperado } = totaisSessaoCaixa(
+    sessao.movimentos,
+    sessao.fundoInicial,
+  );
 
   return {
     sessaoCaixaId,
