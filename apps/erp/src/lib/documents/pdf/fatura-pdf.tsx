@@ -140,6 +140,13 @@ export function FaturaDocument({ model }: { model: DocumentoFiscalModel }) {
             <Text style={estilos.pequena}>{model.observacoes}</Text>
           </View>
         ) : null}
+
+        {model.hashIntegridade ? (
+          <View style={{ marginTop: 12 }}>
+            <Text style={estilos.caixaTitulo}>Hash de integridade</Text>
+            <Text style={[estilos.pequena, estilos.suave]}>{model.hashIntegridade}</Text>
+          </View>
+        ) : null}
       </PaginaDocumento>
     </Document>
   );

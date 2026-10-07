@@ -146,7 +146,7 @@ export default async function FaturaDetalhePage({ params }: PageProps) {
             )}
             {fatura.hashValidacao && (
               <div className="col-span-2">
-                <p className="text-muted-foreground">Hash de validação</p>
+                <p className="text-muted-foreground">Hash de integridade</p>{' '}
                 <p className="font-mono text-xs break-all">{fatura.hashValidacao}</p>
               </div>
             )}

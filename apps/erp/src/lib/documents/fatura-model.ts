@@ -61,6 +61,8 @@ export interface FaturaInput {
   totalPago?: DecimalLike | null;
   observacoes?: string | null;
   linhas: LinhaDocumentoInput[];
+  /** Hash de integridade gravado na emissão (#336); `null` em documentos anteriores. */
+  hashValidacao?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +119,8 @@ export interface DocumentoFiscalModel {
   /** Menções legais obrigatórias (MZ). */
   mencoesLegais: string[];
   observacoes: string | null;
+  /** Hash de integridade encadeado por série (#336), reflectido tal como gravado. */
+  hashIntegridade: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +213,7 @@ export function construirDocumentoFatura(
     },
     mencoesLegais,
     observacoes: fatura.observacoes ?? null,
+    hashIntegridade: fatura.hashValidacao ?? null,
   };
 }
 
@@ -238,13 +243,37 @@ export function motivoIsencaoAutomatico(regimeIva: string | null | undefined): s
     : 'Isento de IVA nos termos do Código do IVA.';
 }
 
-/** Serialização canónica (para hash/validação determinística e testes). */
-export function serializarDocumentoParaHash(fatura: FaturaInput): string {
-  return [
+/**
+ * Serialização canónica do documento para o hash de integridade encadeado (#336).
+ * Determinística: ordem fixa, JSON (sem ambiguidade de separadores), Decimal via
+ * `toString()` lossless, datas em ISO UTC. Cobre número, série, data, NUIT do emitente e do
+ * adquirente, totais, IVA e as linhas (incluindo o motivo de isenção).
+ */
+export function serializarDocumentoParaHash(
+  fatura: FaturaInput,
+  partes: { nuitEmitente: string; nuitAdquirente: string | null },
+): string {
+  const dec = (v: DecimalLike) => serializeCell(v, 'decimal');
+  return JSON.stringify([
     fatura.numero,
-    serializeCell(fatura.total, 'decimal'),
-    serializeCell(fatura.ivaTotal, 'decimal'),
-    serializeCell(fatura.subtotal, 'decimal'),
+    fatura.serieTipo,
+    fatura.moeda,
     serializeCell(fatura.dataEmissao, 'datetime'),
-  ].join('|');
+    partes.nuitEmitente,
+    partes.nuitAdquirente ?? '',
+    dec(fatura.subtotal),
+    dec(fatura.ivaTotal),
+    dec(fatura.total),
+    fatura.linhas.map((l) => [
+      l.descricao,
+      dec(l.quantidade),
+      dec(l.precoUnitario),
+      dec(l.desconto),
+      dec(l.taxaIva),
+      dec(l.subtotal),
+      dec(l.ivaItem),
+      dec(l.total),
+      l.motivoIsencao ?? '',
+    ]),
+  ]);
 }
