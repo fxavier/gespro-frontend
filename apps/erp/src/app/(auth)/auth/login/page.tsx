@@ -53,6 +53,12 @@ export default function LoginPage() {
       </div>
 
       <p className="text-center text-sm text-muted-foreground">
+        <Link href="/auth/recuperar" className="underline underline-offset-4 hover:text-foreground">
+          Esqueceu-se da palavra-passe?
+        </Link>
+      </p>
+
+      <p className="text-center text-sm text-muted-foreground">
         Problemas a entrar?{' '}
         <Link href="/contactos" className="underline underline-offset-4 hover:text-foreground">
           Contactar o suporte
