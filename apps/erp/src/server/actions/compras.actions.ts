@@ -31,8 +31,16 @@ import { z } from 'zod';
 export const criarConfiguracaoWorkflowAction = createSafeAction({
   schema: CreateConfiguracaoWorkflowSchema,
   permission: 'compras:configurar',
-  revalidate: { tags: ['compras:workflow'] },
+  revalidate: { paths: ['/compras/configuracoes/circuitos-aprovacao'], tags: ['compras:workflow'] },
   handler: async (input, ctx) => comprasService.criarConfiguracaoWorkflow(input, ctx),
+});
+
+/** Pesquisa de aprovadores (utilizadores activos do tenant) para o formulário de circuitos. */
+export const procurarAprovadoresAction = createSafeAction({
+  schema: z.object({ q: z.string().max(200).optional() }),
+  permission: 'compras:configurar',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => comprasService.procurarAprovadores(q ?? '', ctx),
 });
 
 // =====================================================================

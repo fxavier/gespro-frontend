@@ -225,6 +225,13 @@ export const ColaboradorService = {
 
 export const FeriasService = {
   async iniciarPeriodo(input: CreateFeriasInput, ctx: Ctx): Promise<{ id: string }> {
+    // #156 — o colaboradorId vem do cliente: de outro tenant é 404, nunca um período alheio.
+    const colaborador = await prisma.colaborador.findFirst({
+      where: { id: input.colaboradorId, tenantId: ctx.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!colaborador) throw new NotFoundError('Colaborador não encontrado');
+
     const ferias = await prisma.ferias.create({
       data: {
         tenantId: ctx.tenantId,
@@ -273,6 +280,7 @@ export const FeriasService = {
         tipo: input.tipo,
         status: 'PENDENTE',
         observacoes: input.observacoes,
+        solicitadoPorId: ctx.userId,
       },
       select: { id: true },
     });
@@ -289,15 +297,20 @@ export const FeriasService = {
 
       transitar(TRANSICOES_SOLICITACAO_FERIAS, sol.status, input.status);
 
-      await tx.solicitacaoFerias.update({
-        where: { id: input.solicitacaoId },
+      // #156 — guarda de estado na própria escrita: duas aprovações em corrida leem ambas
+      // PENDENTE, só uma muda a linha e só essa desconta o saldo.
+      const { count } = await tx.solicitacaoFerias.updateMany({
+        where: { id: input.solicitacaoId, tenantId: ctx.tenantId, status: sol.status },
         data: {
           status: input.status,
           aprovadoPorId: ctx.userId,
           dataAprovacao: new Date(),
-          motivoRejeicao: input.motivoRejeicao,
+          motivoRejeicao: input.status === 'REJEITADA' ? input.motivoRejeicao : null,
         },
       });
+      if (count === 0) {
+        throw new BusinessRuleError('TRANSICAO_INVALIDA', 'O pedido de férias já não está pendente');
+      }
 
       // Descontar do saldo apenas ao APROVAR
       if (input.status === 'APROVADA') {
@@ -309,29 +322,39 @@ export const FeriasService = {
     });
   },
 
+  /**
+   * #156 — cancelamento pelo próprio: só quem submeteu o pedido, e só enquanto PENDENTE
+   * (um APROVADO devolveria dias ao saldo sem o aprovador). Pedidos sem solicitante
+   * gravado (anteriores à coluna) não são cancelados por ninguém.
+   */
   async cancelarSolicitacao(solicitacaoId: string, ctx: Ctx): Promise<void> {
-    await prisma.$transaction(async (tx) => {
-      const sol = await tx.solicitacaoFerias.findFirst({
-        where: { id: solicitacaoId, tenantId: ctx.tenantId },
-        select: { status: true, feriasId: true, diasSolicitados: true },
-      });
-      if (!sol) throw new NotFoundError('Solicitação não encontrada');
-
-      transitar(TRANSICOES_SOLICITACAO_FERIAS, sol.status, 'CANCELADA');
-
-      await tx.solicitacaoFerias.update({
-        where: { id: solicitacaoId },
-        data: { status: 'CANCELADA' },
-      });
-
-      // Restituir dias se estava APROVADA
-      if (sol.status === 'APROVADA') {
-        await tx.ferias.update({
-          where: { id: sol.feriasId },
-          data: { diasUsados: { decrement: sol.diasSolicitados } },
-        });
-      }
+    const sol = await prisma.solicitacaoFerias.findFirst({
+      where: { id: solicitacaoId, tenantId: ctx.tenantId },
+      select: { status: true, solicitadoPorId: true },
     });
+    if (!sol) throw new NotFoundError('Solicitação não encontrada');
+
+    if (!sol.solicitadoPorId || sol.solicitadoPorId !== ctx.userId) {
+      throw new BusinessRuleError(
+        'SOLICITACAO_FERIAS_ALHEIA',
+        'Só quem submeteu o pedido de férias o pode cancelar',
+      );
+    }
+    if (sol.status !== 'PENDENTE') {
+      throw new BusinessRuleError(
+        'TRANSICAO_INVALIDA',
+        'Só um pedido de férias pendente pode ser cancelado',
+      );
+    }
+    transitar(TRANSICOES_SOLICITACAO_FERIAS, sol.status, 'CANCELADA');
+
+    const { count } = await prisma.solicitacaoFerias.updateMany({
+      where: { id: solicitacaoId, tenantId: ctx.tenantId, status: 'PENDENTE' },
+      data: { status: 'CANCELADA' },
+    });
+    if (count === 0) {
+      throw new BusinessRuleError('TRANSICAO_INVALIDA', 'O pedido de férias já não está pendente');
+    }
   },
 
   async obterSaldo(
