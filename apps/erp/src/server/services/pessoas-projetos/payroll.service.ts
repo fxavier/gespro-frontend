@@ -705,6 +705,39 @@ async function recalcularPayrollNoTx(tx: Tx, payrollId: string, ctx: Ctx): Promi
   await actualizarTotaisFolha(tx, payroll.folhaId, ctx.tenantId);
 }
 
+/**
+ * #158 — travão comum às novas vigências INSS/IRPS (corre dentro da tx, antes de escrever):
+ * o início é o mês civil corrente de Maputo ou um mês futuro, e nenhuma folha PROCESSADO/PAGO
+ * do tenant em (ano, mês) ≥ ao mês de início pode ficar coberta pela vigência nova.
+ */
+async function exigirVigenciaNovaPermitida(
+  tx: Prisma.TransactionClient,
+  vigenciaInicio: Date,
+  ctx: Ctx,
+): Promise<void> {
+  const mesInicio = diaIsoMaputo(0, vigenciaInicio).slice(0, 7); // 'aaaa-mm'
+  const [ano, mes] = mesInicio.split('-').map(Number);
+  if (mesInicio < diaIsoMaputo().slice(0, 7)) {
+    throw new BusinessRuleError(
+      'VIGENCIA_INVALIDA',
+      'A nova vigência tem de começar no mês corrente ou num mês futuro',
+    );
+  }
+  const folhas = await tx.folhaPagamento.count({
+    where: {
+      tenantId: ctx.tenantId,
+      status: { in: ['PROCESSADO', 'PAGO'] },
+      OR: [{ anoReferencia: { gt: ano } }, { anoReferencia: ano, mesReferencia: { gte: mes } }],
+    },
+  });
+  if (folhas > 0) {
+    throw new BusinessRuleError(
+      'VIGENCIA_USADA_POR_FOLHA',
+      'Já há folhas processadas a partir desse mês: a vigência que usaram não pode ser alterada',
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Serviço
 // ---------------------------------------------------------------------------
@@ -1240,6 +1273,7 @@ export const PayrollService = {
   async criarTabelaINSS(input: TabelaINSSInput, ctx: Ctx): Promise<{ id: string }> {
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
+      await exigirVigenciaNovaPermitida(tx, input.vigenciaInicio, ctx);
       const anterior = await tx.tabelaINSS.findFirst({
         where: { tenantId: ctx.tenantId, vigenciaFim: null },
         orderBy: { vigenciaInicio: 'desc' },
@@ -1274,6 +1308,7 @@ export const PayrollService = {
   async criarEscaloesIRPS(input: CriarEscaloesIRPSInput, ctx: Ctx): Promise<{ total: number }> {
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
+      await exigirVigenciaNovaPermitida(tx, input.vigenciaInicio, ctx);
       const vigentes = await tx.escalaoIRPS.findMany({
         where: { tenantId: ctx.tenantId, vigenciaFim: null },
       });

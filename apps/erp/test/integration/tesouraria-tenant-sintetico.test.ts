@@ -429,27 +429,42 @@ describe.skipIf(skip)('spec 22 — tenant sintético semeado pelos serviços (or
 
     // ── 8. Payroll PROCESSADO com dataPagamento NULA em dois meses passados:
     //       um a acabar a SÁBADO e outro a DOMINGO (ADR-0036 §12, task 4.9)
-    await runCtx(ctx, () =>
-      PayrollService.criarTabelaINSS(
-        TabelaINSSSchema.parse({
-          vigenciaInicio: dataDoSerial(sHoje - 730),
-          taxaTrabalhador: 0.03,
-          taxaEntidade: 0.04,
-        }),
-        ctx,
-      ),
-    );
-    await runCtx(ctx, () =>
-      PayrollService.criarEscaloesIRPS(
-        CriarEscaloesIRPSSchema.parse({
-          vigenciaInicio: dataDoSerial(sHoje - 730),
-          escaloes: [
-            { ordem: 1, limiteInferior: 0, limiteSuperior: null, taxa: 0.1, parcelaAbater: 0, numeroDependentes: 0 },
-          ],
-        }),
-        ctx,
-      ),
-    );
+    // #158: o serviço recusa vigências retroactivas (só mês corrente/futuro). As tabelas de há
+    // dois anos são dados de partida, como no seed: gravam-se directamente, pelos mesmos schemas.
+    const inssBase = TabelaINSSSchema.parse({
+      vigenciaInicio: dataDoSerial(sHoje - 730),
+      taxaTrabalhador: 0.03,
+      taxaEntidade: 0.04,
+    });
+    await db.tabelaINSS.create({
+      data: {
+        tenantId: ctx.tenantId,
+        vigenciaInicio: inssBase.vigenciaInicio,
+        taxaTrabalhador: String(inssBase.taxaTrabalhador),
+        taxaEntidade: String(inssBase.taxaEntidade),
+        tetoIncidencia: null,
+      },
+    });
+    const irpsBase = CriarEscaloesIRPSSchema.parse({
+      vigenciaInicio: dataDoSerial(sHoje - 730),
+      escaloes: [
+        { ordem: 1, limiteInferior: 0, limiteSuperior: null, taxa: 0.1, parcelaAbater: 0, numeroDependentes: 0 },
+      ],
+    });
+    for (const e of irpsBase.escaloes) {
+      await db.escalaoIRPS.create({
+        data: {
+          tenantId: ctx.tenantId,
+          vigenciaInicio: irpsBase.vigenciaInicio,
+          ordem: e.ordem,
+          limiteInferior: e.limiteInferior.toFixed(2),
+          limiteSuperior: e.limiteSuperior !== null ? e.limiteSuperior.toFixed(2) : null,
+          taxa: String(e.taxa),
+          parcelaAbater: e.parcelaAbater.toFixed(2),
+          numeroDependentes: e.numeroDependentes,
+        },
+      });
+    }
     await runCtx(ctx, () =>
       ColaboradorService.criar(
         CreateColaboradorSchema.parse({
