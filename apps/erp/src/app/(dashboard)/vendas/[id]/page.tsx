@@ -272,7 +272,7 @@ export default async function VendaDetalhePage({ params }: Props) {
                     </Link>
                   </Button>
                 )}
-                {venda.origem === 'POS' && venda.faturaId && venda.status === 'CONCLUIDA' && (
+                {venda.origem === 'POS' && venda.faturaId && (venda.status === 'CONCLUIDA' || venda.status === 'FATURADA') && (
                   <Button variant="outline" size="sm" asChild>
                     <Link href={`/vendas/${venda.id}/anular`}>
                       <Ban className="h-4 w-4 mr-2" />
