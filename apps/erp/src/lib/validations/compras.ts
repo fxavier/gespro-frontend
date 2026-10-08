@@ -405,7 +405,7 @@ export const CreateContaPagarSchema = z.object({
   tipoAquisicao: TipoAquisicaoIvaEnum.optional(),
 }).refine(
   (d) => d.dataVencimento >= d.dataEmissao,
-  { message: 'Data de vencimento deve ser igual ou posterior à data de emissão' },
+  { message: 'Data de vencimento deve ser igual ou posterior à data de emissão', path: ['dataVencimento'] },
 );
 
 export type CreateContaPagarInput = z.infer<typeof CreateContaPagarSchema>;

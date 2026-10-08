@@ -420,7 +420,24 @@ describe('registarRecebimento() — RECEBIDO_TOTAL cria ContaPagar com bloco fis
     const contaPagarCriada = {
       id: 'cp-rec-1', tenantId: 'tenant-test', numero: 'CP-2026-00001',
     };
+    // #111: a recepção pode passar a validar a localização de destino e a trancar o pedido
+    // (FOR UPDATE) antes de ler o já recebido — duplos permissivos, sem mudar asserções.
+    const loc = (id = 'loc-1') => ({ id, tenantId: 'tenant-test', ativa: true, deletedAt: null });
+    const linhaTrancada = [{ id: pedido.id, tenantId: pedido.tenantId, status: pedido.status }];
     return {
+      localizacao: {
+        findFirst: vi.fn(async (a?: any) => loc(a?.where?.id)),
+        findUnique: vi.fn(async (a?: any) => loc(a?.where?.id)),
+        findMany: vi.fn(async (a?: any) => {
+          const ids = a?.where?.id?.in;
+          return Array.isArray(ids) ? ids.map((id: string) => loc(id)) : [loc()];
+        }),
+        count: vi.fn(async (a?: any) => (Array.isArray(a?.where?.id?.in) ? a.where.id.in.length : 1)),
+      },
+      $queryRaw: vi.fn(async () => linhaTrancada),
+      $queryRawUnsafe: vi.fn(async () => linhaTrancada),
+      $executeRaw: vi.fn(async () => 1),
+      $executeRawUnsafe: vi.fn(async () => 1),
       pedidoCompra: {
         findUnique: vi.fn().mockResolvedValue(pedido),
         update: vi.fn().mockResolvedValue({ ...pedido, status: 'RECEBIDO_TOTAL' }),
