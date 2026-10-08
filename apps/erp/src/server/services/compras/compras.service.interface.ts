@@ -187,6 +187,17 @@ export interface CotacaoResumo {
   createdAt: Date;
 }
 
+/** #110: cotação adjudicada de uma requisição, oferecida na conversão em pedido. */
+export interface CotacaoAdjudicadaDto {
+  id: string;
+  numero: string;
+  vencedorFornecedorId: string;
+  vencedorNome: string;
+  /** Decimal serializado (SC → CC); null se o vencedor não indicou valor. */
+  valorTotal: string | null;
+  prazoEntregaDias: number | null;
+}
+
 export interface CotacaoDetalhe extends CotacaoResumo {
   requisicaoCompraId: string | null;
   observacoes: string | null;
@@ -367,6 +378,7 @@ export interface IComprasService {
     filtros: z.infer<typeof FilterCotacaoSchema>,
     ctx: Ctx,
   ): Promise<PaginatedResult<CotacaoResumo>>;
+  listarCotacoesAdjudicadasDaRequisicao(requisicaoId: string, ctx: Ctx): Promise<CotacaoAdjudicadaDto[]>;
 
   // ---- Pedido de Compra ----
   criarPedido(input: CreatePedidoCompraInput, ctx: Ctx): Promise<PedidoCompraDetalhe>;
@@ -385,6 +397,8 @@ export interface IComprasService {
     ctx: Ctx,
   ): Promise<PedidoCompraDetalhe>;
   enviarPedido(id: string, ctx: Ctx): Promise<void>;
+  confirmarPedido(id: string, ctx: Ctx): Promise<void>;
+  marcarPedidoEmTransito(id: string, ctx: Ctx): Promise<void>;
   cancelarPedido(id: string, motivo: string, ctx: Ctx): Promise<void>;
   obterPedido(id: string, ctx: Ctx): Promise<PedidoCompraDetalhe>;
   listarPedidos(

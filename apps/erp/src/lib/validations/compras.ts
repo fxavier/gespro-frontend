@@ -326,6 +326,22 @@ export const FilterPedidoCompraSchema = z.object({
 
 export type FilterPedidoCompraInput = z.infer<typeof FilterPedidoCompraSchema>;
 
+/** #110: converter uma requisição APROVADA com uma das suas cotações ADJUDICADAS. */
+export const ConverterRequisicaoEmPedidoSchema = z.object({
+  requisicaoId: z.string().cuid(),
+  cotacaoId: z.string().cuid('Escolha a cotação adjudicada.'),
+});
+
+export type ConverterRequisicaoEmPedidoInput = z.infer<typeof ConverterRequisicaoEmPedidoSchema>;
+
+/** #110: cancelar um pedido — o motivo é obrigatório e junta-se às observações. */
+export const CancelarPedidoCompraSchema = z.object({
+  id: z.string().cuid(),
+  motivo: z.string().trim().min(1, 'Indique o motivo do cancelamento.').max(500),
+});
+
+export type CancelarPedidoCompraInput = z.infer<typeof CancelarPedidoCompraSchema>;
+
 // =====================================================================
 // RECEBIMENTO DE MERCADORIA
 // =====================================================================
