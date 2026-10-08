@@ -4,7 +4,7 @@
  * Inclui o property test OBRIGATÓRIO: o lançamento contabilístico gerado
  * (massa salarial e pagamento) tem sempre débito == crédito.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
 import { Prisma } from '@prisma/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
@@ -25,7 +25,7 @@ vi.mock('@/server/services/financas/meio-pagamento.service', () => ({
 
 // ── Mock do Prisma (transacção devolve o próprio mock) ───────────────────────
 const txMock = vi.hoisted(() => ({
-  folhaPagamento: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  folhaPagamento: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn() },
   payroll: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
@@ -730,6 +730,20 @@ describe('ajustarLinhaManual — LIQUIDO_NEGATIVO', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('PayrollService.criarTabelaINSS', () => {
+  // #158 — a nova vigência é corrente/futura e não pode cobrir folhas processadas: os casos
+  // abaixo simulam um tenant sem folhas (a regra é provada em
+  // test/integration/payroll-tabelas-vigencia-158.test.ts).
+  beforeEach(() => {
+    txMock.folhaPagamento.findFirst.mockResolvedValue(null);
+    txMock.folhaPagamento.findMany.mockResolvedValue([]);
+    txMock.folhaPagamento.count.mockResolvedValue(0);
+  });
+  afterEach(() => {
+    txMock.folhaPagamento.findFirst.mockReset();
+    txMock.folhaPagamento.findMany.mockReset();
+    txMock.folhaPagamento.count.mockReset();
+  });
+
   it('fecha a vigência anterior ao criar nova tabela', async () => {
     txMock.tabelaINSS.findFirst.mockResolvedValue({
       id: 'inss-old',
@@ -740,7 +754,8 @@ describe('PayrollService.criarTabelaINSS', () => {
     txMock.tabelaINSS.create.mockResolvedValue({ id: 'inss-new' });
 
     const r = await PayrollService.criarTabelaINSS(
-      { vigenciaInicio: new Date('2026-01-01'), taxaTrabalhador: 0.03, taxaEntidade: 0.04 },
+      // #158: a data tem de ser do mês corrente ou futura — 2099 é sempre futura
+      { vigenciaInicio: new Date('2099-01-01'), taxaTrabalhador: 0.03, taxaEntidade: 0.04 },
       ctx,
     );
     expect(r.id).toBe('inss-new');
