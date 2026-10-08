@@ -418,46 +418,54 @@ export class ComissaoService implements IComissaoService {
     };
   }
 
-  async aprovar(id: string, ctx: Ctx): Promise<ComissaoRow> {
-    const comissao = await prisma.comissao.findUnique({ where: { id } });
-    if (!comissao || comissao.tenantId !== ctx.tenantId) {
-      throw new NotFoundError(`Comissão ${id} não encontrada`);
-    }
-    transitarComissao(comissao.status as StatusComissao, 'APROVADA');
+  async obter(id: string, ctx: Ctx): Promise<ComissaoRow> {
+    const comissao = await prisma.comissao.findFirst({ where: { id, tenantId: ctx.tenantId } });
+    if (!comissao) throw new NotFoundError(`Comissão ${id} não encontrada`);
+    return mapComissaoRow(comissao);
+  }
 
-    const atualizada = await prisma.comissao.update({
-      where: { id },
-      data: { status: 'APROVADA' },
-    });
-    return mapComissaoRow(atualizada);
+  async aprovar(id: string, ctx: Ctx): Promise<ComissaoRow> {
+    return this._transitar(id, 'APROVADA', { status: 'APROVADA' }, ctx);
   }
 
   async marcarPaga(id: string, ctx: Ctx): Promise<ComissaoRow> {
-    const comissao = await prisma.comissao.findUnique({ where: { id } });
-    if (!comissao || comissao.tenantId !== ctx.tenantId) {
-      throw new NotFoundError(`Comissão ${id} não encontrada`);
-    }
-    transitarComissao(comissao.status as StatusComissao, 'PAGA');
-
-    const atualizada = await prisma.comissao.update({
-      where: { id },
-      data: { status: 'PAGA', pagoEm: new Date() },
-    });
-    return mapComissaoRow(atualizada);
+    return this._transitar(id, 'PAGA', { status: 'PAGA', pagoEm: new Date() }, ctx);
   }
 
   async cancelar(id: string, motivo: string, ctx: Ctx): Promise<ComissaoRow> {
-    const comissao = await prisma.comissao.findUnique({ where: { id } });
-    if (!comissao || comissao.tenantId !== ctx.tenantId) {
-      throw new NotFoundError(`Comissão ${id} não encontrada`);
-    }
-    transitarComissao(comissao.status as StatusComissao, 'CANCELADA');
+    return this._transitar(id, 'CANCELADA', { status: 'CANCELADA', detalhes: motivo }, ctx);
+  }
 
-    const atualizada = await prisma.comissao.update({
-      where: { id },
-      data: { status: 'CANCELADA', detalhes: motivo },
+  /**
+   * Compare-and-set (#131, molde de #129): o UPDATE só escreve se a comissão ainda estiver no
+   * estado lido. Pagar e cancelar em simultâneo sobre a mesma APROVADA: o segundo UPDATE espera
+   * pelo commit do primeiro, reavalia o WHERE (count 0) e recebe TRANSICAO_INVALIDA.
+   */
+  private async _transitar(
+    id: string,
+    alvo: StatusComissao,
+    data: Prisma.ComissaoUpdateManyMutationInput,
+    ctx: Ctx,
+  ): Promise<ComissaoRow> {
+    const comissao = await prisma.comissao.findFirst({ where: { id, tenantId: ctx.tenantId } });
+    if (!comissao) throw new NotFoundError(`Comissão ${id} não encontrada`);
+    const actual = comissao.status as StatusComissao;
+    transitarComissao(actual, alvo);
+
+    const { count } = await prisma.comissao.updateMany({
+      where: { id, tenantId: ctx.tenantId, status: actual },
+      data,
     });
-    return mapComissaoRow(atualizada);
+    const depois = await prisma.comissao.findFirst({ where: { id, tenantId: ctx.tenantId } });
+    if (!depois) throw new NotFoundError(`Comissão ${id} não encontrada`);
+    if (count !== 1) {
+      throw new BusinessRuleError(
+        'TRANSICAO_INVALIDA',
+        `A comissão mudou entretanto de estado (${depois.status}); a operação não foi aplicada.`,
+        { estadoActual: depois.status, estadoAlvo: alvo },
+      );
+    }
+    return mapComissaoRow(depois);
   }
 
   // --- Relatórios ---

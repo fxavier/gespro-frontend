@@ -1,16 +1,18 @@
 /**
  * Comissões de um Vendedor — Server Component.
- * Filtra as comissões pelo vendedorId extraído do URL.
+ * `vendedorService.listarComissoes` resolve o vendedor do URL para o seu `userId`, que é a chave
+ * de `Comissao.vendedorId` (#135).
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Plus, DollarSign, Clock, CheckCircle, TrendingUp } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { comissaoService } from '@/server/services/comercial/index';
+import { vendedorService } from '@/server/services/comercial/index';
+import { NotFoundError } from '@/lib/errors';
 import { FilterComissaoSchema } from '@/lib/validations/vendas';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, KpiCard } from '@/components/patterns';
@@ -43,7 +45,7 @@ const FILTER_CONFIGS: FilterConfig[] = [
 
 async function KpisVendedor({ vendedorId, tenantId, userId }: { vendedorId: string; tenantId: string; userId: string }) {
   const resultado = await runWithTenantContext({ tenantId, userId }, () =>
-    comissaoService.listar({ vendedorId, take: 100, orderBy: 'createdAt', order: 'desc' }, { tenantId, userId })
+    vendedorService.listarComissoes(vendedorId, { take: 100, orderBy: 'createdAt', order: 'desc' }, { tenantId, userId })
   );
 
   const total = resultado.items.length;
@@ -67,8 +69,9 @@ async function KpisVendedor({ vendedorId, tenantId, userId }: { vendedorId: stri
 
 async function TabelaComissoes({ vendedorId, filtros, tenantId, userId }: { vendedorId: string; filtros: z.infer<typeof FiltroUrlSchema>; tenantId: string; userId: string }) {
   const result = await runWithTenantContext({ tenantId, userId }, () =>
-    comissaoService.listar(
-      { vendedorId, cursor: filtros.cursor, take: filtros.take, status: filtros.status, orderBy: filtros.orderBy, order: filtros.order },
+    vendedorService.listarComissoes(
+      vendedorId,
+      { cursor: filtros.cursor, take: filtros.take, status: filtros.status, orderBy: filtros.orderBy, order: filtros.order },
       { tenantId, userId }
     )
   );
@@ -115,6 +118,16 @@ export default async function VendedorComissoesPage({ params, searchParams }: Pa
 
   const { tenantId, id: userId } = session.user;
 
+  let vendedor;
+  try {
+    vendedor = await runWithTenantContext({ tenantId, userId }, () =>
+      vendedorService.obter(vendedorId, { tenantId, userId })
+    );
+  } catch (e) {
+    if (e instanceof NotFoundError) notFound();
+    throw e;
+  }
+
   const rawParams = await searchParams;
   const flatParams = Object.fromEntries(
     Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
@@ -127,10 +140,11 @@ export default async function VendedorComissoesPage({ params, searchParams }: Pa
     <div className="p-6 space-y-6">
       <PageHeader
         title="Comissões do Vendedor"
-        description={`Registo de comissões para o vendedor ${vendedorId.slice(-8)}`}
+        description={`Registo de comissões de ${vendedor.nome}`}
         breadcrumbs={[
           { label: 'Vendas', href: '/vendas' },
           { label: 'Vendedores', href: '/vendas/vendedores' },
+          { label: vendedor.nome, href: `/vendas/vendedores/${vendedorId}` },
           { label: 'Comissões' },
         ]}
         actions={

@@ -261,6 +261,12 @@ export const FilterComissaoSchema = z.object({
   order: z.enum(['asc', 'desc']).default('desc'),
 });
 
+/** Cancelar comissão (#131): o motivo fica registado em `detalhes`. */
+export const CancelarComissaoSchema = z.object({
+  id: z.string().cuid(),
+  motivo: z.string().trim().min(10, 'Motivo deve ter pelo menos 10 caracteres').max(500),
+});
+
 // ---------------------------------------------------------------------------
 // WS-10: Encomendas, Devoluções, Trocas, Vendedores
 // ---------------------------------------------------------------------------
@@ -480,6 +486,7 @@ export type CreateRegraComissaoInput = z.infer<typeof CreateRegraComissaoSchema>
 export type UpdateRegraComissaoInput = z.infer<typeof UpdateRegraComissaoSchema>;
 export type FilterRegraComissaoInput = z.infer<typeof FilterRegraComissaoSchema>;
 export type FilterComissaoInput = z.infer<typeof FilterComissaoSchema>;
+export type CancelarComissaoInput = z.infer<typeof CancelarComissaoSchema>;
 
 // WS-10
 export type CreateVendedorInput = z.infer<typeof CreateVendedorSchema>;

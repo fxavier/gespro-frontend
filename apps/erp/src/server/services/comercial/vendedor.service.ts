@@ -11,10 +11,13 @@ import { prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx } from '@/server/services/types';
+import { comissaoService } from './comissao.service';
+import type { PaginatedComissoes } from './comissao.interface';
 import type {
   CreateVendedorInput,
   UpdateVendedorInput,
   FilterVendedorInput,
+  FilterComissaoInput,
 } from '@/lib/validations/vendas';
 
 // ---------------------------------------------------------------------------
@@ -154,6 +157,39 @@ export class VendedorService {
       }),
       nextCursor: result.nextCursor,
     };
+  }
+
+  /**
+   * Desactivar, não apagar (#131): `status = INATIVO`, `deletedAt` fica null — o vendedor
+   * continua em `obter`/`listar` e as comissões dele não mudam. Reactiva-se por `atualizar`.
+   */
+  async desativar(id: string, ctx: Ctx): Promise<VendedorRow> {
+    const existente = await prismaBase.vendedor.findFirst({
+      where: { id, tenantId: ctx.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!existente) throw new NotFoundError('Vendedor não encontrado');
+
+    const row = await prismaBase.vendedor.update({
+      where: { id },
+      data: { status: 'INATIVO' },
+    });
+    return { ...row, metaMensal: dec(row.metaMensal), status: row.status };
+  }
+
+  /**
+   * Comissões do vendedor (#135). `Comissao.vendedorId` guarda o id do `User` (o POS grava
+   * `vendedorId = userId`), por isso a chave é `Vendedor.userId`, nunca o id do Vendedor.
+   * Vendedor sem utilizador → lista vazia; de outro tenant → NotFoundError.
+   */
+  async listarComissoes(
+    vendedorId: string,
+    filtro: Omit<FilterComissaoInput, 'vendedorId'>,
+    ctx: Ctx,
+  ): Promise<PaginatedComissoes> {
+    const vendedor = await this.obter(vendedorId, ctx);
+    if (!vendedor.userId) return { items: [], nextCursor: null };
+    return comissaoService.listar({ ...filtro, vendedorId: vendedor.userId }, ctx);
   }
 
   async excluir(id: string, ctx: Ctx): Promise<void> {

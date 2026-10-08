@@ -1,21 +1,28 @@
 /**
  * Perfil de Vendedor — Server Component.
  * Mostra o resumo de comissões do vendedor a partir do serviço real.
+ *
+ * As comissões vêm de `vendedorService.listarComissoes`, que filtra por `Vendedor.userId`
+ * (`Comissao.vendedorId` guarda o id do User — #135). Editar é rota própria; desactivar
+ * (não apagar — #131) confirma-se por AlertDialog.
  */
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { DollarSign, Clock, CheckCircle, TrendingUp, ArrowLeft } from 'lucide-react';
+import { notFound, redirect } from 'next/navigation';
+import { DollarSign, Clock, CheckCircle, TrendingUp, ArrowLeft, Pencil } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { comissaoService } from '@/server/services/comercial/index';
+import { vendedorService } from '@/server/services/comercial/index';
+import { NotFoundError } from '@/lib/errors';
+import { formatarData } from '@/lib/format-date';
 import { Button } from '@/components/ui/button';
 import { PageHeader, KpiCard, StatusBadge } from '@/components/patterns';
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DesativarVendedorBotao } from './_components/desativar-vendedor-botao';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -24,7 +31,7 @@ interface PageProps {
 async function VendedorKpis({ vendedorId, tenantId, userId }: { vendedorId: string; tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
   const resultado = await runWithTenantContext(ctx, () =>
-    comissaoService.listar({ vendedorId, take: 100, orderBy: 'createdAt', order: 'desc' }, ctx)
+    vendedorService.listarComissoes(vendedorId, { take: 100, orderBy: 'createdAt', order: 'desc' }, ctx)
   );
 
   const total = resultado.items.length;
@@ -49,7 +56,7 @@ async function VendedorKpis({ vendedorId, tenantId, userId }: { vendedorId: stri
 async function UltimasComissoes({ vendedorId, tenantId, userId }: { vendedorId: string; tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
   const resultado = await runWithTenantContext(ctx, () =>
-    comissaoService.listar({ vendedorId, take: 10, orderBy: 'createdAt', order: 'desc' }, ctx)
+    vendedorService.listarComissoes(vendedorId, { take: 10, orderBy: 'createdAt', order: 'desc' }, ctx)
   );
 
   if (resultado.items.length === 0) {
@@ -83,13 +90,16 @@ async function UltimasComissoes({ vendedorId, tenantId, userId }: { vendedorId: 
                   </Link>
                 </p>
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {new Date(c.createdAt).toLocaleDateString('pt-MZ')} · {parseFloat(c.percentualAplicado).toFixed(2)}%
+                  {formatarData(c.createdAt)} · {parseFloat(c.percentualAplicado).toFixed(2)}%
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium tabular-nums">
+                <Link
+                  href={`/vendas/comissoes/${c.id}`}
+                  className="text-sm font-medium tabular-nums text-primary hover:underline"
+                >
                   MT {parseFloat(c.valorComissao).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-                </span>
+                </Link>
                 <StatusBadge status={c.status} />
               </div>
             </div>
@@ -136,25 +146,48 @@ export default async function VendedorDetalhePage({ params }: PageProps) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
 
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
+  const ctx = { tenantId, userId };
+
+  let vendedor;
+  try {
+    vendedor = await runWithTenantContext(ctx, () => vendedorService.obter(vendedorId, ctx));
+  } catch (e) {
+    if (e instanceof NotFoundError) notFound();
+    throw e;
+  }
 
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title={`Vendedor ${vendedorId.slice(-8)}`}
+        title={vendedor.nome}
         description="Perfil e desempenho do vendedor"
         breadcrumbs={[
           { label: 'Vendas', href: '/vendas' },
           { label: 'Vendedores', href: '/vendas/vendedores' },
-          { label: vendedorId.slice(-8) },
+          { label: vendedor.nome },
         ]}
+        badge={<StatusBadge status={vendedor.status} />}
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/vendas/vendedores">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Vendedores
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/vendas/vendedores">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Vendedores
+              </Link>
+            </Button>
+            {permissions.includes('vendas:vendedores:editar') && (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/vendas/vendedores/${vendedorId}/editar`}>
+                  <Pencil className="h-4 w-4 mr-2" aria-hidden="true" />
+                  Editar
+                </Link>
+              </Button>
+            )}
+            {vendedor.status !== 'INATIVO' && permissions.includes('vendas:vendedores:excluir') && (
+              <DesativarVendedorBotao id={vendedorId} nome={vendedor.nome} />
+            )}
+          </div>
         }
       />
 
