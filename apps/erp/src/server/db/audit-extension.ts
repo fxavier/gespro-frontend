@@ -36,6 +36,9 @@ export const AUDIT_MODELS = new Set<string>([
   // fica para qualquer escrita futura pelo cliente estendido. A aplicação do resultado
   // (#364) idem, pelo `aplicacao-resultado.service.ts`.
   'ExercicioContabil', 'EncerramentoExercicio', 'ReaberturaExercicio', 'AplicacaoResultado',
+  // #177 — nome, NUIT, morada e regime de IVA saem no emitente do PDF fiscal. Hoje só o
+  // `actualizarDadosEmpresa` escreve estes dois pelo cliente estendido; o resto é `prismaBase`.
+  'Tenant', 'ConfiguracaoFiscal',
 ]);
 
 /**
@@ -48,6 +51,9 @@ export const CRITICAL_ENTITIES = new Set<string>([
   'CorrespondenciaBancaria', 'PeriodoReconciliacao',
   // ADR-0035 §8 — o encerramento e a reabertura do exercício; §5 — a aplicação do resultado.
   'ExercicioContabil', 'EncerramentoExercicio', 'ReaberturaExercicio', 'AplicacaoResultado',
+  // NÃO entram 'Tenant'/'ConfiguracaoFiscal' (#177): o AuditLog tem FK para o Tenant e é
+  // escrito fora da tx; esperar por ele com a linha do Tenant trancada pela mesma tx é um
+  // bloqueio até ao timeout. Ficam assíncronos e escrevem depois do commit.
 ]);
 
 // ---------------------------------------------------------------------------

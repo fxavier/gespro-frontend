@@ -19,6 +19,7 @@ import {
   CreateTenantSchema,
   UpdateTenantSchema,
   ConfiguracaoFiscalSchema,
+  DadosEmpresaSchema,
   CreateUserSchema,
   UpdateUserSchema,
   AssignRoleSchema,
@@ -78,6 +79,17 @@ export const actualizarConfiguracaoFiscal = createSafeAction({
   revalidate: { tags: ['tenants', 'configuracao'] },
   handler: async (input, ctx) =>
     tenantAdminService.actualizarConfiguracaoFiscal(ctx.tenantId, input, ctx),
+});
+
+/**
+ * Dados da empresa (#177) — o ecrã `/definicoes/empresa`. O tenant vem SEMPRE da sessão:
+ * o schema não tem `id`/`tenantId`, e `slug`/`planoAssinatura`/`statusAtivo` são removidos.
+ */
+export const actualizarDadosEmpresa = createSafeAction({
+  schema: DadosEmpresaSchema,
+  permission: 'core_tenancy:configurar',
+  revalidate: { paths: ['/definicoes/empresa'], tags: ['tenants', 'configuracao'] },
+  handler: async (input, ctx) => tenantAdminService.actualizarDadosEmpresa(input, ctx),
 });
 
 // ---------------------------------------------------------------------------

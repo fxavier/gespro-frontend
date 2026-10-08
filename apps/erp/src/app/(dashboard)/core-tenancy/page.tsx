@@ -88,6 +88,13 @@ async function KpisPlataforma({ tenantId, userId }: { tenantId: string; userId: 
 
 const MODULOS = [
   {
+    titulo: 'Dados da Empresa',
+    descricao: 'Nome, NUIT, morada e regime de IVA que saem no cabeçalho dos documentos fiscais.',
+    href: '/definicoes/empresa',
+    icon: Building2,
+    accao: 'Editar Dados da Empresa',
+  },
+  {
     titulo: 'Gestão de Utilizadores',
     descricao: 'Criar, editar e desactivar utilizadores do tenant. Atribuir papéis e permissões.',
     href: '/core-tenancy/utilizadores',
@@ -134,7 +141,7 @@ export default async function CoreTenancyPage() {
       </Suspense>
 
       {/* Módulos de administração */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {MODULOS.map((modulo) => {
           const Icon = modulo.icon;
           return (
