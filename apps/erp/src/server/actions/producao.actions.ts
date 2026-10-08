@@ -24,6 +24,8 @@ import {
   FilterOrdemProducaoSchema,
   RegistarConsumoSchema,
   ExplodirBOMSchema,
+  AprovarQualidadeOrdemSchema,
+  ReprovarQualidadeOrdemSchema,
 } from '@/lib/validations/producao';
 import {
   CentroTrabalhoService,
@@ -173,6 +175,27 @@ export const transitarStatusOrdemProducaoAction = createSafeAction({
   handler: ({ id, novoStatus }, ctx) =>
     prismaBase.$transaction((tx) =>
       OrdemProducaoService.transitarStatus(tx, id, novoStatus, stockService, ctx),
+    ),
+});
+
+// #166 — controlo de qualidade: o escritor de `qualidadeAprovada` (só em EM_PRODUCAO).
+export const aprovarQualidadeOrdemAction = createSafeAction({
+  schema: AprovarQualidadeOrdemSchema,
+  permission: 'producao:ordens:update',
+  revalidate: { tags: ['producao:ordens'] },
+  handler: ({ id, observacoes }, ctx) =>
+    prismaBase.$transaction((tx) =>
+      OrdemProducaoService.avaliarQualidade(tx, id, { aprovada: true, observacoes }, ctx),
+    ),
+});
+
+export const reprovarQualidadeOrdemAction = createSafeAction({
+  schema: ReprovarQualidadeOrdemSchema,
+  permission: 'producao:ordens:update',
+  revalidate: { tags: ['producao:ordens'] },
+  handler: ({ id, motivo }, ctx) =>
+    prismaBase.$transaction((tx) =>
+      OrdemProducaoService.avaliarQualidade(tx, id, { aprovada: false, observacoes: motivo }, ctx),
     ),
 });
 
