@@ -88,8 +88,8 @@ export const TransitarTicketSchema = z.object({
 
 export const AtribuirTicketSchema = z.object({
   ticketId: z.string().cuid(),
-  atribuidoParaId: z.string().min(1),
-  atribuidoParaNome: z.string().min(1).max(200),
+  /** Só o id: o nome gravado é sempre o `User.nome` lido no servidor (#169). */
+  atribuidoParaId: z.string().min(1, 'Escolha um agente'),
   equipeId: z.string().cuid().optional(),
   descricao: z.string().max(500).optional(),
 });

@@ -94,6 +94,14 @@ export const atribuirTicketAction = createSafeAction({
   },
 });
 
+/** Pesquisa de agentes (utilizadores activos do tenant) para o `ComboboxRemoto` do detalhe (#169). */
+export const procurarAgentesTicketAction = createSafeAction({
+  schema: z.object({ q: z.string().max(200).optional() }),
+  permission: 'tickets:atribuir',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => ticketService.procurarAgentes(q ?? '', ctx),
+});
+
 export const adicionarComentarioTicketAction = createSafeAction({
   schema: AdicionarComentarioTicketSchema,
   permission: 'tickets:comentar',

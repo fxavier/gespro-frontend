@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { TicketAcoes } from '../_components/ticket-acoes';
+import { AtribuirAgenteTicket, ComentarTicket, AvaliarTicket } from '../_components/ticket-gestao';
 import type { AtividadeTicketRef, TicketDetalhe } from '@/server/services/operacoes/ticket.interface';
 
 // ─── Timeline de actividades ──────────────────────────────────────────────────
@@ -134,6 +135,30 @@ export default async function TicketDetalhePage({ params }: PageProps) {
   }
 
   const podeEditar = ticket.estado !== 'FECHADO' && ticket.estado !== 'CANCELADO';
+  const permissoes = session.user.permissions ?? [];
+  const podeAtribuir = podeEditar && permissoes.includes('tickets:atribuir');
+  const podeComentar = ticket.estado !== 'CANCELADO' && permissoes.includes('tickets:comentar');
+  // Só o solicitante avalia, uma vez, depois do fecho (o serviço impõe o mesmo).
+  const podeAvaliar =
+    ticket.estado === 'FECHADO' &&
+    ticket.avaliacaoNota === null &&
+    ticket.solicitanteId === userId &&
+    permissoes.includes('tickets:avaliar');
+
+  // Primeira página de agentes fundida por id com o agente já atribuído (ComboboxRemoto).
+  let agentesIniciais: Array<{ id: string; nome: string; email: string }> = [];
+  if (podeAtribuir) {
+    const pagina = await runWithTenantContext(ctx, () => ticketService.procurarAgentes('', ctx));
+    const porId = new Map(pagina.map((u) => [u.id, u]));
+    if (ticket.atribuidoParaId && !porId.has(ticket.atribuidoParaId)) {
+      porId.set(ticket.atribuidoParaId, {
+        id: ticket.atribuidoParaId,
+        nome: ticket.atribuidoParaNome ?? ticket.atribuidoParaId,
+        email: '',
+      });
+    }
+    agentesIniciais = [...porId.values()];
+  }
 
   return (
     <div className="p-6">
@@ -168,13 +193,22 @@ export default async function TicketDetalhePage({ params }: PageProps) {
             key: 'descricao',
             label: 'Descrição',
             content: (
-              <Card>
-                <CardContent className="p-5">
-                  <p className="text-sm text-foreground whitespace-pre-wrap">
-                    {ticket.descricao}
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="space-y-4">
+                <Card>
+                  <CardContent className="p-5">
+                    <p className="text-sm text-foreground whitespace-pre-wrap">
+                      {ticket.descricao}
+                    </p>
+                  </CardContent>
+                </Card>
+                {podeAvaliar && (
+                  <Card>
+                    <CardContent className="p-5">
+                      <AvaliarTicket ticketId={ticket.id} />
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             ),
           },
           {
@@ -187,6 +221,13 @@ export default async function TicketDetalhePage({ params }: PageProps) {
                   <MessageSquare className="h-4 w-4" />
                   <span>{ticket.atividades.length} entrada(s) no histórico</span>
                 </div>
+                {podeComentar && (
+                  <Card>
+                    <CardContent className="p-5">
+                      <ComentarTicket ticketId={ticket.id} />
+                    </CardContent>
+                  </Card>
+                )}
                 <Card>
                   <CardContent className="p-5">
                     <AtividadeTimeline atividades={ticket.atividades} />
@@ -286,11 +327,20 @@ export default async function TicketDetalhePage({ params }: PageProps) {
           {
             label: 'Atribuído a',
             value: (
-              <span className="text-sm">
-                {ticket.atribuidoParaNome ?? (
-                  <span className="text-muted-foreground">Não atribuído</span>
+              <div className="space-y-2">
+                <span className="text-sm">
+                  {ticket.atribuidoParaNome ?? (
+                    <span className="text-muted-foreground">Não atribuído</span>
+                  )}
+                </span>
+                {podeAtribuir && (
+                  <AtribuirAgenteTicket
+                    ticketId={ticket.id}
+                    agenteActualId={ticket.atribuidoParaId}
+                    agentesIniciais={agentesIniciais}
+                  />
                 )}
-              </span>
+              </div>
             ),
           },
           {
