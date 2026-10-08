@@ -229,7 +229,9 @@ export interface ITicketService {
   ): Promise<TicketDetalhe>;
 
   /**
-   * Atribui ticket a agente/equipe.
+   * Atribui ticket a agente/equipe. O agente tem de ser utilizador activo do tenant
+   * (senão NotFoundError / BusinessRuleError('AGENTE_INATIVO')); o nome gravado é
+   * sempre o `User.nome`, nunca um nome vindo do cliente.
    * Regista AtividadeTicket de tipo ATRIBUICAO.
    */
   atribuirTicket(
@@ -250,13 +252,18 @@ export interface ITicketService {
 
   /**
    * Regista avaliação do solicitante após fecho.
-   * Lança BusinessRuleError('TICKET_NAO_FECHADO') se não estiver FECHADO.
+   * Lança BusinessRuleError('TICKET_NAO_FECHADO') se não estiver FECHADO,
+   * ('AVALIACAO_SO_SOLICITANTE') se quem avalia não é o solicitante e
+   * ('TICKET_JA_AVALIADO') se já houver avaliação (é única).
    */
   avaliarTicket(
     input: AvaliarTicketInput,
     avaliadorId: string,
     ctx: Ctx,
   ): Promise<TicketDetalhe>;
+
+  /** Utilizadores activos do tenant (nome/e-mail contém o termo) — candidatos a agente. */
+  procurarAgentes(termo: string, ctx: Ctx): Promise<Array<{ id: string; nome: string; email: string }>>;
 }
 
 // ============================================================

@@ -334,12 +334,23 @@ async function atribuirTicket(
   const ticket = await prisma.ticket.findFirst({ where: { id: input.ticketId, tenantId: ctx.tenantId }, select: { id: true } });
   if (!ticket) throw new NotFoundError('Ticket não encontrado.');
 
+  // O agente é lido no servidor e no tenant da sessão: id de outro tenant → 404, e o
+  // nome gravado é sempre o `User.nome` (nunca um nome vindo do cliente).
+  const agente = await prisma.user.findFirst({
+    where: { id: input.atribuidoParaId, tenantId: ctx.tenantId, deletedAt: null },
+    select: { nome: true, ativo: true },
+  });
+  if (!agente) throw new NotFoundError('Agente não encontrado.');
+  if (!agente.ativo) {
+    throw new BusinessRuleError('AGENTE_INATIVO', 'O utilizador escolhido está inactivo e não pode receber tickets.');
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.ticket.update({
       where: { id: input.ticketId },
       data: {
         atribuidoParaId: input.atribuidoParaId,
-        atribuidoParaNome: input.atribuidoParaNome,
+        atribuidoParaNome: agente.nome,
         equipeId: input.equipeId ?? null,
       },
     });
@@ -348,9 +359,7 @@ async function atribuirTicket(
         tenantId: ctx.tenantId,
         ticketId: input.ticketId,
         tipo: 'ATRIBUICAO',
-        descricao: input.atribuidoParaNome
-          ? `Ticket atribuído a ${input.atribuidoParaNome}.`
-          : 'Atribuição de agente removida.',
+        descricao: `Ticket atribuído a ${agente.nome}.`,
         autorId: ctx.userId,
         autorNome,
         visibilidade: 'PUBLICA',
@@ -406,12 +415,19 @@ async function avaliarTicket(
 ): Promise<TicketDetalhe> {
   const ticket = await prisma.ticket.findFirst({
     where: { id: input.ticketId, tenantId: ctx.tenantId },
-    select: { id: true, estado: true },
+    select: { id: true, estado: true, solicitanteId: true, avaliacaoNota: true },
   });
   if (!ticket) throw new NotFoundError('Ticket não encontrado.');
 
   if (ticket.estado !== 'FECHADO') {
     throw new BusinessRuleError('TICKET_NAO_FECHADO', 'Só é possível avaliar tickets FECHADOS.');
+  }
+  // Só o solicitante avalia (o agente não dá nota ao próprio trabalho), e uma única vez.
+  if (ticket.solicitanteId !== avaliadorId) {
+    throw new BusinessRuleError('AVALIACAO_SO_SOLICITANTE', 'Só o solicitante pode avaliar o ticket.');
+  }
+  if (ticket.avaliacaoNota !== null) {
+    throw new BusinessRuleError('TICKET_JA_AVALIADO', 'Este ticket já foi avaliado.');
   }
 
   await prisma.ticket.update({
@@ -427,6 +443,23 @@ async function avaliarTicket(
   return obterDetalheTicket(input.ticketId, ctx);
 }
 
+async function procurarAgentes(termo: string, ctx: Ctx) {
+  const q = termo.trim();
+  return prisma.user.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      ativo: true,
+      deletedAt: null,
+      ...(q
+        ? { OR: [{ nome: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] }
+        : {}),
+    },
+    select: { id: true, nome: true, email: true },
+    orderBy: { nome: 'asc' },
+    take: 50,
+  });
+}
+
 export const ticketService: ITicketService = {
   criarTicket,
   obterTicket,
@@ -436,6 +469,7 @@ export const ticketService: ITicketService = {
   atribuirTicket,
   adicionarComentario,
   avaliarTicket,
+  procurarAgentes,
 };
 
 // ============================================================
