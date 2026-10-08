@@ -50,7 +50,7 @@ import {
 } from '@/server/services/financas';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
 import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
-import { exigirClienteAtivoParaCredito } from '@/lib/cliente-credito';
+import { exigirClienteParaCredito } from '@/lib/cliente-credito';
 import type { IComissaoService } from './comissao.interface';
 import {
   TRANSICOES_VENDA,
@@ -289,13 +289,7 @@ async function _clienteDoCredito(
       })
     : null;
   if (input.clienteId && !cliente) throw new NotFoundError('Cliente não encontrado');
-  if (cliente) exigirClienteAtivoParaCredito(cliente);
-  if (!cliente || cliente.codigo === CLIENTE_CONSUMIDOR_FINAL.codigo) {
-    throw new BusinessRuleError(
-      'CLIENTE_OBRIGATORIO_CREDITO',
-      'Uma venda a crédito exige um cliente identificado (não o Consumidor Final).',
-    );
-  }
+  exigirClienteParaCredito(cliente);
   return { id: cliente.id, diasPagamento: cliente.diasPagamento };
 }
 

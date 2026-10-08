@@ -10,6 +10,8 @@ import { encomendaService } from '@/server/services/comercial/index';
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ESTADOS_ENCOMENDA_CONVERTIVEIS, TRANSICOES_ENCOMENDA } from '@/lib/state-machines';
+import { EncomendaAcoes } from '../_components/encomenda-acoes';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -27,23 +29,37 @@ export default async function EncomendaDetalhePage({ params }: PageProps) {
   ).catch(() => null);
 
   if (!encomenda) notFound();
+  const rascunho = encomenda.status === 'RASCUNHO';
 
   return (
     <div className="p-6 space-y-6">
       <PageHeader
         title={`Encomenda ${encomenda.numero}`}
-        description={`Estado: ${encomenda.status}`}
+        description="Encomenda de venda"
         breadcrumbs={[
           { label: 'Vendas', href: '/vendas' },
           { label: 'Encomendas', href: '/vendas/pedidos' },
           { label: encomenda.numero },
         ]}
         actions={
-          encomenda.status === 'RASCUNHO' ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/vendas/pedidos/${id}/editar`}>Editar</Link>
-            </Button>
-          ) : null
+          <div className="flex items-center gap-2">
+            {rascunho && (
+              <>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/vendas/pedidos/${id}/editar`}>Editar</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href={`/vendas/pedidos/${id}/confirmar`}>Confirmar</Link>
+                </Button>
+              </>
+            )}
+            <EncomendaAcoes
+              id={encomenda.id}
+              numero={encomenda.numero}
+              podeConverter={ESTADOS_ENCOMENDA_CONVERTIVEIS.includes(encomenda.status)}
+              podeCancelar={(TRANSICOES_ENCOMENDA[encomenda.status] ?? []).includes('CANCELADA')}
+            />
+          </div>
         }
       />
 

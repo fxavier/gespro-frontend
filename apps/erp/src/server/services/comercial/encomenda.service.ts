@@ -17,6 +17,7 @@ import { Prisma } from '@prisma/client';
 import { prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
+import { exigirClienteParaCredito } from '@/lib/cliente-credito';
 import type { Ctx } from '@/server/services/types';
 import type { IStockService } from '@/server/services/inventario/stock.interface';
 import type { ICaixaService, RegistarMovimentoCaixaInput } from '@/server/services/financas';
@@ -25,7 +26,7 @@ import type {
   RegistarLancamentoContabilisticoInput,
 } from '@/server/services/financas';
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
-import { TRANSICOES_ENCOMENDA } from '@/lib/state-machines';
+import { ESTADOS_ENCOMENDA_CONVERTIVEIS, TRANSICOES_ENCOMENDA } from '@/lib/state-machines';
 import type {
   CreateEncomendaInput,
   UpdateEncomendaInput,
@@ -277,6 +278,36 @@ function construirLancamentoVenda(venda: {
 // Serviço
 // ---------------------------------------------------------------------------
 
+type StatusEncomendaPrisma = 'RASCUNHO' | 'CONFIRMADA' | 'PARCIALMENTE_ENTREGUE' | 'CONCLUIDA' | 'CANCELADA';
+
+/**
+ * Compare-and-set do estado de uma encomenda, dentro da tx do chamador: só escreve se a
+ * encomenda (do tenant, não apagada) ainda estiver num dos estados `de`. O UPDATE tranca a
+ * linha; um pedido concorrente espera pelo commit do primeiro e reavalia o WHERE (count 0).
+ * Quem perde recebe o mesmo erro que um pedido sequencial: NotFoundError se a encomenda
+ * entretanto foi apagada (cancelada), senão o erro de domínio de `recusa`.
+ */
+async function compararETrocarEstado(
+  tx: Prisma.TransactionClient,
+  id: string,
+  de: readonly string[],
+  data: { status: StatusEncomendaPrisma; deletedAt?: Date },
+  ctx: Ctx,
+  recusa: () => BusinessRuleError,
+): Promise<void> {
+  const { count } = await tx.encomenda.updateMany({
+    where: { id, tenantId: ctx.tenantId, deletedAt: null, status: { in: [...de] as StatusEncomendaPrisma[] } },
+    data,
+  });
+  if (count === 1) return;
+  const existe = await tx.encomenda.findFirst({
+    where: { id, tenantId: ctx.tenantId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!existe) throw new NotFoundError('Encomenda não encontrada');
+  throw recusa();
+}
+
 export class EncomendaService {
   constructor(
     private readonly stockService: IStockService,
@@ -418,32 +449,54 @@ export class EncomendaService {
    * Outras     → só estado
    */
   async transitar(input: TransitarEncomendaInput, ctx: Ctx): Promise<EncomendaRow> {
-    const encomenda = await prismaBase.encomenda.findFirst({
-      where: { id: input.encomendaId, tenantId: ctx.tenantId, deletedAt: null },
-      include: { itens: true },
-    });
-    if (!encomenda) throw new NotFoundError('Encomenda não encontrada');
+    return prismaBase.$transaction(async (tx) => {
+      const encomenda = await tx.encomenda.findFirst({
+        where: { id: input.encomendaId, tenantId: ctx.tenantId, deletedAt: null },
+        select: { id: true, status: true },
+      });
+      if (!encomenda) throw new NotFoundError('Encomenda não encontrada');
 
-    const atual = encomenda.status as string;
-    const permitidas = TRANSICOES_ENCOMENDA[atual] ?? [];
-    if (!permitidas.includes(input.paraStatus)) {
-      throw new BusinessRuleError(
-        'TRANSICAO_INVALIDA',
-        `Encomenda: transição inválida ${atual} → ${input.paraStatus}`,
-      );
-    }
+      const atual = encomenda.status as string;
+      const permitidas = TRANSICOES_ENCOMENDA[atual] ?? [];
+      if (!permitidas.includes(input.paraStatus)) {
+        throw new BusinessRuleError(
+          'TRANSICAO_INVALIDA',
+          `Encomenda: transição inválida ${atual} → ${input.paraStatus}`,
+        );
+      }
 
-    // ── CONFIRMAR → reservar stock (BLOCKER 2: localizacaoId obrigatório)
-    if (input.paraStatus === 'CONFIRMADA') {
-      if (!input.localizacaoId) {
+      // BLOCKER 2: localizacaoId obrigatório para reservar stock ao confirmar
+      if (input.paraStatus === 'CONFIRMADA' && !input.localizacaoId) {
         throw new BusinessRuleError(
           'LOCALIZACAO_OBRIGATORIA',
           'É necessária uma localização de stock para confirmar a encomenda.',
         );
       }
 
-      return prismaBase.$transaction(async (tx) => {
-        for (const item of encomenda.itens) {
+      // Compare-and-set: só escreve se o estado ainda for o lido. Um pedido concorrente
+      // fica à espera da tranca da linha e, depois do commit do primeiro, vê count = 0.
+      await compararETrocarEstado(
+        tx,
+        encomenda.id,
+        [atual],
+        {
+          status: input.paraStatus as StatusEncomendaPrisma,
+          ...(input.paraStatus === 'CANCELADA' && { deletedAt: new Date() }),
+        },
+        ctx,
+        () =>
+          new BusinessRuleError(
+            'TRANSICAO_INVALIDA',
+            `Encomenda: o estado mudou entretanto; transição ${atual} → ${input.paraStatus} recusada`,
+          ),
+      );
+
+      // ── CONFIRMAR → reservar stock (contrato A). Itens lidos depois da tranca.
+      if (input.paraStatus === 'CONFIRMADA') {
+        const itens = await tx.itemEncomenda.findMany({
+          where: { tenantId: ctx.tenantId, encomendaId: encomenda.id },
+        });
+        for (const item of itens) {
           await this.stockService.reservarStock(
             tx,
             {
@@ -457,19 +510,10 @@ export class EncomendaService {
             ctx,
           );
         }
+      }
 
-        const updated = await tx.encomenda.update({
-          where: { id: encomenda.id },
-          data: { status: 'CONFIRMADA' as const },
-        });
-
-        return mapEncomenda(updated as unknown as PrismaEncomenda);
-      });
-    }
-
-    // ── CANCELAR → libertar reservas activas
-    if (input.paraStatus === 'CANCELADA') {
-      return prismaBase.$transaction(async (tx) => {
+      // ── CANCELAR → libertar reservas activas
+      if (input.paraStatus === 'CANCELADA') {
         const reservasActivas = await tx.reservaStock.findMany({
           where: {
             tenantId: ctx.tenantId,
@@ -478,27 +522,16 @@ export class EncomendaService {
           },
           select: { id: true },
         });
-
         for (const reserva of reservasActivas) {
           await this.stockService.libertarStock(tx, reserva.id, ctx);
         }
+      }
 
-        const updated = await tx.encomenda.update({
-          where: { id: encomenda.id },
-          data: { status: 'CANCELADA' as const, deletedAt: new Date() },
-        });
-
-        return mapEncomenda(updated as unknown as PrismaEncomenda);
+      const updated = await tx.encomenda.findFirstOrThrow({
+        where: { id: encomenda.id, tenantId: ctx.tenantId },
       });
-    }
-
-    // Outras transições (PARCIALMENTE_ENTREGUE, CONCLUIDA) — só estado
-    const updated = await prismaBase.encomenda.update({
-      where: { id: encomenda.id },
-      data: { status: input.paraStatus as 'PARCIALMENTE_ENTREGUE' | 'CONCLUIDA' | 'CANCELADA' },
+      return mapEncomenda(updated as unknown as PrismaEncomenda);
     });
-
-    return mapEncomenda(updated as unknown as PrismaEncomenda);
   }
 
   /**
@@ -518,20 +551,38 @@ export class EncomendaService {
     ctx: Ctx,
     opts?: { sessaoCaixaId?: string; localizacaoId?: string },
   ): Promise<{ vendaId: string; encomendaNumero: string }> {
-    const encomenda = await prismaBase.encomenda.findFirst({
-      where: { id: encomendaId, tenantId: ctx.tenantId, deletedAt: null },
-      include: { itens: true },
-    });
-    if (!encomenda) throw new NotFoundError('Encomenda não encontrada');
-
-    if (!['CONFIRMADA', 'PARCIALMENTE_ENTREGUE'].includes(encomenda.status)) {
-      throw new BusinessRuleError(
-        'ENCOMENDA_NAO_CONFIRMADA',
-        'Só é possível converter encomendas confirmadas em venda.',
-      );
-    }
-
     return prismaBase.$transaction(async (tx) => {
+      const lida = await tx.encomenda.findFirst({
+        where: { id: encomendaId, tenantId: ctx.tenantId, deletedAt: null },
+        select: { id: true, status: true, clienteId: true },
+      });
+      if (!lida) throw new NotFoundError('Encomenda não encontrada');
+
+      const naoConfirmada = () =>
+        new BusinessRuleError(
+          'ENCOMENDA_NAO_CONFIRMADA',
+          'Só é possível converter encomendas confirmadas em venda.',
+        );
+      if (!ESTADOS_ENCOMENDA_CONVERTIVEIS.includes(lida.status)) throw naoConfirmada();
+
+      // Venda a crédito (ADR-0041 §4, #317): nem o Consumidor Final nem um cliente
+      // inactivo/apagado abrem conta corrente — mesma regra da venda POS.
+      if (pagamentos.some((p) => p.tipo === 'CREDITO')) {
+        const cliente = await tx.cliente.findFirst({
+          where: { id: lida.clienteId, tenantId: ctx.tenantId },
+          select: { codigo: true, status: true, deletedAt: true },
+        });
+        exigirClienteParaCredito(cliente);
+      }
+
+      // Compare-and-set: dois «Converter» simultâneos — só um passa daqui.
+      await compararETrocarEstado(tx, lida.id, ESTADOS_ENCOMENDA_CONVERTIVEIS, { status: 'CONCLUIDA' }, ctx, naoConfirmada);
+
+      const encomenda = await tx.encomenda.findFirstOrThrow({
+        where: { id: lida.id, tenantId: ctx.tenantId },
+        include: { itens: true },
+      });
+
       // 1. Gerir stock:
       //    a) Consumir reservas activas desta encomenda (caminho normal)
       //    b) Fallback: baixarStock directo se não houver reservas (edge case)
@@ -640,10 +691,10 @@ export class EncomendaService {
       });
       await this.contabilidadeService.registarLancamentoContabilistico(tx, lancamentoInput, ctx);
 
-      // 6. Marcar encomenda como concluída
+      // 6. Rastrear a venda (o estado CONCLUIDA já foi escrito pelo compare-and-set)
       await tx.encomenda.update({
         where: { id: encomenda.id },
-        data: { status: 'CONCLUIDA', vendaId: venda.id },
+        data: { vendaId: venda.id },
       });
 
       return { vendaId: venda.id, encomendaNumero: encomenda.numero };
