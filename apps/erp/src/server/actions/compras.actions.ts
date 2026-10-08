@@ -111,14 +111,14 @@ export const criarCotacaoAction = createSafeAction({
 export const enviarCotacaoAction = createSafeAction({
   schema: z.object({ cotacaoId: z.string().cuid() }),
   permission: 'compras:cotacao:enviar',
-  revalidate: { tags: ['compras:cotacoes'] },
+  revalidate: { paths: ['/compras/cotacoes'], tags: ['compras:cotacoes'] },
   handler: async ({ cotacaoId }, ctx) => comprasService.enviarCotacao(cotacaoId, ctx),
 });
 
 export const registarRespostaCotacaoAction = createSafeAction({
   schema: RegistarRespostaCotacaoSchema,
   permission: 'compras:cotacao:resposta',
-  revalidate: { tags: ['compras:cotacoes'] },
+  revalidate: { paths: ['/compras/cotacoes'], tags: ['compras:cotacoes'] },
   handler: async (input, ctx) => comprasService.registarResposta(input, ctx),
 });
 
@@ -135,7 +135,7 @@ export const adjudicarCotacaoAction = createSafeAction({
 export const cancelarCotacaoAction = createSafeAction({
   schema: z.object({ cotacaoId: z.string().cuid(), motivo: z.string().min(1).max(500) }),
   permission: 'compras:cotacao:cancelar',
-  revalidate: { tags: ['compras:cotacoes'] },
+  revalidate: { paths: ['/compras/cotacoes'], tags: ['compras:cotacoes'] },
   handler: async ({ cotacaoId, motivo }, ctx) => comprasService.cancelarCotacao(cotacaoId, motivo, ctx),
 });
 

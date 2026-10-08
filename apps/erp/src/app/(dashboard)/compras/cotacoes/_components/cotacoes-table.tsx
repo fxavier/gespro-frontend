@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
+import { formatarData } from '@/lib/format-date';
 import type { CotacaoResumo } from '@/server/services/compras/compras.service.interface';
 
 const columns: TableColumn<CotacaoResumo>[] = [
@@ -31,11 +32,7 @@ const columns: TableColumn<CotacaoResumo>[] = [
     sortKey: 'createdAt',
     render: (row) => (
       <span className="tabular-nums text-sm">
-        {new Date(row.data).toLocaleDateString('pt-MZ', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })}
+        {formatarData(row.data)}
       </span>
     ),
   },
@@ -46,11 +43,7 @@ const columns: TableColumn<CotacaoResumo>[] = [
     sortKey: 'dataValidade',
     render: (row) => (
       <span className="tabular-nums text-sm">
-        {new Date(row.dataValidade).toLocaleDateString('pt-MZ', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })}
+        {formatarData(row.dataValidade)}
       </span>
     ),
   },

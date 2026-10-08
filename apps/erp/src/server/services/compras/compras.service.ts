@@ -681,9 +681,16 @@ export const comprasService: IComprasService = {
   },
 
   async enviarCotacao(cotacaoId: string, ctx: Ctx) {
-    const cot = await db.cotacao.findUnique({ where: { id: cotacaoId } });
+    const cot = await db.cotacao.findUnique({
+      where: { id: cotacaoId },
+      include: { _count: { select: { fornecedores: true } } },
+    });
     if (!cot || cot.tenantId !== ctx.tenantId) throw new NotFoundError('Cotação não encontrada');
     transitar(TRANSICOES_COTACAO, 'Cotacao', cot.status as StatusCotacao, 'ENVIADA');
+    // #109: sem convidados ninguém a pode responder, e não há forma de convidar depois.
+    if (cot._count.fornecedores === 0) {
+      throw new BusinessRuleError('COTACAO_SEM_FORNECEDORES', 'Convide pelo menos um fornecedor antes de enviar a cotação');
+    }
     await db.cotacao.update({ where: { id: cotacaoId }, data: { status: 'ENVIADA' } });
   },
 
@@ -696,31 +703,32 @@ export const comprasService: IComprasService = {
 
     await prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as PrismaClient;
-      // Actualizar CotacaoFornecedor
       const cf = await tx.cotacaoFornecedor.findFirst({
         where: { tenantId: ctx.tenantId, cotacaoId: input.cotacaoId, fornecedorId: input.fornecedorId },
       });
-      if (!cf) throw new NotFoundError('Fornecedor não está na cotação');
+      if (!cf) throw new BusinessRuleError('FORNECEDOR_NAO_CONVIDADO', 'O fornecedor não foi convidado para esta cotação');
 
-      const valorTotal = input.respostas.reduce((s, r) => {
-        // Calcular subtotal: precisa do item para a quantidade
-        return s; // Wave 2: simplificado
-      }, 0);
+      // #109: só itens DESTA cotação, cada um uma vez.
+      const idsItens = input.respostas.map((r) => r.itemCotacaoId);
+      const itens = await tx.itemCotacao.findMany({
+        where: { tenantId: ctx.tenantId, cotacaoId: input.cotacaoId, id: { in: idsItens } },
+      });
+      if (new Set(idsItens).size !== idsItens.length || itens.length !== idsItens.length) {
+        throw new BusinessRuleError('ITEM_FORA_DA_COTACAO', 'A resposta inclui itens que não pertencem a esta cotação');
+      }
+      const quantidadePorItem = new Map(itens.map((i) => [i.id, i.quantidade]));
 
-      await tx.cotacaoFornecedor.update({
-        where: { id: cf.id },
-        data: {
-          status: 'RESPONDIDA', dataResposta: new Date(),
-          prazoEntregaDias: input.prazoEntregaDias,
-          condicoesPagamento: input.condicoesPagamento,
-          observacoes: input.observacoes,
-        },
+      // A nova resposta substitui a anterior: itens que já não vêm são retirados.
+      await tx.respostaItemCotacao.deleteMany({
+        where: { tenantId: ctx.tenantId, cotacaoFornecedorId: cf.id, itemCotacaoId: { notIn: idsItens } },
       });
 
-      // Registar resposta por item
+      let valorTotal = new Prisma.Decimal(0);
       for (const r of input.respostas) {
-        const item = await tx.itemCotacao.findUnique({ where: { id: r.itemCotacaoId } });
-        const subtotal = item ? Number(item.quantidade) * r.precoUnitario : r.precoUnitario;
+        const subtotal = new Prisma.Decimal(quantidadePorItem.get(r.itemCotacaoId)!)
+          .mul(r.precoUnitario)
+          .toDecimalPlaces(2);
+        valorTotal = valorTotal.add(subtotal);
 
         await tx.respostaItemCotacao.upsert({
           where: { itemCotacaoId_cotacaoFornecedorId: { itemCotacaoId: r.itemCotacaoId, cotacaoFornecedorId: cf.id } },
@@ -738,6 +746,17 @@ export const comprasService: IComprasService = {
         });
       }
 
+      await tx.cotacaoFornecedor.update({
+        where: { id: cf.id },
+        data: {
+          status: 'RESPONDIDA', dataResposta: new Date(),
+          valorTotal,
+          prazoEntregaDias: input.prazoEntregaDias,
+          condicoesPagamento: input.condicoesPagamento,
+          observacoes: input.observacoes,
+        },
+      });
+
       // Avançar cotação para RESPONDIDA se ainda ENVIADA
       if (cot.status === 'ENVIADA') {
         await tx.cotacao.update({ where: { id: input.cotacaoId }, data: { status: 'RESPONDIDA' } });
@@ -746,9 +765,16 @@ export const comprasService: IComprasService = {
   },
 
   async adjudicarCotacao(input: AdjudicarCotacaoInput, ctx: Ctx) {
-    const cot = await db.cotacao.findUnique({ where: { id: input.cotacaoId } });
+    const cot = await db.cotacao.findUnique({ where: { id: input.cotacaoId }, include: { fornecedores: true } });
     if (!cot || cot.tenantId !== ctx.tenantId) throw new NotFoundError('Cotação não encontrada');
     transitar(TRANSICOES_COTACAO, 'Cotacao', cot.status as StatusCotacao, 'ADJUDICADA');
+    // #109: só ganha um convidado desta cotação que respondeu.
+    const respondeu = cot.fornecedores.some(
+      (f) => f.fornecedorId === input.fornecedorVencedorId && f.status === 'RESPONDIDA',
+    );
+    if (!respondeu) {
+      throw new BusinessRuleError('VENCEDOR_SEM_RESPOSTA', 'Só pode adjudicar a um fornecedor convidado que respondeu à cotação');
+    }
     await db.cotacao.update({
       where: { id: input.cotacaoId },
       data: { status: 'ADJUDICADA', vencedorFornecedorId: input.fornecedorVencedorId },
@@ -759,7 +785,9 @@ export const comprasService: IComprasService = {
     const cot = await db.cotacao.findUnique({ where: { id: cotacaoId } });
     if (!cot || cot.tenantId !== ctx.tenantId) throw new NotFoundError('Cotação não encontrada');
     transitar(TRANSICOES_COTACAO, 'Cotacao', cot.status as StatusCotacao, 'CANCELADA');
-    await db.cotacao.update({ where: { id: cotacaoId }, data: { status: 'CANCELADA', observacoes: motivo } });
+    // O motivo junta-se às observações em vez de as apagar.
+    const observacoes = [cot.observacoes, `Cancelada: ${motivo}`].filter(Boolean).join('\n');
+    await db.cotacao.update({ where: { id: cotacaoId }, data: { status: 'CANCELADA', observacoes } });
   },
 
   async expirarCotacoesVencidas(ctx: Ctx) {
@@ -778,7 +806,10 @@ export const comprasService: IComprasService = {
   async obterCotacao(id: string, ctx: Ctx) {
     const cot = await db.cotacao.findUnique({
       where: { id },
-      include: { itens: { include: { respostas: true } }, fornecedores: true },
+      include: {
+        itens: { include: { respostas: { include: { cotacaoFornecedor: { select: { fornecedorId: true } } } } } },
+        fornecedores: { include: { fornecedor: { select: { nome: true } } } },
+      },
     });
     if (!cot || cot.tenantId !== ctx.tenantId) throw new NotFoundError('Cotação não encontrada');
     return toCotacaoDetalhe(cot);
@@ -788,12 +819,17 @@ export const comprasService: IComprasService = {
     const { status, cursor, take = 25, orderBy = 'createdAt', orderDir = 'desc' } = filtros;
     const where: any = { tenantId: ctx.tenantId, ...(status ? { status } : {}) };
     return paginate(
-      (a) => db.cotacao.findMany({ ...a, where, orderBy: { [orderBy]: orderDir } }),
+      (a) => db.cotacao.findMany({
+        ...a, where, orderBy: { [orderBy]: orderDir },
+        include: { fornecedores: { select: { status: true } } },
+      }),
       { cursor, take },
     ).then((p: any) => ({
       items: p.items.map((c: any): CotacaoResumo => ({
         id: c.id, numero: c.numero, data: c.data, status: c.status,
-        dataValidade: c.dataValidade, totalFornecedores: 0, totalRespostas: 0,
+        dataValidade: c.dataValidade,
+        totalFornecedores: c.fornecedores.length,
+        totalRespostas: c.fornecedores.filter((f: any) => f.status === 'RESPONDIDA').length,
         vencedorFornecedorId: c.vencedorFornecedorId ?? null, createdAt: c.createdAt,
       })),
       nextCursor: p.nextCursor,

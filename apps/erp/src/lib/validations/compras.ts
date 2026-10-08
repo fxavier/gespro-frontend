@@ -236,6 +236,30 @@ export const RegistarRespostaCotacaoSchema = z.object({
 
 export type RegistarRespostaCotacaoInput = z.infer<typeof RegistarRespostaCotacaoSchema>;
 
+/**
+ * Formulário «Registar resposta» (#109): um preço por item e um prazo global, que a página
+ * expande para `RegistarRespostaCotacaoSchema` (o prazo de cada item é o prazo da resposta).
+ */
+export const RegistarRespostaCotacaoFormSchema = z.object({
+  prazoEntregaDias: z
+    .number({ invalid_type_error: 'Indique o prazo de entrega em dias' })
+    .int('O prazo é um número inteiro de dias')
+    .positive('O prazo tem de ser positivo'),
+  condicoesPagamento: z.string().max(200).optional(),
+  precos: z
+    .array(
+      z.object({
+        itemCotacaoId: z.string().cuid(),
+        precoUnitario: z
+          .number({ invalid_type_error: 'Indique o preço unitário' })
+          .positive('O preço tem de ser positivo'),
+      }),
+    )
+    .min(1),
+});
+
+export type RegistarRespostaCotacaoFormInput = z.infer<typeof RegistarRespostaCotacaoFormSchema>;
+
 // ---- Adjudicação ----
 
 export const AdjudicarCotacaoSchema = z.object({
