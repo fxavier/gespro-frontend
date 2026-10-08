@@ -26,12 +26,23 @@ vi.mock('@/server/services/financas/contabilidade.service', () => ({
 }));
 
 // Mock do módulo prisma (nunca toca DB em testes unitários)
+// Cotação e convites partilhados entre o client e o `tx` do `$transaction` (#109): o
+// adjudicar passa a ler o convite do vencedor, e pode fazê-lo dentro ou fora de uma transacção.
+const cotacaoMock = vi.hoisted(() => ({
+  cotacao: {
+    findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(),
+  },
+  cotacaoFornecedor: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), update: vi.fn() },
+}));
+
 vi.mock('@/server/db/client', () => ({
   prisma: {
     $transaction: vi.fn(async (fn: any) => fn({
       requisicaoCompra: { findUnique: vi.fn(), update: vi.fn() },
       aprovacaoCompra: { findFirst: vi.fn(), update: vi.fn(), createMany: vi.fn(), findMany: vi.fn() },
       pedidoCompra: { findUnique: vi.fn() },
+      cotacao: cotacaoMock.cotacao,
+      cotacaoFornecedor: cotacaoMock.cotacaoFornecedor,
     })),
     requisicaoCompra: {
       findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(),
@@ -39,10 +50,8 @@ vi.mock('@/server/db/client', () => ({
     pedidoCompra: {
       findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(),
     },
-    cotacao: {
-      findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(),
-    },
-    cotacaoFornecedor: { findFirst: vi.fn(), update: vi.fn() },
+    cotacao: cotacaoMock.cotacao,
+    cotacaoFornecedor: cotacaoMock.cotacaoFornecedor,
     itemCotacao: { findUnique: vi.fn() },
     respostaItemCotacao: { upsert: vi.fn() },
     recebimentoCompra: { findMany: vi.fn() },
@@ -274,10 +283,22 @@ describe('adjudicarCotacao()', () => {
     const { prisma } = await import('@/server/db/client');
     const db = prisma as any;
 
-    db.cotacao.findUnique.mockResolvedValue({
-      id: 'cot-1', tenantId: 'tenant-test', status: 'RESPONDIDA',
-    });
+    // #109: o vencedor tem de ser um convidado desta cotação que respondeu — o mock dá-o por
+    // todas as leituras plausíveis (include na cotação, findFirst/findUnique/findMany/count).
+    const conviteRespondido = {
+      id: 'cf-1', tenantId: 'tenant-test', cotacaoId: 'cot-1', fornecedorId: 'for-1', status: 'RESPONDIDA',
+    };
+    const cotacaoRespondida = {
+      id: 'cot-1', tenantId: 'tenant-test', status: 'RESPONDIDA', fornecedores: [conviteRespondido],
+    };
+    db.cotacao.findUnique.mockResolvedValue(cotacaoRespondida);
+    db.cotacao.findFirst.mockResolvedValue(cotacaoRespondida);
+    db.cotacaoFornecedor.findFirst.mockResolvedValue(conviteRespondido);
+    db.cotacaoFornecedor.findUnique.mockResolvedValue(conviteRespondido);
+    db.cotacaoFornecedor.findMany.mockResolvedValue([conviteRespondido]);
+    db.cotacaoFornecedor.count.mockResolvedValue(1);
     db.cotacao.update.mockResolvedValue({});
+    db.cotacao.updateMany.mockResolvedValue({ count: 1 });
 
     const { comprasService } = await import('../compras.service');
     await expect(
@@ -289,9 +310,9 @@ describe('adjudicarCotacao()', () => {
     const { prisma } = await import('@/server/db/client');
     const db = prisma as any;
 
-    db.cotacao.findUnique.mockResolvedValue({
-      id: 'cot-1', tenantId: 'tenant-test', status: 'RASCUNHO',
-    });
+    const rascunho = { id: 'cot-1', tenantId: 'tenant-test', status: 'RASCUNHO', fornecedores: [] };
+    db.cotacao.findUnique.mockResolvedValue(rascunho);
+    db.cotacao.findFirst.mockResolvedValue(rascunho);
 
     const { comprasService } = await import('../compras.service');
     await expect(
