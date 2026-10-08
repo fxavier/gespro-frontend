@@ -283,6 +283,21 @@ export const comprasService: IComprasService = {
     });
     if (existe) throw new BusinessRuleError('WORKFLOW_DUPLICADO', `Workflow "${input.nome}" já existe`);
 
+    // Um só circuito activo por tipo: `encontrarWorkflow` faz `findFirst` e, com dois,
+    // escolheria um deles ao acaso (#108).
+    if (input.ativo ?? true) {
+      const activo = await db.configuracaoWorkflow.findFirst({
+        where: { tenantId: ctx.tenantId, tipo: input.tipo, ativo: true },
+        select: { nome: true },
+      });
+      if (activo) {
+        throw new BusinessRuleError(
+          'WORKFLOW_ACTIVO_DUPLICADO',
+          `Já existe um circuito activo para este tipo de documento ("${activo.nome}"). Desactive-o antes de criar outro activo.`,
+        );
+      }
+    }
+
     const workflow = await db.configuracaoWorkflow.create({
       data: {
         tenantId: ctx.tenantId,
@@ -304,6 +319,51 @@ export const comprasService: IComprasService = {
       },
     });
     return { id: workflow.id, nome: workflow.nome };
+  },
+
+  async listarConfiguracoesWorkflow(ctx: Ctx) {
+    const workflows = await db.configuracaoWorkflow.findMany({
+      where: { tenantId: ctx.tenantId },
+      include: {
+        niveis: {
+          orderBy: { nivel: 'asc' },
+          include: { aprovadores: { orderBy: { email: 'asc' } } },
+        },
+      },
+      orderBy: [{ ativo: 'desc' }, { nome: 'asc' }],
+    });
+    return workflows.map((w) => ({
+      id: w.id,
+      nome: w.nome,
+      tipo: w.tipo,
+      ativo: w.ativo,
+      niveis: w.niveis.map((n) => ({
+        id: n.id,
+        nivel: n.nivel,
+        nome: n.nome,
+        tipoAprovacao: n.tipoAprovacao,
+        valorMinimo: n.valorMinimo.toString(),
+        valorMaximo: n.valorMaximo.toString(),
+        aprovadores: n.aprovadores.map((a) => ({ usuarioId: a.usuarioId, email: a.email })),
+      })),
+    }));
+  },
+
+  async procurarAprovadores(termo: string, ctx: Ctx) {
+    const q = termo.trim();
+    return db.user.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        ativo: true,
+        deletedAt: null,
+        ...(q
+          ? { OR: [{ nome: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] }
+          : {}),
+      },
+      select: { id: true, nome: true, email: true },
+      orderBy: { nome: 'asc' },
+      take: 50,
+    });
   },
 
   // ---- Requisição de Compra ----
@@ -455,7 +515,12 @@ export const comprasService: IComprasService = {
   // ---- Aprovação Multi-nível ----
 
   async decidirAprovacao(input: AprovarDocumentoInput, ctx: Ctx) {
-    const { documentoId, nivel, status, observacoes } = input;
+    const { documentoId, nivel, status } = input;
+    const observacoes = input.observacoes?.trim() || undefined;
+    // Rejeitar exige motivo (#108): fica na decisão e é o que o solicitante lê.
+    if (status === 'REJEITADO' && !observacoes) {
+      throw new BusinessRuleError('MOTIVO_OBRIGATORIO', 'Indique o motivo da rejeição.');
+    }
 
     // Encontrar o registo de aprovação para este aprovador + nível
     const aprovacao = await db.aprovacaoCompra.findFirst({
@@ -471,6 +536,28 @@ export const comprasService: IComprasService = {
 
     await prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as PrismaClient;
+
+      // 0. A requisição tem de continuar EM_APROVACAO, lida sob tranca: com QUALQUER_UM, o
+      //    registo PENDENTE de um segundo aprovador sobrevive à decisão do primeiro e não pode
+      //    reabrir um estado terminal (#108). A tranca serializa decisões concorrentes.
+      if (aprovacao.requisicaoCompraId) {
+        const [req] = await tx.$queryRaw<Array<{ status: string }>>`
+          SELECT status::text AS status FROM "RequisicaoCompra"
+           WHERE id = ${aprovacao.requisicaoCompraId} AND "tenantId" = ${ctx.tenantId}
+           FOR UPDATE`;
+        if (!req) throw new NotFoundError('Requisição não encontrada');
+        if (req.status !== 'EM_APROVACAO') {
+          throw new BusinessRuleError(
+            'APROVACAO_ENCERRADA',
+            'A requisição já não está em aprovação; a decisão já não conta.',
+          );
+        }
+      }
+      const aindaPendente = await tx.aprovacaoCompra.findFirst({
+        where: { id: aprovacao.id, tenantId: ctx.tenantId, status: 'PENDENTE' },
+        select: { id: true },
+      });
+      if (!aindaPendente) throw new NotFoundError('Aprovação não encontrada ou já decidida');
 
       // 1. Registar decisão
       await tx.aprovacaoCompra.update({

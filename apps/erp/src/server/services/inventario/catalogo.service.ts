@@ -67,6 +67,21 @@ const CATEGORIA_SELECT = {
   cor: true, icone: true, ativo: true, createdAt: true, updatedAt: true,
 } as const;
 
+/**
+ * #119 — o `@@unique([tenantId, nome])` não sabe de `deletedAt`: um nome usado por uma categoria
+ * activa OU arquivada rebentaria com P2002 («Erro interno»). `findUnique` pela chave composta não
+ * passa pelo filtro de soft delete da extensão, por isso vê também as arquivadas.
+ */
+async function garantirNomeCategoriaLivre(nome: string, ctx: Ctx): Promise<void> {
+  const existente = await prisma.categoriaProduto.findUnique({
+    where: { tenantId_nome: { tenantId: ctx.tenantId, nome } },
+    select: { id: true },
+  });
+  if (existente) {
+    throw new BusinessRuleError('CATEGORIA_DUPLICADA', `Já existe uma categoria com o nome "${nome}".`);
+  }
+}
+
 export async function listarCategorias(
   filter: CategoriaProdutoFilter,
   ctx: Ctx,
@@ -100,12 +115,7 @@ export async function criarCategoria(
   data: CategoriaProdutoCreate,
   ctx: Ctx,
 ): Promise<CategoriaProdutoDto> {
-  const existente = await prisma.categoriaProduto.findFirst({
-    where: { nome: data.nome, deletedAt: null },
-  });
-  if (existente) {
-    throw new BusinessRuleError('CATEGORIA_DUPLICADA', `Já existe uma categoria com o nome "${data.nome}".`);
-  }
+  await garantirNomeCategoriaLivre(data.nome, ctx);
   const c = await prisma.categoriaProduto.create({
     data: { ...data, tenantId: ctx.tenantId },
     select: CATEGORIA_SELECT,
@@ -118,7 +128,10 @@ export async function actualizarCategoria(
   data: CategoriaProdutoUpdate,
   ctx: Ctx,
 ): Promise<CategoriaProdutoDto> {
-  await obterCategoria(id, ctx); // valida existência e tenant
+  const actual = await obterCategoria(id, ctx); // valida existência e tenant
+  if (data.nome !== undefined && data.nome !== actual.nome) {
+    await garantirNomeCategoriaLivre(data.nome, ctx);
+  }
   const c = await prisma.categoriaProduto.update({
     where: { id },
     data,
