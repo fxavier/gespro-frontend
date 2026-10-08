@@ -8,7 +8,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, XCircle } from 'lucide-react';
+import { ArrowLeft, PackageCheck, XCircle } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
@@ -24,6 +24,8 @@ interface Props {
 }
 
 const ESTADOS_CANCELAVEIS = ['RASCUNHO', 'ENVIADO', 'CONFIRMADO'];
+/** #111: só se recebe mercadoria de um pedido expedido e ainda não recebido na totalidade. */
+const ESTADOS_RECEBIVEIS = ['EM_TRANSITO', 'RECEBIDO_PARCIAL'];
 
 export default async function PedidoCompraDetalhePage({ params }: Props) {
   const { id } = await params;
@@ -44,6 +46,8 @@ export default async function PedidoCompraDetalhePage({ params }: Props) {
   if (!pedido) notFound();
 
   const podeAvancar = permissions.includes('compras:pedido:enviar');
+  const podeReceber =
+    ESTADOS_RECEBIVEIS.includes(pedido.status) && permissions.includes('compras:recebimento:registar');
   const podeCancelar =
     ESTADOS_CANCELAVEIS.includes(pedido.status) && permissions.includes('compras:pedido:cancelar');
 
@@ -151,6 +155,14 @@ export default async function PedidoCompraDetalhePage({ params }: Props) {
                   </Link>
                 </Button>
                 {podeAvancar && <PedidoAcoes id={pedido.id} status={pedido.status} />}
+                {podeReceber && (
+                  <Button size="sm" asChild>
+                    <Link href={`/compras/pedidos/${pedido.id}/receber`}>
+                      <PackageCheck className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      Registar recepção
+                    </Link>
+                  </Button>
+                )}
                 {podeCancelar && (
                   <Button
                     variant="outline"

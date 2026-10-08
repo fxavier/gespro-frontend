@@ -3,13 +3,15 @@
  */
 
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { DollarSign, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { DollarSign, Clock, AlertCircle, CheckCircle, Plus } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { contaPagarService } from '@/server/services/compras/conta-pagar.service';
 import { FilterContaPagarSchema } from '@/lib/validations/compras';
+import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, KpiCard } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
 import { ContasPagarTable } from './_components/contas-pagar-table';
@@ -147,7 +149,8 @@ export default async function ContasPagarPage({ searchParams }: PageProps) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
 
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
+  const podeCriar = permissions.includes('compras:conta-pagar:criar');
 
   const rawParams = await searchParams;
   const flatParams = Object.fromEntries(
@@ -166,6 +169,16 @@ export default async function ContasPagarPage({ searchParams }: PageProps) {
           { label: 'Fornecedores', href: '/fornecedores/lista' },
           { label: 'Contas a Pagar' },
         ]}
+        actions={
+          podeCriar ? (
+            <Button size="sm" asChild>
+              <Link href="/fornecedores/contas-pagar/nova">
+                <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                Nova conta a pagar
+              </Link>
+            </Button>
+          ) : undefined
+        }
       />
 
       <Suspense fallback={<KpiSkeleton />}>

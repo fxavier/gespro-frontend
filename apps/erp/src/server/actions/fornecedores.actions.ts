@@ -11,6 +11,7 @@ import {
   UpdateContactoFornecedorSchema,
   CreateDocumentoFornecedorSchema,
   CreateAvaliacaoFornecedorSchema,
+  FilterFornecedorSchema,
 } from '@/lib/validations/fornecedores';
 import {
   CreateContaPagarSchema,
@@ -115,6 +116,25 @@ export const registarAvaliacaoFornecedorAction = createSafeAction({
   permission: 'fornecedores:avaliar',
   revalidate: { tags: ['fornecedores'] },
   handler: async (input, ctx) => fornecedorService.registarAvaliacao(input, ctx),
+});
+
+/**
+ * Pesquisa de fornecedores para o `ComboboxRemoto` da conta a pagar manual (#111). Leitura:
+ * corre em modo de Leitura (ADR-0032). Só é chamada com termo — o campo vazio mostra as
+ * `opcoesIniciais` carregadas pelo Server Component.
+ */
+export const procurarFornecedoresAction = createSafeAction({
+  schema: z.object({ q: z.string().trim().min(1).max(200) }),
+  permission: 'fornecedores:ver',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await fornecedorService.listar(FilterFornecedorSchema.parse({ termo: q, take: 30 }), ctx);
+    return pagina.items.map((f) => ({
+      id: f.id,
+      nome: f.nome,
+      nuit: f.nuit,
+    }));
+  },
 });
 
 // =====================================================================

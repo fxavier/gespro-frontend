@@ -1076,6 +1076,9 @@ export const comprasService: IComprasService = {
   async registarRecebimento(input: CreateRecebimentoCompraInput, ctx: Ctx) {
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as PrismaClient;
+      // Tranca o pedido ANTES de ler o já recebido: duas recepções concorrentes (duplo clique)
+      // serializam aqui e a segunda lê o estado deixado pela primeira (#111).
+      await tx.$queryRaw`SELECT id FROM "PedidoCompra" WHERE id = ${input.pedidoCompraId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
       const pedido = await tx.pedidoCompra.findUnique({
         where: { id: input.pedidoCompraId },
         include: { itens: true },
@@ -1087,18 +1090,47 @@ export const comprasService: IComprasService = {
         throw new BusinessRuleError('ESTADO_INVALIDO', 'Pedido não está em trânsito');
       }
 
-      // Validar que Σ(recebida) ≤ Σ(pedida) para cada item
+      // Validar que Σ(recebida) ≤ Σ(pedida) para cada item — o mesmo item em várias linhas
+      // conta pela soma (#111).
+      const recebidaPorItem = new Map<string, number>();
       for (const itemInput of input.itens) {
-        const itemPedido = pedido.itens.find((i: any) => i.id === itemInput.itemPedidoCompraId);
-        if (!itemPedido) throw new NotFoundError(`Item ${itemInput.itemPedidoCompraId} não encontrado no pedido`);
+        recebidaPorItem.set(
+          itemInput.itemPedidoCompraId,
+          (recebidaPorItem.get(itemInput.itemPedidoCompraId) ?? 0) + itemInput.quantidadeRecebida,
+        );
+      }
+      for (const [itemId, recebida] of recebidaPorItem) {
+        const itemPedido = pedido.itens.find((i: any) => i.id === itemId);
+        if (!itemPedido) throw new NotFoundError(`Item ${itemId} não encontrado no pedido`);
 
         const jaRecebida = Number(itemPedido.quantidadeRecebida ?? 0);
-        const total = jaRecebida + itemInput.quantidadeRecebida;
+        const total = jaRecebida + recebida;
         if (total > Number(itemPedido.quantidade) + 0.0001) {
           throw new BusinessRuleError(
             'QUANTIDADE_EXCEDIDA',
             `Item "${itemPedido.descricao}": quantidade recebida total (${total}) excede quantidade pedida (${itemPedido.quantidade})`,
           );
+        }
+      }
+
+      // A localização que vai receber stock tem de ser do tenant e estar activa (#111).
+      // Item sem produto não mexe em stock, logo não lê a localização.
+      const locIds = [
+        ...new Set(
+          input.itens
+            .filter((i) => i.quantidadeAceita > 0 && pedido.itens.find((p: any) => p.id === i.itemPedidoCompraId)?.produtoId)
+            .map((i) => i.localizacaoDestinoId),
+        ),
+      ];
+      if (locIds.length > 0) {
+        const locs = await tx.localizacao.findMany({
+          where: { id: { in: locIds }, tenantId: ctx.tenantId, deletedAt: null },
+          select: { id: true, ativa: true },
+        });
+        for (const id of locIds) {
+          const l = locs.find((x: any) => x.id === id);
+          if (!l) throw new NotFoundError('Localização não encontrada');
+          if (!l.ativa) throw new BusinessRuleError('LOCALIZACAO_INATIVA', 'A localização de destino está inactiva');
         }
       }
 
