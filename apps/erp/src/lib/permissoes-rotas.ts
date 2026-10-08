@@ -43,6 +43,8 @@ export const PERMISSAO_POR_ROTA: Record<string, string> = {
   '/core-tenancy/auditoria': 'admin:ver_auditoria',
   // Spec 19 — subscrição SaaS.
   '/definicoes/faturacao': 'assinatura:ver',
+  // #177 — nome, NUIT, morada e regime de IVA do emitente: só quem configura o tenant.
+  '/definicoes/empresa': 'core_tenancy:configurar',
 };
 
 /** Rotas que qualquer sessão vê. */
