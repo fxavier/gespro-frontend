@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,6 +20,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -146,6 +148,14 @@ export function NovoProdutoForm({ categorias }: NovoProdutoFormProps) {
                       options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
                     />
                   </FormControl>
+                  {categorias.length === 0 && (
+                    <FormDescription>
+                      Ainda não há categorias de produto.{' '}
+                      <Link href="/produtos/categorias/nova" className="font-medium text-primary underline underline-offset-4">
+                        Criar categoria
+                      </Link>
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
