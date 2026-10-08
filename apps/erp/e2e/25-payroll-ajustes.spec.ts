@@ -3,8 +3,8 @@
  * payroll PENDENTE.
  *
  * ACs cobertos:
- *   AC1 — Detalhe PENDENTE mostra botão «Recalcular»; clicar mostra toast
- *          «Payroll recalculado».
+ *   AC1 — Detalhe PENDENTE mostra botão «Recalcular»; clicar abre um AlertDialog de
+ *          confirmação e confirmar mostra toast «Payroll recalculado».
  *   AC2 — Detalhe PENDENTE mostra link «Adicionar ajuste» (href …/ajuste).
  *          A rota /rh/payroll/<id>/ajuste é uma página completa (sem modal) com
  *          campos Tipo, Natureza, Descrição, Valor e botão «Guardar ajuste».
@@ -147,6 +147,13 @@ test.describe('/rh/payroll — recalcular e ajustes manuais (#159)', () => {
     await expect(btnRecalcular).toBeVisible({ timeout: 20_000 });
 
     await btnRecalcular.click();
+
+    // #159 (contrato do nó payroll-recalcular-ajustes-159): «Recalcular» pede confirmação
+    // num AlertDialog; só a confirmação recalcula.
+    const dialogo = page.getByRole('alertdialog');
+    await expect(dialogo).toBeVisible({ timeout: 10_000 });
+    await dialogo.getByRole('button', { name: /^(Recalcular|Confirmar)$/ }).click();
+    await expect(dialogo).toBeHidden({ timeout: 10_000 });
 
     // Toast sonner com o texto exacto — selector de braço único para evitar
     // strict-mode violation (o <li data-sonner-toast> e o <div> interno
