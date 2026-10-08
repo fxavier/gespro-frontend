@@ -5,7 +5,9 @@
  * Render functions com JSX vivem sempre num módulo 'use client'.
  */
 
+import Link from 'next/link';
 import { DataTable, StatusBadge } from '@/components/patterns';
+import { formatarData } from '@/lib/format-date';
 import type { TableColumn } from '@/components/patterns';
 import type { ComissaoRow } from '@/server/services/comercial/comissao.interface';
 
@@ -41,9 +43,12 @@ const columns: TableColumn<ComissaoRow>[] = [
     label: 'Comissão',
     sortKey: 'valorComissao',
     render: (row) => (
-      <span className="font-medium tabular-nums">
+      <Link
+        href={`/vendas/comissoes/${row.id}`}
+        className="font-medium tabular-nums text-primary hover:underline"
+      >
         MT {parseFloat(row.valorComissao).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-      </span>
+      </Link>
     ),
   },
   {
@@ -58,7 +63,7 @@ const columns: TableColumn<ComissaoRow>[] = [
     sortKey: 'createdAt',
     render: (row) => (
       <span className="text-xs text-muted-foreground tabular-nums">
-        {new Date(row.createdAt).toLocaleDateString('pt-MZ')}
+        {formatarData(row.createdAt)}
       </span>
     ),
   },

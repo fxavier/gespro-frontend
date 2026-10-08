@@ -8,6 +8,7 @@ import { comissaoService } from '@/server/services/comercial/comissao.service';
 import {
   CreateRegraComissaoSchema,
   UpdateRegraComissaoSchema,
+  CancelarComissaoSchema,
 } from '@/lib/validations/vendas';
 import { z } from 'zod';
 
@@ -63,6 +64,7 @@ export const aprovarComissao = createSafeAction({
   schema: z.object({ id: z.string().cuid() }),
   permission: 'comissoes:gerir',
   revalidate: {
+    paths: ['/vendas/comissoes'],
     tags: ['comissoes'],
   },
   handler: async ({ id }, ctx) => {
@@ -74,7 +76,7 @@ export const marcarComissaoPaga = createSafeAction({
   schema: z.object({ id: z.string().cuid() }),
   permission: 'comissoes:pagar',
   revalidate: {
-    paths: ['/comissoes'],
+    paths: ['/vendas/comissoes'],
     tags: ['comissoes'],
   },
   handler: async ({ id }, ctx) => {
@@ -83,12 +85,10 @@ export const marcarComissaoPaga = createSafeAction({
 });
 
 export const cancelarComissao = createSafeAction({
-  schema: z.object({
-    id: z.string().cuid(),
-    motivo: z.string().min(10, 'Motivo deve ter pelo menos 10 caracteres').max(500),
-  }),
+  schema: CancelarComissaoSchema,
   permission: 'comissoes:gerir',
   revalidate: {
+    paths: ['/vendas/comissoes'],
     tags: ['comissoes'],
   },
   handler: async ({ id, motivo }, ctx) => {

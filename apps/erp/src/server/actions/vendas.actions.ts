@@ -417,10 +417,27 @@ export const atualizarVendedor = createSafeAction({
   }),
   permission: 'vendas:vendedores:editar',
   revalidate: {
+    paths: ['/vendas/vendedores'],
     tags: ['vendedores'],
   },
   handler: async ({ id, data }, ctx) => {
     return vendedorService.atualizar(id, data, ctx);
+  },
+});
+
+/**
+ * Desactivar, não apagar (#131): grava `status = INATIVO`. Pede a permissão mais restrita
+ * (`excluir`) porque substitui o «Excluir» no ecrã.
+ */
+export const desativarVendedor = createSafeAction({
+  schema: z.object({ id: z.string().cuid('ID inválido') }),
+  permission: 'vendas:vendedores:excluir',
+  revalidate: {
+    paths: ['/vendas/vendedores'],
+    tags: ['vendedores'],
+  },
+  handler: async ({ id }, ctx) => {
+    return vendedorService.desativar(id, ctx);
   },
 });
 

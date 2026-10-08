@@ -230,6 +230,9 @@ export interface IComissaoService {
   // --- Gestão (com validação via TRANSICOES_COMISSAO) ---
   listar(filtro: FilterComissaoInput, ctx: Ctx): Promise<PaginatedComissoes>;
 
+  /** Comissão do tenant; de outro tenant → NotFoundError. */
+  obter(id: string, ctx: Ctx): Promise<ComissaoRow>;
+
   /**
    * PENDENTE → APROVADA.
    * Lança BusinessRuleError('TRANSICAO_INVALIDA') se estado não for PENDENTE.
