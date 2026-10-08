@@ -1608,7 +1608,7 @@ export async function liquidarNotaCredito(
  * Um só lançamento: D 411 pelo total / C em cada conta que o lançamento do documento original
  * debitou, pelo mesmo valor — a devolução sai por onde a receita entrou. O movimento de caixa da
  * parte em numerário NÃO é daqui: é do chamador, pelo contrato `registarMovimentoCaixa`, na
- * sessão de caixa da venda (só ele sabe qual é).
+ * sessão de caixa que o chamador escolhe (na anulação, a aberta de quem anula — #327).
  *
  * Venda mista (numerário + cartão/transferência): continua a ser UM só lançamento de liquidação,
  * no diário CAIXA, que credita também a(s) conta(s) bancária(s) — não há um lançamento por meio

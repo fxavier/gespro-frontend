@@ -38,6 +38,7 @@ import { logger } from '@/server/observability/logger';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx, TxClient } from '@/server/services/types';
+import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
 import type { BaixaStockInput, IStockService, ReservaStockInput } from '@/server/services/inventario/stock.interface';
 import type { RegistarMovimentoCaixaInput, TipoSerieDocumento } from '@/server/services/financas';
 import type { IFaturacaoService } from '@/server/services/financas';
@@ -800,7 +801,7 @@ export class VendaService implements IVendaService {
    * Anulação da venda POS por nota de crédito (ADR-0041 §8). Nunca se altera nem apaga o
    * documento: a Factura-Recibo e o seu lançamento ficam como estão; o que anula é a NC, com o
    * seu estorno, a devolução pelos meios originais, a saída de caixa e a reentrada de stock —
-   * tudo numa só transacção. Qualquer falha (período fechado, caixa fechada, conta inactiva…)
+   * tudo numa só transacção. Qualquer falha (período fechado, sem caixa aberto, conta inactiva…)
    * desfaz tudo, inclusive o número da NC.
    *
    * Venda a crédito ou mista (FATURADA, #322): a mesma NC total; a parte a crédito compensa-se
@@ -868,6 +869,16 @@ export class VendaService implements IVendaService {
         );
       }
 
+      // O dinheiro a devolver sai do caixa ABERTO de quem anula (#327) — nunca do da venda só por
+      // ser o da venda (no dia seguinte está fechado), nem do de outro utilizador. Resolve-se antes
+      // de escrever: sem caixa aberto, SESSAO_CAIXA_NECESSARIA e nada fica gravado.
+      const dinheiro = venda.pagamentos
+        .filter((p) => p.tipo === 'DINHEIRO')
+        .reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
+      const sessaoCaixaDevolucaoId = dinheiro.greaterThan(0)
+        ? (await resolverContaMeioPagamento(tx, { forma: 'NUMERARIO' }, ctx)).sessaoCaixaId
+        : undefined;
+
       const agora = new Date();
 
       // 1. NC de todas as linhas, pela mesma derivação das linhas da Factura-Recibo.
@@ -903,21 +914,12 @@ export class VendaService implements IVendaService {
       //    devolve-se (um lançamento D 411 / C meios).
       await this.faturacaoService.devolverNotaCreditoPelosMeiosOriginaisEmTx(tx, { notaCreditoId: nc.id, data: agora }, ctx);
 
-      // 3. Só o dinheiro sai da gaveta — a da sessão de caixa da venda, que tem de estar aberta.
-      const dinheiro = venda.pagamentos
-        .filter((p) => p.tipo === 'DINHEIRO')
-        .reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0));
-      if (dinheiro.greaterThan(0)) {
-        if (!venda.sessaoCaixaId) {
-          throw new BusinessRuleError(
-            'SESSAO_CAIXA_FECHADA',
-            `A venda ${venda.numero} não tem sessão de caixa: o dinheiro não tem gaveta de onde sair.`,
-          );
-        }
+      // 3. Só o dinheiro sai da gaveta — a do caixa aberto de quem anula (resolvido acima).
+      if (sessaoCaixaDevolucaoId) {
         await this.caixaService.registarMovimentoCaixa(
           tx as unknown as TxClient,
           {
-            sessaoCaixaId: venda.sessaoCaixaId,
+            sessaoCaixaId: sessaoCaixaDevolucaoId,
             tipo: 'DEVOLUCAO',
             valor: dinheiro,
             descricao: `Anulação da venda ${venda.numero} (NC ${nc.numero})`,

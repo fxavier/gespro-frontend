@@ -8,7 +8,8 @@
  *     `construirLancamentoNotaCredito` (D 711 subtotal, D 44331 IVA, C 411 total);
  *   - devolução pelos meios ORIGINAIS: NC LIQUIDADA, `formaLiquidacao` DEVOLUCAO,
  *     `lancamentoLiquidacaoId` com D 411 total / C <a mesma conta debitada na venda> por pagamento;
- *   - `MovimentoCaixa` DEVOLUCAO = Σ parte em DINHEIRO, na sessão de caixa da venda (ABERTA);
+ *   - `MovimentoCaixa` DEVOLUCAO = Σ parte em DINHEIRO, na sessão de caixa ABERTA de quem anula
+ *     (aqui o próprio vendedor, cuja sessão é a da venda — #327);
  *     venda só a cartão não mexe na caixa;
  *   - reentrada de stock por item (MovimentoStock ENTRADA; saldo reposto);
  *   - Venda CANCELADA; a Fatura original fica IGUAL (todos os campos persistidos) e o seu
@@ -17,8 +18,8 @@
  *     ZERO em cada conta tocada (111, 121, 411, 711, 44331).
  * Recusas, sem escrever nada: já CANCELADA → VENDA_JA_ANULADA; não-POS ou sem factura →
  * VENDA_SEM_DOCUMENTO; motivo vazio → MOTIVO_OBRIGATORIO; período de hoje fechado →
- * PERIODO_FECHADO; dinheiro a devolver com a sessão de caixa da venda fechada →
- * SESSAO_CAIXA_FECHADA.
+ * PERIODO_FECHADO; dinheiro a devolver com a sessão de caixa da venda fechada e quem anula sem
+ * sessão aberta → SESSAO_CAIXA_NECESSARIA (#327; antes SESSAO_CAIXA_FECHADA).
  * Atomicidade: conta 111 inactiva (a liquidação falha depois de a NC estar criada) → nada fica:
  * nem NC, lançamento, caixa nem stock; venda CONCLUIDA; série NOTA_CREDITO intacta.
  *
@@ -496,14 +497,14 @@ describe.skipIf(skip)('Anular venda POS → nota de crédito com estorno, devolu
     expect((await db.venda.findFirst({ where: { id: venda.id } })).status).toBe('CONCLUIDA');
   });
 
-  it('venda a dinheiro com a sessão de caixa da venda já fechada → SESSAO_CAIXA_FECHADA, nada escrito', async () => {
+  it('venda a dinheiro com a sessão de caixa da venda já fechada e o operador sem caixa aberto → SESSAO_CAIXA_NECESSARIA, nada escrito (#327)', async () => {
     const outro = await novoOperador();
     const venda = await vender(itensMil(), [{ tipo: 'DINHEIRO', valor: 1160 }], outro);
     await runCtx(outro.ctx, () => caixa.fecharSessao({ sessaoCaixaId: outro.sessaoCaixaId, fundoFinal: 2160 }, outro.ctx));
     const antes = await contagens();
     const foto = await fotografiaFatura(venda.faturaId);
 
-    esperarRegra(await capturarErro(() => anular(venda.id, 'Anular com caixa fechada', outro)), 'SESSAO_CAIXA_FECHADA');
+    esperarRegra(await capturarErro(() => anular(venda.id, 'Anular com caixa fechada', outro)), 'SESSAO_CAIXA_NECESSARIA');
 
     expect(await contagens()).toEqual(antes);
     expect(await fotografiaFatura(venda.faturaId)).toEqual(foto);
