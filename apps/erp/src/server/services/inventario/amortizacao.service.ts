@@ -4,6 +4,7 @@ import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
+import { diaCivilMaputo } from '@/lib/periodo-fiscal';
 import type { GerarPlanoAmortizacaoInput } from '@/lib/validations/inventario-ativos';
 import type { Ctx, TxClient } from '@/server/services/types';
 import type {
@@ -120,6 +121,27 @@ function buildLinhas(
   return linhas;
 }
 
+// ─── Mês civil (Maputo) ───────────────────────────────────────────────────────
+
+/** Ano/mês civis de Maputo que contêm o instante `d` (o servidor corre em UTC). */
+function mesCivilMaputo(d: Date): { ano: number; mes: number } {
+  const [ano, mes] = diaCivilMaputo(d).split('-').map(Number);
+  return { ano, mes };
+}
+
+const chaveMes = (ano: number, mes: number) => ano * 12 + (mes - 1);
+
+/** Amortizar um mês que ainda não começou em Maputo é inventar um gasto. */
+function exigirMesNaoFuturo(ano: number, mes: number): void {
+  const actual = mesCivilMaputo(new Date());
+  if (chaveMes(ano, mes) > chaveMes(actual.ano, actual.mes)) {
+    throw new BusinessRuleError(
+      'AMORTIZACAO_MES_FUTURO',
+      `Não é possível amortizar ${String(mes).padStart(2, '0')}/${ano}: o mês ainda não começou.`,
+    );
+  }
+}
+
 // ─── Implementação ────────────────────────────────────────────────────────────
 
 function mapCalculo(c: {
@@ -181,6 +203,7 @@ async function processarAmortizacaoMensal(
   tx?: TxClient,
 ): Promise<AmortizacaoCalculoDto> {
   const db = tx ?? prisma;
+  exigirMesNaoFuturo(ano, mes);
 
   // Verificar se já calculado
   const existe = await db.amortizacaoCalculo.findUnique({
@@ -189,10 +212,18 @@ async function processarAmortizacaoMensal(
   if (existe) throw new BusinessRuleError('AMORTIZACAO_JA_CALCULADA', `Amortização de ${ano}/${mes} já calculada para este ativo`);
 
   const ativo = await db.ativo.findFirst({
-    where: { id: ativoId, deletedAt: null },
+    where: { id: ativoId, tenantId: ctx.tenantId, deletedAt: null },
     select: { valorCompra: true, valorResidual: true, vidaUtilAnos: true, metodoAmortizacao: true, dataAquisicao: true },
   });
   if (!ativo) throw new NotFoundError('Ativo não encontrado');
+
+  const aquisicao = mesCivilMaputo(ativo.dataAquisicao);
+  if (chaveMes(ano, mes) < chaveMes(aquisicao.ano, aquisicao.mes)) {
+    throw new BusinessRuleError(
+      'AMORTIZACAO_ANTES_AQUISICAO',
+      `O ativo só foi adquirido em ${String(aquisicao.mes).padStart(2, '0')}/${aquisicao.ano}.`,
+    );
+  }
 
   const vi = new Prisma.Decimal(ativo.valorCompra.toString());
   const vr = new Prisma.Decimal(ativo.valorResidual?.toString() ?? '0');
@@ -205,8 +236,8 @@ async function processarAmortizacaoMensal(
   const acumuladoAnterior = new Prisma.Decimal(historico._sum.valorAmortizacaoMensal?.toString() ?? '0');
 
   // Calcular mês actual
-  const mesIndex = (ano - ativo.dataAquisicao.getFullYear()) * 12 + (mes - (ativo.dataAquisicao.getMonth() + 1));
-  let mensal = calcMensal(ativo.metodoAmortizacao, vi.minus(vr), ativo.vidaUtilAnos, Math.max(0, mesIndex));
+  const mesIndex = chaveMes(ano, mes) - chaveMes(aquisicao.ano, aquisicao.mes);
+  let mensal = calcMensal(ativo.metodoAmortizacao, vi.minus(vr), ativo.vidaUtilAnos, mesIndex);
 
   if (ativo.metodoAmortizacao === 'SALDOS_DECRESCENTES') {
     const vliq = vi.minus(acumuladoAnterior);
@@ -241,8 +272,16 @@ async function processarAmortizacaoTenant(
   mes: number,
   ctx: Ctx,
 ): Promise<{ processados: number; erros: { ativoId: string; erro: string }[] }> {
+  exigirMesNaoFuturo(ano, mes);
+
+  // Idempotente por mês: só entram os EM_USO ainda sem amortização deste mês.
   const ativos = await prisma.ativo.findMany({
-    where: { tenantId: ctx.tenantId, estado: 'EM_USO', deletedAt: null },
+    where: {
+      tenantId: ctx.tenantId,
+      estado: 'EM_USO',
+      deletedAt: null,
+      amortizacoes: { none: { tenantId: ctx.tenantId, ano, mes } },
+    },
     select: { id: true },
   });
 
@@ -254,6 +293,13 @@ async function processarAmortizacaoTenant(
       await processarAmortizacaoMensal(a.id, ano, mes, ctx);
       processados++;
     } catch (e) {
+      // Não são erros: o activo ainda não existia nesse mês, ou uma corrida concorrente
+      // gravou primeiro (o mês já está amortizado).
+      const naoSeAplica =
+        (e instanceof BusinessRuleError &&
+          (e.code === 'AMORTIZACAO_JA_CALCULADA' || e.code === 'AMORTIZACAO_ANTES_AQUISICAO')) ||
+        (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002');
+      if (naoSeAplica) continue;
       erros.push({ ativoId: a.id, erro: e instanceof Error ? e.message : 'Erro desconhecido' });
     }
   }

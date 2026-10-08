@@ -22,6 +22,7 @@ import {
   type AtivoDto,
   type CategoriaAtivoDto,
   type DocumentoAtivoDto,
+  type DestinoMovimentacaoDto,
   type IAtivoService,
   type MovimentacaoAtivoDto,
 } from './ativos.interface';
@@ -388,29 +389,137 @@ async function listarMovimentacoes(ativoId: string, ctx: Ctx): Promise<Movimenta
     select: MOV_SEL,
     orderBy: { createdAt: 'desc' },
   });
-  return movs.map(mapMovimentacao);
+
+  const idsLoc = [...new Set(movs.flatMap((m) => [m.localizacaoOrigemId, m.localizacaoDestinoId]).filter((v): v is string => !!v))];
+  const idsUser = [...new Set(movs.flatMap((m) => [m.responsavelOrigemId, m.responsavelDestinoId]).filter((v): v is string => !!v))];
+  const [locs, users] = await Promise.all([
+    idsLoc.length
+      ? prisma.localizacao.findMany({ where: { tenantId: ctx.tenantId, id: { in: idsLoc } }, select: { id: true, nome: true } })
+      : [],
+    idsUser.length
+      ? prisma.user.findMany({ where: { tenantId: ctx.tenantId, id: { in: idsUser } }, select: { id: true, nome: true } })
+      : [],
+  ]);
+  const nomeLoc = new Map(locs.map((l) => [l.id, l.nome]));
+  const nomeUser = new Map(users.map((u) => [u.id, u.nome]));
+  const nome = (mapa: Map<string, string>, id: string | null) => (id ? (mapa.get(id) ?? null) : null);
+
+  return movs.map((m) => ({
+    ...mapMovimentacao(m),
+    localizacaoOrigemNome: nome(nomeLoc, m.localizacaoOrigemId),
+    localizacaoDestinoNome: nome(nomeLoc, m.localizacaoDestinoId),
+    responsavelOrigemNome: nome(nomeUser, m.responsavelOrigemId),
+    responsavelDestinoNome: nome(nomeUser, m.responsavelDestinoId),
+  }));
 }
 
-async function registarMovimentacao(data: MovimentacaoAtivoCreate, ctx: Ctx): Promise<MovimentacaoAtivoDto> {
-  const mov = await prisma.movimentacaoAtivo.create({
-    data: {
+async function procurarLocalizacoesDestino(termo: string, ctx: Ctx): Promise<DestinoMovimentacaoDto[]> {
+  const q = termo.trim();
+  const locs = await prisma.localizacao.findMany({
+    where: {
       tenantId: ctx.tenantId,
-      ativoId: data.ativoId,
-      tipo: data.tipo as never,
-      localizacaoOrigemId: data.localizacaoOrigemId ?? null,
-      localizacaoDestinoId: data.localizacaoDestinoId ?? null,
-      responsavelOrigemId: data.responsavelOrigemId ?? null,
-      responsavelDestinoId: data.responsavelDestinoId ?? null,
-      dataMovimentacao: data.dataMovimentacao,
-      dataPrevisaoDevolucao: data.dataPrevisaoDevolucao ?? null,
-      motivo: data.motivo,
-      observacoes: data.observacoes ?? null,
-      guiaMovimentacao: data.guiaMovimentacao ?? null,
-      criadoPor: ctx.userId,
+      ativa: true,
+      deletedAt: null,
+      ...(q ? { OR: [{ nome: { contains: q, mode: 'insensitive' } }, { codigo: { contains: q, mode: 'insensitive' } }] } : {}),
     },
-    select: MOV_SEL,
+    select: { id: true, nome: true, codigo: true },
+    orderBy: { nome: 'asc' },
+    take: 50,
   });
-  return mapMovimentacao(mov);
+  return locs.map((l) => ({ id: l.id, nome: l.nome, detalhe: l.codigo }));
+}
+
+async function procurarResponsaveis(termo: string, ctx: Ctx): Promise<DestinoMovimentacaoDto[]> {
+  const q = termo.trim();
+  const users = await prisma.user.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      ativo: true,
+      deletedAt: null,
+      ...(q ? { OR: [{ nome: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] } : {}),
+    },
+    select: { id: true, nome: true, email: true },
+    orderBy: { nome: 'asc' },
+    take: 50,
+  });
+  return users.map((u) => ({ id: u.id, nome: u.nome, detalhe: u.email }));
+}
+
+/**
+ * Regista uma movimentação de um activo do tenant.
+ *
+ * A origem (localização e responsável) é a ACTUAL do activo, lida no servidor sob tranca — o
+ * cliente não a dita. Destinos têm de ser do tenant. Uma TRANSFERENCIA muda `localizacaoId` /
+ * `responsavelId` do activo na mesma transacção e tem de mudar alguma coisa; o estado não muda.
+ */
+async function registarMovimentacao(data: MovimentacaoAtivoCreate, ctx: Ctx): Promise<MovimentacaoAtivoDto> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Ativo" WHERE id = ${data.ativoId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
+    const ativo = await tx.ativo.findFirst({
+      where: { id: data.ativoId, tenantId: ctx.tenantId, deletedAt: null },
+      select: { estado: true, localizacaoId: true, responsavelId: true },
+    });
+    if (!ativo) throw new NotFoundError('Ativo não encontrado');
+    if (ativo.estado === 'BAIXADO') {
+      throw new BusinessRuleError('ATIVO_BAIXADO', 'Um ativo baixado não pode ser movimentado');
+    }
+
+    if (data.localizacaoDestinoId) {
+      const loc = await tx.localizacao.findFirst({
+        where: { id: data.localizacaoDestinoId, tenantId: ctx.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!loc) throw new NotFoundError('Localização de destino não encontrada');
+    }
+    if (data.responsavelDestinoId) {
+      const user = await tx.user.findFirst({
+        where: { id: data.responsavelDestinoId, tenantId: ctx.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!user) throw new NotFoundError('Responsável de destino não encontrado');
+    }
+
+    const novaLocalizacao =
+      data.localizacaoDestinoId && data.localizacaoDestinoId !== ativo.localizacaoId ? data.localizacaoDestinoId : null;
+    const novoResponsavel =
+      data.responsavelDestinoId && data.responsavelDestinoId !== ativo.responsavelId ? data.responsavelDestinoId : null;
+
+    if (data.tipo === 'TRANSFERENCIA') {
+      if (!novaLocalizacao && !novoResponsavel) {
+        throw new BusinessRuleError(
+          'MOVIMENTACAO_SEM_ALTERACAO',
+          'A transferência não muda a localização nem o responsável do ativo',
+        );
+      }
+      await tx.ativo.update({
+        where: { id: data.ativoId },
+        data: {
+          ...(novaLocalizacao ? { localizacaoId: novaLocalizacao } : {}),
+          ...(novoResponsavel ? { responsavelId: novoResponsavel } : {}),
+        },
+      });
+    }
+
+    const mov = await tx.movimentacaoAtivo.create({
+      data: {
+        tenantId: ctx.tenantId,
+        ativoId: data.ativoId,
+        tipo: data.tipo as never,
+        localizacaoOrigemId: ativo.localizacaoId,
+        localizacaoDestinoId: data.localizacaoDestinoId ?? null,
+        responsavelOrigemId: ativo.responsavelId,
+        responsavelDestinoId: data.responsavelDestinoId ?? null,
+        dataMovimentacao: data.dataMovimentacao,
+        dataPrevisaoDevolucao: data.dataPrevisaoDevolucao ?? null,
+        motivo: data.motivo,
+        observacoes: data.observacoes ?? null,
+        guiaMovimentacao: data.guiaMovimentacao ?? null,
+        criadoPor: ctx.userId,
+      },
+      select: MOV_SEL,
+    });
+    return mapMovimentacao(mov);
+  });
 }
 
 async function confirmarMovimentacao(movimentacaoId: string, confirmadaPor: string, ctx: Ctx): Promise<MovimentacaoAtivoDto> {
@@ -443,5 +552,6 @@ export const ativosService: IAtivoService = {
   listarAtivos, obterAtivo, obterAtivoPorCodigo, criarAtivo, actualizarAtivo, transitarEstado, arquivarAtivo,
   adicionarDocumento, removerDocumento,
   listarMovimentacoes, registarMovimentacao, confirmarMovimentacao,
+  procurarLocalizacoesDestino, procurarResponsaveis,
   exportarRelatorioAtivos,
 };

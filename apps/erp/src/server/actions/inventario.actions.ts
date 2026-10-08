@@ -227,8 +227,24 @@ export const removerDocumentoAtivoAction = createSafeAction({
 export const registarMovimentacaoAtivoAction = createSafeAction({
   schema: MovimentacaoAtivoCreateSchema,
   permission: 'ativos:write',
-  revalidate: { tags: ['ativos', 'movimentacoes-ativo'] },
+  revalidate: { tags: ['ativos', 'movimentacoes-ativo'], paths: ['/inventario/ativos'] },
   handler: (data, ctx) => ativosService.registarMovimentacao(data, ctx),
+});
+
+/** Pesquisa de localizações de destino para a rota de movimentação (leitura). */
+export const procurarLocalizacoesDestinoAction = createSafeAction({
+  schema: z.object({ q: z.string().max(200).optional() }),
+  permission: 'ativos:read',
+  permiteEmLeitura: true,
+  handler: ({ q }, ctx) => ativosService.procurarLocalizacoesDestino(q ?? '', ctx),
+});
+
+/** Pesquisa de responsáveis de destino para a rota de movimentação (leitura). */
+export const procurarResponsaveisAtivoAction = createSafeAction({
+  schema: z.object({ q: z.string().max(200).optional() }),
+  permission: 'ativos:read',
+  permiteEmLeitura: true,
+  handler: ({ q }, ctx) => ativosService.procurarResponsaveis(q ?? '', ctx),
 });
 
 export const confirmarMovimentacaoAtivoAction = createSafeAction({
@@ -282,7 +298,7 @@ export const processarAmortizacaoMensalAction = createSafeAction({
 export const processarAmortizacaoTenantAction = createSafeAction({
   schema: z.object({ ano: z.number().int(), mes: z.number().int().min(1).max(12) }),
   permission: 'ativos:admin',
-  revalidate: { tags: ['amortizacoes'] },
+  revalidate: { tags: ['amortizacoes', 'ativos'], paths: ['/inventario/amortizacao'] },
   handler: ({ ano, mes }, ctx) => amortizacaoService.processarAmortizacaoTenant(ano, mes, ctx),
 });
 
