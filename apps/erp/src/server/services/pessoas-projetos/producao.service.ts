@@ -195,9 +195,27 @@ async function _explodir(
 // CentroTrabalhoService
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * O `@@unique([tenantId, codigo])` é quem decide (também numa corrida); aqui só se traduz o P2002
+ * numa regra de negócio, para não chegar ao utilizador como «Erro interno».
+ */
+async function comCodigoCentroUnico<T>(codigo: string | undefined, escrever: () => Promise<T>): Promise<T> {
+  try {
+    return await escrever();
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      throw new BusinessRuleError(
+        'CENTRO_CODIGO_DUPLICADO',
+        `Já existe um centro de trabalho com o código "${codigo ?? ''}".`,
+      );
+    }
+    throw e;
+  }
+}
+
 export const CentroTrabalhoService = {
   async criar(input: CreateCentroTrabalhoInput, ctx: Ctx): Promise<{ id: string }> {
-    const ct = await prisma.centroTrabalho.create({
+    const ct = await comCodigoCentroUnico(input.codigo, () => prisma.centroTrabalho.create({
       data: {
         tenantId: ctx.tenantId,
         codigo: input.codigo,
@@ -209,7 +227,7 @@ export const CentroTrabalhoService = {
         ativo: input.ativo ?? true,
       },
       select: { id: true },
-    });
+    }));
     return { id: ct.id };
   },
 
@@ -219,11 +237,13 @@ export const CentroTrabalhoService = {
       select: { id: true },
     });
     if (!existente) throw new NotFoundError('Centro de trabalho não encontrado');
-    await prisma.centroTrabalho.update({ where: { id }, data: input as Record<string, unknown> });
+    await comCodigoCentroUnico(input.codigo, () =>
+      prisma.centroTrabalho.update({ where: { id }, data: input as Record<string, unknown> }),
+    );
   },
 
   async listar(
-    filter: { tipo?: string; ativo?: boolean; cursor?: string; take?: number },
+    filter: { search?: string; tipo?: string; ativo?: boolean; cursor?: string; take?: number },
     ctx: Ctx,
   ) {
     return paginate(
@@ -234,8 +254,12 @@ export const CentroTrabalhoService = {
             tenantId: ctx.tenantId,
             ...(filter.tipo ? { tipo: filter.tipo as never } : {}),
             ...(filter.ativo !== undefined ? { ativo: filter.ativo } : {}),
+            ...(filter.search
+              ? { OR: [{ nome: { contains: filter.search, mode: 'insensitive' } }, { codigo: { contains: filter.search, mode: 'insensitive' } }] }
+              : {}),
           },
-          orderBy: { codigo: 'asc' },
+          // Como a BOM e o roteiro: os mais recentes primeiro (id desempata, o cursor é por id).
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         }),
       { cursor: filter.cursor, take: filter.take },
     );

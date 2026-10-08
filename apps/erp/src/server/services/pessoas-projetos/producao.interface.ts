@@ -148,7 +148,7 @@ export interface ICentroTrabalhoService {
   ): Promise<{ horasCapacidade: number; horasReservadas: number; percentagemCarga: number }>;
 
   listar(
-    filter: { tipo?: string; ativo?: boolean; cursor?: string; take?: number },
+    filter: { search?: string; tipo?: string; ativo?: boolean; cursor?: string; take?: number },
     ctx: Ctx,
   ): Promise<{ items: unknown[]; nextCursor: string | null }>;
 }

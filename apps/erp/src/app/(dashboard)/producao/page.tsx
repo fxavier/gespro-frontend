@@ -15,6 +15,7 @@ import {
   DollarSign,
   ShieldCheck,
   FileBarChart2,
+  Factory,
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,12 @@ const MODULOS = [
     descricao: 'Definição de processos e operações produtivas',
     icon: Route,
     href: '/producao/roteiros',
+  },
+  {
+    titulo: 'Centros de Trabalho',
+    descricao: 'Máquinas, pessoas, células e linhas usadas nos roteiros',
+    icon: Factory,
+    href: '/producao/centros-trabalho',
   },
   {
     titulo: 'Ordens de Produção',
