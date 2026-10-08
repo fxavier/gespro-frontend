@@ -8,7 +8,7 @@
 
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { Lock } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Lock, XCircle } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as caixaService from '@/server/services/financas/caixa.service';
@@ -17,6 +17,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { formatarDataExtensa } from '@/lib/format-date';
+import { acoesSessaoCaixa } from '@/lib/caixa-acoes';
 import { MovimentosTable, type MovimentoCaixaResumo } from '../_components/movimentos-table';
 
 export default async function SessaoCaixaDetalhePage({
@@ -26,7 +27,7 @@ export default async function SessaoCaixaDetalhePage({
 }) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
   const { id } = await params;
   const ctx = { tenantId, userId };
 
@@ -39,6 +40,12 @@ export default async function SessaoCaixaDetalhePage({
 
   const { sessao, resumo } = dados;
   const aberta = sessao.status === 'ABERTA';
+  // #146: que acções aparecem é a função única, a mesma das rotas sangria/reforco/cancelar.
+  const acoes = acoesSessaoCaixa({
+    status: sessao.status,
+    movimentos: sessao.movimentos,
+    permissoes: permissions,
+  });
 
   // Decimal → string na fronteira SC→CC.
   const movimentos: MovimentoCaixaResumo[] = sessao.movimentos.map((m) => ({
@@ -95,12 +102,38 @@ export default async function SessaoCaixaDetalhePage({
         badge={<StatusBadge status={sessao.status} />}
         actions={
           aberta ? (
-            <Button asChild size="sm">
-              <Link href={`/caixa/fechamento?sessaoId=${sessao.id}`}>
-                <Lock className="h-4 w-4 mr-2" />
-                Fechar caixa
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {acoes.reforco && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/caixa/${sessao.id}/reforco`}>
+                    <ArrowDownCircle className="h-4 w-4 mr-2" />
+                    Registar reforço
+                  </Link>
+                </Button>
+              )}
+              {acoes.sangria && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/caixa/${sessao.id}/sangria`}>
+                    <ArrowUpCircle className="h-4 w-4 mr-2" />
+                    Registar sangria
+                  </Link>
+                </Button>
+              )}
+              {acoes.cancelar && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/caixa/${sessao.id}/cancelar`}>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancelar sessão
+                  </Link>
+                </Button>
+              )}
+              <Button asChild size="sm">
+                <Link href={`/caixa/fechamento?sessaoId=${sessao.id}`}>
+                  <Lock className="h-4 w-4 mr-2" />
+                  Fechar caixa
+                </Link>
+              </Button>
+            </div>
           ) : null
         }
       />
