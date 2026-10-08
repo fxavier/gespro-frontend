@@ -236,6 +236,12 @@ export const MudarPalavraPasseSchema = z
 
 export type MudarPalavraPasseInput = z.infer<typeof MudarPalavraPasseSchema>;
 
+/** Recuperação de palavra-passe self-service (#178): só o e-mail, normalizado. */
+export const RecuperarPalavraPasseSchema = z.object({
+  email: z.string().trim().toLowerCase().min(1, 'Indique o e-mail').email('E-mail inválido'),
+});
+export type RecuperarPalavraPasseInput = z.infer<typeof RecuperarPalavraPasseSchema>;
+
 /**
  * O e-mail deixou de ser editável aqui: é o identificador da Identidade e
  * pertence ao Keycloak (CONTEXT.md). Corrigir um e-mail errado é desactivar
