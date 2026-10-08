@@ -2,10 +2,11 @@
 
 /**
  * Formulário de edição de utilizador.
- * Padrão: react-hook-form + zodResolver + useActionState.
+ * Padrão: react-hook-form + zodResolver; um só «Guardar» para dados e papéis (#176).
+ * O submit corre dentro de `startTransition` (o `handleSubmit` chama fora de uma transição).
  */
 
-import { useActionState, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,8 +26,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
-import { actualizarUtilizador } from '@/server/actions/plataforma.actions';
-import { UpdateUserSchema, type UpdateUserInput } from '@/lib/validations/plataforma';
+import { actualizarUtilizador, atribuirRoles } from '@/server/actions/plataforma.actions';
+import { UpdateUserSchema } from '@/lib/validations/plataforma';
 import type { UserRow, RoleRow } from '@/server/services/plataforma/user-admin.interface';
 import { PapeisUtilizadorForm } from './papeis-utilizador-form';
 
@@ -38,26 +39,23 @@ const EditarUtilizadorSchema = z.object({
 
 type EditarUtilizadorInput = z.infer<typeof EditarUtilizadorSchema>;
 
-type FormState = {
-  ok: true;
-  data: unknown;
-} | {
-  ok: false;
-  error: { code: string; message: string; details?: unknown };
-} | null;
-
 interface EditarUtilizadorFormProps {
   utilizador: UserRow;
   roles: RoleRow[];
 }
 
+const mesmoConjunto = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((id) => b.includes(id));
+
 export function EditarUtilizadorForm({ utilizador, roles }: EditarUtilizadorFormProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+  const [erroPapeis, setErroPapeis] = useState<string | null>(null);
 
-  const [state, dispatch, isPending] = useActionState<FormState, EditarUtilizadorInput>(
-    (_prev, data) => actualizarUtilizador(data),
-    null
-  );
+  const papeisIniciais = utilizador.roles.map((r) => r.id);
+  const [papeisEscolhidos, setPapeisEscolhidos] = useState<string[]>(papeisIniciais);
+  const papeisDirty = !mesmoConjunto(papeisEscolhidos, papeisIniciais);
 
   const form = useForm<EditarUtilizadorInput>({
     resolver: zodResolver(EditarUtilizadorSchema),
@@ -71,35 +69,48 @@ export function EditarUtilizadorForm({ utilizador, roles }: EditarUtilizadorForm
     mode: 'onBlur',
   });
 
-  useEffect(() => {
-    if (!state) return;
+  const submeter = async (formData: EditarUtilizadorInput) => {
+    setErro(null);
+    setErroPapeis(null);
 
-    if (!state.ok) {
-      const details = state.error.details as
-        | { fieldErrors?: Record<string, string[]> }
-        | undefined;
-
-      if (details?.fieldErrors) {
-        Object.entries(details.fieldErrors).forEach(([field, messages]) => {
-          form.setError(`data.${field}` as keyof EditarUtilizadorInput, {
-            type: 'server',
-            message: messages[0],
-          });
-        });
-      } else {
-        toast.error(state.error.message ?? 'Erro ao actualizar o utilizador.');
+    // Papéis primeiro: uma recusa (último administrador, delegação) não deixa nada gravado.
+    if (papeisDirty) {
+      const r = await atribuirRoles({ userId: utilizador.id, roleIds: papeisEscolhidos });
+      if (!r.ok) {
+        setErroPapeis(r.error.message);
+        toast.error(r.error.message);
+        return;
       }
-    } else {
-      toast.success('Utilizador actualizado com sucesso!');
-      router.push('/core-tenancy/utilizadores');
     }
-  }, [state, form, router]);
+
+    if (form.formState.isDirty) {
+      const r = await actualizarUtilizador(formData);
+      if (!r.ok) {
+        const details = r.error.details as { fieldErrors?: Record<string, string[]> } | undefined;
+        if (details?.fieldErrors) {
+          Object.entries(details.fieldErrors).forEach(([field, messages]) => {
+            form.setError(`data.${field}` as keyof EditarUtilizadorInput, {
+              type: 'server',
+              message: messages[0],
+            });
+          });
+        } else {
+          setErro(r.error.message);
+          toast.error(r.error.message ?? 'Erro ao actualizar o utilizador.');
+        }
+        return;
+      }
+    }
+
+    toast.success('Utilizador actualizado com sucesso!');
+    router.push('/core-tenancy/utilizadores');
+  };
 
   const onSubmit = form.handleSubmit((formData) => {
-    dispatch(formData);
+    startTransition(() => submeter(formData));
   });
 
-  const isDirty = form.formState.isDirty;
+  const isDirty = form.formState.isDirty || papeisDirty;
 
   const handleCancel = () => {
     if (isDirty) {
@@ -120,7 +131,7 @@ export function EditarUtilizadorForm({ utilizador, roles }: EditarUtilizadorForm
               <X className="h-4 w-4 mr-1.5" />
               Cancelar
             </Button>
-            <Button type="submit" size="sm" disabled={isPending} onClick={onSubmit}>
+            <Button type="submit" size="sm" disabled={isPending || papeisEscolhidos.length === 0} onClick={onSubmit}>
               <Save className="h-4 w-4 mr-1.5" />
               {isPending ? 'A guardar…' : 'Guardar Alterações'}
             </Button>
@@ -174,11 +185,20 @@ export function EditarUtilizadorForm({ utilizador, roles }: EditarUtilizadorForm
           />
         </FormSection>
 
-        <PapeisUtilizadorForm utilizador={utilizador} roles={roles} />
+        <PapeisUtilizadorForm
+          roles={roles}
+          escolhidos={papeisEscolhidos}
+          onChange={(ids) => {
+            setPapeisEscolhidos(ids);
+            setErroPapeis(null);
+          }}
+          erro={erroPapeis}
+          disabled={isPending}
+        />
 
-        {state && !state.ok && !state.error.details && (
+        {erro && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-            {state.error.message}
+            {erro}
           </div>
         )}
       </FormPage>

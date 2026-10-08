@@ -1,49 +1,28 @@
 'use client';
 
 /**
- * Papéis do utilizador (#176) — uma caixa por papel do tenant; «Guardar papéis»
- * substitui a lista pela action `atribuirRoles`. As recusas (delegação do #181,
- * último administrador) vêm do serviço e ficam visíveis no ecrã.
+ * Papéis do utilizador (#176) — uma caixa por papel do tenant. Secção controlada: a
+ * selecção vive no formulário de edição, que a grava com o único «Guardar» do ecrã
+ * (action `atribuirRoles`). As recusas (delegação do #181, último administrador) vêm do
+ * serviço e chegam aqui por `erro`.
  */
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { Save } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormSection } from '@/components/patterns';
-import { atribuirRoles } from '@/server/actions/plataforma.actions';
-import type { UserRow, RoleRow } from '@/server/services/plataforma/user-admin.interface';
+import type { RoleRow } from '@/server/services/plataforma/user-admin.interface';
 
 interface PapeisUtilizadorFormProps {
-  utilizador: UserRow;
   roles: RoleRow[];
+  escolhidos: string[];
+  onChange: (escolhidos: string[]) => void;
+  erro: string | null;
+  disabled?: boolean;
 }
 
-export function PapeisUtilizadorForm({ utilizador, roles }: PapeisUtilizadorFormProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [escolhidos, setEscolhidos] = useState<string[]>(() => utilizador.roles.map((r) => r.id));
-  const [erro, setErro] = useState<string | null>(null);
-
-  const alternar = (roleId: string, marcado: boolean) =>
-    setEscolhidos((actuais) =>
-      marcado ? [...actuais.filter((id) => id !== roleId), roleId] : actuais.filter((id) => id !== roleId),
-    );
-
-  const guardar = () => {
-    setErro(null);
-    startTransition(async () => {
-      const r = await atribuirRoles({ userId: utilizador.id, roleIds: escolhidos });
-      if (!r.ok) {
-        setErro(r.error.message);
-        toast.error(r.error.message);
-        return;
-      }
-      toast.success('Papéis actualizados.');
-      router.refresh();
-    });
+export function PapeisUtilizadorForm({ roles, escolhidos, onChange, erro, disabled }: PapeisUtilizadorFormProps) {
+  const alternar = (roleId: string, marcado: boolean) => {
+    const semEste = escolhidos.filter((id) => id !== roleId);
+    onChange(marcado ? [...semEste, roleId] : semEste);
   };
 
   return (
@@ -59,7 +38,7 @@ export function PapeisUtilizadorForm({ utilizador, roles }: PapeisUtilizadorForm
                   id={idCaixa}
                   checked={escolhidos.includes(role.id)}
                   onCheckedChange={(v) => alternar(role.id, v === true)}
-                  disabled={isPending}
+                  disabled={disabled}
                   aria-describedby={role.descricao ? idDescricao : undefined}
                   className="mt-0.5"
                 />
@@ -82,6 +61,10 @@ export function PapeisUtilizadorForm({ utilizador, roles }: PapeisUtilizadorForm
         })}
       </div>
 
+      {escolhidos.length === 0 && (
+        <p className="text-sm text-destructive">Escolha pelo menos um papel.</p>
+      )}
+
       {erro && (
         <div
           role="alert"
@@ -90,13 +73,6 @@ export function PapeisUtilizadorForm({ utilizador, roles }: PapeisUtilizadorForm
           {erro}
         </div>
       )}
-
-      <div className="flex justify-end">
-        <Button type="button" size="sm" onClick={guardar} disabled={isPending || escolhidos.length === 0}>
-          <Save className="h-4 w-4 mr-1.5" />
-          {isPending ? 'A guardar…' : 'Guardar papéis'}
-        </Button>
-      </div>
     </FormSection>
   );
 }
