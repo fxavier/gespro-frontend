@@ -516,7 +516,7 @@ export const userAdminService: IUserAdminService = {
   },
 
   async atribuirRoles(input: AssignRoleInput, ctx: Ctx) {
-    await findUser(input.userId, ctx);
+    const user = await findUser(input.userId, ctx);
     await exigirPermissoesDelegaveis(await permissoesDosPapeis(input.roleIds, ctx), ctx); // #181
 
     const roles = await prismaBase.role.findMany({
@@ -524,6 +524,20 @@ export const userAdminService: IUserAdminService = {
     });
     if (roles.length !== input.roleIds.length) {
       throw new NotFoundError('Um ou mais papéis não existem neste tenant');
+    }
+
+    // Guarda ULTIMO_ADMIN (#176): a lista nova não pode tirar o ADMIN ao último
+    // administrador activo do tenant — nem ao próprio actor.
+    const perdeAdmin =
+      user.ativo &&
+      user.deletedAt === null &&
+      user.roles.some((ur) => ur.role.nome === 'ADMIN') &&
+      !roles.some((r) => r.nome === 'ADMIN');
+    if (perdeAdmin && (await contarAdminsAtivos(ctx.tenantId, { excludeUserId: user.id })) === 0) {
+      throw new BusinessRuleError(
+        'ULTIMO_ADMIN',
+        'Não é possível retirar o papel ADMIN ao último administrador do tenant',
+      );
     }
 
     await prismaBase.$transaction(async (tx) => {

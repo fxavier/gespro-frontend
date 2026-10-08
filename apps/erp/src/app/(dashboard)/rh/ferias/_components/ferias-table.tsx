@@ -9,8 +9,13 @@
  * este wrapper; os dados SolicitacaoRow são objectos planos e serializam bem.
  */
 
+import Link from 'next/link';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
+import { Button } from '@/components/ui/button';
+import { formatarData } from '@/lib/format-date';
+import { AprovarFerias } from './aprovar-ferias';
+import { CancelarFerias } from './cancelar-ferias';
 
 export interface SolicitacaoRow {
   id: string;
@@ -20,6 +25,8 @@ export interface SolicitacaoRow {
   diasSolicitados: number;
   tipo: string;
   status: string;
+  /** #156 — PENDENTE e submetido pelo utilizador da sessão. */
+  podeCancelar: boolean;
 }
 
 const columns: TableColumn<SolicitacaoRow>[] = [
@@ -31,12 +38,12 @@ const columns: TableColumn<SolicitacaoRow>[] = [
   {
     key: 'dataInicio',
     label: 'Início',
-    render: (row) => new Date(row.dataInicio).toLocaleDateString('pt-PT'),
+    render: (row) => formatarData(row.dataInicio),
   },
   {
     key: 'dataFim',
     label: 'Fim',
-    render: (row) => new Date(row.dataFim).toLocaleDateString('pt-PT'),
+    render: (row) => formatarData(row.dataFim),
     mobileHidden: true,
   },
   {
@@ -57,16 +64,44 @@ const columns: TableColumn<SolicitacaoRow>[] = [
   },
 ];
 
+function colunaAcoes(podeAprovar: boolean): TableColumn<SolicitacaoRow> {
+  return {
+    key: 'acoes',
+    label: 'Acções',
+    render: (row) =>
+      row.status === 'PENDENTE' && (podeAprovar || row.podeCancelar) ? (
+        <div className="flex items-center gap-2">
+          {podeAprovar && (
+            <>
+              <AprovarFerias
+                solicitacaoId={row.id}
+                colaboradorNome={row.colaboradorNome}
+                diasSolicitados={row.diasSolicitados}
+              />
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/rh/ferias/${row.id}/rejeitar`}>Rejeitar</Link>
+              </Button>
+            </>
+          )}
+          {row.podeCancelar && <CancelarFerias solicitacaoId={row.id} />}
+        </div>
+      ) : null,
+  };
+}
+
 interface FeriasTableProps {
   data: SolicitacaoRow[];
   nextCursor?: string | null;
+  /** Sessão com `rh:ferias:aprovar`. */
+  podeAprovar?: boolean;
 }
 
-export function FeriasTable({ data, nextCursor }: FeriasTableProps) {
+export function FeriasTable({ data, nextCursor, podeAprovar = false }: FeriasTableProps) {
+  const temAcoes = podeAprovar || data.some((r) => r.podeCancelar);
   return (
     <DataTable
       data={data}
-      columns={columns}
+      columns={temAcoes ? [...columns, colunaAcoes(podeAprovar)] : columns}
       nextCursor={nextCursor}
       emptyState={
         <EmptyState

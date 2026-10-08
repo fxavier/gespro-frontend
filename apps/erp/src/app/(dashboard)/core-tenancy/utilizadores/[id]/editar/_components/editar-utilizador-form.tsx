@@ -28,6 +28,7 @@ import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/pattern
 import { actualizarUtilizador } from '@/server/actions/plataforma.actions';
 import { UpdateUserSchema, type UpdateUserInput } from '@/lib/validations/plataforma';
 import type { UserRow, RoleRow } from '@/server/services/plataforma/user-admin.interface';
+import { PapeisUtilizadorForm } from './papeis-utilizador-form';
 
 // Schema composto para o formulário (inclui o id)
 const EditarUtilizadorSchema = z.object({
@@ -173,28 +174,7 @@ export function EditarUtilizadorForm({ utilizador, roles }: EditarUtilizadorForm
           />
         </FormSection>
 
-        {/* Roles actuais (read-only — atribuição via acção separada) */}
-        <FormSection title="Papéis Actuais" description="Papéis atribuídos a este utilizador (geridos via Gestão de Utilizadores)">
-          <div className="space-y-1.5">
-            {utilizador.roles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem papéis atribuídos.</p>
-            ) : (
-              utilizador.roles.map((role) => (
-                <div key={role.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{role.nome}</p>
-                    {role.descricao && (
-                      <p className="text-xs text-muted-foreground">{role.descricao}</p>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {role.permissions.length} permissões
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </FormSection>
+        <PapeisUtilizadorForm utilizador={utilizador} roles={roles} />
 
         {state && !state.ok && !state.error.details && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">

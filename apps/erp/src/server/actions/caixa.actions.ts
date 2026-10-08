@@ -4,6 +4,7 @@ import {
   AbrirSessaoCaixaSchema,
   FecharSessaoCaixaSchema,
   SangriaSchema,
+  CancelarSessaoCaixaSchema,
   ReforcoSchema,
   FiltroSessaoCaixaSchema,
   FiltroMovimentoCaixaSchema,
@@ -26,7 +27,7 @@ export const fecharSessaoCaixa = createSafeAction({
 });
 
 export const cancelarSessaoCaixa = createSafeAction({
-  schema: z.object({ sessaoCaixaId: z.string().cuid(), motivo: z.string().min(1).max(500) }),
+  schema: CancelarSessaoCaixaSchema,
   permission: 'caixa:cancelar',
   revalidate: { tags: ['caixa'] },
   handler: (input, ctx) => caixa.cancelarSessao(input.sessaoCaixaId, input.motivo, ctx),
