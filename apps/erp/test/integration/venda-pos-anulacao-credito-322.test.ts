@@ -18,7 +18,8 @@
  *     (`lancamentoLiquidacaoId` nulo);
  *   - NC LIQUIDADA, `formaLiquidacao` COMPENSACAO (há parte compensada — convenção do
  *     `liquidarNotaCreditoEmTx`);
- *   - `MovimentoCaixa` DEVOLUCAO = parte em DINHEIRO, na sessão de caixa da venda; sem dinheiro
+ *   - `MovimentoCaixa` DEVOLUCAO = parte em DINHEIRO, na sessão de caixa aberta de quem anula
+ *     (aqui o vendedor, cuja sessão é a da venda — #327); sem dinheiro
  *     não mexe na caixa;
  *   - reentrada de stock por item; venda CANCELADA com histórico FATURADA → CANCELADA que cita
  *     a NC e o motivo; nenhuma comissão da venda fica PENDENTE;
@@ -31,7 +32,8 @@
  *     inferior à parte a crédito), a anulação RECUSA com `NC_COMPENSACAO_EXCEDE_SALDO` e não
  *     escreve nada — não se inventa por que meio devolver o que foi recebido em Facturação.
  *   - Recusas e atomicidade iguais às da venda paga: VENDA_JA_ANULADA, PERIODO_FECHADO,
- *     SESSAO_CAIXA_FECHADA (parte em dinheiro com a caixa da venda fechada), falha injectada
+ *     SESSAO_CAIXA_NECESSARIA (parte em dinheiro, caixa da venda fechada e quem anula sem caixa
+ *     aberto — #327; antes SESSAO_CAIXA_FECHADA), falha injectada
  *     depois da NC (conta 111 inactiva) ⇒ nada fica, nem a compensação na factura.
  *
  * Harness: o de `venda-pos-anulacao.test.ts` / `venda-pos-credito.test.ts` — tenant pelos
@@ -527,7 +529,7 @@ describe.skipIf(skip)('#322 — anular venda POS a crédito/mista: NC total + co
     expect((await db.venda.findFirst({ where: { id: venda.id } })).status).toBe('FATURADA');
   });
 
-  it('mista com dinheiro e a sessão de caixa da venda já fechada → SESSAO_CAIXA_FECHADA, nada escrito', async () => {
+  it('mista com dinheiro, a sessão de caixa da venda já fechada e o operador sem caixa aberto → SESSAO_CAIXA_NECESSARIA, nada escrito (#327)', async () => {
     const outro = await novoOperador();
     const venda = await venderACredito(
       itensMil(),
@@ -541,7 +543,7 @@ describe.skipIf(skip)('#322 — anular venda POS a crédito/mista: NC total + co
     const antes = await contagens();
     const foto = await fotografiaFatura(venda.faturaId);
 
-    esperarRegra(await capturarErro(() => anular(venda.id, 'Anular com caixa fechada', outro)), 'SESSAO_CAIXA_FECHADA');
+    esperarRegra(await capturarErro(() => anular(venda.id, 'Anular com caixa fechada', outro)), 'SESSAO_CAIXA_NECESSARIA');
 
     expect(await contagens()).toEqual(antes);
     expect(await fotografiaFatura(venda.faturaId)).toEqual(foto);

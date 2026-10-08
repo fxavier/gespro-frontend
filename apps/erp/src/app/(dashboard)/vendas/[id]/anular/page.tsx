@@ -93,7 +93,7 @@ export default async function AnularVendaPage({ params }: { params: Promise<{ id
             ? `A factura fica como está. É emitida uma nota de crédito de todas as linhas: os ${formatMZN(credito)} a crédito são abatidos à factura (compensação), o resto é devolvido pelos meios com que foi pago e os artigos voltam ao stock.`
             : 'A factura-recibo fica como está. É emitida uma nota de crédito de todas as linhas, o valor é devolvido pelos meios com que foi pago e os artigos voltam ao stock.'}
           {dinheiro > 0
-            ? ` Saem ${formatMZN(dinheiro)} em dinheiro da gaveta da sessão de caixa da venda, que tem de estar aberta.`
+            ? ` Saem ${formatMZN(dinheiro)} em dinheiro da gaveta da sua sessão de caixa aberta; sem caixa aberto a anulação é recusada.`
             : ' Não há dinheiro a devolver da gaveta.'}
         </p>
       </div>
