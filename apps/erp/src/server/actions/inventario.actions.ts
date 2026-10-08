@@ -37,6 +37,7 @@ import {
   VarianteProdutoUpdateSchema,
 } from '@/lib/validations/produtos';
 import { z } from 'zod';
+import { idEntidade } from '@/lib/validations/common';
 import { amortizacaoService } from '@/server/services/inventario/amortizacao.service';
 import { ativosService } from '@/server/services/inventario/ativos.service';
 import { catalogoProdutoService } from '@/server/services/inventario/catalogo.service';
@@ -49,21 +50,21 @@ import { stockService } from '@/server/services/inventario/stock.service';
 export const criarCategoriaProdutoAction = createSafeAction({
   schema: CategoriaProdutoCreateSchema,
   permission: 'produtos:write',
-  revalidate: { tags: ['categorias-produto'] },
+  revalidate: { tags: ['categorias-produto'], paths: ['/produtos/categorias'] },
   handler: (data, ctx) => catalogoProdutoService.criarCategoria(data, ctx),
 });
 
 export const actualizarCategoriaProdutoAction = createSafeAction({
-  schema: z.object({ id: z.string().cuid(), data: CategoriaProdutoUpdateSchema }),
+  schema: z.object({ id: idEntidade(), data: CategoriaProdutoUpdateSchema }),
   permission: 'produtos:write',
-  revalidate: { tags: ['categorias-produto'] },
+  revalidate: { tags: ['categorias-produto'], paths: ['/produtos/categorias'] },
   handler: ({ id, data }, ctx) => catalogoProdutoService.actualizarCategoria(id, data, ctx),
 });
 
 export const arquivarCategoriaProdutoAction = createSafeAction({
-  schema: z.object({ id: z.string().cuid() }),
+  schema: z.object({ id: idEntidade() }),
   permission: 'produtos:write',
-  revalidate: { tags: ['categorias-produto'] },
+  revalidate: { tags: ['categorias-produto'], paths: ['/produtos/categorias'] },
   handler: ({ id }, ctx) => catalogoProdutoService.arquivarCategoria(id, ctx),
 });
 
