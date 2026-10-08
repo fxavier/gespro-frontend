@@ -62,6 +62,12 @@ export const eliminarSerieDocumento = createSafeAction({
   handler: (input, ctx) => faturacao.eliminarSerie(input, ctx),
 });
 
+export const criarSeriesAnoSeguinte = createSafeAction({
+  permission: 'faturacao:series:escrita',
+  revalidate: { tags: ['faturacao', 'series'] },
+  handler: (_, ctx) => faturacao.criarSeriesAnoSeguinte(ctx),
+});
+
 export const listarSeriesDocumento = createSafeAction({
   permission: 'faturacao:leitura',
   permiteEmLeitura: true,

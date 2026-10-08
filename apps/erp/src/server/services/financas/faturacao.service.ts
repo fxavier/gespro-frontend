@@ -19,6 +19,7 @@ import {
   registarLancamentoContabilistico,
 } from './contabilidade.service';
 import { resolverContaMeioPagamento } from './meio-pagamento.service';
+import { SERIES_INICIAIS } from '@/server/provisioning/tenant-bootstrap';
 import { resolverContaNaturezaNotaDebito, validarContaParaNatureza } from './natureza-nota-debito.service';
 import { registarMovimentoCaixa } from './caixa.service';
 import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
@@ -671,6 +672,47 @@ export async function eliminarSerie(input: IdSerieDocumentoInput, ctx: Ctx): Pro
     if (erroPrisma(e, 'P2003')) throw erroUsada();
     throw e;
   }
+}
+
+/**
+ * #235: cria as séries do ano seguinte (Africa/Maputo) a partir da UI — uma activa por tipo
+ * de `SERIES_INICIAIS` (prefixo e formato do bootstrap) que ainda não tenha série NENHUMA
+ * nesse ano: activa ou inactiva, com qualquer prefixo. Um tipo já configurado não é tocado
+ * (nem outra série, nem reactivação, nem numeração); nunca cria o ano a seguir.
+ * Idempotente: a tranca tenant+ano serializa dois cliques e a de tipo+ano (a mesma de
+ * `criarSerie`) exclui uma criação manual concorrente. Escritas singulares no cliente
+ * estendido, como as outras séries: cada criação fica no trilho de auditoria.
+ */
+export async function criarSeriesAnoSeguinte(ctx: Ctx): Promise<{ ano: number; criadas: number }> {
+  const ano = anosPermitidos(new Date())[1];
+  const criadas = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('series-ano:' || ${ctx.tenantId}::text || ':' || ${String(ano)}::text, 0))`;
+    let n = 0;
+    for (const s of SERIES_INICIAIS) {
+      const tipo = s.tipo as TipoSeriePrisma;
+      await trancarTipoAno(tx, ctx.tenantId, tipo, ano);
+      const existe = await tx.serieDocumento.findFirst({
+        where: { tenantId: ctx.tenantId, tipo, ano },
+        select: { id: true },
+      });
+      if (existe) continue;
+      await tx.serieDocumento.create({
+        data: {
+          tenantId: ctx.tenantId,
+          tipo,
+          prefixo: s.prefixo,
+          ano,
+          formatoNumero: FORMATO_NUMERO_SERIE,
+          numeroInicial: 1,
+          proximoNumero: 1,
+          ativo: true,
+        },
+      });
+      n += 1;
+    }
+    return n;
+  });
+  return { ano, criadas };
 }
 
 export async function listarSeries(ctx: Ctx): Promise<SerieDocumento[]> {
