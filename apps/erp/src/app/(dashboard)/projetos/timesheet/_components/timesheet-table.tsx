@@ -9,7 +9,9 @@
  * este wrapper; os dados TimesheetRow são objectos planos e serializam bem.
  */
 
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { formatarData } from '@/lib/format-date';
 import { DataTable, StatusBadge, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
 
@@ -22,6 +24,7 @@ export interface TimesheetRow {
   tipo: string;
   faturavel: boolean;
   aprovado: boolean;
+  rejeitado: boolean;
 }
 
 const columns: TableColumn<TimesheetRow>[] = [
@@ -29,9 +32,9 @@ const columns: TableColumn<TimesheetRow>[] = [
     key: 'data',
     label: 'Data',
     render: (row) => (
-      <span className="tabular-nums">
-        {new Date(row.data).toLocaleDateString('pt-PT')}
-      </span>
+      <Link href={`/projetos/timesheet/${row.id}`} className="tabular-nums hover:underline">
+        {formatarData(row.data)}
+      </Link>
     ),
   },
   {
@@ -73,7 +76,9 @@ const columns: TableColumn<TimesheetRow>[] = [
   {
     key: 'aprovado',
     label: 'Estado',
-    render: (row) => <StatusBadge status={row.aprovado ? 'APROVADO' : 'PENDENTE'} />,
+    render: (row) => (
+      <StatusBadge status={row.aprovado ? 'APROVADO' : row.rejeitado ? 'REJEITADO' : 'PENDENTE'} />
+    ),
   },
 ];
 
@@ -87,6 +92,7 @@ export function TimesheetTable({ data, nextCursor }: TimesheetTableProps) {
     <DataTable
       data={data}
       columns={columns}
+      rowHref={(row) => `/projetos/timesheet/${row.id}`}
       nextCursor={nextCursor}
       emptyState={
         <EmptyState

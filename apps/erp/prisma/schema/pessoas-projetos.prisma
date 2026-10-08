@@ -938,6 +938,8 @@ model Timesheet {
   // FK escalar → User (cross-WS)
   aprovadoPorId String?
   dataAprovacao DateTime?
+  // Rejeição (#167, molde de `Ausencia`): preenchido ⇒ rejeitado, terminal; `aprovado` fica false.
+  motivoRejeicao String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 

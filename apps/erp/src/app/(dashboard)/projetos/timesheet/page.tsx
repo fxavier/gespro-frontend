@@ -55,6 +55,7 @@ async function TimesheetTableSection({
         tipo: true,
         faturavel: true,
         aprovado: true,
+        motivoRejeicao: true,
         projeto: { select: { nome: true } },
         colaborador: { select: { nome: true } },
       },
@@ -73,6 +74,7 @@ async function TimesheetTableSection({
     tipo: t.tipo,
     faturavel: t.faturavel,
     aprovado: t.aprovado,
+    rejeitado: t.motivoRejeicao !== null,
   }));
 
   const nextCursor = data.length === filtros.take ? data[data.length - 1]?.id : undefined;

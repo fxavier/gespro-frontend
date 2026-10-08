@@ -195,6 +195,15 @@ export const CreateMarcoSchema = z.object({
   dataPrevista: z.coerce.date(),
 });
 
+/**
+ * Rejeição de timesheet (#167, molde de `RejeitarAusenciaSchema`). O id valida como o de
+ * `aprovarTimesheetAction` (`.cuid()`): os dois caminhos da mesma decisão aceitam os mesmos ids.
+ */
+export const RejeitarTimesheetSchema = z.object({
+  id: z.string().cuid(),
+  motivoRejeicao: z.string().trim().min(1, 'Motivo de rejeição é obrigatório').max(500),
+});
+
 export const UpdateMarcoSchema = CreateMarcoSchema.partial().omit({ projetoId: true });
 
 // ─────────────────────────────────────────────────────────────────────────────

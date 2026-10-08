@@ -135,7 +135,7 @@ export default async function TarefasPage({
         ]}
         actions={
           <Button size="sm" asChild>
-            <Link href="/projetos/lista">
+            <Link href="/projetos/tarefas/novo">
               <Plus className="h-4 w-4 mr-1.5" />
               Nova Tarefa
             </Link>

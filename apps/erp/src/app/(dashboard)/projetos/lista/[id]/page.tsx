@@ -8,8 +8,10 @@ import { Edit, ArrowLeft, Kanban, Target, TrendingUp } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ProjetoService } from '@/server/services/pessoas-projetos/projetos.service';
+import { TRANSICOES_PROJETO } from '@/server/services/pessoas-projetos/projetos.interface';
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
+import { TransicoesProjeto } from './_components/transicoes-projeto';
 
 const TIPO_LABEL: Record<string, string> = {
   INTERNO: 'Interno',
@@ -35,7 +37,7 @@ export default async function ProjetoDetalhePage({ params }: Props) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
 
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };
 
   let projeto;
@@ -50,6 +52,8 @@ export default async function ProjetoDetalhePage({ params }: Props) {
   if (!projeto) notFound();
 
   const podeEditar = projeto.status !== 'ARQUIVADO' && projeto.status !== 'CANCELADO';
+  // Uma acção por transição permitida a partir do estado actual (#167).
+  const transicoes = permissions.includes('projetos:update') ? (TRANSICOES_PROJETO[projeto.status] ?? []) : [];
 
   const metadata = [
     { label: 'Código', value: <span className="font-medium tabular-nums">{projeto.codigo}</span> },
@@ -155,7 +159,8 @@ export default async function ProjetoDetalhePage({ params }: Props) {
             ]}
             badge={<StatusBadge status={projeto.status} />}
             actions={
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <TransicoesProjeto id={projeto.id} status={projeto.status} transicoes={transicoes} />
                 <Button variant="outline" size="sm" asChild>
                   <Link href="/projetos/lista">
                     <ArrowLeft className="h-4 w-4 mr-1.5" />
