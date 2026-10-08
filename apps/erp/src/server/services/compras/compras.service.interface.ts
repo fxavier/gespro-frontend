@@ -283,6 +283,23 @@ export interface ItemRecebimentoDto {
   motivoRejeicao: string | null;
 }
 
+export interface ConfiguracaoWorkflowDto {
+  id: string;
+  nome: string;
+  tipo: 'REQUISICAO_COMPRA' | 'PEDIDO_COMPRA';
+  ativo: boolean;
+  niveis: Array<{
+    id: string;
+    nivel: number;
+    nome: string;
+    tipoAprovacao: 'QUALQUER_UM' | 'TODOS' | 'MAIORIA';
+    /** Decimal serializado (string) — dinheiro nunca atravessa como number. */
+    valorMinimo: string;
+    valorMaximo: string;
+    aprovadores: Array<{ usuarioId: string; email: string }>;
+  }>;
+}
+
 // =====================================================================
 // Contrato do serviço de Compras
 // =====================================================================
@@ -293,6 +310,10 @@ export interface IComprasService {
     input: CreateConfiguracaoWorkflowInput,
     ctx: Ctx,
   ): Promise<{ id: string; nome: string }>;
+  /** Circuitos do tenant (activos e inactivos), com níveis e aprovadores — ecrã de configuração. */
+  listarConfiguracoesWorkflow(ctx: Ctx): Promise<ConfiguracaoWorkflowDto[]>;
+  /** Utilizadores activos do tenant que podem ser aprovadores (até 50; pesquisa por nome/email). */
+  procurarAprovadores(termo: string, ctx: Ctx): Promise<Array<{ id: string; nome: string; email: string }>>;
 
   // ---- Requisição de Compra ----
   criarRequisicao(
