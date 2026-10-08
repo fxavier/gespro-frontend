@@ -7,7 +7,9 @@ import {
   confirmarConsumoStock,
   libertarStock,
   entradaStock,
+  baixarStock,
 } from '@/server/services/inventario/stock.service';
+import { listarProdutos } from '@/server/services/inventario/catalogo.service';
 import type { StockContratoA } from '@/server/services/pessoas-projetos/producao.interface';
 import {
   CreateCentroTrabalhoSchema,
@@ -203,7 +205,30 @@ export const registarConsumoOrdemAction = createSafeAction({
   schema: RegistarConsumoSchema,
   permission: 'producao:ordens:update',
   revalidate: { tags: ['producao:ordens'] },
-  handler: (input, ctx) => OrdemProducaoService.registarConsumo(input, ctx),
+  handler: (input, ctx) =>
+    prismaBase.$transaction((tx) =>
+      OrdemProducaoService.registarConsumo(tx, input, { baixarStock }, ctx),
+    ),
+});
+
+// #164 — pesquisa de materiais para a rota de registo de consumo (ComboboxRemoto).
+export const procurarMateriaisConsumoAction = createSafeAction({
+  schema: z.object({ q: z.string().max(200).optional() }),
+  permission: 'producao:ordens:update',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await listarProdutos(
+      { search: q, ativo: true, take: 20, orderBy: 'nome', orderDir: 'asc' },
+      ctx,
+    );
+    return pagina.items.map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      nome: p.nome,
+      unidadeMedida: p.unidadeMedida,
+      precoCompra: p.precoCompra,
+    }));
+  },
 });
 
 export const transitarOperacaoOrdemAction = createSafeAction({

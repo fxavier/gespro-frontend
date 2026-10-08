@@ -4,6 +4,10 @@
  * #166: é aqui que vive o escritor de `qualidadeAprovada` — sem ele nenhuma ordem conclui.
  * Em EM_PRODUCAO, quem tem `producao:ordens:update` aprova (AlertDialog de confirmação) ou
  * reprova com motivo (rota própria `/reprovar-qualidade`: recolher texto é formulário).
+ *
+ * #164: liga as transições existentes (`transitarStatusOrdemProducaoAction`) — liberar,
+ * iniciar, concluir, cancelar — com confirmação por AlertDialog, e a ligação para a rota
+ * própria de registo de consumo; os consumos de material listam-se aqui.
  */
 
 import { notFound, redirect } from 'next/navigation';
@@ -16,8 +20,10 @@ import { OrdemProducaoService } from '@/server/services/pessoas-projetos/produca
 import { formatarData, formatarDataHora } from '@/lib/format-date';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { QualidadeAcoes } from './_components/qualidade-acoes';
+import { TransicoesOrdem } from './_components/transicoes-ordem';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -58,8 +64,8 @@ export default async function OrdemProducaoDetalhePage({ params }: Props) {
       )
     : null;
 
-  const podeAvaliar =
-    ordem.status === 'EM_PRODUCAO' && permissions.includes('producao:ordens:update');
+  const podeActualizar = permissions.includes('producao:ordens:update');
+  const podeAvaliar = ordem.status === 'EM_PRODUCAO' && podeActualizar;
 
   return (
     <div className="p-6 space-y-6">
@@ -73,12 +79,17 @@ export default async function OrdemProducaoDetalhePage({ params }: Props) {
         ]}
         badge={<StatusBadge status={ordem.status} />}
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/producao/ordens">
-              <ArrowLeft className="h-4 w-4 mr-1.5" aria-hidden="true" />
-              Voltar
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {podeActualizar && (
+              <TransicoesOrdem id={ordem.id} numero={ordem.numero} status={ordem.status} />
+            )}
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/producao/ordens">
+                <ArrowLeft className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                Voltar
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -109,6 +120,52 @@ export default async function OrdemProducaoDetalhePage({ params }: Props) {
           </dl>
           {ordem.observacoes && (
             <p className="mt-4 text-sm text-muted-foreground whitespace-pre-wrap">{ordem.observacoes}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Consumo de materiais</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ordem.consumos.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Ainda não há consumos registados.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Material</TableHead>
+                  <TableHead className="text-right">Prevista</TableHead>
+                  <TableHead className="text-right">Real</TableHead>
+                  <TableHead>Origem</TableHead>
+                  <TableHead>Stock</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ordem.consumos.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      {c.codigoProduto} — {c.nomeProduto}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {c.quantidadePrevista.toString()} {c.unidadeMedida}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {c.quantidadeReal.toString()} {c.unidadeMedida}
+                    </TableCell>
+                    <TableCell>{c.reservaId ? 'Estrutura de produto' : 'Registo manual'}</TableCell>
+                    <TableCell>
+                      {c.movimentoStockId
+                        ? 'Baixado'
+                        : ordem.status === 'CANCELADA'
+                          ? 'Libertado'
+                          : 'Reservado'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

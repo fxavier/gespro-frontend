@@ -11,6 +11,7 @@ import {
   TRANSICOES_BOM,
   TRANSICOES_ROTEIRO,
   type StockContratoA,
+  type StockBaixaContratoA,
   type ItemExplosaoBOM,
   type ResultadoCusteio,
 } from './producao.interface';
@@ -810,9 +811,21 @@ export const OrdemProducaoService = {
     });
   },
 
-  /** Registo de consumo real (append-only — sem DELETE nem UPDATE). */
-  async registarConsumo(input: RegistarConsumoInput, ctx: Ctx): Promise<{ id: string }> {
-    const ordem = await prisma.ordemProducao.findFirst({
+  /**
+   * Registo de consumo real (append-only — sem DELETE nem UPDATE), #164.
+   * Consumo ad-hoc (sem reserva): baixa o stock do armazém `MP` pelo contrato A (`baixarStock`)
+   * na MESMA tx em que grava o consumo, e guarda o `movimentoStockId` — a conclusão só confirma
+   * os consumos com `reservaId`, logo este não volta a ser baixado. A linha da ordem é trancada
+   * (FOR UPDATE) para o estado lido ser o que decide.
+   */
+  async registarConsumo(
+    tx: TxClient,
+    input: RegistarConsumoInput,
+    stockService: StockBaixaContratoA,
+    ctx: Ctx,
+  ): Promise<{ id: string }> {
+    await tx.$queryRaw`SELECT id FROM "OrdemProducao" WHERE id = ${input.ordemProducaoId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
+    const ordem = await tx.ordemProducao.findFirst({
       where: { id: input.ordemProducaoId, tenantId: ctx.tenantId },
       select: { status: true },
     });
@@ -826,7 +839,21 @@ export const OrdemProducaoService = {
     const qtdReal = new Prisma.Decimal(String(input.quantidadeReal));
     const custo = unitario.mul(qtdReal);
 
-    const consumo = await prisma.consumoProducao.create({
+    const localizacaoMpId = await resolverArmazem(tx, ctx, 'MP');
+    const mov = await stockService.baixarStock(
+      tx,
+      {
+        produtoId: input.produtoId,
+        localizacaoOrigemId: localizacaoMpId,
+        quantidade: input.quantidadeReal,
+        documentoReferenciaId: input.ordemProducaoId,
+        documentoReferenciaTipo: 'OrdemProducao',
+        motivo: 'Consumo de produção',
+      },
+      ctx,
+    );
+
+    const consumo = await tx.consumoProducao.create({
       data: {
         tenantId: ctx.tenantId,
         ordemProducaoId: input.ordemProducaoId,
@@ -838,6 +865,7 @@ export const OrdemProducaoService = {
         unidadeMedida: input.unidadeMedida,
         custoUnitario: unitario,
         custoTotal: custo,
+        movimentoStockId: mov.id,
         // reservaId: null (consumo ad-hoc, não planeado com reserva)
       },
       select: { id: true },
