@@ -215,6 +215,31 @@ export const procurarProdutos = createSafeAction({
   },
 });
 
+/**
+ * Pesquisa de produtos do terminal POS (#128): no servidor, por nome, SKU ou código de
+ * barras, sobre o catálogo activo inteiro — o terminal só recebe à partida os primeiros 60.
+ * Mesma permissão do terminal (quem vende tem de encontrar o que vende).
+ */
+export const procurarProdutosPOS = createSafeAction({
+  schema: z.object({ q: z.string().trim().min(1).max(200) }),
+  permission: 'pos:operar',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await listarProdutos(
+      { search: q, ativo: true, take: 60, orderBy: 'nome', orderDir: 'asc' },
+      ctx,
+    );
+    return pagina.items.map((p) => ({
+      id: p.id,
+      nome: p.nome,
+      sku: p.sku,
+      codigoBarras: p.codigoBarras,
+      precoVenda: p.precoVenda,
+      taxaIva: p.taxaIva,
+    }));
+  },
+});
+
 export const criarEncomenda = createSafeAction({
   schema: CreateEncomendaSchema,
   permission: 'vendas:encomendas:criar',

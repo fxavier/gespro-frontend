@@ -38,7 +38,8 @@ export default async function POSPage() {
     return <POSIniciar sessaoCaixaId={caixa.id} numeroCaixa={caixa.numero} />;
   }
 
-  // Carrega produtos activos para o terminal (primeiros 60)
+  // Grelha inicial do terminal (primeiros 60 por nome). Não é o catálogo: a pesquisa do
+  // terminal vai ao servidor (`procurarProdutosPOS`, #128).
   const { items: produtos } = await runWithTenantContext(ctx, () =>
     listarProdutos({ ativo: true, take: 60, orderBy: 'nome', orderDir: 'asc' }, ctx)
   );
