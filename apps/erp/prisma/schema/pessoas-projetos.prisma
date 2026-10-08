@@ -555,6 +555,8 @@ model SolicitacaoFerias {
   diasSolicitados Int
   tipo            TipoSolicitacaoFerias
   status          StatusSolicitacaoFerias
+  // FK escalar → User (quem submeteu — #156: só ele cancela; nulo nos pedidos anteriores)
+  solicitadoPorId String?
   // FK escalar → User (aprovador — cross-WS)
   aprovadoPorId   String?
   dataAprovacao   DateTime?

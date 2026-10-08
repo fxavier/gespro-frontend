@@ -5,7 +5,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Plus, Tags } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -97,12 +97,20 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
         description="Gerencie os produtos e serviços da empresa"
         breadcrumbs={[{ label: 'Produtos' }]}
         actions={
-          <Button asChild size="sm">
-            <Link href="/produtos/novo">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Produto
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href="/produtos/categorias">
+                <Tags className="h-4 w-4 mr-2" />
+                Categorias
+              </Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/produtos/novo">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Produto
+              </Link>
+            </Button>
+          </div>
         }
       />
 
