@@ -4,7 +4,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Edit, ArrowLeft } from 'lucide-react';
+import { Edit, ArrowLeft, ArrowRightLeft } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ativosService } from '@/server/services/inventario/ativos.service';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
 import { AtivoAcoes } from '../_components/ativo-acoes';
 import { DocumentosAtivo } from './_components/documentos-ativo';
+import { MovimentacoesAtivo } from './_components/movimentacoes-ativo';
 
 const ESTADO_VARIANTES: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'info' | 'outline'> = {
   NOVO: 'info',
@@ -61,6 +62,10 @@ export default async function AtivoDetalhePage({ params }: Props) {
   }
 
   if (!ativo) notFound();
+
+  const movimentacoes = await runWithTenantContext({ tenantId, userId }, () =>
+    ativosService.listarMovimentacoes(ativo.id, ctx)
+  );
 
   const podeEditar = ativo.estado !== 'BAIXADO';
 
@@ -162,6 +167,9 @@ export default async function AtivoDetalhePage({ params }: Props) {
   // Aba: Documentos (upload real + download seguro + remoção — WS-DOC-CORE)
   const tabDocumentos = <DocumentosAtivo ativoId={ativo.id} documentos={ativo.documentos} />;
 
+  // Aba: Movimentações (#118)
+  const tabMovimentacoes = <MovimentacoesAtivo movimentacoes={movimentacoes} />;
+
   // Aba: Amortização
   const tabAmortizacao = (
     <div className="space-y-4">
@@ -260,6 +268,14 @@ export default async function AtivoDetalhePage({ params }: Props) {
                 </Button>
                 {podeEditar && (
                   <Button variant="outline" size="sm" asChild>
+                    <Link href={`/inventario/ativos/${ativo.id}/movimentar`}>
+                      <ArrowRightLeft className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      Movimentar
+                    </Link>
+                  </Button>
+                )}
+                {podeEditar && (
+                  <Button variant="outline" size="sm" asChild>
                     <Link href={`/inventario/ativos/${ativo.id}/editar`}>
                       <Edit className="h-4 w-4 mr-1.5" />
                       Editar
@@ -282,6 +298,12 @@ export default async function AtivoDetalhePage({ params }: Props) {
             label: 'Documentos',
             count: ativo.documentos.length,
             content: tabDocumentos,
+          },
+          {
+            key: 'movimentacoes',
+            label: 'Movimentações',
+            count: movimentacoes.length,
+            content: tabMovimentacoes,
           },
           {
             key: 'amortizacao',

@@ -10,7 +10,9 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ativosService } from '@/server/services/inventario/ativos.service';
 import { PageHeader } from '@/components/patterns';
 import { TableSkeleton } from '../ativos/_components/table-skeletons';
+import { diaCivilMaputo } from '@/lib/periodo-fiscal';
 import { AmortizacaoTable } from './_components/amortizacao-table';
+import { ProcessarAmortizacaoMes } from './_components/processar-amortizacao-mes';
 
 async function AmortizacaoTableSection({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
@@ -26,6 +28,9 @@ export default async function AmortizacaoPage() {
   if (!session?.user) redirect('/auth/login');
 
   const { tenantId, id: userId } = session.user;
+  const podeProcessar = session.user.permissions?.includes('ativos:admin') ?? false;
+  // Mês corrente no fuso de Maputo (o servidor corre em UTC).
+  const [ano, mes] = diaCivilMaputo(new Date()).split('-').map(Number);
 
   return (
     <div className="p-6 space-y-6">
@@ -36,6 +41,7 @@ export default async function AmortizacaoPage() {
           { label: 'Inventário', href: '/inventario' },
           { label: 'Amortização' },
         ]}
+        actions={podeProcessar ? <ProcessarAmortizacaoMes ano={ano} mes={mes} /> : undefined}
       />
 
       <Suspense fallback={<TableSkeleton rows={8} cols={7} />}>

@@ -101,6 +101,18 @@ export interface MovimentacaoAtivoDto {
   confirmadaPor: string | null;
   criadoPor: string;
   createdAt: Date;
+  /** Nomes resolvidos para a UI (só em `listarMovimentacoes`). */
+  localizacaoOrigemNome?: string | null;
+  localizacaoDestinoNome?: string | null;
+  responsavelOrigemNome?: string | null;
+  responsavelDestinoNome?: string | null;
+}
+
+/** Opção de destino de uma movimentação (localização ou responsável do tenant). */
+export interface DestinoMovimentacaoDto {
+  id: string;
+  nome: string;
+  detalhe: string | null;
 }
 
 // ─── Mapa de máquina de estado — Ativo ───────────────────────────────────────
@@ -191,6 +203,12 @@ export interface IAtivoService {
     confirmadaPor: string,
     ctx: Ctx,
   ): Promise<MovimentacaoAtivoDto>;
+
+  /** Localizações activas do tenant para o destino de uma movimentação (primeiros 50). */
+  procurarLocalizacoesDestino(termo: string, ctx: Ctx): Promise<DestinoMovimentacaoDto[]>;
+
+  /** Utilizadores activos do tenant para o responsável de destino (primeiros 50). */
+  procurarResponsaveis(termo: string, ctx: Ctx): Promise<DestinoMovimentacaoDto[]>;
 
   // Relatório / exportação
   exportarRelatorioAtivos(filter: AtivoFilter, ctx: Ctx): Promise<string>; // CSV string
