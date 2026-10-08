@@ -1,7 +1,12 @@
 /**
  * Detalhe de Devolução — Server Component.
+ *
+ * Acções por estado (#130): PENDENTE aprova-se ou rejeita-se (AlertDialog); APROVADA processa-se
+ * (rota própria, escolhe a localização) ou, com factura, converte-se numa troca (rota de nova
+ * troca). PROCESSADA e REJEITADA são finais.
  */
 
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -9,6 +14,9 @@ import { devolucaoService } from '@/server/services/comercial/index';
 import { PageHeader, StatusBadge } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { formatarDataExtensa } from '@/lib/format-date';
+import { DevolucaoAcoes } from '../_components/devolucao-acoes';
 
 const MOTIVO_LABELS: Record<string, string> = {
   DEFEITO: 'Defeito',
@@ -35,6 +43,9 @@ export default async function DevolucaoDetalhePage({ params }: PageProps) {
   ).catch(() => null);
 
   if (!devolucao) notFound();
+  const pendente = devolucao.status === 'PENDENTE';
+  const aprovada = devolucao.status === 'APROVADA';
+  const rejeitada = devolucao.status === 'REJEITADA';
 
   return (
     <div className="p-6 space-y-6">
@@ -45,6 +56,24 @@ export default async function DevolucaoDetalhePage({ params }: PageProps) {
           { label: 'Devoluções', href: '/vendas/devolucoes' },
           { label: devolucao.numero },
         ]}
+        actions={
+          pendente ? (
+            <div className="flex items-center gap-2">
+              <DevolucaoAcoes id={devolucao.id} numero={devolucao.numero} />
+            </div>
+          ) : aprovada ? (
+            <div className="flex items-center gap-2">
+              {devolucao.faturaId && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/vendas/trocas/nova?devolucao=${devolucao.id}`}>Criar Troca</Link>
+                </Button>
+              )}
+              <Button asChild size="sm">
+                <Link href={`/vendas/devolucoes/${devolucao.id}/processar`}>Processar</Link>
+              </Button>
+            </div>
+          ) : null
+        }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -157,26 +186,23 @@ export default async function DevolucaoDetalhePage({ params }: PageProps) {
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             {devolucao.aprovadoEm && (
               <p>
-                Aprovada em{' '}
-                {new Date(devolucao.aprovadoEm).toLocaleDateString('pt-MZ', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })}
+                {/* A rejeição carimba os mesmos campos: quem decidiu e quando. */}
+                {rejeitada ? 'Rejeitada em ' : 'Aprovada em '}
+                {formatarDataExtensa(devolucao.aprovadoEm)}
               </p>
             )}
             {devolucao.processadoEm && (
-              <p>
-                Processada em{' '}
-                {new Date(devolucao.processadoEm).toLocaleDateString('pt-MZ', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </p>
+              <p>Processada em {formatarDataExtensa(devolucao.processadoEm)}</p>
             )}
             {devolucao.notaCreditoId && (
-              <p>Nota de crédito: {devolucao.notaCreditoId}</p>
+              <p>
+                <Link
+                  href={`/faturacao/nota-credito/${devolucao.notaCreditoId}`}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  Ver nota de crédito
+                </Link>
+              </p>
             )}
           </CardContent>
         </Card>

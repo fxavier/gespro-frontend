@@ -27,6 +27,7 @@ import {
   ConverterEncomendaEmVendaSchema,
   CreateDevolucaoSchema,
   CreateTrocaSchema,
+  ProcessarDevolucaoSchema,
   CreateVendedorSchema,
   UpdateVendedorSchema,
 } from '@/lib/validations/vendas';
@@ -341,6 +342,7 @@ export const aprovarDevolucao = createSafeAction({
   schema: z.object({ id: z.string().cuid('ID inválido') }),
   permission: 'vendas:devolucoes:aprovar',
   revalidate: {
+    paths: ['/vendas/devolucoes'],
     tags: ['devolucoes'],
   },
   handler: async ({ id }, ctx) => {
@@ -349,12 +351,7 @@ export const aprovarDevolucao = createSafeAction({
 });
 
 export const processarDevolucao = createSafeAction({
-  schema: z.object({
-    id: z.string().cuid('ID inválido'),
-    localizacaoId: z.string().cuid().optional(),
-    sessaoCaixaId: z.string().cuid().optional(),
-    serieNotaCreditoId: z.string().cuid().optional(),
-  }),
+  schema: ProcessarDevolucaoSchema,
   permission: 'vendas:devolucoes:processar',
   revalidate: {
     paths: ['/vendas/devolucoes'],
@@ -373,6 +370,7 @@ export const rejeitarDevolucao = createSafeAction({
   schema: z.object({ id: z.string().cuid('ID inválido') }),
   permission: 'vendas:devolucoes:rejeitar',
   revalidate: {
+    paths: ['/vendas/devolucoes'],
     tags: ['devolucoes'],
   },
   handler: async ({ id }, ctx) => {
