@@ -269,7 +269,10 @@ export const CreateFeriasSchema = z.object({
   periodoAquisitivoInicio: z.coerce.date(),
   periodoAquisitivoFim: z.coerce.date(),
   diasDisponiveis: z.number().int().positive(),
-});
+}).refine(
+  (d) => d.periodoAquisitivoFim >= d.periodoAquisitivoInicio,
+  { message: 'O fim do período não pode ser anterior ao início', path: ['periodoAquisitivoFim'] },
+);
 
 export const CreateSolicitacaoFeriasSchema = z.object({
   feriasId: z.string().cuid(),
@@ -286,11 +289,14 @@ export const CreateSolicitacaoFeriasSchema = z.object({
 export const AprovarSolicitacaoFeriasSchema = z.object({
   solicitacaoId: z.string().cuid(),
   status: z.enum(['APROVADA', 'REJEITADA']),
-  motivoRejeicao: z.string().max(500).optional(),
+  motivoRejeicao: z.string().trim().max(500).optional(),
 }).refine(
   (d) => d.status !== 'REJEITADA' || !!d.motivoRejeicao,
   { message: 'Motivo de rejeição é obrigatório', path: ['motivoRejeicao'] },
 );
+
+/** #156 — cancelar um pedido de férias (só o próprio, só PENDENTE — regra no serviço). */
+export const CancelarSolicitacaoFeriasSchema = z.object({ solicitacaoId: idEntidade() });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registo de Assiduidade

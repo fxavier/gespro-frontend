@@ -169,6 +169,13 @@ export const AprovarDocumentoSchema = z.object({
 
 export type AprovarDocumentoInput = z.infer<typeof AprovarDocumentoSchema>;
 
+/** Formulário de rejeição (rota `/compras/requisicoes/[id]/rejeitar`): o motivo é obrigatório (#108). */
+export const RejeitarRequisicaoSchema = z.object({
+  motivo: z.string().trim().min(1, 'Indique o motivo da rejeição.').max(1000),
+});
+
+export type RejeitarRequisicaoInput = z.infer<typeof RejeitarRequisicaoSchema>;
+
 // =====================================================================
 // COTAÇÃO (RFQ)
 // =====================================================================

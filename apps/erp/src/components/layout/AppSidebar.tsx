@@ -61,6 +61,7 @@ const menuItems: MenuItem[] = [
       { title: 'Requisições', href: '/compras/requisicoes', icon: ClipboardList },
       { title: 'Cotações (RFQ)', href: '/compras/cotacoes', icon: FileText },
       { title: 'Pedidos de Compra', href: '/compras/pedidos', icon: FileCheck },
+      { title: 'Circuitos de aprovação', href: '/compras/configuracoes/circuitos-aprovacao', icon: CheckSquare },
     ],
   },
   {

@@ -156,7 +156,7 @@ export interface IFeriasService {
    */
   aprovar(input: AprovarSolicitacaoFeriasInput, ctx: Ctx): Promise<void>;
 
-  /** Cancela uma solicitação aprovada (restitui dias ao saldo). */
+  /** Cancela um pedido PENDENTE, só pelo utilizador que o submeteu (#156). */
   cancelarSolicitacao(solicitacaoId: string, ctx: Ctx): Promise<void>;
 
   /** Saldo de férias do colaborador no período activo. */

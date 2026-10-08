@@ -29,6 +29,8 @@ import {
 } from '@/components/patterns';
 import type { TimelineItem } from '@/components/patterns';
 import { RequisicaoAcoes } from '../_components/requisicao-acoes';
+import { RequisicaoDecisao } from '../_components/requisicao-decisao';
+import { nivelPendenteDoAprovador } from '@/lib/compras-aprovacao';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -40,7 +42,7 @@ export default async function RequisicaoDetalhePage({ params }: Props) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
 
-  const { tenantId, id: userId } = session.user;
+  const { tenantId, id: userId, permissions } = session.user;
 
   let requisicao;
   try {
@@ -54,6 +56,10 @@ export default async function RequisicaoDetalhePage({ params }: Props) {
   if (!requisicao) notFound();
 
   const podeEditar = requisicao.status === 'RASCUNHO' || requisicao.status === 'PENDENTE';
+  // Aprovar/rejeitar (#108): só o aprovador PENDENTE do nível corrente, com a permissão.
+  const nivelPendente = permissions.includes('compras:aprovacao:decidir')
+    ? nivelPendenteDoAprovador(requisicao, userId)
+    : null;
 
   // Linha de tempo de aprovações → Timeline items
   const timelineItems: TimelineItem[] = (requisicao.aprovacoes ?? []).map((ap) => ({
@@ -242,6 +248,9 @@ export default async function RequisicaoDetalhePage({ params }: Props) {
                       Editar
                     </Link>
                   </Button>
+                )}
+                {nivelPendente !== null && (
+                  <RequisicaoDecisao id={requisicao.id} numero={requisicao.numero} nivel={nivelPendente} />
                 )}
                 {/* RequisicaoAcoes: componente canónico de mutação de estado */}
                 <RequisicaoAcoes id={requisicao.id} status={requisicao.status} />

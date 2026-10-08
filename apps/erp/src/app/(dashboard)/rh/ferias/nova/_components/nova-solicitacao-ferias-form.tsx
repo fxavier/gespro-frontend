@@ -107,6 +107,8 @@ export default function NovaSolicitacaoFeriasForm({ periodos }: Props) {
               value={feriasId ?? ''}
               onChange={(v) => form.setValue('feriasId', v)}
               placeholder="Seleccione o período"
+              // Um período por colaborador e por ano: a lista cresce com o tenant — pesquisa sempre.
+              pesquisaAPartirDe={0}
               options={periodos.map((p) => ({ value: p.id, label: `${p.colaboradorCodigo} — ${p.colaboradorNome} (${p.inicio} a ${p.fim}) · saldo ${p.saldo}d` }))}
             />
             {errors.feriasId && <p className="text-xs text-destructive">{errors.feriasId.message}</p>}
