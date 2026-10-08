@@ -1,11 +1,13 @@
 /**
  * Gerador de XLSX a partir de `Dataset` — usa a dependência `xlsx` já existente.
  *
- * Decisão de formato (ADR-0005): valores `decimal`/`currency` são escritos como
- * TEXTO (string lossless de `serializeCell`) e não como número de vírgula
- * flutuante — preserva a precisão exacta do `Prisma.Decimal` (requisito
- * inegociável do CLAUDE.md). Colunas `integer` são escritas como número (para
- * ordenação/soma nativas do Excel). Datas em ISO como texto (determinístico).
+ * Decisão de formato (ADR-0005, emendado pela #300): valores `decimal`/`currency`
+ * com ≤ 15 dígitos significativos são escritos como NÚMERO com formato `#,##0.00`
+ * (o Excel soma-os) — com até 15 dígitos o `double` devolve exactamente o
+ * `Decimal.toString()`, logo não há perda. Acima disso ficam TEXTO lossless
+ * (recusar > número errado). A conversão só acontece aqui, na escrita; o
+ * `Dataset` continua a levar o `Decimal`. Colunas `integer` como número; datas em
+ * ISO como texto; texto continua texto (nunca fórmula, #294).
  */
 import * as XLSX from 'xlsx';
 import { type Dataset, type Column, type CellValue, serializeCell } from './dataset';
@@ -15,18 +17,37 @@ function sheetName(nome: string): string {
   return (nome.replace(/[[\]:*?/\\]/g, ' ').trim() || 'Folha1').slice(0, 31);
 }
 
-function cell(value: CellValue, col: Column): string | number {
+const FORMATO_DECIMAL = '#,##0.00';
+/** Máximo de dígitos significativos que um `double` devolve sem alteração. */
+const MAX_DIGITOS_EXACTOS = 15;
+
+/** Número exacto para o `Decimal` serializado, ou `null` se não couber num `double`. */
+function numeroExacto(s: string): number | null {
+  const m = /^-?(\d+)(?:\.(\d+))?$/.exec(s);
+  if (!m) return null;
+  const digitos = (m[1]! + (m[2] ?? '')).replace(/^0+/, '').replace(/0+$/, '');
+  return digitos.length <= MAX_DIGITOS_EXACTOS ? Number(s) : null;
+}
+
+type Celula = string | number | XLSX.CellObject;
+
+function cell(value: CellValue, col: Column): Celula {
   const type = col.type ?? 'text';
   if (type === 'integer') {
     if (value === null || value === undefined || value === '') return '';
     return typeof value === 'number' ? Math.trunc(value) : Number(value.toString());
   }
-  // decimal/currency/date/datetime/text/boolean → texto lossless
+  if (type === 'decimal' || type === 'currency') {
+    const texto = serializeCell(value, type);
+    const n = texto === '' ? null : numeroExacto(texto);
+    return n === null ? texto : { t: 'n', v: n, z: FORMATO_DECIMAL };
+  }
+  // date/datetime/text/boolean → texto lossless
   return serializeCell(value, type);
 }
 
 export function toXlsx(ds: Dataset): Uint8Array {
-  const aoa: (string | number)[][] = [];
+  const aoa: Celula[][] = [];
 
   if (ds.meta && ds.meta.length > 0) {
     for (const [k, v] of ds.meta) aoa.push([k, v]);
