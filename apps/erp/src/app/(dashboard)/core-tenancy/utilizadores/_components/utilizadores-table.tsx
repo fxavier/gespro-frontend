@@ -105,14 +105,10 @@ const columns: TableColumn<UserRow>[] = [
               Editar
             </Link>
           </DropdownMenuItem>
-          {row.ativo && (
-            <>
-              <DropdownMenuSeparator />
-              <div className="px-2 py-1" onClick={(e) => e.stopPropagation()}>
-                <UtilizadorAcoes id={row.id} nome={row.nome} modoCompacto />
-              </div>
-            </>
-          )}
+          <DropdownMenuSeparator />
+          <div className="px-2 py-1" onClick={(e) => e.stopPropagation()}>
+            <UtilizadorAcoes id={row.id} nome={row.nome} ativo={row.ativo} modoCompacto />
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
     ),

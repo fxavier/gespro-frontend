@@ -508,11 +508,22 @@ export const userAdminService: IUserAdminService = {
     // Desactiva nos DOIS lados (ADR-0013): no Keycloak desliga a identidade e
     // encerra as sessões SSO; localmente fecha a autorização. A re-resolução
     // dos 15 minutos (ADR-0011) apanha quem tinha sessão aberta.
+    // Reversível (#179): só `ativo = false` — `deletedAt` é eliminação, e as
+    // leituras que o filtram tornariam o utilizador inalcançável para sempre.
     await definirActivo(user.keycloakSub, false);
     await prismaBase.user.update({
       where: { id: userId },
-      data: { ativo: false, deletedAt: new Date() },
+      data: { ativo: false },
     });
+  },
+
+  /**
+   * #179 — o caminho de volta de `desactivarUtilizador`. É o mesmo de
+   * `actualizarUtilizador({ ativo: true })`: travão do e-mail (ADR-0031) e
+   * limite do plano (#98) antes do Keycloak, Keycloak primeiro, Postgres depois.
+   */
+  async reactivarUtilizador(userId: string, ctx: Ctx) {
+    return userAdminService.actualizarUtilizador(userId, { ativo: true }, ctx);
   },
 
   async atribuirRoles(input: AssignRoleInput, ctx: Ctx) {

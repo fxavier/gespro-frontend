@@ -128,6 +128,17 @@ export const desactivarUtilizador = createSafeAction({
   },
 });
 
+/** #179 — o caminho de volta de `desactivarUtilizador`. */
+export const reactivarUtilizador = createSafeAction({
+  schema: z.object({ id: z.string().cuid('ID de utilizador inválido') }),
+  permission: 'admin:gerir_utilizadores',
+  revalidate: { tags: ['utilizadores'] },
+  handler: async ({ id }, ctx) => {
+    await userAdminService.reactivarUtilizador(id, ctx);
+    return { id };
+  },
+});
+
 export const atribuirRoles = createSafeAction({
   schema: AssignRoleSchema,
   permission: 'admin:gerir_utilizadores',
