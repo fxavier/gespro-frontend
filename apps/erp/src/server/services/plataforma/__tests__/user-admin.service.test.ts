@@ -326,6 +326,8 @@ describe('userAdminService.desactivarUtilizador', () => {
     expect(mocks.userUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ ativo: false }) }),
     );
+    // #179: desactivar é reversível — não marca o utilizador como eliminado.
+    expect(mocks.userUpdate.mock.calls[0][0].data).not.toHaveProperty('deletedAt');
   });
 
   it('Wave 3: lança ULTIMO_ADMIN ao desactivar o único admin activo', async () => {

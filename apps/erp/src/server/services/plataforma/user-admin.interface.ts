@@ -119,12 +119,19 @@ export interface IUserAdminService {
   actualizarUtilizador(userId: string, input: UpdateUserInput, ctx: Ctx): Promise<UserRow>;
 
   /**
-   * Soft-delete do utilizador: desactiva no Keycloak (com logout de sessões)
-   * e localmente (deletedAt + ativo=false).
+   * Desactiva o utilizador (reversível, #179): desliga a identidade no Keycloak
+   * (com logout de sessões) e localmente (`ativo=false`; `deletedAt` não muda).
    * Não permite desactivar o próprio utilizador autenticado.
    * Lança `BusinessRuleError('ULTIMO_ADMIN')` se for o único admin do tenant.
    */
   desactivarUtilizador(userId: string, ctx: Ctx): Promise<void>;
+
+  /**
+   * Reactiva um utilizador desactivado (#179): Keycloak primeiro, depois
+   * `ativo=true`. Respeita o travão do e-mail (ADR-0031) e o limite do plano
+   * (#98), ambos antes do Keycloak. Eliminados (`deletedAt`) dão `NotFoundError`.
+   */
+  reactivarUtilizador(userId: string, ctx: Ctx): Promise<UserRow>;
 
   /**
    * Substitui atomicamente todos os roles do utilizador pelos fornecidos.
