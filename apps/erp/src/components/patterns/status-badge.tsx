@@ -18,6 +18,7 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   EM_APROVACAO: 'info',
   APROVADA: 'success',
   REJEITADA: 'destructive',
+  REPROVADA: 'destructive', // #166 — qualidade da ordem de produção
   CANCELADA: 'secondary',
   CONVERTIDA: 'default',
 
@@ -345,6 +346,7 @@ export const STATUS_LABELS: Record<string, string> = {
   EM_APROVACAO: 'Em Aprovação',
   APROVADA: 'Aprovada',
   REJEITADA: 'Rejeitada',
+  REPROVADA: 'Reprovada',
   CANCELADA: 'Cancelada',
   CONVERTIDA: 'Convertida',
   ENVIADA: 'Enviada',

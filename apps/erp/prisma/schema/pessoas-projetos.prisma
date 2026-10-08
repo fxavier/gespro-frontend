@@ -1197,6 +1197,12 @@ model OrdemProducao {
   custoRealizado     Decimal                 @db.Decimal(18, 2) @default(0)
   progresso          Int                     @default(0) // 0-100
   qualidadeAprovada  Boolean                 @default(false)
+  // #166 — última avaliação de qualidade (aprovação ou motivo da reprovação); escritor:
+  // OrdemProducaoService.avaliarQualidade. Não confundir com `observacoes` (geral da ordem).
+  qualidadeObservacoes   String?
+  // FK escalar → User (cross-WS)
+  qualidadeAvaliadaPorId String?
+  qualidadeAvaliadaEm    DateTime?
   // FKs escalares cross-WS
   pedidoVendaId      String?                 // FK → Venda no WS C
   clienteId          String?                 // FK → Cliente no WS C

@@ -201,6 +201,22 @@ export const FilterOrdemProducaoSchema = z.object({
   take: z.number().int().min(1).max(100).default(25),
 });
 
+// #166 — controlo de qualidade da ordem (escritor de `qualidadeAprovada`).
+// Ids com `.cuid()`, como o resto das acções de produção (as ordens nascem com cuid).
+export const AprovarQualidadeOrdemSchema = z.object({
+  id: z.string().cuid(),
+  observacoes: z.string().trim().max(1000).optional(),
+});
+
+export const ReprovarQualidadeOrdemSchema = z.object({
+  id: z.string().cuid(),
+  motivo: z
+    .string({ required_error: 'Indique o motivo da reprovação' })
+    .trim()
+    .min(1, 'Indique o motivo da reprovação')
+    .max(1000),
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Consumo de Produção (append-only)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -244,5 +260,7 @@ export type FilterRoteiroInput = z.infer<typeof FilterRoteiroSchema>;
 export type CreateOrdemProducaoInput = z.infer<typeof CreateOrdemProducaoSchema>;
 export type UpdateOrdemProducaoInput = z.infer<typeof UpdateOrdemProducaoSchema>;
 export type FilterOrdemProducaoInput = z.infer<typeof FilterOrdemProducaoSchema>;
+export type AprovarQualidadeOrdemInput = z.infer<typeof AprovarQualidadeOrdemSchema>;
+export type ReprovarQualidadeOrdemInput = z.infer<typeof ReprovarQualidadeOrdemSchema>;
 export type RegistarConsumoInput = z.infer<typeof RegistarConsumoSchema>;
 export type ExplodirBOMInput = z.infer<typeof ExplodirBOMSchema>;

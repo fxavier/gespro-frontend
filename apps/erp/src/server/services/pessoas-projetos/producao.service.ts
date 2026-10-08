@@ -745,6 +745,47 @@ export const OrdemProducaoService = {
     });
   },
 
+  /**
+   * #166 — escritor de `qualidadeAprovada` (o predicado que a conclusão exige).
+   * Aprovar grava `true`; reprovar grava `false` com o motivo, e a ordem continua EM_PRODUCAO
+   * para retrabalho. Só em EM_PRODUCAO: depois de CONCLUIDA o produto já deu entrada em stock
+   * e a avaliação fica fechada. A linha é trancada (FOR UPDATE) para o estado lido ser o que
+   * decide a escrita.
+   */
+  async avaliarQualidade(
+    tx: TxClient,
+    id: string,
+    avaliacao: { aprovada: boolean; observacoes?: string | null },
+    ctx: Ctx,
+  ): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM "OrdemProducao" WHERE id = ${id} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
+    const ordem = await tx.ordemProducao.findFirst({
+      where: { id, tenantId: ctx.tenantId },
+      select: { status: true },
+    });
+    if (!ordem) throw new NotFoundError('Ordem de produção não encontrada');
+    if (ordem.status !== 'EM_PRODUCAO') {
+      throw new BusinessRuleError(
+        'QUALIDADE_ESTADO_INVALIDO',
+        'O controlo de qualidade só pode ser avaliado numa ordem em produção',
+      );
+    }
+    const observacoes = avaliacao.observacoes?.trim() || null;
+    if (!avaliacao.aprovada && !observacoes) {
+      throw new BusinessRuleError('MOTIVO_OBRIGATORIO', 'Indique o motivo da reprovação');
+    }
+
+    await tx.ordemProducao.update({
+      where: { id },
+      data: {
+        qualidadeAprovada: avaliacao.aprovada,
+        qualidadeObservacoes: observacoes,
+        qualidadeAvaliadaPorId: ctx.userId,
+        qualidadeAvaliadaEm: new Date(),
+      },
+    });
+  },
+
   /** Registo de consumo real (append-only — sem DELETE nem UPDATE). */
   async registarConsumo(input: RegistarConsumoInput, ctx: Ctx): Promise<{ id: string }> {
     const ordem = await prisma.ordemProducao.findFirst({
