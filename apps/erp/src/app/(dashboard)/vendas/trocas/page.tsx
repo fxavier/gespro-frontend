@@ -58,9 +58,9 @@ export default async function TrocasPage({ searchParams: _searchParams }: PagePr
         ]}
         actions={
           <Button asChild size="sm">
-            <Link href="/vendas/devolucoes">
+            <Link href="/vendas/trocas/nova">
               <Plus className="h-4 w-4 mr-2" />
-              Nova Troca (via Devolução)
+              Nova Troca
             </Link>
           </Button>
         }

@@ -354,26 +354,7 @@ export class DevolucaoService {
   }
 
   async aprovar(id: string, ctx: Ctx): Promise<DevolucaoRow> {
-    const devolucao = await prismaBase.devolucao.findFirst({
-      where: { id, tenantId: ctx.tenantId },
-      select: { id: true, status: true },
-    });
-    if (!devolucao) throw new NotFoundError('Devolução não encontrada');
-
-    const permitidas = TRANSICOES_DEVOLUCAO[devolucao.status] ?? [];
-    if (!permitidas.includes('APROVADA')) {
-      throw new BusinessRuleError(
-        'TRANSICAO_INVALIDA',
-        `Devolução: transição inválida ${devolucao.status} → APROVADA`,
-      );
-    }
-
-    const updated = await prismaBase.devolucao.update({
-      where: { id },
-      data: { status: 'APROVADA', aprovadoPorId: ctx.userId, aprovadoEm: new Date() },
-    });
-
-    return mapDevolucao(updated as unknown as PrismaDevolucao);
+    return this.transitarSimples(id, 'APROVADA', ctx);
   }
 
   /**
@@ -502,25 +483,40 @@ export class DevolucaoService {
   }
 
   async rejeitar(id: string, ctx: Ctx): Promise<DevolucaoRow> {
-    const devolucao = await prismaBase.devolucao.findFirst({
-      where: { id, tenantId: ctx.tenantId },
-      select: { id: true, status: true },
+    return this.transitarSimples(id, 'REJEITADA', ctx);
+  }
+
+  /**
+   * Aprovar e rejeitar (#130) — compare-and-set: o estado de que a transição parte é lido
+   * trancado (`FOR UPDATE`) na mesma transacção que escreve. Lido antes, um «Rejeitar»
+   * atrasado carimbava REJEITADA por cima de uma devolução já PROCESSADA (NC emitida, stock
+   * reentrado), e dois «Aprovar» passavam ambos.
+   *
+   * A rejeição continua a carimbar `aprovadoPorId`/`aprovadoEm` (quem decidiu e quando): o
+   * modelo não tem campos próprios, e o detalhe chama-lhe «Rejeitada em».
+   */
+  private async transitarSimples(
+    id: string,
+    alvo: 'APROVADA' | 'REJEITADA',
+    ctx: Ctx,
+  ): Promise<DevolucaoRow> {
+    return prismaBase.$transaction(async (tx) => {
+      const devolucao = await lerDevolucaoTrancada(tx, id, ctx);
+
+      const permitidas = TRANSICOES_DEVOLUCAO[devolucao.status] ?? [];
+      if (!permitidas.includes(alvo)) {
+        throw new BusinessRuleError(
+          'TRANSICAO_INVALIDA',
+          `Devolução: transição inválida ${devolucao.status} → ${alvo}`,
+        );
+      }
+
+      const updated = await tx.devolucao.update({
+        where: { id: devolucao.id },
+        data: { status: alvo, aprovadoPorId: ctx.userId, aprovadoEm: new Date() },
+      });
+
+      return mapDevolucao(updated as unknown as PrismaDevolucao);
     });
-    if (!devolucao) throw new NotFoundError('Devolução não encontrada');
-
-    const permitidas = TRANSICOES_DEVOLUCAO[devolucao.status] ?? [];
-    if (!permitidas.includes('REJEITADA')) {
-      throw new BusinessRuleError(
-        'TRANSICAO_INVALIDA',
-        `Devolução: transição inválida ${devolucao.status} → REJEITADA`,
-      );
-    }
-
-    const updated = await prismaBase.devolucao.update({
-      where: { id },
-      data: { status: 'REJEITADA', aprovadoPorId: ctx.userId, aprovadoEm: new Date() },
-    });
-
-    return mapDevolucao(updated as unknown as PrismaDevolucao);
   }
 }
