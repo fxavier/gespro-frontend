@@ -286,14 +286,16 @@ export interface IVendaService {
   transitar(input: TransitarVendaInput, ctx: Ctx): Promise<VendaRow>;
 
   /**
-   * Anula uma venda POS paga (CONCLUIDA, com Factura-Recibo) — ADR-0041 §8. Numa só transacção:
-   * NC de todas as linhas ligada à factura (`emitirNotaCreditoEmTx`), liquidada por DEVOLUCAO
-   * pelos meios originais (`devolverNotaCreditoPelosMeiosOriginaisEmTx`), MovimentoCaixa
-   * DEVOLUCAO pela parte em dinheiro na sessão de caixa da venda, reentrada de stock por item e
-   * venda CANCELADA. A factura original e o seu lançamento ficam intactos.
+   * Anula uma venda POS — paga (CONCLUIDA, Factura-Recibo) ou a crédito/mista (FATURADA, Factura,
+   * #322) — ADR-0041 §8. Numa só transacção: NC de todas as linhas ligada à factura
+   * (`emitirNotaCreditoEmTx`), liquidada pelos meios originais
+   * (`devolverNotaCreditoPelosMeiosOriginaisEmTx`: a parte a crédito compensa-se na factura, a
+   * parte paga devolve-se), MovimentoCaixa DEVOLUCAO pela parte em dinheiro na sessão de caixa da
+   * venda, reentrada de stock por item e venda CANCELADA. As linhas e o lançamento da factura
+   * ficam intactos (só a compensação mexe no recebido).
    * Recusa sem escrever: MOTIVO_OBRIGATORIO, VENDA_JA_ANULADA, VENDA_DE_TROCA, VENDA_SEM_DOCUMENTO,
-   * VENDA_A_CREDITO_NAO_ANULAVEL, VENDA_NAO_ANULAVEL, VENDA_COM_NOTA_CREDITO, PERIODO_FECHADO,
-   * SESSAO_CAIXA_FECHADA. Permissões: da action, não do serviço.
+   * VENDA_NAO_ANULAVEL, VENDA_COM_NOTA_CREDITO, NC_COMPENSACAO_EXCEDE_SALDO (factura já recebida
+   * em Facturação), PERIODO_FECHADO, SESSAO_CAIXA_FECHADA. Permissões: da action, não do serviço.
    */
   anular(vendaId: string, input: { motivo: string }, ctx: Ctx): Promise<VendaRow>;
 

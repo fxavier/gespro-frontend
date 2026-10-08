@@ -803,9 +803,9 @@ export class VendaService implements IVendaService {
    * tudo numa só transacção. Qualquer falha (período fechado, caixa fechada, conta inactiva…)
    * desfaz tudo, inclusive o número da NC.
    *
-   * Venda a crédito (FATURADA): recusada com VENDA_A_CREDITO_NAO_ANULAVEL. A 411 do cliente não
-   * se devolve — compensa-se — e a NC só tem uma forma de liquidação; uma venda mista (parte paga,
-   * parte a crédito) pediria as duas. Anula-se pela nota de crédito em Facturação.
+   * Venda a crédito ou mista (FATURADA, #322): a mesma NC total; a parte a crédito compensa-se
+   * contra a factura (a 411 do cliente não se devolve) e só a parte paga sai pelos meios
+   * originais. Se a factura já recebeu pagamentos em Facturação, recusa (NC_COMPENSACAO_EXCEDE_SALDO).
    */
   async anular(vendaId: string, input: { motivo: string }, ctx: Ctx): Promise<VendaRow> {
     // Travão do e-mail com sessão, antes da tx — os núcleos em tx não o verificam (como devolução/troca).
@@ -853,13 +853,7 @@ export class VendaService implements IVendaService {
             (venda.origem === 'POS' ? 'É uma venda anterior à emissão automática de documento.' : 'Use o fluxo da encomenda.'),
         );
       }
-      if (venda.status === 'FATURADA') {
-        throw new BusinessRuleError(
-          'VENDA_A_CREDITO_NAO_ANULAVEL',
-          `A venda ${venda.numero} foi a crédito: anule-a emitindo uma nota de crédito sobre a factura em Facturação, liquidada por compensação.`,
-        );
-      }
-      if (venda.status !== 'CONCLUIDA') {
+      if (venda.status !== 'CONCLUIDA' && venda.status !== 'FATURADA') {
         throw new BusinessRuleError('VENDA_NAO_ANULAVEL', `A venda ${venda.numero} no estado ${venda.status} não se anula.`);
       }
       // Uma NC já emitida (devolução parcial) mais a NC total creditariam a factura duas vezes.
@@ -905,7 +899,8 @@ export class VendaService implements IVendaService {
         ctx,
       );
 
-      // 2. Liquidação por devolução, pelos meios originais (um lançamento D 411 / C meios).
+      // 2. Liquidação pelos meios originais: a parte a crédito compensa-se na factura, a paga
+      //    devolve-se (um lançamento D 411 / C meios).
       await this.faturacaoService.devolverNotaCreditoPelosMeiosOriginaisEmTx(tx, { notaCreditoId: nc.id, data: agora }, ctx);
 
       // 3. Só o dinheiro sai da gaveta — a da sessão de caixa da venda, que tem de estar aberta.

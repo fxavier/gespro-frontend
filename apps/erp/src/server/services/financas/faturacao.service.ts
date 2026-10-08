@@ -1469,6 +1469,51 @@ function diaMaputo(data: Date): number {
 
 
 /**
+ * Compensação de `valor` da NC contra o saldo em aberto da factura original: abate ao
+ * `totalPago`, sem lançamento — a 411 já foi creditada na emissão da NC.
+ * Recusa: FATURA_NAO_COMPENSAVEL, NC_COMPENSACAO_EXCEDE_SALDO.
+ */
+async function compensarNaFaturaOriginalEmTx(
+  tx: Prisma.TransactionClient,
+  nc: { faturaOriginalId: string },
+  valor: Prisma.Decimal,
+  data: Date,
+  ctx: Ctx,
+): Promise<void> {
+  await trancarLinha(tx, 'Fatura', nc.faturaOriginalId, ctx.tenantId);
+  const fatura = await tx.fatura.findFirst({ where: { id: nc.faturaOriginalId, tenantId: ctx.tenantId } });
+  if (!fatura) throw new NotFoundError('Factura original não encontrada');
+  if (!ESTADOS_FATURA_COMPENSAVEL.includes(fatura.status as StatusFatura)) {
+    throw new BusinessRuleError(
+      'FATURA_NAO_COMPENSAVEL',
+      `A factura ${fatura.numero} está no estado ${fatura.status} e não admite compensação.`,
+    );
+  }
+
+  const totalPago = new Prisma.Decimal(String(fatura.totalPago));
+  const saldo = new Prisma.Decimal(String(fatura.total)).minus(totalPago);
+  if (saldo.lessThan(valor)) {
+    throw new BusinessRuleError(
+      'NC_COMPENSACAO_EXCEDE_SALDO',
+      `O saldo em aberto da factura ${fatura.numero} (${saldo.toFixed(2)}) é inferior ao valor a compensar da nota de crédito (${valor.toFixed(2)}).`,
+    );
+  }
+
+  // Mesma regra de estado do registarPagamento.
+  const novoStatus: StatusFatura = saldo.minus(valor).lessThanOrEqualTo(0) ? 'PAGA' : 'PARCIALMENTE_PAGA';
+  if (novoStatus !== fatura.status) transitarFatura(fatura.status as StatusFatura, novoStatus);
+
+  await tx.fatura.update({
+    where: { id: fatura.id },
+    data: {
+      totalPago: totalPago.plus(valor),
+      status: novoStatus,
+      dataPagamento: novoStatus === 'PAGA' ? data : null,
+    },
+  });
+}
+
+/**
  * #148 — liquidação TOTAL da NC (EMITIDA → LIQUIDADA).
  * DEVOLUCAO: 411 D / conta do meio C pelo total (e saída de caixa em numerário);
  * COMPENSACAO: abate ao `totalPago` da factura original, sem lançamento — a 411 já
@@ -1499,39 +1544,7 @@ export async function liquidarNotaCredito(
     let lancamentoLiquidacaoId: string | null = null;
 
     if (input.forma === 'COMPENSACAO') {
-      await trancarLinha(tx, 'Fatura', nc.faturaOriginalId, ctx.tenantId);
-      const fatura = await tx.fatura.findFirst({ where: { id: nc.faturaOriginalId, tenantId: ctx.tenantId } });
-      if (!fatura) throw new NotFoundError('Factura original não encontrada');
-      if (!ESTADOS_FATURA_COMPENSAVEL.includes(fatura.status as StatusFatura)) {
-        throw new BusinessRuleError(
-          'FATURA_NAO_COMPENSAVEL',
-          `A factura ${fatura.numero} está no estado ${fatura.status} e não admite compensação.`,
-        );
-      }
-
-      const total = new Prisma.Decimal(String(nc.total));
-      const totalPago = new Prisma.Decimal(String(fatura.totalPago));
-      const saldo = new Prisma.Decimal(String(fatura.total)).minus(totalPago);
-      if (saldo.lessThan(total)) {
-        throw new BusinessRuleError(
-          'NC_COMPENSACAO_EXCEDE_SALDO',
-          `O saldo em aberto da factura ${fatura.numero} (${saldo.toFixed(2)}) é inferior ao total da nota de crédito (${total.toFixed(2)}).`,
-        );
-      }
-
-      // Mesma regra de estado do registarPagamento.
-      const novoTotalPago = totalPago.plus(total);
-      const novoStatus: StatusFatura = saldo.minus(total).lessThanOrEqualTo(0) ? 'PAGA' : 'PARCIALMENTE_PAGA';
-      if (novoStatus !== fatura.status) transitarFatura(fatura.status as StatusFatura, novoStatus);
-
-      await tx.fatura.update({
-        where: { id: fatura.id },
-        data: {
-          totalPago: novoTotalPago,
-          status: novoStatus,
-          dataPagamento: novoStatus === 'PAGA' ? input.data : null,
-        },
-      });
+      await compensarNaFaturaOriginalEmTx(tx, nc, new Prisma.Decimal(String(nc.total)), input.data, ctx);
     } else {
       const meio = await resolverContaMeioPagamento(
         tx,
@@ -1601,9 +1614,14 @@ export async function liquidarNotaCredito(
  * no diário CAIXA, que credita também a(s) conta(s) bancária(s) — não há um lançamento por meio
  * nem um no diário de bancos.
  *
+ * Documento com parte a crédito (#322 — venda POS a crédito ou mista): o que a factura debitou
+ * na 411 não se «devolve» — compensa-se contra o saldo em aberto da factura (sem lançamento);
+ * só o resto (D 411 / C contas dos meios) vai ao lançamento de liquidação, que não existe se a
+ * venda foi toda a crédito. `formaLiquidacao` é COMPENSACAO quando há parte compensada.
+ *
  * Recusa: NC não EMITIDA (transição), documento original sem lançamento, NC parcial
- * (`NC_DEVOLUCAO_PARCIAL`) e documento com parte a crédito (`NC_DOCUMENTO_A_CREDITO` — a 411 do
- * original não se «devolve»; isso é compensação).
+ * (`NC_DEVOLUCAO_PARCIAL`), factura já (parcialmente) recebida em Facturação
+ * (`NC_COMPENSACAO_EXCEDE_SALDO`) ou não compensável (`FATURA_NAO_COMPENSAVEL`).
  */
 export async function devolverNotaCreditoPelosMeiosOriginaisEmTx(
   tx: Prisma.TransactionClient,
@@ -1643,40 +1661,48 @@ export async function devolverNotaCreditoPelosMeiosOriginaisEmTx(
   for (const p of debitos) {
     porConta.set(p.conta.codigo, (porConta.get(p.conta.codigo) ?? new Prisma.Decimal(0)).plus(p.valor));
   }
-  if (porConta.has(PGC_FATURACAO.CLIENTES_CC)) {
-    throw new BusinessRuleError(
-      'NC_DOCUMENTO_A_CREDITO',
-      `A factura ${fatura.numero} tem parte a crédito: a nota de crédito liquida-se por compensação, não por devolução.`,
-    );
+  // Parte a crédito (#322): a 411 que a factura debitou não se devolve — compensa-se contra o
+  // saldo em aberto da própria factura, sem lançamento (a NC já creditou a 411). Se a factura já
+  // recebeu pagamentos em Facturação, o saldo não chega e recusa (NC_COMPENSACAO_EXCEDE_SALDO).
+  const compensado = porConta.get(PGC_FATURACAO.CLIENTES_CC) ?? new Prisma.Decimal(0);
+  porConta.delete(PGC_FATURACAO.CLIENTES_CC);
+  if (compensado.greaterThan(0)) {
+    await compensarNaFaturaOriginalEmTx(tx, nc, compensado, input.data, ctx);
   }
 
-  const valor = total.toFixed(2);
-  const descricao = `Devolução da nota de crédito ${nc.numero} (anulação de ${fatura.numero})`;
-  const lancamento = await registarLancamentoContabilistico(
-    tx,
-    {
-      data: input.data,
-      // Há sempre caixa ou banco do outro lado; com numerário, o diário é o de caixa.
-      diarioTipo: porConta.has(CONTA_MEIO_PAGAMENTO_POS.DINHEIRO) ? 'CAIXA' : 'BANCO',
-      origem: 'PAGAMENTO',
-      documentoOrigemId: nc.id,
-      documentoOrigemTipo: 'NotaCredito',
-      historico: descricao,
-      partidas: [
-        { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor },
-        ...[...porConta].map(([contaCodigo, v]) => ({ contaCodigo, tipo: 'CREDITO' as const, valor: v.toFixed(2) })),
-      ],
-    },
-    ctx,
-  );
+  // Parte paga: devolve-se por onde entrou.
+  let lancamentoLiquidacaoId: string | null = null;
+  const devolvido = total.minus(compensado);
+  if (devolvido.greaterThan(0)) {
+    const descricao = `Devolução da nota de crédito ${nc.numero} (anulação de ${fatura.numero})`;
+    const lancamento = await registarLancamentoContabilistico(
+      tx,
+      {
+        data: input.data,
+        // Há sempre caixa ou banco do outro lado; com numerário, o diário é o de caixa.
+        diarioTipo: porConta.has(CONTA_MEIO_PAGAMENTO_POS.DINHEIRO) ? 'CAIXA' : 'BANCO',
+        origem: 'PAGAMENTO',
+        documentoOrigemId: nc.id,
+        documentoOrigemTipo: 'NotaCredito',
+        historico: descricao,
+        partidas: [
+          { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor: devolvido.toFixed(2) },
+          ...[...porConta].map(([contaCodigo, v]) => ({ contaCodigo, tipo: 'CREDITO' as const, valor: v.toFixed(2) })),
+        ],
+      },
+      ctx,
+    );
+    lancamentoLiquidacaoId = lancamento.id;
+  }
 
   return tx.notaCredito.update({
     where: { id: nc.id },
     data: {
       status: 'LIQUIDADA',
-      formaLiquidacao: 'DEVOLUCAO',
+      // Convenção do liquidarNotaCreditoEmTx: havendo parte compensada, é COMPENSACAO.
+      formaLiquidacao: compensado.greaterThan(0) ? 'COMPENSACAO' : 'DEVOLUCAO',
       dataLiquidacao: input.data,
-      lancamentoLiquidacaoId: lancamento.id,
+      lancamentoLiquidacaoId,
     },
   }) as unknown as NotaCredito;
 }

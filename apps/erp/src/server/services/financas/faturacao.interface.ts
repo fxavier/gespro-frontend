@@ -666,7 +666,10 @@ export interface IFaturacaoService {
    * ADR-0041 §8 — liquida por DEVOLUCAO, na transacção do chamador, a NC que credita a factura
    * inteira: D 411 total / C nas contas debitadas pelo lançamento da factura, pelos mesmos
    * valores. Sem movimento de caixa (é do chamador) e sem `ctx.permissions` (são da action).
-   * Recusa: NC_DEVOLUCAO_PARCIAL, NC_DOCUMENTO_A_CREDITO, DOCUMENTO_SEM_LANCAMENTO, transição inválida.
+   * Parte a crédito (D 411 na factura, #322): compensada contra o saldo da factura, sem lançamento;
+   * o lançamento só cobre a parte paga. Havendo compensação, `formaLiquidacao` = COMPENSACAO.
+   * Recusa: NC_DEVOLUCAO_PARCIAL, NC_COMPENSACAO_EXCEDE_SALDO, FATURA_NAO_COMPENSAVEL,
+   * DOCUMENTO_SEM_LANCAMENTO, transição inválida.
    */
   devolverNotaCreditoPelosMeiosOriginaisEmTx(
     tx: Prisma.TransactionClient,
