@@ -155,9 +155,9 @@ test.describe('POS — a venda emite o documento fiscal (ADR-0041, #313)', () =>
 
     await abrirVenda(page, venda);
     await documentoDaVenda(page, 'FAT');
-    // A crédito não há Factura-Recibo, e não se anula pelo POS (anula-se por NC em Facturação).
+    // A crédito não há Factura-Recibo; anula-se pelo POS (#322: NC compensada na factura).
     await expect(page.getByRole('link', { name: /FR\/\d{4}\/\d+/ })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Anular venda' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Anular venda' })).toHaveCount(1);
   });
 
   test('anular a venda: fica Cancelada e é emitida uma nota de crédito com o motivo', async ({ page }) => {

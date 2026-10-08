@@ -301,6 +301,31 @@ export const reenvioVerificacaoLimiter = createRateLimiterFromEnv({
   failClosed: false,
 });
 
+/**
+ * Recuperação de palavra-passe (#178): no máximo 5 e-mails/hora por endereço
+ * e 10/hora por IP — dois limitadores, porque os tectos são diferentes.
+ * Chaves: `${email}::recuperacao` e `${ip}::recuperacao`.
+ *
+ * O ecrã pertence-nos desde o ADR-0029 e o pedido chega ao Keycloak pela
+ * Admin API, com o IP do servidor: a protecção dele não vê quem pede. O que se
+ * limita é o nosso servidor a mandar correio para um endereço (amplificação).
+ * Acima do tecto a resposta é a mesma neutra — o chamador não o revela.
+ *
+ * FALHA FECHADA, como o registo: superfície pública com custo por pedido (um
+ * e-mail). Sem Valkey ninguém recebe a ligação, e a resposta continua igual.
+ */
+export const recuperacaoEmailLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  failClosed: true,
+});
+
+export const recuperacaoIpLimiter = createRateLimiterFromEnv({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  failClosed: true,
+});
+
 // ---------------------------------------------------------------------------
 // Compatibilidade — serão removidos por w8-identidade (ADR-0010)
 // ---------------------------------------------------------------------------

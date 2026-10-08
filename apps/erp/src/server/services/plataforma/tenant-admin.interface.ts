@@ -5,6 +5,7 @@ import type {
   UpdateTenantInput,
   FilterTenantInput,
   ConfiguracaoFiscalInput,
+  DadosEmpresaInput,
   PlanoAssinatura,
   RegimeIva,
 } from '@/lib/validations/plataforma';
@@ -104,6 +105,14 @@ export interface ITenantAdminService {
     input: ConfiguracaoFiscalInput,
     ctx: Ctx,
   ): Promise<ConfiguracaoFiscalRow>;
+
+  /**
+   * Dados da empresa do PRÓPRIO tenant (`ctx.tenantId`, #177): nome e NUIT do Tenant, morada,
+   * contactos e regime de IVA da ConfiguracaoFiscal — o emitente do PDF fiscal. Escritas
+   * singulares pelo cliente estendido (AuditLog UPDATE/CREATE); sem ConfiguracaoFiscal, cria-a.
+   * Lança `BusinessRuleError('NUIT_DUPLICADO')` se o NUIT for de outro tenant (nada muda).
+   */
+  actualizarDadosEmpresa(input: DadosEmpresaInput, ctx: Ctx): Promise<TenantRow>;
 
   /**
    * Desactiva o tenant: soft-delete em Tenant (preenche deletedAt) e

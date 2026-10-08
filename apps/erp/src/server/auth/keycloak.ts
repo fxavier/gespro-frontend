@@ -347,12 +347,15 @@ export async function garantirUtilizador(input: {
 }
 
 /**
- * Dispara o e-mail de acções pendentes (verificar e-mail + definir
- * palavra-passe). Devolve `false` em falha — o chamador decide se é fatal:
- * no registo público NÃO é (o tenant existe; reenvia-se por suporte), e
- * tratá-la como fatal desfaria um provisionamento válido por causa do SMTP.
+ * Núcleo dos dois e-mails de acções: `PUT /users/{sub}/execute-actions-email`
+ * com as `accoes` dadas e regresso ao ERP em `caminhoRegresso`. Devolve
+ * `false` em falha e nunca lança — quem chama decide se é fatal.
  */
-export async function dispararEmailAccoes(sub: string): Promise<boolean> {
+async function executarEmailAccoes(
+  sub: string,
+  accoes: readonly string[],
+  caminhoRegresso: string,
+): Promise<boolean> {
   const cfg = kcConfig();
   const destino = (process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000')
     .replace(/\/$/, '');
@@ -360,10 +363,8 @@ export async function dispararEmailAccoes(sub: string): Promise<boolean> {
     const res = await adminFetch(
       `/users/${encodeURIComponent(sub)}/execute-actions-email` +
         `?client_id=${encodeURIComponent(cfg.clientId)}` +
-        // ?onboarding=1: preserva o checklist forçado do dashboard (spec 19) —
-        // era o handoff que o punha; agora é o regresso do e-mail de acções.
-        `&redirect_uri=${encodeURIComponent(`${destino}/dashboard?onboarding=1`)}`,
-      { method: 'PUT', body: JSON.stringify(['VERIFY_EMAIL', 'UPDATE_PASSWORD']) },
+        `&redirect_uri=${encodeURIComponent(`${destino}${caminhoRegresso}`)}`,
+      { method: 'PUT', body: JSON.stringify(accoes) },
     );
     if (!res.ok) {
       logger.error({ status: res.status, sub }, '[keycloak] execute-actions-email falhou');
@@ -374,6 +375,32 @@ export async function dispararEmailAccoes(sub: string): Promise<boolean> {
     logger.error({ err: (e as Error)?.message, sub }, '[keycloak] execute-actions-email falhou');
     return false;
   }
+}
+
+/**
+ * Dispara o e-mail de acções pendentes (verificar e-mail + definir
+ * palavra-passe). Devolve `false` em falha — o chamador decide se é fatal:
+ * no registo público NÃO é (o tenant existe; reenvia-se por suporte), e
+ * tratá-la como fatal desfaria um provisionamento válido por causa do SMTP.
+ */
+export async function dispararEmailAccoes(sub: string): Promise<boolean> {
+  // ?onboarding=1: preserva o checklist forçado do dashboard (spec 19) —
+  // era o handoff que o punha; agora é o regresso do e-mail de acções.
+  return executarEmailAccoes(sub, ['VERIFY_EMAIL', 'UPDATE_PASSWORD'], '/dashboard?onboarding=1');
+}
+
+/**
+ * Recuperação de palavra-passe self-service (#178): e-mail do Keycloak com a
+ * ligação para definir uma palavra-passe nova.
+ *
+ * **Só `UPDATE_PASSWORD`**, e só no e-mail: o `execute-actions-email` não
+ * acrescenta a acção às obrigatórias da conta, portanto a palavra-passe antiga
+ * continua a entrar enquanto a ligação não for usada. `VERIFY_EMAIL` aqui
+ * deixaria a conta por activar e o *direct grant* recusaria a sessão.
+ * O regresso é ao nosso ecrã de login (ADR-0029).
+ */
+export async function dispararRecuperacaoPalavraPasse(sub: string): Promise<boolean> {
+  return executarEmailAccoes(sub, ['UPDATE_PASSWORD'], '/auth/login');
 }
 
 /**

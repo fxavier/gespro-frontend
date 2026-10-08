@@ -368,8 +368,15 @@ export const TransitarEncomendaSchema = z.object({
   encomendaId: z.string().cuid('ID de encomenda inválido'),
   paraStatus: StatusEncomendaEnum,
   motivo: z.string().max(500).optional(),
-  localizacaoId: z.string().cuid().optional(), // para reservarStock ao confirmar
+  localizacaoId: idEntidade('Localização inválida').optional(), // para reservarStock ao confirmar
 });
+
+/** Confirmar uma encomenda (RASCUNHO → CONFIRMADA): a localização onde o stock é reservado. */
+export const ConfirmarEncomendaSchema = z.object({
+  encomendaId: z.string().cuid('ID de encomenda inválido'),
+  localizacaoId: idEntidade('Seleccione a localização onde reservar o stock'),
+});
+export type ConfirmarEncomendaInput = z.infer<typeof ConfirmarEncomendaSchema>;
 
 export const ConverterEncomendaEmVendaSchema = z.object({
   encomendaId: z.string().cuid('ID de encomenda inválido'),
@@ -433,6 +440,29 @@ export const CreateTrocaSchema = z.object({
   serieNotaCreditoId: z.string().cuid().optional(),
 });
 
+/**
+ * Processar devolução (#130). A action aceita a localização opcional (chamadores antigos); o
+ * ecrã exige-a — sem ela o stock devolvido não reentra em lado nenhum.
+ */
+export const ProcessarDevolucaoSchema = z.object({
+  id: z.string().cuid('ID inválido'),
+  localizacaoId: z.string().cuid().optional(),
+  sessaoCaixaId: z.string().cuid().optional(),
+  serieNotaCreditoId: z.string().cuid().optional(),
+});
+export const ProcessarDevolucaoFormSchema = ProcessarDevolucaoSchema.extend({
+  localizacaoId: idEntidade('Seleccione a localização onde o stock devolvido entra'),
+});
+export type ProcessarDevolucaoFormInput = z.infer<typeof ProcessarDevolucaoFormSchema>;
+
+/** Nova troca pelo ecrã (#130): mesma action, com a localização de entrada obrigatória. */
+export const CriarTrocaFormSchema = CreateTrocaSchema.extend({
+  novoItem: CreateItemEncomendaSchema.extend({
+    produtoId: idEntidade('Seleccione o produto de substituição'),
+  }),
+  localizacaoId: idEntidade('Seleccione a localização onde o stock devolvido entra'),
+});
+
 // ---------------------------------------------------------------------------
 // Tipos inferidos
 // ---------------------------------------------------------------------------
@@ -465,3 +495,4 @@ export type CreateItemDevolucaoInput = z.infer<typeof CreateItemDevolucaoSchema>
 export type CreateDevolucaoInput = z.infer<typeof CreateDevolucaoSchema>;
 export type FilterDevolucaoInput = z.infer<typeof FilterDevolucaoSchema>;
 export type CreateTrocaInput = z.infer<typeof CreateTrocaSchema>;
+export type CriarTrocaFormInput = z.infer<typeof CriarTrocaFormSchema>;

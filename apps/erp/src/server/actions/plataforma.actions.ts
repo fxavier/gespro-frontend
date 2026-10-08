@@ -19,6 +19,7 @@ import {
   CreateTenantSchema,
   UpdateTenantSchema,
   ConfiguracaoFiscalSchema,
+  DadosEmpresaSchema,
   CreateUserSchema,
   UpdateUserSchema,
   AssignRoleSchema,
@@ -80,6 +81,17 @@ export const actualizarConfiguracaoFiscal = createSafeAction({
     tenantAdminService.actualizarConfiguracaoFiscal(ctx.tenantId, input, ctx),
 });
 
+/**
+ * Dados da empresa (#177) — o ecrã `/definicoes/empresa`. O tenant vem SEMPRE da sessão:
+ * o schema não tem `id`/`tenantId`, e `slug`/`planoAssinatura`/`statusAtivo` são removidos.
+ */
+export const actualizarDadosEmpresa = createSafeAction({
+  schema: DadosEmpresaSchema,
+  permission: 'core_tenancy:configurar',
+  revalidate: { paths: ['/definicoes/empresa'], tags: ['tenants', 'configuracao'] },
+  handler: async (input, ctx) => tenantAdminService.actualizarDadosEmpresa(input, ctx),
+});
+
 // ---------------------------------------------------------------------------
 // Gestão de Utilizadores — permissão: admin:gerir_utilizadores
 // ---------------------------------------------------------------------------
@@ -124,6 +136,17 @@ export const desactivarUtilizador = createSafeAction({
   revalidate: { tags: ['utilizadores'] },
   handler: async ({ id }, ctx) => {
     await userAdminService.desactivarUtilizador(id, ctx);
+    return { id };
+  },
+});
+
+/** #179 — o caminho de volta de `desactivarUtilizador`. */
+export const reactivarUtilizador = createSafeAction({
+  schema: z.object({ id: z.string().cuid('ID de utilizador inválido') }),
+  permission: 'admin:gerir_utilizadores',
+  revalidate: { tags: ['utilizadores'] },
+  handler: async ({ id }, ctx) => {
+    await userAdminService.reactivarUtilizador(id, ctx);
     return { id };
   },
 });

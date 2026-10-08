@@ -1,5 +1,7 @@
 import 'server-only';
-import { prismaBase } from '@/server/db/client';
+import { Prisma } from '@prisma/client';
+import { prisma, prismaBase } from '@/server/db/client';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
 import type { Page } from '@/server/db/paginate';
 import type { Ctx } from '@/server/services/types';
@@ -8,6 +10,7 @@ import type {
   UpdateTenantInput,
   FilterTenantInput,
   ConfiguracaoFiscalInput,
+  DadosEmpresaInput,
 } from '@/lib/validations/plataforma';
 import type {
   ITenantAdminService,
@@ -202,6 +205,57 @@ export const tenantAdminService: ITenantAdminService = {
       create: { tenantId, ...input },
     });
     return mapCfg(cfg);
+  },
+
+  async actualizarDadosEmpresa(input: DadosEmpresaInput, ctx: Ctx): Promise<TenantRow> {
+    const tenantId = ctx.tenantId;
+    const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId, deletedAt: null } });
+    if (!tenant) throw new NotFoundError('Tenant não encontrado');
+
+    // Antes de qualquer escrita: a auditoria sai fora da tx, e um pedido recusado não deixa trilho.
+    const nuitDuplicado = () =>
+      new BusinessRuleError('NUIT_DUPLICADO', 'Este NUIT já está registado noutra empresa');
+    const outro = await prismaBase.tenant.findFirst({
+      where: { nuit: input.nuit, id: { not: tenantId } },
+      select: { id: true },
+    });
+    if (outro) throw nuitDuplicado();
+
+    // O formulário envia todos os campos: vazio apaga.
+    const cfgDados = {
+      regimeIva: input.regimeIva,
+      endereco: input.endereco || null,
+      cidade: input.cidade || null,
+      provincia: input.provincia || null,
+      codigoPostal: input.codigoPostal || null,
+      email: input.email || null,
+      telefone: input.telefone || null,
+    };
+
+    try {
+      // Escritas singulares pelo cliente estendido: a audit-extension deixa UPDATE/CREATE no trilho
+      // (um `upsert` passaria sem AuditLog).
+      await runWithTenantContext(ctx, () =>
+        prisma.$transaction(async (tx) => {
+          await tx.tenant.update({
+            where: { id: tenantId },
+            data: { nome: input.nome, nuit: input.nuit },
+          });
+          const cfg = await tx.configuracaoFiscal.findFirst({ where: { tenantId }, select: { id: true } });
+          if (cfg) {
+            await tx.configuracaoFiscal.update({ where: { tenantId }, data: cfgDados });
+          } else {
+            await tx.configuracaoFiscal.create({ data: { tenantId, ...cfgDados } });
+          }
+        }),
+      );
+    } catch (e) {
+      // Corrida com outro tenant a gravar o mesmo NUIT entre a verificação e a escrita.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw nuitDuplicado();
+      throw e;
+    }
+
+    return fetchTenantRow(tenantId);
   },
 
   async desactivar(tenantId: string): Promise<void> {

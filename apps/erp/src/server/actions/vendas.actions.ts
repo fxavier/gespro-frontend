@@ -23,9 +23,11 @@ import {
   CreateEncomendaSchema,
   UpdateEncomendaSchema,
   TransitarEncomendaSchema,
+  ConfirmarEncomendaSchema,
   ConverterEncomendaEmVendaSchema,
   CreateDevolucaoSchema,
   CreateTrocaSchema,
+  ProcessarDevolucaoSchema,
   CreateVendedorSchema,
   UpdateVendedorSchema,
 } from '@/lib/validations/vendas';
@@ -251,6 +253,40 @@ export const transitarEncomenda = createSafeAction({
   },
 });
 
+/** RASCUNHO → CONFIRMADA, reservando o stock na localização escolhida (#129). */
+export const confirmarEncomenda = createSafeAction({
+  schema: ConfirmarEncomendaSchema,
+  permission: 'vendas:encomendas:confirmar',
+  revalidate: {
+    paths: ['/vendas/pedidos'],
+    tags: ['encomendas'],
+  },
+  handler: async ({ encomendaId, localizacaoId }, ctx) => {
+    return encomendaService.transitar({ encomendaId, paraStatus: 'CONFIRMADA', localizacaoId }, ctx);
+  },
+});
+
+/**
+ * Converter a partir do detalhe (#129): um pagamento a CRÉDITO pelo total da encomenda, sem
+ * sessão de caixa — bate com o D 411 que o serviço lança sempre. O total lê-se no servidor.
+ */
+export const converterEncomendaEmVendaACredito = createSafeAction({
+  schema: z.object({ encomendaId: z.string().cuid('ID de encomenda inválido') }),
+  permission: 'vendas:encomendas:converter',
+  revalidate: {
+    paths: ['/vendas/pedidos', '/vendas'],
+    tags: ['encomendas', 'vendas'],
+  },
+  handler: async ({ encomendaId }, ctx) => {
+    const encomenda = await encomendaService.obter(encomendaId, ctx);
+    return encomendaService.converterEmVenda(
+      encomendaId,
+      [{ tipo: 'CREDITO', valor: Number(encomenda.total) }],
+      ctx,
+    );
+  },
+});
+
 export const converterEncomendaEmVenda = createSafeAction({
   schema: ConverterEncomendaEmVendaSchema,
   permission: 'vendas:encomendas:converter',
@@ -275,6 +311,7 @@ export const cancelarEncomenda = createSafeAction({
   }),
   permission: 'vendas:encomendas:cancelar',
   revalidate: {
+    paths: ['/vendas/pedidos'],
     tags: ['encomendas'],
   },
   handler: async ({ id, localizacaoId }, ctx) => {
@@ -305,6 +342,7 @@ export const aprovarDevolucao = createSafeAction({
   schema: z.object({ id: z.string().cuid('ID inválido') }),
   permission: 'vendas:devolucoes:aprovar',
   revalidate: {
+    paths: ['/vendas/devolucoes'],
     tags: ['devolucoes'],
   },
   handler: async ({ id }, ctx) => {
@@ -313,12 +351,7 @@ export const aprovarDevolucao = createSafeAction({
 });
 
 export const processarDevolucao = createSafeAction({
-  schema: z.object({
-    id: z.string().cuid('ID inválido'),
-    localizacaoId: z.string().cuid().optional(),
-    sessaoCaixaId: z.string().cuid().optional(),
-    serieNotaCreditoId: z.string().cuid().optional(),
-  }),
+  schema: ProcessarDevolucaoSchema,
   permission: 'vendas:devolucoes:processar',
   revalidate: {
     paths: ['/vendas/devolucoes'],
@@ -337,6 +370,7 @@ export const rejeitarDevolucao = createSafeAction({
   schema: z.object({ id: z.string().cuid('ID inválido') }),
   permission: 'vendas:devolucoes:rejeitar',
   revalidate: {
+    paths: ['/vendas/devolucoes'],
     tags: ['devolucoes'],
   },
   handler: async ({ id }, ctx) => {

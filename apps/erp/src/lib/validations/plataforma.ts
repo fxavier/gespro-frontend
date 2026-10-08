@@ -115,6 +115,29 @@ export const ConfiguracaoFiscalSchema = z.object({
 export type ConfiguracaoFiscalInput = z.infer<typeof ConfiguracaoFiscalSchema>;
 
 // ---------------------------------------------------------------------------
+// Dados da empresa — admin do tenant (#177; permissão: core_tenancy:configurar)
+// ---------------------------------------------------------------------------
+
+/**
+ * O que sai no emitente do PDF fiscal: nome e NUIT do Tenant, morada, contactos e regime de
+ * IVA da ConfiguracaoFiscal. O formulário envia-os todos; vazio (`''`) apaga o campo.
+ * `slug`, `planoAssinatura`, `statusAtivo`, `id` e `tenantId` não existem aqui — o Zod
+ * remove-os, e o tenant vem sempre do contexto (ver a nota do ConfiguracaoFiscalSchema).
+ */
+export const DadosEmpresaSchema = z.object({
+  nome: z.string().trim().min(2, 'Nome obrigatório').max(200),
+  nuit: nuitSchema,
+  regimeIva: regimeIvaEnum,
+  endereco: z.string().trim().max(300).optional(),
+  cidade: z.string().trim().max(100).optional(),
+  provincia: provinciaSchema,
+  codigoPostal: z.string().trim().max(10).optional(),
+  email: z.string().trim().email('Email inválido').optional().or(z.literal('')),
+  telefone: z.string().trim().max(20).optional(),
+});
+export type DadosEmpresaInput = z.infer<typeof DadosEmpresaSchema>;
+
+// ---------------------------------------------------------------------------
 // Calendário contabilístico — subconjunto editável pelo admin do tenant
 // (ADR-0033 §3; permissão: configuracoes:editar, mesmo ecrã)
 // ---------------------------------------------------------------------------
@@ -212,6 +235,12 @@ export const MudarPalavraPasseSchema = z
   });
 
 export type MudarPalavraPasseInput = z.infer<typeof MudarPalavraPasseSchema>;
+
+/** Recuperação de palavra-passe self-service (#178): só o e-mail, normalizado. */
+export const RecuperarPalavraPasseSchema = z.object({
+  email: z.string().trim().toLowerCase().min(1, 'Indique o e-mail').email('E-mail inválido'),
+});
+export type RecuperarPalavraPasseInput = z.infer<typeof RecuperarPalavraPasseSchema>;
 
 /**
  * O e-mail deixou de ser editável aqui: é o identificador da Identidade e

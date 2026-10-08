@@ -4,7 +4,8 @@
  * Os 6 tipos geríveis (RECIBO incluído); as séries operacionais (VENDA,
  * ENCOMENDA…) ficam de fora. Filtros na URL: tipo, ano (por omissão o ano
  * corrente em Africa/Maputo; `todos` mostra todos), estado e prefixo.
- * «Nova série» e as acções por linha só com `faturacao:series:escrita`.
+ * «Nova série», «Criar séries de <ano+1>» (#235) e as acções por linha só com
+ * `faturacao:series:escrita`.
  */
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
@@ -23,6 +24,7 @@ import {
 import { acessoSeries, listarSeriesGeriveis } from './_components/acesso';
 import { SemPermissao } from '@/components/patterns/sem-permissao';
 import { SeriesTable, type SerieLinha } from './_components/series-table';
+import { CriarSeriesAnoSeguinte } from './_components/criar-series-ano-seguinte';
 
 const TODOS_OS_ANOS = 'todos';
 
@@ -136,12 +138,15 @@ export default async function SeriesPage({ searchParams }: PageProps) {
         {...CABECALHO}
         actions={
           acesso.podeEscrever ? (
-            <Button asChild size="sm">
-              <Link href="/faturacao/series/nova">
-                <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                Nova série
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <CriarSeriesAnoSeguinte ano={anoSeguinte} />
+              <Button asChild size="sm">
+                <Link href="/faturacao/series/nova">
+                  <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  Nova série
+                </Link>
+              </Button>
+            </div>
           ) : undefined
         }
       />
