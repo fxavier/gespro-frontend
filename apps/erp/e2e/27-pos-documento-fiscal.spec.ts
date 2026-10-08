@@ -68,7 +68,8 @@ async function venderNoTerminal(page: Page, modo: 'DINHEIRO' | 'CREDITO'): Promi
 
   if (modo === 'DINHEIRO') {
     await page.getByRole('button', { name: 'Dinheiro', exact: true }).click();
-    await page.getByPlaceholder('0,00').fill('500');
+    // #128: o painel é uma lista de pagamentos; a primeira linha é «Valor do pagamento 1».
+    await page.getByRole('textbox', { name: /Valor do pagamento 1\b/ }).fill('500');
     await expect(page.getByText(/Troco: MT/)).toBeVisible();
     await page.getByRole('button', { name: /^Pagar MT/ }).click();
   } else {

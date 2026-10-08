@@ -11,6 +11,10 @@
  *   +/-         — incrementar/decrementar quantidade do último item
  *
  * «Crédito» emite Factura (não Factura-Recibo) e exige um cliente identificado (ADR-0041 §4).
+ *
+ * #128: a pesquisa de produtos corre no servidor (`procurarProdutosPOS`), sem o tecto dos 60
+ * carregados à partida; o pagamento é uma lista (meio + valor recebido) resolvida por
+ * `resolverPagamentosPOS` — troco só em dinheiro, e «Pagar» só com Σ = total.
  */
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
@@ -48,16 +52,33 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ComboboxRemoto } from '@/components/patterns';
 import type { ComboboxOption } from '@/components/patterns';
-import { criarVenda, fecharSessaoPOS } from '@/server/actions/vendas.actions';
+import { criarVenda, fecharSessaoPOS, procurarProdutosPOS } from '@/server/actions/vendas.actions';
 import { procurarClientes } from '@/server/actions/clientes.actions';
 import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
 import type { SessaoPOSRow } from '@/server/services/comercial/venda.interface';
 import type { ProdutoDto } from '@/server/services/inventario/catalogo.interface';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
+import { resolverPagamentosPOS } from '@/lib/pos-pagamentos';
 
 // ─── Tipos locais ─────────────────────────────────────────────────────────────
 
 type MetodoPagamento = 'DINHEIRO' | 'CARTAO' | 'MPESA' | 'EMOLA' | 'TRANSFERENCIA' | 'CREDITO';
+
+type ProdutoPOS = Pick<ProdutoDto, 'id' | 'nome' | 'sku' | 'codigoBarras' | 'precoVenda' | 'taxaIva'>;
+
+/** Uma linha do painel de pagamento: o meio e o valor recebido, tal como escrito. */
+interface LinhaPagamento {
+  tipo: MetodoPagamento;
+  valor: string;
+}
+
+const formatarMT = (v: number) => v.toLocaleString('pt-MZ', { minimumFractionDigits: 2 });
+/** Valor inicial de um campo de pagamento (vírgula decimal, como o operador escreve). */
+const valorCampo = (v: number) => v.toFixed(2).replace('.', ',');
+/** O painel de pagamento abre com uma linha só, nascida com o total (um meio = um clique). */
+const linhasIniciais = (itens: ItemCarrinho[], tipo: MetodoPagamento): LinhaPagamento[] => [
+  { tipo, valor: valorCampo(calcularTotais(itens).total) },
+];
 
 interface ItemCarrinho {
   produtoId: string;
@@ -71,7 +92,8 @@ interface ItemCarrinho {
 
 interface POSTerminalProps {
   sessaoPOS: SessaoPOSRow;
-  produtos: ProdutoDto[];
+  /** Grelha inicial (primeiros por nome); a pesquisa vai ao servidor. */
+  produtos: ProdutoPOS[];
   vendedorId: string;
 }
 
@@ -138,8 +160,11 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
   const tentativaRef = useRef<{ chave: string; conteudo: string } | null>(null);
   const [busca, setBusca] = useState('');
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
-  const [metodoPagamento, setMetodoPagamento] = useState<MetodoPagamento>('DINHEIRO');
-  const [valorRecebido, setValorRecebido] = useState('');
+  // Resultado da última pesquisa no servidor, com o termo a que responde (descarta corridas).
+  const [resultadoBusca, setResultadoBusca] = useState<{ termo: string; produtos: ProdutoPOS[] } | null>(null);
+  // Meio com que nasce a primeira linha de pagamento (o da venda anterior, salvo crédito).
+  const [metodoInicial, setMetodoInicial] = useState<MetodoPagamento>('DINHEIRO');
+  const [linhasPagamento, setLinhasPagamento] = useState<LinhaPagamento[]>([]);
   const [clienteId, setClienteId] = useState('');
   const [etapa, setEtapa] = useState<'carrinho' | 'pagamento'>('carrinho');
   const [pending, startTransition] = useTransition();
@@ -149,23 +174,41 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
 
   // ─── Produtos filtrados ────────────────────────────────────────────────────
 
-  const produtosFiltrados = busca.trim()
-    ? produtos.filter(
-        (p) =>
-          p.nome.toLowerCase().includes(busca.toLowerCase()) ||
-          p.sku?.toLowerCase().includes(busca.toLowerCase()) ||
-          p.codigoBarras?.includes(busca)
-      )
-    : produtos;
+  const termoBusca = busca.trim();
+
+  // Pesquisa no servidor, com atraso; só o resultado do termo actual é mostrado.
+  useEffect(() => {
+    if (!termoBusca) return;
+    let cancelada = false;
+    const temporizador = setTimeout(async () => {
+      const res = await procurarProdutosPOS({ q: termoBusca });
+      if (cancelada) return;
+      if (res.ok) setResultadoBusca({ termo: termoBusca, produtos: res.data });
+      else toast.error(res.error.message ?? 'Erro ao pesquisar produtos.');
+    }, 200);
+    return () => {
+      cancelada = true;
+      clearTimeout(temporizador);
+    };
+  }, [termoBusca]);
+
+  // Enquanto a resposta do servidor não chega, filtra o que já está carregado.
+  const produtosFiltrados: ProdutoPOS[] = !termoBusca
+    ? produtos
+    : resultadoBusca?.termo === termoBusca
+      ? resultadoBusca.produtos
+      : produtos.filter(
+          (p) =>
+            p.nome.toLowerCase().includes(termoBusca.toLowerCase()) ||
+            p.sku?.toLowerCase().includes(termoBusca.toLowerCase()) ||
+            p.codigoBarras?.includes(termoBusca)
+        );
 
   // ─── Carrinho ─────────────────────────────────────────────────────────────
 
-  const adicionarAoCarrinho = useCallback((produtoId: string) => {
-    const produto = produtos.find((p) => p.id === produtoId);
-    if (!produto) return;
-
+  const adicionarAoCarrinho = useCallback((produto: ProdutoPOS) => {
     setCarrinho((prev) => {
-      const idx = prev.findIndex((i) => i.produtoId === produtoId);
+      const idx = prev.findIndex((i) => i.produtoId === produto.id);
       if (idx >= 0) {
         const updated = [...prev];
         updated[idx] = { ...updated[idx], quantidade: updated[idx].quantidade + 1 };
@@ -183,7 +226,47 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
         },
       ];
     });
-  }, [produtos]);
+  }, []);
+
+  const incrementarItem = useCallback((produtoId: string) => {
+    setCarrinho((prev) =>
+      prev.map((i) => (i.produtoId === produtoId ? { ...i, quantidade: i.quantidade + 1 } : i))
+    );
+  }, []);
+
+  // ─── Pagamento ────────────────────────────────────────────────────────────
+
+  /** Abre o painel de pagamento com uma linha só, nascida com o total. */
+  const abrirPagamento = useCallback(() => {
+    if (carrinho.length === 0) return;
+    setLinhasPagamento(linhasIniciais(carrinho, metodoInicial));
+    setEtapa('pagamento');
+  }, [carrinho, metodoInicial]);
+
+  const resolucao = resolverPagamentosPOS(total, linhasPagamento);
+  const temCredito = linhasPagamento.some((l) => l.tipo === 'CREDITO');
+  const metodoActivo = linhasPagamento[linhasPagamento.length - 1]?.tipo;
+
+  /** Os botões de meio definem o meio da linha activa — a última. */
+  const definirMetodo = (tipo: MetodoPagamento) =>
+    setLinhasPagamento((prev) =>
+      prev.length === 0 ? prev : [...prev.slice(0, -1), { ...prev[prev.length - 1], tipo }]
+    );
+
+  const definirValor = (indice: number, valor: string) =>
+    setLinhasPagamento((prev) => prev.map((l, i) => (i === indice ? { ...l, valor } : l)));
+
+  const removerLinha = (indice: number) =>
+    setLinhasPagamento((prev) => prev.filter((_, i) => i !== indice));
+
+  /** Nova linha, já activa, com o valor em falta (vazia se nada faltar). */
+  const adicionarPagamento = () => {
+    const emFalta = !resolucao.ok && resolucao.motivo === 'EM_FALTA' ? resolucao.emFalta : 0;
+    setLinhasPagamento((prev) => [
+      ...prev,
+      { tipo: 'DINHEIRO', valor: emFalta > 0 ? valorCampo(emFalta) : '' },
+    ]);
+  };
 
   const decrementarItem = useCallback((produtoId: string) => {
     setCarrinho((prev) => {
@@ -211,7 +294,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
       }
       if (e.key === 'F10') {
         e.preventDefault();
-        if (carrinho.length > 0) setEtapa('pagamento');
+        if (etapa === 'carrinho') abrirPagamento();
         return;
       }
       if (e.key === 'Escape') {
@@ -222,7 +305,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
       }
       if (e.key === '+' && carrinho.length > 0 && document.activeElement === document.body) {
         e.preventDefault();
-        adicionarAoCarrinho(carrinho[carrinho.length - 1].produtoId);
+        incrementarItem(carrinho[carrinho.length - 1].produtoId);
         return;
       }
       if (e.key === '-' && carrinho.length > 0 && document.activeElement === document.body) {
@@ -233,26 +316,21 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
     }
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [carrinho, etapa, adicionarAoCarrinho, decrementarItem]);
+  }, [carrinho, etapa, abrirPagamento, incrementarItem, decrementarItem]);
 
   // ─── Finalizar venda ──────────────────────────────────────────────────────
 
-  const faltaCliente = metodoPagamento === 'CREDITO' && !clienteId;
+  const faltaCliente = temCredito && !clienteId;
 
   const finalizarVenda = () => {
-    if (carrinho.length === 0 || pending || faltaCliente) return;
-
-    const valorNum = parseFloat(valorRecebido.replace(',', '.'));
-    const troco = metodoPagamento === 'DINHEIRO' && valorNum > total
-      ? valorNum - total
-      : 0;
+    if (carrinho.length === 0 || pending || faltaCliente || !resolucao.ok) return;
 
     const venda = {
       origem: 'POS' as const,
       vendedorId,
       sessaoPOSId: sessaoPOS.id,
       sessaoCaixaId: sessaoPOS.sessaoCaixaId,
-      ...(metodoPagamento === 'CREDITO' ? { clienteId } : {}),
+      ...(temCredito ? { clienteId } : {}),
       itens: carrinho.map((item) => ({
         produtoId: item.produtoId,
         nomeProduto: item.nomeProduto,
@@ -261,13 +339,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
         precoUnitario: item.precoUnitario,
         taxaIva: item.taxaIva,
       })),
-      pagamentos: [
-        {
-          tipo: metodoPagamento,
-          valor: total,
-          ...(troco > 0 ? { troco } : {}),
-        },
-      ],
+      pagamentos: resolucao.pagamentos,
     };
     // O troco não é conteúdo fiscal (o servidor também o ignora na chave): mudar só o valor
     // recebido num retry não pode gerar uma chave nova e uma segunda venda.
@@ -296,10 +368,10 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
         // Crédito acima do limite não bloqueia a venda: avisa (#318).
         result.data.avisos?.forEach((aviso) => toast.warning(aviso, { duration: 15_000 }));
         setCarrinho([]);
-        setValorRecebido('');
+        setLinhasPagamento([]);
         setClienteId('');
         // O crédito é excepção: a venda seguinte volta a dinheiro, não herda o cliente nem o meio.
-        if (metodoPagamento === 'CREDITO') setMetodoPagamento('DINHEIRO');
+        setMetodoInicial(temCredito ? 'DINHEIRO' : (linhasPagamento[0]?.tipo ?? 'DINHEIRO'));
         setEtapa('carrinho');
         setBusca('');
         searchRef.current?.focus();
@@ -323,13 +395,6 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
       }
     });
   };
-
-  // ─── Troco ───────────────────────────────────────────────────────────────
-
-  const valorRecebidoNum = parseFloat(valorRecebido.replace(',', '.'));
-  const troco = metodoPagamento === 'DINHEIRO' && !isNaN(valorRecebidoNum) && valorRecebidoNum > total
-    ? valorRecebidoNum - total
-    : null;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -359,7 +424,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
               <button
                 key={produto.id}
                 type="button"
-                onClick={() => adicionarAoCarrinho(produto.id)}
+                onClick={() => adicionarAoCarrinho(produto)}
                 className="rounded-lg border p-3 text-left hover:bg-accent hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 group"
                 title={`Adicionar ${produto.nome} (Enter)`}
               >
@@ -453,7 +518,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6"
-                        onClick={() => adicionarAoCarrinho(item.produtoId)}
+                        onClick={() => incrementarItem(item.produtoId)}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -496,7 +561,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
                 className="w-full"
                 size="lg"
                 disabled={carrinho.length === 0}
-                onClick={() => setEtapa('pagamento')}
+                onClick={abrirPagamento}
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Finalizar (F10)
@@ -526,10 +591,10 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
                   {(Object.keys(METODO_LABELS) as MetodoPagamento[]).map((m) => (
                     <Button
                       key={m}
-                      variant={metodoPagamento === m ? 'default' : 'outline'}
+                      variant={metodoActivo === m ? 'default' : 'outline'}
                       size="sm"
                       className="gap-1.5"
-                      onClick={() => setMetodoPagamento(m)}
+                      onClick={() => definirMetodo(m)}
                     >
                       {METODO_ICONS[m]}
                       {METODO_LABELS[m]}
@@ -538,29 +603,61 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
                 </div>
               </div>
 
-              {metodoPagamento === 'DINHEIRO' && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Valor recebido (MT)
-                  </label>
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0,00"
-                    value={valorRecebido}
-                    onChange={(e) => setValorRecebido(e.target.value)}
-                    autoFocus
-                    className="text-lg tabular-nums font-bold"
-                  />
-                  {troco !== null && (
-                    <p className="text-sm font-medium text-primary">
-                      Troco: MT {troco.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
-                    </p>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Pagamentos (valor recebido, MT)
+                </p>
+                {linhasPagamento.map((linha, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="flex w-28 shrink-0 items-center gap-1.5 text-xs font-medium">
+                      {METODO_ICONS[linha.tipo]}
+                      {METODO_LABELS[linha.tipo]}
+                    </span>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                      aria-label={`Valor do pagamento ${i + 1} (${METODO_LABELS[linha.tipo]})`}
+                      value={linha.valor}
+                      onChange={(e) => definirValor(i, e.target.value)}
+                      autoFocus={i === linhasPagamento.length - 1}
+                      className="text-lg tabular-nums font-bold"
+                    />
+                    {linhasPagamento.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                        onClick={() => removerLinha(i)}
+                        aria-label={`Remover pagamento ${i + 1}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={adicionarPagamento}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Adicionar pagamento
+                </Button>
+                <p id="pos-pagamentos-estado" className="text-sm font-medium" aria-live="polite">
+                  {resolucao.ok ? (
+                    resolucao.troco > 0 && (
+                      <span className="text-primary">Troco: MT {formatarMT(resolucao.troco)}</span>
+                    )
+                  ) : resolucao.motivo === 'EM_FALTA' ? (
+                    <span className="text-destructive">Em falta: MT {formatarMT(resolucao.emFalta)}</span>
+                  ) : resolucao.motivo === 'EXCESSO_SEM_DINHEIRO' ? (
+                    <span className="text-destructive">O excesso só pode ser troco em dinheiro.</span>
+                  ) : resolucao.motivo === 'VALOR_INVALIDO' ? (
+                    <span className="text-destructive">Valor inválido: positivo, até 2 casas decimais.</span>
+                  ) : (
+                    <span className="text-destructive">Acrescente um pagamento.</span>
                   )}
-                </div>
-              )}
+                </p>
+              </div>
 
-              {metodoPagamento === 'CREDITO' && (
+              {temCredito && (
                 <div className="space-y-1.5">
                   <label
                     htmlFor="pos-cliente-credito"
@@ -608,9 +705,9 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
               <Button
                 className="w-full"
                 size="lg"
-                disabled={pending || faltaCliente}
+                disabled={pending || faltaCliente || !resolucao.ok}
                 onClick={finalizarVenda}
-                aria-describedby={faltaCliente ? 'pos-cliente-credito-dica' : undefined}
+                aria-describedby={faltaCliente ? 'pos-cliente-credito-dica' : 'pos-pagamentos-estado'}
               >
                 {pending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -619,7 +716,7 @@ export function POSTerminal({ sessaoPOS, produtos, vendedorId }: POSTerminalProp
                 )}
                 {pending
                   ? 'A registar…'
-                  : `${metodoPagamento === 'CREDITO' ? 'Facturar a crédito' : 'Pagar'} MT ${total.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}`}
+                  : `${temCredito ? 'Facturar a crédito' : 'Pagar'} MT ${formatarMT(total)}`}
               </Button>
               <Button
                 variant="ghost"
