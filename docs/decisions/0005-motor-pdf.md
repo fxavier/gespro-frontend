@@ -51,6 +51,12 @@ recibo, nota e relatórios, com `tabular-nums` e tokens de marca.
   serializados como **texto lossless** (`Decimal.toString()`), nunca como
   vírgula flutuante — em CSV e em XLSX. Colunas `integer` como número (para
   ordenação/soma nativas). Prova por teste com valor > `Number.MAX_SAFE_INTEGER`.
+- **Emenda (#300)**: no XLSX, valores `decimal`/`currency` com ≤ 15 dígitos
+  significativos passam a célula **numérica** com formato `#,##0.00` (a SOMA do
+  Excel funciona). Até 15 dígitos o `double` reproduz exactamente o
+  `Decimal.toString()`, logo a regra de precisão mantém-se; acima disso a célula
+  continua **texto lossless**. A conversão acontece só na escrita (`xlsx.ts`); o
+  `Dataset` e o CSV não mudam. Colunas de texto nunca viram número nem fórmula.
 
 ## Consequências
 
