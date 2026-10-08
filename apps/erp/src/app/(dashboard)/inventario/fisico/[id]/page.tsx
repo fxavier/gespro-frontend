@@ -13,8 +13,15 @@ import { DetailShell, PageHeader, StatusBadge } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Edit, ClipboardList, Users, AlertTriangle } from 'lucide-react';
-import type { InventarioFisicoDto } from '@/server/services/inventario/inventario-fisico.interface';
+import { formatarData, formatarDataHora } from '@/lib/format-date';
+import { ROTULOS_ESTADO_ATIVO } from '@/lib/validations/inventario-ativos';
+import type {
+  ContagemInventarioDto,
+  InventarioFisicoDto,
+} from '@/server/services/inventario/inventario-fisico.interface';
+import { InventarioFisicoAcoes } from '../_components/inventario-fisico-acoes';
 
 const STATUS_VARIANTES: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   PLANEJADO: 'outline',
@@ -36,7 +43,71 @@ const STATUS_LABELS: Record<string, string> = {
 
 function formatDate(value: Date | null | undefined): string {
   if (!value) return '—';
-  return new Date(value).toLocaleDateString('pt-MZ');
+  return formatarData(value);
+}
+
+const rotuloEstado = (e: string | null) =>
+  e ? (ROTULOS_ESTADO_ATIVO as Record<string, string>)[e] ?? e : '—';
+
+function ContagemTab({ inv, contagens }: { inv: InventarioFisicoDto; contagens: ContagemInventarioDto[] }) {
+  if (contagens.length === 0) {
+    return (
+      <div className="rounded-lg border p-8 text-center text-muted-foreground">
+        <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-40" />
+        <p className="text-sm">
+          {inv.status === 'PLANEJADO' || inv.status === 'AGENDADO'
+            ? 'A lista de contagem é gerada ao iniciar o inventário.'
+            : 'Nenhum activo no âmbito deste inventário.'}
+        </p>
+      </div>
+    );
+  }
+  const podeContar = inv.status === 'EM_ANDAMENTO';
+  return (
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Código</TableHead>
+            <TableHead>Activo</TableHead>
+            <TableHead>Estado esperado</TableHead>
+            <TableHead>Resultado</TableHead>
+            <TableHead>Estado encontrado</TableHead>
+            <TableHead>Contado em</TableHead>
+            {podeContar && <TableHead className="text-right">Acção</TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {contagens.map((c) => (
+            <TableRow key={c.id}>
+              <TableCell className="font-mono text-sm">{c.ativo?.codigoInterno ?? c.ativoId}</TableCell>
+              <TableCell>{c.ativo?.nome ?? '—'}</TableCell>
+              <TableCell>{rotuloEstado(c.estadoEsperado)}</TableCell>
+              <TableCell>
+                {c.dataContagem === null ? (
+                  <span className="text-muted-foreground">Por contar</span>
+                ) : (
+                  <span className={c.temDiscrepancia ? 'text-destructive' : undefined}>
+                    {c.encontrado ? 'Encontrado' : 'Não encontrado'}
+                    {c.temDiscrepancia ? ' · discrepância' : ''}
+                  </span>
+                )}
+              </TableCell>
+              <TableCell>{rotuloEstado(c.estadoEncontrado)}</TableCell>
+              <TableCell className="tabular-nums">{c.dataContagem ? formatarDataHora(c.dataContagem) : '—'}</TableCell>
+              {podeContar && (
+                <TableCell className="text-right">
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/inventario/fisico/${inv.id}/contagens/${c.id}`}>Registar contagem</Link>
+                  </Button>
+                </TableCell>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
 }
 
 function DetalhesTab({ inv, localizacaoNome }: { inv: InventarioFisicoDto; localizacaoNome: string | null }) {
@@ -233,6 +304,10 @@ export default async function InventarioFisicoDetalhePage({ params }: PageProps)
 
   if (!inv) notFound();
 
+  const contagens = await runWithTenantContext({ tenantId, userId }, () =>
+    inventarioFisicoService.listarContagens(inv.id, { tenantId, userId }),
+  );
+
   // Enriquecer com nome de localização se existir
   const localizacaoNome = inv.localizacaoId
     ? await runWithTenantContext({ tenantId, userId }, async () => {
@@ -265,12 +340,15 @@ export default async function InventarioFisicoDetalhePage({ params }: PageProps)
             badge={<StatusBadge status={inv.status} variant={statusVariant} label={statusLabel} />}
             actions={
               isEditable ? (
-                <Button asChild size="sm">
-                  <Link href={`/inventario/fisico/${id}/editar`}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Editar
-                  </Link>
-                </Button>
+                <div className="flex flex-wrap items-start gap-2">
+                  <InventarioFisicoAcoes id={inv.id} status={inv.status} />
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/inventario/fisico/${id}/editar`}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Editar
+                    </Link>
+                  </Button>
+                </div>
               ) : undefined
             }
           />
@@ -280,6 +358,12 @@ export default async function InventarioFisicoDetalhePage({ params }: PageProps)
             key: 'detalhes',
             label: 'Detalhes',
             content: <DetalhesTab inv={inv} localizacaoNome={localizacaoNome} />,
+          },
+          {
+            key: 'contagem',
+            label: 'Contagem',
+            count: contagens.length,
+            content: <ContagemTab inv={inv} contagens={contagens} />,
           },
           {
             key: 'membros',
