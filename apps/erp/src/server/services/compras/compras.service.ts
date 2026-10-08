@@ -18,6 +18,7 @@ import type {
   RequisicaoCompraResumo,
   CotacaoDetalhe,
   CotacaoResumo,
+  CotacaoAdjudicadaDto,
   PedidoCompraDetalhe,
   PedidoCompraResumo,
   RecebimentoCompraDto,
@@ -836,6 +837,26 @@ export const comprasService: IComprasService = {
     }));
   },
 
+  /** #110: as cotações ADJUDICADAS desta requisição (nunca as de outra) para a conversão. */
+  async listarCotacoesAdjudicadasDaRequisicao(requisicaoId: string, ctx: Ctx) {
+    const cotacoes = await db.cotacao.findMany({
+      where: { tenantId: ctx.tenantId, requisicaoCompraId: requisicaoId, status: 'ADJUDICADA', vencedorFornecedorId: { not: null } },
+      include: { fornecedores: { include: { fornecedor: { select: { nome: true } } } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return cotacoes.map((c): CotacaoAdjudicadaDto => {
+      const vencedor = c.fornecedores.find((f) => f.fornecedorId === c.vencedorFornecedorId);
+      return {
+        id: c.id,
+        numero: c.numero,
+        vencedorFornecedorId: c.vencedorFornecedorId!,
+        vencedorNome: vencedor?.fornecedor.nome ?? c.vencedorFornecedorId!,
+        valorTotal: vencedor?.valorTotal?.toString() ?? null,
+        prazoEntregaDias: vencedor?.prazoEntregaDias ?? null,
+      };
+    });
+  },
+
   // ---- Pedido de Compra ----
 
   async criarPedido(input: CreatePedidoCompraInput, ctx: Ctx) {
@@ -897,6 +918,9 @@ export const comprasService: IComprasService = {
     if (cotacao.status !== 'ADJUDICADA' || !vencedorFornecedorId) {
       throw new BusinessRuleError('ESTADO_INVALIDO', 'Cotação não foi adjudicada');
     }
+    if (cotacao.requisicaoCompraId && cotacao.requisicaoCompraId !== requisicaoId) {
+      throw new BusinessRuleError('COTACAO_DE_OUTRA_REQUISICAO', 'A cotação pertence a outra requisição');
+    }
 
     const fornecedorVencedor = cotacao.fornecedores.find((f: any) => f.fornecedorId === vencedorFornecedorId);
 
@@ -938,10 +962,19 @@ export const comprasService: IComprasService = {
     }));
 
     const totais = calcularTotaisPedido(itensPedido);
-    const numero = await prisma.$transaction(async (tx) => proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx, new Date()));
 
+    // Número, pedido e requisição CONVERTIDA na MESMA tx: uma recusa não queima número.
+    // A numeração tranca a série (FOR UPDATE); só depois se relê o estado da requisição —
+    // uma segunda conversão concorrente (duplo clique) espera pela primeira, vê CONVERTIDA
+    // e é recusada, com a série reposta pelo rollback.
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as PrismaClient;
+      const numero = await proximoNumeroSerie(rawTx as unknown as Prisma.TransactionClient, 'PEDIDO_COMPRA', ctx, new Date());
+      const trancada = await tx.requisicaoCompra.findUnique({ where: { id: requisicaoId } });
+      if (!trancada || trancada.tenantId !== ctx.tenantId) throw new NotFoundError('Requisição não encontrada');
+      if (trancada.status !== 'APROVADA') {
+        throw new BusinessRuleError('ESTADO_INVALIDO', 'Requisição não está aprovada (já foi convertida?)');
+      }
       const pedido = await tx.pedidoCompra.create({
         data: {
           tenantId: ctx.tenantId, numero, data: new Date(),
@@ -954,7 +987,10 @@ export const comprasService: IComprasService = {
           ...totais,
           itens: { create: itensPedido.map((i: any) => ({ ...i, tenantId: ctx.tenantId, subtotal: i.quantidade * i.precoUnitario * (1 + i.taxaIva) })) },
         },
-        include: { itens: true, aprovacoes: true, recebimentos: { include: { itens: true } } },
+        include: {
+          itens: true, aprovacoes: true, recebimentos: { include: { itens: true } },
+          fornecedor: { select: { nome: true } },
+        },
       });
       await tx.requisicaoCompra.update({ where: { id: requisicaoId }, data: { status: 'CONVERTIDA' } });
       return toPedidoDetalhe(pedido);
@@ -980,11 +1016,29 @@ export const comprasService: IComprasService = {
     await db.pedidoCompra.update({ where: { id }, data: { status: 'ENVIADO' } });
   },
 
+  /** #110: o fornecedor confirmou o pedido (ENVIADO → CONFIRMADO). */
+  async confirmarPedido(id: string, ctx: Ctx) {
+    const p = await db.pedidoCompra.findUnique({ where: { id } });
+    if (!p || p.tenantId !== ctx.tenantId) throw new NotFoundError('Pedido não encontrado');
+    transitar(TRANSICOES_PEDIDO_COMPRA, 'PedidoCompra', p.status as StatusPedidoCompra, 'CONFIRMADO');
+    await db.pedidoCompra.update({ where: { id }, data: { status: 'CONFIRMADO' } });
+  },
+
+  /** #110: o fornecedor expediu a mercadoria (CONFIRMADO → EM_TRANSITO); a recepção fica possível. */
+  async marcarPedidoEmTransito(id: string, ctx: Ctx) {
+    const p = await db.pedidoCompra.findUnique({ where: { id } });
+    if (!p || p.tenantId !== ctx.tenantId) throw new NotFoundError('Pedido não encontrado');
+    transitar(TRANSICOES_PEDIDO_COMPRA, 'PedidoCompra', p.status as StatusPedidoCompra, 'EM_TRANSITO');
+    await db.pedidoCompra.update({ where: { id }, data: { status: 'EM_TRANSITO' } });
+  },
+
   async cancelarPedido(id: string, motivo: string, ctx: Ctx) {
     const p = await db.pedidoCompra.findUnique({ where: { id } });
     if (!p || p.tenantId !== ctx.tenantId) throw new NotFoundError('Pedido não encontrado');
     transitar(TRANSICOES_PEDIDO_COMPRA, 'PedidoCompra', p.status as StatusPedidoCompra, 'CANCELADO');
-    await db.pedidoCompra.update({ where: { id }, data: { status: 'CANCELADO', observacoes: motivo } });
+    // O motivo junta-se às observações em vez de as apagar.
+    const observacoes = [p.observacoes, `Cancelado: ${motivo}`].filter(Boolean).join('\n');
+    await db.pedidoCompra.update({ where: { id }, data: { status: 'CANCELADO', observacoes } });
   },
 
   async obterPedido(id: string, ctx: Ctx) {

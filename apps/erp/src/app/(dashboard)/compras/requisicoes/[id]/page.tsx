@@ -8,7 +8,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Edit, ArrowLeft, CheckCircle, XCircle as XCircleIcon, Clock } from 'lucide-react';
+import { Edit, ArrowLeft, CheckCircle, XCircle as XCircleIcon, Clock, FileCheck } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
@@ -56,6 +56,8 @@ export default async function RequisicaoDetalhePage({ params }: Props) {
   if (!requisicao) notFound();
 
   const podeEditar = requisicao.status === 'RASCUNHO' || requisicao.status === 'PENDENTE';
+  // #110: uma requisição aprovada converte-se em pedido numa rota própria (escolhe a cotação).
+  const podeConverter = requisicao.status === 'APROVADA' && permissions.includes('compras:pedido:criar');
   // Aprovar/rejeitar (#108): só o aprovador PENDENTE do nível corrente, com a permissão.
   const nivelPendente = permissions.includes('compras:aprovacao:decidir')
     ? nivelPendenteDoAprovador(requisicao, userId)
@@ -246,6 +248,14 @@ export default async function RequisicaoDetalhePage({ params }: Props) {
                     <Link href={`/compras/requisicoes/${requisicao.id}/editar`}>
                       <Edit className="h-4 w-4 mr-1.5" />
                       Editar
+                    </Link>
+                  </Button>
+                )}
+                {podeConverter && (
+                  <Button size="sm" asChild>
+                    <Link href={`/compras/requisicoes/${requisicao.id}/converter`}>
+                      <FileCheck className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      Converter em pedido
                     </Link>
                   </Button>
                 )}

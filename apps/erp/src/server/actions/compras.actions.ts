@@ -17,6 +17,8 @@ import {
   RegistarRespostaCotacaoSchema,
   CreatePedidoCompraSchema,
   UpdatePedidoCompraSchema,
+  ConverterRequisicaoEmPedidoSchema,
+  CancelarPedidoCompraSchema,
   CreateRecebimentoCompraSchema,
   CreateConfiguracaoWorkflowSchema,
 } from '@/lib/validations/compras';
@@ -154,10 +156,7 @@ export const criarPedidoCompraAction = createSafeAction({
 });
 
 export const converterRequisicaoEmPedidoAction = createSafeAction({
-  schema: z.object({
-    requisicaoId: z.string().cuid(),
-    cotacaoId: z.string().cuid(),
-  }),
+  schema: ConverterRequisicaoEmPedidoSchema,
   permission: 'compras:pedido:criar',
   revalidate: {
     paths: ['/compras/pedidos', '/compras/requisicoes'],
@@ -180,14 +179,29 @@ export const actualizarPedidoCompraAction = createSafeAction({
 export const enviarPedidoCompraAction = createSafeAction({
   schema: z.object({ id: z.string().cuid() }),
   permission: 'compras:pedido:enviar',
-  revalidate: { tags: ['compras:pedidos'] },
+  revalidate: { paths: ['/compras/pedidos'], tags: ['compras:pedidos'] },
   handler: async ({ id }, ctx) => comprasService.enviarPedido(id, ctx),
 });
 
+/** #110: passos do fornecedor; sem permissão nova (não chegaria aos tenants existentes sem re-seed). */
+export const confirmarPedidoCompraAction = createSafeAction({
+  schema: z.object({ id: z.string().cuid() }),
+  permission: 'compras:pedido:enviar',
+  revalidate: { paths: ['/compras/pedidos'], tags: ['compras:pedidos'] },
+  handler: async ({ id }, ctx) => comprasService.confirmarPedido(id, ctx),
+});
+
+export const marcarPedidoCompraEmTransitoAction = createSafeAction({
+  schema: z.object({ id: z.string().cuid() }),
+  permission: 'compras:pedido:enviar',
+  revalidate: { paths: ['/compras/pedidos'], tags: ['compras:pedidos'] },
+  handler: async ({ id }, ctx) => comprasService.marcarPedidoEmTransito(id, ctx),
+});
+
 export const cancelarPedidoCompraAction = createSafeAction({
-  schema: z.object({ id: z.string().cuid(), motivo: z.string().min(1).max(500) }),
+  schema: CancelarPedidoCompraSchema,
   permission: 'compras:pedido:cancelar',
-  revalidate: { tags: ['compras:pedidos'] },
+  revalidate: { paths: ['/compras/pedidos'], tags: ['compras:pedidos'] },
   handler: async ({ id, motivo }, ctx) => comprasService.cancelarPedido(id, motivo, ctx),
 });
 
