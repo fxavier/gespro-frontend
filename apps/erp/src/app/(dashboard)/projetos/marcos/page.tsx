@@ -4,12 +4,14 @@
  */
 
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Flag } from 'lucide-react';
+import { Flag, Plus } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
+import { Button } from '@/components/ui/button';
 import {
   PageHeader,
   FilterBar,
@@ -145,6 +147,14 @@ export default async function MarcosPage({
           { label: 'Projectos', href: '/projetos/lista' },
           { label: 'Marcos' },
         ]}
+        actions={
+          <Button size="sm" asChild>
+            <Link href="/projetos/marcos/novo">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Novo Marco
+            </Link>
+          </Button>
+        }
       />
 
       <Suspense fallback={<div className="grid grid-cols-2 sm:grid-cols-4 gap-4 animate-pulse">{Array.from({length:4}).map((_,i) => <div key={i} className="h-20 bg-muted rounded-lg" />)}</div>}>

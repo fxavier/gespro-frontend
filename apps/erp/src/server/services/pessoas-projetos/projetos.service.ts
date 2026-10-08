@@ -59,6 +59,19 @@ export function calcularPosicaoKanban(antes?: string, depois?: string): string {
   return calcularMidpoint(a, b);
 }
 
+/**
+ * O `projetoId` de uma escrita filha (tarefa, marco) vem do cliente: o `create` grava o
+ * `tenantId` do contexto mas não verifica que o projecto é do mesmo tenant, e a tarefa ficava
+ * pendurada no projecto alheio (#167). Cross-tenant → `NotFoundError` (404), nunca 403.
+ */
+async function exigirProjetoDoTenant(projetoId: string, ctx: Ctx): Promise<void> {
+  const projeto = await prisma.projeto.findFirst({
+    where: { id: projetoId, tenantId: ctx.tenantId },
+    select: { id: true },
+  });
+  if (!projeto) throw new NotFoundError('Projecto não encontrado');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // EquipaService
 // ─────────────────────────────────────────────────────────────────────────────
@@ -256,6 +269,8 @@ export const ProjetoService = {
 
 export const TarefaService = {
   async criar(input: CreateTarefaInput, ctx: Ctx): Promise<{ id: string }> {
+    await exigirProjetoDoTenant(input.projetoId, ctx);
+
     // Posição inicial: última tarefa + delta (inserir no fim do kanban)
     const ultima = await prisma.tarefaProjeto.findFirst({
       where: { projetoId: input.projetoId, tenantId: ctx.tenantId, status: 'A_FAZER' },
@@ -290,6 +305,32 @@ export const TarefaService = {
       select: { id: true },
     });
     return { id: tarefa.id };
+  },
+
+  /** Detalhe e editar da tarefa (#167). Outro tenant → `NotFoundError`. */
+  async obter(id: string, ctx: Ctx) {
+    const tarefa = await prisma.tarefaProjeto.findFirst({
+      where: { id, tenantId: ctx.tenantId },
+      select: {
+        id: true,
+        codigo: true,
+        titulo: true,
+        descricao: true,
+        tipo: true,
+        status: true,
+        prioridade: true,
+        dataFimPrevista: true,
+        dataFimReal: true,
+        horasEstimadas: true,
+        horasTrabalhadas: true,
+        progresso: true,
+        observacoes: true,
+        projetoId: true,
+        projeto: { select: { codigo: true, nome: true } },
+      },
+    });
+    if (!tarefa) throw new NotFoundError('Tarefa não encontrada');
+    return tarefa;
   },
 
   async actualizar(id: string, input: UpdateTarefaInput, ctx: Ctx): Promise<void> {
@@ -439,10 +480,13 @@ export const TimesheetService = {
   async aprovar(id: string, ctx: Ctx): Promise<void> {
     const ts = await prisma.timesheet.findFirst({
       where: { id, tenantId: ctx.tenantId },
-      select: { aprovado: true },
+      select: { aprovado: true, motivoRejeicao: true },
     });
     if (!ts) throw new NotFoundError('Timesheet não encontrado');
     if (ts.aprovado) throw new BusinessRuleError('JA_APROVADO', 'Timesheet já aprovado');
+    if (ts.motivoRejeicao !== null) {
+      throw new BusinessRuleError('TIMESHEET_REJEITADO', 'Timesheet rejeitado não pode ser aprovado');
+    }
 
     await prisma.timesheet.update({
       where: { id },
@@ -460,6 +504,25 @@ export const TimesheetService = {
         data: { horasTrabalhadas: { increment: Math.round(Number(atualizado.duracaoHoras)) } },
       });
     }
+  },
+
+  /**
+   * Rejeita um registo por aprovar (#167, molde de `Ausencia`): grava o motivo e mantém
+   * `aprovado = false`; as horas da tarefa não mudam. Rejeitar é terminal — o registo não se
+   * aprova nem se rejeita depois.
+   */
+  async rejeitar(id: string, motivoRejeicao: string, ctx: Ctx): Promise<void> {
+    const ts = await prisma.timesheet.findFirst({
+      where: { id, tenantId: ctx.tenantId },
+      select: { aprovado: true, motivoRejeicao: true },
+    });
+    if (!ts) throw new NotFoundError('Timesheet não encontrado');
+    if (ts.aprovado) throw new BusinessRuleError('JA_APROVADO', 'Timesheet já aprovado não pode ser rejeitado');
+    if (ts.motivoRejeicao !== null) {
+      throw new BusinessRuleError('TIMESHEET_REJEITADO', 'Timesheet já foi rejeitado');
+    }
+
+    await prisma.timesheet.update({ where: { id }, data: { motivoRejeicao } });
   },
 
   async listar(filter: FilterTimesheetInput, ctx: Ctx) {
@@ -493,6 +556,8 @@ export const TimesheetService = {
 
 export const MarcoService = {
   async criar(input: CreateMarcoInput, ctx: Ctx): Promise<{ id: string }> {
+    await exigirProjetoDoTenant(input.projetoId, ctx);
+
     const marco = await prisma.marco.create({
       data: {
         tenantId: ctx.tenantId,

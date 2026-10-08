@@ -14,6 +14,7 @@ import {
   FilterTarefaSchema,
   CreateTimesheetSchema,
   FilterTimesheetSchema,
+  RejeitarTimesheetSchema,
   CreateMarcoSchema,
   CreateOrcamentoProjetoSchema,
   CreateRiscoSchema,
@@ -154,6 +155,13 @@ export const aprovarTimesheetAction = createSafeAction({
   permission: 'projetos:timesheets:aprovar',
   revalidate: { tags: ['projetos:timesheets'] },
   handler: ({ id }, ctx) => TimesheetService.aprovar(id, ctx),
+});
+
+export const rejeitarTimesheetAction = createSafeAction({
+  schema: RejeitarTimesheetSchema,
+  permission: 'projetos:timesheets:aprovar',
+  revalidate: { tags: ['projetos:timesheets'] },
+  handler: ({ id, motivoRejeicao }, ctx) => TimesheetService.rejeitar(id, motivoRejeicao, ctx),
 });
 
 export const listarTimesheetsAction = createSafeAction({
