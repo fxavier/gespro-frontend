@@ -32,7 +32,7 @@ export const CreateCentroTrabalhoSchema = z.object({
   nome: z.string().min(1).max(100),
   tipo: TipoCentroTrabalhoEnum,
   descricao: z.string().max(500).optional(),
-  capacidadeHorasDia: z.number().positive().optional(),
+  capacidadeHorasDia: z.number().positive().max(24, 'Um dia não tem mais de 24 horas').optional(),
   custoHora: z.number().nonnegative(),
   ativo: z.boolean().default(true),
 });

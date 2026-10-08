@@ -210,6 +210,7 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   PLANEJAMENTO: 'secondary',  // PT-BR (compatibilidade)
   ARQUIVADO: 'outline',
   ARQUIVADA: 'outline',       // forma feminina
+  SUBSTITUIDO: 'outline',
 
   // Genérico
   ATIVO_GEN: 'success',
@@ -437,6 +438,7 @@ export const STATUS_LABELS: Record<string, string> = {
   PLANEJAMENTO: 'Planeamento',
   ARQUIVADO: 'Arquivado',
   ARQUIVADA: 'Arquivada',
+  SUBSTITUIDO: 'Substituído',
 
   // RH adicional
   INACTIVO: 'Inactivo',
