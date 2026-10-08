@@ -23,6 +23,7 @@ import {
   CreateEncomendaSchema,
   UpdateEncomendaSchema,
   TransitarEncomendaSchema,
+  ConfirmarEncomendaSchema,
   ConverterEncomendaEmVendaSchema,
   CreateDevolucaoSchema,
   CreateTrocaSchema,
@@ -251,6 +252,40 @@ export const transitarEncomenda = createSafeAction({
   },
 });
 
+/** RASCUNHO → CONFIRMADA, reservando o stock na localização escolhida (#129). */
+export const confirmarEncomenda = createSafeAction({
+  schema: ConfirmarEncomendaSchema,
+  permission: 'vendas:encomendas:confirmar',
+  revalidate: {
+    paths: ['/vendas/pedidos'],
+    tags: ['encomendas'],
+  },
+  handler: async ({ encomendaId, localizacaoId }, ctx) => {
+    return encomendaService.transitar({ encomendaId, paraStatus: 'CONFIRMADA', localizacaoId }, ctx);
+  },
+});
+
+/**
+ * Converter a partir do detalhe (#129): um pagamento a CRÉDITO pelo total da encomenda, sem
+ * sessão de caixa — bate com o D 411 que o serviço lança sempre. O total lê-se no servidor.
+ */
+export const converterEncomendaEmVendaACredito = createSafeAction({
+  schema: z.object({ encomendaId: z.string().cuid('ID de encomenda inválido') }),
+  permission: 'vendas:encomendas:converter',
+  revalidate: {
+    paths: ['/vendas/pedidos', '/vendas'],
+    tags: ['encomendas', 'vendas'],
+  },
+  handler: async ({ encomendaId }, ctx) => {
+    const encomenda = await encomendaService.obter(encomendaId, ctx);
+    return encomendaService.converterEmVenda(
+      encomendaId,
+      [{ tipo: 'CREDITO', valor: Number(encomenda.total) }],
+      ctx,
+    );
+  },
+});
+
 export const converterEncomendaEmVenda = createSafeAction({
   schema: ConverterEncomendaEmVendaSchema,
   permission: 'vendas:encomendas:converter',
@@ -275,6 +310,7 @@ export const cancelarEncomenda = createSafeAction({
   }),
   permission: 'vendas:encomendas:cancelar',
   revalidate: {
+    paths: ['/vendas/pedidos'],
     tags: ['encomendas'],
   },
   handler: async ({ id, localizacaoId }, ctx) => {

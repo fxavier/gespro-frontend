@@ -114,6 +114,9 @@ export const TRANSICOES_ENCOMENDA: Record<string, string[]> = {
   CANCELADA:             [],
 };
 
+/** Estados de que uma encomenda pode ser convertida em venda (`converterEmVenda`). */
+export const ESTADOS_ENCOMENDA_CONVERTIVEIS: readonly string[] = ['CONFIRMADA', 'PARCIALMENTE_ENTREGUE'];
+
 /**
  * Ciclo de vida de Devolução:
  * PENDENTE → APROVADA | REJEITADA

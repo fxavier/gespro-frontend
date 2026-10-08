@@ -368,8 +368,15 @@ export const TransitarEncomendaSchema = z.object({
   encomendaId: z.string().cuid('ID de encomenda inválido'),
   paraStatus: StatusEncomendaEnum,
   motivo: z.string().max(500).optional(),
-  localizacaoId: z.string().cuid().optional(), // para reservarStock ao confirmar
+  localizacaoId: idEntidade('Localização inválida').optional(), // para reservarStock ao confirmar
 });
+
+/** Confirmar uma encomenda (RASCUNHO → CONFIRMADA): a localização onde o stock é reservado. */
+export const ConfirmarEncomendaSchema = z.object({
+  encomendaId: z.string().cuid('ID de encomenda inválido'),
+  localizacaoId: idEntidade('Seleccione a localização onde reservar o stock'),
+});
+export type ConfirmarEncomendaInput = z.infer<typeof ConfirmarEncomendaSchema>;
 
 export const ConverterEncomendaEmVendaSchema = z.object({
   encomendaId: z.string().cuid('ID de encomenda inválido'),
