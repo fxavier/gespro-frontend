@@ -1,6 +1,6 @@
 // Serviço de Inventário Físico de Ativos (WS A — Wave 2)
 import 'server-only';
-import { prisma } from '@/server/db/client';
+import { prisma, prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type {
@@ -76,6 +76,7 @@ function mapCont(c: {
   fotoContagem: string | null; temDiscrepancia: boolean; tipoDiscrepancia: string | null;
   justificativaDiscrepancia: string | null; ajusteRealizado: boolean;
   dataAjuste: Date | null; ajustadoPorId: string | null; createdAt: Date;
+  ativo?: { codigoInterno: string; nome: string };
 }): ContagemInventarioDto {
   return {
     id: c.id, inventarioId: c.inventarioId, ativoId: c.ativoId,
@@ -89,8 +90,14 @@ function mapCont(c: {
     justificativaDiscrepancia: c.justificativaDiscrepancia,
     ajusteRealizado: c.ajusteRealizado, dataAjuste: c.dataAjuste,
     ajustadoPorId: c.ajustadoPorId, createdAt: c.createdAt,
+    ...(c.ativo ? { ativo: { codigoInterno: c.ativo.codigoInterno, nome: c.ativo.nome } } : {}),
   };
 }
+
+const CONT_COM_ATIVO_SEL = {
+  ...CONT_SEL,
+  ativo: { select: { codigoInterno: true, nome: true } },
+} as const;
 
 // ─── Implementação ────────────────────────────────────────────────────────────
 
@@ -232,10 +239,19 @@ async function removerMembro(inventarioId: string, userId: string, ctx: Ctx): Pr
 async function listarContagens(inventarioId: string, ctx: Ctx): Promise<ContagemInventarioDto[]> {
   const cs = await prisma.contagemInventario.findMany({
     where: { inventarioId, tenantId: ctx.tenantId },
-    select: CONT_SEL,
+    select: CONT_COM_ATIVO_SEL,
     orderBy: { createdAt: 'asc' },
   });
   return cs.map(mapCont);
+}
+
+async function obterContagem(inventarioId: string, contagemId: string, ctx: Ctx): Promise<ContagemInventarioDto> {
+  const c = await prisma.contagemInventario.findFirst({
+    where: { id: contagemId, inventarioId, tenantId: ctx.tenantId },
+    select: CONT_COM_ATIVO_SEL,
+  });
+  if (!c) throw new NotFoundError('Item de contagem não encontrado');
+  return mapCont(c);
 }
 
 async function registarContagem(data: RegistarContagem, ctx: Ctx): Promise<ContagemInventarioDto> {
@@ -246,32 +262,51 @@ async function registarContagem(data: RegistarContagem, ctx: Ctx): Promise<Conta
     (data.localizacaoEncontradaId != null && data.localizacaoEncontradaId !== item.localizacaoEsperadaId) ||
     (data.estadoEncontrado != null && data.estadoEncontrado !== item.estadoEsperado);
 
-  const updated = await prisma.contagemInventario.update({
-    where: { id: data.itemId },
-    data: {
-      encontrado: data.encontrado,
-      localizacaoEncontradaId: data.localizacaoEncontradaId ?? null,
-      responsavelEncontradoId: data.responsavelEncontradoId ?? null,
-      estadoEncontrado: (data.estadoEncontrado ?? null) as never,
-      dataContagem: new Date(),
-      contadoPorId: ctx.userId,
-      observacoesContagem: data.observacoesContagem ?? null,
-      fotoContagem: data.fotoContagem ?? null,
-      temDiscrepancia,
-    },
-    select: CONT_SEL,
-  });
+  // Só se conta com o inventário EM_ANDAMENTO (#117). O estado é lido com a linha do inventário
+  // trancada, para que uma transição concorrente (pausar/concluir/cancelar) não deixe passar uma
+  // contagem que reescreva o resultado de um inventário já fechado.
+  const updated = await prismaBase.$transaction(async (tx) => {
+    const [inv] = await tx.$queryRaw<Array<{ status: string }>>`
+      SELECT status::text AS status FROM "InventarioFisico"
+       WHERE id = ${item.inventarioId} AND "tenantId" = ${ctx.tenantId}
+       FOR UPDATE`;
+    if (!inv) throw new NotFoundError('Inventário físico não encontrado');
+    if (inv.status !== 'EM_ANDAMENTO') {
+      throw new BusinessRuleError(
+        'INVENTARIO_NAO_EM_ANDAMENTO',
+        'Só é possível registar contagens com o inventário em andamento',
+        { status: inv.status },
+      );
+    }
 
-  // Actualiza total contados no inventário
-  const contados = await prisma.contagemInventario.count({
-    where: { inventarioId: item.inventarioId, dataContagem: { not: null } },
-  });
-  const discrepancias = await prisma.contagemInventario.count({
-    where: { inventarioId: item.inventarioId, temDiscrepancia: true },
-  });
-  await prisma.inventarioFisico.update({
-    where: { id: item.inventarioId },
-    data: { totalAtivosContados: contados, totalDiscrepancias: discrepancias },
+    const c = await tx.contagemInventario.update({
+      where: { id: data.itemId, tenantId: ctx.tenantId },
+      data: {
+        encontrado: data.encontrado,
+        localizacaoEncontradaId: data.localizacaoEncontradaId ?? null,
+        responsavelEncontradoId: data.responsavelEncontradoId ?? null,
+        estadoEncontrado: (data.estadoEncontrado ?? null) as never,
+        dataContagem: new Date(),
+        contadoPorId: ctx.userId,
+        observacoesContagem: data.observacoesContagem ?? null,
+        fotoContagem: data.fotoContagem ?? null,
+        temDiscrepancia,
+      },
+      select: CONT_SEL,
+    });
+
+    // Actualiza totais do inventário
+    const contados = await tx.contagemInventario.count({
+      where: { tenantId: ctx.tenantId, inventarioId: item.inventarioId, dataContagem: { not: null } },
+    });
+    const discrepancias = await tx.contagemInventario.count({
+      where: { tenantId: ctx.tenantId, inventarioId: item.inventarioId, temDiscrepancia: true },
+    });
+    await tx.inventarioFisico.update({
+      where: { id: item.inventarioId, tenantId: ctx.tenantId },
+      data: { totalAtivosContados: contados, totalDiscrepancias: discrepancias },
+    });
+    return c;
   });
 
   return mapCont(updated);
@@ -356,5 +391,5 @@ async function reconciliar(inventarioId: string, ctx: Ctx): Promise<ResultadoRec
 
 export const inventarioFisicoService: IInventarioFisicoService = {
   listarInventarios, obterInventario, criarInventario, actualizarInventario, transitarStatus,
-  adicionarMembro, removerMembro, listarContagens, registarContagem, justificarDiscrepancia, reconciliar,
+  adicionarMembro, removerMembro, listarContagens, obterContagem, registarContagem, justificarDiscrepancia, reconciliar,
 };

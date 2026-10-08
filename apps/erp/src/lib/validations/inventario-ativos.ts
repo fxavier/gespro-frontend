@@ -15,6 +15,15 @@ export const EstadoAtivoEnum = z.enum([
   'EM_TRANSFERENCIA',
 ]);
 
+export const ROTULOS_ESTADO_ATIVO: Record<z.infer<typeof EstadoAtivoEnum>, string> = {
+  NOVO: 'Novo',
+  EM_USO: 'Em uso',
+  EM_MANUTENCAO: 'Em manutenção',
+  OBSOLETO: 'Obsoleto',
+  BAIXADO: 'Baixado',
+  EM_TRANSFERENCIA: 'Em transferência',
+};
+
 export const MetodoAmortizacaoEnum = z.enum([
   'LINEAR',
   'DIGITOS_ANOS',

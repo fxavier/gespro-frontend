@@ -43,6 +43,8 @@ export interface ContagemInventarioDto {
   dataAjuste: Date | null;
   ajustadoPorId: string | null;
   createdAt: Date;
+  /** Identificação do activo — só em `listarContagens` e `obterContagem`. */
+  ativo?: { codigoInterno: string; nome: string };
 }
 
 export interface InventarioFisicoDto {
@@ -149,6 +151,13 @@ export interface IInventarioFisicoService {
     ctx: Ctx,
   ): Promise<ContagemInventarioDto[]>;
 
+  /** Um item de contagem do inventário (com o activo); NotFoundError se não pertencer ao tenant/inventário. */
+  obterContagem(inventarioId: string, contagemId: string, ctx: Ctx): Promise<ContagemInventarioDto>;
+
+  /**
+   * Regista a contagem de um activo. Só com o inventário EM_ANDAMENTO
+   * (BusinessRuleError('INVENTARIO_NAO_EM_ANDAMENTO') em qualquer outro estado).
+   */
   registarContagem(data: RegistarContagem, ctx: Ctx): Promise<ContagemInventarioDto>;
 
   justificarDiscrepancia(
