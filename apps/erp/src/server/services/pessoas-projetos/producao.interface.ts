@@ -46,6 +46,12 @@ export type StockContratoA = Pick<
   'reservarStock' | 'confirmarConsumoStock' | 'libertarStock' | 'entradaStock'
 >;
 
+/**
+ * #164 — consumo ad-hoc (sem reserva): baixarStock(tx, data, ctx) → MovimentoStockDto.
+ * Saída imediata do armazém `MP` na tx que grava o ConsumoProducao.
+ */
+export type StockBaixaContratoA = Pick<IStockService, 'baixarStock'>;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipo auxiliar para resultado de explosão BOM
 // ─────────────────────────────────────────────────────────────────────────────
@@ -273,12 +279,15 @@ export interface IOrdemProducaoService {
   ): Promise<void>;
 
   /**
-   * Regista o consumo real de um material durante a produção (append-only).
-   * Guarda reservaId (devolvido pelo reservarStock ao LIBERAR) para uso posterior
-   * em confirmarConsumoStock ao CONCLUIR.
+   * Regista o consumo real (ad-hoc, sem reserva) de um material durante a produção
+   * (append-only). Baixa o stock do armazém `MP` (`baixarStock`) na mesma tx e grava o
+   * movimentoStockId; a conclusão não o volta a baixar (só confirma consumos com reservaId).
+   * Lança BusinessRuleError('STOCK_INSUFICIENTE' | 'LOCALIZACAO_NAO_CONFIGURADA' | 'STATUS_INVALIDO').
    */
   registarConsumo(
+    tx: TxClient,
     input: RegistarConsumoInput,
+    stockService: StockBaixaContratoA,
     ctx: Ctx,
   ): Promise<{ id: string }>;
 
