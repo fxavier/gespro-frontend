@@ -7,6 +7,7 @@ import { PrismaClient } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
+import { comCodigoUnico } from './codigo-unico';
 import { getObjectStorage, urlRefParaKey, prefixoTenant } from '@/lib/storage/objeto';
 import { logger } from '@/server/observability/logger';
 import type {
@@ -112,11 +113,6 @@ function toFornecedorDetalhe(f: any): FornecedorDetalhe {
   };
 }
 
-async function gerarCodigoFornecedor(ctx: Ctx): Promise<string> {
-  const count = await db.fornecedor.count({ where: { tenantId: ctx.tenantId } });
-  return `FOR-${String(count + 1).padStart(4, '0')}`;
-}
-
 // =====================================================================
 // Implementação
 // =====================================================================
@@ -127,14 +123,12 @@ export const fornecedorService: IFornecedorService = {
     const existe = await db.fornecedor.findFirst({ where: { tenantId: ctx.tenantId, nuit: input.nuit } });
     if (existe) throw new BusinessRuleError('NUIT_DUPLICADO', `NUIT ${input.nuit} já registado neste tenant`);
 
-    const codigo = await gerarCodigoFornecedor(ctx);
-
+    // #116: o código é o do formulário (o schema exige-o), nunca um FOR- automático.
     const { enderecos, contactos, ...campos } = input as any;
 
-    const fornecedor = await db.fornecedor.create({
+    const fornecedor = await comCodigoUnico('um fornecedor', input.codigo, () => db.fornecedor.create({
       data: {
         ...campos,
-        codigo,
         saldoDevedor: 0,
         totalCompras: 0,
         enderecos: enderecos?.length
@@ -145,7 +139,7 @@ export const fornecedorService: IFornecedorService = {
           : undefined,
       },
       include: { enderecos: true, contactos: true, documentos: true },
-    });
+    }));
     return toFornecedorDetalhe(fornecedor);
   },
 
