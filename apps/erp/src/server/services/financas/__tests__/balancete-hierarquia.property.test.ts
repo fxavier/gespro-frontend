@@ -22,7 +22,8 @@
 //       aparece por baixo de uma conta é o que ela soma
 //   P5  saldos: nunca negativos, no máximo um não nulo, saldoD − saldoC = acumD − acumC
 //   P6  nivelMaximo / apenasRazao não mudam subtotais nem os valores das linhas
-//       visíveis, e escondem o que têm de esconder
+//       visíveis, e escondem o que têm de esconder; uma raiz efectiva nunca
+//       desaparece e a cadeia de uma raiz órfã segue o grau relativo (#298)
 //   P7  pureza: o núcleo e as contas ficam intactos; duas chamadas dão o mesmo
 //
 // Nota sobre P4: `LinhaHierarquica.nivel` é o nível DA CONTA, que num plano
@@ -465,18 +466,36 @@ describe('hierarquizarBalancete — propriedades (planos aleatórios e corrompid
           expect(serial(naoConta(h)), 'subtotais/sintética mudaram com as opções').toEqual(serial(naoConta(base)));
 
           const baseId = new Map(base.filter((l) => l.tipo === 'CONTA').map((l) => [l.conta!.id, l]));
+          // #298: a árvore efectiva lê-se da base (sem opções tudo passa ⇒ maeMostradaId = mãe
+          // efectiva). Uma raiz efectiva de nível > 1 é ÓRFÃ: o grau dela e da sua cadeia é
+          // RELATIVO (o oráculo exacto está em balancete-orfa-grau-298.test.ts); as cadeias de
+          // raiz de nível 1 mantêm a regra absoluta abaixo, sem relaxamento.
+          const raizDe = (id: string): LinhaHierarquica => {
+            let r = baseId.get(id)!;
+            for (let passos = 0; r.maeMostradaId !== null && passos <= baseId.size; passos++) r = baseId.get(r.maeMostradaId)!;
+            return r;
+          };
+          const naCadeiaNivel1 = (id: string) => raizDe(id).nivel === 1;
           for (const l of h.filter((x) => x.tipo === 'CONTA')) {
-            if (razao) expect(l.nivel, `apenasRazao mostra ${l.conta!.codigo} de nível ${l.nivel}`).toBe(2);
-            else expect(l.nivel, `nivelMaximo ${k} mostra ${l.conta!.codigo}`).toBeLessThanOrEqual(k);
             const b = baseId.get(l.conta!.id);
             expect(b, `${l.conta!.codigo} aparece com opções mas não sem elas`).toBeDefined();
+            if (naCadeiaNivel1(l.conta!.id)) {
+              if (razao) expect(l.nivel, `apenasRazao mostra ${l.conta!.codigo} de nível ${l.nivel}`).toBe(2);
+              else expect(l.nivel, `nivelMaximo ${k} mostra ${l.conta!.codigo}`).toBeLessThanOrEqual(k);
+            }
             mesmos(valoresDe(l), valoresDe(b), `${l.conta!.codigo} com opções`);
           }
           // Esconder não inventa nem perde: tudo o que é visível sem opções e passa o filtro continua lá.
           const ids = new Set(h.filter((l) => l.tipo === 'CONTA').map((l) => l.conta!.id));
           for (const b of baseId.values()) {
-            const passa = razao ? b.nivel === 2 : b.nivel <= k;
+            const raiz = raizDe(b.conta!.id);
+            // Grau relativo ≤ nível próprio, por isso «nível ≤ k» obriga em qualquer cadeia.
+            const passa = razao ? b.nivel === 2 && raiz.nivel === 1 : b.nivel <= k;
             if (passa) expect(ids.has(b.conta!.id), `${b.conta!.codigo} desapareceu com as opções`).toBe(true);
+            // #298: uma raiz (órfã ou não) nunca desaparece com «Grau máximo»; a órfã nem com «Só razão».
+            if (raiz === b && (!razao || b.nivel > 1)) {
+              expect(ids.has(b.conta!.id), `raiz ${b.conta!.codigo} (nível ${b.nivel}) desapareceu com as opções`).toBe(true);
+            }
           }
         },
       ),
