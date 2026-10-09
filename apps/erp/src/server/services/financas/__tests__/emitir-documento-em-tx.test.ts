@@ -75,6 +75,7 @@ function criarTx() {
       ),
     }),
     linhaFatura: modelo('linhaFatura'),
+    historicoTransacao: modelo('historicoTransacao'), // #134: a emissão escreve a ficha do cliente
     notaCredito: modelo('notaCredito', {
       findFirst: vi.fn(async ({ where }: any) => ({
         ...(criados.notaCredito ?? []).find((n) => n.id === where.id),
