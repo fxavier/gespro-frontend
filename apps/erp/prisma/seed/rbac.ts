@@ -440,8 +440,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
   // FINANCEIRO — contabilidade, faturação, caixa + leituras gerais
   FINANCEIRO: allCodes().filter((code) => {
-    // Permissões sensíveis que o FINANCEIRO não tem: só ADMIN/roles específicos
-    if (['financas:periodo:reabrir', 'financas:exercicio:abrir'].includes(code)) return false;
+    // Reabrir período é só do ADMIN (decisão conservadora, #143). Abrir o exercício é do
+    // FINANCEIRO (#143): cai em `financas:` abaixo; a migração liga-a nos tenants existentes.
+    if (code === 'financas:periodo:reabrir') return false;
     // ADR-0035: encerrar, encerrar em definitivo e reabrir o exercício são só do ADMIN.
     if (['financas:exercicio:encerrar', 'financas:exercicio:encerrar-definitivo',
          'financas:exercicio:reabrir', 'financas:exercicio:aplicar-resultado'].includes(code)) return false;
