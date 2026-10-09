@@ -306,9 +306,11 @@ describe('hierarquizarBalancete — grau máximo e contas de razão', () => {
     for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) mesmosValores(subtotal(h, n), subtotal(todas, n), `SUB:${n}`);
   });
 
-  it('nivelMaximo 1: só contas de nível 1 e subtotais; a sintética mantém-se', () => {
+  it('nivelMaximo 1: só contas de nível 1 (e raízes órfãs, #298) e subtotais; a sintética mantém-se', () => {
     const h = hierarquizarBalancete(nucleoDe(MOV), CONTAS, { nivelMaximo: 1 });
-    expect(chaves(h)).toEqual(['1', 'SUB:1', '2', 'SUB:2', 'SUB:3', '4', 'SUB:4', '5', 'SUB:5', '6', 'SUB:6', '7', 'SUB:7', '8', 'SUB:8']);
+    // #298: 31 (nível 2, mãe fora do plano, classe sem nível 1) é raiz da sua cadeia
+    // partida — grau relativo 1 — e não desaparece; o SUB:3 deixa de ficar sem linhas.
+    expect(chaves(h)).toEqual(['1', 'SUB:1', '2', 'SUB:2', '31', 'SUB:3', '4', 'SUB:4', '5', 'SUB:5', '6', 'SUB:6', '7', 'SUB:7', '8', 'SUB:8']);
     for (const l of h.filter((x) => x.tipo === 'CONTA')) expect(l.agregadora, chave(l)).toBe(false);
 
     const h8 = hierarquizarBalancete(
