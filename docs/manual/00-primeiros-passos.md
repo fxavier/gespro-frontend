@@ -1,14 +1,73 @@
 # 0. Primeiros passos
 
-> **Para quem:** todos os perfis · **Onde:** ecrãs de entrada (`/registo`, `/auth/login`) e a interface comum a todos os módulos
+> **Para quem:** todos os perfis · **Onde:** ecrãs de entrada (`/registo`, `/auth/login`, `/auth/recuperar`) e a interface comum a todos os módulos
 
-## Para que serve
+## Objectivo do módulo
 
-Este capítulo explica como a sua empresa começa a usar o GestPro: criar a conta, confirmar o
-e-mail, entrar, definir a palavra-passe no primeiro acesso e terminar a sessão. Explica também a
-interface que é igual em todos os módulos — barra lateral, paleta de comandos, cabeçalho,
-notificações, tema — e as regras comuns das listas, fichas e formulários. Fecha com os cinco
-perfis de sistema e o que significa receber «Sem permissão».
+O GestPro é um ERP para empresas moçambicanas: reúne num só sistema as compras, o stock, as vendas, a
+faturação, a caixa, a contabilidade, os salários, os projectos, a frota e o suporte. A vantagem não está em
+cada ecrã isolado — está em que **uma operação registada uma vez actualiza todos os módulos que dela
+dependem**. Uma venda no POS, por exemplo, emite o documento fiscal, baixa o stock, entra na caixa e lança na
+contabilidade, sem que ninguém volte a escrever os mesmos números.
+
+Este capítulo é a porta de entrada: criar a conta da empresa, entrar, conhecer a interface comum a todos os
+módulos e perceber o que cada perfil pode fazer.
+
+| | |
+|---|---|
+| **Que problema resolve** | Pôr a empresa e as pessoas dentro do sistema, com o acesso certo, e ensinar a interface que se repete em todos os módulos. |
+| **Quem usa** | Todos. O registo da empresa é feito uma vez, por quem vai ser o Administrador. |
+| **O que entra** | Nome e NUIT da empresa, província, e-mail e palavra-passe de cada pessoa. |
+| **O que sai** | A empresa criada com o plano de contas PGC-NIRF, os diários, as séries de numeração fiscal do ano e os cinco perfis de sistema — tudo pronto a usar. |
+
+**Como os módulos se ligam** (o caminho do dinheiro e da mercadoria):
+
+```
+Compras ──► Inventário ──► Vendas & POS ──► Faturação ──► Caixa / Bancos
+   │            ▲               │               │               │
+   ▼            │               ▼               ▼               ▼
+Fornecedores    Produção     Clientes        Tesouraria ◄── Contabilidade ◄── Recursos Humanos
+(contas a pagar)                                                (salários)
+```
+
+Transporte, Projectos e Suporte apoiam a operação; Plataforma & Administração controla quem entra e o que
+pode fazer.
+
+## Exemplo prático — o primeiro dia da Ferragens Boa Obra
+
+> Todos os capítulos usam a mesma empresa fictícia, descrita no [README](README.md#a-empresa-dos-exemplos):
+> **Ferragens Boa Obra, Lda**, loja de materiais de construção na Cidade de Maputo.
+
+**Situação:** o Sérgio Cossa, sócio-gerente, decidiu passar a empresa do Excel para o GestPro.
+
+1. **Regista a empresa** em `/registo`: «Ferragens Boa Obra, Lda», NUIT `400500600`, «Maputo Cidade», o seu
+   nome, `sergio@boaobra.co.mz` e uma palavra-passe com 10+ caracteres; escolhe o plano **Profissional**.
+   Clica **Criar conta e entrar** → [Como criar a conta da sua empresa](#como-criar-a-conta-da-sua-empresa).
+2. **Entra logo no Dashboard**, já como **ADMIN** e em **Período de Teste** (14 dias, sem cartão). Vê o aviso
+   **Endereço de e-mail por confirmar** e o cartão **Primeiros passos**.
+3. **Confirma o e-mail** pela ligação recebida. Até aqui podia configurar tudo, mas não emitir documentos
+   fiscais nem criar colegas.
+4. **Procura um ecrã sem saber onde está:** carrega **⌘K** (Mac) ou **Ctrl+K**, escreve «requis» e abre
+   **Requisições de Compra** → [Como procurar um ecrã](#como-procurar-um-ecrã-paleta-de-comandos).
+5. **Recolhe a barra lateral** com **⌘B/Ctrl+B** para ganhar espaço numa lista larga e volta a abri-la.
+6. **Decide os perfis da equipa** com a tabela de [Perfis de sistema](#perfis-de-sistema):
+
+   | Pessoa | Função na loja | Perfil |
+   |---|---|---|
+   | Sérgio Cossa | Sócio-gerente | ADMIN |
+   | Marta Sitoe | Gerente de loja (compras, aprovações) | GESTOR |
+   | Carlos Nhantumbo | Contabilista / financeiro | FINANCEIRO |
+   | Ana Mabunda | Balcão e armazém | OPERADOR |
+   | Revisor de contas externo | Só consulta | LEITURA |
+
+   Os utilizadores criam-se em [Plataforma e administração](11-plataforma-e-administracao.md#como-criar-um-utilizador-convite-ou-palavra-passe-atribuída).
+
+**Resultado esperado:** o Sérgio entra e sai sem ajuda, encontra qualquer ecrã pela paleta de comandos e sabe
+que perfil dar a cada colega. Se uma pessoa tentar algo fora do seu perfil, vê «Sem permissão para esta
+operação» — é o sistema a funcionar, não um erro.
+
+Continue em [Casos práticos](12-casos-praticos.md) para ver o primeiro mês completo, ou vá directo ao
+capítulo do módulo que vai usar.
 
 ## Conceitos
 
@@ -31,15 +90,18 @@ pode criar outros papéis à medida (ver [Plataforma e Administração](11-plata
 
 | Perfil | Descrição no produto | O que pode, em resumo |
 |---|---|---|
-| **ADMIN** | Administrador — acesso total ao tenant | Tudo, incluindo configurações sensíveis (séries de faturação, plano de contas, fecho e reabertura de períodos, declarar o IVA, estornar lançamentos). É quem cria a conta no registo. |
-| **GESTOR** | Gestor — operações e aprovações, sem configuração de sistema | Quase tudo: operar e aprovar em todos os módulos, gerir utilizadores e papéis, gerir a subscrição. **Não pode:** configurar a empresa, atribuir permissões a papéis, configurar integrações, alterar o plano de contas, configurar séries de faturação, fechar/reabrir períodos, abrir exercícios, declarar o IVA, estornar lançamentos, remover colaboradores, administração total de inventário e activos. |
-| **FINANCEIRO** | Financeiro — contabilidade, caixa e faturação | Contabilidade, faturação, caixa, tesouraria, IVA (apurar e declarar), processamento salarial (payroll) e analytics; consulta e exportação de tudo o resto. **Não pode** reabrir períodos nem abrir exercícios, nem criar clientes, produtos ou documentos de compra. |
-| **OPERADOR** | Operador — operações de armazém, produção e suporte | Inventário, produção, transporte, tickets, serviços, operar o POS e a caixa (abertura, fecho, reforço, sangria), criar e submeter requisições de compra, registar recepções, criar e editar vendas, criar e editar produtos, tarefas e timesheets de projectos, registar assiduidade e ausências, pedir férias; consulta e exportação de tudo o resto. **Não aprova** compras nem emite facturas. |
-| **LEITURA** | Leitura — apenas consulta e exportação | Consultar, listar e exportar em todos os módulos. Não grava nada. |
+| **ADMIN** | Administrador — acesso total ao tenant | Tudo, incluindo configurações sensíveis (dados da empresa e configuração fiscal, séries de faturação, plano de contas, fecho e reabertura de períodos, declarar o IVA, estornar lançamentos). É quem cria a conta no registo. |
+| **GESTOR** | Gestor — operações e aprovações, sem configuração de sistema | Quase tudo: operar e aprovar em todos os módulos, gerir utilizadores e papéis (só pode dar a outros as permissões que ele próprio tem — por isso, dos papéis de sistema, só atribui GESTOR e LEITURA), gerir a subscrição. **Não pode:** configurar a empresa, atribuir permissões a papéis, configurar integrações, alterar o plano de contas, configurar séries de faturação, fechar/reabrir períodos, abrir, encerrar ou reabrir exercícios, declarar o IVA, configurar a Demonstração de Fluxos de Caixa, estornar lançamentos, remover colaboradores, administração total de inventário e activos. |
+| **FINANCEIRO** | Financeiro — contabilidade, caixa e faturação | Contabilidade, faturação, caixa, tesouraria, IVA (apurar e declarar), processamento salarial (payroll) e analytics; nas contas a pagar, regista pagamentos a fornecedores e cria e cancela contas a pagar; consulta e exportação de tudo o resto. **Não pode** reabrir períodos nem abrir, encerrar ou reabrir exercícios, nem criar clientes ou produtos, nem operar o POS; em Compras não cria pedidos, não aprova e não regista recepções. |
+| **OPERADOR** | Operador — operações de armazém, produção e suporte | Inventário, produção, transporte, tickets, serviços, operar o POS e a caixa (abertura, fecho, reforço, sangria), criar e submeter requisições de compra, registar recepções, criar e editar vendas, criar e editar produtos, tarefas e timesheets de projectos, registar assiduidade e ausências, pedir férias; consulta e exportação do resto. **Não aprova** compras nem emite facturas. **Não vê** os utilizadores, o Registo de Auditoria nem a Demonstração de Fluxos de Caixa, e **não exporta** os mapas contabilísticos (balancete, balanço, DRE, DFC e documentos do encerramento). |
+| **LEITURA** | Leitura — apenas consulta e exportação | Consultar, listar e exportar em todos os módulos. Não grava nada, nem abre o terminal POS. |
 
-> **Nota:** a barra lateral mostra quase todos os módulos a todos os perfis. Ver um ecrã não
-> garante poder agir nele: se tentar uma acção para a qual o seu perfil não tem permissão, o
-> GestPro recusa-a com a mensagem «Sem permissão para esta operação» (ver [Erros frequentes](#erros-frequentes)).
+> **Nota:** a barra lateral só mostra os módulos e ecrãs que o seu perfil pode consultar; um
+> grupo sem nenhum ecrã visível desaparece. Se abrir à mão o endereço de um ecrã que não pode
+> consultar, aparece o aviso **Sem permissão** — «Não tem permissão para consultar esta página.
+> Contacte o administrador do sistema.» Ver um ecrã também não garante poder agir nele: se tentar
+> uma acção para a qual o seu perfil não tem permissão, o GestPro recusa-a com a mensagem «Sem
+> permissão para esta operação» (ver [Erros frequentes](#erros-frequentes)).
 
 ## Ecrãs
 
@@ -47,11 +109,12 @@ pode criar outros papéis à medida (ver [Plataforma e Administração](11-plata
 |---|---|---|
 | — (ligação «Começar teste gratuito de 14 dias») | `/registo` | Criar a conta da empresa e entrar de imediato. |
 | — | `/auth/login` | Iniciar sessão («Bem-vindo de volta»). |
+| — (ligação «Esqueceu-se da palavra-passe?») | `/auth/recuperar` | Pedir uma ligação por e-mail para definir uma palavra-passe nova («Recuperar palavra-passe»). |
 | — | `/auth/mudar-palavra-passe` | Trocar a palavra-passe provisória no primeiro acesso («Defina a sua palavra-passe»). |
 | — | `/auth/erro` | Explica porque é que a entrada foi recusada. |
 | — (ligação «Contactar o suporte») | `/contactos` | Como obter ajuda com o acesso («Contacto e Suporte»). |
 | Dashboard | `/dashboard` | Página inicial: avisos, «Primeiros passos», indicadores e «Accões Rápidas». |
-| Plataforma & Analytics › Core Tenancy | `/core-tenancy` | Administração de utilizadores, papéis e auditoria — ver capítulo 11. |
+| Plataforma & Analytics › Core Tenancy | `/core-tenancy` | Administração: dados da empresa, utilizadores, papéis e auditoria — ver capítulo 11. |
 | (sino no cabeçalho) | `/notificacoes` | Centro de notificações — ver capítulo 11. |
 
 ## Tarefas
@@ -105,7 +168,8 @@ imediato, termine a sessão e entre outra vez.
 
 ### Como entrar no GestPro
 
-1. Abra `/auth/login`. O ecrã de entrada é do próprio GestPro.
+1. Abra `/auth/login`. O ecrã de entrada é do próprio GestPro: o formulário fica à esquerda e, à direita, um
+   resumo dos módulos do GestPro.
 2. Escreva o **E-mail profissional** e a **Palavra-passe**. O ícone do olho mostra ou oculta o que escreveu.
 3. Clique em **Entrar na plataforma**.
 
@@ -148,8 +212,25 @@ continuar.» — volte a `/auth/login` e entre com a nova.
 
 ### Como recuperar a palavra-passe
 
-O GestPro não tem uma opção «esqueci-me da palavra-passe» no ecrã de entrada. Quem perde a
-palavra-passe pede ao **administrador da sua empresa** que a reponha:
+Quem se esqueceu da palavra-passe pode pedir, sozinho, uma ligação para definir uma nova:
+
+1. No ecrã de entrada (`/auth/login`), clique em **Esqueceu-se da palavra-passe?**. Abre o ecrã
+   **Recuperar palavra-passe** (`/auth/recuperar`).
+2. Em **E-mail**, escreva o endereço com que entra no GestPro.
+3. Clique em **Enviar ligação de recuperação**.
+4. Abra a mensagem que recebe por e-mail e siga a ligação para escolher a palavra-passe nova.
+   No fim, volta ao ecrã de entrada: entre com a palavra-passe nova.
+
+**Resultado:** o ecrã mostra sempre a mesma resposta — «Se o endereço tiver uma conta activa na
+GestPro, vai receber dentro de minutos um e-mail com a ligação para definir uma palavra-passe
+nova. Verifique também a pasta de spam.» — exista ou não uma conta com esse endereço; é assim de
+propósito, para que ninguém descubra por aqui que e-mails têm conta. Enquanto não usar a ligação,
+a palavra-passe antiga continua a funcionar. Para voltar ao ecrã de entrada sem pedir nada, clique
+em **Voltar a iniciar sessão**.
+
+Se o e-mail não chegar (verifique o spam), há um limite de pedidos por hora para o mesmo endereço:
+espere um pouco antes de repetir. Em alternativa, peça ao **administrador da sua empresa** que reponha
+a palavra-passe:
 
 1. O administrador abre **Plataforma & Analytics › Core Tenancy › Gerir Utilizadores**, abre a sua
    ficha e clica em **Repor palavra-passe** (ver [Plataforma e Administração](11-plataforma-e-administracao.md)).
@@ -157,8 +238,8 @@ palavra-passe pede ao **administrador da sua empresa** que a reponha:
 3. Entre com ela e troque-a, como em [Como entrar pela primeira vez com uma palavra-passe provisória](#como-entrar-pela-primeira-vez-com-uma-palavra-passe-provisória).
 
 O ecrã **Contacto e Suporte** (`/contactos`, ligação **Contactar o suporte** no ecrã de entrada)
-diz o mesmo: para recuperar credenciais, obter um convite ou alterar permissões, contacte o
-administrador da sua organização.
+indica o mesmo caminho para obter um convite ou alterar permissões: contactar o administrador da
+sua organização.
 
 <!-- captura: 00-primeiros-passos/contactos.png | /contactos -->
 ![Contacto e Suporte](img/00-primeiros-passos/contactos.png)
@@ -247,6 +328,13 @@ As regras seguintes valem em todos os módulos.
 - Quando há mais registos, use **Seguinte** e **Anterior** no fundo da lista.
 - Onde a exportação existe, há botões **CSV** e **XLSX** que descarregam o ficheiro (até 5 000
   linhas). Exportar é sempre permitido, mesmo em Modo de Leitura.
+- No **XLSX**, os valores e montantes saem como números com formato `#,##0.00`, prontos a somar e
+  ordenar no Excel (só um valor com mais de 15 algarismos sai como texto, para não perder precisão).
+  No **CSV**, um texto que comece por `=`, `+`, `-` ou `@` sai com um apóstrofo (`'`) à frente, para
+  que a folha de cálculo não o trate como fórmula; as colunas de valores não são alteradas.
+- Cada pessoa pode pedir até 10 exportações por minuto do mesmo ecrã (o mesmo vale para o PDF das
+  facturas, os recibos de salário e os mapas de IVA, INSS e IRPS). Acima disso, o pedido é recusado com
+  «Demasiados pedidos. Tente mais tarde.» — espere um minuto e repita.
 
 <!-- captura: 00-primeiros-passos/lista-exemplo.png | /clientes -->
 ![Exemplo de lista com pesquisa e filtros](img/00-primeiros-passos/lista-exemplo.png)
@@ -302,17 +390,18 @@ As regras seguintes valem em todos os módulos.
 | Período de Teste | Acesso completo durante 14 dias. |
 | Activa | Acesso completo. |
 | Modo de Leitura | Entra, consulta e exporta; não grava. Uma faixa no topo de todas as páginas mostra quantos dias faltam. |
-| Acesso Fechado | Ninguém da empresa entra. Os dados continuam guardados. |
+| Acesso Fechado | Só o administrador (ADMIN ou GESTOR) entra, e apenas no ecrã **Subscrição**, para pagar; os restantes não entram. Os dados continuam guardados. |
 
 ## Erros frequentes
 
 | Mensagem mostrada | Porquê | O que fazer |
 |---|---|---|
-| E-mail ou palavra-passe incorrectos. | Dados errados — ou demasiadas tentativas falhadas seguidas. | Verifique o e-mail e a palavra-passe. Se persistir, espere uns minutos ou peça ao administrador que reponha a palavra-passe. |
+| E-mail ou palavra-passe incorrectos. | Dados errados — ou demasiadas tentativas falhadas seguidas. | Verifique o e-mail e a palavra-passe. Se persistir, espere uns minutos, use **Esqueceu-se da palavra-passe?** ou peça ao administrador que reponha a palavra-passe. |
 | Esta conta está desactivada. Contacte o administrador da sua empresa. | A sua identidade foi desactivada. | Fale com o administrador da empresa. |
 | Este utilizador foi desactivado. Contacte o administrador da sua empresa. | O seu utilizador está Inactivo. | Fale com o administrador da empresa. |
 | A sua identidade foi reconhecida, mas ainda não existe um utilizador associado numa empresa GestPro. Contacte o administrador da sua empresa. | A palavra-passe está certa, mas não há utilizador seu em nenhuma empresa. | Peça ao administrador que o crie. |
-| A subscrição da sua empresa não está activa. O administrador pode regularizar a situação nas definições. | O acesso da empresa está fechado. | Contacte o administrador da empresa ou o suporte GestPro. |
+| A subscrição da sua empresa está fechada. Só um administrador pode entrar para regularizar o pagamento. | A subscrição terminou e o acesso da empresa está fechado; o seu perfil não gere a subscrição. | Fale com o administrador da empresa: ele entra e paga em **Subscrição**. |
+| O acesso da sua empresa está suspenso pela GestPro. Contacte o suporte GestPro. | O acesso foi fechado pela GestPro (não por falta de pagamento). | Contacte o suporte GestPro. |
 | O serviço de identidade não respondeu. Tente de novo dentro de momentos — não é problema das suas credenciais. | Falha temporária do serviço. | Tente de novo daí a pouco. |
 | Já existe uma conta registada com este NUIT. Inicie sessão ou recupere a palavra-passe. | O NUIT já tem conta no GestPro. | Entre com a conta existente ou peça acesso ao administrador dela. |
 | Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos. | O e-mail já pertence a outra conta. | Use outro endereço. |
@@ -329,9 +418,16 @@ As regras seguintes valem em todos os módulos.
 | Para emitir documentos fiscais é preciso confirmar o endereço de e-mail da conta — … | Tentou emitir com o e-mail por confirmar. | Confirme o e-mail (ver acima). Se já confirmou, termine a sessão e entre de novo. |
 | Para criar utilizadores é preciso confirmar o endereço de e-mail da conta — … | Idem, ao criar um utilizador. | Idem. |
 | Sem permissão para esta operação | O seu perfil não tem a permissão que esta acção exige. | Peça ao administrador que lhe atribua um papel com essa permissão. |
+| Sem permissão — Não tem permissão para consultar esta página. Contacte o administrador do sistema. | Abriu o endereço de um ecrã que o seu perfil não pode consultar. | Idem. |
+| Indique o e-mail / E-mail inválido | No ecrã **Recuperar palavra-passe**, o e-mail está vazio ou mal escrito. | Corrija o endereço. |
+| Demasiados pedidos. Tente mais tarde. | Pediu mais de 10 exportações (ou PDF/mapas) por minuto no mesmo ecrã. | Espere um minuto e repita. |
 | A sua subscrição terminou e a conta está em modo de leitura. Pode consultar e exportar tudo o que é seu; para voltar a gravar, subscreva um plano. | A empresa está em Modo de Leitura. | O administrador (ou gestor) subscreve um plano em **Subscrição** — ver capítulo 11. |
 
 ## Perguntas frequentes
+
+**Esqueci-me da palavra-passe. Tenho de falar com o administrador?** Não necessariamente: no ecrã
+de entrada, clique em **Esqueceu-se da palavra-passe?** e siga a ligação que recebe por e-mail. Se
+o e-mail não chegar, o administrador pode repor-lhe a palavra-passe.
 
 **Posso usar o mesmo e-mail em duas empresas?** Não. Cada e-mail pertence a uma única empresa
 GestPro; use endereços diferentes.

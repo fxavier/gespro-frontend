@@ -2,11 +2,74 @@
 
 > **Para quem:** Financeiro, Administrador, Gestor (sem fecho de períodos nem estornos) · Leitura (só consulta) · **Onde:** menu › Finanças & Contabilidade
 
-## Para que serve
+## Objectivo do módulo
 
-O módulo de Contabilidade guarda a escrita da empresa em partidas dobradas, segundo o Plano Geral de Contabilidade baseado nas NIRF (PGC-NIRF, Decreto n.º 70/2009). A maior parte dos lançamentos chega sozinha dos outros módulos (facturas, notas de crédito e de débito, contas a pagar, salários); aqui regista os lançamentos manuais, consulta o razão e o balancete, reconcilia os bancos, apura o IVA e fecha os meses.
+O módulo de Contabilidade guarda a escrita da empresa em partidas dobradas, segundo o Plano Geral de Contabilidade baseado nas NIRF (PGC-NIRF, Decreto n.º 70/2009). A maior parte dos lançamentos chega sozinha dos outros módulos (facturas, notas de crédito e de débito, pagamentos, contas a pagar, salários); aqui regista os lançamentos manuais, consulta o razão, o balancete, o balanço e a DRE, reconcilia os bancos, apura o IVA, fecha os meses e encerra o ano.
+
+O objectivo é ter **uma contabilidade sempre em dia e verificável**: o contabilista deixa de passar o mês a
+copiar documentos e passa a conferir, corrigir excepções e fechar.
+
+| | |
+|---|---|
+| **Que problema resolve** | Contabilidade feita semanas depois, a partir de papéis; IVA calculado em folha de cálculo; meses «fechados» que continuam a mudar. |
+| **Quem usa** | Financeiro e contabilista; o Administrador fecha o ano e reabre o que for preciso. |
+| **O que entra** | Os lançamentos automáticos dos outros módulos, os lançamentos manuais e os extractos bancários. |
+| **O que sai** | Razão, balancete (com exportação CSV, Excel e PDF), balanço, DRE, DFC, apuramento do IVA com mapas de suporte, reconciliação bancária fechada, meses e anos encerrados. |
+| **Liga-se a** | Todos os módulos que movimentam dinheiro: [Vendas](04-vendas-e-pos.md), [Faturação e Caixa](06-faturacao-caixa-tesouraria.md), [Fornecedores](02-fornecedores-e-servicos.md), [Recursos Humanos](07-recursos-humanos.md). |
 
 O princípio que atravessa todo o módulo: **um lançamento confirmado nunca se altera nem se apaga — corrige-se com um estorno**, e **um mês fechado não aceita mais escrita**.
+
+## Exemplo prático — o fim do mês do contabilista
+
+**Situação:** é dia 2 do mês seguinte. O Carlos Nhantumbo (Financeiro) quer fechar Outubro na Ferragens Boa
+Obra. As vendas, facturas, pagamentos e salários já lançaram sozinhos; falta o que só ele sabe.
+
+**1. Registar o depósito do dinheiro da loja no banco** → [Como criar um lançamento manual](#como-criar-um-lançamento-manual)
+
+No dia 31 a Marta depositou no BCI 16 000,00 MT do caixa. Não há documento no sistema que o lance, por isso o
+Carlos cria-o:
+
+| Data | Diário | Histórico | Conta | D/C | Valor |
+|---|---|---|---|---|---:|
+| 31/10 | BN Banco | Depósito do caixa da loja | conta PGC do BCI | D | 16 000,00 |
+| | | | 111 Caixa | C | 16 000,00 |
+
+Fica em **Rascunho** (pode **Editar** ou **Anular**); com **Lançamento equilibrado** confirmado, clica
+**Confirmar** → passa a **Lançado** → [Como confirmar](#como-confirmar-lançar-um-lançamento).
+
+**2. Conferir uma conta no Razão** → [Como consultar o Razão Geral](#como-consultar-o-razão-geral-de-uma-conta)
+
+Razão da conta **111 Caixa**, por períodos, de 10 a 10: **Saldo anterior**, cada venda em dinheiro, o depósito
+de 16 000,00 a crédito e o **Saldo final** — que tem de bater com o dinheiro que ficou na gaveta.
+
+**3. Reconciliar o BCI** → [Como reconciliar uma conta bancária](#como-reconciliar-uma-conta-bancária)
+
+Importa o extracto CSV de Outubro. O motor sugere os pares (o depósito de 16 000,00, a transferência a um
+fornecedor); a comissão de manutenção de conta de 350,00 aparece em **Excepções** → **Contabilizar** propõe a
+conta **6981 Serviços bancários** (regra de sugestão) → grava, confirma, **Executar reconciliação** e fecha o
+período com **diferença residual 0,00**.
+
+**4. Apurar o IVA de Outubro** → [Como apurar o IVA](#como-apurar-o-iva-de-um-período)
+
+| | MT |
+|---|---:|
+| IVA liquidado (44331) no mês | 33 592,00 |
+| IVA dedutível (4432x) | 0,00 |
+| **IVA a pagar (4437)** | **33 592,00** |
+
+Descarrega o **Suporte Declaração Periódica — Modelo A** e os mapas de clientes e fornecedores.
+
+**5. Ver o Balancete e fechar o mês** → [Como gerar o Balancete](#como-gerar-o-balancete) · [Como fechar um período](#como-fechar-um-período-mês)
+
+Balancete 2026, períodos 10..10 → **Balancete equilibrado**. Em **Exercícios**, **Fechar período** em `2026-10`.
+Depois de entregar a declaração à AT, **Marcar declarado** no apuramento.
+
+**6. No fim do ano** — o Sérgio (Administrador) encerra o exercício depois de fechar Dezembro, e aplica o
+resultado quando os sócios aprovarem as contas: ver o exemplo numérico em
+[Como encerrar o exercício](#como-encerrar-o-exercício-fim-do-ano).
+
+**Resultado esperado:** `2026-10` **Fechado**; qualquer tentativa de lançar com data de Outubro é recusada com
+«Período 2026-10 está fechado»; o IVA está **Apurado** (ou **Declarado à AT**) e o BCI reconciliado.
 
 ## Conceitos
 
@@ -18,7 +81,8 @@ O princípio que atravessa todo o módulo: **um lançamento confirmado nunca se 
 | Partida | Uma linha do lançamento: uma conta, um lado (Débito ou Crédito) e um valor. |
 | Período fiscal do lançamento | O período a que o lançamento pertence. **É decidido pela data do lançamento** (dia civil em Maputo): um lançamento de 14/03/2026 fica no período `2026-03`. Não se escolhe à mão. |
 | Diário | Agrupa os lançamentos por natureza (Vendas, Compras, Caixa, Banco, Operações, Salários, Abertura, Encerramento, Outros). A numeração dos lançamentos recomeça em cada diário, em cada período. |
-| Rascunho | Lançamento gravado mas ainda sem efeito: não entra no balancete, no razão nem na DRE, e impede o fecho do período. |
+| Rascunho | Lançamento gravado mas ainda sem efeito: não entra no balancete, no razão nem na DRE, e impede o fecho do período. Enquanto é rascunho pode ser corrigido ou anulado. |
+| Anulado | Rascunho que se decidiu não lançar. Fica gravado, com o motivo, para não abrir um buraco na numeração; nunca teve efeito nos mapas. |
 | Estorno | Contra-lançamento com as partidas invertidas, que anula um lançamento já confirmado. O original fica visível, marcado **Estornado**. |
 | Plano de contas | As contas PGC-NIRF da empresa. Só as **contas de movimento** (as que têm «Aceita Lançamentos» ligado) recebem lançamentos; as outras só agregam. |
 | Apuramento do IVA | Lançamento mensal que salda as contas de IVA liquidado, dedutível e regularizações contra a conta 4435 e passa o resultado para 4437 (IVA a pagar) ou 4438 (IVA a recuperar). |
@@ -39,9 +103,9 @@ Exercício 2026
 - **Enquanto o período está Aberto**, aceita lançamentos novos (manuais e automáticos) e estornos com data nesse mês.
 - **Quando o período é Fechado**, qualquer escrita com data nesse mês é recusada com a mensagem «Período 2026-03 está fechado» — incluindo a emissão de uma factura, nota de crédito ou nota de débito com data nesse mês, ou um estorno datado nesse mês. Para corrigir um mês fechado, estorne com uma data de um período aberto, ou peça a reabertura.
 - **Os meses fecham por ordem**: não se fecha Março com Fevereiro ainda aberto.
-- **O exercício seguinte abre sozinho**: por omissão a 1 de Dezembro é criado o exercício do ano seguinte, com os 13 períodos e as séries de numeração dos documentos (ver [Configurações](#como-configurar-a-abertura-automática-do-exercício)). Se, por qualquer razão, alguém registar um documento num ano ainda sem exercício, o sistema cria-o nesse momento.
+- **O exercício seguinte abre sozinho**: por omissão a 1 de Dezembro é criado o exercício do ano seguinte, com os 13 períodos e as séries de numeração dos documentos (ver [Configurações](#como-configurar-a-abertura-automática-do-exercício)). Se, por qualquer razão, alguém registar um documento num ano ainda sem exercício, o sistema cria-o nesse momento. Quando o exercício anterior já está encerrado, o novo exercício recebe também, automaticamente, o **lançamento de abertura** (diário AB) com os saldos de fecho.
 
-> **Atenção:** o encerramento do exercício (saldar as classes 6 e 7, apurar o resultado, transportar saldos de abertura) **ainda não existe no produto**. Os estados de exercício «Em Encerramento», «Encerrado (Provisório)» e «Encerrado» estão previstos, mas hoje todos os exercícios ficam **Aberto**. O Período 13 existe e pode ser fechado, mas nenhum lançamento é hoje colocado nele.
+- **O ano fecha em três passos** (ver [Como encerrar o exercício](#como-encerrar-o-exercício-fim-do-ano)): **encerramento provisório** (o resultado é apurado no Período 13 e o exercício seguinte recebe a abertura), **aplicação do resultado** (da conta 88 para 59, depois da deliberação dos sócios) e **encerramento definitivo** (irreversível, depois de as contas aprovadas).
 
 ## Ecrãs
 
@@ -50,19 +114,24 @@ Exercício 2026
 | Dashboard | `/contabilidade` | Indicadores (lançamentos pendentes e efectuados, contas, diários) e atalhos para os ecrãs do módulo. |
 | Plano de Contas | `/contabilidade/plano-contas` | Lista, cria, edita e desactiva contas PGC-NIRF. |
 | Diários | `/contabilidade/diarios` | Lista, cria e edita diários. |
-| Lançamentos | `/contabilidade/lancamentos` | Lista de lançamentos; criar, confirmar e estornar. |
+| Lançamentos | `/contabilidade/lancamentos` | Lista de lançamentos; criar, editar e anular rascunhos, confirmar e estornar. |
 | Razão Geral | `/contabilidade/razao-geral` | Movimentos de uma conta num intervalo de datas, com saldo acumulado. |
 | Balancete | `/contabilidade/balancete` | Balancete de verificação por exercício e período (movimento, acumulado e saldo por conta). |
 | Reconciliação | `/contabilidade/reconciliacao` | Reconciliação bancária por conta: importar extracto, confirmar correspondências, fechar períodos de reconciliação. |
-| Exercícios | `/contabilidade/exercicios` | Exercícios e os seus 13 períodos; fechar e reabrir períodos; abrir um exercício. |
+| Exercícios | `/contabilidade/exercicios` | Exercícios e os seus 13 períodos; fechar e reabrir períodos; abrir, encerrar, reabrir e encerrar definitivamente um exercício; aplicar o resultado; documentos arquivados do encerramento. |
+| Balanço | `/contabilidade/balanco` | Balanço por classes (Activo, Capital próprio, Passivo) até um período; **Exportar PDF**. |
+| Demonstração do Resultado do Exercício | `/contabilidade/dre` | DRE; **Exportar PDF**. |
+| Demonstração de Fluxos de Caixa | `/contabilidade/dfc` | DFC pelo método indirecto, por períodos completos; **Exportar PDF** e, a partir daqui, **Configurar rubricas** (`/contabilidade/fluxo-caixa/rubricas`). |
+| Centros de Custo | `/contabilidade/centros-custo` | Dimensão analítica cruzada com as partidas contabilísticas. |
+| Contas Bancárias | `/contabilidade/contas-bancarias` | Contas bancárias, a conta PGC a que cada uma está ligada, as tolerâncias de reconciliação; criar, editar, desactivar e reactivar. Também se chega aqui pelo botão **Contas Bancárias** em Reconciliação. |
 | Apuramento de IVA | `/contabilidade/iva` | Apurar, estornar e declarar o IVA de cada período; descarregar os mapas. |
 | Configurações | `/contabilidade/configuracoes` | Calendário de abertura automática do exercício e fecho automático de períodos. |
 | — (a partir de Configurações) | `/contabilidade/configuracoes/meios-pagamento-pos` | **Contas dos meios de pagamento do POS**: a conta bancária que cada venda POS debita, por meio de pagamento. |
-| *(atalho no Dashboard)* Centros de Custo | `/contabilidade/centros-custo` | Dimensão analítica. |
-| *(atalho no Dashboard)* DRE | `/contabilidade/dre` | Demonstração do Resultado do Exercício. |
-| *(botão em Reconciliação)* Contas Bancárias | `/contabilidade/contas-bancarias` | Contas bancárias e a conta PGC a que cada uma está ligada. |
+| *(botão em Reconciliação)* Regras de sugestão | `/contabilidade/reconciliacao/regras` | Que conta de contrapartida o **Contabilizar** propõe para cada tipo de movimento do banco. |
 
-Faturação, Caixa, Tesouraria e Compromissos, que também estão neste grupo do menu, são descritos em [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md).
+Faturação, Séries de documento, Caixa, Tesouraria e Compromissos, que também estão neste grupo do menu, são descritos em [Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md).
+
+Cada entrada do menu só aparece a quem tem permissão para a consultar, e o endereço aberto directamente sem essa permissão é recusado (em Contas Bancárias, por exemplo, aparece «Sem permissão»).
 
 <!-- captura: 05-contabilidade/dashboard.png | /contabilidade -->
 ![Dashboard da Contabilidade](img/05-contabilidade/dashboard.png)
@@ -78,6 +147,7 @@ Faturação, Caixa, Tesouraria e Compromissos, que também estão neste grupo do
 3. Para criar uma conta, clique **Nova Conta** e preencha:
    - **Identificação:** Código, Nível (1 a 4), Nome.
    - **Classificação:** Classe, Tipo, Natureza (Devedora/Credora), Conta Mãe (opcional) e **Aceita Lançamentos** (só as contas de movimento, as «folhas», devem ter este interruptor ligado).
+   - **Conta Mãe** pesquisa no servidor por código ou nome; **Nenhuma (conta raiz)** deixa a conta sem mãe. Ao editar uma conta, a lista não oferece a própria conta nem as suas sub-contas (a qualquer nível), porque isso criaria um ciclo na hierarquia.
    - Descrição (opcional).
 4. Clique **Guardar Conta**.
 
@@ -87,6 +157,11 @@ Faturação, Caixa, Tesouraria e Compromissos, que também estão neste grupo do
 - Numa conta que já tem lançamentos, o **código, a classe, o tipo, a natureza, o nível e a conta mãe ficam bloqueados** — alterá-los mudaria o significado de documentos já emitidos. Só o nome e a descrição mudam. Para reclassificar, crie uma conta nova e desactive a antiga.
 - **Desactivar** (no detalhe da conta) só é possível numa conta **sem** lançamentos. Uma conta com histórico fica; o que se faz é deixar de lançar nela.
 
+**Natureza das contas do plano entregue:** a classe 6 (gastos) é devedora e a classe 7 (rendimentos) credora. Na
+classe 4 a natureza é definida conta a conta: são **credoras**, por exemplo, 421 Fornecedores c/c, 44331 IVA
+liquidado e as contas 42x (excepto 429), 43x, 46x, 47x e 48x; as restantes, como 411 Clientes c/c,
+são **devedoras**. É a natureza que decide de que lado aparece o saldo no balancete.
+
 > **Atenção:** os códigos do plano entregue não levam pontos (ex.: `111`, `44331`), apesar de o formulário sugerir o formato «1.1.1». Use o formato sem pontos, como no resto do plano. As designações de classe no formulário também diferem das do plano (no plano, a classe 2 é «Inventários e activos biológicos», a 3 «Investimentos de capital» e a 4 «Contas a receber, contas a pagar, acréscimos e diferimentos»); escolha a classe pelo primeiro algarismo do código.
 
 <!-- captura: 05-contabilidade/plano-contas.png | /contabilidade/plano-contas -->
@@ -94,7 +169,7 @@ Faturação, Caixa, Tesouraria e Compromissos, que também estão neste grupo do
 
 ### Como criar ou editar um diário
 
-**Antes de começar:** permissão de escrita em diários (Administrador, Financeiro, Gestor). Cada empresa já recebe nove diários: VD Vendas, CP Compras, CX Caixa, BN Banco, OP Operações, SL Salários, AB Abertura, EN Encerramento e OT Outros.
+**Antes de começar:** permissão de escrita em diários (Administrador, Financeiro, Gestor). Cada empresa já recebe nove diários: VD Vendas, CP Compras, CX Caixa, BN Banco, OP Operações, SL Salários, AB Abertura, EN Encerramento e OT Outros. O diário **EN** é reservado aos lançamentos gerados pelo encerramento e não aparece no formulário; no **AB** só se lança à mão no primeiro exercício da empresa (saldos iniciais) — nos seguintes, a abertura é gerada pelo encerramento do anterior.
 
 1. Abra **Diários** e clique **Novo Diário** (ou abra um diário e clique **Editar**).
 2. Preencha **Código** (máximo 10 caracteres), **Natureza** e **Nome**.
@@ -117,7 +192,7 @@ Faturação, Caixa, Tesouraria e Compromissos, que também estão neste grupo do
 
 **Resultado:** «Lançamento criado com sucesso!». O lançamento fica em **Rascunho**, com número atribuído no diário e período correspondentes. **Ainda não conta** no balancete, no razão nem na DRE — é preciso confirmá-lo.
 
-> **Atenção:** hoje a lista de contas deste formulário só mostra as primeiras 200 contas de movimento, por ordem de código (até cerca da conta 493). Contas das classes 5 a 8 — capital, gastos, rendimentos e resultados — e parte da classe 4 **não aparecem** para escolha. Se precisar delas, contacte o administrador do sistema.
+> **Dica:** o campo **Conta** de cada partida pesquisa no servidor: escreva parte do código ou do nome (ex.: «6981» ou «bancários»). Aparecem todas as contas de movimento activas, de qualquer classe.
 
 <!-- captura: 05-contabilidade/lancamento-novo.png | /contabilidade/lancamentos/novo -->
 ![Novo lançamento com partidas dobradas](img/05-contabilidade/lancamento-novo.png)
@@ -132,7 +207,30 @@ Faturação, Caixa, Tesouraria e Compromissos, que também estão neste grupo do
 
 **Resultado:** «Lançamento confirmado.» O estado passa a **Lançado** e o lançamento entra no balancete, no razão, na DRE e no apuramento do IVA.
 
-> **Nota:** o produto não tem, hoje, forma de editar nem de eliminar um rascunho. Se um rascunho estiver errado, a única saída é confirmá-lo e depois estorná-lo. Reveja bem antes de gravar.
+> **Nota:** um rascunho errado não precisa de ser confirmado e estornado: corrija-o ou anule-o enquanto
+> ainda é rascunho (ver a tarefa seguinte).
+
+### Como corrigir ou anular um rascunho
+
+**Antes de começar:** permissão «Criar e editar lançamentos» (Administrador, Financeiro, Gestor). Só um
+lançamento em **Rascunho** se edita ou anula; depois de confirmado, a correcção faz-se por estorno.
+
+**Corrigir**
+1. Abra o lançamento em **Lançamentos** e clique **Editar**.
+2. Altere o **Histórico**, as **Observações**, a **Data** (dentro do mesmo período, que tem de estar
+   **Aberto**) e as **Partidas**. O **diário** e o **número** não mudam — o número pertence à série do diário.
+3. Confira **Lançamento equilibrado** e grave.
+
+**Resultado:** «Lançamento actualizado.» O lançamento continua em **Rascunho**, pronto a confirmar.
+
+**Anular**
+1. No detalhe do rascunho, clique **Anular**.
+2. Escreva o **Motivo** (pelo menos 3 caracteres; por exemplo «lançado em duplicado — o correcto é o 000012»).
+3. Clique **Anular lançamento**.
+
+**Resultado:** «Lançamento ‹número› anulado.» O lançamento passa a **Anulado**, sai da lista por omissão
+(use o filtro **Estado: Anulado** para o ver) e deixa de impedir o fecho do período. **Não se recupera**: se
+precisar do movimento, crie um lançamento novo.
 
 <!-- captura: 05-contabilidade/lancamentos.png | /contabilidade/lancamentos -->
 ![Lista de lançamentos](img/05-contabilidade/lancamentos.png)
@@ -185,13 +283,31 @@ Só contam lançamentos **Lançados** e **Estornados** (os rascunhos ficam de fo
 | **Acumulado** (Débito, Crédito) | Os lançamentos desde o período 01 do exercício até ao período final, mais a abertura. |
 | **Saldo** (Devedor, Credor) | Acumulado a débito menos acumulado a crédito, mostrado do lado onde cai — nunca negativo. Uma conta com saldo **contra natureza** (por exemplo, Caixa credora) aparece assinalada a cor de aviso; não é um erro. |
 
-Só contam lançamentos **Lançados** e **Estornados**. Contas sem movimento nem acumulado não aparecem.
+Só contam lançamentos **Lançados** e **Estornados**. Por omissão, contas sem movimento nem acumulado não aparecem.
+
+As contas aparecem em hierarquia: cada conta-mãe soma as suas sub-contas, com um subtotal por classe. Os restantes
+campos do formulário afinam o que se vê e são aplicados com **Aplicar**:
+
+| Campo | O que faz |
+|---|---|
+| **Grau máximo** | Até que nível de conta mostrar (**Todos** ou 1 a 7). |
+| **Ver apenas contas de razão** | Mostra só as contas de nível 2. |
+| **Conta inicial** · **Conta final** | Limita o quadro a um intervalo de códigos. |
+| **Classe** | Uma só classe (ou **Todas**). |
+| **Apresentação** | **Por período e acumulado**, **Por período** ou **Acumulado**. |
+| **Excluir contas** | Códigos a retirar, separados por vírgulas (ex.: `121, 6112`). |
+| **Pesquisar** | Código ou nome. |
+| **Ver contas sem movimento e saldo** · **Ver apenas contas com saldo** | Inclui as contas a zero, ou mostra só as que têm saldo. |
+
+Estes filtros mudam só o que se vê: a linha **Totais** e o indicador de equilíbrio são sempre os do balancete
+completo. **Exportar CSV**, **Exportar Excel** e **Exportar PDF** descarregam o balancete tal como está a ser
+mostrado.
 
 Por baixo do quadro, o indicador **Balancete equilibrado** verifica três igualdades: **Movimento** (débitos = créditos do período), **Acumulado** (débitos = créditos acumulados) e **Saldos** (soma dos devedores = soma dos credores). Se alguma falhar, aparece **Balancete desequilibrado** com a igualdade em falta marcada — há lançamentos desequilibrados, e o período não fecha.
 
 **Abertura implícita.** Enquanto o exercício não tiver lançamento de abertura (diário `AB`), o balancete calcula-a, sem gravar nada: os saldos das classes 1–5 e 8 de antes do exercício entram no acumulado conta a conta, e o resultado das classes 6 e 7 dos anos anteriores entra numa linha em itálico, **«Resultados de exercícios anteriores por encerrar» (implícita)**, com um aviso de que há exercícios anteriores por encerrar. Sempre que há abertura implícita — mesmo sem a linha sintética — aparece por baixo do quadro a nota «Este balancete inclui abertura implícita…». Quando o exercício tiver o lançamento de abertura, deixa de haver abertura implícita. Os termos estão definidos no [glossário](../../CONTEXT.md#balancete-de-verificação) e a decisão no [ADR-0040](../decisions/ADR-0040-balancete-verificacao-phc.md).
 
-> **Nota:** o balancete já não se escolhe por datas livres (para isso use o **Razão Geral**). A hierarquia de contas (contas-mãe, subtotais por classe, grau máximo), os filtros, a exportação e a passagem de uma linha para o razão são entregues pelas restantes fatias de #279.
+> **Nota:** o balancete já não se escolhe por datas livres (para isso use o **Razão Geral**).
 
 > **Atenção:** o botão **Registar Balancete Oficial** (`/contabilidade/balancete/nova`) é um protótipo: o balancete «registado» fica guardado só no seu browser, não na base de dados da empresa, e não é visto por mais ninguém. Não o use como registo oficial.
 
@@ -202,7 +318,7 @@ Por baixo do quadro, o indicador **Balancete equilibrado** verifica três iguald
 
 Normalmente não é preciso: o exercício do ano seguinte abre sozinho (ver Configurações).
 
-**Antes de começar:** permissão de abrir exercício (Administrador e Gestor).
+**Antes de começar:** permissão de abrir exercício (só o Administrador).
 
 1. Abra **Exercícios** e clique **Abrir exercício**.
 2. Indique o **Ano** e clique **Abrir exercício**.
@@ -226,8 +342,8 @@ Fechar um período tranca-o: a partir daí, nenhum lançamento — manual ou vin
 
 | Impedimento (mensagem mostrada) | O que significa | Como resolver |
 |---|---|---|
-| Existem lançamentos em rascunho no período. | Há lançamentos por confirmar com data nesse mês. | Em **Lançamentos**, filtre por **Rascunho** e confirme-os (não é possível eliminá-los — ver nota acima). |
-| Existe pelo menos uma sessão de caixa aberta com abertura neste período. | Uma sessão de caixa aberta nesse mês ainda não foi fechada. | Feche a sessão em **Caixa** ([capítulo 6](06-faturacao-caixa-tesouraria.md)). |
+| Existem lançamentos em rascunho no período. | Há lançamentos por confirmar com data nesse mês. | Em **Lançamentos**, filtre por **Rascunho** e confirme-os ou, se estiverem errados, corrija-os ou anule-os ([Como corrigir ou anular um rascunho](#como-corrigir-ou-anular-um-rascunho)). |
+| Existe pelo menos uma sessão de caixa aberta com abertura neste período. | Uma sessão de caixa aberta nesse mês ainda não foi fechada. | Feche a sessão em **Caixa** ou, se foi aberta por engano e não tem movimentos, cancele-a ([capítulo 6](06-faturacao-caixa-tesouraria.md#caixa)). |
 | Existe uma reconciliação bancária em curso que abrange datas deste período. | Há um período de reconciliação bancária **Aberto** ou **Em reconciliação** cujas datas tocam este mês. | Em **Reconciliação**, feche ou cancele esse período de reconciliação. |
 | Existem facturas, notas de crédito ou notas de débito emitidas neste período sem o lançamento contabilístico correspondente. | Um documento fiscal emitido no mês não gerou o seu lançamento. | Não é situação normal e não se resolve com um lançamento manual (o documento continua sem ligação). Contacte o suporte. |
 | O balancete do período não está equilibrado — o total dos débitos é diferente do total dos créditos. | A soma dos débitos dos lançamentos do mês difere da soma dos créditos. | Veja o **Balancete** do mês e corrija com estornos. |
@@ -236,7 +352,7 @@ Fechar um período tranca-o: a partir daí, nenhum lançamento — manual ou vin
 
 **Efeitos noutros módulos:** com o período fechado, é recusada qualquer operação que gere lançamento com data nesse mês — emitir facturas, notas de crédito ou de débito, criar ou pagar contas a pagar, registar recepções de compras, processar salários, estornar.
 
-> **Nota:** o Período 13 também exige apuramento de IVA para fechar. Como não recebe lançamentos, o apuramento dá zero e não gera lançamento — basta executá-lo.
+> **Nota:** o **Período 13** (encerramento) não tem IVA a apurar e só verifica três impedimentos: rascunhos no período, balancete desequilibrado e período anterior (Dezembro) ainda aberto. Normalmente não se fecha à mão: fecha-o o encerramento do exercício.
 
 <!-- captura: 05-contabilidade/exercicios.png | /contabilidade/exercicios -->
 ![Exercícios e os seus 13 períodos](img/05-contabilidade/exercicios.png)
@@ -262,7 +378,7 @@ Reabrir é possível, mas é uma operação excepcional, com motivo e registo.
 **Antes de começar:**
 - Permissão de apurar IVA (Administrador, Financeiro, Gestor).
 - O período tem de estar **Aberto**, sem rascunhos, e todos os documentos fiscais do mês com lançamento.
-- O produto **recusa apurar** se o mês tiver operações a taxas diferentes de 16 % e 0 % (por exemplo, 5 %), porque o cálculo do pro rata não está implementado.
+- A partir de Janeiro de 2026, o produto **recusa apurar** um mês em que alguma factura, nota de débito ou nota de crédito emitida tenha linhas a uma taxa diferente de 16 % — **incluindo linhas isentas, a 0 %** — porque nesses casos a dedução do IVA depende do pro rata, cujo cálculo não está implementado. As compras sem IVA não contam para esta regra.
 
 1. Abra **Apuramento de IVA**. Para cada exercício aparece a lista de períodos com Período, Intervalo, Estado período, Apuramento IVA (**Não apurado**, **Apurado**, **Declarado à AT**) e Acção.
 2. Na linha do mês, clique **Apurar**.
@@ -294,7 +410,7 @@ Se o apuramento for recusado, o ecrã mostra o motivo (ver [Erros frequentes](#e
 
 Só enquanto **não** estiver declarado à AT.
 
-**Antes de começar:** permissão de apurar IVA. O período tem de estar **Aberto** (se estiver fechado, peça primeiro a reabertura).
+**Antes de começar:** permissão de apurar IVA (Administrador, Financeiro, Gestor). O período tem de estar **Aberto** (se estiver fechado, peça primeiro a reabertura).
 
 1. No detalhe do apuramento, clique **Estornar**.
 2. Escreva o **Motivo (mínimo 10 caracteres)** e clique **Estornar apuramento**.
@@ -317,7 +433,7 @@ A reconciliação compara, conta a conta, os movimentos do extracto do banco com
 
 **Antes de começar:**
 - Permissão de reconciliar (Administrador, Financeiro, Gestor).
-- A conta bancária tem de estar criada em **Contas Bancárias** (botão no topo do ecrã de Reconciliação) e ligada à **sua própria** subconta PGC. Se duas contas bancárias activas partilharem a mesma conta PGC, aparece o aviso «Conta contabilística partilhada» e a reconciliação fica bloqueada.
+- A conta bancária tem de estar criada e **activa** em **Contas Bancárias** (no menu, ou pelo botão no topo do ecrã de Reconciliação — ver [Como criar, desactivar ou reactivar uma conta bancária](#como-criar-desactivar-ou-reactivar-uma-conta-bancária)) e ligada à **sua própria** subconta PGC. As contas inactivas não aparecem na Reconciliação. Se duas contas bancárias activas partilharem a mesma conta PGC, aparece o aviso «Conta contabilística partilhada» e a reconciliação fica bloqueada.
 - Tenha o extracto do banco em **CSV ou XLSX, até 5 MB**, com as colunas data, descrição e valor (opcionais: referência, tipo D/C, data-valor, saldo). Sem coluna de tipo, o sinal do valor decide se é entrada ou saída.
 
 **1. Abrir um período de reconciliação**
@@ -355,13 +471,128 @@ O ecrã da conta tem os indicadores **Excepções**, **Sugestões**, **Em trâns
 
 **Efeitos noutros módulos:** um período de reconciliação **Aberto** ou **Em reconciliação** impede o fecho do período contabilístico dos meses que abrange.
 
-> **Nota:** as regras de sugestão de lançamento (qual conta usar para cada tipo de movimento do banco) ainda não se configuram no ecrã; existe apenas a regra por omissão para comissões, encargos, taxas, imposto de selo e manutenção. As tolerâncias da conta (dias, valor) também usam os valores por omissão.
-
 <!-- captura: 05-contabilidade/reconciliacao.png | /contabilidade/reconciliacao -->
 ![Reconciliação bancária — contas](img/05-contabilidade/reconciliacao.png)
 
 <!-- captura: 05-contabilidade/reconciliacao-conta.png | /contabilidade/reconciliacao >primeiro -->
 ![Reconciliação de uma conta — vista de excepções](img/05-contabilidade/reconciliacao-conta.png)
+
+### Como configurar as regras de sugestão e as tolerâncias da reconciliação
+
+**Regras de sugestão** — dizem ao **Contabilizar** qual a conta de contrapartida a propor para um movimento
+do banco sem lançamento. Cada empresa nasce com uma regra para comissões, encargos, taxas, imposto de selo e
+manutenção (conta 6981). Só sugerem: lançar é sempre um acto do utilizador.
+
+**Antes de começar:** permissão de reconciliar (Administrador, Financeiro, Gestor).
+
+1. Em **Reconciliação**, clique **Regras de sugestão** e depois **Nova regra**.
+2. Preencha:
+   - **Padrão** — palavras da descrição do extracto, separadas por `|` (ex.: `COMISSAO|ENCARGO|TAXA`);
+   - **Movimento** — **Entrada** ou **Saída** (saída = dinheiro que sai da conta);
+   - **Conta bancária** — uma conta concreta ou todas;
+   - **Conta de contrapartida** — conta PGC activa que aceite lançamentos, diferente das contas dos bancos;
+   - **Prioridade** e, opcionalmente, **Descrição** (ex.: «Comissões bancárias»).
+3. Clique **Guardar**. Aparece «Regra criada.»
+
+Uma regra não se elimina: **Desactivar** tira-a das sugestões (as já aceites não mudam) e **Activar** devolve-a.
+
+**Tolerâncias da conta** — em **Contas Bancárias**, clique na conta (abre o ecrã de edição) e use a secção
+**Reconciliação**:
+
+| Campo | O que faz | Omissão |
+|---|---|---|
+| Tolerância de dias | Diferença máxima entre a data contabilística e a do extracto (0 a 60) | 5 |
+| Tolerância de valor | Diferença aceite sem justificação; 0 = qualquer diferença impede o par automático | 0,00 |
+| Correspondência por referência / por valor / por descrição | Que critérios o motor usa para propor pares | Sim / Sim / Não |
+| Reconciliação automática | Confirma sozinhas as sugestões acima do **Limiar de confiança** | Não |
+| Limiar de confiança | Confiança mínima (50 a 100) para a reconciliação automática | 90 |
+| Permitir agregação · Máximo de movimentos agregados | Propor pares de vários movimentos para um (3 a 20, contando os dois lados) | Não · 5 |
+
+Os valores aplicam-se na próxima **Executar reconciliação**.
+
+### Como criar, desactivar ou reactivar uma conta bancária
+
+As contas bancárias (e as carteiras móveis M-Pesa e e-Mola) são as que aparecem nos pagamentos, nos meios de
+pagamento do POS, na reconciliação e no saldo da Tesouraria.
+
+**Antes de começar:** consultar exige a permissão de leitura de contas bancárias (todos os perfis de sistema);
+criar, editar, desactivar e reactivar, a de escrita (Administrador, Gestor e Financeiro). A conta PGC a ligar tem de existir: uma subconta de movimento da classe 1, só desta conta
+bancária.
+
+**Criar**
+1. Abra **Finanças & Contabilidade › Contas Bancárias** e clique **Nova Conta Bancária**.
+2. Em **Identificação**, preencha **Banco**, **Agência**, **Número de Conta**, **Tipo de Conta** (**Corrente**,
+   **Poupança**, **Depósito a prazo** ou **Carteira móvel (M-Pesa, e-Mola)**) e **Moeda** (ex.: MZN).
+3. Em **Ligação Contabilística**, escolha a **Conta PGC**.
+4. Se quiser, ajuste a secção **Reconciliação** (ver a tarefa anterior) e clique **Guardar**.
+
+**Resultado:** «Conta bancária criada.» A conta aparece na lista com o estado **Activo**. O saldo não se escreve: é
+lido do razão da conta PGC.
+
+**Desactivar ou reactivar**
+1. Na lista, clique na conta (abre o ecrã de edição).
+2. Clique **Desactivar…** (ou **Reactivar…**, numa conta inactiva) e confirme em **Desactivar conta** (ou
+   **Reactivar conta**).
+
+**Resultado:** «Conta «‹banco› — ‹número›» desactivada.» (ou «reactivada.»). Uma conta **Inactiva** deixa de ser
+oferecida nos pagamentos (facturas, contas a pagar, salários, notas de crédito), sai da lista da reconciliação
+bancária e do saldo de abertura da Tesouraria. O histórico mantém-se e a mudança fica no trilho de auditoria.
+
+> **Atenção:** se a conta estiver escolhida em **Meios de pagamento do POS**, a confirmação avisa: «Atenção: esta
+> conta está configurada no POS para …». A configuração **não muda sozinha** e as vendas com esse meio continuam a
+> debitar a conta contabilística dela. Para o evitar, escolha outra conta em
+> [Meios de pagamento do POS](#como-configurar-as-contas-dos-meios-de-pagamento-do-pos), onde a conta inactiva
+> aparece marcada «(inactiva)».
+
+### Como consultar o Balanço
+
+1. Abra **Balanço** (`/contabilidade/balanco`).
+2. Escolha o **Exercício** e **Até ao período** (01 a 12, ou **13 — Encerramento**). Por omissão: o período 13 se o exercício estiver encerrado, senão o 12.
+3. Leia os blocos **Activo**, **Capital próprio** e **Passivo**, cada um com o seu total. Antes do encerramento, o Capital próprio mostra a linha **Resultado do período (por apurar)**.
+4. No fim, **Activo** e **Capital próprio + Passivo** têm de dar **Equilibrado**.
+5. **Exportar PDF** descarrega `balanco-<ano>-p<período>.pdf`.
+
+> **Nota:** é um balanço por classes de contas, para acompanhamento — não o modelo oficial de balanço. A **DRE** tem também o botão **Exportar PDF**, com as datas e o centro de custo escolhidos.
+
+### Como encerrar o exercício (fim do ano)
+
+Encerrar o exercício apura o resultado do ano e transporta os saldos para o ano seguinte. Faz-se em três passos, todos **só pelo Administrador**.
+
+```
+Aberto ──Encerrar──► Encerrado (Provisório) ──Encerrar definitivamente──► Encerrado
+  ▲                          │
+  └────────Reabrir───────────┘
+```
+
+O resultado aplica-se depois, já no exercício seguinte (passo 3).
+
+**1. Encerramento provisório**
+
+**Antes de começar:** os doze meses (Janeiro a Dezembro) fechados — o que já obriga a ter o IVA de cada mês apurado; o Período 13 aberto e sem rascunhos; o exercício anterior, se existir, já encerrado (os exercícios encerram por ordem).
+
+1. Em **Exercícios**, no cartão do ano, clique **Encerrar exercício**.
+2. Em **Estimativa do imposto**, escreva o imposto sobre o rendimento estimado (em MT; **0** se não houver).
+3. Clique **Encerrar exercício**.
+
+**Resultado:** «Exercício 2026 encerrado provisoriamente.» O sistema cria, no Período 13 e no diário EN, até três lançamentos (só os que têm valores): apuramento dos resultados (classes 6 e 7 saldadas contra 81/82 e transferidas para 83), estimativa do imposto (débito 851 / crédito 4411) e resultado líquido (para **88**). O Período 13 fica **Fechado**; se o exercício seguinte já existir, recebe a **abertura** (diário AB, 1 de Janeiro) com os saldos das classes 1 a 5 e 8. São arquivados os PDF do **Balanço**, da **DRE** e do **Balancete**, que ficam no cartão do exercício.
+
+Se faltar alguma condição, aparece **Não é possível encerrar** com todos os impedimentos (meses abertos, exercício anterior por encerrar, rascunhos no Período 13, balancete desequilibrado…).
+
+**Exemplo:** se no ano as contas de rendimentos (classe 7) somam 5 000 000,00 MT e as de gastos (classe 6) 4 200 000,00 MT, o resultado antes de imposto é **800 000,00**. Com uma estimativa de imposto de 256 000,00 (32 %, valor ilustrativo — confirme a taxa e a matéria colectável com o seu contabilista), a conta **88** fica com um resultado líquido credor de **544 000,00**.
+
+**2. Corrigir depois do encerramento provisório — Reabrir exercício**
+
+Se a auditoria pedir um ajuste, clique **Reabrir exercício**, escreva o **Motivo** (mínimo 10 caracteres) e confirme. Os lançamentos do encerramento e a abertura do ano seguinte são **estornados**; os doze meses continuam fechados — reabra o mês que precisar (cada um com o seu motivo), corrija e volte a encerrar. Não é possível reabrir se o ano seguinte já tiver meses fechados ou se o resultado já tiver sido aplicado (anule primeiro a aplicação).
+
+**3. Aplicar o resultado (no exercício seguinte)**
+
+Depois de os sócios aprovarem as contas, no cartão do exercício encerrado clique **Aplicar resultado**, indique a **Data da deliberação** (no ano seguinte, num mês aberto) e a **Referência da acta** (ex.: «Acta n.º 3/2027»). O sistema lança, no diário de Operações, o saldo de 88 para **59 Resultados transitados** (no exemplo: débito 88 / crédito 59 de 544 000,00). A distribuição (reservas, dividendos) faz-se depois, com lançamentos a partir de 59. Um engano corrige-se com **Anular aplicação** (com motivo).
+
+**4. Encerramento definitivo**
+
+Só depois de as contas aprovadas: **Encerrar definitivamente** › confirmar. **É irreversível** — o exercício não volta a abrir e nenhum dos seus períodos aceita lançamentos.
+
+> **Atenção:** a separação entre 81 e 82 (resultados operacionais e financeiros) segue a regra do produto e aguarda validação do contabilista. Confira os lançamentos do encerramento no **Razão Geral** antes de encerrar em definitivo.
 
 ### Como configurar a abertura automática do exercício
 
@@ -375,7 +606,17 @@ O ecrã da conta tem os indicadores **Excepções**, **Sugestões**, **Em trâns
 
 > **Atenção:** a secção **Fecho automático de períodos** (interruptor e «Dias após o fim do mês») está visível mas **desactivada**: o processo agendado que faria o fecho ainda não existe. Os períodos fecham-se à mão em **Exercícios**.
 
-> **Nota — conta por natureza de nota de débito:** a escolha da conta de rendimento a creditar por cada natureza de nota de débito (acerto de preço, juros de mora, penalização…) **ainda não está disponível** neste ecrã. Hoje, o lançamento de qualquer nota de débito debita 411 Clientes c/c e credita 711 Vendas (e 44331 IVA liquidado, se houver IVA), seja qual for a natureza.
+### Como configurar a conta de cada natureza de nota de débito
+
+Cada nota de débito credita a conta da sua **natureza** (ver [Vendas e POS](04-vendas-e-pos.md#como-emitir-uma-nota-de-débito)). Aqui define-se a conta por omissão de cada natureza.
+
+**Antes de começar:** permissão de configuração financeira (Administrador, Financeiro, Gestor).
+
+1. Abra **Configurações** e, no cartão **Naturezas de nota de débito**, clique **Configurar contas por natureza de nota de débito**.
+2. Para cada natureza — **Acerto de preço**, **Juros de mora**, **Despesas repercutidas**, **Penalização**, **Outro** — escolha a conta (pesquisa por código ou nome). Só aparecem contas de movimento activas da classe certa: **classe 6** para despesas repercutidas (o gasto que se recupera), **classe 7** para as outras. **Sem conta — escolhida em cada nota de débito** obriga quem emite a escolher.
+3. Clique **Guardar** na linha. Aparece «‹Natureza›: conta guardada.»
+
+As omissões de origem são: Acerto de preço → 711 Vendas · Juros de mora → 781 Juros obtidos · Penalização → 769 Outros rendimentos · Despesas repercutidas e Outro → sem conta. A mudança vale para as notas seguintes; as já emitidas não mudam.
 
 ### Como configurar as contas dos meios de pagamento do POS
 
@@ -405,18 +646,21 @@ Estes lançamentos são criados automaticamente, já no estado **Lançado**, com
 |---|---|
 | Emitir factura | Diário de Vendas: débito 411 Clientes c/c; crédito 711 Vendas e 44331 IVA liquidado. |
 | Emitir nota de crédito | Diário de Vendas: o inverso da factura, na parte creditada. |
-| Emitir nota de débito | Diário de Vendas: débito 411; crédito 711 e 44331. |
+| Emitir nota de débito | Diário de Vendas: débito 411; crédito da conta da natureza (711, 781, 769 ou a escolhida) e 44331. |
 | Vender no POS ([Vendas e POS](04-vendas-e-pos.md)) | Diário de Vendas, pelo documento da venda (Factura-Recibo ou, a crédito, Factura): débito da conta do meio de pagamento (111 dinheiro, 411 crédito, a conta configurada ou 121 nos restantes); crédito 711 Vendas e 44331 IVA liquidado. |
 | Anular uma venda POS | Nota de crédito (o inverso da venda) e a devolução: débito 411; crédito das contas dos meios de pagamento originais. |
 | Criar uma conta a pagar, ou registar a recepção de uma compra | Diário de Compras: débito da conta de gasto/existências (e da conta 4432x de IVA dedutível, só quando a conta a pagar tem o documento do fornecedor completo); crédito 421 Fornecedores c/c. Na recepção de compras não é lançado IVA dedutível. |
-| Pagar uma conta a pagar | Diário de Banco: débito 421 Fornecedores c/c; crédito 121 Depósitos à ordem. |
-| Processar e pagar a folha salarial | Diário de Salários ([Recursos Humanos](07-recursos-humanos.md)). |
-| Converter uma encomenda em venda | Lançamento da venda ([Vendas e POS](04-vendas-e-pos.md)). |
+| Pagar uma conta a pagar | Diário de Caixa (numerário) ou de Banco: débito 421 Fornecedores c/c; crédito 111 Caixa ou a conta contabilística da conta bancária escolhida. |
+| Processar e pagar a folha salarial | Diário de Salários ([Recursos Humanos](07-recursos-humanos.md)). O pagamento tem a data indicada e credita a conta do meio escolhido (111 Caixa em numerário, ou a conta da conta bancária). |
+| Registar o pagamento de uma factura ([capítulo 6](06-faturacao-caixa-tesouraria.md#como-registar-o-pagamento-de-uma-fatura)) | Diário de Caixa (numerário) ou de Banco: débito 111 Caixa ou a conta da conta bancária; crédito 411 Clientes c/c. |
+| Encerrar o exercício | Diário EN, Período 13: apuramento dos resultados (classes 6 e 7 → 81/82 → 83), estimativa do imposto (851/4411) e resultado líquido (→ 88). |
+| Abrir o exercício seguinte (com o anterior encerrado) | Diário AB, dia 1 de Janeiro: saldos de fecho das classes 1 a 5 e 8. |
+| Aplicar o resultado | Diário de Operações, na data da deliberação: 88 ↔ 59 Resultados transitados. |
 | Apurar o IVA | Diário de Operações, no último dia do mês (ver acima). |
 
 Se o período da data do documento estiver fechado, a operação no outro módulo é recusada com «Período … está fechado».
 
-**O que ainda não lança:** o **recebimento** de uma factura (o pagamento não credita a 411), o **custo das vendas**
+**O que ainda não lança:** o **custo das vendas**
 (a saída de stock de uma venda não debita 61 nem credita 32) e as vendas POS feitas antes de as vendas POS emitirem
 documento fiscal. O balancete e a DRE não mostram a margem.
 
@@ -426,9 +670,10 @@ documento fiscal. O balancete e a DRE não mostram a margem.
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Rascunho | Gravado, sem efeito nos mapas. Impede o fecho do período e o apuramento do IVA. | Lançado | Administrador, Financeiro, Gestor (**Confirmar**) |
+| Rascunho | Gravado, sem efeito nos mapas. Impede o fecho do período e o apuramento do IVA. Pode ser editado. | Lançado · Anulado | Administrador, Financeiro, Gestor (**Confirmar** · **Anular**) |
 | Lançado | Confirmado e imutável. Conta no balancete, razão, DRE e IVA. Os lançamentos automáticos nascem já neste estado. | Estornado | Administrador, Financeiro (**Estornar**) |
 | Estornado | Anulado por um contra-lançamento; ambos continuam visíveis e anulam-se nos mapas. | — (final) | — |
+| Anulado | Rascunho descartado, com motivo. Nunca teve efeito nos mapas; não aparece na lista por omissão. | — (final) | — |
 
 **Período contabilístico**
 
@@ -441,8 +686,9 @@ documento fiscal. O balancete e a DRE não mostram a margem.
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Aberto | Exercício em curso. Hoje, é o único estado usado. | — | — |
-| Em Encerramento · Encerrado (Provisório) · Encerrado | Previstos para o encerramento do ano, que ainda não existe. | — | — |
+| Aberto | Exercício em curso. | Encerrado (Provisório) | Administrador (**Encerrar exercício**) |
+| Encerrado (Provisório) | Resultado apurado no Período 13; o exercício seguinte já tem a abertura. Ainda se pode corrigir. | Aberto · Encerrado | Administrador (**Reabrir exercício**, com motivo · **Encerrar definitivamente**) |
+| Encerrado | Definitivo. Nenhum período aceita lançamentos e não se reabre. | — (final) | — |
 
 **Apuramento de IVA**
 
@@ -487,18 +733,22 @@ documento fiscal. O balancete e a DRE não mostram a margem.
 | Esta conta já tem N movimento(s): … não pode(m) ser alterado(s). Crie uma conta nova e desactive esta. | Tentou mudar código, classe, tipo, natureza, nível ou conta mãe de uma conta com lançamentos. | Altere só o nome/descrição, ou crie conta nova. |
 | Conta tem lançamentos — não pode ser desativada | A conta tem histórico. | Deixe de lançar nela; não é possível desactivá-la. |
 | Transição inválida: LANCADO → LANCADO … | Tentou confirmar um lançamento que outra pessoa já confirmou. | Actualize a página. |
+| O lançamento já foi estornado ou mudou de estado entretanto. | Outra pessoa estornou o mesmo lançamento ao mesmo tempo; só um estorno fica. | Actualize a página: o lançamento já aparece **Estornado**, com a ligação ao estorno. |
 | Período 2026-03 já está fechado | O período foi fechado entretanto. | Actualize a página. |
 | O apuramento do IVA do período … já foi declarado à AT (referência: …). A correcção deve ser feita por regularização no período seguinte … | Tentou reabrir um período com IVA declarado. | Faça a regularização (44341/44342) num período aberto. |
-| Não é possível reabrir um período de um exercício encerrado | O exercício está encerrado. | Não há reabertura possível. |
+| Não é possível reabrir um período de um exercício encerrado | O exercício está encerrado em definitivo. | Não há reabertura possível; corrija no exercício seguinte. |
+| O exercício está encerrado provisoriamente. Reabra primeiro o exercício para reabrir um período. | Tentou reabrir um mês de um exercício encerrado provisoriamente. | Reabra o exercício (Administrador) e depois o mês. |
 | Motivo deve ter pelo menos 10 caracteres | Motivo de reabertura demasiado curto. | Escreva um motivo mais completo. |
 | O período … já tem um apuramento activo (versão N). Para corrigir, estorne-o e execute de novo. | Já existe apuramento Apurado ou Declarado. | Estorne o apuramento (se não estiver declarado) e apure de novo. |
-| O período … tem N lançamento(s) em rascunho. Confirme ou elimine antes de apurar. | Há rascunhos no mês. | Confirme-os em **Lançamentos**. |
+| O período … tem N lançamento(s) em rascunho. Confirme ou elimine antes de apurar. | Há rascunhos no mês. | Confirme-os ou anule-os em **Lançamentos**. |
 | O período … tem N documento(s) fiscal(is) sem lançamento: … | Documentos emitidos sem lançamento. | Contacte o suporte, indicando os números listados. |
-| O período … tem operações a taxas não-standard (ex.: 5 %). O cálculo do pro rata não está implementado. … | Há documentos a taxas diferentes de 16 % e 0 %. | Trate o apuramento desse mês fora do sistema com o seu contabilista. |
+| Pro rata não suportado — apuramento recusado («Este período tem operações isentas (a 0 %), à taxa reduzida de 5 % ou fora do campo do imposto. …») | Desde Janeiro de 2026, há no mês facturas, notas de débito ou notas de crédito com linhas a taxa diferente de 16 %, incluindo isentas a 0 %. | Trate o apuramento desse mês com o seu contabilista: o ecrã indica as regularizações manuais (contas 44341/44342/44343) a lançar antes de tentar de novo. |
+| O apuramento já não está apurado (foi estornado ou declarado entretanto). | Outra pessoa estornou ou declarou o mesmo apuramento ao mesmo tempo. | Actualize a página e veja o estado actual do apuramento. |
 | Formato de extracto não suportado: … Use CSV ou XLSX. | Ficheiro com outra extensão. | Exporte o extracto em CSV ou XLSX. |
 | O extracto excede o tamanho máximo de 5 MB. | Ficheiro demasiado grande. | Divida o extracto por períodos mais curtos. |
 | Este ficheiro já tinha sido importado nesta conta — nada foi alterado. | Ficheiro repetido. | Nada a fazer. |
 | Há N contas bancárias activas na mesma conta contabilística … | Duas contas bancárias partilham a conta PGC. | Em **Contas Bancárias**, ligue cada conta à sua própria subconta PGC. |
+| A conta bancária indicada está inactiva e não pode ser utilizada. | A conta escolhida num pagamento foi desactivada entretanto. | Escolha outra conta, ou reactive-a em **Contas Bancárias**. |
 | Já existe um período de reconciliação em aberto para esta conta. | Só pode haver um período aberto por conta. | Feche ou cancele o período em curso. |
 | O período sobrepõe-se a outro já reconciliado nesta conta. | As datas tocam um período fechado. | Comece no dia seguinte ao último período reconciliado. |
 | A reconciliação tem uma diferença residual de … MT: justifique-a para fechar o período. | Há diferença por explicar. | Resolva as excepções/sugestões ou escreva a justificação. |
@@ -508,7 +758,7 @@ documento fiscal. O balancete e a DRE não mostram a margem.
 
 ## Perguntas frequentes
 
-**Enganei-me num lançamento que ainda está em rascunho. Posso corrigi-lo?** Hoje não há forma de editar nem de eliminar um rascunho. Confirme-o e estorne-o, e depois crie o lançamento correcto.
+**Enganei-me num lançamento que ainda está em rascunho. Posso corrigi-lo?** Sim: **Editar** enquanto for rascunho, ou **Anular** se não devia existir. Só depois de confirmado é que a correcção passa a ser por estorno.
 
 **O que entra no Acumulado?** Os lançamentos do período 01 ao período final do exercício, mais a abertura (o lançamento do diário AB ou, sem ele, a abertura implícita).
 
