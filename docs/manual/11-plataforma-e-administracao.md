@@ -69,7 +69,7 @@ permissão»); o Sérgio tem os indicadores do mês e a resposta de quem fez o q
 | Subscrição | O vínculo entre a empresa e o GestPro: plano, periodicidade e estado. O pagamento é feito por cartão através do Stripe. |
 | Período de Teste | Os primeiros 14 dias, sem cartão, com o plano escolhido no registo. |
 | Modo de Leitura | 30 dias em que a empresa entra, consulta e exporta tudo o que é seu, mas não grava. É por aqui que passa qualquer fim de subscrição: fim do teste, cancelamento ou falta de pagamento. |
-| Acesso Fechado | Fim dos 30 dias de Modo de Leitura: só ADMIN e GESTOR entram, e apenas no ecrã **Subscrição**, para pagar; os restantes não entram. **Os dados não são apagados.** |
+| Acesso Fechado | Fim dos 30 dias de Modo de Leitura: só ADMIN e GESTOR entram, e apenas no ecrã **Subscrição**, para pagar; os restantes não entram. **Os dados não são apagados.** O selo do estado mostra «Fechada». |
 
 ## Ecrãs
 
@@ -466,8 +466,8 @@ em breve», «Pagamento da subscrição falhou» e «Subscrição em modo de lei
 |---|---|---|---|
 | Período de Teste | 14 dias grátis desde o registo. | Activa (pagamento); Modo de Leitura (fim do teste ou cancelamento) | Automático / ADMIN, GESTOR |
 | Activa | Subscrição paga; acesso completo. | Modo de Leitura (cancelamento no fim do período pago, ou falha de cobrança depois das novas tentativas) | Automático / ADMIN, GESTOR |
-| Modo de Leitura | 30 dias só de consulta e exportação. | Activa (pagamento); Acesso Fechado (fim dos 30 dias) | ADMIN, GESTOR / automático |
-| Acesso Fechado | Só ADMIN e GESTOR entram, e apenas para pagar no ecrã **Subscrição**; dados guardados. | Activa (pagamento) | ADMIN, GESTOR |
+| Modo de Leitura | 30 dias só de consulta e exportação. | Activa (pagamento); Fechada (fim dos 30 dias) | ADMIN, GESTOR / automático |
+| Fechada | Acesso fechado: só ADMIN e GESTOR entram, e apenas para pagar no ecrã **Subscrição** (o ecrã mostra o aviso «O acesso foi fechado»); dados guardados. | Activa (pagamento) | ADMIN, GESTOR |
 
 Contas antigas podem ainda mostrar **Suspensa**, **Expirado** ou **Cancelada**; nesses casos o
 ecrã explica a situação e a saída é sempre subscrever um plano.
