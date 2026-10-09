@@ -25,9 +25,9 @@ async function KpiSection({ tenantId, userId }: { tenantId: string; userId: stri
 
   const [produtos, alertas, movimentos] = await runWithTenantContext({ tenantId, userId }, () =>
     Promise.all([
-      catalogoProdutoService.listarProdutos({ take: 1, orderBy: 'createdAt', orderDir: 'desc' }, ctx),
+      catalogoProdutoService.contarProdutos({}, ctx),
       stockService.obterAlertasStockMinimo(ctx),
-      stockService.listarMovimentos({ take: 1 }, ctx),
+      stockService.contarMovimentos({}, ctx),
     ])
   );
 
@@ -35,7 +35,7 @@ async function KpiSection({ tenantId, userId }: { tenantId: string; userId: stri
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <KpiCard
         title="Produtos no Catálogo"
-        value={produtos.nextCursor !== null ? '25+' : String(produtos.items.length)}
+        value={String(produtos)}
         icon={<Package className="h-5 w-5" />}
         description="itens cadastrados"
       />
@@ -47,7 +47,7 @@ async function KpiSection({ tenantId, userId }: { tenantId: string; userId: stri
       />
       <KpiCard
         title="Movimentações"
-        value={movimentos.nextCursor !== null ? '25+' : String(movimentos.items.length)}
+        value={String(movimentos)}
         icon={<PackageOpen className="h-5 w-5" />}
         description="registadas"
       />

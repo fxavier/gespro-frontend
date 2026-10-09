@@ -294,7 +294,7 @@ async function transitarEstado(
   opts?: { observacoes?: string },
 ): Promise<AtivoDto> {
   const ativo = await obterAtivo(id, ctx);
-  transitar(TRANSICOES_ATIVO as never, ativo.estado as never, novoEstado as never, 'Ativo');
+  transitar(TRANSICOES_ATIVO as never, ativo.estado as never, novoEstado as never, 'activo');
 
   // Regista movimentação de estado
   await prisma.movimentacaoAtivo.create({
@@ -332,7 +332,7 @@ async function adicionarDocumento(data: DocumentoAtivoCreate, ctx: Ctx): Promise
   if (keyCandidata && !keyCandidata.startsWith(prefixoTenant(ctx.tenantId))) {
     throw new BusinessRuleError(
       'KEY_FORA_DO_TENANT',
-      'A referência do documento não pertence ao tenant',
+      'A referência do documento não pertence a esta empresa',
     );
   }
 
@@ -382,6 +382,17 @@ async function removerDocumento(documentoId: string, ctx: Ctx): Promise<void> {
 }
 
 // ─── Movimentações ────────────────────────────────────────────────────────────
+
+/** KPI (#104): total de activos não apagados, opcionalmente por estado — o mesmo universo de `listarAtivos`. */
+async function contarAtivos(filter: { estado?: AtivoFilter['estado'] }, ctx: Ctx): Promise<number> {
+  return prisma.ativo.count({
+    where: {
+      tenantId: ctx.tenantId,
+      deletedAt: null,
+      ...(filter.estado ? { estado: filter.estado as never } : {}),
+    },
+  });
+}
 
 async function listarMovimentacoes(ativoId: string, ctx: Ctx): Promise<MovimentacaoAtivoDto[]> {
   const movs = await prisma.movimentacaoAtivo.findMany({
@@ -549,7 +560,7 @@ async function exportarRelatorioAtivos(filter: AtivoFilter, ctx: Ctx): Promise<s
 
 export const ativosService: IAtivoService = {
   listarCategorias, obterCategoria, criarCategoria, actualizarCategoria, arquivarCategoria,
-  listarAtivos, obterAtivo, obterAtivoPorCodigo, criarAtivo, actualizarAtivo, transitarEstado, arquivarAtivo,
+  listarAtivos, contarAtivos, obterAtivo, obterAtivoPorCodigo, criarAtivo, actualizarAtivo, transitarEstado, arquivarAtivo,
   adicionarDocumento, removerDocumento,
   listarMovimentacoes, registarMovimentacao, confirmarMovimentacao,
   procurarLocalizacoesDestino, procurarResponsaveis,

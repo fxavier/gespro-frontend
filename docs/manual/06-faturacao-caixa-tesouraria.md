@@ -588,7 +588,7 @@ Para eliminar, clique no botão de eliminar na linha e confirme em **Eliminar co
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
 | Aberta | Turno em curso; recebe movimentos (incluindo sangrias e reforços) | Fechada (**Fechar caixa**) · Cancelada (**Cancelar sessão**, só sem movimentos além da abertura) | O próprio utilizador que a abriu, com a permissão correspondente |
-| Fechada | Turno encerrado com contagem. O selo mostra hoje «Acesso Fechado» | — (final) | — |
+| Fechada | Turno encerrado com contagem | — (final) | — |
 | Cancelada | Anulada sem movimentos além da abertura, com motivo | — (final) | — |
 
 ### Compromisso

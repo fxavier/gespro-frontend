@@ -130,6 +130,30 @@ export const TRANSICOES_DEVOLUCAO: Record<string, string[]> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Faturação — Cotação comercial e Proforma (#154/#259)
+// Espelho de `faturacao.interface.ts` (o serviço continua a ser quem decide).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const TRANSICOES_COTACAO_COMERCIAL: Record<string, string[]> = {
+  RASCUNHO:   ['ENVIADA', 'CANCELADA'],
+  ENVIADA:    ['ACEITE', 'REJEITADA', 'EXPIRADA'],
+  ACEITE:     ['CONVERTIDA'],
+  REJEITADA:  [],
+  CONVERTIDA: [],
+  EXPIRADA:   [],
+  CANCELADA:  [],
+};
+
+export const TRANSICOES_PROFORMA: Record<string, string[]> = {
+  RASCUNHO:   ['ENVIADA', 'CANCELADA'],
+  ENVIADA:    ['ACEITE', 'EXPIRADA', 'CANCELADA'],
+  ACEITE:     ['CONVERTIDA', 'CANCELADA'],
+  CONVERTIDA: [],
+  EXPIRADA:   [],
+  CANCELADA:  [],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Spec 11 — Riscos e Qualidade de Projecto
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -56,7 +56,7 @@ async function emitir(dto: EmitirNotificacaoDto, ctx: Ctx): Promise<{ id: string
     select: { email: true },
   });
   if (!dest) {
-    throw new NotFoundError('Destinatário não encontrado neste tenant');
+    throw new NotFoundError('Destinatário não encontrado');
   }
 
   // Idempotência: não emite o mesmo tipo+entidade+utilizador mais de uma vez por dia.
@@ -223,6 +223,14 @@ async function listar(
       userId,
       ...(filtro.apenasNaoLidas ? { lida: false } : {}),
       ...(filtro.tipo ? { tipo: filtro.tipo } : {}),
+      ...(filtro.q
+        ? {
+            OR: [
+              { titulo: { contains: filtro.q, mode: 'insensitive' as const } },
+              { mensagem: { contains: filtro.q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
     },
     orderBy: { createdAt: 'desc' },
     take: take + 1,

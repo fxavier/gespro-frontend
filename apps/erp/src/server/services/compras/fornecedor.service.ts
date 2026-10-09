@@ -121,7 +121,7 @@ export const fornecedorService: IFornecedorService = {
   async criar(input: CreateFornecedorInput, ctx: Ctx): Promise<FornecedorDetalhe> {
     // Verificar NUIT único no tenant
     const existe = await db.fornecedor.findFirst({ where: { tenantId: ctx.tenantId, nuit: input.nuit } });
-    if (existe) throw new BusinessRuleError('NUIT_DUPLICADO', `NUIT ${input.nuit} já registado neste tenant`);
+    if (existe) throw new BusinessRuleError('NUIT_DUPLICADO', `Já existe um fornecedor com o NUIT ${input.nuit}.`);
 
     // #116: o código é o do formulário (o schema exige-o), nunca um FOR- automático.
     const { enderecos, contactos, ...campos } = input as any;
@@ -259,7 +259,7 @@ export const fornecedorService: IFornecedorService = {
     if (keyCandidata && !keyCandidata.startsWith(prefixoTenant(ctx.tenantId))) {
       throw new BusinessRuleError(
         'STORAGE_KEY_CROSS_TENANT',
-        'A referência de armazenamento do documento não pertence a este tenant',
+        'A referência de armazenamento do documento não pertence a esta empresa',
       );
     }
 

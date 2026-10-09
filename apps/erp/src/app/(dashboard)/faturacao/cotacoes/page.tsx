@@ -10,9 +10,9 @@ import { Plus } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
-import { TRANSICOES_COTACAO_COMERCIAL } from '@/server/services/financas/faturacao.interface';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { FiltroCotacaoComercialSchema } from '@/lib/validations/faturacao';
+import { acoesMenuCotacao } from '@/lib/faturacao-acoes';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
@@ -30,12 +30,12 @@ async function CotacoesSection({
   filtros,
   tenantId,
   userId,
-  podeCancelar,
+  permissoes,
 }: {
   filtros: FiltroUrl;
   tenantId: string;
   userId: string;
-  podeCancelar: boolean;
+  permissoes: string[];
 }) {
   try {
     const ctx = { tenantId, userId };
@@ -48,17 +48,22 @@ async function CotacoesSection({
       clienteService.nomesPorIds(result.items.map((c: any) => c.clienteId), ctx)
     );
 
-    const items: CotacaoResumo[] = result.items.map((c: any) => ({
-      id: c.id,
-      numero: c.numero,
-      clienteNome: nomes[c.clienteId]?.nome ?? '—',
-      dataEmissao: c.dataEmissao,
-      dataValidade: c.dataValidade,
-      total: parseFloat(c.total?.toString() ?? '0').toFixed(2),
-      status: c.status,
-      // Mesma regra do detalhe: transição permitida E permissão.
-      podeCancelar: podeCancelar && (TRANSICOES_COTACAO_COMERCIAL[c.status as keyof typeof TRANSICOES_COTACAO_COMERCIAL] ?? []).includes('CANCELADA'),
-    }));
+    const items: CotacaoResumo[] = result.items.map((c: any) => {
+      // Mesma regra do detalhe: transição permitida E permissão (#154/#259).
+      const acoes = acoesMenuCotacao({ status: c.status, permissoes });
+      return {
+        id: c.id,
+        numero: c.numero,
+        clienteNome: nomes[c.clienteId]?.nome ?? '—',
+        dataEmissao: c.dataEmissao,
+        dataValidade: c.dataValidade,
+        total: parseFloat(c.total?.toString() ?? '0').toFixed(2),
+        status: c.status,
+        podeConverter: acoes.converter,
+        podeRejeitar: acoes.rejeitar,
+        podeCancelar: acoes.cancelar,
+      };
+    });
 
     return <CotacoesTable data={items} nextCursor={result.nextCursor} />;
   } catch {
@@ -94,7 +99,6 @@ export default async function CotacoesPage({ searchParams }: PageProps) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId, permissions } = session.user;
-  const podeCancelar = permissions.includes('faturacao:cotacao:gerir');
 
   const rawParams = await searchParams;
   const flat = Object.fromEntries(
@@ -129,7 +133,7 @@ export default async function CotacoesPage({ searchParams }: PageProps) {
       />
 
       <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton rows={8} cols={6} />}>
-        <CotacoesSection filtros={filtros} tenantId={tenantId} userId={userId} podeCancelar={podeCancelar} />
+        <CotacoesSection filtros={filtros} tenantId={tenantId} userId={userId} permissoes={permissions} />
       </Suspense>
     </div>
   );

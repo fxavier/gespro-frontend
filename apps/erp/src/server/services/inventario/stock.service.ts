@@ -317,6 +317,11 @@ function mapMov(m: {
   };
 }
 
+/** KPI (#104): todos os movimentos de stock do tenant — o universo de `listarMovimentos` sem filtros. */
+export async function contarMovimentos(_filter: Record<string, never>, ctx: Ctx): Promise<number> {
+  return prisma.movimentoStock.count({ where: { tenantId: ctx.tenantId } });
+}
+
 export async function listarMovimentos(
   filter: MovimentoStockFilter,
   ctx: Ctx,
@@ -340,6 +345,21 @@ export async function listarMovimentos(
               ],
             },
           } : {}),
+          ...(filter.tipo ? { tipo: filter.tipo as never } : {}),
+          // Em AND: o filtro de localização já ocupa o `OR` do topo.
+          ...(filter.q
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { produto: { nome: { contains: filter.q, mode: 'insensitive' as const } } },
+                      { produto: { sku: { contains: filter.q, mode: 'insensitive' as const } } },
+                      { motivo: { contains: filter.q, mode: 'insensitive' as const } },
+                    ],
+                  },
+                ],
+              }
+            : {}),
           ...(filter.dataInicio || filter.dataFim ? {
             createdAt: {
               ...(filter.dataInicio ? { gte: filter.dataInicio } : {}),
@@ -694,7 +714,7 @@ export async function confirmarConsumoStock(
     select: { id: true, status: true, produtoId: true, varianteProdutoId: true, localizacaoId: true, quantidade: true, documentoReferenciaId: true, documentoReferenciaTipo: true },
   });
   if (!reserva) throw new NotFoundError('Reserva de stock não encontrada');
-  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'CONSUMIDA' as never, 'ReservaStock');
+  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'CONSUMIDA' as never, 'reserva de stock');
 
   const qtd = new Prisma.Decimal(reserva.quantidade.toString());
 
@@ -734,7 +754,7 @@ export async function libertarStock(
     select: { id: true, status: true, produtoId: true, varianteProdutoId: true, localizacaoId: true, quantidade: true },
   });
   if (!reserva) throw new NotFoundError('Reserva de stock não encontrada');
-  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'LIBERADA' as never, 'ReservaStock');
+  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'LIBERADA' as never, 'reserva de stock');
 
   const qtd = new Prisma.Decimal(reserva.quantidade.toString());
 
@@ -776,6 +796,7 @@ export const stockService: IStockService = {
   verificarDisponibilidade,
   obterAlertasStockMinimo,
   listarMovimentos,
+  contarMovimentos,
   registarTransferencia,
   entradaStock,
   baixarStock,

@@ -446,7 +446,7 @@ export async function concluir(
   ctx: Ctx,
 ): Promise<void> {
   const contagem = await _obterContagem(contagemId, ctx.tenantId);
-  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'CONCLUIDA' as never, 'ContagemStock');
+  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'CONCLUIDA' as never, 'contagem de stock');
 
   await prisma.contagemStock.update({
     where: { id: contagemId },
@@ -466,7 +466,7 @@ export async function cancelar(
   ctx: Ctx,
 ): Promise<void> {
   const contagem = await _obterContagem(contagemId, ctx.tenantId);
-  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'CANCELADA' as never, 'ContagemStock');
+  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'CANCELADA' as never, 'contagem de stock');
 
   await prisma.contagemStock.update({
     where: { id: contagemId },
@@ -511,6 +511,16 @@ export async function listar(
   return { items: page.items.map(mapContagem), nextCursor: page.nextCursor };
 }
 
+/** KPI (#104): número de contagens do tenant, opcionalmente por estado. */
+export async function contar(filter: { status?: FilterContagem['status'] }, ctx: Ctx): Promise<number> {
+  return prisma.contagemStock.count({
+    where: {
+      tenantId: ctx.tenantId,
+      ...(filter.status ? { status: filter.status as never } : {}),
+    },
+  });
+}
+
 // ─── obter ────────────────────────────────────────────────────────────────────
 
 export async function obter(id: string, ctx: Ctx): Promise<ContagemDetalhe> {
@@ -551,5 +561,6 @@ export const contagemStockService: IContagemStockService = {
   concluir,
   cancelar,
   listar,
+  contar,
   obter,
 };

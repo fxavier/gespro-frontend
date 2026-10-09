@@ -787,6 +787,11 @@ export async function listarContas(
   ) as unknown as Promise<PaginacaoContabilidade<ContaPGC>>;
 }
 
+/** KPI (#104): número de contas do plano do tenant — o universo de `listarContas` sem filtros. */
+export async function contarContas(_filtro: Record<string, never>, ctx: Ctx): Promise<number> {
+  return prisma.contaPGC.count({ where: { tenantId: ctx.tenantId } });
+}
+
 export async function arvoreContas(ctx: Ctx): Promise<ContaPGC[]> {
   return prisma.contaPGC.findMany({
     where: { tenantId: ctx.tenantId, ativo: true },
@@ -1324,6 +1329,19 @@ export async function listarLancamentos(filtro: FiltroLancamentoInput, ctx: Ctx)
       }),
     { cursor: filtro.cursor, take: filtro.take },
   ) as unknown as Promise<PaginacaoContabilidade<LancamentoComPartidas>>;
+}
+
+/**
+ * KPI (#104): número de lançamentos do tenant com o mesmo critério de estado de `listarLancamentos`
+ * (sem estado pedido, os anulados ficam de fora).
+ */
+export async function contarLancamentos(
+  filtro: { status?: FiltroLancamentoInput['status'] },
+  ctx: Ctx,
+): Promise<number> {
+  return prisma.lancamento.count({
+    where: { tenantId: ctx.tenantId, status: filtro.status ?? { not: 'ANULADO' } },
+  });
 }
 
 // ---------------------------------------------------------------------------

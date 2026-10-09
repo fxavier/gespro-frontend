@@ -191,6 +191,17 @@ export const ColaboradorService = {
     );
   },
 
+  /** KPI (#104): colaboradores não apagados, opcionalmente por estado — o universo de `listar`. */
+  async contar(filter: { status?: FilterColaboradorInput['status'] }, ctx: Ctx): Promise<number> {
+    return prisma.colaborador.count({
+      where: {
+        tenantId: ctx.tenantId,
+        deletedAt: null,
+        ...(filter.status ? { status: filter.status } : {}),
+      },
+    });
+  },
+
   async obter(id: string, ctx: Ctx) {
     const c = await prisma.colaborador.findFirst({
       where: { id, tenantId: ctx.tenantId, deletedAt: null },

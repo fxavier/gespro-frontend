@@ -14,11 +14,13 @@ import { RoteiroService } from '@/server/services/pessoas-projetos/producao.serv
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
+import type { StatusRoteiro } from '@prisma/client';
+import { opcoesDeEnum } from '@/lib/opcoes-enum';
 import { RoteirosTable } from './_components/roteiros-table';
 import type { RoteiroRow } from './_components/roteiros-table';
 
 const FiltroUrlSchema = z.object({
-  search: z.string().optional(),
+  q: z.string().optional(),
   status: z.string().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().positive().max(100).default(25),
@@ -41,7 +43,7 @@ async function RoteirosTableSection({
   const result = await runWithTenantContext(ctx, () =>
     RoteiroService.listar(
       {
-        search: filtros.search,
+        search: filtros.q,
         status: filtros.status as never,
         cursor: filtros.cursor,
         take: filtros.take,
@@ -62,18 +64,16 @@ async function RoteirosTableSection({
   return <RoteirosTable data={data} nextCursor={result.nextCursor ?? undefined} />;
 }
 
+const ROTULOS_STATUS: Record<StatusRoteiro, string> = {
+  RASCUNHO: 'Rascunho',
+  ATIVO: 'Activo',
+  INATIVO: 'Inactivo',
+  SUBSTITUIDO: 'Substituído',
+  EM_REVISAO: 'Em Revisão',
+};
+
 const FILTER_CONFIG: FilterConfig[] = [
-  {
-    key: 'status',
-    label: 'Estado',
-    options: [
-      { label: 'Rascunho', value: 'RASCUNHO' },
-      { label: 'Activo', value: 'ACTIVO' },
-      { label: 'Inactivo', value: 'INACTIVO' },
-      { label: 'Substituído', value: 'SUBSTITUIDO' },
-      { label: 'Em Revisão', value: 'EM_REVISAO' },
-    ],
-  },
+  { key: 'status', label: 'Estado', options: opcoesDeEnum(ROTULOS_STATUS) },
 ];
 
 export default async function RoteirosPage({
