@@ -158,7 +158,7 @@ async function actualizarManutencao(id: string, data: ManutencaoAtivoUpdate, ctx
 
 async function transitarStatus(input: TransicaoManutencaoAtivo, ctx: Ctx): Promise<ManutencaoAtivoDto> {
   const man = await obterManutencao(input.manutencaoId, ctx);
-  transitar(TRANSICOES_MANUTENCAO_ATIVO as never, man.status as never, input.novoStatus as never, 'ManutencaoAtivo');
+  transitar(TRANSICOES_MANUTENCAO_ATIVO as never, man.status as never, input.novoStatus as never, 'manutenção do activo');
 
   const agora = new Date();
   const update: Record<string, unknown> = {
@@ -174,7 +174,7 @@ async function transitarStatus(input: TransicaoManutencaoAtivo, ctx: Ctx): Promi
     const ativo = await prisma.ativo.findUnique({ where: { id: man.ativoId }, select: { estado: true } });
     if (ativo && ativo.estado !== 'EM_MANUTENCAO') {
       try {
-        transitar(TRANSICOES_ATIVO as never, ativo.estado as never, 'EM_MANUTENCAO' as never, 'Ativo');
+        transitar(TRANSICOES_ATIVO as never, ativo.estado as never, 'EM_MANUTENCAO' as never, 'activo');
         await prisma.ativo.update({ where: { id: man.ativoId }, data: { estado: 'EM_MANUTENCAO' as never } });
       } catch { /* ignora se transição inválida — ativo pode já estar em outro estado */ }
     }

@@ -702,7 +702,7 @@ export async function confirmarConsumoStock(
     select: { id: true, status: true, produtoId: true, varianteProdutoId: true, localizacaoId: true, quantidade: true, documentoReferenciaId: true, documentoReferenciaTipo: true },
   });
   if (!reserva) throw new NotFoundError('Reserva de stock não encontrada');
-  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'CONSUMIDA' as never, 'ReservaStock');
+  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'CONSUMIDA' as never, 'reserva de stock');
 
   const qtd = new Prisma.Decimal(reserva.quantidade.toString());
 
@@ -742,7 +742,7 @@ export async function libertarStock(
     select: { id: true, status: true, produtoId: true, varianteProdutoId: true, localizacaoId: true, quantidade: true },
   });
   if (!reserva) throw new NotFoundError('Reserva de stock não encontrada');
-  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'LIBERADA' as never, 'ReservaStock');
+  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'LIBERADA' as never, 'reserva de stock');
 
   const qtd = new Prisma.Decimal(reserva.quantidade.toString());
 

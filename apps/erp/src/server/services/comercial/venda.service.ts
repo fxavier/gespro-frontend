@@ -664,7 +664,7 @@ export class VendaService implements IVendaService {
       if (!cf) {
         throw new BusinessRuleError(
           'CONSUMIDOR_FINAL_INEXISTENTE',
-          `O cliente técnico ${CLIENTE_CONSUMIDOR_FINAL.nome} (${CLIENTE_CONSUMIDOR_FINAL.codigo}) não existe neste tenant.`,
+          `O cliente técnico ${CLIENTE_CONSUMIDOR_FINAL.nome} (${CLIENTE_CONSUMIDOR_FINAL.codigo}) não existe nesta empresa.`,
         );
       }
       clienteId = cf.id;

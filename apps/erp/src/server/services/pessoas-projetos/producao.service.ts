@@ -60,7 +60,7 @@ async function resolverArmazem(
   if (!loc) {
     throw new BusinessRuleError(
       'LOCALIZACAO_NAO_CONFIGURADA',
-      `Localização "${codigo}" (${descricao}) não configurada para este tenant. Crie uma Localização com código "${codigo}" e tipo ARMAZEM.`,
+      `Localização "${codigo}" (${descricao}) não está configurada. Crie uma localização com o código "${codigo}" e tipo ARMAZEM.`,
     );
   }
   return loc.id;

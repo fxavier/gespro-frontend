@@ -107,35 +107,35 @@ async function trancarLinha(
 function transitarFatura(atual: StatusFatura, alvo: StatusFatura): void {
   const permitidas = TRANSICOES_FATURA[atual];
   if (!permitidas.includes(alvo)) {
-    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Fatura: transição inválida ${atual} → ${alvo}`);
+    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Transição inválida de factura: ${atual} → ${alvo}`);
   }
 }
 
 function transitarNC(atual: StatusNotaCredito, alvo: StatusNotaCredito): void {
   const permitidas = TRANSICOES_NOTA_CREDITO[atual];
   if (!permitidas.includes(alvo)) {
-    throw new BusinessRuleError('TRANSICAO_INVALIDA', `NotaCredito: transição inválida ${atual} → ${alvo}`);
+    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Transição inválida de nota de crédito: ${atual} → ${alvo}`);
   }
 }
 
 function transitarND(atual: StatusNotaDebito, alvo: StatusNotaDebito): void {
   const permitidas = TRANSICOES_NOTA_DEBITO[atual];
   if (!permitidas.includes(alvo)) {
-    throw new BusinessRuleError('TRANSICAO_INVALIDA', `NotaDebito: transição inválida ${atual} → ${alvo}`);
+    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Transição inválida de nota de débito: ${atual} → ${alvo}`);
   }
 }
 
 function transitarProforma(atual: StatusProforma, alvo: StatusProforma): void {
   const permitidas = TRANSICOES_PROFORMA[atual];
   if (!permitidas.includes(alvo)) {
-    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Proforma: transição inválida ${atual} → ${alvo}`);
+    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Transição inválida de proforma: ${atual} → ${alvo}`);
   }
 }
 
 function transitarCotacao(atual: StatusCotacaoComercial, alvo: StatusCotacaoComercial): void {
   const permitidas = TRANSICOES_COTACAO_COMERCIAL[atual];
   if (!permitidas.includes(alvo)) {
-    throw new BusinessRuleError('TRANSICAO_INVALIDA', `CotacaoComercial: transição inválida ${atual} → ${alvo}`);
+    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Transição inválida de cotação: ${atual} → ${alvo}`);
   }
 }
 

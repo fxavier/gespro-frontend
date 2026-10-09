@@ -159,7 +159,7 @@ async function actualizarInventario(id: string, data: InventarioFisicoUpdate, ct
 
 async function transitarStatus(input: TransicaoInventarioFisico, ctx: Ctx): Promise<InventarioFisicoDto> {
   const inv = await obterInventario(input.inventarioId, ctx);
-  transitar(TRANSICOES_INVENTARIO_FISICO as never, inv.status as never, input.novoStatus as never, 'InventarioFisico');
+  transitar(TRANSICOES_INVENTARIO_FISICO as never, inv.status as never, input.novoStatus as never, 'inventário físico');
 
   const update: Record<string, unknown> = {
     status: input.novoStatus as never,

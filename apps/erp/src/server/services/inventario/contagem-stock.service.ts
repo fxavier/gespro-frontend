@@ -446,7 +446,7 @@ export async function concluir(
   ctx: Ctx,
 ): Promise<void> {
   const contagem = await _obterContagem(contagemId, ctx.tenantId);
-  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'CONCLUIDA' as never, 'ContagemStock');
+  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'CONCLUIDA' as never, 'contagem de stock');
 
   await prisma.contagemStock.update({
     where: { id: contagemId },
@@ -466,7 +466,7 @@ export async function cancelar(
   ctx: Ctx,
 ): Promise<void> {
   const contagem = await _obterContagem(contagemId, ctx.tenantId);
-  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'CANCELADA' as never, 'ContagemStock');
+  transitar(TRANSICOES_CONTAGEM as never, contagem.status as never, 'CANCELADA' as never, 'contagem de stock');
 
   await prisma.contagemStock.update({
     where: { id: contagemId },
