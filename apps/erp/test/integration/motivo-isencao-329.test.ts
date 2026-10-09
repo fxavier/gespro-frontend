@@ -47,7 +47,6 @@ type Montado = {
   localizacaoId: string;
   sessaoCaixaId: string;
   sessaoPOSId: string;
-  serieNCId: string;
 };
 
 describe.skipIf(skip)('#329 — motivo de isenção em linhas a 0% — DB efémera (Testcontainers)', () => {
@@ -176,7 +175,6 @@ describe.skipIf(skip)('#329 — motivo de isenção em linhas a 0% — DB eféme
       localizacaoId: loc.id,
       sessaoCaixaId: sc.id,
       sessaoPOSId: sp.id,
-      serieNCId: serieNC.id,
     };
   }
 
@@ -443,7 +441,7 @@ describe.skipIf(skip)('#329 — motivo de isenção em linhas a 0% — DB eféme
     const devId = await devolucaoAprovada(T, venda, fatura);
     h.sessao = SESSAO_CONFIRMADA;
     await noCtx(T, () =>
-      comercial.devolucaoService.processar(devId, T.ctx, { localizacaoId: T.localizacaoId, serieNotaCreditoId: T.serieNCId }),
+      comercial.devolucaoService.processar(devId, T.ctx, { localizacaoId: T.localizacaoId }),
     );
     const dev = await db.devolucao.findFirst({ where: { id: devId, tenantId: T.ctx.tenantId } });
     expect(dev.status).toBe('PROCESSADA');
@@ -466,7 +464,6 @@ describe.skipIf(skip)('#329 — motivo de isenção em linhas a 0% — DB eféme
       sessaoCaixaId: T.sessaoCaixaId,
       pagamentos: [],
       localizacaoId: T.localizacaoId,
-      serieNotaCreditoId: T.serieNCId,
     });
     await noCtx(T, () => comercial.trocaService.criar(parsed, T.ctx));
 

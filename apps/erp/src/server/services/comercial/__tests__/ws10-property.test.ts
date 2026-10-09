@@ -416,83 +416,50 @@ describe('BLOCKER 2 — transitar CONFIRMADA requer localizacaoId', () => {
   });
 });
 
-describe('BLOCKER 3 — devolução com fatura exige serieNotaCreditoId', () => {
-  /** Simula o guard ANTES da emissão de NC. */
-  function processarGuard(faturaId: string | null, serieNotaCreditoId: string | undefined): void {
-    if (faturaId && !serieNotaCreditoId) {
-      const err = new Error('Série de nota de crédito obrigatória');
-      (err as NodeJS.ErrnoException & { code?: string }).code = 'SERIE_NC_OBRIGATORIA';
-      throw err;
-    }
-  }
-
-  it('lança SERIE_NC_OBRIGATORIA se fatura presente mas sem série NC', () => {
-    expect(() => processarGuard('fatura-id-abc', undefined)).toThrow();
-    try {
-      processarGuard('fatura-id-abc', undefined);
-    } catch (e) {
-      const err = e as { code?: string };
-      expect(err.code).toBe('SERIE_NC_OBRIGATORIA');
-    }
-  });
-
-  it('não lança se fatura presente E série NC presente', () => {
-    expect(() => processarGuard('fatura-id-abc', 'serie-nc-id')).not.toThrow();
-  });
-
-  it('não lança se fatura ausente (sem NC necessária)', () => {
-    expect(() => processarGuard(null, undefined)).not.toThrow();
-  });
-
-  it('[property] sem faturaId: nunca lança independentemente de serieNotaCreditoId', () => {
-    fc.assert(
-      fc.property(
-        fc.option(fc.string({ minLength: 1 }), { nil: undefined }),
-        (serie) => {
-          expect(() => processarGuard(null, serie)).not.toThrow();
-        },
-      ),
-    );
-  });
-});
-
-describe('MAJOR 4 — idempotência da NC em devolucao.processar', () => {
-  /** Simula a lógica: se notaCreditoId já gravado, salta emissão. */
+describe('#241 — devolução com fatura emite NC sempre, sem série de NC pedida a quem chama', () => {
+  /**
+   * Desde #93 a série da NC é a activa do tipo/ano (`numerarDocumento`): a escolha de série não é
+   * lida. O guard `SERIE_NC_OBRIGATORIA` saiu; a decisão depende só da factura e da NC existente.
+   * (A prova contra o código real — schemas e serviços — está em
+   * `src/lib/validations/__tests__/serie-nc-bandeira-241.test.ts` e
+   * `test/integration/serie-nc-bandeira-241.test.ts`.)
+   */
   function decidirEmissaoNC(
     notaCreditoIdExistente: string | null,
     faturaId: string | null,
-    serieNotaCreditoId: string | undefined,
   ): 'EMITIR' | 'REUTILIZAR' | 'SEM_FATURA' {
     if (!faturaId) return 'SEM_FATURA';
     if (notaCreditoIdExistente) return 'REUTILIZAR'; // retry seguro
-    if (serieNotaCreditoId) return 'EMITIR';
-    return 'SEM_FATURA'; // sem série → guard já teria lançado antes
+    return 'EMITIR';
   }
 
   it('retry com notaCreditoId existente → REUTILIZAR (não emite nova NC)', () => {
-    const decisao = decidirEmissaoNC('nc-123', 'fatura-456', 'serie-789');
-    expect(decisao).toBe('REUTILIZAR');
+    expect(decidirEmissaoNC('nc-123', 'fatura-456')).toBe('REUTILIZAR');
   });
 
-  it('primeira tentativa → EMITIR', () => {
-    const decisao = decidirEmissaoNC(null, 'fatura-456', 'serie-789');
-    expect(decisao).toBe('EMITIR');
+  it('primeira tentativa com fatura → EMITIR, sem série nenhuma', () => {
+    expect(decidirEmissaoNC(null, 'fatura-456')).toBe('EMITIR');
   });
 
   it('sem fatura → SEM_FATURA', () => {
-    const decisao = decidirEmissaoNC(null, null, 'serie-789');
-    expect(decisao).toBe('SEM_FATURA');
+    expect(decidirEmissaoNC(null, null)).toBe('SEM_FATURA');
+  });
+
+  it('[property] com fatura e sem NC, emite sempre', () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1 }), (faturaId) => {
+        expect(decidirEmissaoNC(null, faturaId)).toBe('EMITIR');
+      }),
+    );
   });
 
   it('[property] com notaCreditoId existente, decisão é sempre REUTILIZAR', () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1 }),  // notaCreditoId existente
-        fc.string({ minLength: 1 }),  // faturaId
-        fc.option(fc.string({ minLength: 1 }), { nil: undefined }),
-        (ncId, faturaId, serie) => {
-          const decisao = decidirEmissaoNC(ncId, faturaId, serie);
-          expect(decisao).toBe('REUTILIZAR');
+        fc.string({ minLength: 1 }), // notaCreditoId existente
+        fc.string({ minLength: 1 }), // faturaId
+        (ncId, faturaId) => {
+          expect(decidirEmissaoNC(ncId, faturaId)).toBe('REUTILIZAR');
         },
       ),
     );

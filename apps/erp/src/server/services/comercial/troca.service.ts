@@ -91,7 +91,7 @@ export class TrocaService {
    * A venda de substituição não se anula pelo POS (VENDA_DE_TROCA em `vendaService.anular`).
    *
    * Recusa sem escrever: TRANSICAO_INVALIDA (devolução não APROVADA), TROCA_SEM_FATURA,
-   * SERIE_NC_OBRIGATORIA, NC_JA_LIQUIDADA, NC_CANCELADA, PAGAMENTOS_NAO_BATEM_TOTAL, TROCA_SEM_CREDITO,
+   * NC_JA_LIQUIDADA, NC_CANCELADA, PAGAMENTOS_NAO_BATEM_TOTAL, TROCA_SEM_CREDITO,
    * SESSAO_CAIXA_NECESSARIA, e as dos núcleos (NC_EXCEDE_FATURA, PERIODO_FECHADO…).
    */
   async criar(input: CreateTrocaInput, ctx: Ctx): Promise<TrocaRow> {
@@ -119,12 +119,6 @@ export class TrocaService {
         throw new BusinessRuleError(
           'TROCA_SEM_FATURA',
           `A devolução ${devolucao.numero} não está ligada a uma factura: sem nota de crédito não há crédito a abater na venda de substituição.`,
-        );
-      }
-      if (!input.serieNotaCreditoId) {
-        throw new BusinessRuleError(
-          'SERIE_NC_OBRIGATORIA',
-          'Esta devolução está associada a uma fatura. É obrigatório fornecer uma série de nota de crédito para a troca.',
         );
       }
 

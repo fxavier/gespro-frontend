@@ -5,7 +5,7 @@
  * Ponto de partida: venda POS paga em DINHEIRO pelo caminho real `vendaService.criar` (S2), com
  * Factura-Recibo e lançamento.
  *
- * `devolucaoService.processar(id, ctx, { localizacaoId, sessaoCaixaId, serieNotaCreditoId })`
+ * `devolucaoService.processar(id, ctx, { localizacaoId, sessaoCaixaId })` (sem série: #241)
  * (assinatura inalterada), numa só transacção:
  *   - NotaCredito pelo núcleo (`emitirNotaCreditoEmTx`) ligada à factura da venda, com
  *     `lancamentoId` cujas partidas são as de `construirLancamentoNotaCredito`;
@@ -72,7 +72,6 @@ describe.skipIf(skip)('Devolução e troca → NC (e nova Factura-Recibo) atómi
   let produtoB: string;
   let localizacaoId: string;
   let op: Operador;
-  let serieNCId: string;
 
   // ── utilidades ─────────────────────────────────────────────────────────────
   async function capturarErro(fn: () => Promise<unknown>): Promise<any> {
@@ -142,14 +141,13 @@ describe.skipIf(skip)('Devolução e troca → NC (e nova Factura-Recibo) atómi
     return runCtx(quem.ctx, () =>
       comercial.devolucaoService.processar(devolucaoId, quem.ctx, {
         localizacaoId,
-        serieNotaCreditoId: serieNCId,
         ...opcoes,
       }),
     );
   }
 
   function trocar(input: Record<string, unknown>, quem: Operador = op) {
-    const parsed = validacoes.CreateTrocaSchema.parse({ localizacaoId, serieNotaCreditoId: serieNCId, ...input });
+    const parsed = validacoes.CreateTrocaSchema.parse({ localizacaoId, ...input });
     return runCtx(quem.ctx, () => comercial.trocaService.criar(parsed, quem.ctx));
   }
 
@@ -275,7 +273,6 @@ describe.skipIf(skip)('Devolução e troca → NC (e nova Factura-Recibo) atómi
 
     const serieNC = await db.serieDocumento.findFirst({ where: { tenantId: TENANT, tipo: 'NOTA_CREDITO', ativo: true } });
     expect(serieNC, 'série NOTA_CREDITO activa no bootstrap').not.toBeNull();
-    serieNCId = serieNC.id;
 
     op = await novoOperador();
   });

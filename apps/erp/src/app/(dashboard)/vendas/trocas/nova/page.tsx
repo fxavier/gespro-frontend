@@ -15,7 +15,6 @@ import { devolucaoService } from '@/server/services/comercial/index';
 import { stockService } from '@/server/services/inventario/stock.service';
 import { listarProdutos } from '@/server/services/inventario/catalogo.service';
 import { obterSessaoAtual } from '@/server/services/financas/caixa.service';
-import { listarSeries } from '@/server/services/financas/faturacao.service';
 import { PageHeader } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -109,16 +108,13 @@ export default async function NovaTrocaPage({ searchParams }: PageProps) {
     );
   }
 
-  const [localizacoes, produtos, series, sessaoCaixa] = await runWithTenantContext(ctx, () =>
+  const [localizacoes, produtos, sessaoCaixa] = await runWithTenantContext(ctx, () =>
     Promise.all([
       stockService.listarLocalizacoes({ take: 100, ativa: true }, ctx),
       listarProdutos({ ativo: true, take: 20, orderBy: 'nome', orderDir: 'asc' }, ctx),
-      listarSeries(ctx),
       obterSessaoAtual(ctx),
     ]),
   );
-  // A troca exige uma série de NC; a numeração é a da série activa (#93), não se escolhe.
-  const serieNotaCreditoId = series.find((s) => s.tipo === 'NOTA_CREDITO' && s.ativo)?.id;
 
   return (
     <div className="p-6 space-y-6">
@@ -140,7 +136,6 @@ export default async function NovaTrocaPage({ searchParams }: PageProps) {
             total: i.total,
           })),
         }}
-        serieNotaCreditoId={serieNotaCreditoId}
         sessaoCaixaId={sessaoCaixa?.id}
         localizacoes={localizacoes.items.map((l) => ({ id: l.id, codigo: l.codigo, nome: l.nome }))}
         produtosIniciais={produtos.items.map((p) => ({

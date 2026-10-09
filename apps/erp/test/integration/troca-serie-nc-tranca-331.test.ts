@@ -58,7 +58,6 @@ describe.skipIf(skip)('#331 — NC reutilizada trancada, NC_JA_LIQUIDADA ≠ NC_
   let produtoB: string;
   let localizacaoId: string;
   let op: Operador;
-  let serieNCId: string;
 
   async function capturarErro(fn: () => Promise<unknown>): Promise<any> {
     try {
@@ -157,12 +156,12 @@ describe.skipIf(skip)('#331 — NC reutilizada trancada, NC_JA_LIQUIDADA ≠ NC_
 
   function processar(devolucaoId: string, opcoes: { sessaoCaixaId?: string }) {
     return runCtx(op.ctx, () =>
-      comercial.devolucaoService.processar(devolucaoId, op.ctx, { localizacaoId, serieNotaCreditoId: serieNCId, ...opcoes }),
+      comercial.devolucaoService.processar(devolucaoId, op.ctx, { localizacaoId, ...opcoes }),
     );
   }
 
   function trocar(input: Record<string, unknown>) {
-    const parsed = validacoes.CreateTrocaSchema.parse({ localizacaoId, serieNotaCreditoId: serieNCId, ...input });
+    const parsed = validacoes.CreateTrocaSchema.parse({ localizacaoId, ...input });
     return runCtx(op.ctx, () => comercial.trocaService.criar(parsed, op.ctx));
   }
 
@@ -268,7 +267,6 @@ describe.skipIf(skip)('#331 — NC reutilizada trancada, NC_JA_LIQUIDADA ≠ NC_
 
     const serieNC = await db.serieDocumento.findFirst({ where: { tenantId: TENANT, tipo: 'NOTA_CREDITO', ativo: true } });
     expect(serieNC, 'série NOTA_CREDITO activa no bootstrap').not.toBeNull();
-    serieNCId = serieNC.id;
 
     op = await novoOperador();
   });

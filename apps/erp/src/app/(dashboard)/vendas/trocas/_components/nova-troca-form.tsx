@@ -74,7 +74,6 @@ const rotuloProduto = (p: ProdutoOpcao) => `${p.sku} — ${p.nome}`;
 
 interface Props {
   devolucao: DevolucaoDaTroca;
-  serieNotaCreditoId?: string;
   /** Sessão de caixa aberta do utilizador: só segue quando a troca movimenta dinheiro. */
   sessaoCaixaId?: string;
   localizacoes: LocalizacaoOpcao[];
@@ -83,7 +82,6 @@ interface Props {
 
 export function NovaTrocaForm({
   devolucao,
-  serieNotaCreditoId,
   sessaoCaixaId,
   localizacoes,
   produtosIniciais,
@@ -107,7 +105,6 @@ export function NovaTrocaForm({
       },
       pagamentos: [],
       localizacaoId: '',
-      serieNotaCreditoId,
     },
   });
 
