@@ -22,6 +22,7 @@ import { resolverContaMeioPagamento } from './meio-pagamento.service';
 import { SERIES_INICIAIS } from '@/server/provisioning/tenant-bootstrap';
 import { resolverContaNaturezaNotaDebito, validarContaParaNatureza } from './natureza-nota-debito.service';
 import { registarMovimentoCaixa } from './caixa.service';
+import { registarHistoricoTransacaoEmTx } from '@/server/services/comercial/historico-transacao';
 import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
   CriarSerieDocumentoInput,
@@ -1065,6 +1066,22 @@ export async function emitirDocumentoEmTx(
     data: { lancamentoId: lancamentoFatura.id },
   });
 
+  // #134 — a ficha do cliente: uma entrada por documento, no estado com que nasce.
+  await registarHistoricoTransacaoEmTx(
+    tx,
+    {
+      clienteId: input.clienteId,
+      tipo: 'VENDA',
+      referencia: numero,
+      descricao: `${tipoSerie === 'FATURA_RECIBO' ? 'Factura-Recibo' : 'Factura'} ${numero}`,
+      valor: totais.total,
+      moeda,
+      dataTransacao: input.dataEmissao,
+      status: status === 'PAGA' ? 'CONCLUIDO' : 'PENDENTE',
+    },
+    ctx,
+  );
+
   return tx.fatura.findFirst({
     where: { id: fatura.id },
     include: {
@@ -1222,6 +1239,22 @@ export async function registarPagamento(
         dataPagamento: novoStatus === 'PAGA' ? input.dataPagamento : null,
       },
     });
+
+    // #134 — cada recebimento é uma entrada nova; a da factura não se altera.
+    await registarHistoricoTransacaoEmTx(
+      tx,
+      {
+        clienteId: fatura.clienteId,
+        tipo: 'PAGAMENTO',
+        referencia: fatura.numero,
+        descricao,
+        valor: valorPagamento,
+        moeda: fatura.moeda,
+        dataTransacao: input.dataPagamento,
+        status: 'CONCLUIDO',
+      },
+      ctx,
+    );
 
     return tx.fatura.findFirst({
       where: { id: fatura.id },

@@ -104,6 +104,7 @@ function novaTx() {
       update: vi.fn(async () => ({ id: 'fat-1' })),
     },
     linhaFatura: { create: vi.fn(async () => ({ id: 'lf-1' })) },
+    historicoTransacao: { create: vi.fn(async () => ({ id: 'hist-1' })) }, // #134: a emissão escreve a ficha do cliente
     notaCredito: { create: vi.fn(doc('nc-1')), findFirst: vi.fn(doc('nc-1')), update: vi.fn(async () => ({ id: 'nc-1' })) },
     linhaNotaCredito: { create: vi.fn(async () => ({ id: 'lnc-1' })) },
     notaDebito: { create: vi.fn(doc('nd-1')), findFirst: vi.fn(doc('nd-1')), update: vi.fn(async () => ({ id: 'nd-1' })) },
