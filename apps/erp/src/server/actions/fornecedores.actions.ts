@@ -17,6 +17,7 @@ import {
   CreateContaPagarSchema,
   CreatePagamentoSchema,
 } from '@/lib/validations/compras';
+import { idEntidade } from '@/lib/validations/common';
 import { createSafeAction } from '@/server/safe-action';
 import { fornecedorService } from '@/server/services/compras/fornecedor.service';
 import { contaPagarService } from '@/server/services/compras/conta-pagar.service';
@@ -54,6 +55,17 @@ export const arquivarFornecedorAction = createSafeAction({
     tags: ['fornecedores'],
   },
   handler: async ({ id }, ctx) => fornecedorService.arquivar(id, ctx),
+});
+
+/** Desfaz o arquivo — mesma permissão do arquivar (#115). */
+export const reactivarFornecedorAction = createSafeAction({
+  schema: z.object({ id: idEntidade() }),
+  permission: 'fornecedores:arquivar',
+  revalidate: {
+    paths: ['/fornecedores'],
+    tags: ['fornecedores'],
+  },
+  handler: async ({ id }, ctx) => fornecedorService.reactivar(id, ctx),
 });
 
 // =====================================================================

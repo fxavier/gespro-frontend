@@ -159,6 +159,15 @@ export const servicoService: IServicoService = {
     return cats.map(toCategoriaDto);
   },
 
+  async obterCategoria(id: string, ctx: Ctx) {
+    const cat = await db.categoriaServico.findUnique({
+      where: { id },
+      include: { _count: { select: { servicos: true } } },
+    });
+    if (!cat || cat.tenantId !== ctx.tenantId) throw new NotFoundError('Categoria não encontrada');
+    return toCategoriaDto(cat);
+  },
+
   async actualizarCategoria(id: string, input: z.infer<typeof UpdateCategoriaServicoSchema>, ctx: Ctx) {
     const cat = await db.categoriaServico.findUnique({ where: { id } });
     if (!cat || cat.tenantId !== ctx.tenantId) throw new NotFoundError('Categoria não encontrada');
@@ -381,6 +390,12 @@ export const servicoService: IServicoService = {
       (a) => db.contratoServico.findMany({ ...a, where, orderBy: { dataFim: 'asc' } }),
       { cursor, take },
     ).then((p: any) => ({ items: p.items.map(toContratoDto), nextCursor: p.nextCursor }));
+  },
+
+  async obterContrato(id: string, ctx: Ctx) {
+    const c = await db.contratoServico.findUnique({ where: { id } });
+    if (!c || c.tenantId !== ctx.tenantId) throw new NotFoundError('Contrato não encontrado');
+    return toContratoDto(c);
   },
 
   async renovarContrato(id: string, ctx: Ctx) {

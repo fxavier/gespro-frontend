@@ -50,6 +50,8 @@ export interface FornecedorDetalhe extends FornecedorResumo {
   enderecos: EnderecoFornecedorDto[];
   contactos: ContactoFornecedorDto[];
   documentos: DocumentoFornecedorDto[];
+  /** Data do arquivo (soft delete); null se o fornecedor não está arquivado. */
+  arquivadoEm: Date | null;
 }
 
 export interface EnderecoFornecedorDto {
@@ -115,6 +117,8 @@ export interface IFornecedorService {
   actualizar(id: string, input: UpdateFornecedorInput, ctx: Ctx): Promise<FornecedorDetalhe>;
   /** Soft delete — apenas marca deletedAt; não remove. */
   arquivar(id: string, ctx: Ctx): Promise<void>;
+  /** Desfaz o arquivo: deletedAt = null e status ATIVO. Recusa um não arquivado (FORNECEDOR_NAO_ARQUIVADO). */
+  reactivar(id: string, ctx: Ctx): Promise<void>;
   obter(id: string, ctx: Ctx): Promise<FornecedorDetalhe>;
   listar(filtros: FilterFornecedorInput, ctx: Ctx): Promise<PaginatedResult<FornecedorResumo>>;
 
