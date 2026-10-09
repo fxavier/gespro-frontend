@@ -11,7 +11,7 @@ import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { PageHeader } from '@/components/patterns';
 import { SemPermissao } from '@/components/patterns/sem-permissao';
-import { NovoCircuitoForm } from './_components/novo-circuito-form';
+import { CircuitoForm } from '../_components/circuito-form';
 
 const BREADCRUMBS = [
   { label: 'Compras', href: '/compras/requisicoes' },
@@ -46,7 +46,7 @@ export default async function NovoCircuitoPage() {
         description="Níveis, faixas de valor, quórum e aprovadores. Só um circuito activo por tipo de documento."
         breadcrumbs={BREADCRUMBS}
       />
-      <NovoCircuitoForm utilizadoresIniciais={utilizadores} />
+      <CircuitoForm utilizadoresIniciais={utilizadores} />
     </div>
   );
 }

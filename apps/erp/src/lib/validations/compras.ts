@@ -106,6 +106,10 @@ export const CreateConfiguracaoWorkflowSchema = z
 
 export type CreateConfiguracaoWorkflowInput = z.infer<typeof CreateConfiguracaoWorkflowSchema>;
 
+/** Editar um circuito (#445): a forma da criação mais o `id`. */
+export const UpdateConfiguracaoWorkflowSchema = CreateConfiguracaoWorkflowSchema.extend({ id: idEntidade() });
+export type UpdateConfiguracaoWorkflowInput = z.infer<typeof UpdateConfiguracaoWorkflowSchema>;
+
 // =====================================================================
 // REQUISIÇÃO DE COMPRA
 // =====================================================================

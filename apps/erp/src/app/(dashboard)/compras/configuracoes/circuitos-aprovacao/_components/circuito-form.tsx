@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Formulário de um circuito de aprovação novo (#108).
+ * Formulário de um circuito de aprovação — novo (#108) ou edição (#445, com `circuito`).
  *
  * react-hook-form + zodResolver com o MESMO schema da action
  * (`CreateConfiguracaoWorkflowSchema`). Aprovadores escolhem-se por `ComboboxRemoto`
@@ -31,7 +31,11 @@ import {
 import { ComboboxRemoto, FormPage, FormSection, UnsavedChangesGuard, type ComboboxOption } from '@/components/patterns';
 import { CreateConfiguracaoWorkflowSchema } from '@/lib/validations/compras';
 import { ROTULO_TIPO_APROVACAO, ROTULO_TIPO_CIRCUITO } from '@/lib/compras-aprovacao';
-import { criarConfiguracaoWorkflowAction, procurarAprovadoresAction } from '@/server/actions/compras.actions';
+import {
+  actualizarConfiguracaoWorkflowAction,
+  criarConfiguracaoWorkflowAction,
+  procurarAprovadoresAction,
+} from '@/server/actions/compras.actions';
 
 type Entrada = z.input<typeof CreateConfiguracaoWorkflowSchema>;
 type Utilizador = { id: string; nome: string; email: string };
@@ -51,12 +55,20 @@ const nivelVazio = (nivel: number): Entrada['niveis'][number] => ({
   aprovadores: [],
 });
 
-export function NovoCircuitoForm({ utilizadoresIniciais }: { utilizadoresIniciais: Utilizador[] }) {
+export function CircuitoForm({
+  utilizadoresIniciais,
+  circuito,
+}: {
+  utilizadoresIniciais: Utilizador[];
+  /** Em edição: o id e os valores actuais. */
+  circuito?: { id: string; valores: Entrada };
+}) {
   const router = useRouter();
   const [aCorrer, iniciar] = useTransition();
 
   // id → email de todos os utilizadores já vistos (página inicial + pesquisas).
   const conhecidos = useRef(new Map(utilizadoresIniciais.map((u) => [u.id, u])));
+  const emEdicao = !!circuito;
   const opcoesIniciais = utilizadoresIniciais.map(opcao);
 
   const procurar = async (q: string): Promise<ComboboxOption[] | null> => {
@@ -68,21 +80,23 @@ export function NovoCircuitoForm({ utilizadoresIniciais }: { utilizadoresIniciai
 
   const form = useForm<Entrada>({
     resolver: zodResolver(CreateConfiguracaoWorkflowSchema),
-    defaultValues: { nome: '', tipo: 'REQUISICAO_COMPRA', ativo: true, niveis: [nivelVazio(1)] },
+    defaultValues: circuito?.valores ?? { nome: '', tipo: 'REQUISICAO_COMPRA', ativo: true, niveis: [nivelVazio(1)] },
   });
   const niveis = useFieldArray({ control: form.control, name: 'niveis' });
 
   const onSubmit = form.handleSubmit((valores) => {
     iniciar(async () => {
-      const r = await criarConfiguracaoWorkflowAction(valores);
+      const r = circuito
+        ? await actualizarConfiguracaoWorkflowAction({ id: circuito.id, ...valores })
+        : await criarConfiguracaoWorkflowAction(valores);
       if (!r.ok) {
         const details = r.error.details as { fieldErrors?: Record<string, string[]> } | undefined;
         const erroNome = details?.fieldErrors?.nome?.[0];
         if (erroNome) form.setError('nome', { type: 'server', message: erroNome });
-        else toast.error(r.error.message ?? 'Não foi possível criar o circuito.');
+        else toast.error(r.error.message ?? 'Não foi possível guardar o circuito.');
         return;
       }
-      toast.success(`Circuito «${r.data.nome}» criado.`);
+      toast.success(`Circuito «${r.data.nome}» ${emEdicao ? 'guardado' : 'criado'}.`);
       form.reset(valores);
       router.push(LISTA);
     });
@@ -101,7 +115,7 @@ export function NovoCircuitoForm({ utilizadoresIniciais }: { utilizadoresIniciai
               </Button>
               <Button type="submit" size="sm" disabled={aCorrer}>
                 <Save className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                {aCorrer ? 'A guardar…' : 'Criar circuito'}
+                {aCorrer ? 'A guardar…' : emEdicao ? 'Guardar alterações' : 'Criar circuito'}
               </Button>
             </>
           }
