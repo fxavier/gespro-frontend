@@ -73,6 +73,7 @@ async function MotoristasTableSection({
   const result = await runWithTenantContext(ctx, () =>
     motoristaService.listarMotoristas(
       {
+        q: filtros.q,
         estadoOperacional: filtros.estadoOperacional,
         cursor: filtros.cursor,
         take: filtros.take,

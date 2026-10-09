@@ -30,6 +30,7 @@ export const FiltroNotificacoesSchema = z.object({
     .transform((v) => v === 'true')
     .optional(),
   tipo: tipoNotificacaoEnum.optional(),
+  q: z.string().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().positive().max(100).default(20),
 });

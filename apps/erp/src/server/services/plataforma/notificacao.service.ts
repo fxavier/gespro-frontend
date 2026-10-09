@@ -223,6 +223,14 @@ async function listar(
       userId,
       ...(filtro.apenasNaoLidas ? { lida: false } : {}),
       ...(filtro.tipo ? { tipo: filtro.tipo } : {}),
+      ...(filtro.q
+        ? {
+            OR: [
+              { titulo: { contains: filtro.q, mode: 'insensitive' as const } },
+              { mensagem: { contains: filtro.q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
     },
     orderBy: { createdAt: 'desc' },
     take: take + 1,

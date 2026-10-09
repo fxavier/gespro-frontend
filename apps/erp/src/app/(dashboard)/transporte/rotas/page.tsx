@@ -64,6 +64,7 @@ async function RotasTableSection({
   const result = await runWithTenantContext(ctx, () =>
     rotaService.listarRotas(
       {
+        q: filtros.q,
         estado: filtros.estado,
         cursor: filtros.cursor,
         take: filtros.take,

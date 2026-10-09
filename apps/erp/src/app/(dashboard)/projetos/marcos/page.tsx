@@ -23,7 +23,7 @@ import { MarcosTable } from './_components/marcos-table';
 import type { MarcoRow } from './_components/marcos-table';
 
 const FiltroUrlSchema = z.object({
-  search: z.string().optional(),
+  q: z.string().optional(),
   status: z.string().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().positive().max(100).default(25),
@@ -69,8 +69,8 @@ async function MarcosTableSection({
       where: {
         tenantId,
         ...(filtros.status ? { status: filtros.status as never } : {}),
-        ...(filtros.search
-          ? { nome: { contains: filtros.search, mode: 'insensitive' as const } }
+        ...(filtros.q
+          ? { nome: { contains: filtros.q, mode: 'insensitive' as const } }
           : {}),
       },
       select: {

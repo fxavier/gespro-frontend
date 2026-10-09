@@ -124,6 +124,8 @@ export type TransferenciaStockInput = z.infer<typeof TransferenciaStockSchema>;
 // ─── Filtros de Movimentos ────────────────────────────────────────────────────
 
 export const MovimentoStockFilterSchema = z.object({
+  /** Pesquisa de texto da `FilterBar` (#106): produto (nome/SKU) ou motivo. */
+  q: z.string().optional(),
   produtoId: z.string().optional(),
   localizacaoId: z.string().optional(),
   tipo: z

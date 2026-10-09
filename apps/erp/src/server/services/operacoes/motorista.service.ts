@@ -152,6 +152,9 @@ export async function listarMotoristas(
   const where = {
     tenantId: ctx.tenantId,
     ...(filtros.estadoOperacional ? { estadoOperacional: filtros.estadoOperacional } : {}),
+    ...(filtros.q
+      ? { OR: [{ nomeCompleto: { contains: filtros.q, mode: 'insensitive' as const } }, { numeroCarta: { contains: filtros.q, mode: 'insensitive' as const } }] }
+      : {}),
     ...(filtros.disponivel !== undefined
       ? { disponibilidade: { disponivel: filtros.disponivel } }
       : {}),
