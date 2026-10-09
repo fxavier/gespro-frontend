@@ -29,13 +29,10 @@ describe('permissões financas:exercicio:* do encerramento (ADR-0035)', () => {
     expect(papeisCom(code)).toEqual(['ADMIN']);
   });
 
-  // #366 — abrir um exercício novo também é decisão do ADMIN: o GESTOR herdava-a por
-  // omissão (a lista `restricted` não a tinha) e o FINANCEIRO já estava fora.
-  it('financas:exercicio:abrir — o ADMIN tem, o GESTOR e o FINANCEIRO não (#366)', () => {
-    const papeis = papeisCom('financas:exercicio:abrir');
-    expect(papeis).toContain('ADMIN');
-    expect(papeis).not.toContain('GESTOR');
-    expect(papeis).not.toContain('FINANCEIRO');
+  // #366 — abrir um exercício novo deixou de ser do GESTOR (herdava-a por omissão).
+  // #143 — e passa a ser também do FINANCEIRO (ADR-0033): exactamente ADMIN e FINANCEIRO.
+  it('financas:exercicio:abrir — o ADMIN e o FINANCEIRO têm, o GESTOR não (#366, #143)', () => {
+    expect(papeisCom('financas:exercicio:abrir')).toEqual(['ADMIN', 'FINANCEIRO']);
   });
 
   // #364 — aplicar o resultado (ADR-0035 §5) executa uma deliberação dos sócios: só o ADMIN.
