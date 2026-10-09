@@ -5,30 +5,45 @@
  * isso não há uma cor literal em lado nenhum — o painel é escuro porque usa a
  * paleta escura, não porque alguém lhe escreveu um azul-marinho.
  *
- * O que diz é verificável no produto: isolamento por tenant, trilho de
- * auditoria e o plano PGC-NIRF. Não há testemunhos, percentagens de
- * disponibilidade nem selos de conformidade — não há produção para os
- * sustentar (ADR-0026 §5), e um selo falso num ecrã de login é a pior
- * primeira impressão possível.
+ * O que diz é verificável no produto: os módulos são os grupos do menu lateral
+ * e as garantias são regras do código (isolamento por tenant, trilho de
+ * auditoria, plano PGC-NIRF, numeração por série). Não há valores monetários,
+ * testemunhos, percentagens de disponibilidade nem selos de conformidade — não
+ * há produção para os sustentar (ADR-0026 §5), e um número inventado num ecrã
+ * de login é a pior primeira impressão possível. Já lá esteve um cartão de
+ * «faturação consolidada» com um montante de exemplo; saiu por isso mesmo.
  *
  * Escondido abaixo de `lg`: no telemóvel o que interessa é o formulário.
  */
 
-import { Building2, FileSpreadsheet, History } from 'lucide-react';
-import { formatMZN } from '@/lib/format-currency';
+import {
+  Building,
+  Factory,
+  FolderKanban,
+  Landmark,
+  PackageSearch,
+  ShoppingCart,
+  Truck,
+  Users,
+} from 'lucide-react';
 
-/** Valores de amostra do painel — ilustração, e rotulados como tal no ecrã. */
-const AMOSTRA = {
-  faturacao: 48250,
-  variacao: '+18,4%',
-  transacoes: '1 420',
-  margem: '41,8%',
-};
+/** Os módulos, pela ordem e com os ícones do menu lateral (`AppSidebar`). */
+const MODULOS = [
+  { icone: ShoppingCart, titulo: 'Vendas & POS', descricao: 'Encomendas, terminal, facturas e notas' },
+  { icone: Landmark, titulo: 'Finanças & Contabilidade', descricao: 'PGC-NIRF, IVA, caixa e tesouraria' },
+  { icone: PackageSearch, titulo: 'Compras & Procurement', descricao: 'Requisições, cotações e pedidos' },
+  { icone: Building, titulo: 'Fornecedores', descricao: 'Contas a pagar, serviços e contratos' },
+  { icone: Factory, titulo: 'Inventário & Activos', descricao: 'Stock, contagens e amortização' },
+  { icone: Users, titulo: 'Recursos Humanos', descricao: 'Colaboradores, férias e payroll' },
+  { icone: FolderKanban, titulo: 'Projectos', descricao: 'Tarefas, marcos e timesheets' },
+  { icone: Truck, titulo: 'Transporte & Logística', descricao: 'Viaturas, rotas e entregas' },
+];
 
-const ATRIBUTOS = [
-  { icone: Building2, titulo: 'Tenant isolado' },
-  { icone: History, titulo: 'Trilho de auditoria' },
-  { icone: FileSpreadsheet, titulo: 'PGC-NIRF' },
+/** Regras do produto que o código impõe — não promessas. */
+const GARANTIAS = [
+  'Cada empresa num tenant isolado, com os seus utilizadores e papéis.',
+  'Partida dobrada sobre o PGC-NIRF (Decreto 70/2009); IVA, INSS e IRPS pelas tabelas em vigor.',
+  'Documentos numerados por série, sem lacunas, com trilho de auditoria.',
 ];
 
 export function PainelInstitucional() {
@@ -44,86 +59,38 @@ export function PainelInstitucional() {
         className="pointer-events-none absolute -bottom-24 -left-24 size-80 rounded-full bg-info/10 blur-3xl"
       />
 
-      <div className="relative z-10 flex items-center justify-between gap-2">
+      <div className="relative z-10">
         <span className="rounded-full bg-foreground/10 px-3 py-1 text-xs font-medium">
           ERP para empresas moçambicanas
         </span>
-        <span className="text-xs text-muted-foreground">MZN · pt-MZ</span>
       </div>
 
-      <div className="relative z-10 my-8 space-y-4">
-        <div className="rounded-xl bg-foreground/5 p-5 shadow-md">
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Faturação consolidada
-            </span>
-            <span className="rounded-full bg-success px-2 py-0.5 text-xs font-semibold text-success-foreground">
-              {AMOSTRA.variacao} este mês
-            </span>
-          </div>
-
-          <p className="mb-3 text-3xl font-bold tracking-tight tabular-nums">
-            {formatMZN(AMOSTRA.faturacao)}
+      <div className="relative z-10 my-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Tudo o que a empresa faz, num só sistema</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Da venda ao fecho do exercício, cada módulo escreve na mesma contabilidade.
           </p>
-
-          {/* Sparkline decorativa. `currentColor` herda o azul de marca: um
-              gradiente SVG não aceita classes utilitárias no `stop-color`. */}
-          <div className="h-14 w-full text-primary">
-            <svg
-              viewBox="0 0 280 60"
-              fill="none"
-              preserveAspectRatio="none"
-              className="h-full w-full"
-              aria-hidden="true"
-            >
-              <defs>
-                <linearGradient id="gradiente-amostra" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.45" />
-                  <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M0 45 C40 42, 60 48, 90 32 C120 16, 150 28, 190 18 C230 8, 250 14, 280 4"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-              <path
-                d="M0 45 C40 42, 60 48, 90 32 C120 16, 150 28, 190 18 C230 8, 250 14, 280 4 L280 60 L0 60 Z"
-                fill="url(#gradiente-amostra)"
-              />
-            </svg>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
-            <span>
-              Transações: <strong className="font-semibold text-foreground">{AMOSTRA.transacoes}</strong>
-            </span>
-            <span className="text-right">
-              Margem bruta: <strong className="font-semibold text-foreground">{AMOSTRA.margem}</strong>
-            </span>
-          </div>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Valores de exemplo, para ilustrar o painel de faturação.
-        </p>
-
-        <div className="grid grid-cols-3 gap-2">
-          {ATRIBUTOS.map(({ icone: Icone, titulo }) => (
-            <div key={titulo} className="rounded-lg bg-foreground/5 p-3 text-center">
-              <Icone className="mx-auto mb-1.5 size-5 text-primary" aria-hidden="true" />
-              <p className="text-xs text-muted-foreground">{titulo}</p>
-            </div>
+        <ul className="grid grid-cols-2 gap-2" aria-label="Módulos do GestPro">
+          {MODULOS.map(({ icone: Icone, titulo, descricao }) => (
+            <li key={titulo} className="rounded-lg bg-foreground/5 px-3 py-2.5">
+              <Icone className="mb-1 size-4 text-primary" aria-hidden="true" />
+              <p className="text-sm font-medium leading-tight">{titulo}</p>
+              <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{descricao}</p>
+            </li>
           ))}
-        </div>
+        </ul>
 
-        <div className="rounded-xl bg-foreground/5 p-5">
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Contabilidade por partida dobrada sobre o plano PGC-NIRF (Decreto 70/2009), IVA, INSS e
-            IRPS calculados pelas tabelas em vigor, e cada documento numerado por série, sem lacunas.
-          </p>
-        </div>
+        <ul className="space-y-1.5 rounded-xl bg-foreground/5 p-4 text-xs leading-relaxed text-muted-foreground">
+          {GARANTIAS.map((texto) => (
+            <li key={texto} className="flex gap-2">
+              <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
+              <span>{texto}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <p className="relative z-10 text-xs text-muted-foreground">
