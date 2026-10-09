@@ -279,12 +279,28 @@ enum EstadoVersaoMapeamento {
 // CAIXA
 // ---------------------------------------------------------------------------
 
+/// Terminal POS (#267): posto físico de venda. Cada terminal tem no máximo um caixa ABERTO;
+/// o mesmo utilizador pode ter caixas abertos em terminais diferentes.
+model TerminalPOS {
+  id        String   @id @default(cuid())
+  tenantId  String
+  codigo    String
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, ativo])
+}
+
 /// Sessão de caixa: abertura e fecho diário por responsável.
 /// Append-only: erros corrigem-se por nova sessão; nunca se actualiza saldo directamente.
 model SessaoCaixa {
   id             String           @id @default(cuid())
   tenantId       String
   responsavelId  String           // FK User (escalar, sem @relation cross-WS)
+  terminalId     String?          // FK TerminalPOS (escalar, #267); sessões antigas ficam sem terminal
   numero         String           // série sequencial via proximoNumeroSerie(tx, 'SESSAO_CAIXA', ctx)
   dataAbertura   DateTime         @default(now())
   dataFechamento DateTime?
@@ -304,6 +320,7 @@ model SessaoCaixa {
   @@index([tenantId, status])
   @@index([tenantId, dataAbertura])
   @@index([tenantId, responsavelId])
+  @@index([tenantId, terminalId, status])
 }
 
 /// Movimento de caixa: cada entrada/saída registada dentro de uma sessão.

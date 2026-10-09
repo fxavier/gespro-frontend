@@ -1093,12 +1093,16 @@ export class SessaoPOSService implements ISessaoPOSService {
         data: { status: 'FECHADA', fechadoEm: new Date() },
       });
     }
-    const sessaoExistente = abertas.find((s) => caixasAbertas.has(s.sessaoCaixaId));
+    // #267: uma SessaoPOS ABERTA por terminal (o do caixa pedido); sem terminal, conta como um posto só.
+    const terminalPedido = (await this.caixasAbertas([input.sessaoCaixaId], ctx)).get(input.sessaoCaixaId) ?? null;
+    const sessaoExistente = abertas.find(
+      (s) => caixasAbertas.has(s.sessaoCaixaId) && caixasAbertas.get(s.sessaoCaixaId) === terminalPedido,
+    );
 
     if (sessaoExistente) {
       throw new BusinessRuleError(
         'SESSAO_JA_ABERTA',
-        `Já existe uma sessão POS aberta (${sessaoExistente.id}) para este vendedor`,
+        `Já existe uma sessão POS aberta (${sessaoExistente.id}) para este vendedor neste terminal`,
       );
     }
 
@@ -1178,7 +1182,7 @@ export class SessaoPOSService implements ISessaoPOSService {
     return mapSessaoPOSRow(retomada);
   }
 
-  async obterAtual(ctx: Ctx): Promise<SessaoPOSRow | null> {
+  async obterAtual(ctx: Ctx, opcoes?: { terminalId?: string }): Promise<SessaoPOSRow | null> {
     // Só leitura (corre no render de /pos): uma sessão POS sobre uma caixa já não
     // ABERTA conta como fechada — o `abrir` seguinte fecha-a de facto.
     const abertas = await prisma.sessaoPOS.findMany({
@@ -1186,19 +1190,24 @@ export class SessaoPOSService implements ISessaoPOSService {
       orderBy: { abertoEm: 'desc' },
     });
     const caixasAbertas = await this.caixasAbertas(abertas.map((s) => s.sessaoCaixaId), ctx);
-    const sessao = abertas.find((s) => caixasAbertas.has(s.sessaoCaixaId));
+    // #267: com terminal, só a sessão sobre o caixa desse terminal.
+    const sessao = abertas.find(
+      (s) =>
+        caixasAbertas.has(s.sessaoCaixaId) &&
+        (!opcoes?.terminalId || caixasAbertas.get(s.sessaoCaixaId) === opcoes.terminalId),
+    );
 
     return sessao ? mapSessaoPOSRow(sessao) : null;
   }
 
-  /** Ids (de entre `ids`) das sessões de caixa ainda ABERTAS — leitura cross-domínio estreita. */
-  private async caixasAbertas(ids: string[], ctx: Ctx): Promise<Set<string>> {
-    if (ids.length === 0) return new Set();
+  /** Sessões de caixa (de entre `ids`) ainda ABERTAS → terminal de cada uma — leitura cross-domínio estreita. */
+  private async caixasAbertas(ids: string[], ctx: Ctx): Promise<Map<string, string | null>> {
+    if (ids.length === 0) return new Map();
     const caixas = await prisma.sessaoCaixa.findMany({
       where: { tenantId: ctx.tenantId, id: { in: ids }, status: 'ABERTA' },
-      select: { id: true },
+      select: { id: true, terminalId: true },
     });
-    return new Set(caixas.map((c) => c.id));
+    return new Map(caixas.map((c) => [c.id, c.terminalId]));
   }
 
   async buscarPorId(id: string, ctx: Ctx): Promise<SessaoPOSRow> {

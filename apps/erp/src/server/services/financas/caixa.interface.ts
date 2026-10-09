@@ -39,6 +39,7 @@ export interface SessaoCaixa {
   id: string;
   tenantId: string;
   responsavelId: string;
+  terminalId: string | null;
   numero: string;
   dataAbertura: Date;
   dataFechamento: Date | null;
@@ -154,7 +155,8 @@ export interface RegistarMovimentoCaixaInput {
  * ICaixaService — contrato de serviço para operações de caixa.
  *
  * Regras de negócio:
- *  - Só pode existir UMA SessaoCaixa ABERTA por responsável por tenant de cada vez.
+ *  - Só pode existir UMA SessaoCaixa ABERTA por terminal (#267); sem terminal, uma por responsável.
+ *  - Só quem abriu fecha ou cancela (`SESSAO_CAIXA_DE_OUTRO_UTILIZADOR`).
  *  - Fecho bloqueia se existirem documentos de venda pendentes ligados à sessão
  *    (`BusinessRuleError('CAIXA_COM_PENDENCIAS')`).
  *  - Sangria/Reforço só possíveis em sessão ABERTA.
@@ -165,7 +167,7 @@ export interface ICaixaService {
   abrirSessao(input: AbrirSessaoCaixaInput, ctx: Ctx): Promise<SessaoCaixa>;
   fecharSessao(input: FecharSessaoCaixaInput, ctx: Ctx): Promise<SessaoCaixa>;
   cancelarSessao(sessaoCaixaId: string, motivo: string, ctx: Ctx): Promise<SessaoCaixa>;
-  obterSessaoAtual(ctx: Ctx): Promise<SessaoCaixa | null>;
+  obterSessaoAtual(ctx: Ctx, opcoes?: { terminalId?: string }): Promise<SessaoCaixa | null>;
   obterSessao(id: string, ctx: Ctx): Promise<SessaoCaixaComMovimentos | null>;
   listarSessoes(
     filtro: FiltroSessaoCaixaInput,
