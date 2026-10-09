@@ -328,7 +328,18 @@ export async function listarMovimentos(
         where: {
           ...(filter.produtoId ? { produtoId: filter.produtoId } : {}),
           ...(filter.localizacaoId ? { OR: [{ localizacaoOrigemId: filter.localizacaoId }, { localizacaoDestinoId: filter.localizacaoId }] } : {}),
-          ...(filter.tipo ? { tipo: filter.tipo as never } : {}),
+          ...(filter.tipo === 'TRANSFERENCIA'
+            ? { tipo: { in: ['TRANSFERENCIA_ENTRADA', 'TRANSFERENCIA_SAIDA'] as const } }
+            : filter.tipo ? { tipo: filter.tipo } : {}),
+          // Em `produto` (relação), não num segundo `OR` de topo, que apagaria o da localização.
+          ...(filter.search ? {
+            produto: {
+              OR: [
+                { nome: { contains: filter.search, mode: 'insensitive' as const } },
+                { sku: { contains: filter.search, mode: 'insensitive' as const } },
+              ],
+            },
+          } : {}),
           ...(filter.dataInicio || filter.dataFim ? {
             createdAt: {
               ...(filter.dataInicio ? { gte: filter.dataInicio } : {}),

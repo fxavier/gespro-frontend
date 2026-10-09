@@ -126,6 +126,7 @@ export type TransferenciaStockInput = z.infer<typeof TransferenciaStockSchema>;
 export const MovimentoStockFilterSchema = z.object({
   produtoId: z.string().optional(),
   localizacaoId: z.string().optional(),
+  // `TRANSFERENCIA` é o valor de grupo: as duas pernas (`_ENTRADA` e `_SAIDA`) — #120.
   tipo: z
     .enum([
       'ENTRADA',
@@ -133,8 +134,11 @@ export const MovimentoStockFilterSchema = z.object({
       'AJUSTE',
       'TRANSFERENCIA_ENTRADA',
       'TRANSFERENCIA_SAIDA',
+      'TRANSFERENCIA',
     ])
     .optional(),
+  /** Nome ou SKU do produto, sem distinguir maiúsculas (#121). */
+  search: z.string().trim().optional(),
   dataInicio: inicioDoDia().optional(),
   dataFim: fimDoDia().optional(),
   cursor: z.string().optional(),

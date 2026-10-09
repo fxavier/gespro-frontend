@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, ClipboardList, Users, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Users, AlertTriangle } from 'lucide-react';
 import { formatarData, formatarDataHora } from '@/lib/format-date';
 import { ROTULOS_ESTADO_ATIVO } from '@/lib/validations/inventario-ativos';
 import type {
@@ -342,12 +342,6 @@ export default async function InventarioFisicoDetalhePage({ params }: PageProps)
               isEditable ? (
                 <div className="flex flex-wrap items-start gap-2">
                   <InventarioFisicoAcoes id={inv.id} status={inv.status} />
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/inventario/fisico/${id}/editar`}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Editar
-                    </Link>
-                  </Button>
                 </div>
               ) : undefined
             }
