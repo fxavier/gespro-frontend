@@ -18,30 +18,11 @@ import { toast } from 'sonner';
 import { Lock, LockOpen, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fecharPeriodo } from '@/server/actions/contabilidade.actions';
+import { TEXTO_IMPEDIMENTO_FECHO } from '@/lib/textos-recusa-contabilidade';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Textos legíveis por código de impedimento (ADR-0033 §6)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const TEXTO_IMPEDIMENTO: Record<string, string> = {
-  RASCUNHOS_NO_PERIODO:
-    'Existem lançamentos em rascunho no período. Confirme ou elimine todos os rascunhos antes de fechar.',
-  SESSAO_CAIXA_ABERTA:
-    'Existe pelo menos uma sessão de caixa aberta com abertura neste período. Feche a sessão de caixa antes de fechar o período.',
-  RECONCILIACAO_EM_ANDAMENTO:
-    'Existe uma reconciliação bancária em curso que abrange datas deste período. Conclua ou cancele a reconciliação primeiro.',
-  DOCUMENTO_SEM_LANCAMENTO:
-    'Existem facturas, notas de crédito ou notas de débito emitidas neste período sem o lançamento contabilístico correspondente. Registe os lançamentos em falta.',
-  BALANCETE_DESEQUILIBRADO:
-    'O balancete do período não está equilibrado — o total dos débitos é diferente do total dos créditos. Corrija os lançamentos antes de fechar.',
-  PERIODO_ANTERIOR_ABERTO:
-    'O período anterior ainda está aberto. O fecho tem de ser feito por ordem: feche o mês anterior primeiro.',
-  IVA_NAO_APURADO:
-    'O apuramento do IVA do período ainda não foi executado. Apure o IVA em Contabilidade → Apuramento de IVA antes de fechar o período.',
-};
 
 function textoImpedimento(codigo: string): string {
-  return TEXTO_IMPEDIMENTO[codigo] ?? `Impedimento desconhecido: ${codigo}`;
+  return TEXTO_IMPEDIMENTO_FECHO[codigo] ?? `Impedimento desconhecido: ${codigo}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

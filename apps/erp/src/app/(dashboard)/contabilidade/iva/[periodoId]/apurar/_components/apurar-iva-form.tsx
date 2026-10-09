@@ -18,6 +18,10 @@ import { AlertTriangle, Loader2, PercentCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatarData } from '@/lib/format-date';
 import { apurarIvaAction } from '@/server/actions/financas-iva.actions';
+import {
+  TEXTOS_RECUSA_APURAMENTO,
+  type InfoRecusaApuramento,
+} from '@/lib/textos-recusa-contabilidade';
 import type { DocumentoSemLancamento } from '@/server/services/financas/apuramento-iva.interface';
 
 const ROTULO_TIPO: Record<DocumentoSemLancamento['tipo'], string> = {
@@ -26,68 +30,13 @@ const ROTULO_TIPO: Record<DocumentoSemLancamento['tipo'], string> = {
   NOTA_DEBITO: 'Nota de débito',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Textos dos códigos de recusa (ADR-0034 §4)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface CodigoRecusaInfo {
-  titulo: string;
-  descricao: string;
-  isProrataWarning?: boolean;
-}
-
-const TEXTOS_RECUSA: Record<string, CodigoRecusaInfo> = {
-  PRORATA_NAO_SUPORTADO: {
-    titulo: 'Pro rata não suportado — apuramento recusado',
-    descricao:
-      'Este período tem operações isentas (a 0 %), à taxa reduzida de 5 % ou fora do campo do imposto. ' +
-      'Nessas situações, a dedução do IVA é limitada pelo coeficiente de pro rata, cujo cálculo ' +
-      'o produto ainda não implementa. ' +
-      'O sistema recusa produzir um número em vez de devolver um número que não sabe calcular — ' +
-      'um valor incorrecto numa declaração assinada é pior do que nenhum valor. ' +
-      'Para apurar, lance as regularizações manuais nas contas 44341/44342/44343 e confirme que ' +
-      'não existem operações isentas ou à taxa reduzida no razão antes de tentar novamente.',
-    isProrataWarning: true,
-  },
-  PERIODO_COM_RASCUNHOS: {
-    titulo: 'Existem lançamentos em rascunho no período',
-    descricao:
-      'O apuramento lê o razão contabilístico. Um lançamento em rascunho é um número que ainda ' +
-      'pode mudar — apurar com rascunhos em aberto produziria um mapa que não reflecte o razão ' +
-      'final. Confirme ou elimine todos os rascunhos do período antes de apurar.',
-  },
-  DOCUMENTO_SEM_LANCAMENTO: {
-    titulo: 'Existem documentos fiscais sem lançamento contabilístico',
-    descricao:
-      'Há facturas, notas de crédito ou notas de débito emitidas neste período sem o lançamento ' +
-      'contabilístico correspondente. O razão não contém o IVA desses documentos, e o apuramento ' +
-      'ficaria incompleto. Registe os lançamentos em falta (Contabilidade → Lançamentos) e tente ' +
-      'novamente.',
-  },
-  PERIODO_JA_APURADO: {
-    titulo: 'O período já tem um apuramento activo',
-    descricao:
-      'Já existe um apuramento para este período no estado APURADO ou DECLARADO. ' +
-      'Para recalcular, estorne o apuramento actual e execute um novo apuramento (versão seguinte). ' +
-      'Se o apuramento já foi declarado à AT, a correcção tem de ser uma regularização no período ' +
-      'seguinte (ADR-0034 §7).',
-  },
-  APURAMENTO_PERIODO_ENCERRAMENTO: {
-    titulo: 'O período 13 não tem IVA a apurar',
-    descricao:
-      'O período 13 é o do encerramento do exercício: só recebe os lançamentos de encerramento e ' +
-      'não tem operações. O IVA apura-se nos doze períodos mensais (ADR-0035 §7) — o de Dezembro ' +
-      'inclui as operações do último dia do ano.',
-  },
-};
-
 function TextoRecusa({
   codigo,
   info,
   documentos,
 }: {
   codigo: string;
-  info: CodigoRecusaInfo;
+  info: InfoRecusaApuramento;
   documentos?: DocumentoSemLancamento[];
 }) {
   return (
@@ -168,7 +117,7 @@ export function ApurarIvaForm({ periodoId, periodoCodigo }: ApurarIvaFormProps) 
     });
   }
 
-  const infoRecusa = erroCode ? TEXTOS_RECUSA[erroCode] : null;
+  const infoRecusa = erroCode ? TEXTOS_RECUSA_APURAMENTO[erroCode] : null;
 
   return (
     <div className="max-w-2xl space-y-6">
