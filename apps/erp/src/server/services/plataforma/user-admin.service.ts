@@ -275,6 +275,11 @@ async function findRole(roleId: string, ctx: Ctx): Promise<PrismaRoleWithPerms> 
 export const userAdminService: IUserAdminService = {
   // ---- Utilizadores ----
 
+  /** KPI (#104): utilizadores não apagados do tenant, activos e inactivos — o universo de `listarUtilizadores`. */
+  async contarUtilizadores(_filter: Record<string, never>, ctx: Ctx) {
+    return prismaBase.user.count({ where: { tenantId: ctx.tenantId, deletedAt: null } });
+  },
+
   async listarUtilizadores(filter: FilterUserInput, ctx: Ctx) {
     return paginate(
       async ({ take, cursor, skip }) => {

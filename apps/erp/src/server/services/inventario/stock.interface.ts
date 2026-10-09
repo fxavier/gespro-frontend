@@ -166,6 +166,9 @@ export interface IStockService {
     ctx: Ctx,
   ): Promise<PaginatedResult<MovimentoStockDto>>;
 
+  /** Conta todos os movimentos de stock do tenant — KPI do dashboard de stock (#104). */
+  contarMovimentos(filter: Record<string, never>, ctx: Ctx): Promise<number>;
+
   registarTransferencia(
     data: TransferenciaStockInput,
     ctx: Ctx,

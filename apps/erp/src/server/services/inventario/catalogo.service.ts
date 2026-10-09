@@ -156,6 +156,11 @@ const PRODUTO_SELECT = {
   variantes: { select: { id: true, produtoId: true, nome: true, valor: true, precoAdicional: true, createdAt: true } },
 } as const;
 
+/** KPI (#104): produtos do catálogo não apagados — o mesmo universo de `listarProdutos` sem filtros. */
+export async function contarProdutos(_filter: Record<string, never>, ctx: Ctx): Promise<number> {
+  return prisma.produto.count({ where: { tenantId: ctx.tenantId, deletedAt: null } });
+}
+
 export async function listarProdutos(
   filter: ProdutoFilter,
   ctx: Ctx,
@@ -323,6 +328,7 @@ export const catalogoProdutoService: ICatalogoProdutoService = {
   actualizarCategoria,
   arquivarCategoria,
   listarProdutos,
+  contarProdutos,
   obterProduto,
   obterProdutoPorSku,
   criarProduto,
