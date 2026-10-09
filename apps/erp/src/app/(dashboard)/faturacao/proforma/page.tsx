@@ -10,9 +10,9 @@ import { Plus } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
-import { TRANSICOES_PROFORMA } from '@/server/services/financas/faturacao.interface';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { FiltroProformaSchema } from '@/lib/validations/faturacao';
+import { acoesMenuProforma } from '@/lib/faturacao-acoes';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
@@ -30,12 +30,12 @@ async function ProformasSection({
   filtros,
   tenantId,
   userId,
-  podeCancelar,
+  permissoes,
 }: {
   filtros: FiltroUrl;
   tenantId: string;
   userId: string;
-  podeCancelar: boolean;
+  permissoes: string[];
 }) {
   try {
     const ctx = { tenantId, userId };
@@ -48,17 +48,21 @@ async function ProformasSection({
       clienteService.nomesPorIds(result.items.map((p: any) => p.clienteId), ctx)
     );
 
-    const items: ProformaResumo[] = result.items.map((p: any) => ({
-      id: p.id,
-      numero: p.numero,
-      clienteNome: nomes[p.clienteId]?.nome ?? '—',
-      dataEmissao: p.dataEmissao,
-      dataValidade: p.dataValidade,
-      total: parseFloat(p.total?.toString() ?? '0').toFixed(2),
-      status: p.status,
-      // Mesma regra do detalhe: transição permitida E permissão.
-      podeCancelar: podeCancelar && (TRANSICOES_PROFORMA[p.status as keyof typeof TRANSICOES_PROFORMA] ?? []).includes('CANCELADA'),
-    }));
+    const items: ProformaResumo[] = result.items.map((p: any) => {
+      // Mesma regra do detalhe: transição permitida E permissão (#259).
+      const acoes = acoesMenuProforma({ status: p.status, permissoes });
+      return {
+        id: p.id,
+        numero: p.numero,
+        clienteNome: nomes[p.clienteId]?.nome ?? '—',
+        dataEmissao: p.dataEmissao,
+        dataValidade: p.dataValidade,
+        total: parseFloat(p.total?.toString() ?? '0').toFixed(2),
+        status: p.status,
+        podeConverter: acoes.converter,
+        podeCancelar: acoes.cancelar,
+      };
+    });
 
     return <ProformasTable data={items} nextCursor={result.nextCursor} />;
   } catch {
@@ -94,7 +98,6 @@ export default async function ProformaPage({ searchParams }: PageProps) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId, permissions } = session.user;
-  const podeCancelar = permissions.includes('faturacao:proforma:cancelar');
 
   const rawParams = await searchParams;
   const flat = Object.fromEntries(
@@ -129,7 +132,7 @@ export default async function ProformaPage({ searchParams }: PageProps) {
       />
 
       <Suspense key={JSON.stringify(filtros)} fallback={<TableSkeleton rows={8} cols={6} />}>
-        <ProformasSection filtros={filtros} tenantId={tenantId} userId={userId} podeCancelar={podeCancelar} />
+        <ProformasSection filtros={filtros} tenantId={tenantId} userId={userId} permissoes={permissions} />
       </Suspense>
     </div>
   );
