@@ -13,6 +13,7 @@ import {
   Award, GraduationCap, Factory, FileBarChart2, PackageSearch, LineChart,
   RotateCcw, FilePlus2, AlertCircle, BookMarked as JournalIcon, CreditCard,
   PanelLeftClose, PanelLeftOpen, Settings, PercentCircle, ListOrdered, Scale,
+  Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -119,6 +120,9 @@ const menuItems: MenuItem[] = [
       { title: 'Demonstração do Resultado do Exercício', href: '/contabilidade/dre', icon: BarChart3 },
       // A DFC fica junto dos outros mapas; a permissão dela está em `lib/permissoes-rotas`.
       { title: 'Demonstração de Fluxos de Caixa', href: '/contabilidade/dfc', icon: ArrowRightLeft },
+      { title: 'Centros de Custo', href: '/contabilidade/centros-custo', icon: Target },
+      // #145 — a permissão (banca, leitura) está em `lib/permissoes-rotas`.
+      { title: 'Contas Bancárias', href: '/contabilidade/contas-bancarias', icon: Building2 },
       { title: 'Reconciliação', href: '/contabilidade/reconciliacao', icon: Landmark },
       { title: 'Exercícios', href: '/contabilidade/exercicios', icon: Calendar },
       { title: 'Apuramento de IVA', href: '/contabilidade/iva', icon: PercentCircle },
