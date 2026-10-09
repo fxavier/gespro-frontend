@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { auth } from '@/lib/auth';
+import { listarProdutos } from '@/server/services/inventario/catalogo.service';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
@@ -20,12 +21,16 @@ export default async function NovaOrdemPage() {
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 
-  const roteiros = await runWithTenantContext(ctx, () =>
-    prisma.roteiro.findMany({
-      where: { tenantId, status: 'ATIVO' },
-      select: { id: true, codigo: true, nome: true },
-      orderBy: { nome: 'asc' },
-    })
+  // #265: o produto escolhe-se num `ComboboxRemoto` — primeira página aqui, o resto pela pesquisa.
+  const [roteiros, produtos] = await runWithTenantContext(ctx, () =>
+    Promise.all([
+      prisma.roteiro.findMany({
+        where: { tenantId, status: 'ATIVO' },
+        select: { id: true, codigo: true, nome: true },
+        orderBy: { nome: 'asc' },
+      }),
+      listarProdutos({ ativo: true, take: 20, orderBy: 'nome', orderDir: 'asc' }, ctx),
+    ])
   );
 
   return (
@@ -47,7 +52,10 @@ export default async function NovaOrdemPage() {
           </Button>
         }
       />
-      <NovaOrdemForm roteiros={roteiros} />
+      <NovaOrdemForm
+        roteiros={roteiros}
+        produtosIniciais={produtos.items.map((p) => ({ id: p.id, nome: p.nome, sku: p.sku }))}
+      />
     </div>
   );
 }

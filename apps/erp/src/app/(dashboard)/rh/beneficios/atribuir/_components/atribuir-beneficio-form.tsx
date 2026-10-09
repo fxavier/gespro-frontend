@@ -6,13 +6,15 @@
 
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { atribuirBeneficioAction } from '@/server/actions/beneficios.actions';
 import { Button } from '@/components/ui/button';
-import { FormPage, FormSection } from '@/components/patterns';
+import { Combobox, FormPage, FormSection } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
+import { CampoColaborador } from '../../../_components/campo-colaborador';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,22 +34,28 @@ type FormValues = z.infer<typeof FormSchema>;
 interface AtribuirBeneficioFormProps {
   beneficioIdPreenchido?: string;
   beneficioNome?: string;
+  opcoesBeneficio: ComboboxOption[];
+  opcoesColaborador: ComboboxOption[];
 }
 
 export function AtribuirBeneficioForm({
   beneficioIdPreenchido,
   beneficioNome,
+  opcoesBeneficio,
+  opcoesColaborador,
 }: AtribuirBeneficioFormProps) {
   const router = useRouter();
 
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       beneficioId: beneficioIdPreenchido ?? '',
+      colaboradorId: '',
     },
   });
 
@@ -117,16 +125,22 @@ export function AtribuirBeneficioForm({
             <input type="hidden" {...register('beneficioId')} value={beneficioIdPreenchido} />
           </>
         ) : (
-          <>
-            <Input
-              id="beneficioId"
-              {...register('beneficioId')}
-              placeholder="ID do benefício (cuid)"
-            />
-            <p className="text-xs text-muted-foreground">
-              Introduza o ID do benefício (utilize o catálogo para copiar o ID).
-            </p>
-          </>
+          <Controller
+            control={control}
+            name="beneficioId"
+            render={({ field }) => (
+              <Combobox
+                id="beneficioId"
+                options={opcoesBeneficio}
+                value={field.value}
+                onChange={field.onChange}
+                pesquisaAPartirDe={0}
+                placeholder="Seleccione o benefício"
+                searchPlaceholder="Pesquisar benefício…"
+                emptyText="Nenhum benefício activo encontrado."
+              />
+            )}
+          />
         )}
         {errors.beneficioId && (
           <p className="text-destructive text-sm">{errors.beneficioId.message}</p>
@@ -134,20 +148,18 @@ export function AtribuirBeneficioForm({
       </div>
 
       {/* Colaborador */}
-      <div className="space-y-2">
-        <Label htmlFor="colaboradorId">Colaborador *</Label>
-        <Input
-          id="colaboradorId"
-          {...register('colaboradorId')}
-          placeholder="ID do colaborador (cuid)"
-        />
-        <p className="text-xs text-muted-foreground">
-          Introduza o ID do colaborador.
-        </p>
-        {errors.colaboradorId && (
-          <p className="text-destructive text-sm">{errors.colaboradorId.message}</p>
+      <Controller
+        control={control}
+        name="colaboradorId"
+        render={({ field }) => (
+          <CampoColaborador
+            opcoesIniciais={opcoesColaborador}
+            value={field.value}
+            onChange={field.onChange}
+            erro={errors.colaboradorId?.message}
+          />
         )}
-      </div>
+      />
 
       {/* Datas */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

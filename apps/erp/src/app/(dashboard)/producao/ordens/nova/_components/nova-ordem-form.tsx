@@ -18,10 +18,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FormPage, Combobox } from '@/components/patterns';
+import { CampoProduto, type ProdutoOpcao } from '@/components/campos/campo-produto';
 import { criarOrdemProducaoAction } from '@/server/actions/producao.actions';
 
 const Schema = z.object({
-  produtoId: z.string().min(1, 'ID do produto obrigatório'),
+  produtoId: z.string().min(1, 'Produto obrigatório'),
   codigoProduto: z.string().min(1).max(50),
   nomeProduto: z.string().min(1).max(200),
   quantidade: z.coerce.number().positive('Quantidade deve ser positiva'),
@@ -36,9 +37,9 @@ const Schema = z.object({
 type FormData = z.infer<typeof Schema>;
 
 interface Roteiro { id: string; codigo: string; nome: string }
-interface Props { roteiros: Roteiro[] }
+interface Props { roteiros: Roteiro[]; produtosIniciais: ProdutoOpcao[] }
 
-export default function NovaOrdemForm({ roteiros }: Props) {
+export default function NovaOrdemForm({ roteiros, produtosIniciais }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -97,11 +98,19 @@ export default function NovaOrdemForm({ roteiros }: Props) {
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Produto</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>ID do Produto *</Label>
-                <Input placeholder="ID do produto" {...form.register('produtoId')} />
-                {errors.produtoId && <p className="text-xs text-destructive">{errors.produtoId.message}</p>}
-              </div>
+              <CampoProduto
+                id="produtoId"
+                rotulo="Produto *"
+                opcoesIniciais={produtosIniciais}
+                value={form.watch('produtoId') ?? ''}
+                onChange={(id, produto) => {
+                  form.setValue('produtoId', id, { shouldDirty: true, shouldValidate: true });
+                  if (!produto) return;
+                  form.setValue('codigoProduto', produto.sku, { shouldDirty: true, shouldValidate: true });
+                  form.setValue('nomeProduto', produto.nome, { shouldDirty: true, shouldValidate: true });
+                }}
+                erro={errors.produtoId?.message}
+              />
               <div className="space-y-2">
                 <Label>Código *</Label>
                 <Input placeholder="PROD-001" {...form.register('codigoProduto')} />

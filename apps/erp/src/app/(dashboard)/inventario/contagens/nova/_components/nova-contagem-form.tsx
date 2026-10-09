@@ -13,7 +13,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Form,
@@ -31,7 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { Combobox, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
 import { abrirContagemAction } from '@/server/actions/inventario.actions';
 import { AbrirContagemSchema, type AbrirContagemInput } from '@/lib/validations/inventario-contagem';
 
@@ -42,9 +42,26 @@ type ActionResult =
 
 interface NovaContagemFormProps {
   userId: string;
+  /** Utilizadores activos do tenant (lista curta, filtro local). */
+  opcoesResponsavel: ComboboxOption[];
+  /** Localizações activas (lista curta, filtro local). */
+  opcoesLocalizacao: ComboboxOption[];
+  /** Categorias de produto activas (lista curta, filtro local). */
+  opcoesCategoria: ComboboxOption[];
 }
 
-export function NovaContagemForm({ userId }: NovaContagemFormProps) {
+/**
+ * Sentinela de «sem restrição» (o `SelectItem`/`CommandItem` não serve `value=""`): fica no fim da
+ * lista e traduz-se para `undefined` antes de chegar ao formulário.
+ */
+const TODAS = '__todas__';
+
+export function NovaContagemForm({
+  userId,
+  opcoesResponsavel,
+  opcoesLocalizacao,
+  opcoesCategoria,
+}: NovaContagemFormProps) {
   const router = useRouter();
 
   const [state, dispatch, isPending] = useActionState<ActionResult, AbrirContagemInput>(
@@ -131,7 +148,15 @@ export function NovaContagemForm({ userId }: NovaContagemFormProps) {
                 <FormItem>
                   <FormLabel>Responsável *</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="ID do responsável" />
+                    <Combobox
+                      options={opcoesResponsavel}
+                      value={field.value}
+                      onChange={field.onChange}
+                      pesquisaAPartirDe={0}
+                      placeholder="Seleccione o responsável"
+                      searchPlaceholder="Pesquisar por nome ou e-mail…"
+                      emptyText="Nenhum utilizador encontrado."
+                    />
                   </FormControl>
                   <FormDescription>
                     Utilizador responsável pela contagem.
@@ -178,7 +203,15 @@ export function NovaContagemForm({ userId }: NovaContagemFormProps) {
                 <FormItem>
                   <FormLabel>Localização (opcional)</FormLabel>
                   <FormControl>
-                    <Input {...field} value={field.value ?? ''} placeholder="Todas as localizações" />
+                    <Combobox
+                      options={[...opcoesLocalizacao, { value: TODAS, label: 'Todas as localizações' }]}
+                      value={field.value ?? ''}
+                      onChange={(v) => field.onChange(v === TODAS ? undefined : v)}
+                      pesquisaAPartirDe={0}
+                      placeholder="Todas as localizações"
+                      searchPlaceholder="Pesquisar localização…"
+                      emptyText="Nenhuma localização encontrada."
+                    />
                   </FormControl>
                   <FormDescription>
                     Restringe a contagem a uma localização.
@@ -195,7 +228,15 @@ export function NovaContagemForm({ userId }: NovaContagemFormProps) {
                 <FormItem>
                   <FormLabel>Categoria (opcional)</FormLabel>
                   <FormControl>
-                    <Input {...field} value={field.value ?? ''} placeholder="Todos os produtos" />
+                    <Combobox
+                      options={[...opcoesCategoria, { value: TODAS, label: 'Todas as categorias' }]}
+                      value={field.value ?? ''}
+                      onChange={(v) => field.onChange(v === TODAS ? undefined : v)}
+                      pesquisaAPartirDe={0}
+                      placeholder="Todos os produtos"
+                      searchPlaceholder="Pesquisar categoria…"
+                      emptyText="Nenhuma categoria encontrada."
+                    />
                   </FormControl>
                   <FormDescription>
                     Limita a contagem a uma categoria de produto.

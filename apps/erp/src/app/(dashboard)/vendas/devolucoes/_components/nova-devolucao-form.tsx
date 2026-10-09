@@ -4,9 +4,9 @@
  * Formulário de criação de devolução — Client Component.
  */
 
-import { useTransition } from 'react';
+import { useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { Controller, useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,11 +22,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { criarDevolucao } from '@/server/actions/vendas.actions';
+import { ComboboxRemoto } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
+import { CampoProduto, type ProdutoOpcao } from '@/components/campos/campo-produto';
+import { CampoCliente } from '../../../faturacao/_components/campo-cliente';
+import { criarDevolucao, procurarVendas } from '@/server/actions/vendas.actions';
 import { CreateDevolucaoSchema } from '@/lib/validations/vendas';
 import type { CreateDevolucaoInput } from '@/lib/validations/vendas';
 
-export function NovaDevolucaoForm() {
+interface Props {
+  clientesIniciais: ComboboxOption[];
+  produtosIniciais: ProdutoOpcao[];
+}
+
+export function NovaDevolucaoForm({ clientesIniciais, produtosIniciais }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -55,6 +64,18 @@ export function NovaDevolucaoForm() {
     control: form.control,
     name: 'itens',
   });
+  const clienteId = useWatch({ control: form.control, name: 'clienteId' });
+
+  // A venda procura-se pelo número, só entre as do cliente escolhido (#265).
+  const buscarVendas = useCallback(
+    async (q: string): Promise<ComboboxOption[] | null> => {
+      const res = await procurarVendas({ q, clienteId: clienteId || undefined });
+      return res.ok
+        ? res.data.map((v) => ({ value: v.id, label: v.clienteNome ? `${v.numero} — ${v.clienteNome}` : v.numero }))
+        : null;
+    },
+    [clienteId],
+  );
 
   function onSubmit(data: CreateDevolucaoInput) {
     startTransition(async () => {
@@ -76,26 +97,42 @@ export function NovaDevolucaoForm() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="clienteId">ID do Cliente *</Label>
-              <Input
-                id="clienteId"
-                placeholder="cuid do cliente"
-                {...form.register('clienteId')}
-              />
-              {form.formState.errors.clienteId && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.clienteId.message}
-                </p>
+            <Controller
+              control={form.control}
+              name="clienteId"
+              render={({ field }) => (
+                <CampoCliente
+                  opcoesIniciais={clientesIniciais}
+                  value={field.value}
+                  onChange={(id) => {
+                    field.onChange(id);
+                    // A venda escolhida era do cliente anterior.
+                    form.setValue('vendaId', undefined);
+                  }}
+                  erro={form.formState.errors.clienteId?.message}
+                />
               )}
-            </div>
+            />
 
             <div className="space-y-2">
-              <Label htmlFor="vendaId">ID da Venda (opcional)</Label>
-              <Input
-                id="vendaId"
-                placeholder="cuid da venda original"
-                {...form.register('vendaId')}
+              <Label htmlFor="vendaId">Venda (opcional)</Label>
+              <Controller
+                control={form.control}
+                name="vendaId"
+                render={({ field }) => (
+                  <ComboboxRemoto
+                    // Remonta ao trocar de cliente: a lista anterior era de outro cliente.
+                    key={clienteId || 'sem-cliente'}
+                    id="vendaId"
+                    opcoesIniciais={[]}
+                    procurar={buscarVendas}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Pesquisar pelo número da venda"
+                    searchPlaceholder="Número da venda…"
+                    emptyText="Escreva o número da venda."
+                  />
+                )}
               />
             </div>
 
@@ -174,20 +211,33 @@ export function NovaDevolucaoForm() {
                 key={field.id}
                 className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end border rounded-md p-3"
               >
-                <div className="col-span-2 space-y-1">
-                  <Label className="text-xs">Nome do Produto *</Label>
-                  <Input
-                    placeholder="Nome"
-                    {...form.register(`itens.${index}.nomeProduto`)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">ID Produto</Label>
-                  <Input
-                    placeholder="cuid"
-                    {...form.register(`itens.${index}.produtoId`)}
-                  />
-                </div>
+                <Controller
+                  control={form.control}
+                  name={`itens.${index}.produtoId`}
+                  render={({ field: campo }) => (
+                    <CampoProduto
+                      id={`itens-${index}-produto`}
+                      rotulo="Produto *"
+                      className="col-span-2 space-y-1"
+                      opcoesIniciais={produtosIniciais}
+                      value={campo.value ?? ''}
+                      onChange={(id, produto) => {
+                        campo.onChange(id);
+                        if (!produto) return;
+                        form.setValue(`itens.${index}.nomeProduto`, produto.nome, { shouldDirty: true });
+                        if (produto.precoVenda !== undefined) {
+                          form.setValue(`itens.${index}.valorUnitario`, parseFloat(produto.precoVenda) || 0, {
+                            shouldDirty: true,
+                          });
+                        }
+                        if (produto.taxaIva !== undefined) {
+                          form.setValue(`itens.${index}.taxaIva`, Number(produto.taxaIva), { shouldDirty: true });
+                        }
+                      }}
+                      erro={form.formState.errors.itens?.[index]?.produtoId?.message}
+                    />
+                  )}
+                />
                 <div className="space-y-1">
                   <Label className="text-xs">Qtd.</Label>
                   <Input

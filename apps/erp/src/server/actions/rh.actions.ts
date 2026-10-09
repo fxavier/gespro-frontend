@@ -67,6 +67,21 @@ export const listarColaboradoresAction = createSafeAction({
   handler: (filter, ctx) => ColaboradorService.listar(filter, ctx),
 });
 
+/**
+ * Pesquisa de colaboradores para o `ComboboxRemoto` (ausências, atribuição de benefícios — #265).
+ * Leitura: corre em modo de Leitura. Só é chamada com termo — o campo vazio mostra as
+ * `opcoesIniciais` carregadas pelo Server Component.
+ */
+export const procurarColaboradoresAction = createSafeAction({
+  schema: z.object({ q: z.string().trim().min(1).max(200) }),
+  permission: 'rh:colaboradores:read',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await ColaboradorService.listar({ search: q, take: 50 }, ctx);
+    return pagina.items.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }));
+  },
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Férias
 // ─────────────────────────────────────────────────────────────────────────────

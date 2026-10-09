@@ -29,10 +29,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { FormPage } from '@/components/patterns';
+import { CampoProduto, type ProdutoOpcao } from '@/components/campos/campo-produto';
 import { criarEstruturaProdutoAction } from '@/server/actions/producao.actions';
 
 const ComponenteSchema = z.object({
-  componenteProdutoId: z.string().min(1, 'ID obrigatório'),
+  componenteProdutoId: z.string().min(1, 'Componente obrigatório'),
   codigoComponente: z.string().min(1).max(50),
   nomeComponente: z.string().min(1).max(200),
   categoria: z.enum(['MATERIA_PRIMA', 'COMPONENTE', 'SUBCONJUNTO', 'PRODUTO_ACABADO']),
@@ -43,7 +44,7 @@ const ComponenteSchema = z.object({
 });
 
 const Schema = z.object({
-  produtoId: z.string().min(1, 'ID do produto obrigatório'),
+  produtoId: z.string().min(1, 'Produto obrigatório'),
   codigo: z.string().min(1).max(30),
   nome: z.string().min(1).max(200),
   versao: z.string().min(1).max(20),
@@ -62,7 +63,7 @@ const COMP_DEFAULT: Partial<ComponenteLocal> = {
   unidadeMedida: 'UN',
 };
 
-export default function NovaEstruturaForm() {
+export default function NovaEstruturaForm({ produtosIniciais }: { produtosIniciais: ProdutoOpcao[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [componentes, setComponentes] = useState<ComponenteLocal[]>([]);
@@ -148,11 +149,14 @@ export default function NovaEstruturaForm() {
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Identificação</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>ID do Produto *</Label>
-                <Input placeholder="ID do produto" {...form.register('produtoId')} />
-                {errors.produtoId && <p className="text-xs text-destructive">{errors.produtoId.message}</p>}
-              </div>
+              <CampoProduto
+                id="produtoId"
+                rotulo="Produto *"
+                opcoesIniciais={produtosIniciais}
+                value={form.watch('produtoId') ?? ''}
+                onChange={(id) => form.setValue('produtoId', id, { shouldDirty: true, shouldValidate: true })}
+                erro={errors.produtoId?.message}
+              />
               <div className="space-y-2">
                 <Label>Código *</Label>
                 <Input placeholder="BOM-001" {...form.register('codigo')} />
@@ -234,14 +238,19 @@ export default function NovaEstruturaForm() {
               <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
                 <h4 className="text-sm font-medium">Novo Componente</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>ID do Componente *</Label>
-                    <Input
-                      placeholder="ID do produto/componente"
-                      value={novoComp.componenteProdutoId ?? ''}
-                      onChange={(e) => setNovoComp((p) => ({ ...p, componenteProdutoId: e.target.value }))}
-                    />
-                  </div>
+                  <CampoProduto
+                    id="componenteProdutoId"
+                    rotulo="Componente *"
+                    opcoesIniciais={produtosIniciais}
+                    value={novoComp.componenteProdutoId ?? ''}
+                    onChange={(id, produto) =>
+                      setNovoComp((p) => ({
+                        ...p,
+                        componenteProdutoId: id,
+                        ...(produto ? { codigoComponente: produto.sku, nomeComponente: produto.nome } : {}),
+                      }))
+                    }
+                  />
                   <div className="space-y-2">
                     <Label>Código *</Label>
                     <Input

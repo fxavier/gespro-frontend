@@ -21,6 +21,8 @@ import {
   CancelarPedidoCompraSchema,
   CreateRecebimentoCompraSchema,
   CreateConfiguracaoWorkflowSchema,
+  FilterRequisicaoCompraSchema,
+  FilterCotacaoSchema,
 } from '@/lib/validations/compras';
 import { createSafeAction } from '@/server/safe-action';
 import { comprasService } from '@/server/services/compras/compras.service';
@@ -43,6 +45,31 @@ export const procurarAprovadoresAction = createSafeAction({
   permission: 'compras:configurar',
   permiteEmLeitura: true,
   handler: async ({ q }, ctx) => comprasService.procurarAprovadores(q ?? '', ctx),
+});
+
+/**
+ * Pesquisas pelo número para os `ComboboxRemoto` da cotação RFQ e do pedido de compra (#265).
+ * Leitura: correm em modo de Leitura; só são chamadas com termo — o campo vazio mostra as
+ * `opcoesIniciais` carregadas pelo Server Component.
+ */
+export const procurarRequisicoesCompraAction = createSafeAction({
+  schema: z.object({ q: z.string().trim().min(1).max(200) }),
+  permission: 'compras:ver',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await comprasService.listarRequisicoes(FilterRequisicaoCompraSchema.parse({ q, take: 50 }), ctx);
+    return pagina.items.map((r) => ({ id: r.id, numero: r.numero, departamento: r.departamento }));
+  },
+});
+
+export const procurarCotacoesCompraAction = createSafeAction({
+  schema: z.object({ q: z.string().trim().min(1).max(200) }),
+  permission: 'compras:ver',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await comprasService.listarCotacoes(FilterCotacaoSchema.parse({ q, take: 50 }), ctx);
+    return pagina.items.map((c) => ({ id: c.id, numero: c.numero, status: c.status }));
+  },
 });
 
 // =====================================================================

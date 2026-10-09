@@ -1,8 +1,8 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -19,8 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { ComboboxRemoto, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
 import { criarRegraComissao } from '@/server/actions/comissoes.actions';
+import { procurarVendedores } from '@/server/actions/vendas.actions';
 
 const TIPOS = [
   { value: 'FIXA', label: 'Fixa' },
@@ -52,12 +54,17 @@ const FormSchema = z
   );
 type FormValues = z.infer<typeof FormSchema>;
 
-export function NovaRegraComissaoForm() {
+export function NovaRegraComissaoForm({ vendedoresIniciais }: { vendedoresIniciais: ComboboxOption[] }) {
   const router = useRouter();
+  const procurarVendedor = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
+    const r = await procurarVendedores({ q });
+    return r.ok ? r.data.map((v) => ({ value: v.id, label: v.nome })) : null;
+  }, []);
   const [isPending, startTransition] = useTransition();
   const {
     register,
     handleSubmit,
+    control,
     setValue,
     watch,
     formState: { errors, isDirty },
@@ -197,8 +204,23 @@ export function NovaRegraComissaoForm() {
 
         <FormSection title="Aplicação (opcional)" description="Restringir a um vendedor ou período">
           <div className="space-y-2">
-            <Label htmlFor="vendedorId">ID do Vendedor</Label>
-            <Input id="vendedorId" {...register('vendedorId')} placeholder="ID do vendedor (CUID) — opcional" />
+            <Label htmlFor="vendedorId">Vendedor</Label>
+            <Controller
+              control={control}
+              name="vendedorId"
+              render={({ field }) => (
+                <ComboboxRemoto
+                  id="vendedorId"
+                  opcoesIniciais={vendedoresIniciais}
+                  procurar={procurarVendedor}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  placeholder="Todos os vendedores (opcional)"
+                  searchPlaceholder="Pesquisar vendedor…"
+                  emptyText="Nenhum vendedor encontrado."
+                />
+              )}
+            />
             {errors.vendedorId && <p className="text-sm text-destructive">{errors.vendedorId.message}</p>}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

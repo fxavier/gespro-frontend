@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
+import { CampoColaborador } from '../../../_components/campo-colaborador';
 import { registarAusenciaAction } from '@/server/actions/rh.actions';
 
 const TIPOS = [
@@ -52,12 +54,13 @@ const FormSchema = z
   });
 type FormValues = z.infer<typeof FormSchema>;
 
-export function NovaAusenciaForm() {
+export function NovaAusenciaForm({ opcoesColaborador }: { opcoesColaborador: ComboboxOption[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const {
     register,
     handleSubmit,
+    control,
     setValue,
     watch,
     formState: { errors, isDirty },
@@ -113,13 +116,18 @@ export function NovaAusenciaForm() {
       >
         <FormSection title="Ausência" description="Colaborador, tipo e período da ausência">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="colaboradorId">ID do Colaborador *</Label>
-              <Input id="colaboradorId" {...register('colaboradorId')} placeholder="ID do colaborador (CUID)" />
-              {errors.colaboradorId && (
-                <p className="text-sm text-destructive">{errors.colaboradorId.message}</p>
+            <Controller
+              control={control}
+              name="colaboradorId"
+              render={({ field }) => (
+                <CampoColaborador
+                  opcoesIniciais={opcoesColaborador}
+                  value={field.value}
+                  onChange={field.onChange}
+                  erro={errors.colaboradorId?.message}
+                />
               )}
-            </div>
+            />
             <div className="space-y-2">
               <Label htmlFor="tipo">Tipo *</Label>
               <Select value={watch('tipo')} onValueChange={(v) => setValue('tipo', v as FormValues['tipo'])}>
