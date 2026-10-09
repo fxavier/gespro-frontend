@@ -29,7 +29,6 @@ export interface LocalizacaoOpcao {
 
 interface Props {
   devolucaoId: string;
-  serieNotaCreditoId?: string;
   /** A devolução reembolsa o cliente: o dinheiro sai da sessão de caixa aberta e liquida a NC. */
   reembolso?: boolean;
   /** Sessão de caixa aberta do utilizador; sem ela, uma devolução com reembolso não se processa. */
@@ -39,7 +38,6 @@ interface Props {
 
 export function ProcessarDevolucaoForm({
   devolucaoId,
-  serieNotaCreditoId,
   reembolso = false,
   sessaoCaixaId,
   localizacoes,
@@ -53,7 +51,6 @@ export function ProcessarDevolucaoForm({
     defaultValues: {
       id: devolucaoId,
       localizacaoId: '',
-      serieNotaCreditoId,
       sessaoCaixaId: reembolso ? sessaoCaixaId : undefined,
     },
   });

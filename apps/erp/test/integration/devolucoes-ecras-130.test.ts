@@ -6,8 +6,8 @@
  *
  * Contrato:
  *   A. Pelas Server Actions que a UI chama (sessão dobrada; tudo o resto real):
- *      1. criarDevolucao (com factura) → aprovarDevolucao → processarDevolucao({ id, localizacaoId,
- *         serieNotaCreditoId }) → PROCESSADA, `notaCreditoId` = NC EMITIDA da factura pelo total
+ *      1. criarDevolucao (com factura) → aprovarDevolucao → processarDevolucao({ id, localizacaoId })
+ *         (sem série de NC — #241) → PROCESSADA, `notaCreditoId` = NC EMITIDA da factura pelo total
  *         devolvido, entrada de stock (MovimentoStock com `documentoReferenciaId` = devolução) e
  *         saldo +quantidade. A devolução criada pela UI deixa de ficar PENDENTE para sempre.
  *      2. rejeitarDevolucao numa PENDENTE → REJEITADA; depois disso aprovar e processar recusam
@@ -91,7 +91,6 @@ describe.skipIf(skip)('Devoluções e trocas pela UI (#130) — DB efémera (Tes
 
   let produtoA: string;
   let localizacaoId: string;
-  let serieNCId: string;
   let sessaoCaixaId: string;
   let sessaoPOSId: string;
 
@@ -210,7 +209,6 @@ describe.skipIf(skip)('Devoluções e trocas pela UI (#130) — DB efémera (Tes
 
     const serieNC = await db.serieDocumento.findFirst({ where: { tenantId: TENANT, tipo: 'NOTA_CREDITO', ativo: true } });
     expect(serieNC, 'fixture: série NOTA_CREDITO activa no bootstrap').not.toBeNull();
-    serieNCId = serieNC.id;
 
     const sc: any = await runCtx(ctx, () => caixa.abrirSessao({ fundoInicial: 5000 } as any, ctx));
     sessaoCaixaId = sc.id;
@@ -260,7 +258,7 @@ describe.skipIf(skip)('Devoluções e trocas pela UI (#130) — DB efémera (Tes
     expect(depoisAprovar.aprovadoPorId).toBe(USER);
 
     const saldoAntes = await saldoA();
-    const processada = await action('processarDevolucao')({ id, localizacaoId, serieNotaCreditoId: serieNCId });
+    const processada = await action('processarDevolucao')({ id, localizacaoId });
     expect(processada.ok, JSON.stringify(processada)).toBe(true);
 
     const d = await lerDev(id);
@@ -290,7 +288,7 @@ describe.skipIf(skip)('Devoluções e trocas pela UI (#130) — DB efémera (Tes
     const a = await action('aprovarDevolucao')({ id: dev.id });
     expect(a.ok).toBe(false);
     expect(a.error?.code).toBe('TRANSICAO_INVALIDA');
-    const p = await action('processarDevolucao')({ id: dev.id, localizacaoId, serieNotaCreditoId: serieNCId });
+    const p = await action('processarDevolucao')({ id: dev.id, localizacaoId });
     expect(p.ok).toBe(false);
     expect(p.error?.code).toBe('TRANSICAO_INVALIDA');
 
@@ -311,7 +309,6 @@ describe.skipIf(skip)('Devoluções e trocas pela UI (#130) — DB efémera (Tes
       novoItem: { produtoId: produtoA, nomeProduto: 'Artigo A', quantidade: 1, precoUnitario: 1000, desconto: 0, taxaIva: 0.16 },
       pagamentos: [],
       localizacaoId,
-      serieNotaCreditoId: serieNCId,
     });
     expect(r.ok, JSON.stringify(r)).toBe(true);
 
@@ -351,7 +348,7 @@ describe.skipIf(skip)('Devoluções e trocas pela UI (#130) — DB efémera (Tes
     expect((await action('aprovarDevolucao')({ id: dev.id })).ok).toBe(true);
 
     sessao(PERMISSOES.filter((p) => p !== 'vendas:devolucoes:processar'));
-    const p = await action('processarDevolucao')({ id: dev.id, localizacaoId, serieNotaCreditoId: serieNCId });
+    const p = await action('processarDevolucao')({ id: dev.id, localizacaoId });
     expect(p.ok).toBe(false);
     expect(p.error?.code).toBe('SEM_PERMISSAO');
 
@@ -361,7 +358,6 @@ describe.skipIf(skip)('Devoluções e trocas pela UI (#130) — DB efémera (Tes
       novoItem: { produtoId: produtoA, nomeProduto: 'Artigo A', quantidade: 1, precoUnitario: 1000, desconto: 0, taxaIva: 0.16 },
       pagamentos: [],
       localizacaoId,
-      serieNotaCreditoId: serieNCId,
     });
     expect(t.ok).toBe(false);
     expect(t.error?.code).toBe('SEM_PERMISSAO');

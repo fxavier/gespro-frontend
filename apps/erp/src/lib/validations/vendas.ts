@@ -442,8 +442,6 @@ export const CreateTrocaSchema = z.object({
     .default([]),
   observacoes: z.string().max(2000).optional(),
   localizacaoId: z.string().cuid().optional(),
-  /** Série de NC para estornar os bens devolvidos (obrigatório se devolucao tem fatura) */
-  serieNotaCreditoId: z.string().cuid().optional(),
 });
 
 /**
@@ -454,7 +452,6 @@ export const ProcessarDevolucaoSchema = z.object({
   id: z.string().cuid('ID inválido'),
   localizacaoId: z.string().cuid().optional(),
   sessaoCaixaId: z.string().cuid().optional(),
-  serieNotaCreditoId: z.string().cuid().optional(),
 });
 export const ProcessarDevolucaoFormSchema = ProcessarDevolucaoSchema.extend({
   localizacaoId: idEntidade('Seleccione a localização onde o stock devolvido entra'),
