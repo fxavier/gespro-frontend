@@ -78,7 +78,7 @@ export function DesactivarConta({
               <>
                 A conta <strong>{nome}</strong> deixa de aparecer para novos lançamentos. Como
                 nunca foi movimentada, nada do que está registado muda. Pode reactivá-la depois
-                pela edição.
+                no detalhe da conta.
               </>
             )}
           </AlertDialogDescription>

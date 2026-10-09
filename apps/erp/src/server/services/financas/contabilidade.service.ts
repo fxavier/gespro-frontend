@@ -668,6 +668,16 @@ export async function desativarConta(id: string, ctx: Ctx): Promise<ContaPGC> {
   return prisma.contaPGC.update({ where: { id }, data: { ativo: false } }) as unknown as ContaPGC;
 }
 
+/**
+ * Reactivar uma conta desactivada (#142). Simétrica de `desativarConta`: só `ativo`,
+ * escrita singular pelo cliente estendido (fica no AuditLog — `ContaPGC` em AUDIT_MODELS).
+ */
+export async function reativarConta(id: string, ctx: Ctx): Promise<ContaPGC> {
+  const conta = await prisma.contaPGC.findFirst({ where: { id, tenantId: ctx.tenantId } });
+  if (!conta) throw new NotFoundError('Conta não encontrada');
+  return prisma.contaPGC.update({ where: { id }, data: { ativo: true } }) as unknown as ContaPGC;
+}
+
 export async function obterConta(id: string, ctx: Ctx): Promise<ContaPGC | null> {
   return prisma.contaPGC.findFirst({ where: { id, tenantId: ctx.tenantId } }) as unknown as ContaPGC | null;
 }
@@ -3109,6 +3119,7 @@ export const contabilidadeService = {
   criarConta,
   atualizarConta,
   desativarConta,
+  reativarConta,
   obterConta,
   listarContas,
   arvoreContas,

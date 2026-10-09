@@ -549,6 +549,7 @@ export interface IContabilidadeService {
   criarConta(input: CriarContaPGCInput, ctx: Ctx): Promise<ContaPGC>;
   atualizarConta(input: AtualizarContaPGCInput, ctx: Ctx): Promise<ContaPGC>;
   desativarConta(id: string, ctx: Ctx): Promise<ContaPGC>;
+  reativarConta(id: string, ctx: Ctx): Promise<ContaPGC>;
   obterConta(id: string, ctx: Ctx): Promise<ContaPGC | null>;
   listarContas(
     filtro: FiltroContaPGCInput,
