@@ -25,20 +25,12 @@ import { KpiSkeleton } from './ativos/_components/table-skeletons';
 async function KpiSection({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
 
-  const [
-    ativosResult,
-    pendentes,
-  ] = await runWithTenantContext({ tenantId, userId }, () =>
+  const [totalAtivos, emUso, emManutencao, pendentes] = await runWithTenantContext({ tenantId, userId }, () =>
     Promise.all([
-      ativosService.listarAtivos({ take: 1, orderBy: 'createdAt', orderDir: 'desc' }, ctx),
+      ativosService.contarAtivos({}, ctx),
+      ativosService.contarAtivos({ estado: 'EM_USO' }, ctx),
+      ativosService.contarAtivos({ estado: 'EM_MANUTENCAO' }, ctx),
       manutencaoService.obterManutencoesPendentes(ctx),
-    ])
-  );
-
-  const ativosPorEstado = await runWithTenantContext({ tenantId, userId }, () =>
-    Promise.all([
-      ativosService.listarAtivos({ estado: 'EM_USO', take: 1, orderBy: 'createdAt', orderDir: 'desc' }, ctx),
-      ativosService.listarAtivos({ estado: 'EM_MANUTENCAO', take: 1, orderBy: 'createdAt', orderDir: 'desc' }, ctx),
     ])
   );
 
@@ -46,19 +38,19 @@ async function KpiSection({ tenantId, userId }: { tenantId: string; userId: stri
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <KpiCard
         title="Total de Ativos"
-        value={ativosResult.nextCursor !== null ? '25+' : String(ativosResult.items.length)}
+        value={String(totalAtivos)}
         icon={<Package className="h-5 w-5" />}
         description="ativos registados"
       />
       <KpiCard
         title="Em Uso"
-        value={ativosPorEstado[0].nextCursor !== null ? '25+' : String(ativosPorEstado[0].items.length)}
+        value={String(emUso)}
         icon={<Tag className="h-5 w-5" />}
         description="ativos activos"
       />
       <KpiCard
         title="Em Manutenção"
-        value={String(ativosPorEstado[1].items.length)}
+        value={String(emManutencao)}
         icon={<Wrench className="h-5 w-5" />}
         description="requerem atenção"
       />

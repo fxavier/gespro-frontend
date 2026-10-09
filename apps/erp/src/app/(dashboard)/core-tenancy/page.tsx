@@ -45,12 +45,12 @@ function KpiSkeleton() {
 async function KpisPlataforma({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
   const [utilizadores, roles] = await Promise.all([
-    userAdminService.listarUtilizadores({ take: 1 }, ctx),
+    userAdminService.contarUtilizadores({}, ctx),
     userAdminService.listarRoles(ctx),
   ]);
 
-  // Contar utilizadores activos (a listagem retorna apenas non-deleted)
-  const totalUtilizadores = utilizadores.items.length;
+  // Utilizadores não apagados (activos e inactivos), por count no serviço (#104)
+  const totalUtilizadores = utilizadores;
   const totalRoles = roles.length;
   const rolesSystem = roles.filter((r) => r.isSystem).length;
 

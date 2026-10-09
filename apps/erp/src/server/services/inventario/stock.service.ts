@@ -317,6 +317,11 @@ function mapMov(m: {
   };
 }
 
+/** KPI (#104): todos os movimentos de stock do tenant — o universo de `listarMovimentos` sem filtros. */
+export async function contarMovimentos(_filter: Record<string, never>, ctx: Ctx): Promise<number> {
+  return prisma.movimentoStock.count({ where: { tenantId: ctx.tenantId } });
+}
+
 export async function listarMovimentos(
   filter: MovimentoStockFilter,
   ctx: Ctx,
@@ -765,6 +770,7 @@ export const stockService: IStockService = {
   verificarDisponibilidade,
   obterAlertasStockMinimo,
   listarMovimentos,
+  contarMovimentos,
   registarTransferencia,
   entradaStock,
   baixarStock,

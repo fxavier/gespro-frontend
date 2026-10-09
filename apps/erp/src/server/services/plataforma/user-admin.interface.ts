@@ -91,6 +91,9 @@ export interface IUserAdminService {
    */
   listarUtilizadores(filter: FilterUserInput, ctx: Ctx): Promise<Page<UserRow>>;
 
+  /** Conta os utilizadores não apagados (activos e inactivos) — KPI do painel da plataforma (#104). */
+  contarUtilizadores(filter: Record<string, never>, ctx: Ctx): Promise<number>;
+
   /**
    * Obtém um utilizador por id, verificando que pertence ao tenant.
    * Cross-tenant → `NotFoundError` (nunca 403).

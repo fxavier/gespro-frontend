@@ -511,6 +511,16 @@ export async function listar(
   return { items: page.items.map(mapContagem), nextCursor: page.nextCursor };
 }
 
+/** KPI (#104): número de contagens do tenant, opcionalmente por estado. */
+export async function contar(filter: { status?: FilterContagem['status'] }, ctx: Ctx): Promise<number> {
+  return prisma.contagemStock.count({
+    where: {
+      tenantId: ctx.tenantId,
+      ...(filter.status ? { status: filter.status as never } : {}),
+    },
+  });
+}
+
 // ─── obter ────────────────────────────────────────────────────────────────────
 
 export async function obter(id: string, ctx: Ctx): Promise<ContagemDetalhe> {
@@ -551,5 +561,6 @@ export const contagemStockService: IContagemStockService = {
   concluir,
   cancelar,
   listar,
+  contar,
   obter,
 };
