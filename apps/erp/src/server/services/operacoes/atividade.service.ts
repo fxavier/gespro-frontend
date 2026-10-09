@@ -265,6 +265,9 @@ async function listarAtividades(
     ...(filtros.prioridade ? { prioridade: filtros.prioridade } : {}),
     ...(filtros.motoristaResponsavelId ? { motoristaResponsavelId: filtros.motoristaResponsavelId } : {}),
     ...(filtros.viaturaId ? { viaturaId: filtros.viaturaId } : {}),
+    ...(filtros.q
+      ? { OR: [{ titulo: { contains: filtros.q, mode: 'insensitive' as const } }, { codigo: { contains: filtros.q, mode: 'insensitive' as const } }] }
+      : {}),
     ...(filtros.dataInicio || filtros.dataFim
       ? {
           dataInicioPrevista: {

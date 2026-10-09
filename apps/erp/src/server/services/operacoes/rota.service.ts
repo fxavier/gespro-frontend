@@ -225,6 +225,9 @@ async function listarRotas(
     ...(filtros.estado ? { estado: filtros.estado } : {}),
     ...(filtros.viaturaId ? { viaturaId: filtros.viaturaId } : {}),
     ...(filtros.motoristaId ? { motoristaId: filtros.motoristaId } : {}),
+    ...(filtros.q
+      ? { OR: [{ nome: { contains: filtros.q, mode: 'insensitive' as const } }, { codigo: { contains: filtros.q, mode: 'insensitive' as const } }] }
+      : {}),
     ...(filtros.dataInicio || filtros.dataFim
       ? { dataInicio: { ...(filtros.dataInicio ? { gte: filtros.dataInicio } : {}), ...(filtros.dataFim ? { lte: filtros.dataFim } : {}) } }
       : {}),

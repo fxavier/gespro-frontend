@@ -23,6 +23,8 @@ import { Card, CardContent } from '@/components/ui/card';
 // ─── Schema URL ───────────────────────────────────────────────────────────────
 
 const FiltroTicketUrlSchema = FiltrarTicketsSchema.extend({
+  // Contrato único da FilterBar (#106): o texto vem em `q` e vai ao serviço como `pesquisa`.
+  q: z.string().max(200).optional(),
   take: z.coerce.number().int().positive().max(100).default(25),
   cursor: z.string().optional(),
   // slaEmAtraso via URL: 'true'/'false'
@@ -142,6 +144,7 @@ async function TicketsTableSection({
         tipo: filtros.tipo,
         prioridade: filtros.prioridade,
         slaEmAtraso: filtros.slaEmAtraso,
+        pesquisa: filtros.q,
         cursor: filtros.cursor,
         take: filtros.take,
         orderBy: filtros.orderBy,
@@ -248,7 +251,6 @@ export default async function ListaTicketsPage({ searchParams }: PageProps) {
 
       <FilterBar
         searchPlaceholder="Pesquisar por número ou título…"
-        searchKey="pesquisa"
         filters={FILTER_CONFIGS}
       />
 

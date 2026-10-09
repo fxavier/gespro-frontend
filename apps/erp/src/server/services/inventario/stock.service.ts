@@ -334,6 +334,20 @@ export async function listarMovimentos(
           ...(filter.produtoId ? { produtoId: filter.produtoId } : {}),
           ...(filter.localizacaoId ? { OR: [{ localizacaoOrigemId: filter.localizacaoId }, { localizacaoDestinoId: filter.localizacaoId }] } : {}),
           ...(filter.tipo ? { tipo: filter.tipo as never } : {}),
+          // Em AND: o filtro de localização já ocupa o `OR` do topo.
+          ...(filter.q
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { produto: { nome: { contains: filter.q, mode: 'insensitive' as const } } },
+                      { produto: { sku: { contains: filter.q, mode: 'insensitive' as const } } },
+                      { motivo: { contains: filter.q, mode: 'insensitive' as const } },
+                    ],
+                  },
+                ],
+              }
+            : {}),
           ...(filter.dataInicio || filter.dataFim ? {
             createdAt: {
               ...(filter.dataInicio ? { gte: filter.dataInicio } : {}),

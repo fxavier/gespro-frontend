@@ -986,6 +986,9 @@ export const OrdemProducaoService = {
             ...(filter.clienteId ? { clienteId: filter.clienteId } : {}),
             ...(filter.dataInicio ? { dataPrevisaoInicio: { gte: filter.dataInicio } } : {}),
             ...(filter.dataFim ? { dataPrevisaoFim: { lte: filter.dataFim } } : {}),
+            ...(filter.search
+              ? { OR: [{ numero: { contains: filter.search, mode: 'insensitive' } }, { nomeProduto: { contains: filter.search, mode: 'insensitive' } }] }
+              : {}),
           },
           orderBy: { createdAt: 'desc' },
           select: { id: true, numero: true, nomeProduto: true, status: true, prioridade: true, progresso: true, dataPrevisaoFim: true },

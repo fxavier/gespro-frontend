@@ -31,6 +31,8 @@ export interface NotificacaoListItem {
 
 export interface FiltroNotificacoes {
   apenasNaoLidas?: boolean;
+  /** Pesquisa de texto (#106): título ou mensagem, parcial e sem distinção de maiúsculas. */
+  q?: string;
   tipo?: TipoNotificacao;
   cursor?: string;
   take?: number;

@@ -14,11 +14,13 @@ import { ProjetoService } from '@/server/services/pessoas-projetos/projetos.serv
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
+import type { PrioridadeProjeto, StatusProjeto } from '@prisma/client';
+import { opcoesDeEnum } from '@/lib/opcoes-enum';
 import { ProjetosTable } from './_components/projetos-table';
 import type { ProjetoRow } from './_components/projetos-table';
 
 const FiltroUrlSchema = z.object({
-  search: z.string().optional(),
+  q: z.string().optional(),
   status: z.string().optional(),
   prioridade: z.string().optional(),
   tipo: z.string().optional(),
@@ -43,7 +45,7 @@ async function ProjetosTableSection({
   const result = await runWithTenantContext(ctx, () =>
     ProjetoService.listar(
       {
-        search: filtros.search,
+        search: filtros.q,
         status: filtros.status as never,
         prioridade: filtros.prioridade as never,
         tipo: filtros.tipo as never,
@@ -69,29 +71,25 @@ async function ProjetosTableSection({
   );
 }
 
+const ROTULOS_STATUS: Record<StatusProjeto, string> = {
+  PLANEAMENTO: 'Planeamento',
+  EM_ANDAMENTO: 'Em Andamento',
+  PAUSADO: 'Pausado',
+  CONCLUIDO: 'Concluído',
+  CANCELADO: 'Cancelado',
+  ARQUIVADO: 'Arquivado',
+};
+
+const ROTULOS_PRIORIDADE: Record<PrioridadeProjeto, string> = {
+  BAIXA: 'Baixa',
+  MEDIA: 'Média',
+  ALTA: 'Alta',
+  CRITICA: 'Crítica',
+};
+
 const FILTER_CONFIG: FilterConfig[] = [
-  {
-    key: 'status',
-    label: 'Estado',
-    options: [
-      { label: 'Planeamento', value: 'PLANEAMENTO' },
-      { label: 'Em Execução', value: 'EM_EXECUCAO' },
-      { label: 'Em Pausa', value: 'EM_PAUSA' },
-      { label: 'Concluído', value: 'CONCLUIDO' },
-      { label: 'Cancelado', value: 'CANCELADO' },
-      { label: 'Arquivado', value: 'ARQUIVADO' },
-    ],
-  },
-  {
-    key: 'prioridade',
-    label: 'Prioridade',
-    options: [
-      { label: 'Baixa', value: 'BAIXA' },
-      { label: 'Média', value: 'MEDIA' },
-      { label: 'Alta', value: 'ALTA' },
-      { label: 'Crítica', value: 'CRITICA' },
-    ],
-  },
+  { key: 'status', label: 'Estado', options: opcoesDeEnum(ROTULOS_STATUS) },
+  { key: 'prioridade', label: 'Prioridade', options: opcoesDeEnum(ROTULOS_PRIORIDADE) },
 ];
 
 export default async function ListaProjetosPage({
