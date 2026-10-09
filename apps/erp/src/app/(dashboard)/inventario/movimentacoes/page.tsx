@@ -6,10 +6,10 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { stockService } from '@/server/services/inventario/stock.service';
+import { MovimentoStockFilterSchema, type MovimentoStockFilter } from '@/lib/validations/stock';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
@@ -19,6 +19,7 @@ import { opcoesDeEnum } from '@/lib/opcoes-enum';
 import { TableSkeleton } from '../ativos/_components/table-skeletons';
 import { MovimentosStockTable } from './_components/movimentos-stock-table';
 
+const FILTROS_DEFAULT: MovimentoStockFilter = { take: 25 };
 const MovimentacaoFilterUrlSchema = z.object({
   q: MovimentoStockFilterSchema.shape.q,
   tipo: MovimentoStockFilterSchema.shape.tipo,
@@ -34,13 +35,14 @@ async function MovimentacoesTableSection({
   tenantId,
   userId,
 }: {
-  filtros: MovimentacaoFilterUrl;
+  filtros: MovimentoStockFilter;
   tenantId: string;
   userId: string;
 }) {
   const ctx = { tenantId, userId };
   const result = await runWithTenantContext({ tenantId, userId }, () =>
     stockService.listarMovimentos(
+      { tipo: filtros.tipo, search: filtros.search, cursor: filtros.cursor, take: filtros.take },
       { q: filtros.q, tipo: filtros.tipo, cursor: filtros.cursor, take: filtros.take },
       ctx
     )
@@ -62,6 +64,12 @@ const FILTER_CONFIGS: FilterConfig[] = [
     key: 'tipo',
     label: 'Tipo',
     placeholder: 'Todos os tipos',
+    options: [
+      { label: 'Entrada', value: 'ENTRADA' },
+      { label: 'Saída', value: 'SAIDA' },
+      { label: 'Transferência', value: 'TRANSFERENCIA' },
+      { label: 'Ajuste', value: 'AJUSTE' },
+    ],
     options: opcoesDeEnum(ROTULOS_TIPO),
   },
 ];
@@ -81,7 +89,7 @@ export default async function MovimentacoesPage({ searchParams }: PageProps) {
     Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
   );
 
-  const parseResult = MovimentacaoFilterUrlSchema.safeParse(flatParams);
+  const parseResult = MovimentoStockFilterSchema.safeParse(flatParams);
   const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
 
   return (

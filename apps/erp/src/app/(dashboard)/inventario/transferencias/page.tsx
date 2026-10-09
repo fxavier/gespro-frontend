@@ -17,12 +17,11 @@ import { TransferenciasTable } from './_components/transferencias-table';
 async function TransferenciasTableSection({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
   const result = await runWithTenantContext({ tenantId, userId }, () =>
-    stockService.listarMovimentos({ take: 25 }, ctx)
+    // Grupo `TRANSFERENCIA` = as duas pernas, filtrado na query antes da paginação (#120).
+    stockService.listarMovimentos({ tipo: 'TRANSFERENCIA', take: 25 }, ctx)
   );
 
-  const transferencias = result.items.filter((m) => m.tipo === 'TRANSFERENCIA');
-
-  return <TransferenciasTable data={transferencias} />;
+  return <TransferenciasTable data={result.items} />;
 }
 
 export default async function TransferenciasPage() {
