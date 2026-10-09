@@ -1,8 +1,8 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { Controller, useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -18,8 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
-import { criarOrcamentoProjetoAction } from '@/server/actions/projetos.actions';
+import { ComboboxRemoto, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
+import { criarOrcamentoProjetoAction, procurarProjetosAction } from '@/server/actions/projetos.actions';
 
 const TIPOS = [
   { value: 'MAO_OBRA', label: 'Mão de Obra' },
@@ -44,8 +45,12 @@ type FormValues = z.infer<typeof FormSchema>;
 
 const fmtMZN = new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' });
 
-export function NovoOrcamentoProjetoForm() {
+export function NovoOrcamentoProjetoForm({ opcoesProjeto }: { opcoesProjeto: ComboboxOption[] }) {
   const router = useRouter();
+  const procurarProjeto = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
+    const r = await procurarProjetosAction({ q });
+    return r.ok ? r.data.map((p) => ({ value: p.id, label: `${p.codigo} — ${p.nome}` })) : null;
+  }, []);
   const [isPending, startTransition] = useTransition();
   const {
     register,
@@ -107,8 +112,23 @@ export function NovoOrcamentoProjetoForm() {
       >
         <FormSection title="Projecto" description="Projecto a orçamentar">
           <div className="space-y-2">
-            <Label htmlFor="projetoId">ID do Projecto *</Label>
-            <Input id="projetoId" {...register('projetoId')} placeholder="ID do projecto (CUID)" />
+            <Label htmlFor="projetoId">Projecto *</Label>
+            <Controller
+              control={control}
+              name="projetoId"
+              render={({ field }) => (
+                <ComboboxRemoto
+                  id="projetoId"
+                  opcoesIniciais={opcoesProjeto}
+                  procurar={procurarProjeto}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Seleccione o projecto"
+                  searchPlaceholder="Pesquisar por código ou nome…"
+                  emptyText="Nenhum projecto encontrado."
+                />
+              )}
+            />
             {errors.projetoId && <p className="text-sm text-destructive">{errors.projetoId.message}</p>}
           </div>
         </FormSection>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,8 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { ComboboxRemoto, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
 import { criarContratoServicoAction } from '@/server/actions/servicos.actions';
+import { procurarClientes } from '@/server/actions/clientes.actions';
 import {
   CreateContratoServicoSchema,
   type CreateContratoServicoInput,
@@ -30,9 +32,18 @@ type FormState =
   | { ok: false; error: { code: string; message: string; details?: unknown } }
   | null;
 
+interface ClienteOpcao {
+  id: string;
+  codigo: string;
+  nome: string;
+}
+
 interface Props {
   servicos: { id: string; nome: string }[];
+  clientesIniciais: ClienteOpcao[];
 }
+
+const rotuloCliente = (c: ClienteOpcao) => `${c.codigo} — ${c.nome}`;
 
 const PERIODICIDADES = [
   { value: 'MENSAL', label: 'Mensal' },
@@ -50,8 +61,16 @@ function daqui1AnoISO() {
   return d.toISOString().slice(0, 10);
 }
 
-export function NovoContratoForm({ servicos }: Props) {
+export function NovoContratoForm({ servicos, clientesIniciais }: Props) {
   const router = useRouter();
+  // Clientes já vistos (primeira página + pesquisa): ao escolher um, o nome sai daqui.
+  const clientesVistos = useRef(new Map(clientesIniciais.map((c) => [c.id, c])));
+  const buscarClientes = useCallback(async (q: string): Promise<ComboboxOption[] | null> => {
+    const r = await procurarClientes({ q });
+    if (!r.ok) return null;
+    for (const c of r.data) clientesVistos.current.set(c.id, c);
+    return r.data.map((c) => ({ value: c.id, label: rotuloCliente(c) }));
+  }, []);
   const [state, dispatch, isPending] = useActionState<FormState, CreateContratoServicoInput>(
     (_prev, data) => criarContratoServicoAction(data),
     null,
@@ -131,8 +150,21 @@ export function NovoContratoForm({ servicos }: Props) {
               {err('codigo')}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="clienteId">ID do cliente</Label>
-              <Input id="clienteId" {...register('clienteId')} placeholder="cmr…" />
+              <Label htmlFor="clienteId">Cliente</Label>
+              <ComboboxRemoto
+                id="clienteId"
+                opcoesIniciais={clientesIniciais.map((c) => ({ value: c.id, label: rotuloCliente(c) }))}
+                procurar={buscarClientes}
+                value={watch('clienteId')}
+                onChange={(id) => {
+                  setValue('clienteId', id, { shouldDirty: true, shouldValidate: true });
+                  const cliente = clientesVistos.current.get(id);
+                  if (cliente) setValue('clienteNome', cliente.nome, { shouldDirty: true, shouldValidate: true });
+                }}
+                placeholder="Seleccione o cliente"
+                searchPlaceholder="Pesquisar por código, nome ou NUIT…"
+                emptyText="Nenhum cliente encontrado."
+              />
               {err('clienteId')}
             </div>
             <div className="space-y-2 sm:col-span-2">

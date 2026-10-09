@@ -210,6 +210,8 @@ export const UpdateCotacaoSchema = z.object({
 
 export const FilterCotacaoSchema = z.object({
   status: StatusCotacaoEnum.optional(),
+  /** Pesquisa pelo número da cotação (fragmento, sem distinguir maiúsculas). */
+  q: z.string().max(200).optional(),
   requisicaoCompraId: z.string().optional(),
   dataInicio: inicioDoDia().optional(),
   dataFim: fimDoDia().optional(),

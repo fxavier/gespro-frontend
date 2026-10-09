@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { BeneficioService } from '@/server/services/pessoas-projetos/beneficios.service';
+import { ColaboradorService } from '@/server/services/pessoas-projetos/rh.service';
 import { PageHeader } from '@/components/patterns';
 import { AtribuirBeneficioForm } from './_components/atribuir-beneficio-form';
 
@@ -34,9 +35,18 @@ export default async function AtribuirBeneficioPage({ searchParams }: PageProps)
       );
       beneficioNome = (b as { nome: string }).nome;
     } catch {
-      // ID inválido — ignora e mostra campo livre
+      // id inválido — ignora e mostra a combobox
     }
   }
+
+  // #265: benefício e colaborador escolhem-se em combobox. O catálogo de benefícios é curto
+  // (filtro local); os colaboradores vão ao servidor a partir desta primeira página.
+  const [beneficios, colaboradores] = await runWithTenantContext(ctx, () =>
+    Promise.all([
+      BeneficioService.listar({ ativo: true, take: 100 }, ctx),
+      ColaboradorService.listar({ take: 50 }, ctx),
+    ]),
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -58,6 +68,8 @@ export default async function AtribuirBeneficioPage({ searchParams }: PageProps)
       <AtribuirBeneficioForm
         beneficioIdPreenchido={beneficioIdParam}
         beneficioNome={beneficioNome}
+        opcoesBeneficio={beneficios.items.map((b) => ({ value: b.id, label: b.nome }))}
+        opcoesColaborador={colaboradores.items.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
       />
     </div>
   );

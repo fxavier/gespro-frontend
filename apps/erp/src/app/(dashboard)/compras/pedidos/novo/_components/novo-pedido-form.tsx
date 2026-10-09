@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { Controller, useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -18,7 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { Combobox, ComboboxRemoto, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
+import { procurarCotacoes, procurarFornecedores, procurarRequisicoes } from '../../../_components/opcoes-compras';
 import { criarPedidoCompraAction } from '@/server/actions/compras.actions';
 import { taxaIvaSchema, TAXA_IVA_NORMAL, ROTULOS_TAXA_IVA, TAXAS_IVA, lerTaxaIva, ehTaxaIva, type TaxaIva } from '@/lib/iva';
 import { calcularLinha, calcularTotais } from '@/lib/documentos/linhas';
@@ -51,7 +53,15 @@ type FormValues = z.infer<typeof FormSchema>;
 
 const today = new Date().toISOString().split('T')[0];
 
-export function NovoPedidoForm() {
+interface Props {
+  fornecedoresIniciais: ComboboxOption[];
+  requisicoesIniciais: ComboboxOption[];
+  cotacoesIniciais: ComboboxOption[];
+  /** Centros de custo activos (lista curta, filtro local). */
+  centrosCusto: ComboboxOption[];
+}
+
+export function NovoPedidoForm({ fornecedoresIniciais, requisicoesIniciais, cotacoesIniciais, centrosCusto }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -148,9 +158,23 @@ export function NovoPedidoForm() {
         <FormSection title="Fornecedor e Condições" description="Dados do fornecedor e condições comerciais">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="fornecedor-id">ID do Fornecedor *</Label>
-              <Input id="fornecedor-id" {...register('fornecedorId')} placeholder="ID do fornecedor (CUID)" />
-              <p className="text-xs text-muted-foreground">Pesquisa de fornecedores disponível após integração comercial.</p>
+              <Label htmlFor="fornecedor-id">Fornecedor *</Label>
+              <Controller
+                control={control}
+                name="fornecedorId"
+                render={({ field }) => (
+                  <ComboboxRemoto
+                    id="fornecedor-id"
+                    opcoesIniciais={fornecedoresIniciais}
+                    procurar={procurarFornecedores}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Seleccione o fornecedor"
+                    searchPlaceholder="Pesquisar por nome, código ou NUIT…"
+                    emptyText="Nenhum fornecedor encontrado."
+                  />
+                )}
+              />
               {errors.fornecedorId && (
                 <p className="text-sm text-destructive">{errors.fornecedorId.message}</p>
               )}
@@ -192,13 +216,23 @@ export function NovoPedidoForm() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="centro-custo-id">ID do Centro de Custo</Label>
-              <Input
-                id="centro-custo-id"
-                {...register('centroCustoId')}
-                placeholder="ID do centro de custo (CUID) — opcional"
+              <Label htmlFor="centro-custo-id">Centro de Custo</Label>
+              <Controller
+                control={control}
+                name="centroCustoId"
+                render={({ field }) => (
+                  <Combobox
+                    id="centro-custo-id"
+                    options={centrosCusto}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    pesquisaAPartirDe={0}
+                    placeholder="Seleccione o centro de custo (opcional)"
+                    searchPlaceholder="Pesquisar centro de custo…"
+                    emptyText="Nenhum centro de custo activo."
+                  />
+                )}
               />
-              <p className="text-xs text-muted-foreground">Pesquisa disponível após integração comercial.</p>
             </div>
           </div>
 
@@ -212,22 +246,42 @@ export function NovoPedidoForm() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="requisicao-id">ID da Requisição de Compra</Label>
-              <Input
-                id="requisicao-id"
-                {...register('requisicaoCompraId')}
-                placeholder="ID da requisição (CUID) — opcional"
+              <Label htmlFor="requisicao-id">Requisição de Compra</Label>
+              <Controller
+                control={control}
+                name="requisicaoCompraId"
+                render={({ field }) => (
+                  <ComboboxRemoto
+                    id="requisicao-id"
+                    opcoesIniciais={requisicoesIniciais}
+                    procurar={procurarRequisicoes}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Seleccione a requisição (opcional)"
+                    searchPlaceholder="Pesquisar pelo número ou departamento…"
+                    emptyText="Nenhuma requisição encontrada."
+                  />
+                )}
               />
-              <p className="text-xs text-muted-foreground">Pesquisa disponível após integração comercial.</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cotacao-id">ID da Cotação</Label>
-              <Input
-                id="cotacao-id"
-                {...register('cotacaoId')}
-                placeholder="ID da cotação (CUID) — opcional"
+              <Label htmlFor="cotacao-id">Cotação</Label>
+              <Controller
+                control={control}
+                name="cotacaoId"
+                render={({ field }) => (
+                  <ComboboxRemoto
+                    id="cotacao-id"
+                    opcoesIniciais={cotacoesIniciais}
+                    procurar={procurarCotacoes}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Seleccione a cotação (opcional)"
+                    searchPlaceholder="Pesquisar pelo número…"
+                    emptyText="Nenhuma cotação encontrada."
+                  />
+                )}
               />
-              <p className="text-xs text-muted-foreground">Pesquisa disponível após integração comercial.</p>
             </div>
           </div>
         </FormSection>

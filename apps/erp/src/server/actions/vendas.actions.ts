@@ -32,6 +32,7 @@ import {
   UpdateVendedorSchema,
 } from '@/lib/validations/vendas';
 import { z } from 'zod';
+import { idEntidade } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Vendas
@@ -237,6 +238,27 @@ export const procurarProdutosPOS = createSafeAction({
       precoVenda: p.precoVenda,
       taxaIva: p.taxaIva,
     }));
+  },
+});
+
+/**
+ * Pesquisa de vendas pelo número para o `ComboboxRemoto` da nova devolução (#265). Com
+ * `clienteId`, só as vendas desse cliente. Leitura: corre em modo de Leitura; só é chamada com
+ * termo — nunca `procurar('')`.
+ */
+export const procurarVendas = createSafeAction({
+  schema: z.object({
+    q: z.string().trim().min(1).max(200),
+    clienteId: idEntidade().optional(),
+  }),
+  permission: 'vendas:ver',
+  permiteEmLeitura: true,
+  handler: async ({ q, clienteId }, ctx) => {
+    const pagina = await vendaService.listar(
+      { q, clienteId, take: 50, orderBy: 'dataVenda', order: 'desc' },
+      ctx,
+    );
+    return pagina.items.map((v) => ({ id: v.id, numero: v.numero, clienteNome: v.clienteNome }));
   },
 });
 

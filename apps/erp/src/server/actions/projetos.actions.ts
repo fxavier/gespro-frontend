@@ -99,6 +99,20 @@ export const listarProjetosAction = createSafeAction({
   handler: (filter, ctx) => ProjetoService.listar(filter, ctx),
 });
 
+/**
+ * Pesquisa de projectos para o `ComboboxRemoto` do orçamento de projecto (#265). Leitura: corre
+ * em modo de Leitura. Só é chamada com termo — o campo vazio mostra as `opcoesIniciais`.
+ */
+export const procurarProjetosAction = createSafeAction({
+  schema: z.object({ q: z.string().trim().min(1).max(200) }),
+  permission: 'projetos:read',
+  permiteEmLeitura: true,
+  handler: async ({ q }, ctx) => {
+    const pagina = await ProjetoService.listar({ search: q, take: 50 }, ctx);
+    return pagina.items.map((p) => ({ id: p.id, codigo: p.codigo, nome: p.nome }));
+  },
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tarefa (kanban)
 // ─────────────────────────────────────────────────────────────────────────────

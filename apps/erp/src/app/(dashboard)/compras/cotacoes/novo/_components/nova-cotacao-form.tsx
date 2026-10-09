@@ -1,8 +1,8 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useCallback, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { Controller, useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -11,7 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { ComboboxRemoto, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import type { ComboboxOption } from '@/components/patterns';
+import { procurarFornecedores, procurarRequisicoes } from '../../../_components/opcoes-compras';
 import { criarCotacaoAction } from '@/server/actions/compras.actions';
 
 const ItemFormSchema = z.object({
@@ -24,28 +26,43 @@ const ItemFormSchema = z.object({
 const FormSchema = z.object({
   dataValidade: z.string().min(1, 'Data de validade obrigatória'),
   requisicaoCompraId: z.string().optional(),
-  fornecedoresIds: z.string().optional(),
+  fornecedoresIds: z.array(z.string()).optional(),
   observacoes: z.string().optional(),
   itens: z.array(ItemFormSchema).min(1, 'Mínimo 1 item'),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
 
-export function NovaCotacaoForm() {
+interface Props {
+  requisicoesIniciais: ComboboxOption[];
+  fornecedoresIniciais: ComboboxOption[];
+}
+
+export function NovaCotacaoForm({ requisicoesIniciais, fornecedoresIniciais }: Props) {
   const router = useRouter();
+  // Fornecedores convidados (escolha múltipla): o rótulo fica guardado para a lista abaixo da caixa.
+  const [convidados, setConvidados] = useState<ComboboxOption[]>([]);
+  // Fornecedores já vistos (primeira página + resultados de pesquisa): é daqui que sai o rótulo.
+  const vistos = useRef(new Map(fornecedoresIniciais.map((o) => [o.value, o])));
+  const procurarFornecedor = useCallback(async (q: string) => {
+    const r = await procurarFornecedores(q);
+    for (const o of r ?? []) vistos.current.set(o.value, o);
+    return r;
+  }, []);
   const [isPending, startTransition] = useTransition();
 
   const {
     register,
     control,
     handleSubmit,
+    setValue,
     formState: { errors, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       dataValidade: '',
       requisicaoCompraId: '',
-      fornecedoresIds: '',
+      fornecedoresIds: [],
       observacoes: '',
       itens: [{ descricao: '', quantidade: 1, unidadeMedida: 'un', especificacoes: '' }],
     },
@@ -55,10 +72,7 @@ export function NovaCotacaoForm() {
 
   const onSubmit = handleSubmit((values) => {
     startTransition(async () => {
-      const fornecedoresIds = (values.fornecedoresIds ?? '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const fornecedoresIds = values.fornecedoresIds ?? [];
 
       const result = await criarCotacaoAction({
         dataValidade: values.dataValidade,
@@ -109,13 +123,23 @@ export function NovaCotacaoForm() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="requisicao-id">ID da Requisição de Compra</Label>
-              <Input
-                id="requisicao-id"
-                {...register('requisicaoCompraId')}
-                placeholder="ID da requisição (CUID) — opcional"
+              <Label htmlFor="requisicao-id">Requisição de Compra</Label>
+              <Controller
+                control={control}
+                name="requisicaoCompraId"
+                render={({ field }) => (
+                  <ComboboxRemoto
+                    id="requisicao-id"
+                    opcoesIniciais={requisicoesIniciais}
+                    procurar={procurarRequisicoes}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Seleccione a requisição (opcional)"
+                    searchPlaceholder="Pesquisar pelo número ou departamento…"
+                    emptyText="Nenhuma requisição encontrada."
+                  />
+                )}
               />
-              <p className="text-xs text-muted-foreground">Pesquisa disponível após integração comercial.</p>
               {errors.requisicaoCompraId && (
                 <p className="text-sm text-destructive">{errors.requisicaoCompraId.message}</p>
               )}
@@ -123,13 +147,45 @@ export function NovaCotacaoForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="fornecedores-ids">IDs de Fornecedores a Convidar</Label>
-            <Input
-              id="fornecedores-ids"
-              {...register('fornecedoresIds')}
-              placeholder="IDs separados por vírgula (CUID) — opcional"
+            <Label htmlFor="fornecedores-convidar">Fornecedores a Convidar</Label>
+            <ComboboxRemoto
+              id="fornecedores-convidar"
+              opcoesIniciais={fornecedoresIniciais}
+              procurar={procurarFornecedor}
+              value=""
+              onChange={(id) => {
+                if (!id || convidados.some((c) => c.value === id)) return;
+                const novos = [...convidados, vistos.current.get(id) ?? { value: id, label: id }];
+                setConvidados(novos);
+                setValue('fornecedoresIds', novos.map((c) => c.value), { shouldDirty: true });
+              }}
+              placeholder="Adicionar fornecedor (opcional)"
+              searchPlaceholder="Pesquisar por nome, código ou NUIT…"
+              emptyText="Nenhum fornecedor encontrado."
             />
-            <p className="text-xs text-muted-foreground">Pesquisa de fornecedores disponível após integração comercial.</p>
+            {convidados.length > 0 && (
+              <ul className="flex flex-wrap gap-2" aria-label="Fornecedores convidados">
+                {convidados.map((c) => (
+                  <li key={c.value} className="flex items-center gap-1 rounded-md border px-2 py-1 text-sm">
+                    <span>{c.label}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      aria-label={`Retirar ${c.label}`}
+                      onClick={() => {
+                        const novos = convidados.filter((x) => x.value !== c.value);
+                        setConvidados(novos);
+                        setValue('fornecedoresIds', novos.map((x) => x.value), { shouldDirty: true });
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </FormSection>
 

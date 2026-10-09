@@ -899,8 +899,12 @@ export const comprasService: IComprasService = {
   },
 
   async listarCotacoes(filtros: z.infer<typeof FilterCotacaoSchema>, ctx: Ctx) {
-    const { status, cursor, take = 25, orderBy = 'createdAt', orderDir = 'desc' } = filtros;
-    const where: any = { tenantId: ctx.tenantId, ...(status ? { status } : {}) };
+    const { status, q, cursor, take = 25, orderBy = 'createdAt', orderDir = 'desc' } = filtros;
+    const where: any = {
+      tenantId: ctx.tenantId,
+      ...(status ? { status } : {}),
+      ...(q ? { numero: { contains: q, mode: 'insensitive' } } : {}),
+    };
     return paginate(
       (a) => db.cotacao.findMany({
         ...a, where, orderBy: { [orderBy]: orderDir },

@@ -190,21 +190,20 @@ test.describe('/compras/pedidos/novo — item isento', () => {
   test('item a 0% × 1000: o pedido gravado tem valor total 1000,00 (sem IVA)', async ({ page }) => {
     test.setTimeout(120_000);
 
-    // O formulário pede o id do fornecedor: tira-se da UI, abrindo um fornecedor.
-    await page.goto('/fornecedores/lista');
-    const primeira = page.locator('tbody tr').first();
-    await expect(primeira).toBeVisible({ timeout: 30_000 });
-    await page.waitForLoadState('networkidle');
-    await primeira.click();
-    await page.waitForURL(/\/fornecedores\/c[a-z0-9]{20,}$/, { timeout: 30_000 });
-    const fornecedorId = new URL(page.url()).pathname.split('/').pop()!;
-    expect(fornecedorId, `URL do fornecedor: ${page.url()}`).toMatch(/^c[a-z0-9]{20,}$/);
-
     await page.goto('/compras/pedidos/novo');
     await expect(page.getByRole('heading', { name: 'Novo Pedido de Compra' })).toBeVisible({ timeout: 30_000 });
     await page.waitForLoadState('networkidle');
 
-    await page.getByLabel('ID do Fornecedor').fill(fornecedorId);
+    // #265: o fornecedor escolhe-se na combobox (já não se cola o id). Escolhe-se o primeiro
+    // fornecedor da lista inicial — o mesmo que antes se tirava da listagem de fornecedores.
+    const caixaFornecedor = page.getByRole('combobox', { name: /Fornecedor/i }).first();
+    await caixaFornecedor.click();
+    const popFornecedor = page.locator('[data-radix-popper-content-wrapper]').last();
+    const primeiroFornecedor = popFornecedor.getByRole('option').first();
+    await expect(primeiroFornecedor, 'a combobox de fornecedor abriu sem opções').toBeVisible({ timeout: 15_000 });
+    const nomeFornecedor = (await primeiroFornecedor.innerText()).split('\n')[0].trim();
+    await primeiroFornecedor.click();
+    await expect(caixaFornecedor).toContainText(nomeFornecedor);
     await page.getByLabel('Condições de Pagamento').fill('30 dias');
     await page.getByLabel('Data de Entrega Prevista').fill(diaMaputo(30));
     await page.getByLabel('Endereço de Entrega').fill('Av. 25 de Setembro, Maputo');
