@@ -321,6 +321,18 @@ export interface IComprasService {
     input: CreateConfiguracaoWorkflowInput,
     ctx: Ctx,
   ): Promise<{ id: string; nome: string }>;
+  /**
+   * Substitui nome, tipo, estado e níveis (com aprovadores) de um circuito do tenant (#445).
+   * Activá-lo com outro activo do mesmo tipo → `WORKFLOW_ACTIVO_DUPLICADO`; nome de outro
+   * circuito → `WORKFLOW_DUPLICADO`; de outro tenant → NotFoundError.
+   */
+  actualizarConfiguracaoWorkflow(
+    id: string,
+    input: CreateConfiguracaoWorkflowInput,
+    ctx: Ctx,
+  ): Promise<{ id: string; nome: string }>;
+  /** Passa o circuito a inactivo (#445): o «Submeter» deixa de o usar. */
+  desactivarConfiguracaoWorkflow(id: string, ctx: Ctx): Promise<void>;
   /** Circuitos do tenant (activos e inactivos), com níveis e aprovadores — ecrã de configuração. */
   listarConfiguracoesWorkflow(ctx: Ctx): Promise<ConfiguracaoWorkflowDto[]>;
   /** Utilizadores activos do tenant que podem ser aprovadores (até 50; pesquisa por nome/email). */
