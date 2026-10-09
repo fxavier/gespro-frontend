@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,13 +26,9 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
-import { criarServicoAction } from '@/server/actions/servicos.actions';
+import { criarServicoAction, actualizarServicoAction } from '@/server/actions/servicos.actions';
+import type { ServicoDetalhe } from '@/server/services/compras/servico.service.interface';
 import { CreateServicoSchema, type CreateServicoInput } from '@/lib/validations/servicos';
-
-type FormState =
-  | { ok: true; data: unknown }
-  | { ok: false; error: { code: string; message: string; details?: unknown } }
-  | null;
 
 const DEFAULT_VALUES: Partial<CreateServicoInput> = {
   codigo: '',
@@ -51,52 +47,86 @@ const DEFAULT_VALUES: Partial<CreateServicoInput> = {
   observacoes: '',
 };
 
-export function NovoServicoForm() {
+/** Valores do formulário a partir de um serviço gravado (modo edição). */
+function valoresDe(s: ServicoDetalhe): CreateServicoInput {
+  return {
+    codigo: s.codigo,
+    nome: s.nome,
+    descricao: s.descricao ?? '',
+    tipoServico: s.tipoServico as CreateServicoInput['tipoServico'],
+    preco: s.preco,
+    duracaoEstimada: s.duracaoEstimada,
+    unidadeMedida: s.unidadeMedida,
+    taxaIva: s.taxaIva,
+    disponivel: s.disponivel,
+    requerAgendamento: s.requerAgendamento,
+    requerTecnico: s.requerTecnico,
+    incluiMaterial: s.incluiMaterial,
+    diasDisponibilidade: s.diasDisponibilidade as CreateServicoInput['diasDisponibilidade'],
+    observacoes: s.observacoes ?? '',
+  };
+}
+
+interface Props {
+  /** Em edição: o serviço a alterar. Omisso → criação. */
+  servico?: ServicoDetalhe;
+}
+
+export function NovoServicoForm({ servico }: Props = {}) {
   const router = useRouter();
-  const [state, dispatch, isPending] = useActionState<FormState, CreateServicoInput>(
-    (_prev, data) => criarServicoAction(data),
-    null
-  );
+  const [isPending, startTransition] = useTransition();
+  const emEdicao = servico !== undefined;
+  const destino = servico ? `/servicos/lista/${servico.id}` : '/servicos/lista';
 
   const form = useForm<CreateServicoInput>({
     resolver: zodResolver(CreateServicoSchema),
-    defaultValues: DEFAULT_VALUES as CreateServicoInput,
+    defaultValues: servico ? valoresDe(servico) : (DEFAULT_VALUES as CreateServicoInput),
     mode: 'onBlur',
   });
 
   const isDirty = form.formState.isDirty;
-
-  useEffect(() => {
-    if (!state) return;
-    if (!state.ok) {
-      const details = state.error.details as
-        | { fieldErrors?: Record<string, string[]> }
-        | undefined;
-      if (details?.fieldErrors) {
-        Object.entries(details.fieldErrors).forEach(([field, messages]) => {
-          form.setError(field as keyof CreateServicoInput, {
-            type: 'server',
-            message: messages[0],
-          });
-        });
-      } else {
-        toast.error(state.error.message ?? 'Ocorreu um erro ao criar o serviço.');
-      }
-    } else {
-      toast.success('Serviço criado com sucesso!');
-      router.push('/servicos/lista');
-    }
-  }, [state, form, router]);
 
   const handleCancel = () => {
     if (isDirty) {
       const confirmed = window.confirm('Tem alterações não guardadas. Tem a certeza que pretende sair?');
       if (!confirmed) return;
     }
-    router.push('/servicos/lista');
+    router.push(destino);
   };
 
-  const onSubmit = form.handleSubmit((data) => dispatch(data));
+  // useTransition + router.push (padrão da casa): o callback do handleSubmit corre fora de
+  // uma transição, e a página de destino muda com a gravação.
+  const onSubmit = form.handleSubmit((data) => {
+    startTransition(async () => {
+      let result;
+      if (servico) {
+        // O código não se edita (UpdateServicoSchema não o aceita).
+        const { codigo: _codigo, ...dados } = data;
+        result = await actualizarServicoAction({ id: servico.id, dados });
+      } else {
+        result = await criarServicoAction(data);
+      }
+      if (result.ok) {
+        toast.success(emEdicao ? 'Serviço actualizado com sucesso!' : 'Serviço criado com sucesso!');
+        router.push(destino);
+        return;
+      }
+      const details = result.error.details as
+        | { fieldErrors?: Record<string, string[]> }
+        | undefined;
+      const campos = Object.entries(details?.fieldErrors ?? {}).filter(([campo]) => campo in data);
+      if (campos.length > 0) {
+        campos.forEach(([field, messages]) => {
+          form.setError(field as keyof CreateServicoInput, { type: 'server', message: messages[0] });
+        });
+      } else {
+        toast.error(
+          result.error.message ??
+            (emEdicao ? 'Ocorreu um erro ao actualizar o serviço.' : 'Ocorreu um erro ao criar o serviço.'),
+        );
+      }
+    });
+  });
 
   return (
     <Form {...form}>
@@ -132,7 +162,7 @@ export function NovoServicoForm() {
                   <FormItem>
                     <FormLabel>Código *</FormLabel>
                     <FormControl>
-                      <Input placeholder="SRV001" {...field} />
+                      <Input placeholder="SRV001" readOnly={emEdicao} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

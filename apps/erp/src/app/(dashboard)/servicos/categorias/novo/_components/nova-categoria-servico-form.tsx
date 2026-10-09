@@ -13,7 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
-import { criarCategoriaServicoAction } from '@/server/actions/servicos.actions';
+import {
+  criarCategoriaServicoAction,
+  actualizarCategoriaServicoAction,
+} from '@/server/actions/servicos.actions';
+import type { CategoriaServicoDto } from '@/server/services/compras/servico.service.interface';
 
 const FormSchema = z.object({
   nome: z.string().min(1, 'Nome obrigatório').max(100),
@@ -24,7 +28,13 @@ const FormSchema = z.object({
 });
 type FormValues = z.infer<typeof FormSchema>;
 
-export function NovaCategoriaServicoForm() {
+interface Props {
+  /** Em edição: a categoria a alterar. Omisso → criação. */
+  categoria?: CategoriaServicoDto;
+}
+
+export function NovaCategoriaServicoForm({ categoria }: Props = {}) {
+  const emEdicao = categoria !== undefined;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const {
@@ -35,23 +45,36 @@ export function NovaCategoriaServicoForm() {
     formState: { errors, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
-    defaultValues: { nome: '', descricao: '', icone: '', ativo: true },
+    defaultValues: categoria
+      ? {
+          nome: categoria.nome,
+          descricao: categoria.descricao ?? '',
+          icone: categoria.icone ?? '',
+          ativo: categoria.ativo,
+          ordem: categoria.ordem ?? undefined,
+        }
+      : { nome: '', descricao: '', icone: '', ativo: true },
   });
 
   const onSubmit = handleSubmit((values) => {
+    const dados = {
+      nome: values.nome,
+      descricao: values.descricao || undefined,
+      icone: values.icone || undefined,
+      ativo: values.ativo,
+      ordem: values.ordem,
+    };
     startTransition(async () => {
-      const result = await criarCategoriaServicoAction({
-        nome: values.nome,
-        descricao: values.descricao || undefined,
-        icone: values.icone || undefined,
-        ativo: values.ativo,
-        ordem: values.ordem,
-      } as any);
+      const result = categoria
+        ? await actualizarCategoriaServicoAction({ id: categoria.id, dados: { ...dados, cor: categoria.cor } })
+        : await criarCategoriaServicoAction(dados as any);
       if (result?.ok) {
-        toast.success('Categoria criada com sucesso.');
+        toast.success(emEdicao ? 'Categoria actualizada com sucesso.' : 'Categoria criada com sucesso.');
         router.push('/servicos/categorias');
       } else {
-        toast.error((result as any)?.error?.message ?? 'Erro ao criar categoria.');
+        toast.error(
+          (result as any)?.error?.message ?? (emEdicao ? 'Erro ao actualizar categoria.' : 'Erro ao criar categoria.'),
+        );
       }
     });
   });
@@ -68,7 +91,13 @@ export function NovaCategoriaServicoForm() {
             </Button>
             <Button type="button" disabled={isPending} onClick={onSubmit}>
               <Save className="h-4 w-4 mr-2" />
-              {isPending ? 'A criar…' : 'Criar Categoria'}
+              {emEdicao
+                ? isPending
+                  ? 'A guardar…'
+                  : 'Guardar Categoria'
+                : isPending
+                  ? 'A criar…'
+                  : 'Criar Categoria'}
             </Button>
           </>
         }

@@ -332,7 +332,11 @@ export default async function FornecedorDetalhePage({ params }: Props) {
                     Editar
                   </Link>
                 </Button>
-                <FornecedorAcoes id={fornecedor.id} status={fornecedor.status} />
+                <FornecedorAcoes
+                  id={fornecedor.id}
+                  status={fornecedor.status}
+                  arquivado={fornecedor.arquivadoEm != null}
+                />
               </div>
             }
           />
