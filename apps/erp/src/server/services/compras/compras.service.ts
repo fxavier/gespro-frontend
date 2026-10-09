@@ -347,6 +347,22 @@ async function guardarCircuito<T>(
   }
 }
 
+/**
+ * Nome real do utilizador da sessão (#116) — solicitante da requisição e responsável da
+ * recepção. A sessão não traz o nome; lê-se o `User` pelo `ctx.userId`, no tenant.
+ */
+async function nomeDoUtilizador(
+  cliente: { user: Pick<PrismaClient['user'], 'findFirst'> },
+  ctx: Ctx,
+): Promise<string> {
+  const utilizador = await cliente.user.findFirst({
+    where: { id: ctx.userId, tenantId: ctx.tenantId },
+    select: { nome: true },
+  });
+  if (!utilizador) throw new NotFoundError('Utilizador da sessão não encontrado');
+  return utilizador.nome;
+}
+
 // =====================================================================
 // Implementação do serviço
 // =====================================================================
@@ -450,7 +466,7 @@ export const comprasService: IComprasService = {
       data: {
         tenantId: ctx.tenantId,
         numero, data: input.data ?? new Date(),
-        solicitanteId: ctx.userId, solicitanteNome: 'Utilizador ' + ctx.userId.slice(-4),
+        solicitanteId: ctx.userId, solicitanteNome: await nomeDoUtilizador(db, ctx),
         departamento: input.departamento, prioridade: input.prioridade ?? 'MEDIA',
         justificativa: input.justificativa, observacoes: input.observacoes,
         dataEntregaDesejada: input.dataEntregaDesejada, centroCustoId: input.centroCustoId,
@@ -1234,7 +1250,7 @@ export const comprasService: IComprasService = {
           data: input.data ?? new Date(),
           numeroDocumento: input.numeroDocumento,
           responsavelId: ctx.userId,
-          responsavelNome: 'Utilizador ' + ctx.userId.slice(-4),
+          responsavelNome: await nomeDoUtilizador(tx, ctx),
           status: statusRecebimento,
           observacoes: input.observacoes,
           itens: {

@@ -63,7 +63,7 @@ export default async function ServicoDetalhePage({ params }: Props) {
         { label: 'Tipo', value: tipoServicoLabels[servico.tipoServico] ?? servico.tipoServico },
         { label: 'Duração estimada', value: `${servico.duracaoEstimada} min` },
         { label: 'Unidade de medida', value: servico.unidadeMedida },
-        { label: 'Taxa IVA', value: `${servico.taxaIva}%` },
+        { label: 'Taxa IVA', value: `${Math.round(servico.taxaIva * 10000) / 100}%` },
         { label: 'Preço c/ IVA', value: `MT ${servico.precoComIva.toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}` },
         { label: 'Requer técnico', value: servico.requerTecnico ? 'Sim' : 'Não' },
         { label: 'Nível técnico', value: servico.nivelTecnicoRequerido ?? '—' },

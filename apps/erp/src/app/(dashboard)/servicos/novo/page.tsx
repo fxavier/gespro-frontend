@@ -4,12 +4,19 @@
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { runWithTenantContext } from '@/server/db/tenant-extension';
+import { servicoService } from '@/server/services/compras/servico.service';
 import { PageHeader } from '@/components/patterns';
 import { NovoServicoForm } from '../_components/novo-servico-form';
 
 export default async function NovoServicoPage() {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
+
+  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const categorias = (await runWithTenantContext(ctx, () => servicoService.listarCategorias(ctx)))
+    .filter((c) => c.ativo)
+    .map((c) => ({ id: c.id, nome: c.nome }));
 
   return (
     <div className="flex flex-col min-h-full">
@@ -23,7 +30,7 @@ export default async function NovoServicoPage() {
           ]}
         />
       </div>
-      <NovoServicoForm />
+      <NovoServicoForm categorias={categorias} />
     </div>
   );
 }

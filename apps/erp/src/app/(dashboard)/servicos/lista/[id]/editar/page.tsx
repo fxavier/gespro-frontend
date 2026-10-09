@@ -28,6 +28,9 @@ export default async function EditarServicoPage({ params }: Props) {
   } catch {
     notFound();
   }
+  const categorias = (await runWithTenantContext(ctx, () => servicoService.listarCategorias(ctx)))
+    .filter((c) => c.ativo || c.id === servico.categoriaServicoId)
+    .map((c) => ({ id: c.id, nome: c.nome }));
 
   return (
     <div className="flex flex-col min-h-full">
@@ -42,7 +45,7 @@ export default async function EditarServicoPage({ params }: Props) {
           ]}
         />
       </div>
-      <NovoServicoForm servico={servico} />
+      <NovoServicoForm servico={servico} categorias={categorias} />
     </div>
   );
 }

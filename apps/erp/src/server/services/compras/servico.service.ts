@@ -3,10 +3,11 @@
  */
 import 'server-only';
 
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
+import { comCodigoUnico } from './codigo-unico';
 import type {
   IServicoService,
   CategoriaServicoDto,
@@ -54,19 +55,9 @@ function transitarAgendamento(atual: StatusAgendamento, alvo: StatusAgendamento)
   }
 }
 
-async function gerarCodigoServico(ctx: Ctx): Promise<string> {
-  const count = await db.servico.count({ where: { tenantId: ctx.tenantId } });
-  return `SRV-${String(count + 1).padStart(4, '0')}`;
-}
-
 async function gerarCodigoAgendamento(ctx: Ctx): Promise<string> {
   const count = await db.agendamentoServico.count({ where: { tenantId: ctx.tenantId } });
   return `AGD-${String(count + 1).padStart(5, '0')}`;
-}
-
-async function gerarCodigoContrato(ctx: Ctx): Promise<string> {
-  const count = await db.contratoServico.count({ where: { tenantId: ctx.tenantId } });
-  return `CTRT-${String(count + 1).padStart(4, '0')}`;
 }
 
 function toCategoriaDto(c: any): CategoriaServicoDto {
@@ -178,10 +169,13 @@ export const servicoService: IServicoService = {
   // ---- Serviços ----
 
   async criarServico(input: CreateServicoInput, ctx: Ctx) {
-    const codigo = await gerarCodigoServico(ctx);
-    const s = await db.servico.create({
-      data: { tenantId: ctx.tenantId, ...input, codigo, totalVendas: 0, faturamentoTotal: 0, numeroAvaliacoes: 0 },
-    });
+    // #116: o código é o do formulário (o schema exige-o), nunca um SRV- automático.
+    const s = await comCodigoUnico('um serviço', input.codigo, () =>
+      db.servico.create({
+        data: { tenantId: ctx.tenantId, ...input, totalVendas: 0, faturamentoTotal: 0, numeroAvaliacoes: 0 },
+        include: { categoriaServico: { select: { nome: true } } },
+      }),
+    );
     return toServicoDetalhe(s);
   },
 
@@ -267,15 +261,18 @@ export const servicoService: IServicoService = {
 
   async criarAgendamento(input: CreateAgendamentoServicoInput, ctx: Ctx) {
     const codigo = await gerarCodigoAgendamento(ctx);
-    const servico = await db.servico.findUnique({ where: { id: (input as any).servicoId } });
-    const precoServico = servico ? Number(servico.preco) : 0;
-    const taxaIva = servico ? Number(servico.taxaIva) : 0.16;
-    const desconto = Number((input as any).desconto ?? 0);
-    const total = (precoServico - desconto) * (1 + taxaIva);
+    const servico = await db.servico.findUnique({ where: { id: input.servicoId }, select: { tenantId: true } });
+    if (!servico || servico.tenantId !== ctx.tenantId) throw new NotFoundError('Serviço não encontrado');
+    // #116: preço e IVA são os do formulário (que os pré-preenche a partir do catálogo e deixa
+    // alterar), não os do catálogo relidos aqui.
+    const total = new Prisma.Decimal(input.precoServico)
+      .minus(input.desconto ?? 0)
+      .times(new Prisma.Decimal(1).plus(input.taxaIva))
+      .toDecimalPlaces(2);
 
     const a = await db.agendamentoServico.create({
       data: {
-        ...input, codigo, precoServico, total,
+        ...input, codigo, total,
         tenantId: ctx.tenantId,
       },
       include: { servico: { select: { nome: true } } },
@@ -369,10 +366,12 @@ export const servicoService: IServicoService = {
   // ---- Contratos ----
 
   async criarContrato(input: CreateContratoServicoInput, ctx: Ctx) {
-    const codigo = await gerarCodigoContrato(ctx);
-    const c = await db.contratoServico.create({
-      data: { ...input, codigo, tenantId: ctx.tenantId, status: 'ATIVO' },
-    });
+    // #116: o código é o do formulário (o schema exige-o), nunca um CTRT- automático.
+    const c = await comCodigoUnico('um contrato', input.codigo, () =>
+      db.contratoServico.create({
+        data: { ...input, tenantId: ctx.tenantId, status: 'ATIVO' },
+      }),
+    );
     return toContratoDto(c);
   },
 

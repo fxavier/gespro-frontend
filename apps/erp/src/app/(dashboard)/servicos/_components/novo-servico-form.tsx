@@ -25,9 +25,9 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
+import { Combobox, FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
 import { criarServicoAction, actualizarServicoAction } from '@/server/actions/servicos.actions';
-import type { ServicoDetalhe } from '@/server/services/compras/servico.service.interface';
+import type { CategoriaServicoDto, ServicoDetalhe } from '@/server/services/compras/servico.service.interface';
 import { CreateServicoSchema, type CreateServicoInput } from '@/lib/validations/servicos';
 
 const DEFAULT_VALUES: Partial<CreateServicoInput> = {
@@ -54,6 +54,7 @@ function valoresDe(s: ServicoDetalhe): CreateServicoInput {
     nome: s.nome,
     descricao: s.descricao ?? '',
     tipoServico: s.tipoServico as CreateServicoInput['tipoServico'],
+    categoriaServicoId: s.categoriaServicoId ?? undefined,
     preco: s.preco,
     duracaoEstimada: s.duracaoEstimada,
     unidadeMedida: s.unidadeMedida,
@@ -70,9 +71,12 @@ function valoresDe(s: ServicoDetalhe): CreateServicoInput {
 interface Props {
   /** Em edição: o serviço a alterar. Omisso → criação. */
   servico?: ServicoDetalhe;
+  /** Categorias de serviço do tenant (as activas e a já escolhida). */
+  categorias?: Pick<CategoriaServicoDto, 'id' | 'nome'>[];
 }
 
-export function NovoServicoForm({ servico }: Props = {}) {
+export function NovoServicoForm({ servico, categorias = [] }: Props = {}) {
+  const opcoesCategoria = categorias.map((c) => ({ value: c.id, label: c.nome }));
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const emEdicao = servico !== undefined;
@@ -195,6 +199,26 @@ export function NovoServicoForm({ servico }: Props = {}) {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="categoriaServicoId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Categoria</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={opcoesCategoria}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      placeholder="Sem categoria"
+                      emptyText="Sem categorias de serviço."
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
