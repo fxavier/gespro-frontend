@@ -67,7 +67,7 @@ async function fetchTenantRow(tenantId: string): Promise<TenantRow> {
     prismaBase.tenant.findFirst({ where: { id: tenantId } }),
     prismaBase.configuracaoFiscal.findUnique({ where: { tenantId } }),
   ]);
-  if (!tenant) throw new NotFoundError('Tenant não encontrado');
+  if (!tenant) throw new NotFoundError('Empresa não encontrada');
   return buildRow(tenant, cfg);
 }
 
@@ -166,7 +166,7 @@ export const tenantAdminService: ITenantAdminService = {
 
   async actualizar(tenantId: string, input: UpdateTenantInput): Promise<TenantRow> {
     const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId, deletedAt: null } });
-    if (!tenant) throw new NotFoundError('Tenant não encontrado');
+    if (!tenant) throw new NotFoundError('Empresa não encontrada');
 
     await prismaBase.$transaction(async (tx) => {
       if (input.nome) {
@@ -210,7 +210,7 @@ export const tenantAdminService: ITenantAdminService = {
   async actualizarDadosEmpresa(input: DadosEmpresaInput, ctx: Ctx): Promise<TenantRow> {
     const tenantId = ctx.tenantId;
     const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId, deletedAt: null } });
-    if (!tenant) throw new NotFoundError('Tenant não encontrado');
+    if (!tenant) throw new NotFoundError('Empresa não encontrada');
 
     // Antes de qualquer escrita: a auditoria sai fora da tx, e um pedido recusado não deixa trilho.
     const nuitDuplicado = () =>
@@ -260,8 +260,8 @@ export const tenantAdminService: ITenantAdminService = {
 
   async desactivar(tenantId: string): Promise<void> {
     const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId } });
-    if (!tenant) throw new NotFoundError('Tenant não encontrado');
-    if (tenant.deletedAt) throw new BusinessRuleError('TENANT_JA_INATIVO', 'Tenant já está inactivo');
+    if (!tenant) throw new NotFoundError('Empresa não encontrada');
+    if (tenant.deletedAt) throw new BusinessRuleError('TENANT_JA_INATIVO', 'A empresa já está inactiva');
 
     await prismaBase.$transaction(async (tx) => {
       await tx.tenant.update({ where: { id: tenantId }, data: { deletedAt: new Date() } });
@@ -274,8 +274,8 @@ export const tenantAdminService: ITenantAdminService = {
 
   async reactivar(tenantId: string): Promise<void> {
     const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId } });
-    if (!tenant) throw new NotFoundError('Tenant não encontrado');
-    if (!tenant.deletedAt) throw new BusinessRuleError('TENANT_JA_ATIVO', 'Tenant já está activo');
+    if (!tenant) throw new NotFoundError('Empresa não encontrada');
+    if (!tenant.deletedAt) throw new BusinessRuleError('TENANT_JA_ATIVO', 'A empresa já está activa');
 
     await prismaBase.$transaction(async (tx) => {
       await tx.tenant.update({ where: { id: tenantId }, data: { deletedAt: null } });

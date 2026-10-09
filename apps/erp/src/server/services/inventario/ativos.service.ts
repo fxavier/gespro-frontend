@@ -294,7 +294,7 @@ async function transitarEstado(
   opts?: { observacoes?: string },
 ): Promise<AtivoDto> {
   const ativo = await obterAtivo(id, ctx);
-  transitar(TRANSICOES_ATIVO as never, ativo.estado as never, novoEstado as never, 'Ativo');
+  transitar(TRANSICOES_ATIVO as never, ativo.estado as never, novoEstado as never, 'activo');
 
   // Regista movimentação de estado
   await prisma.movimentacaoAtivo.create({
@@ -332,7 +332,7 @@ async function adicionarDocumento(data: DocumentoAtivoCreate, ctx: Ctx): Promise
   if (keyCandidata && !keyCandidata.startsWith(prefixoTenant(ctx.tenantId))) {
     throw new BusinessRuleError(
       'KEY_FORA_DO_TENANT',
-      'A referência do documento não pertence ao tenant',
+      'A referência do documento não pertence a esta empresa',
     );
   }
 

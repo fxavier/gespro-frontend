@@ -1,4 +1,5 @@
 import 'server-only'; // A5: serviços são server-only
+import { BusinessRuleError } from '@/lib/errors';
 import type { MetodoPagamentoTipo, Prisma } from '@prisma/client';
 import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
@@ -447,30 +448,30 @@ function validarTransicao<S extends string>(
 ): void {
   const permitidas = mapa[actual] ?? ([] as S[]);
   if (!permitidas.includes(alvo)) {
-    const err = new Error(
-      `Transição inválida em ${entidade}: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
+    throw new BusinessRuleError(
+      'TRANSICAO_INVALIDA',
+      `Transição inválida de ${entidade}: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
+      { estadoActual: actual, estadoAlvo: alvo, permitidas },
     );
-    Object.assign(err, { code: 'TRANSICAO_INVALIDA', status: 409 });
-    throw err;
   }
 }
 
 export const transitarFatura = (actual: StatusFatura, alvo: StatusFatura): void =>
-  validarTransicao(TRANSICOES_FATURA, actual, alvo, 'Fatura');
+  validarTransicao(TRANSICOES_FATURA, actual, alvo, 'factura');
 
 export const transitarNotaCredito = (actual: StatusNotaCredito, alvo: StatusNotaCredito): void =>
-  validarTransicao(TRANSICOES_NOTA_CREDITO, actual, alvo, 'NotaCredito');
+  validarTransicao(TRANSICOES_NOTA_CREDITO, actual, alvo, 'nota de crédito');
 
 export const transitarNotaDebito = (actual: StatusNotaDebito, alvo: StatusNotaDebito): void =>
-  validarTransicao(TRANSICOES_NOTA_DEBITO, actual, alvo, 'NotaDebito');
+  validarTransicao(TRANSICOES_NOTA_DEBITO, actual, alvo, 'nota de débito');
 
 export const transitarProforma = (actual: StatusProforma, alvo: StatusProforma): void =>
-  validarTransicao(TRANSICOES_PROFORMA, actual, alvo, 'Proforma');
+  validarTransicao(TRANSICOES_PROFORMA, actual, alvo, 'proforma');
 
 export const transitarCotacaoComercial = (
   actual: StatusCotacaoComercial,
   alvo: StatusCotacaoComercial,
-): void => validarTransicao(TRANSICOES_COTACAO_COMERCIAL, actual, alvo, 'CotacaoComercial');
+): void => validarTransicao(TRANSICOES_COTACAO_COMERCIAL, actual, alvo, 'cotação');
 
 // ---------------------------------------------------------------------------
 // Tipos de resultado

@@ -65,7 +65,7 @@ export function transitarComissao(actual: StatusComissao, alvo: StatusComissao):
   if (!permitidas.includes(alvo)) {
     throw new BusinessRuleError(
       'TRANSICAO_INVALIDA',
-      `Transição inválida de Comissao: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
+      `Transição inválida de comissão: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
       { estadoActual: actual, estadoAlvo: alvo, permitidas },
     );
   }

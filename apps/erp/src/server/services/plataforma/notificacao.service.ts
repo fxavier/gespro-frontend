@@ -56,7 +56,7 @@ async function emitir(dto: EmitirNotificacaoDto, ctx: Ctx): Promise<{ id: string
     select: { email: true },
   });
   if (!dest) {
-    throw new NotFoundError('Destinatário não encontrado neste tenant');
+    throw new NotFoundError('Destinatário não encontrado');
   }
 
   // Idempotência: não emite o mesmo tipo+entidade+utilizador mais de uma vez por dia.

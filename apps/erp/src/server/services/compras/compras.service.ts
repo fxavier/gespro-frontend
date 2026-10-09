@@ -76,6 +76,7 @@ export const PGC_COMPRAS = {
 /** Valida transição de estado; lança BusinessRuleError se inválida. */
 export function transitar<S extends string>(
   mapa: Record<S, S[]>,
+  /** Rótulo da entidade em português, tal como o utilizador o lê (ex.: «pedido de compra»). */
   nome: string,
   atual: S,
   alvo: S,
@@ -488,7 +489,7 @@ export const comprasService: IComprasService = {
     });
     if (!req || req.tenantId !== ctx.tenantId) throw new NotFoundError('Requisição não encontrada');
 
-    transitar(TRANSICOES_REQUISICAO, 'RequisicaoCompra', req.status as StatusRequisicaoCompra, 'PENDENTE');
+    transitar(TRANSICOES_REQUISICAO, 'requisição de compra', req.status as StatusRequisicaoCompra, 'PENDENTE');
 
     const workflow = await encontrarWorkflow('REQUISICAO_COMPRA', Number(req.valorTotal), ctx);
 
@@ -528,7 +529,7 @@ export const comprasService: IComprasService = {
   async cancelarRequisicao(id: string, motivo: string, ctx: Ctx) {
     const req = await db.requisicaoCompra.findUnique({ where: { id } });
     if (!req || req.tenantId !== ctx.tenantId) throw new NotFoundError('Requisição não encontrada');
-    transitar(TRANSICOES_REQUISICAO, 'RequisicaoCompra', req.status as StatusRequisicaoCompra, 'CANCELADA');
+    transitar(TRANSICOES_REQUISICAO, 'requisição de compra', req.status as StatusRequisicaoCompra, 'CANCELADA');
     await db.requisicaoCompra.update({ where: { id }, data: { status: 'CANCELADA', observacoes: motivo } });
   },
 
@@ -769,7 +770,7 @@ export const comprasService: IComprasService = {
       include: { _count: { select: { fornecedores: true } } },
     });
     if (!cot || cot.tenantId !== ctx.tenantId) throw new NotFoundError('Cotação não encontrada');
-    transitar(TRANSICOES_COTACAO, 'Cotacao', cot.status as StatusCotacao, 'ENVIADA');
+    transitar(TRANSICOES_COTACAO, 'cotação', cot.status as StatusCotacao, 'ENVIADA');
     // #109: sem convidados ninguém a pode responder, e não há forma de convidar depois.
     if (cot._count.fornecedores === 0) {
       throw new BusinessRuleError('COTACAO_SEM_FORNECEDORES', 'Convide pelo menos um fornecedor antes de enviar a cotação');
@@ -850,7 +851,7 @@ export const comprasService: IComprasService = {
   async adjudicarCotacao(input: AdjudicarCotacaoInput, ctx: Ctx) {
     const cot = await db.cotacao.findUnique({ where: { id: input.cotacaoId }, include: { fornecedores: true } });
     if (!cot || cot.tenantId !== ctx.tenantId) throw new NotFoundError('Cotação não encontrada');
-    transitar(TRANSICOES_COTACAO, 'Cotacao', cot.status as StatusCotacao, 'ADJUDICADA');
+    transitar(TRANSICOES_COTACAO, 'cotação', cot.status as StatusCotacao, 'ADJUDICADA');
     // #109: só ganha um convidado desta cotação que respondeu.
     const respondeu = cot.fornecedores.some(
       (f) => f.fornecedorId === input.fornecedorVencedorId && f.status === 'RESPONDIDA',
@@ -867,7 +868,7 @@ export const comprasService: IComprasService = {
   async cancelarCotacao(cotacaoId: string, motivo: string, ctx: Ctx) {
     const cot = await db.cotacao.findUnique({ where: { id: cotacaoId } });
     if (!cot || cot.tenantId !== ctx.tenantId) throw new NotFoundError('Cotação não encontrada');
-    transitar(TRANSICOES_COTACAO, 'Cotacao', cot.status as StatusCotacao, 'CANCELADA');
+    transitar(TRANSICOES_COTACAO, 'cotação', cot.status as StatusCotacao, 'CANCELADA');
     // O motivo junta-se às observações em vez de as apagar.
     const observacoes = [cot.observacoes, `Cancelada: ${motivo}`].filter(Boolean).join('\n');
     await db.cotacao.update({ where: { id: cotacaoId }, data: { status: 'CANCELADA', observacoes } });
@@ -1098,7 +1099,7 @@ export const comprasService: IComprasService = {
   async enviarPedido(id: string, ctx: Ctx) {
     const p = await db.pedidoCompra.findUnique({ where: { id } });
     if (!p || p.tenantId !== ctx.tenantId) throw new NotFoundError('Pedido não encontrado');
-    transitar(TRANSICOES_PEDIDO_COMPRA, 'PedidoCompra', p.status as StatusPedidoCompra, 'ENVIADO');
+    transitar(TRANSICOES_PEDIDO_COMPRA, 'pedido de compra', p.status as StatusPedidoCompra, 'ENVIADO');
     await db.pedidoCompra.update({ where: { id }, data: { status: 'ENVIADO' } });
   },
 
@@ -1106,7 +1107,7 @@ export const comprasService: IComprasService = {
   async confirmarPedido(id: string, ctx: Ctx) {
     const p = await db.pedidoCompra.findUnique({ where: { id } });
     if (!p || p.tenantId !== ctx.tenantId) throw new NotFoundError('Pedido não encontrado');
-    transitar(TRANSICOES_PEDIDO_COMPRA, 'PedidoCompra', p.status as StatusPedidoCompra, 'CONFIRMADO');
+    transitar(TRANSICOES_PEDIDO_COMPRA, 'pedido de compra', p.status as StatusPedidoCompra, 'CONFIRMADO');
     await db.pedidoCompra.update({ where: { id }, data: { status: 'CONFIRMADO' } });
   },
 
@@ -1114,14 +1115,14 @@ export const comprasService: IComprasService = {
   async marcarPedidoEmTransito(id: string, ctx: Ctx) {
     const p = await db.pedidoCompra.findUnique({ where: { id } });
     if (!p || p.tenantId !== ctx.tenantId) throw new NotFoundError('Pedido não encontrado');
-    transitar(TRANSICOES_PEDIDO_COMPRA, 'PedidoCompra', p.status as StatusPedidoCompra, 'EM_TRANSITO');
+    transitar(TRANSICOES_PEDIDO_COMPRA, 'pedido de compra', p.status as StatusPedidoCompra, 'EM_TRANSITO');
     await db.pedidoCompra.update({ where: { id }, data: { status: 'EM_TRANSITO' } });
   },
 
   async cancelarPedido(id: string, motivo: string, ctx: Ctx) {
     const p = await db.pedidoCompra.findUnique({ where: { id } });
     if (!p || p.tenantId !== ctx.tenantId) throw new NotFoundError('Pedido não encontrado');
-    transitar(TRANSICOES_PEDIDO_COMPRA, 'PedidoCompra', p.status as StatusPedidoCompra, 'CANCELADO');
+    transitar(TRANSICOES_PEDIDO_COMPRA, 'pedido de compra', p.status as StatusPedidoCompra, 'CANCELADO');
     // O motivo junta-se às observações em vez de as apagar.
     const observacoes = [p.observacoes, `Cancelado: ${motivo}`].filter(Boolean).join('\n');
     await db.pedidoCompra.update({ where: { id }, data: { status: 'CANCELADO', observacoes } });

@@ -79,7 +79,7 @@ const ZERO = new Prisma.Decimal(0);
 const DESDE_SEMPRE = new Date('0001-01-01T00:00:00.000Z');
 
 const IMPEDIMENTO_NAO_SEMEADO =
-  'Mapeamento da DFC não semeado: este tenant ainda não tem rubricas nem versão do mapeamento. ' +
+  'Mapeamento da DFC não semeado: esta empresa ainda não tem rubricas nem versão do mapeamento. ' +
   'Sem ele não há DFC — contacte o suporte para semear o mapeamento.';
 
 // ---------------------------------------------------------------------------
@@ -289,7 +289,7 @@ function fraseNaoMapeada(n: NaoMapeadaApurada, intervalo: Intervalo, comparativo
     ? `no comparativo N-1 (${intervalo.inicio.codigo} a ${intervalo.fim.codigo})`
     : `no intervalo ${intervalo.inicio.codigo} a ${intervalo.fim.codigo}`;
   const porque = n.rubricaInexistente
-    ? 'está mapeada a uma rubrica que não existe neste tenant'
+    ? 'está mapeada a uma rubrica que não existe nesta empresa'
     : 'não está mapeada a nenhuma rubrica da DFC';
   return (
     `A conta ${conta.codigo} ${conta.nome} tem movimento ${onde} (${formatMZN(movimento.toFixed(2))}) e ${porque}. ` +
@@ -501,7 +501,7 @@ function eUnicidade(e: unknown): boolean {
 function codigoDuplicado(codigo: string): BusinessRuleError {
   return new BusinessRuleError(
     ERROS_DFC.RUBRICA_CODIGO_DUPLICADO,
-    `Já existe uma rubrica com o código ${codigo} neste tenant (incluindo rubricas eliminadas).`,
+    `Já existe uma rubrica com o código ${codigo} (incluindo rubricas eliminadas).`,
     { codigo },
   );
 }
@@ -766,7 +766,7 @@ export async function definirContasCaixa(
       select: { id: true, codigo: true, ativo: true },
     });
     const caixa = rubricasCaixa[0];
-    if (!caixa) throw new NotFoundError('Rubrica de caixa e equivalentes não encontrada neste tenant');
+    if (!caixa) throw new NotFoundError('Rubrica de caixa e equivalentes não encontrada');
     if (!caixa.ativo && ids.length > 0) {
       throw new BusinessRuleError(
         ERROS_DFC.RUBRICA_INATIVA,

@@ -136,7 +136,7 @@ export function transitarSessaoPOS(actual: StatusSessaoPOS, alvo: StatusSessaoPO
   if (!permitidas.includes(alvo)) {
     throw new BusinessRuleError(
       'TRANSICAO_INVALIDA',
-      `Transição inválida de SessaoPOS: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
+      `Transição inválida de sessão de venda: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
       { estadoActual: actual, estadoAlvo: alvo, permitidas },
     );
   }

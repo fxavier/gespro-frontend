@@ -374,7 +374,7 @@ export const userAdminService: IUserAdminService = {
       where: { id: { in: input.roleIds }, tenantId: ctx.tenantId },
     });
     if (roles.length !== input.roleIds.length) {
-      throw new NotFoundError('Um ou mais papéis não existem neste tenant');
+      throw new NotFoundError('Um ou mais papéis não existem');
     }
 
     // Dois modos de entrada (ADR-0030 §1). Por palavra-passe, a conta nasce com
@@ -505,7 +505,7 @@ export const userAdminService: IUserAdminService = {
       if (adminsRestantes === 0) {
         throw new BusinessRuleError(
           'ULTIMO_ADMIN',
-          'Não é possível desactivar o último administrador do tenant',
+          'Não é possível desactivar o último administrador da empresa',
         );
       }
     }
@@ -539,7 +539,7 @@ export const userAdminService: IUserAdminService = {
       where: { id: { in: input.roleIds }, tenantId: ctx.tenantId },
     });
     if (roles.length !== input.roleIds.length) {
-      throw new NotFoundError('Um ou mais papéis não existem neste tenant');
+      throw new NotFoundError('Um ou mais papéis não existem');
     }
 
     // Guarda ULTIMO_ADMIN (#176): a lista nova não pode tirar o ADMIN ao último
@@ -552,7 +552,7 @@ export const userAdminService: IUserAdminService = {
     if (perdeAdmin && (await contarAdminsAtivos(ctx.tenantId, { excludeUserId: user.id })) === 0) {
       throw new BusinessRuleError(
         'ULTIMO_ADMIN',
-        'Não é possível retirar o papel ADMIN ao último administrador do tenant',
+        'Não é possível retirar o papel ADMIN ao último administrador da empresa',
       );
     }
 
