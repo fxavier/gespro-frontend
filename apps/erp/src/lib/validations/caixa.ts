@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, idEntidade } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -33,6 +33,8 @@ export const AbrirSessaoCaixaSchema = z.object({
     .nonnegative('Fundo inicial não pode ser negativo')
     .multipleOf(0.01, 'Máximo 2 casas decimais'),
   observacoes: z.string().max(500).optional(),
+  /** #267: terminal POS onde o caixa abre; sem ele, caixa sem terminal (comportamento antigo). */
+  terminalId: idEntidade().optional(),
 });
 
 export type AbrirSessaoCaixaInput = z.infer<typeof AbrirSessaoCaixaSchema>;

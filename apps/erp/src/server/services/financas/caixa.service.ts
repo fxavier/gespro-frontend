@@ -49,6 +49,16 @@ function transitarEstado(atual: StatusSessaoCaixa, alvo: StatusSessaoCaixa): voi
   }
 }
 
+/** #267: só quem abriu o caixa o fecha ou cancela (fecho forçado por supervisor fica fora). */
+function assertResponsavel(sessao: { responsavelId: string }, ctx: Ctx): void {
+  if (sessao.responsavelId !== ctx.userId) {
+    throw new BusinessRuleError(
+      'SESSAO_CAIXA_DE_OUTRO_UTILIZADOR',
+      'Esta sessão de caixa pertence a outro utilizador',
+    );
+  }
+}
+
 // proximoNumeroSerieLocal removida (ADR-0033 §4): usa agora proximoNumeroSerie de faturacao.service.
 
 // ---------------------------------------------------------------------------
@@ -60,15 +70,38 @@ export async function abrirSessao(
   ctx: Ctx,
 ): Promise<SessaoCaixa> {
   return prismaBase.$transaction(async (tx) => {
-    // Verificar se já existe sessão aberta para este responsável
-    const existente = await tx.sessaoCaixa.findFirst({
-      where: { tenantId: ctx.tenantId, responsavelId: ctx.userId, status: 'ABERTA' },
-    });
-    if (existente) {
-      throw new BusinessRuleError(
-        'SESSAO_JA_ABERTA',
-        `Já existe uma sessão de caixa aberta (${existente.numero})`,
-      );
+    const terminalId = input.terminalId;
+    if (terminalId) {
+      // #267: um caixa ABERTO por terminal. A tranca na linha do terminal serializa aberturas
+      // concorrentes: a segunda espera e, ao reler, vê o caixa da primeira.
+      const [terminal] = await tx.$queryRaw<{ id: string; ativo: boolean }[]>`
+        SELECT id, ativo FROM "TerminalPOS"
+        WHERE id = ${terminalId} AND "tenantId" = ${ctx.tenantId}
+        FOR UPDATE`;
+      if (!terminal) throw new NotFoundError('Terminal POS não encontrado');
+      if (!terminal.ativo) {
+        throw new BusinessRuleError('TERMINAL_INATIVO', 'O terminal POS está inactivo');
+      }
+      const doTerminal = await tx.sessaoCaixa.findFirst({
+        where: { tenantId: ctx.tenantId, terminalId, status: 'ABERTA' },
+      });
+      if (doTerminal) {
+        throw new BusinessRuleError(
+          'TERMINAL_COM_SESSAO_ABERTA',
+          `O terminal já tem uma sessão de caixa aberta (${doTerminal.numero})`,
+        );
+      }
+    } else {
+      // Sem terminal: comportamento antigo — recusa se o responsável já tem um caixa ABERTO.
+      const existente = await tx.sessaoCaixa.findFirst({
+        where: { tenantId: ctx.tenantId, responsavelId: ctx.userId, status: 'ABERTA' },
+      });
+      if (existente) {
+        throw new BusinessRuleError(
+          'SESSAO_JA_ABERTA',
+          `Já existe uma sessão de caixa aberta (${existente.numero})`,
+        );
+      }
     }
 
     // W7 + ADR-0033 §4: numeração atómica via SerieDocumento SESSAO_CAIXA, filtrada pelo ano de abertura
@@ -78,6 +111,7 @@ export async function abrirSessao(
       data: {
         tenantId: ctx.tenantId,
         responsavelId: ctx.userId,
+        terminalId: terminalId ?? null,
         numero,
         fundoInicial: new Prisma.Decimal(String(input.fundoInicial)),
         status: 'ABERTA',
@@ -114,6 +148,7 @@ export async function fecharSessao(
       where: { id: input.sessaoCaixaId, tenantId: ctx.tenantId },
     });
     if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
+    assertResponsavel(sessao, ctx);
 
     transitarEstado(sessao.status as StatusSessaoCaixa, 'FECHADA');
 
@@ -174,6 +209,7 @@ export async function cancelarSessao(
       where: { id: sessaoCaixaId, tenantId: ctx.tenantId },
     });
     if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
+    assertResponsavel(sessao, ctx);
 
     transitarEstado(sessao.status as StatusSessaoCaixa, 'CANCELADA');
 
@@ -210,9 +246,18 @@ export async function cancelarSessao(
 // Consultas de sessão
 // ---------------------------------------------------------------------------
 
-export async function obterSessaoAtual(ctx: Ctx): Promise<SessaoCaixa | null> {
+export async function obterSessaoAtual(
+  ctx: Ctx,
+  opcoes?: { terminalId?: string },
+): Promise<SessaoCaixa | null> {
+  // #267: com terminal, o caixa ABERTO do utilizador nesse terminal; sem ele, o comportamento antigo.
   return prisma.sessaoCaixa.findFirst({
-    where: { tenantId: ctx.tenantId, responsavelId: ctx.userId, status: 'ABERTA' },
+    where: {
+      tenantId: ctx.tenantId,
+      responsavelId: ctx.userId,
+      status: 'ABERTA',
+      ...(opcoes?.terminalId ? { terminalId: opcoes.terminalId } : {}),
+    },
   }) as unknown as SessaoCaixa | null;
 }
 

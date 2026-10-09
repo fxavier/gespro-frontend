@@ -307,7 +307,7 @@ export interface IVendaService {
 export interface ISessaoPOSService {
   /**
    * Abre uma sessão POS. Lança BusinessRuleError('SESSAO_JA_ABERTA') se já existe
-   * sessão ABERTA para o vendedor no tenant.
+   * sessão ABERTA para o vendedor no mesmo terminal (#267: o terminal do caixa).
    * sessaoCaixaId deve referir uma SessaoCaixa ABERTA (WS D).
    */
   abrir(input: AbrirSessaoPOSInput, ctx: Ctx): Promise<SessaoPOSRow>;
@@ -320,6 +320,7 @@ export interface ISessaoPOSService {
 
   suspender(sessaoPOSId: string, ctx: Ctx): Promise<SessaoPOSRow>;
   retomar(sessaoPOSId: string, ctx: Ctx): Promise<SessaoPOSRow>;
-  obterAtual(ctx: Ctx): Promise<SessaoPOSRow | null>;
+  /** #267: com `terminalId`, só a sessão sobre o caixa desse terminal. */
+  obterAtual(ctx: Ctx, opcoes?: { terminalId?: string }): Promise<SessaoPOSRow | null>;
   buscarPorId(id: string, ctx: Ctx): Promise<SessaoPOSRow>;
 }
