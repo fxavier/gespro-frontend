@@ -26,6 +26,8 @@ export const PERMISSAO_POR_ROTA: Record<string, string> = {
   '/contabilidade': 'financas:ver',
   // A DFC não é operacional: o OPERADOR não tem `financas:fluxo-caixa:leitura`.
   '/contabilidade/dfc': 'financas:fluxo-caixa:leitura',
+  // #145 — contas bancárias: a consulta de banca, não o `financas:ver` do módulo.
+  '/contabilidade/contas-bancarias': 'financas:banca:contas:leitura',
   '/faturacao': 'faturacao:ver',
   // #149 — numeração dos documentos; quem só lê vê a lista sem acções.
   '/faturacao/series': 'faturacao:leitura',
