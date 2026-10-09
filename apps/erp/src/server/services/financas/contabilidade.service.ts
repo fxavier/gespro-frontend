@@ -1905,6 +1905,18 @@ export async function atualizarContaBancaria(input: AtualizarContaBancariaInput,
   return prisma.contaBancaria.update({ where: { id }, data }) as unknown as ContaBancaria;
 }
 
+/**
+ * Desactivar / reactivar uma conta bancária (#465). Muda SÓ `ativo`: uma conta inactiva sai
+ * das listas de escolha e da reconciliação, mas a configuração dos meios POS que a usem fica
+ * (o ecrã dos meios assinala `contaBancariaInativa`). Escrita singular pelo cliente estendido
+ * para ficar no AuditLog.
+ */
+export async function definirContaBancariaActiva(id: string, ativo: boolean, ctx: Ctx): Promise<ContaBancaria> {
+  const cb = await prisma.contaBancaria.findFirst({ where: { id, tenantId: ctx.tenantId }, select: { id: true } });
+  if (!cb) throw new NotFoundError('Conta bancária não encontrada');
+  return prisma.contaBancaria.update({ where: { id: cb.id }, data: { ativo } }) as unknown as ContaBancaria;
+}
+
 export async function obterContaBancaria(id: string, ctx: Ctx): Promise<ContaBancaria | null> {
   return prisma.contaBancaria.findFirst({
     where: { id, tenantId: ctx.tenantId },

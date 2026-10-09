@@ -39,6 +39,8 @@ export const AUDIT_MODELS = new Set<string>([
   // #177 — nome, NUIT, morada e regime de IVA saem no emitente do PDF fiscal. Hoje só o
   // `actualizarDadosEmpresa` escreve estes dois pelo cliente estendido; o resto é `prismaBase`.
   'Tenant', 'ConfiguracaoFiscal',
+  // #465 — (des)activar uma conta bancária tira-a dos pagamentos, do POS e da reconciliação.
+  'ContaBancaria',
 ]);
 
 /**
