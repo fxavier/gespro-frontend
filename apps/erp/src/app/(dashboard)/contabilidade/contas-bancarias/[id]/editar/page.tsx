@@ -6,8 +6,11 @@ import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
+import { listarContasMeioPagamentoPOS } from '@/server/services/financas/meio-pagamento.service';
+import { ROTULO_METODO_POS } from '@/lib/meios-pagamento';
 import { PageHeader } from '@/components/patterns';
 import { ContaBancariaForm, type ContaPGCOption } from '../../_components/conta-bancaria-form';
+import { ActivarContaBancaria } from '../../_components/activar-conta-bancaria';
 
 export default async function EditarContaBancariaPage({
   params,
@@ -20,7 +23,7 @@ export default async function EditarContaBancariaPage({
   const { id } = await params;
   const ctx = { tenantId, userId };
 
-  const { conta, contasPGC } = await runWithTenantContext(ctx, async () => {
+  const { conta, contasPGC, meiosPOS } = await runWithTenantContext(ctx, async () => {
     const conta = await contabilidadeService.obterContaBancaria(id, ctx);
     const page = await contabilidadeService.listarContas(
       { classe: 'CLASSE_1', aceitaLancamento: true, ativo: true, take: 200 },
@@ -30,7 +33,11 @@ export default async function EditarContaBancariaPage({
       id: c.id,
       label: `${c.codigo} · ${c.nome}`,
     }));
-    return { conta, contasPGC };
+    // #465 — meios do POS que debitam esta conta: avisados (não bloqueados) ao desactivar.
+    const meiosPOS = (await listarContasMeioPagamentoPOS(ctx))
+      .filter((m) => m.contaBancariaId === id)
+      .map((m) => ROTULO_METODO_POS[m.metodo]);
+    return { conta, contasPGC, meiosPOS };
   });
   if (!conta) notFound();
 
@@ -44,6 +51,14 @@ export default async function EditarContaBancariaPage({
           { label: 'Contas Bancárias', href: '/contabilidade/contas-bancarias' },
           { label: 'Editar' },
         ]}
+        actions={
+          <ActivarContaBancaria
+            id={conta.id}
+            descricao={`${conta.banco} — ${conta.numeroConta}`}
+            ativo={conta.ativo}
+            meiosPOS={meiosPOS}
+          />
+        }
       />
       <ContaBancariaForm
         contasPGC={contasPGC}

@@ -347,6 +347,13 @@ export const AtualizarContaBancariaSchema = CriarContaBancariaSchema.partial().e
 
 export type AtualizarContaBancariaInput = z.infer<typeof AtualizarContaBancariaSchema>;
 
+export const DefinirContaBancariaActivaSchema = z.object({
+  id: idEntidade('ID de conta bancária inválido'),
+  ativo: z.boolean(),
+});
+
+export type DefinirContaBancariaActivaInput = z.infer<typeof DefinirContaBancariaActivaSchema>;
+
 export const FiltroContaBancariaSchema = z.object({
   ativo: z.boolean().optional(),
   search: z.string().max(100).optional(),

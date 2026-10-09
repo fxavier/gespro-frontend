@@ -16,6 +16,7 @@ import {
   FiltroLancamentoSchema,
   CriarContaBancariaSchema,
   AtualizarContaBancariaSchema,
+  DefinirContaBancariaActivaSchema,
   FiltroBalanceteSchema,
   FiltroRazaoSchema,
   FiltroDRESchema,
@@ -255,6 +256,13 @@ export const atualizarContaBancaria = createSafeAction({
   permission: 'financas:banca:contas:escrita',
   revalidate: { tags: ['contabilidade', 'contas-bancarias'], paths: ['/contabilidade/contas-bancarias'] },
   handler: (input, ctx) => contabilidade.atualizarContaBancaria(input, ctx),
+});
+
+export const definirContaBancariaActiva = createSafeAction({
+  schema: DefinirContaBancariaActivaSchema,
+  permission: 'financas:banca:contas:escrita',
+  revalidate: { tags: ['contabilidade', 'contas-bancarias'], paths: ['/contabilidade/contas-bancarias'] },
+  handler: (input, ctx) => contabilidade.definirContaBancariaActiva(input.id, input.ativo, ctx),
 });
 
 export const listarContasBancarias = createSafeAction({
