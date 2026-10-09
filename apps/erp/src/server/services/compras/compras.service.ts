@@ -269,6 +269,84 @@ async function encontrarWorkflow(tipo: 'REQUISICAO_COMPRA' | 'PEDIDO_COMPRA', va
 }
 
 // =====================================================================
+// Circuitos de aprovação — escrita (#108, #445)
+// =====================================================================
+
+function dadosNiveis(input: CreateConfiguracaoWorkflowInput, ctx: Ctx) {
+  return input.niveis.map((nivel) => ({
+    tenantId: ctx.tenantId,
+    nivel: nivel.nivel, nome: nivel.nome,
+    valorMinimo: nivel.valorMinimo, valorMaximo: nivel.valorMaximo,
+    tipoAprovacao: nivel.tipoAprovacao ?? 'QUALQUER_UM',
+    aprovadores: {
+      create: nivel.aprovadores.map((ap) => ({
+        tenantId: ctx.tenantId,
+        usuarioId: ap.usuarioId, email: ap.email,
+      })),
+    },
+  }));
+}
+
+/**
+ * Núcleo partilhado de criar e editar um circuito: numa transacção, verifica o nome e
+ * «um activo por tipo» e só então escreve. Com `id`, o circuito tem de ser do tenant e não
+ * colide consigo mesmo.
+ *
+ * Um só circuito activo por tipo: `encontrarWorkflow` faz `findFirst` e, com dois, escolheria
+ * um deles ao acaso (#108). A verificação é feita sob uma tranca consultiva da transacção por
+ * (tenant, tipo): sem ela, duas escritas simultâneas liam ambas «nenhum activo» e gravavam
+ * as duas (#445).
+ */
+async function guardarCircuito<T>(
+  input: CreateConfiguracaoWorkflowInput,
+  ctx: Ctx,
+  id: string | null,
+  escrever: (tx: PrismaClient) => Promise<T>,
+): Promise<T> {
+  try {
+    return await prisma.$transaction(async (rawTx) => {
+      const tx = rawTx as unknown as PrismaClient;
+      if (id) {
+        const actual = await tx.configuracaoWorkflow.findFirst({
+          where: { id, tenantId: ctx.tenantId },
+          select: { id: true },
+        });
+        if (!actual) throw new NotFoundError('Circuito de aprovação não encontrado');
+      }
+
+      const homonimo = await tx.configuracaoWorkflow.findFirst({
+        where: { tenantId: ctx.tenantId, nome: input.nome, ...(id ? { id: { not: id } } : {}) },
+        select: { id: true },
+      });
+      if (homonimo) throw new BusinessRuleError('WORKFLOW_DUPLICADO', `Workflow "${input.nome}" já existe`);
+
+      if (input.ativo ?? true) {
+        const chave = `compras:workflow:${ctx.tenantId}:${input.tipo}`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${chave}::text))`;
+        const activo = await tx.configuracaoWorkflow.findFirst({
+          where: { tenantId: ctx.tenantId, tipo: input.tipo, ativo: true, ...(id ? { id: { not: id } } : {}) },
+          select: { nome: true },
+        });
+        if (activo) {
+          throw new BusinessRuleError(
+            'WORKFLOW_ACTIVO_DUPLICADO',
+            `Já existe um circuito activo para este tipo de documento ("${activo.nome}"). Desactive-o antes de activar outro.`,
+          );
+        }
+      }
+
+      return escrever(tx);
+    });
+  } catch (e) {
+    // Dois nomes iguais em simultâneo: o segundo cai no @@unique([tenantId, nome]).
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      throw new BusinessRuleError('WORKFLOW_DUPLICADO', `Workflow "${input.nome}" já existe`);
+    }
+    throw e;
+  }
+}
+
+// =====================================================================
 // Implementação do serviço
 // =====================================================================
 
@@ -279,47 +357,37 @@ export const comprasService: IComprasService = {
     input: CreateConfiguracaoWorkflowInput,
     ctx: Ctx,
   ) {
-    const existe = await db.configuracaoWorkflow.findFirst({
-      where: { tenantId: ctx.tenantId, nome: input.nome },
-    });
-    if (existe) throw new BusinessRuleError('WORKFLOW_DUPLICADO', `Workflow "${input.nome}" já existe`);
-
-    // Um só circuito activo por tipo: `encontrarWorkflow` faz `findFirst` e, com dois,
-    // escolheria um deles ao acaso (#108).
-    if (input.ativo ?? true) {
-      const activo = await db.configuracaoWorkflow.findFirst({
-        where: { tenantId: ctx.tenantId, tipo: input.tipo, ativo: true },
-        select: { nome: true },
-      });
-      if (activo) {
-        throw new BusinessRuleError(
-          'WORKFLOW_ACTIVO_DUPLICADO',
-          `Já existe um circuito activo para este tipo de documento ("${activo.nome}"). Desactive-o antes de criar outro activo.`,
-        );
-      }
-    }
-
-    const workflow = await db.configuracaoWorkflow.create({
-      data: {
-        tenantId: ctx.tenantId,
-        nome: input.nome, tipo: input.tipo, ativo: input.ativo ?? true,
-        niveis: {
-          create: input.niveis.map((nivel) => ({
-            tenantId: ctx.tenantId,
-            nivel: nivel.nivel, nome: nivel.nome,
-            valorMinimo: nivel.valorMinimo, valorMaximo: nivel.valorMaximo,
-            tipoAprovacao: nivel.tipoAprovacao ?? 'QUALQUER_UM',
-            aprovadores: {
-              create: nivel.aprovadores.map((ap) => ({
-                tenantId: ctx.tenantId,
-                usuarioId: ap.usuarioId, email: ap.email,
-              })),
-            },
-          })),
+    const workflow = await guardarCircuito(input, ctx, null, (tx) =>
+      tx.configuracaoWorkflow.create({
+        data: {
+          tenantId: ctx.tenantId,
+          nome: input.nome, tipo: input.tipo, ativo: input.ativo ?? true,
+          niveis: { create: dadosNiveis(input, ctx) },
         },
-      },
-    });
+      }),
+    );
     return { id: workflow.id, nome: workflow.nome };
+  },
+
+  async actualizarConfiguracaoWorkflow(id: string, input: CreateConfiguracaoWorkflowInput, ctx: Ctx) {
+    const workflow = await guardarCircuito(input, ctx, id, (tx) =>
+      tx.configuracaoWorkflow.update({
+        where: { id },
+        data: {
+          nome: input.nome, tipo: input.tipo, ativo: input.ativo ?? true,
+          // Substitui os níveis (os aprovadores vão em cascata). As decisões já registadas
+          // (`AprovacaoCompra`) guardam o número do nível, não o id — não ficam órfãs.
+          niveis: { deleteMany: {}, create: dadosNiveis(input, ctx) },
+        },
+      }),
+    );
+    return { id: workflow.id, nome: workflow.nome };
+  },
+
+  async desactivarConfiguracaoWorkflow(id: string, ctx: Ctx) {
+    const w = await db.configuracaoWorkflow.findFirst({ where: { id, tenantId: ctx.tenantId }, select: { id: true } });
+    if (!w) throw new NotFoundError('Circuito de aprovação não encontrado');
+    await db.configuracaoWorkflow.update({ where: { id: w.id }, data: { ativo: false } });
   },
 
   async listarConfiguracoesWorkflow(ctx: Ctx) {
@@ -551,6 +619,20 @@ export const comprasService: IComprasService = {
           throw new BusinessRuleError(
             'APROVACAO_ENCERRADA',
             'A requisição já não está em aprovação; a decisão já não conta.',
+          );
+        }
+      } else if (aprovacao.pedidoCompraId) {
+        // Idem para o pedido (#445): a decisão só conta enquanto ENVIADO — o único estado do
+        // qual as duas saídas (CONFIRMADO e CANCELADO) são transições válidas.
+        const [ped] = await tx.$queryRaw<Array<{ status: string }>>`
+          SELECT status::text AS status FROM "PedidoCompra"
+           WHERE id = ${aprovacao.pedidoCompraId} AND "tenantId" = ${ctx.tenantId}
+           FOR UPDATE`;
+        if (!ped) throw new NotFoundError('Pedido de compra não encontrado');
+        if (ped.status !== 'ENVIADO') {
+          throw new BusinessRuleError(
+            'APROVACAO_ENCERRADA',
+            'O pedido de compra já não está em aprovação; a decisão já não conta.',
           );
         }
       }

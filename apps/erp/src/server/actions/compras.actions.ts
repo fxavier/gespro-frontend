@@ -23,7 +23,9 @@ import {
   CreateConfiguracaoWorkflowSchema,
   FilterRequisicaoCompraSchema,
   FilterCotacaoSchema,
+  UpdateConfiguracaoWorkflowSchema,
 } from '@/lib/validations/compras';
+import { idEntidade } from '@/lib/validations/common';
 import { createSafeAction } from '@/server/safe-action';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { z } from 'zod';
@@ -37,6 +39,20 @@ export const criarConfiguracaoWorkflowAction = createSafeAction({
   permission: 'compras:configurar',
   revalidate: { paths: ['/compras/configuracoes/circuitos-aprovacao'], tags: ['compras:workflow'] },
   handler: async (input, ctx) => comprasService.criarConfiguracaoWorkflow(input, ctx),
+});
+
+export const actualizarConfiguracaoWorkflowAction = createSafeAction({
+  schema: UpdateConfiguracaoWorkflowSchema,
+  permission: 'compras:configurar',
+  revalidate: { paths: ['/compras/configuracoes/circuitos-aprovacao'], tags: ['compras:workflow'] },
+  handler: async ({ id, ...input }, ctx) => comprasService.actualizarConfiguracaoWorkflow(id, input, ctx),
+});
+
+export const desactivarConfiguracaoWorkflowAction = createSafeAction({
+  schema: z.object({ id: idEntidade() }),
+  permission: 'compras:configurar',
+  revalidate: { paths: ['/compras/configuracoes/circuitos-aprovacao'], tags: ['compras:workflow'] },
+  handler: async ({ id }, ctx) => comprasService.desactivarConfiguracaoWorkflow(id, ctx),
 });
 
 /** Pesquisa de aprovadores (utilizadores activos do tenant) para o formulário de circuitos. */

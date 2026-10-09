@@ -3,12 +3,13 @@
  *
  * Lista os circuitos do tenant (activos e inactivos), com os níveis, as faixas de valor,
  * o quórum e os aprovadores. Só um circuito activo por tipo de documento: é esse que o
- * «Submeter» de uma requisição usa. Criar é rota própria (`novo`), nunca Dialog.
+ * «Submeter» de uma requisição usa. Criar e editar são rotas próprias (`novo`, `[id]/editar`),
+ * nunca Dialog; desactivar só pede confirmação (AlertDialog).
  */
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
@@ -17,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { EmptyState, PageHeader, StatusBadge } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
 import { ROTULO_TIPO_CIRCUITO, ROTULO_TIPO_APROVACAO } from '@/lib/compras-aprovacao';
+import { DesactivarCircuito } from './_components/desactivar-circuito';
 
 export default async function CircuitosAprovacaoPage() {
   const session = await auth();
@@ -62,7 +64,20 @@ export default async function CircuitosAprovacaoPage() {
                   <h2 id={`circuito-${c.id}`} className="text-sm font-semibold">{c.nome}</h2>
                   <p className="text-xs text-muted-foreground">{ROTULO_TIPO_CIRCUITO[c.tipo]}</p>
                 </div>
-                <StatusBadge status={c.ativo ? 'ATIVO' : 'INATIVO'} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={c.ativo ? 'ATIVO' : 'INATIVO'} />
+                  {podeConfigurar && (
+                    <>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/compras/configuracoes/circuitos-aprovacao/${c.id}/editar`}>
+                          <Pencil className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                          Editar
+                        </Link>
+                      </Button>
+                      {c.ativo && <DesactivarCircuito id={c.id} nome={c.nome} />}
+                    </>
+                  )}
+                </div>
               </header>
               <Table>
                 <TableHeader>
