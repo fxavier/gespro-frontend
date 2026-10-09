@@ -1,15 +1,26 @@
 # 6. Faturação, Caixa e Tesouraria
 
-> **Para quem:** Administrador, Gestor, Financeiro (tudo); Operador (caixa); Leitura (consulta) · **Onde:** menu › Finanças & Contabilidade › Faturação, Caixa, Tesouraria, Compromissos
+> **Para quem:** Administrador, Gestor, Financeiro (tudo); Operador (caixa); Leitura (consulta) · **Onde:** menu › Finanças & Contabilidade › Faturação, Séries de documento, Caixa, Tesouraria, Compromissos
 
-## Para que serve
+## Objectivo do módulo
 
 Este capítulo junta os quatro ecrãs do grupo **Finanças & Contabilidade** onde se lida com dinheiro a entrar e a sair:
 
-- **Faturação** emite os documentos fiscais (faturas, notas de crédito) e os documentos comerciais que os antecedem (cotações e proformas), cada um com a sua numeração oficial.
-- **Caixa** controla o dinheiro físico de um turno: abre-se com um fundo inicial, recebe as vendas do POS e fecha-se com a contagem das notas e moedas.
+- **Faturação** emite os documentos fiscais (faturas, notas de crédito), os documentos comerciais que os antecedem (cotações e proformas), cada um com a sua numeração oficial, e regista os **pagamentos** dos clientes.
+- **Caixa** controla o dinheiro físico de um turno: abre-se com um fundo inicial, recebe as vendas do POS e os recebimentos em numerário, regista as sangrias e os reforços feitos a meio do turno, e fecha-se com a contagem das notas e moedas.
 - **Tesouraria** projecta o saldo da empresa para as próximas semanas ou meses, a partir das faturas por cobrar, das contas por pagar, dos salários processados e dos compromissos que regista à mão.
 - **Compromissos** é onde regista essas obrigações e direitos que não nascem de nenhum documento do sistema (rendas, prestações, financiamentos).
+
+O objectivo é responder, a qualquer momento, a três perguntas: **o que facturámos e o que já recebemos?
+o dinheiro da gaveta está certo? vamos ter dinheiro para pagar o que aí vem?**
+
+| | |
+|---|---|
+| **Que problema resolve** | Numeração de facturas com saltos, propostas perdidas, cobranças esquecidas, diferenças de caixa sem explicação, falta de dinheiro descoberta no dia do pagamento. |
+| **Quem usa** | Financeiro (faturação, cobranças, tesouraria); Operador (caixa); Gestor (propostas a clientes). |
+| **O que entra** | Clientes e linhas a facturar (com o motivo de isenção nas linhas a 0 %), pagamentos recebidos, o fundo, as sangrias, os reforços e a contagem da caixa, compromissos futuros. |
+| **O que sai** | Documentos fiscais numerados e o seu PDF (as faturas com hash de integridade), faturas pagas/vencidas, sessões de caixa fechadas com diferença, projecção de saldo com a primeira data de ruptura. |
+| **Liga-se a** | [Vendas & POS](04-vendas-e-pos.md) (vendas e notas), [Contabilidade](05-contabilidade.md) (cada documento e pagamento lança), [Fornecedores](02-fornecedores-e-servicos.md) e [Recursos Humanos](07-recursos-humanos.md) (saídas previstas). |
 
 A emissão de faturas feita a partir de uma venda, e as notas de crédito e de débito do lado comercial, estão descritas no capítulo [Vendas e POS](04-vendas-e-pos.md). Aqui não se repetem.
 
@@ -25,6 +36,58 @@ A emissão de faturas feita a partir de uma venda, e as notas de crédito e de d
 | Saldo bancário | Não conta | Conta, lido da contabilidade (não de um valor escrito à mão na conta bancária) |
 | Onde se vê | **Caixa** (`/caixa`) | **Tesouraria** (`/tesouraria`) |
 
+## Exemplo prático — da proposta ao dinheiro no banco
+
+**Situação:** a Construções Machava pede preço para uma obra. O Carlos (Financeiro) trata da proposta, da
+factura e da cobrança; a Ana (Operador) fecha a caixa ao fim do dia; no meio do mês o Carlos olha para as
+próximas semanas.
+
+**1. Proposta → proforma → factura**
+
+| Passo | Ecrã | Resultado |
+|---|---|---|
+| Cotação: 100 × CIM-50 a 650,00 + 200 × VAR-12 a 480,00 | [Nova Cotação](#como-criar-e-enviar-uma-cotação) → **Enviar** | `COT/…` **Enviada** · Subtotal 161 000,00 · IVA 25 760,00 · **Total 186 760,00** |
+| O cliente aceita | **Aceitar** → **Converter em proforma** | `COT/…` **Convertida** · `PRO/…` em Rascunho |
+| O financeiro do cliente aprova | Proforma: **Enviar** → **Aceitar** → **Converter em factura** | `FAT/…` **Emitida**, vence a 30 dias · lançamento D 411 186 760,00 / C 711 161 000,00 e 44331 25 760,00 |
+
+Cotação e proforma **não são documentos fiscais** e não lançam nada; só a factura.
+
+**2. Cobrar** → [Como registar o pagamento de uma fatura](#como-registar-o-pagamento-de-uma-fatura)
+
+| Data | Recebimento | Forma | Estado da factura | Lançamento |
+|---|---:|---|---|---|
+| dia 20 | 100 000,00 | Transferência bancária → BCI | **Parcialmente Paga** (pendente 86 760,00) | D conta do BCI / C 411 |
+| dia 31 do mês seguinte | — | (passou o vencimento) | **Marcar como vencida** → **Vencida** | — |
+| dia 35 | 86 760,00 | Transferência bancária → BCI | **Paga** | D conta do BCI / C 411 |
+
+**3. Reforçar e fechar a caixa da Ana** → [Como registar uma sangria ou um reforço](#como-registar-uma-sangria-ou-um-reforço) · [Como fechar o caixa](#como-fechar-o-caixa)
+
+A meio da tarde a Ana fica sem trocos e o gerente traz 2 500,00 MT do cofre: no detalhe da sessão, **Registar
+reforço** com **Valor (MZN)** 2 500,00 e **Motivo** «Trocos do cofre».
+
+| Movimento da sessão `CXS/…` | Valor |
+|---|---:|
+| Abertura (fundo inicial) | 5 000,00 |
+| Vendas POS em dinheiro | 11 716,00 |
+| Reforço — trocos do cofre | 2 500,00 |
+| **Saldo esperado** | **19 216,00** |
+
+A Ana conta 19 × Nota MT 1000, 2 × Nota MT 100 e 1 × Moeda MT 10, 1 × Moeda MT 5, 1 × Moeda MT 1 =
+**19 216,00**. O **Resumo do Fecho** mostra **Saldo Esperado** 19 216,00 e **Diferença** 0,00 → **Confirmar Fecho**.
+As vendas por M-Pesa ou a crédito não entram nesta conta: não passaram pela gaveta.
+
+**4. Olhar para as próximas semanas** → [Como ler a projecção](#como-ler-a-projecção)
+
+O Carlos regista dois **Compromissos** mensais — «Renda do armazém» (Saída, 35 000,00, dia 5) e «Prestação
+leasing carrinha» (Saída, 22 500,00, dia 20) — e abre a **Tesouraria** com Horizonte 90 dias, **Semanal**,
+cenário **Base**. Vê a entrada de 186 760,00 (ou do que ainda estiver pendente) na semana do vencimento, as
+saídas mensais, os salários processados e as contas a pagar. Se aparecer **Primeira ruptura**, muda para
+**Pessimista** e envia o endereço da página à gerência.
+
+**Resultado esperado:** documentos numerados sem saltos (`COT/2026/…`, `PRO/2026/…`, `FAT/2026/…`), a
+factura **Paga** com dois recebimentos no detalhe, a sessão de caixa **Fechada** com diferença zero e uma
+projecção que mostra, semana a semana, se o dinheiro chega.
+
 ## Conceitos
 
 | Termo | O que é |
@@ -33,12 +96,14 @@ A emissão de faturas feita a partir de uma venda, e as notas de crédito e de d
 | Numeração sem lacunas | Cada documento recebe o número seguinte da série no momento em que é gravado, no formato `PREFIXO/ANO/000001`. Se a gravação falhar, o número não é gasto, por isso não ficam números saltados. |
 | Ano da série | O número vem sempre da série do **ano da data de emissão** (hora de Maputo). Uma fatura datada de 2027 precisa que a série `FAT/2027` exista. |
 | Fatura | Documento fiscal. Depois de emitida não se edita nem se apaga: corrige-se com uma nota de crédito. |
+| Motivo de isenção | Texto legal obrigatório em cada linha de um documento fiscal com IVA a 0 % (por exemplo, «Isento nos termos do artigo 9.º do Código do IVA»). Sai no PDF junto da linha («Motivo de isenção: …»). |
+| Hash de integridade | Código calculado no momento da emissão de cada Factura e Factura-Recibo, encadeado com o do documento anterior da mesma série. Aparece no detalhe e no PDF; qualquer alteração posterior ao documento deixaria de bater com ele. |
 | Nota de crédito | Documento fiscal que anula ou reduz, total ou parcialmente, o valor de uma fatura. |
 | Cotação | Proposta ou orçamento enviado ao cliente. Não é documento fiscal. |
 | Proforma | Documento preliminar com os valores da futura fatura. Não é documento fiscal. |
 | Sessão de caixa | Um turno de caixa, de um utilizador, entre a abertura e o fecho. Tem número próprio (`CXS/…`). |
 | Fundo inicial | O dinheiro que está na gaveta quando a sessão é aberta. |
-| Movimento de caixa | Cada entrada ou saída de dinheiro na sessão: Abertura, Venda, Recebimento, Sangria, Reforço, Devolução, Pagamento, Fecho, Ajuste. **Pagamento** é uma saída: um pagamento a fornecedor feito em numerário a partir da sessão. |
+| Movimento de caixa | Cada entrada ou saída de dinheiro na sessão: Abertura, Venda, Recebimento, Sangria, Reforço, Devolução, Pagamento, Fecho, Ajuste. **Pagamento** é uma saída: um pagamento a fornecedor, ou o pagamento da folha salarial, feito em numerário a partir da sessão. |
 | Sangria / Reforço | Retirar dinheiro da gaveta (sangria) ou juntar dinheiro à gaveta (reforço) a meio do turno. |
 | Diferença | No fecho: o dinheiro contado menos o dinheiro que devia estar. Positiva é excedente; negativa é falta. |
 | Projecção de tesouraria | Cálculo, feito na hora, do saldo previsto ao longo de um horizonte. Não fica gravado: cada vez que abre a página, é recalculado com os dados desse momento. |
@@ -55,14 +120,19 @@ A emissão de faturas feita a partir de uma venda, e as notas de crédito e de d
 | Faturação | `/faturacao/dashboard` | Resumo (total faturado, recebido, pendente, vencidas), últimas faturas e atalhos para Cotações, Proformas, Notas de Crédito e Nova Fatura |
 | Faturação › Ver todas as faturas | `/faturacao` | Lista de faturas com filtro por Estado e pesquisa por número |
 | Faturação › Nova Fatura | `/faturacao/nova` | Emitir uma fatura |
-| (clique numa fatura) | `/faturacao/<id>` | Detalhe da fatura: linhas, totais, valores pagos e pendentes |
+| (clique numa fatura) | `/faturacao/<id>` | Detalhe da fatura: linhas, totais, valores pagos e pendentes; **Registar pagamento**, **Marcar como vencida**, **Descarregar PDF** |
+| Fatura › Registar pagamento | `/faturacao/<id>/pagamento` | Registar um recebimento do cliente (total ou parcial) |
 | Faturação › Cotações | `/faturacao/cotacoes` | Lista de cotações e botão **Nova Cotação** |
 | Faturação › Proformas | `/faturacao/proforma` | Lista de proformas e botão **Nova Proforma** |
 | Faturação › Notas de Crédito | `/faturacao/nota-credito` | Lista de notas de crédito e botão **Nova Nota de Crédito** |
+| Séries de documento | `/faturacao/series` | Séries de numeração dos documentos de faturação; **Nova série** e **Criar séries de ‹ano seguinte›** |
 | Caixa | `/caixa` | Estado do seu caixa, lista de sessões e botão **Abrir Caixa** |
 | Caixa › Abrir Caixa | `/caixa/abertura` | Abrir uma sessão com o fundo inicial |
 | Caixa › Fechar caixa | `/caixa/fechamento` | Contar o dinheiro e fechar a sua sessão aberta |
-| (clique numa sessão) | `/caixa/<id>` | Detalhe da sessão: resumo e todos os movimentos |
+| (clique numa sessão) | `/caixa/<id>` | Detalhe da sessão: resumo e todos os movimentos; **Registar reforço**, **Registar sangria**, **Cancelar sessão**, **Fechar caixa** |
+| Sessão › Registar reforço | `/caixa/<id>/reforco` | Juntar dinheiro à gaveta |
+| Sessão › Registar sangria | `/caixa/<id>/sangria` | Retirar dinheiro da gaveta |
+| Sessão › Cancelar sessão | `/caixa/<id>/cancelar` | Cancelar uma sessão aberta por engano |
 | Tesouraria | `/tesouraria` | Projecção de Tesouraria |
 | Compromissos | `/tesouraria/compromissos` | Lista de compromissos de tesouraria e botão **Novo Compromisso** |
 
@@ -79,13 +149,13 @@ O caminho normal de um negócio é **Cotação → Proforma → Fatura**, mas ne
 
 Não precisa de criar séries para começar: quando a empresa é registada, o sistema cria uma série por tipo de documento para o ano corrente (e, se o registo for em Dezembro, também para o ano seguinte).
 
-Para um ano novo, as séries são criadas quando se **abre o exercício contabilístico** desse ano, em **Contabilidade › Exercícios** (ou automaticamente, na data configurada em **Configurações**). Veja [Contabilidade](05-contabilidade.md). A mensagem de confirmação diz quantas séries foram criadas.
+Para um ano novo, as séries são criadas quando se **abre o exercício contabilístico** desse ano, em **Contabilidade › Exercícios** (ou automaticamente, na data configurada em **Configurações**). Veja [Contabilidade](05-contabilidade.md). A mensagem de confirmação diz quantas séries foram criadas. Também as pode criar antecipadamente em **Séries de documento**, com **Criar séries de ‹ano seguinte›** (ver abaixo).
 
 #### Gerir as séries de faturação
 
 <!-- captura: 06-faturacao-caixa-tesouraria/series.png | /faturacao/series -->
 
-Em **Faturação › Séries de documento** (`/faturacao/series`) vê as séries dos sete documentos de faturação — Factura, Nota de Crédito, Nota de Débito, Factura Pró-forma, Cotação, Recibo e Factura-Recibo (`FR`, a das vendas POS pagas) — com o **próximo número** que cada uma vai emitir, o estado (**Activa**/**Inactiva**) e quantos documentos já numerou. Por omissão mostra o ano corrente; filtre por tipo, ano ou estado.
+Em **Finanças & Contabilidade › Séries de documento** (`/faturacao/series`) vê as séries dos sete documentos de faturação — Factura, Nota de Crédito, Nota de Débito, Factura Pró-forma, Cotação, Recibo e Factura-Recibo (`FR`, a das vendas POS pagas) — com o **próximo número** que cada uma vai emitir, o estado (**Activa**/**Inactiva**) e quantos documentos já numerou. Por omissão mostra o ano corrente; filtre por tipo, ano ou estado.
 
 **Quem pode:** todos os que vêem a faturação consultam a lista. Criar, editar, activar, desactivar e eliminar exige a permissão *Configurar séries de faturação* (por omissão, Administrador e Financeiro).
 
@@ -97,6 +167,8 @@ Em **Faturação › Séries de documento** (`/faturacao/series`) vê as séries
 - Desactivar a única série activa de um tipo no ano corrente trava a emissão desse documento até activar outra — o ecrã avisa antes de confirmar.
 
 **Como criar uma série:** clique em **Nova série**, escolha o **Tipo**, o **Ano**, o **Prefixo** (até 10 letras, algarismos ou hífen) e o **Número inicial**. A pré-visualização mostra o primeiro número que vai sair. Clique em **Guardar**.
+
+**Como criar de uma vez as séries do ano seguinte:** antes de Janeiro, clique em **Criar séries de ‹ano seguinte›** (por exemplo, **Criar séries de 2027**) e confirme em **Criar séries**. É criada uma série activa, a começar no n.º 1 e com o prefixo habitual (`FAT`, `NC`, …), para **cada tipo de documento** que ainda não tenha nenhuma série nesse ano — incluindo os de vendas, compras, caixa e stock, que não aparecem nesta lista. Os tipos que já têm série nesse ano ficam como estão, por isso pode repetir a operação sem risco. A mensagem diz quantas foram criadas («N séries de 2027 criadas.») ou «Todos os tipos já tinham séries de 2027; nada foi criado.». O botão só aparece a quem pode configurar séries.
 
 As séries de outros documentos (vendas, compras, caixa, stock, transporte…) continuam a ser criadas só automaticamente, e não aparecem neste ecrã.
 
@@ -116,7 +188,7 @@ As séries de outros documentos (vendas, compras, caixa, stock, transporte…) c
 1. Vá a **Faturação** e clique em **Nova Fatura**.
 2. Em **Cliente e datas**, escolha o **Cliente**. Pode escrever parte do nome ou do código do cliente para o encontrar.
 3. Preencha a **Data de Emissão** e a **Data de Vencimento**. O vencimento não pode ser anterior à emissão. A fatura é numerada na série activa de faturas do ano da data de emissão.
-4. Em **Linhas da Fatura**, preencha cada linha: **Descrição**, **Qtd**, **Preço Unit.**, **Desc.** (desconto em valor) e **IVA %** (16% ou 0% (isento)). Use **Adicionar linha** para mais linhas. O **Subtotal**, o **IVA** e o **Total** são actualizados à medida que escreve.
+4. Em **Linhas da Fatura**, preencha cada linha: **Descrição**, **Qtd**, **Preço Unit.**, **Desc.** (desconto em valor) e **IVA %** (16% ou 0% (isento)). Numa linha a **0% (isento)** aparece o campo obrigatório **Motivo de isenção \*** — escreva a base legal (ex.: «Isento nos termos do artigo 9.º do Código do IVA»); sem ele a fatura não é emitida. Use **Adicionar linha** para mais linhas. O **Subtotal**, o **IVA** e o **Total** são actualizados à medida que escreve.
 5. Se quiser, escreva notas para o cliente em **Observações**.
 6. Clique em **Emitir Fatura**.
 
@@ -126,6 +198,7 @@ Aparece a mensagem «Fatura emitida com sucesso.» e volta à lista. A fatura fi
 **Efeitos noutros módulos**
 - **Contabilidade:** ao emitir, o sistema cria automaticamente o lançamento no diário de vendas: débito em Clientes c/c (411), crédito em Vendas (711) e, se houver IVA, crédito em IVA liquidado (44331). Veja [Contabilidade](05-contabilidade.md).
 - **Tesouraria:** o valor por receber entra na projecção na data de vencimento.
+- **Apuramento do IVA:** a partir de Janeiro de 2026, um mês com linhas de fatura a 0 % é recusado no apuramento do IVA, por depender do pro rata (ver [Como apurar o IVA](05-contabilidade.md#como-apurar-o-iva-de-um-período)).
 
 ### Como consultar uma fatura
 
@@ -140,11 +213,43 @@ Aparece a mensagem «Fatura emitida com sucesso.» e volta à lista. A fatura fi
 <!-- captura: 06-faturacao-caixa-tesouraria/fatura-detalhe.png | /faturacao >primeiro -->
 ![Detalhe de uma fatura](img/06-faturacao-caixa-tesouraria/fatura-detalhe.png)
 
-O detalhe mostra o **Número**, **Cliente**, **Data de Emissão**, **Vencimento**, **Moeda**, **Total**, **Total Pago** e **Pendente**. O separador **Linhas** tem cada linha e os totais (**Subtotal**, **Desconto**, **Base IVA**, **IVA**, **Total**); o separador **Detalhes** tem as observações.
+O detalhe mostra o **Número**, **Cliente**, **Data de Emissão**, **Vencimento**, **Moeda**, **Total**, **Total Pago** e **Pendente**. O separador **Linhas** tem cada linha e os totais (**Subtotal**, **Desconto**, **Base IVA**, **IVA**, **Total**); o separador **Detalhes** tem as observações e o **Hash de integridade** do documento (as faturas mais antigas, emitidas antes de o sistema o gravar, não o têm e o campo não aparece).
 
-> **Atenção — PDF fiscal:** o sistema gera o PDF fiscal da fatura (emitente e adquirente com NUIT, linhas, resumo de IVA por taxa e totais), mas a opção **Descarregar PDF** do menu **⋯** da lista ainda não está ligada, e no detalhe o botão só aparece em faturas que tenham um ficheiro guardado. Enquanto isto não for corrigido, peça o PDF ao administrador do sistema.
+**PDF fiscal:** no detalhe da fatura, **Descarregar PDF** gera o PDF fiscal (emitente e adquirente com NUIT, linhas — com o motivo de isenção nas linhas a 0 % —, resumo de IVA por taxa, totais e o hash de integridade, quando existe), a partir do documento emitido.
 
-> **Atenção:** não há hoje, neste módulo, um botão para registar o pagamento de uma fatura nem para a marcar como vencida. As faturas emitidas aqui ficam em **Emitida** até isso ser possível.
+Na lista, o menu **⋯** de cada fatura também tem **Descarregar PDF**.
+
+### Como registar o pagamento de uma fatura
+
+**Antes de começar**
+- Permissão de registar pagamento de factura (Administrador, Gestor, Financeiro).
+- Para receber em **Numerário**, permissão de operar o caixa e **o seu caixa aberto** (o dinheiro entra na sua sessão). Para as outras formas, permissão de movimentar contas bancárias e uma conta bancária activa do tipo certo. Administrador, Gestor e Financeiro têm as duas permissões.
+- O período contabilístico da data do pagamento tem de estar aberto.
+
+**Passos**
+1. Abra a fatura em **Faturação** (estado **Emitida**, **Parcialmente Paga** ou **Vencida**) e clique **Registar pagamento**.
+2. Confira o resumo («Total … · pago … · pendente …») e o **Valor**, que vem com o valor em aberto. Para um pagamento parcial, escreva um valor menor.
+3. Indique a **Data do pagamento** (não pode ser anterior à emissão da fatura).
+4. Escolha a **Forma de pagamento**: Transferência bancária, Cheque, M-Pesa, e-Mola ou Numerário. Para as quatro primeiras, escolha a **Conta bancária** — transferência e cheque mostram contas correntes, de poupança ou a prazo; M-Pesa e e-Mola só carteiras móveis.
+5. Clique **Registar pagamento**.
+
+**Resultado:** «Pagamento da factura ‹número› registado.» A fatura passa a **Paga** se o pendente chegar a zero, ou a **Parcialmente Paga**. Um valor acima do pendente é recusado.
+
+**Efeitos noutros módulos**
+- **Contabilidade:** lançamento «Recebimento da factura ‹número›», com a data do pagamento: débito **111 Caixa** (numerário, diário de Caixa) ou da conta contabilística da conta bancária (diário de Banco); crédito **411 Clientes c/c**.
+- **Caixa:** em numerário, um movimento **Recebimento** na sua sessão — conta para o saldo esperado no fecho.
+- **Tesouraria:** o valor recebido sai das entradas previstas e passa a saldo.
+
+> **Nota:** o pagamento regista-se no detalhe da fatura em **Faturação**; o ecrã de faturas de **Vendas & POS** só tem o PDF.
+
+### Como marcar uma fatura como vencida
+
+A partir do **dia seguinte** ao vencimento, uma fatura **Emitida** ou **Parcialmente Paga** mostra o botão **Marcar como vencida** (permissão de gerir faturas: Administrador, Gestor, Financeiro).
+
+1. Clique **Marcar como vencida**.
+2. Confirme em **Marcar como vencida** («O prazo de pagamento já passou. A factura passa ao estado Vencida e continua a aceitar pagamentos.»).
+
+**Resultado:** «Factura ‹número› marcada como vencida». A fatura continua a aceitar pagamentos. O sistema **não** marca as faturas como vencidas sozinho: faça-o na rotina de cobranças (por exemplo, todas as segundas-feiras, filtrando a lista por **Emitida**).
 
 ### Como criar e enviar uma cotação
 
@@ -156,14 +261,12 @@ O detalhe mostra o **Número**, **Cliente**, **Data de Emissão**, **Vencimento*
 
 **Passos**
 1. Em **Faturação**, clique em **Cotações** e depois em **Nova Cotação**.
-2. Em **ID do Cliente**, cole o identificador interno do cliente.
+2. Em **Cliente**, pesquise por código, nome ou NUIT e escolha o cliente.
 3. Preencha a **Data de Emissão** e a **Data de Validade** (a validade tem de ser posterior à emissão). A cotação é numerada na série activa de cotações do ano da data de emissão.
 4. Preencha as **Linhas da Cotação** como numa fatura.
 5. Se quiser, preencha **Condições Comerciais** (prazo de entrega, forma de pagamento, garantias) e **Observações**.
 6. Clique em **Criar Cotação**.
 7. Abra a cotação na lista e clique em **Enviar** quando a entregar ao cliente.
-
-> **Atenção:** os formulários **Nova Cotação**, **Nova Fatura Proforma** e **Nova Nota de Crédito** deste módulo pedem o identificador interno do cliente ou da fatura, em vez de o deixar escolher numa lista. Para notas de crédito, use de preferência **Vendas & POS › Notas de Crédito** (ver [Vendas e POS](04-vendas-e-pos.md)).
 
 **Resultado**
 A cotação nasce em **Rascunho**. Depois de **Enviar**, fica **Enviada**, e aparece a mensagem «<número> enviada ao cliente.»
@@ -185,22 +288,22 @@ A cotação nasce em **Rascunho**. Depois de **Enviar**, fica **Enviada**, e apa
 ### Como criar uma proforma e convertê-la em fatura
 
 1. Em **Faturação**, clique em **Proformas** e depois em **Nova Proforma**, ou converta uma cotação (ver acima).
-2. Preencha **ID do Cliente**, **Data de Emissão**, **Data de Validade** e as **Linhas da Proforma**. Clique em **Criar Proforma**. A proforma é numerada na série activa de proformas do ano da data de emissão.
+2. Escolha o **Cliente** (pesquisa por código, nome ou NUIT) e preencha a **Data de Emissão**, **Data de Validade** e as **Linhas da Proforma**. Clique em **Criar Proforma**. A proforma é numerada na série activa de proformas do ano da data de emissão.
 3. Abra a proforma e clique em **Enviar** quando a entregar ao cliente.
 4. Quando o cliente aceitar, clique em **Aceitar**.
 5. Clique em **Converter em factura** e confirme em **Converter em factura**. A fatura tem a data de hoje e é numerada na série activa de faturas do ano corrente.
 
 **Resultado**
-É emitida uma fatura com as mesmas linhas e valores, já no estado **Emitida**, com data de hoje e **vencimento a 30 dias**. A proforma fica **Convertida**. A mensagem é «<proforma> convertido — <número da fatura>.» e abre-se o detalhe da fatura.
+É emitida uma fatura com as mesmas linhas e valores, já no estado **Emitida**, com data de hoje e **vencimento a 30 dias**. A proforma fica **Convertida**. A mensagem é «<proforma> convertido — <número da fatura>.» e abre-se o detalhe da fatura. Cotações e proformas não pedem motivo de isenção: na fatura convertida, as linhas a 0 % levam o texto legal fixo «Isento de IVA nos termos do Código do IVA.» (ou, se a empresa estiver no regime de isenção, «Isento de IVA — sujeito passivo enquadrado no regime de isenção (Código do IVA).»).
 
-> **Atenção:** a fatura criada por conversão de uma proforma ainda não gera o lançamento contabilístico automático (a fatura emitida em **Nova Fatura** gera). Avise o responsável pela contabilidade sempre que converter uma proforma.
+**Efeitos noutros módulos:** a fatura convertida é emitida como qualquer outra — gera no mesmo momento o lançamento no diário de vendas (débito 411, crédito 711 e 44331) e entra na projecção de tesouraria na data de vencimento.
 
 ### Como emitir uma nota de crédito
 
 1. Em **Faturação**, clique em **Notas de Crédito** e depois em **Nova Nota de Crédito**.
-2. Cole em **ID da Factura a Creditar** o identificador da fatura original.
+2. Em **Factura a creditar**, pesquise pelo número e escolha a fatura original. A lista só mostra faturas que ainda têm valor por creditar; cada opção mostra o número, a data e o saldo («… · saldo …»).
 3. Preencha a **Data de Emissão** e o **Motivo**. A nota de crédito é numerada na série activa de notas de crédito do ano da data de emissão.
-4. Em **Linhas da Nota de Crédito**, indique os itens e valores a creditar.
+4. Em **Linhas da Nota de Crédito**, indique os itens e valores a creditar. Uma linha a 0 % pede também o **Motivo de isenção**, como na fatura.
 5. Clique em **Emitir Nota de Crédito**.
 
 **Resultado**
@@ -225,7 +328,7 @@ A nota de crédito fica **Emitida**, com número da série `NC`, e aparece a men
 
 ### Como cancelar uma nota de crédito, uma proforma ou uma cotação
 
-**Antes de começar:** permissões *Cancelar nota de crédito*, *Cancelar factura proforma* ou *Gerir cotações*, conforme o documento.
+**Antes de começar:** permissões *Cancelar nota de crédito*, *Cancelar factura proforma* ou *Gerir cotações*, conforme o documento (Administrador, Gestor e Financeiro têm as três).
 
 1. Abra o documento e clique em **Cancelar** (também no menu ⋯ da lista).
 2. Escreva o **Motivo** (obrigatório, pelo menos 3 caracteres) e confirme.
@@ -269,12 +372,13 @@ O POS trabalha sempre sobre o caixa aberto do utilizador:
 - Se abrir o **POS** sem ter o caixa aberto, o sistema leva-o para **Abertura de Caixa** e, depois de abrir, volta ao POS.
 - Cada venda finalizada no POS regista na sessão um movimento **Venda** só pela parte paga em **dinheiro**; cartão,
   M-Pesa, e-Mola, transferência e crédito não passam pela gaveta (entram na contabilidade pelo documento da venda).
-- **Anular venda** devolve a parte em dinheiro pela sessão de caixa onde a venda foi feita, que tem de estar aberta.
+- **Anular venda** devolve a parte em dinheiro pela sessão de caixa aberta **de quem anula** (não pela sessão onde a venda foi feita, que no dia seguinte já pode estar fechada).
 - Uma devolução com reembolso feita com o caixa aberto regista um movimento **Devolução** (saída).
+- Fechar ou cancelar a sessão de caixa fecha também as sessões do POS abertas sobre ela; com vendas pendentes no POS, o fecho é recusado até as concluir ou anular.
 
 Veja o funcionamento do POS em [Vendas e POS](04-vendas-e-pos.md).
 
-> **Atenção:** o movimento **Venda** é registado pelo total da venda, seja qual for o método de pagamento (Dinheiro, Cartão, M-Pesa…). As vendas pagas por cartão ou carteira móvel contam como dinheiro esperado na gaveta. Tenha isto em conta ao interpretar a diferença no fecho.
+> **Nota:** o movimento **Venda** na sessão é só o valor pago em **Dinheiro**. Uma venda por cartão, M-Pesa, e-Mola, transferência ou a crédito não aumenta o dinheiro esperado na gaveta — por isso não cria diferença no fecho.
 
 ### Como consultar uma sessão de caixa
 
@@ -285,7 +389,9 @@ Veja o funcionamento do POS em [Vendas e POS](04-vendas-e-pos.md).
 2. O resumo mostra **Fundo inicial**, **Entradas**, **Saídas**, **Saldo esperado** (ou **Saldo esperado ao fecho**, numa sessão fechada), **Contagem física** e **Diferença**.
 3. Em **Movimentos** vê todas as entradas e saídas, por ordem, com **Data**, **Tipo**, **Descrição** e **Valor** (com sinal + ou −).
 
-Numa sessão **aberta**, é neste detalhe que vê os valores do momento (serve como leitura do caixa a meio do turno). Na lista de sessões, as colunas **Entradas** e **Diferença** só ficam preenchidas depois do fecho.
+Numa sessão **aberta**, é neste detalhe que vê os valores do momento (serve como leitura do caixa a meio do turno): **Entradas**, **Saídas** e **Saldo esperado** são calculados a partir dos movimentos registados até agora. Na lista de sessões, a coluna **Entradas** de uma sessão aberta também já mostra o valor do momento; a **Diferença** só fica preenchida depois do fecho.
+
+Numa sessão **aberta**, o topo do detalhe tem os botões **Registar reforço**, **Registar sangria**, **Cancelar sessão** e **Fechar caixa** — cada um só aparece a quem tem a permissão correspondente (o Operador vê os três primeiros; **Cancelar sessão** é só de Administrador, Gestor e Financeiro), e **Cancelar sessão** só enquanto a sessão não tiver movimentos além da abertura.
 
 ### Como fechar o caixa
 
@@ -300,21 +406,45 @@ Numa sessão **aberta**, é neste detalhe que vê os valores do momento (serve c
 1. Em **Caixa**, clique em **⋯ › Fechar caixa** na sua sessão aberta, ou em **Fechar caixa** no detalhe dela.
 2. No passo **Sessão**, confira a **Sessão a Fechar** (Número, Estado, Abertura, Fundo Inicial) e clique em **Prosseguir para Contagem**.
 3. No passo **Contagem**, escreva quantas unidades tem de cada nota (**Nota MT 1000** a **Nota MT 20**) e de cada moeda (**Moeda MT 10** a **Moeda MT 1**). O **Total Contado** é somado sozinho. Clique em **Prosseguir**.
-4. No passo **Confirmação**, confira o **Resumo do Fecho**, escreva, se quiser, **Observações do Fecho** e clique em **Confirmar Fecho**.
+4. No passo **Confirmação**, confira o **Resumo do Fecho** — **Fundo Inicial**, **Saldo Esperado** (fundo inicial + entradas − saídas do turno), **Total Contado** e **Diferença** —, escreva, se quiser, **Observações do Fecho** e clique em **Confirmar Fecho**.
 
 **Resultado**
 Aparece «Caixa fechado com sucesso!». A sessão fica **Fechada** (e não pode voltar a abrir). O sistema grava o total contado, os totais de entradas e saídas, a diferença, e regista um movimento **Fecho**.
 
-> **Atenção:** a **Diferença** mostrada no passo de confirmação compara o total contado só com o fundo inicial, sem as vendas do turno. A diferença que fica gravada na sessão é calculada pelo sistema a partir dos movimentos e pode não coincidir com a do ecrã. Confira sempre o detalhe da sessão depois de fechar e, se os valores não fizerem sentido, fale com o responsável financeiro antes de repetir a contagem.
-
-### Reforço, sangria e cancelamento de sessão
-
-O sistema já sabe registar **sangrias** (retirar dinheiro da gaveta), **reforços** (juntar dinheiro) e cancelar uma sessão sem movimentos, e esses movimentos aparecem no detalhe da sessão quando existem.
-
-> **Atenção:** ainda não há botões no ecrã **Caixa** para registar um reforço, uma sangria ou para cancelar uma sessão. Até lá, registe essas operações nas **Observações do Fecho**.
-
 **Efeitos noutros módulos**
-- **Tesouraria:** as sessões **abertas** contam para o saldo de abertura da projecção de tesouraria.
+- **POS:** as sessões do POS abertas sobre este caixa são fechadas ao mesmo tempo. Se alguma tiver vendas pendentes, o fecho é recusado («Existem N vendas pendentes nas sessões POS deste caixa. Conclua-as ou anule-as antes de encerrar o caixa.») e nada muda: conclua ou anule essas vendas no POS e volte a fechar.
+- **Tesouraria:** enquanto está aberta, a sessão conta para o saldo de abertura da projecção de tesouraria pelo seu saldo do momento (fundo inicial + entradas − saídas).
+
+### Como registar uma sangria ou um reforço
+
+Uma **sangria** retira dinheiro da gaveta a meio do turno (por exemplo, para o cofre); um **reforço** junta dinheiro (por exemplo, trocos).
+
+**Antes de começar**
+- A sessão tem de estar **Aberta**.
+- Precisa da permissão de sangria ou de reforço de caixa (Administrador, Gestor, Financeiro e Operador têm as duas — ver [Perfis de sistema](00-primeiros-passos.md#perfis-de-sistema)).
+
+**Passos**
+1. Em **Caixa**, abra a sessão e clique em **Registar sangria** (ou **Registar reforço**).
+2. Escreva o **Valor (MZN) \*** (maior que zero) e o **Motivo \*** (por exemplo «Depósito no cofre às 13h»).
+3. Clique em **Registar sangria** (ou **Registar reforço**).
+
+**Resultado:** «Sangria registada.» (ou «Reforço registado.») e volta ao detalhe da sessão. O movimento aparece em **Movimentos** com a descrição «Sangria: ‹motivo›» (ou «Reforço: ‹motivo›»): a sangria conta nas **Saídas**, o reforço nas **Entradas**, e o **Saldo esperado** do fecho já os inclui. Não lançam nada na contabilidade.
+
+### Como cancelar uma sessão de caixa
+
+Serve para uma sessão aberta por engano, antes de qualquer venda ou movimento. Com movimentos, o caminho é o fecho.
+
+**Antes de começar**
+- Só a pessoa que abriu a sessão a pode cancelar, e precisa da permissão de cancelar sessões de caixa (Administrador,
+  Gestor e Financeiro). O Operador não a tem: uma sessão que ele abriu por engano não se cancela, fecha-se.
+- A sessão tem de estar **Aberta** e sem movimentos além da **Abertura**.
+
+**Passos**
+1. Em **Caixa**, abra a sessão e clique em **Cancelar sessão**.
+2. Escreva o **Motivo \*** e clique em **Cancelar sessão**.
+3. Confirme em **Confirmar cancelamento** («A sessão fica CANCELADA e deixa de aceitar movimentos. Esta operação não se desfaz.»).
+
+**Resultado:** «Sessão ‹número› cancelada.» A sessão fica **Cancelada**, com o motivo nas observações, e pode abrir uma nova. As sessões do POS abertas sobre ela são fechadas, como no fecho.
 
 ## Tesouraria
 
@@ -327,7 +457,7 @@ A página **Projecção de Tesouraria** responde a uma pergunta: com o que já e
 
 | Entra | Como |
 |---|---|
-| Saldo de abertura | Dinheiro das sessões de caixa abertas + saldo contabilístico das contas bancárias activas, à data de hoje |
+| Saldo de abertura | Dinheiro das sessões de caixa abertas (fundo inicial + entradas − saídas do turno, incluindo as vendas já feitas) + saldo contabilístico das contas bancárias activas, à data de hoje |
 | Faturas por cobrar | Entradas: o valor ainda por pagar das faturas **Emitidas**, **Parcialmente Pagas** e **Vencidas**, na data de vencimento (ajustada pelo cenário) |
 | Contas a pagar em aberto | Saídas, na data de vencimento (ver [Fornecedores e serviços](02-fornecedores-e-servicos.md)) |
 | Payrolls processados | Saídas, pelo custo total para a empresa (ver [Recursos Humanos](07-recursos-humanos.md)) |
@@ -337,7 +467,7 @@ A página **Projecção de Tesouraria** responde a uma pergunta: com o que já e
 
 Valores já vencidos e ainda por pagar ou receber entram no **primeiro período**, assinalados com «N em atraso»: não desaparecem da projecção.
 
-As contas bancárias são configuradas em **Contabilidade › Reconciliação › Contas Bancárias** (ver [Contabilidade](05-contabilidade.md)). O saldo delas vem sempre dos lançamentos contabilísticos das respectivas contas; duas contas bancárias ligadas à mesma conta contabilística contam uma só vez.
+As contas bancárias são configuradas em **Finanças & Contabilidade › Contas Bancárias** (ver [Contabilidade](05-contabilidade.md#como-criar-desactivar-ou-reactivar-uma-conta-bancária)); uma conta desactivada sai do saldo de abertura. O saldo delas vem sempre dos lançamentos contabilísticos das respectivas contas; duas contas bancárias ligadas à mesma conta contabilística contam uma só vez.
 
 ### Como ler a projecção
 
@@ -368,9 +498,7 @@ Avisos que pode ver na página:
 - **Histórico de cobrança insuficiente**: há menos de 20 faturas pagas nos últimos 180 dias. O cenário **Base** usa então a hipótese optimista, e o título da tabela diz «cenário Optimista».
 - Se os clientes não tiverem atrasos registados, uma nota explica que os cenários Optimista e Base coincidem.
 
-> **Atenção:** as sessões de caixa abertas entram hoje na projecção só pelo fundo inicial: as vendas do turno em curso ainda não são somadas ao saldo de abertura.
-
-A **demonstração de fluxos de caixa (DFC)** ainda não está disponível no produto.
+A **demonstração de fluxos de caixa (DFC)**, que mostra o que aconteceu ao dinheiro num período já decorrido, está em **Finanças & Contabilidade › Demonstração de Fluxos de Caixa** (ver [Contabilidade](05-contabilidade.md#ecrãs)).
 
 ## Compromissos
 
@@ -418,9 +546,9 @@ Para eliminar, clique no botão de eliminar na linha e confirme em **Eliminar co
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Emitida | Documento fiscal emitido, por pagar | Paga, Parcialmente Paga, Vencida, Cancelada | Ainda sem botão neste módulo |
-| Parcialmente Paga | Parte do valor recebida | Paga, Vencida | Ainda sem botão neste módulo |
-| Vencida | Passou o vencimento sem pagamento total | Paga, Parcialmente Paga, Cancelada | Ainda sem botão neste módulo |
+| Emitida | Documento fiscal emitido, por pagar | Paga, Parcialmente Paga (**Registar pagamento**) · Vencida (**Marcar como vencida**, a partir do dia seguinte ao vencimento) | Administrador, Gestor, Financeiro |
+| Parcialmente Paga | Parte do valor recebida | Paga, Parcialmente Paga (novo pagamento) · Vencida | Administrador, Gestor, Financeiro |
+| Vencida | Passou o vencimento e foi marcada como vencida | Paga, Parcialmente Paga (pagamento) | Administrador, Gestor, Financeiro |
 | Paga | Totalmente recebida | — (final) | — |
 | Cancelada | Anulada | — (final) | — |
 
@@ -459,9 +587,9 @@ Para eliminar, clique no botão de eliminar na linha e confirme em **Eliminar co
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Aberta | Turno em curso; recebe movimentos | Fechada (Cancelada ainda sem botão) | O próprio utilizador (Operador, Financeiro, Gestor, Administrador) |
+| Aberta | Turno em curso; recebe movimentos (incluindo sangrias e reforços) | Fechada (**Fechar caixa**) · Cancelada (**Cancelar sessão**, só sem movimentos além da abertura) | O próprio utilizador que a abriu, com a permissão correspondente |
 | Fechada | Turno encerrado com contagem. O selo mostra hoje «Acesso Fechado» | — (final) | — |
-| Cancelada | Anulada sem movimentos além da abertura | — (final) | — |
+| Cancelada | Anulada sem movimentos além da abertura, com motivo | — (final) | — |
 
 ### Compromisso
 
@@ -475,21 +603,26 @@ Para eliminar, clique no botão de eliminar na linha e confirme em **Eliminar co
 | Mensagem mostrada | Porquê | O que fazer |
 |---|---|---|
 | «Para emitir documentos fiscais é preciso confirmar o endereço de e-mail da conta…» | O seu e-mail ainda não foi confirmado. Faturas, notas de crédito e conversões de proforma em fatura são documentos fiscais e ficam bloqueados | Abra a ligação de confirmação que recebeu por e-mail (o aviso no painel reenvia-a). Se já confirmou há pouco, termine a sessão e entre de novo |
-| «Série activa para tipo "…" no ano … não encontrada. Crie a série … primeiro.» | Não há série activa para o ano da data do documento | Abra o exercício desse ano em **Contabilidade › Exercícios** (ver [Contabilidade](05-contabilidade.md)); para documentos de faturação, pode também criar ou activar a série em **Faturação › Séries de documento** |
+| «Série activa para tipo "…" no ano … não encontrada. Crie a série … primeiro.» | Não há série activa para o ano da data do documento | Abra o exercício desse ano em **Contabilidade › Exercícios** (ver [Contabilidade](05-contabilidade.md)); para o ano seguinte, use também **Criar séries de ‹ano›** em **Séries de documento**; para documentos de faturação, pode ainda criar ou activar a série nesse ecrã |
 | «Já existe uma série activa de … para …. Desactive-a primeiro.» | Tentou criar ou activar uma segunda série do mesmo tipo e ano | Desactive a série actual em **Séries de documento** e repita |
 | «Já existe uma série com este prefixo para o mesmo tipo e ano.» | Já há uma série (activa ou não) com o mesmo tipo, ano e prefixo | Escolha outro prefixo, ou active a série existente |
 | «Esta série já numerou documentos: não pode ser alterada nem eliminada.» (ou a série não mostra **Editar** nem **Eliminar**) | A série já numerou documentos | Só pode activá-la ou desactivá-la; para mudar de prefixo, desactive-a e crie uma nova |
-| «Cliente não encontrado» | O cliente não existe nesta empresa (ou o identificador colado está errado) | Confirme o cliente em **Clientes** |
+| «Cliente não encontrado» | O cliente escolhido já não existe nesta empresa | Confirme o cliente em **Clientes** e escolha-o de novo |
 | «Data de vencimento não pode ser anterior à data de emissão» | Datas trocadas na fatura | Corrija a **Data de Vencimento** |
 | «Data de validade deve ser posterior à data de emissão» | Datas trocadas na cotação ou proforma | Corrija a **Data de Validade** |
 | «Taxa de IVA inválida — use 0.16 (16%) ou 0 (isento)» | Taxa de IVA fora das permitidas | Escolha 16% ou 0% |
+| «Indique o motivo de isenção (IVA a 0%).» (no campo) ou «A linha N tem IVA a 0%: indique o motivo de isenção ou de não sujeição.» | Uma linha a 0 % não tem **Motivo de isenção** | Escreva a base legal da isenção no campo **Motivo de isenção** da linha |
 | «Não é possível emitir NC para factura cancelada» | A fatura original está cancelada | Confirme a fatura a creditar |
-| «Factura original não encontrada» | O identificador da fatura na nota de crédito está errado | Confirme o identificador ou use **Vendas & POS › Notas de Crédito** |
+| «Factura original não encontrada» | A fatura escolhida em **Factura a creditar** já não existe nesta empresa | Escolha-a de novo na lista |
 | «Só uma cotação aceite pelo cliente se converte em proforma…» / «Só uma proforma aceite pelo cliente se converte em factura…» | O documento ainda não foi aceite | Clique em **Enviar** e depois em **Aceitar** |
 | «Já existe uma sessão de caixa aberta (CXS/…)» | Já tem um caixa aberto | Use a sessão aberta ou feche-a primeiro |
 | «Sem Sessão Activa» / «É necessário ter uma sessão de caixa aberta para efectuar o fecho.» | Não tem nenhuma sessão aberta em seu nome | Clique em **Abrir Caixa** |
 | «Fundo inicial não pode ser negativo» | Valor negativo no fundo inicial | Escreva zero ou um valor positivo |
-| «Valor deve ser positivo» | Valor do compromisso é zero ou negativo | Escreva um valor maior que zero |
+| «Existem N vendas pendentes nas sessões POS deste caixa. Conclua-as ou anule-as antes de encerrar o caixa.» | Ao fechar ou cancelar a sessão de caixa, há vendas por concluir no POS | Conclua ou anule essas vendas no POS e repita |
+| «Esta sessão de caixa pertence a outro utilizador» | Tentou cancelar (ou fechar) a sessão de outra pessoa | Só quem abriu a sessão a fecha ou cancela |
+| «Sessão não pode ser cancelada com movimentos registados. Use o fecho.» | A sessão já tem movimentos além da abertura | Feche a sessão com a contagem ([Como fechar o caixa](#como-fechar-o-caixa)) |
+| «Valor deve ser positivo» | Valor do compromisso, da sangria ou do reforço é zero ou negativo | Escreva um valor maior que zero |
+| «Motivo obrigatório» | Sangria, reforço ou cancelamento de sessão sem motivo | Escreva o motivo |
 | «Data de fim da recorrência não pode ser anterior à data prevista.» | O fim da recorrência é antes da primeira data | Corrija o **Fim da recorrência** |
 | «Compromisso único não admite data de fim de recorrência.» | Recorrência **Única** com data de fim | Apague o fim ou escolha outra recorrência |
 | «Granularidade … admite no máximo … dias.» | Horizonte maior do que o permitido para a granularidade (endereço alterado à mão) | Use os filtros da página |

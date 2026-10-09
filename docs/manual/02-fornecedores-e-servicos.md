@@ -1,12 +1,76 @@
 # 2. Fornecedores e Serviços
 
-> **Para quem:** administrador, gestor (pagamentos e fornecedores); operador (serviços e agendamentos); financeiro e leitura (consulta) · **Onde:** menu › Fornecedores
+> **Para quem:** administrador, gestor (fornecedores, contas a pagar e pagamentos); financeiro (contas a pagar e pagamentos); operador (serviços e agendamentos); leitura (consulta) · **Onde:** menu › Fornecedores
 
-## Para que serve
+## Objectivo do módulo
 
-Este grupo reúne três áreas. A ficha de cada **fornecedor**, com contactos e documentos. As **contas a pagar** a fornecedores e o registo dos respectivos pagamentos. O catálogo de **serviços** que a empresa presta a clientes, com os **agendamentos** e os **contratos** de serviço recorrentes.
+Este grupo reúne três áreas. A ficha de cada **fornecedor**, com contactos e documentos. As **contas a pagar** a fornecedores — criadas pela recepção de compras ou registadas à mão — e o registo dos respectivos pagamentos. O catálogo de **serviços** que a empresa presta a clientes, com os **agendamentos** e os **contratos** de serviço recorrentes.
 
-Os pagamentos a fornecedores ficam registados automaticamente na contabilidade.
+O objectivo é duplo: **saber a quem se deve, quanto e até quando** — e pagar deixando o rasto certo na
+contabilidade e na caixa — e **vender serviços com a mesma disciplina com que se vendem produtos**.
+
+| | |
+|---|---|
+| **Que problema resolve** | Facturas de fornecedores perdidas numa gaveta, pagamentos em atraso sem ninguém saber, serviços prestados sem marcação nem preço de tabela. |
+| **Quem usa** | Gestor (fornecedores, contratos, contas a pagar); Financeiro (contas a pagar e pagamentos); Operador (serviços e agendamentos). |
+| **O que entra** | Dados do fornecedor (NUIT, condições), as contas a pagar (da recepção de compras ou registadas à mão), os pagamentos; o catálogo de serviços e as marcações. |
+| **O que sai** | Contas a pagar lançadas na contabilidade (crédito 421 Fornecedores); pagamentos lançados na contabilidade (débito 421 Fornecedores) e, em numerário, saídas na caixa; agendamentos e contratos numerados. |
+| **Liga-se a** | [Compras](01-compras.md) (a recepção cria a conta a pagar), [Contabilidade](05-contabilidade.md), [Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md) (as contas a pagar entram na projecção). |
+
+As contas a pagar e os pagamentos a fornecedores ficam registados automaticamente na contabilidade.
+
+## Exemplo prático — um fornecedor, um pagamento e um serviço de entrega
+
+**Situação:** a Ferragens Boa Obra começa a trabalhar com a Cimentos do Índico, tem uma conta a pagar
+vencida a outro fornecedor e quer cobrar as entregas em obra como serviço.
+
+**1. Registar o fornecedor** → [Como registar um fornecedor](#como-registar-um-fornecedor)
+
+| Campo | Valor |
+|---|---|
+| Tipo | Pessoa Jurídica |
+| Nome / Razão Social | Cimentos do Índico, SA |
+| NUIT | 400100200 |
+| Classificação · Dias para Pagamento | Preferencial · 30 |
+| Contacto | Rui Langa, Comercial, tipo Principal |
+
+O sistema atribui o código `FOR-0001`. Na ficha, em **Documentos**, carregue a certidão de NUIT (tipo
+**NUIT**) → [Como carregar documentos](#como-carregar-documentos-de-um-fornecedor).
+
+**2. Pagar uma conta vencida** → [Como registar um pagamento a um fornecedor](#como-registar-um-pagamento-a-um-fornecedor)
+
+Em **Contas a Pagar**, o indicador **Vencidas** conta a conta de **58 000,00 MT**, que no detalhe mostra
+«· 2 dias de atraso». A Marta paga por **Transferência bancária** a partir da conta **BCI**, com a referência
+da transferência.
+
+| Resultado | |
+|---|---|
+| Estado da conta | **Paga** |
+| Lançamento (diário de Banco) | Débito **421 Fornecedores c/c** 58 000,00 · Crédito conta PGC do BCI 58 000,00 |
+| Caixa | Nada (só o numerário mexe na caixa) |
+
+*Variante:* se pagasse 20 000,00 em **Numerário**, teria de ter o seu caixa aberto; sairia um movimento
+**Pagamento** da sessão e a conta ficaria **Parcialmente Paga** (ou continuaria **Vencida**).
+
+**3. Vender a entrega em obra como serviço** → [Como criar um serviço](#como-criar-um-serviço)
+
+| Campo | Valor |
+|---|---|
+| Tipo de serviço | Transporte |
+| Nome do serviço | Entrega e descarga em obra (até 10 km) |
+| Preço (MT) · Taxa IVA | 1 500,00 · 16 % (total 1 740,00) |
+| Duração · Unidade | 120 minutos · Unidade |
+| Requer agendamento | Sim |
+
+Depois, **Novo Agendamento** para a Construções Machava, amanhã das 08:00 às 10:00, «Obra da Machava»
+→ [Como agendar um serviço](#como-agendar-um-serviço-para-um-cliente). O agendamento fica **Pendente**, com
+código `AGD-00001`.
+
+Como a Construções Machava recebe material todas as semanas, a Marta regista ainda um **contrato** mensal
+de **6 000,00 MT** com o serviço de entrega, renovação automática → [Como criar um contrato de serviço](#como-criar-um-contrato-de-serviço).
+
+**Resultado esperado:** a conta a pagar sai dos indicadores **Vencidas**; o pagamento tem **Ver lançamento**;
+o serviço aparece no catálogo como `SRV-0001` e o contrato como `CTRT-0001`, **Activo**.
 
 ## Conceitos
 
@@ -33,6 +97,7 @@ Os pagamentos a fornecedores ficam registados automaticamente na contabilidade.
 | Ficha › Gerir contactos | /fornecedores/‹id›/contactos | Acrescentar, editar e remover contactos |
 | Ficha › Gerir documentos | /fornecedores/‹id›/documentos | Carregar e remover documentos |
 | Contas a Pagar | /fornecedores/contas-pagar | Lista das contas a pagar |
+| Contas a Pagar › Nova conta a pagar | /fornecedores/contas-pagar/nova | Registar uma conta a pagar à mão |
 | Contas a Pagar › (linha) | /fornecedores/contas-pagar/‹id› | Detalhe da conta e dos pagamentos |
 | Conta › Registar pagamento | /fornecedores/contas-pagar/‹id›/pagar | Registar um pagamento |
 | Conta › Cancelar conta | /fornecedores/contas-pagar/‹id›/cancelar | Cancelar a conta, com motivo |
@@ -87,7 +152,7 @@ A tabela mostra Código, Nome, Email, Classificação, Estado, Total Compras e �
 
 **Resultado:** aparece a mensagem «Fornecedor actualizado com sucesso!».
 
-> **Dica:** o endereço da ficha termina no **identificador** do fornecedor (por exemplo `/fornecedores/cm4abc…`). É esse identificador que se pede nos formulários de cotação e de pedido de compra. Veja [Compras](01-compras.md).
+> **Dica:** nos formulários de Compras (cotação, pedido de compra) e de conta a pagar, o fornecedor escolhe-se pesquisando pelo nome, código ou NUIT. Veja [Compras](01-compras.md).
 
 <!-- captura: 02-fornecedores-e-servicos/fornecedor-detalhe.png | /fornecedores/lista >primeiro -->
 ![Ficha de um fornecedor](img/02-fornecedores-e-servicos/fornecedor-detalhe.png)
@@ -127,21 +192,41 @@ A tabela mostra Código, Nome, Email, Classificação, Estado, Total Compras e �
 1. Abra **Fornecedores › Contas a Pagar**.
 2. Consulte os indicadores:
    - **Total de contas**;
-   - **A pagar**: soma do valor restante das contas no estado Aberta;
-   - **Vencidas**: contas por pagar com o vencimento já ultrapassado;
-   - **Liquidadas**.
-3. Use a pesquisa (*Pesquisar por número ou fornecedor…*) e o filtro **Estado**.
+   - **A pagar**: soma do valor restante das contas em dívida (Aberta, Parcialmente Paga ou Vencida);
+   - **Vencidas**: contas em dívida cujo vencimento é anterior a hoje (o dia de vencimento ainda não conta como atraso);
+   - **Liquidadas**: contas no estado Paga.
+3. Use o filtro **Estado**. A caixa de pesquisa (*Pesquisar por número ou fornecedor…*) ainda não filtra a lista nesta versão.
 
 A tabela mostra Número, Fornecedor, Descrição, Vencimento, Estado e Restante. No detalhe da conta aparecem o Fornecedor (com ligação para a ficha), a Emissão, o Vencimento (com «· N dias de atraso» se estiver fora de prazo), o Valor original, o Valor pago e o Valor restante, além do separador **Pagamentos**.
 
-**De onde vêm as contas:** o sistema cria uma conta a pagar automaticamente quando um pedido de compra fica totalmente recebido (ver [Compras](01-compras.md)). Nesta versão não há ecrã para criar contas a pagar à mão. As contas que vê nos dados de demonstração foram carregadas com esses dados.
+**De onde vêm as contas:** o sistema cria uma conta a pagar automaticamente quando um pedido de compra fica totalmente recebido (ver [Compras](01-compras.md#como-registar-a-recepção-de-mercadoria)). As dívidas que não passam por um pedido de compra (renda, serviços, uma factura sem pedido) registam-se à mão — ver [Como criar uma conta a pagar à mão](#como-criar-uma-conta-a-pagar-à-mão).
+
+A tabela também assinala, por baixo do vencimento, os dias de atraso («‹N›d atraso»). O filtro **Estado › Vencida** mostra só as contas gravadas com esse estado; para ver todas as que estão fora de prazo, use o indicador **Vencidas** e os dias de atraso.
 
 <!-- captura: 02-fornecedores-e-servicos/contas-pagar-lista.png | /fornecedores/contas-pagar -->
 ![Lista de contas a pagar](img/02-fornecedores-e-servicos/contas-pagar-lista.png)
 
+### Como criar uma conta a pagar à mão
+
+**Antes de começar:** precisa do perfil Administrador, Gestor ou Financeiro. O fornecedor tem de estar registado. Tenha à mão a conta do plano de contas onde se reconhece o gasto ou as existências (por exemplo, uma conta da classe 6).
+
+1. Em **Fornecedores › Contas a Pagar**, clique em **Nova conta a pagar**.
+2. Em **Dívida**, preencha:
+   - **Fornecedor \***: pesquise por nome, NUIT ou código;
+   - **Conta contabilística (débito) \***: pesquise por código ou nome (só aparecem contas activas que aceitam lançamentos);
+   - **Descrição \*** (por exemplo «Renda do armazém — Outubro»);
+   - **Valor (MZN) \***;
+   - **Data de emissão \*** (por omissão, hoje) e **Data de vencimento \***;
+   - **Observações** (opcional).
+3. Clique em **Criar conta a pagar**.
+
+**Resultado:** aparece a mensagem «Conta a pagar criada.» e abre o detalhe da conta, no estado **Aberta**, com número automático.
+
+**Efeitos noutros módulos:** a conta gera um lançamento no diário de Compras, na data de emissão: débito da conta escolhida e crédito *421 Fornecedores c/c*, pelo valor total. Este formulário não regista IVA dedutível. Se o período contabilístico dessa data estiver fechado, a conta não é criada. Veja [Contabilidade](05-contabilidade.md).
+
 ### Como registar um pagamento a um fornecedor
 
-**Antes de começar:** precisa do perfil Administrador ou Gestor. A conta tem de estar Aberta, Parcialmente Paga ou Vencida.
+**Antes de começar:** precisa do perfil Administrador, Gestor ou Financeiro. A conta tem de estar Aberta, Parcialmente Paga ou Vencida.
 
 1. Abra a conta e clique em **Registar pagamento**. Na lista, use **⋯ › Registar pagamento**.
 2. Em **Pagamento**, confirme ou altere o **Valor (MZN)**. Vem preenchido com o valor restante. Para um pagamento parcial, escreva um valor menor.
@@ -166,7 +251,7 @@ A tabela mostra Número, Fornecedor, Descrição, Vencimento, Estado e Restante.
 
 ### Como cancelar uma conta a pagar
 
-**Antes de começar:** precisa do perfil Administrador ou Gestor. A conta tem de estar Aberta, Parcialmente Paga ou Vencida.
+**Antes de começar:** precisa do perfil Administrador, Gestor ou Financeiro. A conta tem de estar Aberta, Parcialmente Paga ou Vencida.
 
 1. No detalhe da conta, clique em **Cancelar conta**.
 2. Em **Motivo do cancelamento**, escreva o **Motivo** (obrigatório, até 500 caracteres), por exemplo «factura emitida em duplicado pelo fornecedor».
@@ -225,17 +310,17 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 
 ### Como criar um contrato de serviço
 
-**Antes de começar:** precisa do perfil Administrador ou Gestor. Tenha à mão o **identificador do cliente**, que é a última parte do endereço da ficha do cliente.
+**Antes de começar:** precisa do perfil Administrador ou Gestor. O cliente tem de existir na ficha de clientes (ver [Vendas e POS](04-vendas-e-pos.md)).
 
 1. Abra **Fornecedores › Contratos** e clique em **Novo Contrato**.
-2. Em **Identificação**, preencha o **Código** (o sistema atribui sempre um código automático CTRT-0001…), o **ID do cliente** e o **Nome do cliente**.
+2. Em **Identificação**, preencha o **Código** (o sistema atribui sempre um código automático CTRT-0001…) e escolha o **Cliente**, pesquisando por código, nome ou NUIT. O **Nome do cliente** é preenchido a partir da ficha e pode ser corrigido.
 3. Em **Serviços incluídos**, marque um ou mais serviços.
 4. Em **Vigência e valor**, preencha o **Início**, o **Fim**, a **Periodicidade** (Mensal, Trimestral, Semestral ou Anual) e o **Valor mensal (MZN)**. Marque **Renovação automática**, se for o caso, e acrescente **Observações**.
 5. Clique em **Criar contrato**.
 
 **Resultado:** aparece a mensagem «Contrato criado com sucesso.». O contrato fica **Activo**. A lista de contratos tem os indicadores **Total de contratos**, **Activos**, **Pausados** e **A expirar (30 dias)**, a pesquisa por código ou cliente e o filtro **Estado**.
 
-> **Atenção:** o campo **ID do cliente** aceita qualquer texto e o sistema não confirma que o cliente existe. Copie o identificador com cuidado. Nesta versão não há ecrã para pausar, renovar, encerrar ou abrir o detalhe de um contrato.
+> **Atenção:** nesta versão não há ecrã para pausar, renovar, encerrar ou abrir o detalhe de um contrato.
 
 <!-- captura: 02-fornecedores-e-servicos/contratos-lista.png | /servicos/contratos -->
 ![Lista de contratos de serviço](img/02-fornecedores-e-servicos/contratos-lista.png)
@@ -267,9 +352,9 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Aberta | Por pagar | Parcialmente Paga, Paga, Cancelada | Administrador, Gestor |
-| Parcialmente Paga | Já tem pagamentos, mas ainda há valor restante | Paga, Cancelada | Administrador, Gestor |
-| Vencida | Fora de prazo. Nesta versão o sistema não muda o estado automaticamente quando a data passa; use o indicador **Vencidas** e os dias de atraso no detalhe | Paga, Cancelada | Administrador, Gestor |
+| Aberta | Por pagar | Parcialmente Paga, Paga, Cancelada | Administrador, Gestor, Financeiro |
+| Parcialmente Paga | Já tem pagamentos, mas ainda há valor restante | Paga, Cancelada | Administrador, Gestor, Financeiro |
+| Vencida | Fora de prazo. O sistema não muda o estado automaticamente quando a data passa, mas o indicador **Vencidas** e os dias de atraso contam qualquer conta em dívida (Aberta, Parcialmente Paga ou Vencida) com o vencimento anterior a hoje | Paga, Cancelada | Administrador, Gestor, Financeiro |
 | Paga | Liquidada na totalidade (final) | — | — |
 | Cancelada | Cancelada com motivo (final) | — | — |
 
@@ -306,11 +391,14 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 | Valor do pagamento (X) excede o valor restante (Y) | Tentou pagar mais do que está em dívida | Indique um valor igual ou inferior ao restante |
 | Conta a pagar já liquidada ou cancelada | A conta já está Paga ou Cancelada | Nada a pagar; confirme o estado da conta |
 | Forma de pagamento obrigatória | Não escolheu a forma de pagamento | Escolha uma das opções |
+| Escolha o fornecedor. | Nova conta a pagar sem fornecedor | Escolha o fornecedor |
+| Escolha a conta contabilística a debitar. | Nova conta a pagar sem conta contabilística | Escolha a conta de gasto ou existências |
+| Data de vencimento deve ser igual ou posterior à data de emissão | Na nova conta a pagar, o vencimento é anterior à emissão | Corrija as datas |
 | Indique o motivo | Tentou cancelar a conta sem motivo | Escreva o motivo |
 | Código obrigatório | Deixou o campo Código vazio (serviço ou contrato) | Escreva qualquer código; o sistema substitui-o pelo automático |
 | Valor deve ser positivo | Preço do serviço ou valor mensal do contrato igual a zero | Indique um valor maior que zero |
 | ID de serviço inválido | Não escolheu o serviço no agendamento | Escolha um serviço |
-| ID de cliente obrigatório | Não escolheu o cliente (agendamento) ou não preencheu o ID do cliente (contrato) | Escolha ou indique o cliente |
+| ID de cliente obrigatório | Não escolheu o cliente (agendamento ou contrato) | Escolha o cliente no campo **Cliente** |
 | Hora inválida — formato HH:MM | Hora de início ou de fim mal preenchida | Use o formato 09:00 |
 | Pelo menos um serviço | Contrato sem serviços marcados | Marque pelo menos um serviço |
 | Sem permissão para esta operação | O seu perfil não permite a acção | Peça a acção a um gestor ou administrador |
@@ -321,4 +409,4 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 Fornecedores, serviços, agendamentos e contratos recebem sempre um código automático e sequencial. O que escrever no campo Código não é usado.
 
 **O perfil Financeiro pode registar pagamentos a fornecedores?**
-Nesta versão não. Os perfis de sistema dão a permissão de registar pagamentos e cancelar contas a pagar apenas ao Administrador e ao Gestor. O administrador pode criar um perfil próprio com essa permissão (ver [Plataforma e Administração](11-plataforma-e-administracao.md)).
+Sim. O Financeiro regista pagamentos, cria contas a pagar à mão e cancela contas a pagar, tal como o Administrador e o Gestor. Não aprova compras, não emite pedidos de compra, não regista recepções nem edita fornecedores.
