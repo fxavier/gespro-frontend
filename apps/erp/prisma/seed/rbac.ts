@@ -475,6 +475,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     if (isReadOnly(code)) return true;
     // Inventário — #81: aprovar discrepância de contagem é de ADMIN/GESTOR.
     if (code === 'inventario:contagens:aprovar-discrepancia') return false;
+    // #124 — administrar o inventário é de ADMIN/GESTOR (a migração retira-o aos tenants existentes).
+    if (code === 'inventario:admin') return false;
     if (code.startsWith('inventario:')) return true;
     // Produção
     if (code.startsWith('producao:')) return true;
@@ -503,6 +505,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
          'rh:ausencias:create', 'rh:ferias:solicitar', 'rh:recrutamento:read'].includes(code)) return true;
     // Produtos/clientes/fornecedores (leitura já coberta acima)
     if (['produtos:write'].includes(code)) return true;
+    // #124 — registar e editar activos fixos é operacional (a amortização, `ativos:admin`, não).
+    if (code === 'ativos:write') return true;
     return false;
   }),
 
@@ -529,7 +533,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
       'faturacao:series:escrita',
       'rh:colaboradores:delete',
       'ativos:admin',
-      'inventario:admin',
     ];
     return !restricted.includes(code);
   }),
