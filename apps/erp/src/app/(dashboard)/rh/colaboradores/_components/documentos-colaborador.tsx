@@ -4,7 +4,8 @@
  * Documentos do colaborador (#163) — CLIENT COMPONENT.
  *
  * Upload pelo fluxo existente (<UploadDocumento>: presign → PUT → registo, ADR-0017) e lista
- * com download seguro (`/api/documentos/{id}/download`, mesma permissão do presign).
+ * com download seguro (`/api/documentos/{id}/download`). Upload: `rh:colaboradores:update`;
+ * download: `rh:colaboradores:read` (#193).
  */
 
 import { useState } from 'react';
@@ -53,7 +54,7 @@ export interface DocumentoColaboradorLinha {
 interface Props {
   colaboradorId: string;
   documentos: DocumentoColaboradorLinha[];
-  /** `rh:colaboradores:update` — a mesma permissão do presign e do download. */
+  /** Só o upload: `rh:colaboradores:update`. O download exige `rh:colaboradores:read` (#193). */
   podeGerir: boolean;
 }
 
@@ -122,18 +123,16 @@ export function DocumentosColaborador({ colaboradorId, documentos, podeGerir }: 
                     </p>
                   </div>
                 </div>
-                {podeGerir && (
-                  <Button variant="outline" size="sm" asChild>
-                    <a
-                      href={`/api/documentos/${doc.id}/download?recurso=colaborador`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Download className="h-4 w-4 sm:mr-1.5" aria-hidden />
-                      <span className="sr-only sm:not-sr-only">Descarregar</span>
-                    </a>
-                  </Button>
-                )}
+                <Button variant="outline" size="sm" asChild>
+                  <a
+                    href={`/api/documentos/${doc.id}/download?recurso=colaborador`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Download className="h-4 w-4 sm:mr-1.5" aria-hidden />
+                    <span className="sr-only sm:not-sr-only">Descarregar</span>
+                  </a>
+                </Button>
               </div>
             ))}
           </div>

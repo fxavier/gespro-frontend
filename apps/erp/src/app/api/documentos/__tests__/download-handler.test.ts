@@ -41,7 +41,8 @@ function sessao(permissions: string[] = []) {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.STORAGE_DRIVER = 'local';
-  mocks.auth.mockResolvedValue(sessao(['fornecedores:editar', 'ativos:write']));
+  // #193: o download exige a permissão de LEITURA do recurso.
+  mocks.auth.mockResolvedValue(sessao(['fornecedores:ver', 'ativos:read']));
   // Todos os findFirst já filtram por { id, tenantId } → cross-tenant devolve null.
   mocks.fornecedorFindFirst.mockResolvedValue(null);
   mocks.ativoFindFirst.mockResolvedValue(null);
@@ -116,7 +117,7 @@ describe('download — posse de tenant', () => {
 
   // M1: sem a permissão do recurso, não descarrega (mesmo pertencendo ao tenant).
   it('403 quando o utilizador não tem a permissão do recurso', async () => {
-    mocks.auth.mockResolvedValue(sessao([])); // sem fornecedores:editar
+    mocks.auth.mockResolvedValue(sessao([])); // sem fornecedores:ver
     mocks.fornecedorFindFirst.mockResolvedValue({
       id: 'doc5',
       nome: 'contrato.pdf',
