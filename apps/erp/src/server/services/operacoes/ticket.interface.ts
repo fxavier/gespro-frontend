@@ -210,6 +210,12 @@ export interface ITicketService {
     ctx: Ctx,
   ): Promise<PaginatedResult<TicketResumo>>;
 
+  /** Contagem para KPIs (#173): tenant explícito, filtros por E, SLA derivado como na listagem. */
+  contarTickets(
+    filtros: Pick<FiltrarTicketsInput, 'estado' | 'prioridade' | 'slaEmAtraso'>,
+    ctx: Ctx,
+  ): Promise<number>;
+
   atualizarTicket(
     id: string,
     input: AtualizarTicketInput,

@@ -37,6 +37,11 @@ export const TRANSICOES_TICKET: Record<string, string[]> = {
   CANCELADO: [],
 };
 
+/** #173 — o botão «Cancelar» de um ticket aparece só onde a máquina aceita CANCELADO. */
+export function ticketCancelavel(estado: string): boolean {
+  return (TRANSICOES_TICKET[estado] ?? []).includes('CANCELADO');
+}
+
 // Spec 05: Contagem de Stock
 export const TRANSICOES_CONTAGEM_STOCK: Record<string, string[]> = {
   RASCUNHO:     ['EM_CONTAGEM', 'CANCELADA'],
