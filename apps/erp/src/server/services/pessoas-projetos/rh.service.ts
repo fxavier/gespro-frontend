@@ -1,4 +1,5 @@
 import 'server-only';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
@@ -55,57 +56,91 @@ export function transitar(
 // ColaboradorService
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * #160 — o `Colaborador` tem `@@unique([tenantId, codigo|nuit|bi|email])`, que não olha para
+ * `deletedAt` (o arquivado continua a ocupar o valor). Traduz-se o P2002 da própria escrita — é o
+ * único sítio que também apanha a corrida — para uma regra de negócio por campo, com
+ * `details.fieldErrors` no formato que os formulários passam ao `form.setError`.
+ */
+const CAMPOS_UNICOS_COLABORADOR = [
+  ['codigo', 'código'],
+  ['nuit', 'NUIT'],
+  ['bi', 'BI'],
+  ['email', 'email'],
+] as const;
+
+async function comUnicidadeColaborador<T>(escrever: () => Promise<T>): Promise<T> {
+  try {
+    return await escrever();
+  } catch (e) {
+    if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== 'P2002') throw e;
+    // Com o driver-adapter os campos vêm em `meta.driverAdapterError`; sem ele, em `meta.target`.
+    const meta = JSON.stringify(e.meta ?? {});
+    const violado = CAMPOS_UNICOS_COLABORADOR.find(([campo]) =>
+      new RegExp(`(^|[^A-Za-z])${campo}([^A-Za-z]|$)`).test(meta),
+    );
+    if (!violado) throw e;
+    const [campo, rotulo] = violado;
+    const mensagem = `Já existe um colaborador com este ${rotulo}.`;
+    throw new BusinessRuleError(`COLABORADOR_${campo.toUpperCase()}_DUPLICADO`, mensagem, {
+      fieldErrors: { [campo]: [mensagem] },
+    });
+  }
+}
+
 export const ColaboradorService = {
   async criar(input: CreateColaboradorInput, ctx: Ctx): Promise<{ id: string }> {
-    const colaborador = await prisma.colaborador.create({
-      data: {
-        tenantId: ctx.tenantId,
-        codigo: input.codigo,
-        nome: input.nome,
-        dataNascimento: input.dataNascimento,
-        genero: input.genero,
-        estadoCivil: input.estadoCivil,
-        nacionalidade: input.nacionalidade,
-        naturalidadeProvincia: input.naturalidadeProvincia,
-        naturalidadeDistrito: input.naturalidadeDistrito,
-        bi: input.bi,
-        nuit: input.nuit,
-        niss: input.niss,
-        email: input.email,
-        telefone: input.telefone,
-        telefoneAlternativo: input.telefoneAlternativo,
-        enderecoRua: input.enderecoRua,
-        enderecoNumero: input.enderecoNumero,
-        enderecoBairro: input.enderecoBairro,
-        enderecoCidade: input.enderecoCidade,
-        enderecoProvincia: input.enderecoProvincia,
-        enderecoCodigoPostal: input.enderecoCodigoPostal,
-        emergenciaNome: input.emergenciaNome,
-        emergenciaParentesco: input.emergenciaParentesco,
-        emergenciaTelefone: input.emergenciaTelefone,
-        fotoUrl: input.fotoUrl,
-        departamentoId: input.departamentoId,
-        cargoId: input.cargoId,
-        supervisorId: input.supervisorId,
-        dataAdmissao: input.dataAdmissao,
-        status: input.status ?? 'PERIODO_EXPERIMENTAL',
-        tipoContrato: input.tipoContrato,
-        regimeTrabalho: input.regimeTrabalho,
-        horarioTrabalho: input.horarioTrabalho,
-        salarioBase: input.salarioBase,
-        subsidioAlimentacao: input.subsidioAlimentacao,
-        subsidioTransporte: input.subsidioTransporte,
-        subsidioHabitacao: input.subsidioHabitacao,
-        subsidiosOutros: input.subsidiosOutros,
-        localizacao: input.localizacao,
-        bancoBanco: input.bancoBanco,
-        bancoNib: input.bancoNib,
-        bancoTitular: input.bancoTitular,
-        nivelAcesso: input.nivelAcesso ?? 'USUARIO',
-        observacoes: input.observacoes,
-      },
-      select: { id: true },
-    });
+    const colaborador = await comUnicidadeColaborador(() =>
+      prisma.colaborador.create({
+        data: {
+          tenantId: ctx.tenantId,
+          codigo: input.codigo,
+          nome: input.nome,
+          dataNascimento: input.dataNascimento,
+          genero: input.genero,
+          estadoCivil: input.estadoCivil,
+          nacionalidade: input.nacionalidade,
+          naturalidadeProvincia: input.naturalidadeProvincia,
+          naturalidadeDistrito: input.naturalidadeDistrito,
+          bi: input.bi,
+          nuit: input.nuit,
+          niss: input.niss,
+          email: input.email,
+          telefone: input.telefone,
+          telefoneAlternativo: input.telefoneAlternativo,
+          enderecoRua: input.enderecoRua,
+          enderecoNumero: input.enderecoNumero,
+          enderecoBairro: input.enderecoBairro,
+          enderecoCidade: input.enderecoCidade,
+          enderecoProvincia: input.enderecoProvincia,
+          enderecoCodigoPostal: input.enderecoCodigoPostal,
+          emergenciaNome: input.emergenciaNome,
+          emergenciaParentesco: input.emergenciaParentesco,
+          emergenciaTelefone: input.emergenciaTelefone,
+          fotoUrl: input.fotoUrl,
+          departamentoId: input.departamentoId,
+          cargoId: input.cargoId,
+          supervisorId: input.supervisorId,
+          dataAdmissao: input.dataAdmissao,
+          status: input.status ?? 'PERIODO_EXPERIMENTAL',
+          tipoContrato: input.tipoContrato,
+          regimeTrabalho: input.regimeTrabalho,
+          horarioTrabalho: input.horarioTrabalho,
+          salarioBase: input.salarioBase,
+          subsidioAlimentacao: input.subsidioAlimentacao,
+          subsidioTransporte: input.subsidioTransporte,
+          subsidioHabitacao: input.subsidioHabitacao,
+          subsidiosOutros: input.subsidiosOutros,
+          localizacao: input.localizacao,
+          bancoBanco: input.bancoBanco,
+          bancoNib: input.bancoNib,
+          bancoTitular: input.bancoTitular,
+          nivelAcesso: input.nivelAcesso ?? 'USUARIO',
+          observacoes: input.observacoes,
+        },
+        select: { id: true },
+      }),
+    );
     return { id: colaborador.id };
   },
 
@@ -116,29 +151,31 @@ export const ColaboradorService = {
     });
     if (!existente) throw new NotFoundError('Colaborador não encontrado');
 
-    await prisma.colaborador.update({
-      where: { id },
-      data: {
-        nome: input.nome,
-        email: input.email,
-        telefone: input.telefone,
-        tipoContrato: input.tipoContrato,
-        regimeTrabalho: input.regimeTrabalho,
-        departamentoId: input.departamentoId,
-        cargoId: input.cargoId,
-        supervisorId: input.supervisorId,
-        salarioBase: input.salarioBase,
-        subsidioAlimentacao: input.subsidioAlimentacao,
-        subsidioTransporte: input.subsidioTransporte,
-        subsidioHabitacao: input.subsidioHabitacao,
-        subsidiosOutros: input.subsidiosOutros,
-        horarioTrabalho: input.horarioTrabalho,
-        localizacao: input.localizacao,
-        nivelAcesso: input.nivelAcesso,
-        observacoes: input.observacoes,
-        fotoUrl: input.fotoUrl,
-      },
-    });
+    await comUnicidadeColaborador(() =>
+      prisma.colaborador.update({
+        where: { id },
+        data: {
+          nome: input.nome,
+          email: input.email,
+          telefone: input.telefone,
+          tipoContrato: input.tipoContrato,
+          regimeTrabalho: input.regimeTrabalho,
+          departamentoId: input.departamentoId,
+          cargoId: input.cargoId,
+          supervisorId: input.supervisorId,
+          salarioBase: input.salarioBase,
+          subsidioAlimentacao: input.subsidioAlimentacao,
+          subsidioTransporte: input.subsidioTransporte,
+          subsidioHabitacao: input.subsidioHabitacao,
+          subsidiosOutros: input.subsidiosOutros,
+          horarioTrabalho: input.horarioTrabalho,
+          localizacao: input.localizacao,
+          nivelAcesso: input.nivelAcesso,
+          observacoes: input.observacoes,
+          fotoUrl: input.fotoUrl,
+        },
+      }),
+    );
     return { id };
   },
 
