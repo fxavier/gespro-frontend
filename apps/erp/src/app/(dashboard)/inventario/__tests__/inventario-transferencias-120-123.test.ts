@@ -7,9 +7,10 @@
  *
  * #120 — `/inventario/transferencias` deixa de filtrar em memória por `'TRANSFERENCIA'` e pede ao
  *        serviço o tipo (o valor de grupo `TRANSFERENCIA`, ver o oráculo de integração).
- * #121 — `/inventario/movimentacoes` passa `tipo` e `search` do URL ao serviço; as opções do filtro
- *        «Tipo» são todas valores que o `MovimentoStockFilterSchema` aceita (não há `BAIXA` no enum);
- *        a tabela etiqueta `TRANSFERENCIA_ENTRADA`/`_SAIDA` (nada de `TRANSFERENCIA ENTRADA` em bruto).
+ * #121 — `/inventario/movimentacoes` passa `tipo` e a pesquisa do URL ao serviço; a pesquisa da
+ *        FilterBar é `q` e as opções do filtro «Tipo» são exactamente o enum `TipoMovimentoStock`
+ *        (contrato único do #105/#106 — o valor de grupo `TRANSFERENCIA` vive em
+ *        `/inventario/transferencias`, trancado no bloco #120); a tabela etiqueta `TRANSFERENCIA_ENTRADA`/`_SAIDA` (nada de `TRANSFERENCIA ENTRADA` em bruto).
  * #122 — `ManutencaoAcoes` em «Em Andamento» mostra UM só botão «Concluir», que leva a `CONCLUIDA`;
  *        o botão que leva a `ORCAMENTO` tem outra etiqueta. Etiquetas das acções não destrutivas
  *        distintas em todos os estados.
@@ -121,18 +122,37 @@ describe('#121 — /inventario/movimentacoes liga «Tipo» e a pesquisa à query
     expect(usaPartilhado || declara).toBe(true);
   });
 
-  it('a FilterBar pesquisa pelo parâmetro `search`', () => {
-    expect(fonte).toMatch(/searchKey\s*=\s*["']search["']/);
+  it('a FilterBar pesquisa pelo parâmetro `q` (contrato do #106) e `q` chega ao serviço', async () => {
+    const chaves = [...fonte.matchAll(/searchKey\s*=\s*\{?\s*["']([^"']*)["']/g)].map((m) => m[1]);
+    expect(chaves.filter((c) => c !== 'q'), 'a FilterBar escreve outra chave que não `q`').toEqual([]);
+    expect(fonte, 'searchKey dinâmico — não verificável').not.toMatch(/searchKey\s*=\s*\{\s*[^"'\s]/);
+    const { MovimentoStockFilterSchema } = await import('@/lib/validations/stock');
+    const r = MovimentoStockFilterSchema.safeParse({ q: 'parafuso' });
+    expect(r.success && r.data.q, 'o schema de URL não deita fora `q`').toBe('parafuso');
   });
 
-  it('todas as opções do filtro «Tipo» são aceites pelo MovimentoStockFilterSchema', async () => {
+  it('as opções do filtro «Tipo» são exactamente o enum TipoMovimentoStock, todas aceites pelo schema', async () => {
     const { MovimentoStockFilterSchema } = await import('@/lib/validations/stock');
+    const { TipoMovimentoStock } = await import('@prisma/client');
+    expect(TipoMovimentoStock, 'enum TipoMovimentoStock do cliente Prisma').toBeDefined();
+    const reais = Object.values(TipoMovimentoStock) as string[];
+    expect(reais.length).toBeGreaterThan(0);
     const bloco = fonte.slice(fonte.indexOf('FILTER_CONFIGS'));
-    const valores = [...bloco.matchAll(/value:\s*['"]([A-Z_]+)['"]/g)].map((m) => m[1]!);
+    let valores = [...bloco.matchAll(/value:\s*['"]([A-Z_]+)['"]/g)].map((m) => m[1]!);
+    if (valores.length === 0) {
+      // Opções derivadas de um mapa rótulo tipado pelo enum: `opcoesDeEnum(MAPA)` (#105).
+      const nome = bloco.match(/opcoesDeEnum\(\s*(\w+)\s*\)/)?.[1];
+      expect(nome, 'opções do filtro Tipo: nem literais nem opcoesDeEnum(MAPA)').toBeDefined();
+      const decl = fonte.match(new RegExp(`const\\s+${nome}\\b[^=]*=\\s*\\{([\\s\\S]*?)\\n\\};`))?.[1];
+      expect(decl, `declaração de ${nome}`).toBeDefined();
+      valores = [...decl!.matchAll(/^\s*['"]?([A-Z_]+)['"]?\s*:/gm)].map((m) => m[1]!);
+    }
     expect(valores.length, 'opções do filtro Tipo encontradas').toBeGreaterThan(0);
     const recusados = valores.filter((tipo) => !MovimentoStockFilterSchema.safeParse({ tipo }).success);
     expect(recusados).toEqual([]);
-    expect(valores, 'a opção «Transferência» continua').toContain('TRANSFERENCIA');
+    expect([...valores].sort(), 'paridade com o enum (o grupo TRANSFERENCIA é da página de transferências)').toEqual(
+      [...reais].sort(),
+    );
   });
 
   it('a tabela etiqueta TRANSFERENCIA_ENTRADA e TRANSFERENCIA_SAIDA (nada em bruto)', async () => {
