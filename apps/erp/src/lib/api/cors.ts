@@ -22,6 +22,12 @@ function getAllowedOrigins(): Set<string> {
   );
 }
 
+export type CorsOptions = {
+  methods?: string;
+  allowedHeaders?: string;
+  credentials?: boolean;
+};
+
 /**
  * Devolve cabeçalhos CORS adequados para o pedido.
  * Se a origem não estiver na allowlist, não emite o cabeçalho Allow-Origin
@@ -31,11 +37,7 @@ function getAllowedOrigins(): Set<string> {
  */
 export function buildCorsHeaders(
   req: Request,
-  opts?: {
-    methods?: string;
-    allowedHeaders?: string;
-    credentials?: boolean;
-  },
+  opts?: CorsOptions,
 ): HeadersInit {
   const origin = req.headers.get('origin') ?? '';
   const allowed = getAllowedOrigins();
@@ -59,10 +61,13 @@ export function buildCorsHeaders(
 
 /**
  * Resposta OPTIONS (preflight) para handlers CORS.
+ *
+ * Passa as MESMAS `opts` que o handler do método real: um preflight que anuncia
+ * métodos ou credenciais diferentes da resposta efectiva é mentira ao browser (#197).
  */
-export function corsPreflightResponse(req: Request): Response {
+export function corsPreflightResponse(req: Request, opts?: CorsOptions): Response {
   return new Response(null, {
     status: 204,
-    headers: buildCorsHeaders(req),
+    headers: buildCorsHeaders(req, opts),
   });
 }
