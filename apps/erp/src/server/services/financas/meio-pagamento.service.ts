@@ -120,16 +120,9 @@ export async function resolverContaMeioPagamento(
 //
 // Estado lido por um predicado de decisão (a conta que a venda POS debita):
 // escrito por `definirContaMeioPagamentoPOS` (página de configuração), lido por
-// `resolverContasPagamentoPOS` dentro da transacção da venda. Sem linha → 121.
+// `resolverContasPagamentoPOS` pelo núcleo da emissão (`emitirDocumentoEmTx` com
+// `opcoes.pagamentos`), na transacção da venda/troca. Sem linha → 121.
 // ---------------------------------------------------------------------------
-
-/** Contrato publicado para o WS C (VendaService), injectado em `comercial/index.ts`. */
-export interface IMeioPagamentoPOSService {
-  resolverContasPagamentoPOS(
-    tx: Prisma.TransactionClient,
-    ctx: Ctx,
-  ): Promise<Partial<Record<MetodoPagamentoTipo, string>>>;
-}
 
 export interface ContaMeioPagamentoPOSRow {
   metodo: MetodoPOSConfiguravel;

@@ -1,7 +1,6 @@
 import 'server-only'; // A5: serviços são server-only
 import { BusinessRuleError } from '@/lib/errors';
 import type { MetodoPagamentoTipo, Prisma } from '@prisma/client';
-import type { RegistarLancamentoContabilisticoInput } from './contabilidade.interface';
 import type {
   CriarSerieDocumentoInput,
   LiquidarNotaCreditoInput,
@@ -512,33 +511,20 @@ export interface PaginacaoFaturacao<T> {
 // Interface do serviço de faturação
 // ---------------------------------------------------------------------------
 
-/** O que o construtor de lançamento de um documento emitido precisa de ler. */
-export interface DocumentoLancavel {
-  id: string;
-  numero: string;
-  total: Prisma.Decimal;
-  subtotal: Prisma.Decimal;
-  ivaTotal: Prisma.Decimal;
-  dataEmissao: Date;
-}
-
 /** Variações do documento emitido por `emitirDocumentoEmTx`; as omissões são as da factura comum. */
 export interface OpcoesEmissaoDocumento {
   /** Série que numera o documento (omissão: FATURA). */
   tipoSerie?: TipoSerieDocumento;
   /**
-   * Omissão: derivado da série e de `totalPago` — FATURA_RECIBO nasce PAGA
-   * (`totalPago = total`, ADR-0041 §1); as outras EMITIDA, ou PARCIALMENTE_PAGA quando
-   * `0 < totalPago < total` (venda POS mista a crédito, §4). Contradizer → OPCOES_EMISSAO_INCOERENTES.
+   * Pagamentos do documento (venda POS, troca — ADR-0041 §1, §4). O núcleo deriva deles:
+   * - o estado: FATURA_RECIBO nasce PAGA (`totalPago = total`); FATURA nasce PARCIALMENTE_PAGA
+   *   com `totalPago = Σ não-CREDITO`, ou EMITIDA quando tudo é CREDITO;
+   * - o lançamento: D conta do meio por pagamento (configuração `ContaMeioPagamentoPOS` do
+   *   tenant; omissões 111/121/411) / C 711 / C 44331.
+   * Σ ≠ total → PAGAMENTOS_NAO_BATEM_TOTAL, antes de qualquer escrita.
+   * Omissão: factura comum (D 411; FATURA EMITIDA, FATURA_RECIBO PAGA).
    */
-  status?: 'EMITIDA' | 'PARCIALMENTE_PAGA' | 'PAGA';
-  /**
-   * Valor já recebido na emissão (omissão: total na FATURA_RECIBO, 0 nas outras).
-   * Numa FATURA tem de ficar em [0, total[; numa FATURA_RECIBO tem de ser o total.
-   */
-  totalPago?: Prisma.Decimal;
-  /** Lançamento do documento (omissão: `construirLancamentoFatura`, D 411). */
-  construirLancamento?: (doc: DocumentoLancavel) => RegistarLancamentoContabilisticoInput;
+  pagamentos?: ReadonlyArray<{ tipo: MetodoPagamentoTipo; valor: Prisma.Decimal }>;
 }
 
 export interface IFaturacaoService {
@@ -608,15 +594,6 @@ export interface IFaturacaoService {
    * Não bloqueia; limite 0 = sem limite definido.
    */
   avisosLimiteCreditoEmTx(tx: Prisma.TransactionClient, clienteId: string, ctx: Ctx): Promise<string[]>;
-  /**
-   * Lançamento da venda POS (ADR-0041 §3, §4): D conta do meio por pagamento, C 711, C 44331.
-   * @throws BusinessRuleError('PAGAMENTOS_NAO_BATEM_TOTAL')
-   */
-  construirLancamentoVendaPOS(
-    doc: DocumentoLancavel,
-    pagamentos: ReadonlyArray<{ tipo: MetodoPagamentoTipo; valor: Prisma.Decimal }>,
-    contas?: Partial<Record<MetodoPagamentoTipo, string>>,
-  ): RegistarLancamentoContabilisticoInput;
   obterFatura(id: string, ctx: Ctx): Promise<FaturaCompleta | null>;
   listarFaturas(
     filtro: FiltroFaturaInput,

@@ -10,7 +10,7 @@
  *  2. NC dos bens devolvidos pelo núcleo `emitirNotaCreditoEmTx` (D 711 / D 44331 / C 411).
  *  3. Entrada de stock do devolvido; Venda de substituição; baixa de stock do substituto.
  *  4. Factura-Recibo (série FATURA_RECIBO, PAGA) pelo núcleo `emitirDocumentoEmTx`, com o
- *     lançamento de `construirLancamentoVendaPOS`, ligada à venda nos dois sentidos.
+ *     lançamento dos meios (`opcoes.pagamentos`), ligada à venda nos dois sentidos.
  *  5. Compensação NC ↔ FR: o crédito da NC paga a FR até ao valor dela — é um pagamento
  *     CREDITO (D 411) no lançamento da FR, que anula o C 411 da NC; a NC fica LIQUIDADA por
  *     COMPENSACAO. Os `pagamentos` do input são só a diferença que o cliente paga; se o
@@ -26,7 +26,7 @@ import { prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx } from '@/server/services/types';
 import type { IStockService } from '@/server/services/inventario/stock.interface';
-import type { ICaixaService, IFaturacaoService, IMeioPagamentoPOSService } from '@/server/services/financas';
+import type { ICaixaService, IFaturacaoService } from '@/server/services/financas';
 import { exigirEmailConfirmadoParaEmitir } from '@/server/services/financas';
 import { TRANSICOES_DEVOLUCAO } from '@/lib/state-machines';
 import { calcularTotaisVendaPOS } from '@/lib/vendas-totais';
@@ -73,10 +73,8 @@ export class TrocaService {
       | 'emitirNotaCreditoEmTx'
       | 'liquidarNotaCreditoEmTx'
       | 'emitirDocumentoEmTx'
-      | 'construirLancamentoVendaPOS'
       | 'motivoIsencaoAutomaticoEmTx'
     >,
-    private readonly meioPagamentoPOSService: IMeioPagamentoPOSService,
   ) {}
 
   /**
@@ -246,7 +244,6 @@ export class TrocaService {
 
       // 4. Factura-Recibo do substituto: D meios da diferença + D 411 pelo crédito compensado.
       const meios = compensado.greaterThan(0) ? [...pagos, { tipo: 'CREDITO' as const, valor: compensado }] : pagos;
-      const contas = await this.meioPagamentoPOSService.resolverContasPagamentoPOS(tx, ctx);
       const motivoIsencao = await this.faturacaoService.motivoIsencaoAutomaticoEmTx(tx, ctx);
       const fatura = await this.faturacaoService.emitirDocumentoEmTx(
         tx,
@@ -273,10 +270,7 @@ export class TrocaService {
           ],
         },
         ctx,
-        {
-          tipoSerie: 'FATURA_RECIBO',
-          construirLancamento: (doc) => this.faturacaoService.construirLancamentoVendaPOS(doc, meios, contas),
-        },
+        { tipoSerie: 'FATURA_RECIBO', pagamentos: meios },
       );
       await tx.venda.updateMany({ where: { id: venda.id, tenantId: ctx.tenantId }, data: { faturaId: fatura.id } });
 
