@@ -121,11 +121,13 @@ async function mapa(tipo: string): Promise<string[][]> {
 describe('GET /api/financas/iva/mapas/[periodo] — CSV injection (#294)', () => {
   it('declaracao: conta e nome perigosos saem com apóstrofo; valores negativos intactos', async () => {
     const t = await mapa('declaracao');
-    expect(t[0]!.join(';')).toBe('Conta;Nome;Lado;BaseImponivel;Taxa;Imposto;Divergencia');
-    expect(t[1]).toEqual(["'=1+1", `'=HYPERLINK("http://mal.example";"x")`, 'CREDITO', '1000', '16%', '160', '']);
-    expect(t[2]).toEqual(['2432', "'@SUM(1)", 'DEBITO', '1000', '16%', '160', '-12.5']);
-    expect(t[3]).toEqual(['2433', "'-Dedutível", 'CREDITO', '1000', '16%', '-603660', '']);
-    expect(t[4]).toEqual(['2434', 'IVA dedutível imobilizado', 'CREDITO', '1000', '16%', '160', '']);
+    // #199: o resumo pode vir em linhas de cabeçalho antes da tabela — localiza-a.
+    const i = t.findIndex((l) => l.join(';') === 'Conta;Nome;Lado;BaseImponivel;Taxa;Imposto;Divergencia');
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(t[i + 1]).toEqual(["'=1+1", `'=HYPERLINK("http://mal.example";"x")`, 'CREDITO', '1000', '16%', '160', '']);
+    expect(t[i + 2]).toEqual(['2432', "'@SUM(1)", 'DEBITO', '1000', '16%', '160', '-12.5']);
+    expect(t[i + 3]).toEqual(['2433', "'-Dedutível", 'CREDITO', '1000', '16%', '-603660', '']);
+    expect(t[i + 4]).toEqual(['2434', 'IVA dedutível imobilizado', 'CREDITO', '1000', '16%', '160', '']);
     // Totais: o SALDO negativo é um número, não uma fórmula.
     const saldo = t.find((l) => l[2] === 'SALDO');
     expect(saldo).toEqual(['', '', 'SALDO', '', '', '-603500.00', '']);
