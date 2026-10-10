@@ -4,6 +4,7 @@ import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
 import type { Ctx } from '@/server/services/types';
+import { prefixoTenant, urlRefParaKey } from '@/lib/storage/objeto';
 import {
   TRANSICOES_COLABORADOR,
   TRANSICOES_SOLICITACAO_FERIAS,
@@ -26,6 +27,7 @@ import type {
   UpdateAvaliacaoInput,
   CreateFormacaoInput,
   UpdateFormacaoInput,
+  AdicionarDocumentoColaboradorInput,
 } from '@/lib/validations/rh';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -264,6 +266,53 @@ export const ColaboradorService = {
       }),
     ]);
     return { departamentos, cargos };
+  },
+
+  /**
+   * #163 — regista o metadado de um documento carregado pelo presign (ADR-0017). O colaborador
+   * tem de ser do tenant e não arquivado (senão 404); a ref tem de resolver para uma key sob o
+   * prefixo do tenant (travão B2, como `fornecedorService.adicionarDocumento`).
+   */
+  async adicionarDocumento(input: AdicionarDocumentoColaboradorInput, ctx: Ctx) {
+    const colaborador = await prisma.colaborador.findFirst({
+      where: { id: input.colaboradorId, tenantId: ctx.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!colaborador) throw new NotFoundError('Colaborador não encontrado');
+
+    const key = urlRefParaKey(input.url);
+    if (!key || !key.startsWith(prefixoTenant(ctx.tenantId))) {
+      throw new BusinessRuleError(
+        'STORAGE_KEY_CROSS_TENANT',
+        'A referência de armazenamento do documento não pertence a esta empresa',
+      );
+    }
+
+    return prisma.documentoColaborador.create({
+      data: {
+        tenantId: ctx.tenantId,
+        colaboradorId: colaborador.id,
+        tipo: input.tipo,
+        nome: input.nome,
+        url: input.url,
+        tamanho: input.tamanho ?? null,
+      },
+      select: { id: true, tipo: true, nome: true, dataUpload: true, tamanho: true },
+    });
+  },
+
+  /** #163 — documentos do colaborador (do tenant), do mais recente para o mais antigo. */
+  async listarDocumentos(colaboradorId: string, ctx: Ctx) {
+    const colaborador = await prisma.colaborador.findFirst({
+      where: { id: colaboradorId, tenantId: ctx.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!colaborador) throw new NotFoundError('Colaborador não encontrado');
+    return prisma.documentoColaborador.findMany({
+      where: { tenantId: ctx.tenantId, colaboradorId },
+      orderBy: [{ dataUpload: 'desc' }, { id: 'desc' }],
+      select: { id: true, tipo: true, nome: true, dataUpload: true, tamanho: true },
+    });
   },
 };
 

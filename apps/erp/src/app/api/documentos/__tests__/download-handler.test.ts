@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   ativoFindFirst: vi.fn(),
   viaturaFindFirst: vi.fn(),
   motoristaFindFirst: vi.fn(),
+  // #163: `colaborador` passa a ter buscador; a procura sem `?recurso` também o consulta.
+  colaboradorFindFirst: vi.fn(),
 }));
 
 vi.mock('@/lib/auth', () => ({ auth: mocks.auth }));
@@ -19,6 +21,7 @@ vi.mock('@/server/db/client', () => ({
     documentoAtivo: { findFirst: mocks.ativoFindFirst },
     documentoViatura: { findFirst: mocks.viaturaFindFirst },
     documentoMotorista: { findFirst: mocks.motoristaFindFirst },
+    documentoColaborador: { findFirst: mocks.colaboradorFindFirst },
   },
 }));
 
@@ -44,6 +47,7 @@ beforeEach(() => {
   mocks.ativoFindFirst.mockResolvedValue(null);
   mocks.viaturaFindFirst.mockResolvedValue(null);
   mocks.motoristaFindFirst.mockResolvedValue(null);
+  mocks.colaboradorFindFirst.mockResolvedValue(null);
 });
 
 describe('download — posse de tenant', () => {
