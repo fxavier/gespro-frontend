@@ -1,13 +1,16 @@
 'use client';
 
 /**
- * Lista de atribuições activas de um benefício — CLIENT COMPONENT.
+ * Lista das atribuições activas e suspensas de um benefício, com as acções de cada uma
+ * (#162) — CLIENT COMPONENT.
  */
 
 import Link from 'next/link';
 import { UserCheck, UserX, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/patterns';
+import { formatarData } from '@/lib/format-date';
+import { AtribuicaoAcoes } from './atribuicao-acoes';
 
 export interface AtribuicaoRow {
   id: string;
@@ -28,7 +31,7 @@ export function AtribuicoesList({ atribuicoes, beneficioId }: AtribuicoesListPro
   if (atribuicoes.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground text-sm">
-        Sem atribuições activas. <Link href={`/rh/beneficios/atribuir?beneficioId=${beneficioId}`} className="text-primary underline">Atribuir a um colaborador</Link>
+        Sem atribuições activas ou suspensas. <Link href={`/rh/beneficios/atribuir?beneficioId=${beneficioId}`} className="text-primary underline">Atribuir a um colaborador</Link>
       </div>
     );
   }
@@ -44,8 +47,8 @@ export function AtribuicoesList({ atribuicoes, beneficioId }: AtribuicoesListPro
                 Colaborador: {at.colaboradorId.slice(0, 8)}…
               </p>
               <p className="text-xs text-muted-foreground tabular-nums">
-                Início: {new Date(at.dataInicio).toLocaleDateString('pt-PT')}
-                {at.dataFim && ` · Fim: ${new Date(at.dataFim).toLocaleDateString('pt-PT')}`}
+                Início: {formatarData(at.dataInicio)}
+                {at.dataFim && ` · Fim: ${formatarData(at.dataFim)}`}
               </p>
               <p className="text-xs text-muted-foreground tabular-nums">
                 Empresa: {Number(at.comparticipacaoEmpresa).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} MZN
@@ -56,6 +59,7 @@ export function AtribuicoesList({ atribuicoes, beneficioId }: AtribuicoesListPro
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <StatusBadge status={at.status} />
+            <AtribuicaoAcoes atribuicaoId={at.id} status={at.status} />
           </div>
         </div>
       ))}
