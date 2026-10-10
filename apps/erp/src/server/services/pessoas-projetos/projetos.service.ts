@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
@@ -141,8 +141,29 @@ export const EquipaService = {
 // ProjetoService
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Código de projecto repetido no tenant (#172): regra de negócio com o erro no campo, nunca o
+ * P2002 cru que o pipeline traduz em «Erro interno».
+ */
+function projectoCodigoDuplicado(codigo: string): BusinessRuleError {
+  const mensagem = `Já existe um projecto com o código «${codigo}».`;
+  return new BusinessRuleError('PROJECTO_CODIGO_DUPLICADO', mensagem, { fieldErrors: { codigo: [mensagem] } });
+}
+
+/** P2002 na unicidade do `codigo` (com o driver-adapter os campos vêm em `meta.driverAdapterError`). */
+function violaCodigoProjecto(e: unknown): boolean {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== 'P2002') return false;
+  return /\bcodigo\b/.test(JSON.stringify(e.meta ?? {}));
+}
+
 export const ProjetoService = {
   async criar(input: CreateProjetoInput, ctx: Ctx): Promise<{ id: string }> {
+    const existente = await prisma.projeto.findFirst({
+      where: { tenantId: ctx.tenantId, codigo: input.codigo },
+      select: { id: true },
+    });
+    if (existente) throw projectoCodigoDuplicado(input.codigo);
+
     const projeto = await prisma.projeto.create({
       data: {
         tenantId: ctx.tenantId,
@@ -163,6 +184,10 @@ export const ProjetoService = {
         observacoes: input.observacoes,
       },
       select: { id: true },
+    }).catch((e: unknown) => {
+      // Corrida: outra criação gravou o mesmo código entre a verificação e a escrita.
+      if (violaCodigoProjecto(e)) throw projectoCodigoDuplicado(input.codigo);
+      throw e;
     });
     return { id: projeto.id };
   },
