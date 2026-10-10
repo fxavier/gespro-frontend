@@ -3,30 +3,22 @@
 // documentos de todos os tenants activos, e emite notificações idempotentes.
 //
 // Chamada: GET /api/cron/transporte-alertas
-// Protecção: Authorization: Bearer <CRON_SECRET>
+// Protecção: Authorization: Bearer <CRON_SECRET>, verificada pelo `withCron` (dentro do
+// `withApi`: requestId, logger estruturado e métricas RED — issue #186).
 // Agendamento recomendado: diariamente às 02:00 UTC (via cron externo ou Vercel Cron Jobs).
 //
 // Nota: cron-safe — idempotente; pode ser re-executado sem efeitos secundários.
 // Idempotência de notificações: uma notificação por (tipo, entidadeId, userId) por dia.
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { withCron } from '@/lib/api/with-cron';
+import { logger } from '@/server/observability/logger';
 import { prismaBase } from '@/server/db/client';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarTenantsComAcesso } from '@/server/provisioning/tenants-com-acesso';
 import { USER_ID_AUTOMATICO } from '@/server/services/financas/contabilidade.service';
 import { recalcularEstadosDocumentos, gerarAlertasDocumentos } from '@/server/services/operacoes/alertas.service';
 import { notificacaoService } from '@/server/services/plataforma/notificacao.service';
-
-// ============================================================
-// Protecção por token
-// ============================================================
-
-function verificarToken(request: NextRequest): boolean {
-  const token = request.headers.get('authorization')?.replace('Bearer ', '');
-  const esperado = process.env.CRON_SECRET;
-  if (!esperado) return false;
-  return token === esperado;
-}
 
 // ============================================================
 // Emitir notificações para utilizadores com permissão de transporte
@@ -108,14 +100,7 @@ async function emitirNotificacoesAlerta(
 // Handler
 // ============================================================
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  if (!verificarToken(request)) {
-    return NextResponse.json(
-      { error: { code: 'NAO_AUTENTICADO', message: 'Token inválido.' } },
-      { status: 401 },
-    );
-  }
-
+export const GET = withCron(async () => {
   try {
     // Só tenants com acesso (não apagados, Assinatura aberta ou em Leitura) — issue #198.
     const tenants = await listarTenantsComAcesso();
@@ -124,7 +109,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       tenantId: string;
       slug: string;
       viaturasActualizadas: number;
-      motoistasActualizados: number;
+      motoristasActualizados: number;
       notificacoesEmitidas: number;
     }> = [];
 
@@ -235,30 +220,40 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     const totalViatura = resultados.reduce((s, r) => s + r.viaturasActualizadas, 0);
-    const totalMotorista = resultados.reduce((s, r) => s + r.motoistasActualizados, 0);
+    const totalMotorista = resultados.reduce((s, r) => s + r.motoristasActualizados, 0);
     const totalNotificacoes = resultados.reduce((s, r) => s + r.notificacoesEmitidas, 0);
 
-    console.log(
-      `[cron] transporte-alertas: ${tenants.length} tenants processados. ` +
-      `Documentos actualizados: viatura=${totalViatura}, motorista=${totalMotorista}. ` +
-      `Notificações emitidas: ${totalNotificacoes}`,
+    logger.info(
+      {
+        tenants: tenants.length,
+        totalViaturasActualizadas: totalViatura,
+        totalMotoristasActualizados: totalMotorista,
+        totalNotificacoesEmitidas: totalNotificacoes,
+      },
+      '[cron] transporte-alertas concluído',
     );
 
     return NextResponse.json({
       data: {
         tenants: tenants.length,
         totalViaturasActualizadas: totalViatura,
+        totalMotoristasActualizados: totalMotorista,
+        // Alias da grafia antiga (#201), mantido por compatibilidade com quem ainda
+        // o leia fora do repositório. Obsoleto: lê `totalMotoristasActualizados`.
         totalMotoistasActualizados: totalMotorista,
         totalNotificacoesEmitidas: totalNotificacoes,
-        resultados,
+        resultados: resultados.map((r) => ({ ...r, motoistasActualizados: r.motoristasActualizados })),
         timestamp: new Date().toISOString(),
       },
     });
-  } catch (err) {
-    console.error('[cron] transporte-alertas error:', err);
+  } catch (e) {
+    logger.error(
+      { err: { message: (e as Error)?.message, stack: (e as Error)?.stack } },
+      '[cron] transporte-alertas falhou',
+    );
     return NextResponse.json(
       { error: { code: 'ERRO_INTERNO', message: 'Erro no processamento do cron.' } },
       { status: 500 },
     );
   }
-}
+});

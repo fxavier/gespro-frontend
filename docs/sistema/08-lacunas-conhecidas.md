@@ -226,7 +226,7 @@ Detalhe em [API §6](05-api.md).
 | G | Lacuna |
 |---|---|
 | — | ~~`/api/ready` e `/api/metrics` expõem a mensagem crua do erro sem autenticação; `/api/metrics` aberto sem `METRICS_SECRET`~~ — **deixou de ser lacuna** (2026-10-08, [#190](https://github.com/fxavier/gespro-frontend/issues/190), [#191](https://github.com/fxavier/gespro-frontend/issues/191), PR [#414](https://github.com/fxavier/gespro-frontend/pull/414)): sem erros crus nas respostas, e `/api/metrics` é fail-closed (503 sem segredo, 401 com segredo errado) |
-| B | Três crons sem `withApi`; `transporte-alertas` usa console.log ([#186](https://github.com/fxavier/gespro-frontend/issues/186)) |
+| — | ~~Três crons sem `withApi`; `transporte-alertas` usa console.log~~ — **deixou de ser lacuna** (2026-10-10, [#186](https://github.com/fxavier/gespro-frontend/issues/186)): as cinco rotas `/api/cron/*` passam pelo `withCron` (`withApi` + `CRON_SECRET`) e pelo logger estruturado |
 | B | `withApi` não devolve `traceId` no corpo do 500 (CLAUDE.md diz que sim) ([#187](https://github.com/fxavier/gespro-frontend/issues/187)) |
 | B | `withApi` sem validação Zod; `/api/audit` com `take=abc` dá 500 ([#188](https://github.com/fxavier/gespro-frontend/issues/188)) |
 | B | Envelope `{ data }` inconsistente (presign, metrics, registo) ([#189](https://github.com/fxavier/gespro-frontend/issues/189)) |
@@ -240,4 +240,4 @@ Detalhe em [API §6](05-api.md).
 | — | ~~transporte-alertas processa tenants apagados e com assinatura FECHADA~~ — **deixou de ser lacuna** (2026-10-08, [#198](https://github.com/fxavier/gespro-frontend/issues/198), PR [#426](https://github.com/fxavier/gespro-frontend/pull/426)): o cron só percorre tenants com acesso e corre no contexto de cada um. Tenants sem `Assinatura` ficam de fora ([#429](https://github.com/fxavier/gespro-frontend/issues/429)) |
 | B | Mapa de declaração descarta resumo/avisos e usa o id no nome do ficheiro; `antiguidade` exige apuramento ([#199](https://github.com/fxavier/gespro-frontend/issues/199)) |
 | B | Recibo formata data com `toLocaleDateString` no servidor e não envia `no-store` ([#200](https://github.com/fxavier/gespro-frontend/issues/200)) |
-| B | Grafia `motoistasActualizados` na resposta de transporte-alertas ([#201](https://github.com/fxavier/gespro-frontend/issues/201)) |
+| — | ~~Grafia `motoistasActualizados` na resposta de transporte-alertas~~ — **deixou de ser lacuna** (2026-10-10, [#201](https://github.com/fxavier/gespro-frontend/issues/201)): `motoristasActualizados`; a grafia antiga fica como alias obsoleto com o mesmo valor |

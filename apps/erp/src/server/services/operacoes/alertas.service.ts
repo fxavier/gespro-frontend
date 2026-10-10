@@ -127,7 +127,7 @@ export function gerarAlertasManutencao(
 
 export async function recalcularEstadosDocumentos(ctx: {
   tenantId: string;
-}): Promise<{ viaturasActualizadas: number; motoistasActualizados: number }> {
+}): Promise<{ viaturasActualizadas: number; motoristasActualizados: number }> {
   const { tenantId } = ctx;
 
   // Carregar todos os documentos do tenant
@@ -143,7 +143,7 @@ export async function recalcularEstadosDocumentos(ctx: {
   ]);
 
   let viaturasActualizadas = 0;
-  let motoistasActualizados = 0;
+  let motoristasActualizados = 0;
 
   // Actualizar documentos de viatura com estado desactualizado
   for (const doc of docsViatura) {
@@ -180,11 +180,11 @@ export async function recalcularEstadosDocumentos(ctx: {
         where: { id: doc.id },
         data: { estado: estadoPrisma },
       });
-      motoistasActualizados++;
+      motoristasActualizados++;
     }
   }
 
-  return { viaturasActualizadas, motoistasActualizados };
+  return { viaturasActualizadas, motoristasActualizados };
 }
 
 // ============================================================

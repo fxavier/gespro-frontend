@@ -403,7 +403,7 @@ Ciclo de vida das subscrições (ADR-0032), `processarCicloDeVida()` em
 `src/server/services/plataforma/assinatura.service.ts`. Três pernas numa corrida: fim do Trial →
 Leitura; aviso a 7 dias do fecho; fim da Leitura → Fechada. Nada se apaga. Para o Trial o motor
 primário é o Stripe e isto é rede de segurança; para o fecho da Leitura **é o único mecanismo**.
-Idempotente por compare-and-set dentro das transições. **Sem `withApi`.**
+Idempotente por compare-and-set dentro das transições. Passa pelo `withApi` via `withCron`.
 
 Sucesso `200`:
 
@@ -419,7 +419,7 @@ curl -s "$ERP/api/cron/expirar-trials" -H "Authorization: Bearer $CRON_SECRET"
 
 Compara os utilizadores do realm `gespro` com os `User` locais e **reporta** divergências nas duas
 direcções — nunca repara (ADR-0013 §3). `reconciliarIdentidades()` em
-`src/server/auth/reconciliacao.ts`. **Sem `withApi`.**
+`src/server/auth/reconciliacao.ts`. Passa pelo `withApi` via `withCron`.
 
 Sucesso `200`:
 
@@ -449,8 +449,7 @@ Para cada tenant: recalcula `EstadoDocumento` (`VALIDO` / `PROXIMO_EXPIRAR` / `E
 `DocumentoViatura` e `DocumentoMotorista` (`recalcularEstadosDocumentos`), gera alertas
 (`gerarAlertasDocumentos`) e emite notificações via `notificacaoService.emitir` para os
 utilizadores activos com a permissão `transporte:viatura:listar`. Uma notificação falhada por
-utilizador é ignorada. **Sem `withApi`**; regista com `console.log`/`console.error`, não com o logger
-estruturado.
+utilizador é ignorada. Passa pelo `withApi` via `withCron` e regista pelo logger estruturado.
 
 Sucesso `200`:
 
@@ -459,17 +458,19 @@ Sucesso `200`:
   "data": {
     "tenants": 3,
     "totalViaturasActualizadas": 4,
+    "totalMotoristasActualizados": 1,
     "totalMotoistasActualizados": 1,
     "totalNotificacoesEmitidas": 6,
     "resultados": [
-      { "tenantId": "…", "slug": "demo", "viaturasActualizadas": 4, "motoistasActualizados": 1, "notificacoesEmitidas": 6 }
+      { "tenantId": "…", "slug": "demo", "viaturasActualizadas": 4, "motoristasActualizados": 1, "notificacoesEmitidas": 6, "motoistasActualizados": 1 }
     ],
     "timestamp": "2026-09-24T03:30:00.905Z"
   }
 }
 ```
 
-(A grafia `motoistas` é a do código — é contrato de resposta.)
+(`totalMotoistasActualizados` / `motoistasActualizados` são aliases obsoletos da grafia antiga, com o
+mesmo valor, mantidos por compatibilidade — issue #201. Lê `motoristas…`.)
 
 ```bash
 curl -s "$ERP/api/cron/transporte-alertas" -H "Authorization: Bearer $CRON_SECRET"
@@ -1045,10 +1046,6 @@ Encontradas ao escrever este capítulo; o código é o que vale, nada disto foi 
 
 **Pipeline e envelope**
 
-- **Três crons sem `withApi`**: `expirar-trials`, `reconciliar-identidades` e `transporte-alertas` são
-  funções `GET` nuas — sem `x-request-id`, sem `http_requests_total`, fora do Grafana. O comentário de
-  `expirar-registos-nao-verificados` já o aponta como achado da revisão da spec 19. `transporte-alertas`
-  usa ainda `console.log`/`console.error` em vez do logger estruturado.
 - **`withApi` não devolve `traceId` no corpo** do 500, ao contrário do que diz o `CLAUDE.md`
   («erros inesperados devolvem `traceId`»); a correlação é só pelo cabeçalho `x-request-id`.
 - **`withApi` não tem Zod**: o `CLAUDE.md` descreve-o como «sessão→permissão→Zod→…», mas a validação
@@ -1116,5 +1113,3 @@ Encontradas ao escrever este capítulo; o código é o que vale, nada disto foi 
 - `rh/payroll/[id]/recibo` formata a data de pagamento com `toLocaleDateString('pt-PT')` no servidor
   (UTC), contra a regra de `src/lib/format-date.ts` (fuso `Africa/Maputo`); também não envia
   `Cache-Control: no-store`, ao contrário do PDF da factura.
-- A grafia `motoistasActualizados` / `totalMotoistasActualizados` na resposta de
-  `transporte-alertas` é um erro de digitação que já é contrato.

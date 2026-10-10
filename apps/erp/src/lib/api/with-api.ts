@@ -1,6 +1,5 @@
 import 'server-only';
 import { NextResponse, type NextRequest } from 'next/server';
-import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { AcessoLeituraError, AppError, ForbiddenError, UnauthorizedError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
@@ -103,6 +102,9 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
       let perms = new Set<string>();
 
       if (!opts?.public) {
+        // Import tardio: uma rota `public` (crons, probes, webhooks) nunca carrega o
+        // next-auth — nem precisa de sessão, nem o arrasta para fora do runtime Next.
+        const { auth } = await import('@/lib/auth');
         const session = await auth();
         if (!session?.user) throw new UnauthorizedError();
         const { id: uid, tenantId: tid, permissions } = session.user;
