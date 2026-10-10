@@ -157,12 +157,16 @@ export function UploadDocumento({
         const body = await resp.json().catch(() => null);
         throw new Error(body?.error?.message ?? 'Não foi possível assinar o upload.');
       }
-      const { uploadUrl, key, requiredHeaders, urlRef } = (await resp.json()) as {
-        uploadUrl: string;
-        key: string;
-        requiredHeaders: Record<string, string>;
-        urlRef: string;
+      // Envelope `{ data }` do withApi (issue #189).
+      const { data } = (await resp.json()) as {
+        data: {
+          uploadUrl: string;
+          key: string;
+          requiredHeaders: Record<string, string>;
+          urlRef: string;
+        };
       };
+      const { uploadUrl, key, requiredHeaders, urlRef } = data;
 
       // 2. PUT direto para o storage
       await putComProgresso(uploadUrl, file, requiredHeaders, setProgresso);

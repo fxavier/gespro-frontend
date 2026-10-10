@@ -59,12 +59,15 @@ Ordem de execução por pedido:
    ou `DELETE` e a rota não declarar `permiteEmLeitura` → `AcessoLeituraError` (409).
 5. **Contexto** — `runWithRequestContext({requestId, tenantId, userId})` e, fora das rotas públicas,
    `runWithTenantContext({tenantId, userId})`, que activa o isolamento multi-tenant da extensão Prisma.
-6. **Handler.** A validação de entrada (Zod) acontece **aqui, dentro de cada handler** — `withApi`
-   não tem opção `schema`, ao contrário do `createSafeAction`. Handlers com permissão dinâmica
-   (por módulo ou por recurso) verificam-na também aqui, com `ctx.permissions.has(...)`.
-7. Regista `request start`/`request end` (logger estruturado), métricas RED (`recordRequest`) e
+6. **Validação (#188)** — se a rota declarar `opts.query` e/ou `opts.params` (schemas Zod), a query
+   string e os parâmetros de rota são validados **depois** da sessão e da permissão; falha →
+   `ValidationError` (422 `VALIDACAO`, `details` = `flatten()`) e o handler não corre. O resultado
+   chega em `ctx.query` / `ctx.params`. Sem schema, nada muda (`ctx.params` em bruto).
+7. **Handler.** O corpo continua a ser validado dentro de cada handler. Handlers com permissão
+   dinâmica (por módulo ou por recurso) verificam-na aqui, com `ctx.permissions.has(...)`.
+8. Regista `request start`/`request end` (logger estruturado), métricas RED (`recordRequest`) e
    `http_requests_total`/`http_request_duration_ms` (`recordHttpRequest`).
-8. Acrescenta o cabeçalho **`x-request-id`** a todas as respostas, incluindo as de erro.
+9. Acrescenta o cabeçalho **`x-request-id`** a todas as respostas, incluindo as de erro.
 
 Qualquer excepção lançada pelo handler é apanhada: um `AppError` é traduzido para o envelope de erro
 com o seu `status`; qualquer outra coisa vira `ERRO_INTERNO` (500), com a stack **só** no log do
@@ -94,12 +97,12 @@ Erro — é exactamente o que o `catch` do `withApi` produz:
 inesperado chega assim, com `HTTP 500`:
 
 ```json
-{ "error": { "code": "ERRO_INTERNO", "message": "Erro interno" } }
+{ "error": { "code": "ERRO_INTERNO", "message": "Erro interno", "traceId": "<x-request-id>" } }
 ```
 
-**traceId.** No `withApi`, o identificador de correlação é o cabeçalho `x-request-id`; o corpo do
-500 **não** leva `traceId` (ao contrário do `createSafeAction`, que o põe em `error.details.traceId`).
-A única rota que escreve `traceId` no corpo é `POST /api/publico/registo`, por contrato com o site.
+**traceId (#187).** No `withApi`, o corpo de um 5xx leva `error.traceId`, igual ao cabeçalho
+`x-request-id` (os 4xx só têm o cabeçalho). `POST /api/publico/registo` escreve ainda `traceId` no
+topo, por contrato com o site.
 Procurar nos logs: `requestId = <valor do x-request-id>`.
 
 ### 1.4 Hierarquia `AppError` → HTTP
@@ -296,7 +299,7 @@ por `tenantId`.
 |---|---|
 | Permissão | `admin:ver_auditoria` (estática, no `withApi`) |
 | Query | `cursor` — id do último registo da página anterior · `take` — tamanho da página, omissão `20`, tecto `100` · `entity` — filtra por entidade · `userId` — filtra por autor |
-| Validação | nenhuma (sem Zod): os parâmetros são lidos em bruto |
+| Validação | Zod no `withApi` (`opts.query`, #188): `take` tem de ser inteiro positivo (acima de 100 fica em 100); senão 422 `VALIDACAO` sem tocar na base |
 | Sucesso | `200 application/json` — `{ "data": { "items": [...], "nextCursor": "<id>" \| null } }` |
 
 Cada item: `id`, `entity`, `entityId`, `action`, `data`, `ip`, `createdAt`, `userId`,
@@ -508,14 +511,16 @@ Fluxo de upload (`src/components/patterns/upload-documento.tsx`): `POST /api/doc
 | Leitura | **bloqueado** (método de escrita, sem `permiteEmLeitura`) → 409 `ACESSO_LEITURA` |
 | Limitação | `presignLimiter`, 30/min, chave `${userId}::presign` |
 | Corpo (`PresignSchema`) | `recurso`: enum `fornecedor \| ativo \| viatura \| motorista \| colaborador` · `recursoId`: `z.string().cuid()` · `nome`: string 1–200 · `contentType`: enum dos tipos permitidos · `tamanho`: inteiro positivo ≤ 10 485 760 |
-| Sucesso | `200 application/json` — **sem** envelope `data` |
+| Sucesso | `200 application/json` — envelope `{ data }` (#189) |
 
 ```json
 {
-  "uploadUrl": "https://<bucket>.s3.<região>.amazonaws.com/tenant/…?X-Amz-Signature=…",
-  "key": "tenant/cm9…/fornecedor/cm9…/5b1f…-alvara-2026.pdf",
-  "requiredHeaders": { "Content-Type": "application/pdf" },
-  "urlRef": "gestpro-storage:tenant/cm9…/fornecedor/cm9…/5b1f…-alvara-2026.pdf"
+  "data": {
+    "uploadUrl": "https://<bucket>.s3.<região>.amazonaws.com/tenant/…?X-Amz-Signature=…",
+    "key": "tenant/cm9…/fornecedor/cm9…/5b1f…-alvara-2026.pdf",
+    "requiredHeaders": { "Content-Type": "application/pdf" },
+    "urlRef": "gestpro-storage:tenant/cm9…/fornecedor/cm9…/5b1f…-alvara-2026.pdf"
+  }
 }
 ```
 
@@ -741,7 +746,8 @@ Métricas Prometheus (prom-client), raspadas pelo job `gespro-erp` do otel-lgtm
 (`infra/local/observabilidade/prometheus.yaml`).
 
 - Exige `Authorization: Bearer <METRICS_SECRET>` (comparação timing-safe); falhando →
-  `401 {"error":"Unauthorized"}`. **Sem `METRICS_SECRET` (ausente ou vazio) recusa** com `503`, em
+  `401 {"error":{"code":"NAO_AUTENTICADO",…}}`. **Sem `METRICS_SECRET` (ausente ou vazio) recusa** com
+  `503 {"error":{"code":"METRICAS_DESACTIVADAS",…}}` (#189), em
   qualquer ambiente (#191); o `docker-compose.yml` define um valor de dev.
 - Sucesso: `200`, `Content-Type` = `registry.contentType` (formato de texto Prometheus),
   `Cache-Control: no-store`.
@@ -809,10 +815,10 @@ ConfiguracaoFiscal, Assinatura `TRIAL`, RBAC, User, PGC-NIRF, séries, Notifica�
 |---|---|
 | Cabeçalhos | `Content-Type: application/json` · **`Idempotency-Key`** obrigatório, 8–200 caracteres |
 | Corpo (`RegistoTenantSchema`) | `empresa.nome` (2–200) · `empresa.nuit` (NUIT válido, 9 dígitos não repetidos) · `admin.nome` (2–150) · `admin.email` (e-mail, ≤ 254, normalizado para minúsculas) · `senha` (10–200) · `confirmacao` (igual a `senha`) · `planoId` (`BASICO \| PROFISSIONAL \| EMPRESARIAL`) · `provincia` (província de Moçambique de `getProvincias()`) · `captchaToken` (1–4096) |
-| Sucesso | `201 application/json` — `{ "tenantSlug": "…", "mensagem": "Conta criada. Enviámos uma ligação de confirmação para a sua caixa de correio: confirme o endereço para poder emitir documentos e convidar colegas." }` (sem envelope `data`) |
+| Sucesso | `201 application/json` — `{ "tenantSlug": "…", "mensagem": "Conta criada. Enviámos uma ligação de confirmação para a sua caixa de correio: confirme o endereço para poder emitir documentos e convidar colegas." }` — e, por #189, o mesmo par também em `data` (aditivo; o topo é contrato publicado) |
 | Efeito colateral | envia o e-mail de verificação (`enviarEmailVerificacao`) fora do caminho da resposta; um SMTP em baixo não torna o 201 num erro |
 
-Formato de erro (contrato próprio, com `traceId` = `requestId`):
+Formato de erro (contrato próprio, com `traceId` = `requestId`, repetido em `error.traceId` — #189):
 
 ```json
 {
@@ -824,7 +830,7 @@ Formato de erro (contrato próprio, com `traceId` = `requestId`):
 
 | HTTP | `code` | Quando |
 |---|---|---|
-| 429 | `LIMITE_EXCEDIDO_IP` | > 3 pedidos/h deste IP. **Corpo sem `error`**: só `{ traceId, erro }`, com `Retry-After` |
+| 429 | `LIMITE_EXCEDIDO_IP` | > 3 pedidos/h deste IP. `{ traceId, erro, error }` (o `error` desde #189), com `Retry-After` |
 | 400 | `IDEMPOTENCY_KEY_OBRIGATORIA` | cabeçalho em falta ou fora de 8–200 |
 | 400 | `JSON_INVALIDO` | corpo ilegível |
 | 422 | `VALIDACAO` | Zod falhou (`details` = `flatten()`) |
@@ -1046,15 +1052,12 @@ Encontradas ao escrever este capítulo; o código é o que vale, nada disto foi 
 
 **Pipeline e envelope**
 
-- **`withApi` não devolve `traceId` no corpo** do 500, ao contrário do que diz o `CLAUDE.md`
-  («erros inesperados devolvem `traceId`»); a correlação é só pelo cabeçalho `x-request-id`.
-- **`withApi` não tem Zod**: o `CLAUDE.md` descreve-o como «sessão→permissão→Zod→…», mas a validação
-  é manual em cada handler. `audit` e `cron/abrir-exercicio` não usam Zod; em `audit`, `take=abc`
-  chega ao Prisma como `NaN` (500) e `take` negativo não é recusado.
-- **Envelope `{ data }` não é universal**: `documentos/presign` devolve o objecto nu; `health`/`ready`
-  têm formato próprio; `metrics` responde `{"error":"Unauthorized"}` e `{"error": "...", "detail": ...}`
-  fora do envelope; `publico/registo` tem contrato próprio (201 nu, erros com `traceId`/`erro`, 429 sem
-  `error`).
+- ~~`withApi` sem `traceId` no 500~~ — corrigido em #187 (`error.traceId` = `x-request-id`).
+- ~~`withApi` sem Zod~~ — #188: opções `query`/`params`; `audit` passou a usá-las. O
+  `cron/abrir-exercicio` continua a validar à mão.
+- **Envelope `{ data }` não é universal**: `health`/`ready` têm formato próprio. Desde #189,
+  `documentos/presign` responde em `{ data }`, as recusas de `metrics` em `{ error: { code, message } }`
+  e `publico/registo` acrescenta `data`/`error.traceId` ao seu contrato próprio.
 - **`/api/ready` e `/api/metrics` expõem a mensagem crua do erro** (`error`/`detail`) a um chamador sem
   autenticação.
 - **Sem sessão, as rotas autenticadas respondem 307** (middleware), não 401 — um consumidor

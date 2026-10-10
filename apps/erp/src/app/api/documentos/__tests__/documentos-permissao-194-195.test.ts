@@ -261,7 +261,8 @@ describe('#195 — presign valida recursoId com idEntidade()', () => {
       }),
     );
     expect(res.status, 'presign recusou um id uuid').toBe(200);
-    const body = await res.json();
+    // #189: o sucesso vem no envelope { data } do withApi.
+    const { data: body } = await res.json();
     expect(body.key.startsWith(`tenant/${TENANT}/fornecedor/${UUID}/`)).toBe(true);
   });
 
@@ -308,7 +309,10 @@ describe('#195 — presign valida recursoId com idEntidade()', () => {
       }),
     );
     expect(res.status).toBe(200);
-    const { key } = await res.json();
+    // #189: o sucesso vem no envelope { data } do withApi.
+    const {
+      data: { key },
+    } = await res.json();
     const put = await PUT(
       pedidoPut(key, PDF, { 'content-type': 'image/png' }),
       segmento(key),

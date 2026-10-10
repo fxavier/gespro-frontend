@@ -1,7 +1,14 @@
 import 'server-only';
 import { NextResponse, type NextRequest } from 'next/server';
+import type { z } from 'zod';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { AcessoLeituraError, AppError, ForbiddenError, UnauthorizedError } from '@/lib/errors';
+import {
+  AcessoLeituraError,
+  AppError,
+  ForbiddenError,
+  UnauthorizedError,
+  ValidationError,
+} from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import { runWithRequestContext, newRequestId } from '@/server/observability/context';
 import { recordRequest } from '@/server/observability/metrics';
@@ -11,19 +18,24 @@ import { normalizeRoute } from './route-utils';
 
 export { normalizeRoute } from './route-utils';
 
-interface ApiCtx {
+type ParamsBrutos = Record<string, string | string[]>;
+
+interface ApiCtx<Q, P> {
   tenantId: string;
   userId: string;
   permissions: Set<string>;
-  params: Record<string, string | string[]>;
+  /** Parâmetros de rota — já validados/transformados quando há `opts.params` (#188). */
+  params: P;
+  /** Query validada/transformada por `opts.query` (#188); `undefined` sem schema. */
+  query: Q;
 }
 
-type Handler = (req: NextRequest, ctx: ApiCtx) => Promise<Response>;
+type Handler<Q, P> = (req: NextRequest, ctx: ApiCtx<Q, P>) => Promise<Response>;
 
 /** Métodos que escrevem. Um `GET` nunca é uma mutação; o resto é, por omissão. */
 const METODOS_DE_ESCRITA = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-interface WithApiOptions {
+interface WithApiOptions<Q, P> {
   permission?: string;
   /**
    * Se `true`, ignora autenticação — para endpoints públicos controlados
@@ -47,6 +59,25 @@ interface WithApiOptions {
    * antes de o handler gerar o que quer que seja.
    */
   limitarExportacao?: boolean;
+  /**
+   * Schema Zod da query string (issue #188). Validado depois da sessão e da
+   * permissão; falha ⇒ 422 `VALIDACAO` com `details = flatten()` e o handler
+   * não corre. O resultado chega em `ctx.query`.
+   */
+  query?: z.ZodType<Q, z.ZodTypeDef, unknown>;
+  /** Schema Zod dos parâmetros de rota (issue #188); resultado em `ctx.params`. */
+  params?: z.ZodType<P, z.ZodTypeDef, unknown>;
+}
+
+/** Valida com Zod; falha ⇒ `ValidationError` (422) com `flatten()` em `details`. */
+function validar<T>(
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  valor: unknown,
+  rotulo: string,
+): T {
+  const r = schema.safeParse(valor);
+  if (!r.success) throw new ValidationError(`${rotulo} inválidos`, r.error.flatten());
+  return r.data;
 }
 
 /** Adiciona o header `x-request-id` a qualquer Response sem alterar o body. */
@@ -63,7 +94,9 @@ function withRequestIdHeader(response: Response, requestId: string): Response {
 /**
  * Wrapper para Route Handlers (exportações/webhooks/integrações). Autentica,
  * verifica permissão, corre dentro do contexto de tenant e devolve o envelope
- * `{ error: { code, message, details? } }` em falha.
+ * `{ error: { code, message, details? } }` em falha — e, num 5xx, também
+ * `traceId` (= `x-request-id`, o `requestId` dos logs; issue #187).
+ * `opts.query`/`opts.params` validam a query e os parâmetros com Zod (#188).
  *
  * Instrumentação transversal (sem alterar contratos):
  *   - Gera `requestId` (UUIDv4) por pedido; propaga via AsyncLocalStorage.
@@ -73,7 +106,10 @@ function withRequestIdHeader(response: Response, requestId: string): Response {
  *   - Route normalizada: /api/faturacao/[id]/pdf (não o ID concreto) — B2 fix.
  *   - tenantId registado mesmo no caminho de erro (M4 fix).
  */
-export function withApi(handler: Handler, opts?: WithApiOptions) {
+export function withApi<Q = undefined, P = ParamsBrutos>(
+  handler: Handler<Q, P>,
+  opts?: WithApiOptions<Q, P>,
+) {
   return async (
     req: NextRequest,
     segment?: { params: Promise<Record<string, string | string[]>> },
@@ -124,20 +160,35 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
         }
       }
 
+      // Validação (#188) depois da sessão e da permissão: 401/403 mantêm-se.
+      const query = (
+        opts?.query
+          ? validar(
+              opts.query,
+              Object.fromEntries(new URL(req.url).searchParams),
+              'Parâmetros de pesquisa',
+            )
+          : undefined
+      ) as Q;
+      const ctxParams = (
+        opts?.params ? validar(opts.params, params, 'Parâmetros de rota') : params
+      ) as P;
+      const ctxBase = { tenantId, userId, permissions: perms, params: ctxParams, query };
+
       const log = logger.child({ requestId, method, url: route, tenantId, userId });
       log.info({}, 'request start');
 
       const response = await runWithRequestContext({ requestId, tenantId, userId }, () => {
         if (opts?.public) {
           // Endpoint público: sem contexto de tenant
-          return handler(req, { tenantId, userId, permissions: perms, params });
+          return handler(req, ctxBase);
         }
         return runWithTenantContext({ tenantId, userId }, async () => {
           if (opts?.limitarExportacao) {
             const rl = await exportLimiter.consume(`${userId}::export::${route}`);
             if (rl.limited) return rateLimitedResponse(rl.retryAfterSec);
           }
-          return handler(req, { tenantId, userId, permissions: perms, params });
+          return handler(req, ctxBase);
         });
       });
 
@@ -169,7 +220,15 @@ export function withApi(handler: Handler, opts?: WithApiOptions) {
 
       return addId(
         NextResponse.json(
-          { error: { code: err.code, message: err.message, details: err.details } },
+          {
+            error: {
+              code: err.code,
+              message: err.message,
+              details: err.details,
+              // #187: o 500 leva o traceId para o utilizador o citar ao suporte.
+              ...(err.status >= 500 ? { traceId: requestId } : {}),
+            },
+          },
           { status: err.status },
         ),
       );

@@ -71,11 +71,14 @@ export const POST = withApi(async (req: NextRequest, ctx) => {
     'presign emitido',
   );
 
+  // Envelope `{ data }` do withApi (issue #189).
   return NextResponse.json({
-    uploadUrl: url,
-    key,
-    requiredHeaders: headers,
-    /** Ref a guardar no campo `url` da action de registo (compat). */
-    urlRef: keyParaUrlRef(key),
+    data: {
+      uploadUrl: url,
+      key,
+      requiredHeaders: headers,
+      /** Ref a guardar no campo `url` da action de registo (compat). */
+      urlRef: keyParaUrlRef(key),
+    },
   });
 });
