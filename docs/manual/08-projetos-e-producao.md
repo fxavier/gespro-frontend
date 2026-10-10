@@ -144,7 +144,7 @@ saída do armazém activo principal (ver [Inventário](03-inventario.md)).
 
 > **Atenção:** os ecrãs marcados com «—» ainda não têm entrada no menu lateral. Abra-os escrevendo o endereço na barra do navegador (por exemplo, `/projetos/riscos`).
 
-> **Atenção:** o ecrã `/projetos/documentos` é um protótipo: os documentos que lá carregar ficam guardados **só neste navegador** e não são partilhados com a empresa. Não o use para guardar documentos de projecto.
+> **Nota:** o GestPro ainda não guarda documentos ao nível do projecto. O antigo ecrã `/projetos/documentos`, que os guardava só no navegador, foi retirado.
 
 <!-- captura: 08-projetos-e-producao/projetos-lista.png | /projetos/lista -->
 ![Lista de projectos](img/08-projetos-e-producao/projetos-lista.png)
