@@ -146,7 +146,7 @@ produção). Os itens **A** são os que merecem prioridade antes de qualquer cli
 | B | Rotas 404 em detalhes de tarefas, ordens, BOM, roteiros; entregas e documentos de transporte sem ligação no menu; código de projecto duplicado → «Erro interno» ([#170](https://github.com/fxavier/gespro-frontend/issues/170)) ([#171](https://github.com/fxavier/gespro-frontend/issues/171)) ([#172](https://github.com/fxavier/gespro-frontend/issues/172)) |
 | B | «Cancelar» em RESOLVIDO; «SLA em atraso» só actualiza na transição; KPI «Em Progresso» sempre 0 ([#173](https://github.com/fxavier/gespro-frontend/issues/173)) |
 | B | Iniciar rota/actividade não muda estado da viatura; estado do motorista não editável; documento novo sempre VALIDO até ao cron ([#174](https://github.com/fxavier/gespro-frontend/issues/174)) |
-| B | /projetos/documentos guarda só no browser ([#175](https://github.com/fxavier/gespro-frontend/issues/175)) |
+| — | ~~/projetos/documentos guarda só no browser~~ — **deixou de ser lacuna** (2026-10-10, [#175](https://github.com/fxavier/gespro-frontend/issues/175)): não há modelo de documento de projecto, por isso a página foi retirada; guardar documentos de projecto no servidor exige modelo próprio, por decidir |
 
 ## Plataforma e subscrição
 
