@@ -76,49 +76,33 @@ function TableSkeleton() {
 async function TicketsKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
 
-  const [todos, emAtraso, resolvidos] = await Promise.all([
-    runWithTenantContext(ctx, () =>
-      ticketService.listarTickets({ take: 1, orderBy: 'createdAt', order: 'desc' }, ctx)
-    ),
-    runWithTenantContext(ctx, () =>
-      ticketService.listarTickets(
-        { take: 1, slaEmAtraso: true, orderBy: 'createdAt', order: 'desc' },
-        ctx
-      )
-    ),
-    runWithTenantContext(ctx, () =>
-      ticketService.listarTickets(
-        { take: 1, estado: 'RESOLVIDO', orderBy: 'createdAt', order: 'desc' },
-        ctx
-      )
-    ),
+  const [total, emProgresso, emAtraso, resolvidos] = await Promise.all([
+    runWithTenantContext(ctx, () => ticketService.contarTickets({}, ctx)),
+    runWithTenantContext(ctx, () => ticketService.contarTickets({ estado: 'EM_PROGRESSO' }, ctx)),
+    runWithTenantContext(ctx, () => ticketService.contarTickets({ slaEmAtraso: true }, ctx)),
+    runWithTenantContext(ctx, () => ticketService.contarTickets({ estado: 'RESOLVIDO' }, ctx)),
   ]);
-
-  // ponytail: counts estimated via cursor pagination — nextCursor absent = exact count
-  const totalAbertos = todos.items.filter(
-    (t) => t.estado !== 'FECHADO' && t.estado !== 'CANCELADO' && t.estado !== 'RESOLVIDO'
-  ).length;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <KpiCard
         title="Total de Tickets"
-        value={String(todos.items.length)}
+        value={String(total)}
         icon={<Ticket className="h-5 w-5" />}
       />
       <KpiCard
         title="Em Progresso"
-        value={String(totalAbertos)}
+        value={String(emProgresso)}
         icon={<Clock className="h-5 w-5" />}
       />
       <KpiCard
         title="SLA em Atraso"
-        value={String(emAtraso.items.filter((t) => t.slaEmAtraso).length)}
+        value={String(emAtraso)}
         icon={<AlertTriangle className="h-5 w-5" />}
       />
       <KpiCard
         title="Resolvidos"
-        value={String(resolvidos.items.length)}
+        value={String(resolvidos)}
         icon={<CheckCircle className="h-5 w-5" />}
       />
     </div>
