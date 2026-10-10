@@ -45,8 +45,9 @@ x-erp-ambiente: &erp-ambiente
   APP_VERSION: local
   ALLOWED_ORIGINS: http://localhost:8080,http://localhost:3001
   METRICS_SECRET: ${METRICS_SECRET:-dev-metrics-secret}
-  # Credencial do agendador (serviço `cron` abaixo). As rotas /api/cron/* não
-  # estão em PUBLIC_PATHS: entram com esta, e não com sessão.
+  # Credencial do agendador (serviço `cron` abaixo). O prefixo /api/cron/ está em
+  # PUBLIC_PATHS (o middleware deixa passar sem sessão); cada rota exige esta
+  # credencial em `Authorization: Bearer` e devolve 401 sem ela.
   CRON_SECRET: ${CRON_SECRET:-dev-cron-secret}
   # Armazenamento: driver local até o cliente S3 ganhar `endpoint` configurável
   # (ADR-0026 §3.2 — trabalho do w8-armazenamento, fase 3). O MinIO já está de

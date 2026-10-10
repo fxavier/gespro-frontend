@@ -18,7 +18,7 @@ import { expurgarRegistosNaoVerificados } from '@/server/services/plataforma/exp
  *
  * Protecção: `Authorization: Bearer <CRON_SECRET>`, verificado pelo `withCron`.
  * O endpoint está em `/api/cron/` que o middleware.ts não intercepta (PUBLIC_PATHS).
- * Agendamento recomendado: diário, 03:30 UTC (depois do reconciliar-identidades).
+ * Agendamento: diário, 03:10 UTC (depois do expirar-trials) — ver infra/local/cron/crontab e o runbook.
  */
 export const runtime = 'nodejs';
 

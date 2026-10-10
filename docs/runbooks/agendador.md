@@ -5,7 +5,7 @@ executável), ADR-0022 §4 (configuração por ambiente, nunca por código).
 
 ## O que é, e porque existe um contentor para isto
 
-Quatro rotas do ERP fazem trabalho que ninguém pede a partir de um ecrã. Não se chamam sozinhas:
+Cinco rotas do ERP fazem trabalho que ninguém pede a partir de um ecrã. Não se chamam sozinhas:
 alguém tem de as chamar a horas. Enquanto não houver fornecedor escolhido (ADR-0026 §5) esse
 alguém é um contentor do `docker-compose`, no perfil `full`.
 
@@ -32,13 +32,18 @@ abre o exercício a 15 de Novembro. Quem procurar a data no crontab vai encontr�
 configuração — é o caminho de recuperação de quem descobre em Janeiro que o automatismo falhou.
 
 - **Método**: `GET`.
-- **Autenticação**: `Authorization: Bearer <CRON_SECRET>`. As rotas **não** estão em
-  `PUBLIC_PATHS` — entram com esta credencial, nunca com sessão.
+- **Autenticação**: `Authorization: Bearer <CRON_SECRET>`, verificado em cada rota pelo
+  `withCron` (401 sem ele). O prefixo `/api/cron/` **está** em `PUBLIC_PATHS`
+  (`apps/erp/middleware.ts`): o middleware não exige sessão — sem essa entrada o agendador
+  recebia 307 → `/auth/login` antes de a credencial ser lida. Entram com esta credencial,
+  nunca com sessão.
 - **Idempotência**: todas. Repetir uma corrida tem o mesmo efeito que corrê-la uma vez — quem
   decide é o compare-and-set dentro das transições, não a consulta que produz candidatos. Uma
   corrida falhada pode simplesmente repetir-se.
-- **Horário**: espaçados de propósito. O de subscrições corre primeiro porque é o que pode fechar
-  acessos; o de identidades corre depois para ver o mundo já estabilizado.
+- **Horário**: espaçados de propósito. A abertura de exercício corre às 02:00; das restantes, o
+  de subscrições corre primeiro porque é o que pode fechar acessos; o de identidades corre depois
+  para ver o mundo já estabilizado. A fonte dos horários é `infra/local/cron/crontab`: esta tabela
+  e os comentários «Agendamento» de cada `route.ts` acompanham-no (há teste que o impõe).
 - **Fuso**: UTC. Maputo é UTC+2, portanto 03:00 UTC = 05:00 locais — fora do horário de expediente
   moçambicano, que é o que se quer.
 

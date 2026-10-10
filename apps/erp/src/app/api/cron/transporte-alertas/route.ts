@@ -5,7 +5,7 @@
 // Chamada: GET /api/cron/transporte-alertas
 // Protecção: Authorization: Bearer <CRON_SECRET>, verificada pelo `withCron` (dentro do
 // `withApi`: requestId, logger estruturado e métricas RED — issue #186).
-// Agendamento recomendado: diariamente às 02:00 UTC (via cron externo ou Vercel Cron Jobs).
+// Agendamento: diário, 03:30 UTC — ver infra/local/cron/crontab e docs/runbooks/agendador.md.
 //
 // Nota: cron-safe — idempotente; pode ser re-executado sem efeitos secundários.
 // Idempotência de notificações: uma notificação por (tipo, entidadeId, userId) por dia.
