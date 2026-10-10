@@ -4,8 +4,8 @@
  * <UploadDocumento> — upload direto cliente→S3 via presigned URL.
  *
  * Fluxo (spec 01 §UI): seleciona ficheiro → valida tipo/tamanho (UX) →
- * `POST /api/documentos/presign` → `PUT` para o storage com os
- * `requiredHeaders` → chama a action de registo (prop `onRegistado`) →
+ * `POST /api/documentos/presign` → envio para o storage como o presign mandar
+ * (`PUT` local ou `POST` multipart com política no S3, #430) → chama a action de registo (prop `onRegistado`) →
  * toast + refresh.
  *
  * SEM MODAIS: usar inline numa secção/aba de detalhe ou numa sub-rota
@@ -27,6 +27,7 @@ import {
   contentTypePermitido,
   type RecursoDocumento,
 } from '@/lib/storage/documento-config';
+import { montarPedidoUpload, type AssinaturaUpload } from '@/lib/storage/pedido-upload';
 
 export interface UploadDocumentoMeta {
   /** Key derivada server-side no storage. */
@@ -48,7 +49,7 @@ export interface UploadDocumentoProps {
   recurso: RecursoDocumento;
   recursoId: string;
   /**
-   * Chamada após o PUT com sucesso. O consumidor mapeia `meta` para o input
+   * Chamada após o envio com sucesso. O consumidor mapeia `meta` para o input
    * da sua action de registo (ex.: `url: meta.urlRef`, `storageKey: meta.key`)
    * e devolve o `ActionResult`.
    */
@@ -72,16 +73,16 @@ function formatarTamanho(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** PUT com progresso via XHR (fetch não expõe progresso de upload). */
-function putComProgresso(
-  url: string,
+/** Envio com progresso via XHR (fetch não expõe progresso de upload). */
+function enviarComProgresso(
+  assinatura: AssinaturaUpload,
   file: File,
-  headers: Record<string, string>,
   onProgress: (pct: number) => void,
 ): Promise<void> {
+  const { method, url, headers, body } = montarPedidoUpload(assinatura, file);
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url);
+    xhr.open(method, url);
     for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
@@ -91,7 +92,7 @@ function putComProgresso(
       else reject(new Error(`Falha no upload (HTTP ${xhr.status})`));
     });
     xhr.addEventListener('error', () => reject(new Error('Erro de rede no upload')));
-    xhr.send(file);
+    xhr.send(body);
   });
 }
 
@@ -159,17 +160,12 @@ export function UploadDocumento({
       }
       // Envelope `{ data }` do withApi (issue #189).
       const { data } = (await resp.json()) as {
-        data: {
-          uploadUrl: string;
-          key: string;
-          requiredHeaders: Record<string, string>;
-          urlRef: string;
-        };
+        data: AssinaturaUpload & { key: string; urlRef: string };
       };
-      const { uploadUrl, key, requiredHeaders, urlRef } = data;
+      const { key, urlRef } = data;
 
-      // 2. PUT direto para o storage
-      await putComProgresso(uploadUrl, file, requiredHeaders, setProgresso);
+      // 2. Envio directo para o storage (PUT local ou POST com política no S3)
+      await enviarComProgresso(data, file, setProgresso);
 
       // 3. Registo do metadado via action do consumidor
       setEstado('registing');
