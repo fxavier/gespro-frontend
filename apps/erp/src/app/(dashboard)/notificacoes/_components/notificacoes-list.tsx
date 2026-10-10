@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { CheckCheck, Check, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/patterns/empty-state';
@@ -97,7 +98,41 @@ function NotificacaoItem({ item }: { item: NotificacaoListItem }) {
  * Lista de notificações — Client Component folha.
  * Recebe dados do Server Component pai; mutações via Server Actions.
  */
-export function NotificacoesList({ items, nextCursor: _nextCursor, temNaoLidas }: NotificacoesListProps) {
+/** URL da lista com os filtros actuais (q, tipo, apenasNaoLidas…) e o cursor dado (ou sem cursor). */
+function urlComCursor(atuais: URLSearchParams, cursor: string | null): string {
+  const p = new URLSearchParams(atuais);
+  if (cursor) p.set('cursor', cursor);
+  else p.delete('cursor');
+  const qs = p.toString();
+  return qs ? `/notificacoes?${qs}` : '/notificacoes';
+}
+
+/** Paginação por cursor: «Mais antigas» segue o nextCursor; «Voltar às mais recentes» retira-o. */
+function Paginacao({ nextCursor }: { nextCursor: string | null }) {
+  const searchParams = useSearchParams();
+  const atuais = new URLSearchParams(searchParams?.toString() ?? '');
+  const naPrimeira = !atuais.get('cursor');
+  if (naPrimeira && !nextCursor) return null;
+
+  return (
+    <nav aria-label="Paginação das notificações" className="flex items-center justify-between gap-2 p-3 border-t">
+      {naPrimeira ? (
+        <span />
+      ) : (
+        <Button variant="outline" size="sm" asChild>
+          <Link href={urlComCursor(atuais, null)}>Voltar às mais recentes</Link>
+        </Button>
+      )}
+      {nextCursor && (
+        <Button variant="outline" size="sm" asChild>
+          <Link href={urlComCursor(atuais, nextCursor)}>Mais antigas</Link>
+        </Button>
+      )}
+    </nav>
+  );
+}
+
+export function NotificacoesList({ items, nextCursor, temNaoLidas }: NotificacoesListProps) {
   const [isPending, startTransition] = useTransition();
 
   function handleMarcarTodasLidas() {
@@ -112,6 +147,7 @@ export function NotificacoesList({ items, nextCursor: _nextCursor, temNaoLidas }
         icon={<Bell className="h-8 w-8" />}
         title="Sem notificações"
         description="Não tem notificações por ler."
+        action={<Paginacao nextCursor={null} />}
       />
     );
   }
@@ -140,6 +176,8 @@ export function NotificacoesList({ items, nextCursor: _nextCursor, temNaoLidas }
           <NotificacaoItem key={item.id} item={item} />
         ))}
       </div>
+
+      <Paginacao nextCursor={nextCursor} />
 
       {/* Preferências */}
       <div className="p-4 border-t bg-muted/20 text-center">

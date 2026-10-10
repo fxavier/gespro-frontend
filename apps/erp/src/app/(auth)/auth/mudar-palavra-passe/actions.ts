@@ -56,6 +56,14 @@ export async function mudarPalavraPasse(dados: unknown): Promise<ResultadoMudanc
     if (res.motivo === 'indisponivel') {
       return { ok: false, erro: 'O serviço de identidade não respondeu. Tente de novo.' };
     }
+    if (res.motivo === 'convite-por-concluir') {
+      // #185: o convite não se conclui aqui; escrever a palavra-passe deixava
+      // o VERIFY_EMAIL e o login voltava a recusar, em ciclo.
+      return {
+        ok: false,
+        erro: 'O seu convite ainda não foi concluído. Abra a ligação do convite que recebeu por e-mail.',
+      };
+    }
     if (res.motivo === 'conta-desactivada') {
       return { ok: false, erro: 'Esta conta está desactivada. Contacte o administrador.' };
     }
