@@ -1,6 +1,6 @@
 /**
  * Fecho de Caixa — Server Component (shell).
- * Obtém sessão activa do servidor e passa para o wizard client.
+ * Obtém a sessão a fechar (?sessaoId= ou a do utilizador) e passa-a ao wizard client.
  */
 
 import { redirect } from 'next/navigation';
@@ -10,7 +10,12 @@ import * as caixaService from '@/server/services/financas/caixa.service';
 import { PageHeader } from '@/components/patterns';
 import { FechamentoWizard } from './_components/fechamento-wizard';
 
-export default async function FechamentoCaixaPage() {
+export default async function FechamentoCaixaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sessaoId?: string | string[] }>;
+}) {
+  const { sessaoId } = await searchParams;
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
   const { tenantId, id: userId } = session.user;
@@ -19,7 +24,11 @@ export default async function FechamentoCaixaPage() {
 
   try {
     const dados = await runWithTenantContext({ tenantId, userId }, async () => {
-      const s = await caixaService.obterSessaoAtual({ tenantId, userId });
+      // #150: a sessão pedida em ?sessaoId= (se ABERTA no tenant), senão a do utilizador.
+      const s = await caixaService.obterSessaoParaFecho(
+        typeof sessaoId === 'string' ? sessaoId : undefined,
+        { tenantId, userId },
+      );
       if (!s) return null;
       // #91: o esperado vem do servidor (fundo + entradas − saídas, ABERTURA fora).
       return { s, resumo: await caixaService.resumoSessao(s.id, { tenantId, userId }) };
