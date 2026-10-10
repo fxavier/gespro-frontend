@@ -17,6 +17,7 @@ import {
   UpdateAvaliacaoSchema,
   CreateFormacaoSchema,
   UpdateFormacaoSchema,
+  AdicionarDocumentoColaboradorSchema,
 } from '@/lib/validations/rh';
 import { z } from 'zod';
 import {
@@ -58,6 +59,14 @@ export const arquivarColaboradorAction = createSafeAction({
   permission: 'rh:colaboradores:delete',
   revalidate: { tags: ['rh:colaboradores'] },
   handler: ({ id }, ctx) => ColaboradorService.arquivar(id, ctx),
+});
+
+/** #163 — regista o documento carregado pelo presign na ficha do colaborador. */
+export const adicionarDocumentoColaboradorAction = createSafeAction({
+  schema: AdicionarDocumentoColaboradorSchema,
+  permission: 'rh:colaboradores:update',
+  revalidate: { tags: ['rh:colaboradores'] },
+  handler: (input, ctx) => ColaboradorService.adicionarDocumento(input, ctx),
 });
 
 export const listarColaboradoresAction = createSafeAction({

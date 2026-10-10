@@ -24,6 +24,18 @@ export const TipoDocColaboradorEnum = z.enum([
   'CERTIFICADO_INSS', 'DECLARACAO_NUIT', 'CONTRATO_TRABALHO', 'CARTA_CONDUCAO',
   'CERTIFICADO_PROFISSIONAL', 'OUTRO',
 ]);
+/**
+ * #163 — registo do metadado de um documento do colaborador depois do upload pelo presign
+ * (ADR-0017). `url` é a ref opaca `gestpro-storage:{key}` devolvida pelo presign.
+ */
+export const AdicionarDocumentoColaboradorSchema = z.object({
+  colaboradorId: idEntidade(),
+  tipo: TipoDocColaboradorEnum,
+  nome: z.string().trim().min(1).max(255),
+  url: z.string().min(1).max(2048),
+  tamanho: z.number().int().nonnegative().optional(),
+});
+export type AdicionarDocumentoColaboradorInput = z.infer<typeof AdicionarDocumentoColaboradorSchema>;
 export const TipoAusenciaEnum = z.enum([
   'FALTA', 'ATESTADO_MEDICO', 'LICENCA_MATERNIDADE', 'LICENCA_PATERNIDADE',
   'LICENCA_SEM_VENCIMENTO', 'LICENCA_NOJO', 'LICENCA_CASAMENTO', 'OUTRO',

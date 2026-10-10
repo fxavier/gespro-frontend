@@ -39,7 +39,7 @@ interface DocMeta {
 
 type Buscador = (id: string, tenantId: string) => Promise<DocMeta | null>;
 
-// `colaborador` ainda não tem tabela de documentos → sem buscador (Partial).
+// `encerramento` não tem metadado por id (PDF só do servidor) → sem buscador (Partial).
 const BUSCADORES: Partial<Record<RecursoDocumento, Buscador>> = {
   fornecedor: async (id, tenantId) => {
     const d = await prismaBase.documentoFornecedor.findFirst({
@@ -68,6 +68,14 @@ const BUSCADORES: Partial<Record<RecursoDocumento, Buscador>> = {
       select: { id: true, numero: true, storageKey: true, anexo: true },
     });
     return d ? { id: d.id, nome: d.numero, storageKey: d.storageKey, url: d.anexo ?? '' } : null;
+  },
+  // #163: `DocumentoColaborador` não tem `storageKey` — a key sai da ref em `url`.
+  colaborador: async (id, tenantId) => {
+    const d = await prismaBase.documentoColaborador.findFirst({
+      where: { id, tenantId },
+      select: { id: true, nome: true, url: true },
+    });
+    return d ? { ...d, storageKey: null } : null;
   },
 };
 
