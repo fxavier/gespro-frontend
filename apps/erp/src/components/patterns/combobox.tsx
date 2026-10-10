@@ -105,15 +105,20 @@ export function Combobox({
   const [interno, setInterno] = useState(defaultValue ?? '');
   const controlado = value !== undefined;
   const actual = controlado ? value : interno;
-  // Com pesquisa no servidor, a opção escolhida pode sair de `options` (nova
-  // pesquisa, termo apagado); o trigger continua a mostrar o que foi escolhido.
-  const [ultimaEscolhida, setUltimaEscolhida] = useState<ComboboxOption>();
-  const escolhida =
-    options.find((o) => o.value === actual) ?? (ultimaEscolhida?.value === actual ? ultimaEscolhida : undefined);
+  // Com pesquisa no servidor, `options` passa a ser só o resultado da última
+  // pesquisa: a opção do valor actual (escolhida, ou pré-preenchida a partir
+  // da primeira página) pode já lá não estar. Guardam-se as opções já vistas
+  // para o trigger continuar a mostrar o rótulo — o valor não mudou (#345).
+  // Actualizado durante o render (padrão «ajustar estado quando uma prop
+  // muda»), só quando aparece uma opção nova ou com outro rótulo.
+  const [conhecidas, setConhecidas] = useState(() => new Map(options.map((o) => [o.value, o])));
+  if (options.some((o) => conhecidas.get(o.value)?.label !== o.label)) {
+    setConhecidas(new Map([...conhecidas, ...options.map((o) => [o.value, o] as const)]));
+  }
+  const escolhida = options.find((o) => o.value === actual) ?? conhecidas.get(actual);
   const comPesquisa = Boolean(onSearchChange) || options.length >= pesquisaAPartirDe;
 
   const escolher = (v: string) => {
-    setUltimaEscolhida(options.find((o) => o.value === v));
     if (!controlado) setInterno(v);
     onChange?.(v);
     setAberto(false);
