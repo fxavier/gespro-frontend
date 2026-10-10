@@ -7,8 +7,8 @@
  *     contexto; documento próprio → 302 para o presigned GET (key derivada da `url`
  *     `gestpro-storage:`; o modelo não tem `storageKey`).
  *   - Sem `?recurso`, a procura nas tabelas conhecidas também encontra o documento do colaborador.
- *   - Exige `rh:colaboradores:update` (`PERMISSAO_ESCRITA_POR_RECURSO.colaborador`, a mesma do
- *     presign) → sem ela, 403.
+ *   - Exige `rh:colaboradores:read` — a permissão de LEITURA do recurso (#193; antes exigia a de
+ *     escrita, `rh:colaboradores:update`) → sem ela, 403, mesmo com a de escrita.
  *   - Cross-tenant → 404 (nunca 403); key fora do prefixo do tenant → 404.
  *
  * Prisma dobrado (molde: `download-handler.test.ts`); storage local real.
@@ -70,7 +70,8 @@ function linha(id: string, url: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.STORAGE_DRIVER = 'local';
-  mocks.auth.mockResolvedValue(sessao(['rh:colaboradores:update']));
+  // #193: o download exige a LEITURA do recurso.
+  mocks.auth.mockResolvedValue(sessao(['rh:colaboradores:read']));
   mocks.fornecedorFindFirst.mockResolvedValue(null);
   mocks.ativoFindFirst.mockResolvedValue(null);
   mocks.viaturaFindFirst.mockResolvedValue(null);
@@ -96,8 +97,9 @@ describe('download — documento do colaborador (#163)', () => {
     expect(res.headers.get('location')).toContain('/api/documentos/local/');
   });
 
-  it('403 sem rh:colaboradores:update (mesmo com o documento no tenant)', async () => {
-    mocks.auth.mockResolvedValue(sessao(['rh:colaboradores:read', 'fornecedores:editar']));
+  it('403 sem rh:colaboradores:read (mesmo com o documento no tenant e com a escrita)', async () => {
+    // #193: a escrita do próprio recurso e a leitura de outro recurso não substituem a leitura.
+    mocks.auth.mockResolvedValue(sessao(['rh:colaboradores:update', 'fornecedores:ver']));
     mocks.colaboradorFindFirst.mockResolvedValue(linha('docc3', `gestpro-storage:${KEY}`));
     const res = await GET(pedido('docc3', 'colaborador'), segmento('docc3'));
     expect(res.status).toBe(403);
