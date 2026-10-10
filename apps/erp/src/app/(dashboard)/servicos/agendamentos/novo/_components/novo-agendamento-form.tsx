@@ -11,6 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Combobox,
   ComboboxRemoto,
   FormPage,
@@ -24,6 +31,7 @@ import {
   CreateAgendamentoServicoSchema,
   type CreateAgendamentoServicoInput,
 } from '@/lib/validations/servicos';
+import { TAXAS_IVA, ROTULOS_TAXA_IVA, lerTaxaIva, ehTaxaIva } from '@/lib/iva';
 
 type FormState =
   | { ok: true; data: unknown }
@@ -108,6 +116,7 @@ export function NovoAgendamentoForm({ servicos, clientesIniciais }: Props) {
     formState: { errors, isDirty },
   } = form;
   const clienteId = useWatch({ control, name: 'clienteId' });
+  const taxaIva = useWatch({ control, name: 'taxaIva' });
 
   const escolherCliente = (id: string) => {
     const opcoes = { shouldDirty: true, shouldValidate: true } as const;
@@ -277,12 +286,26 @@ export function NovoAgendamentoForm({ servicos, clientesIniciais }: Props) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="taxaIva">Taxa IVA</Label>
-              <Input
-                id="taxaIva"
-                type="number"
-                step="0.01"
-                {...register('taxaIva', { valueAsNumber: true })}
-              />
+              <Select
+                value={ehTaxaIva(taxaIva) ? String(taxaIva) : ''}
+                onValueChange={(v) =>
+                  setValue('taxaIva', lerTaxaIva(v), { shouldDirty: true, shouldValidate: true })
+                }
+              >
+                <SelectTrigger id="taxaIva" aria-label="Taxa de IVA">
+                  <SelectValue placeholder="Seleccione a taxa">
+                    {ehTaxaIva(taxaIva) ? ROTULOS_TAXA_IVA[`${taxaIva}`] : null}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {TAXAS_IVA.map((taxa) => (
+                    <SelectItem key={taxa} value={String(taxa)}>
+                      {ROTULOS_TAXA_IVA[`${taxa}`]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {err('taxaIva')}
             </div>
             <div className="space-y-2 sm:col-span-3">
               <Label htmlFor="observacoes">Observações</Label>

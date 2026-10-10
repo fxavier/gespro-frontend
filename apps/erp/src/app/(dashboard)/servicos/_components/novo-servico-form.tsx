@@ -29,6 +29,7 @@ import { Combobox, FormPage, FormSection, UnsavedChangesGuard } from '@/componen
 import { criarServicoAction, actualizarServicoAction } from '@/server/actions/servicos.actions';
 import type { CategoriaServicoDto, ServicoDetalhe } from '@/server/services/compras/servico.service.interface';
 import { CreateServicoSchema, type CreateServicoInput } from '@/lib/validations/servicos';
+import { TAXAS_IVA, ROTULOS_TAXA_IVA, lerTaxaIva, ehTaxaIva } from '@/lib/iva';
 
 const DEFAULT_VALUES: Partial<CreateServicoInput> = {
   codigo: '',
@@ -282,19 +283,22 @@ export function NovoServicoForm({ servico, categorias = [] }: Props = {}) {
                   <FormItem>
                     <FormLabel>Taxa IVA</FormLabel>
                     <Select
-                      onValueChange={(v) => field.onChange(parseFloat(v))}
-                      value={String(field.value)}
+                      onValueChange={(v) => field.onChange(lerTaxaIva(v))}
+                      value={ehTaxaIva(field.value) ? String(field.value) : ''}
                     >
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="IVA" />
+                        <SelectTrigger aria-label="Taxa de IVA">
+                          <SelectValue placeholder="Seleccione a taxa">
+                            {ehTaxaIva(field.value) ? ROTULOS_TAXA_IVA[`${field.value}`] : null}
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="0">0%</SelectItem>
-                        <SelectItem value="0.05">5%</SelectItem>
-                        <SelectItem value="0.16">16%</SelectItem>
-                        <SelectItem value="0.17">17%</SelectItem>
+                        {TAXAS_IVA.map((taxa) => (
+                          <SelectItem key={taxa} value={String(taxa)}>
+                            {ROTULOS_TAXA_IVA[`${taxa}`]}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

@@ -4,6 +4,7 @@
  * Partilhado cliente/servidor. Sem imports de @prisma/client.
  */
 import { z } from 'zod';
+import { taxaIvaSchema } from '@/lib/iva';
 import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
 
 // ---- Enums ----
@@ -92,7 +93,7 @@ export const CreateServicoSchema = z.object({
   precoMaximo: z.number().positive().optional(),
   duracaoEstimada: z.number().int().positive('Duração deve ser positiva (minutos)'),
   unidadeMedida: z.string().min(1).max(30).default('un'),
-  taxaIva: z.number().min(0).max(1).default(0.16),
+  taxaIva: taxaIvaSchema(),
   tipoServico: TipoServicoEnum.default('OUTRO'),
   incluiMaterial: z.boolean().default(false),
   materialIncluido: z.string().max(500).optional(),
@@ -128,7 +129,7 @@ export const UpdateServicoSchema = z.object({
   precoMaximo: z.number().positive().optional(),
   duracaoEstimada: z.number().int().positive().optional(),
   unidadeMedida: z.string().min(1).max(30).optional(),
-  taxaIva: z.number().min(0).max(1).optional(),
+  taxaIva: taxaIvaSchema().optional(),
   tipoServico: TipoServicoEnum.optional(),
   incluiMaterial: z.boolean().optional(),
   materialIncluido: z.string().max(500).optional(),
@@ -221,7 +222,7 @@ export const CreateAgendamentoServicoSchema = z.object({
   provincia: z.string().min(1).max(100),
   precoServico: positivoDecimal,
   desconto: z.number().min(0).optional(),
-  taxaIva: z.number().min(0).max(1).default(0.16),
+  taxaIva: taxaIvaSchema(),
   observacoes: z.string().max(2000).optional(),
 });
 

@@ -29,6 +29,7 @@ import {
 import { FormPage, FormSection, UnsavedChangesGuard, Combobox } from '@/components/patterns';
 import { criarProdutoAction } from '@/server/actions/inventario.actions';
 import { ProdutoCreateSchema, type ProdutoCreate } from '@/lib/validations/produtos';
+import { TAXAS_IVA, ROTULOS_TAXA_IVA, lerTaxaIva, ehTaxaIva } from '@/lib/iva';
 import type { CategoriaProdutoDto } from '@/server/services/inventario/catalogo.interface';
 
 type FormState =
@@ -268,17 +269,22 @@ export function NovoProdutoForm({ categorias }: NovoProdutoFormProps) {
                 <FormItem>
                   <FormLabel>Taxa de IVA</FormLabel>
                   <Select
-                    onValueChange={(v) => field.onChange(parseFloat(v))}
-                    value={String(field.value ?? 0.16)}
+                    onValueChange={(v) => field.onChange(lerTaxaIva(v))}
+                    value={ehTaxaIva(field.value) ? String(field.value) : ''}
                   >
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
+                      <SelectTrigger aria-label="Taxa de IVA">
+                        <SelectValue placeholder="Seleccione a taxa">
+                          {ehTaxaIva(field.value) ? ROTULOS_TAXA_IVA[`${field.value}`] : null}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="0">Isento (0%)</SelectItem>
-                      <SelectItem value="0.16">16%</SelectItem>
+                      {TAXAS_IVA.map((taxa) => (
+                        <SelectItem key={taxa} value={String(taxa)}>
+                          {ROTULOS_TAXA_IVA[`${taxa}`]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

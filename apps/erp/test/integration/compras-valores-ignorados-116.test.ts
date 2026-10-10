@@ -260,20 +260,22 @@ describe.skipIf(skip)('Valores do formulário gravados pelo servidor (#116) — 
       provincia: 'Maputo Cidade',
       precoServico: 1500,
       desconto: 100,
-      taxaIva: 0.05,
+      // #207: só {0, 0.16}. 0 (isento) difere da taxa do catálogo (0.16) e apanha também um
+      // `|| 0.16` que trocasse o isento pela taxa normal.
+      taxaIva: 0,
     });
     const a = await noCtx(ctx, () => servicos.criarAgendamento(input, ctx));
     const gravado = await db.agendamentoServico.findUnique({ where: { id: a.id } });
 
     expect(Number(gravado.precoServico), 'o preço do formulário foi trocado pelo do catálogo').toBe(1500);
-    expect(Number(gravado.taxaIva), 'a taxa de IVA do formulário não foi gravada').toBeCloseTo(0.05, 6);
+    expect(Number(gravado.taxaIva), 'a taxa de IVA do formulário não foi gravada').toBe(0);
     expect(Number(gravado.desconto)).toBe(100);
-    // (1500 − 100) × 1,05 = 1470,00
-    expect(Number(gravado.total), 'o total não foi calculado com o preço e o IVA do formulário').toBe(1470);
+    // (1500 − 100) × 1,00 = 1400,00 (a 16% do catálogo seria 1624,00)
+    expect(Number(gravado.total), 'o total não foi calculado com o preço e o IVA do formulário').toBe(1400);
 
     expect(a.precoServico).toBe(1500);
-    expect(a.taxaIva).toBeCloseTo(0.05, 6);
-    expect(a.total).toBe(1470);
+    expect(a.taxaIva).toBe(0);
+    expect(a.total).toBe(1400);
   });
 
   // ===========================================================================
