@@ -1152,8 +1152,10 @@ test('27. clicar na ligação da 121 abre o razão da conta 121 nos períodos 3.
   // O seletor mostra a conta e está no modo por períodos
   await expect(page.locator('#conta')).toContainText(`121 — ${NOME_121}`);
   await expect(page.getByRole('radio', { name: 'Por períodos' })).toBeChecked();
-  await expect(page.getByLabel('Do período')).toHaveValue('3');
-  await expect(page.getByLabel('Ao período')).toHaveValue('5');
+  // #343 (verificador): no razão «Do/Ao período» passaram a ui/Select (role combobox) com as
+  // opções do balancete — o valor lê-se pelo rótulo mostrado, e o URL (de=3/ate=5) já está fixo acima.
+  await expect(page.getByRole('combobox', { name: 'Do período' })).toContainText('03 — Março');
+  await expect(page.getByRole('combobox', { name: 'Ao período' })).toContainText('05 — Maio');
   // E o razão executou: linhas de saldo anterior e final presentes
   await expect(page.getByTestId('razao-saldo-anterior')).toBeVisible();
   await expect(page.getByTestId('razao-saldo-final')).toBeVisible();
