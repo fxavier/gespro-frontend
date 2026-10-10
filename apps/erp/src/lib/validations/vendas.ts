@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { taxaIvaSchema } from '@/lib/iva';
 import { idEntidade, inicioDoDia, fimDoDia } from './common';
 
 // ---------------------------------------------------------------------------
@@ -67,11 +68,7 @@ export const CreateItemVendaSchema = z.object({
     .min(0, 'Desconto não pode ser negativo')
     .max(100, 'Desconto não pode exceder 100%')
     .default(0),
-  taxaIva: z
-    .number()
-    .min(0, 'Taxa de IVA inválida')
-    .max(1, 'Taxa de IVA deve estar entre 0 e 1')
-    .default(0.16),
+  taxaIva: taxaIvaSchema(),
 });
 
 // ---------------------------------------------------------------------------
@@ -335,7 +332,7 @@ export const CreateItemEncomendaSchema = z.object({
   quantidade: z.number().positive('Quantidade deve ser positiva'),
   precoUnitario: z.number().nonnegative('Preço não pode ser negativo'),
   desconto: z.number().min(0).max(100).default(0),
-  taxaIva: z.number().min(0).max(1).default(0.16),
+  taxaIva: taxaIvaSchema(),
 });
 
 // Encomenda
@@ -402,7 +399,7 @@ export const CreateItemDevolucaoSchema = z.object({
   sku: z.string().max(100).optional(),
   quantidade: z.number().positive('Quantidade deve ser positiva'),
   valorUnitario: z.number().nonnegative('Valor não pode ser negativo'),
-  taxaIva: z.number().min(0).max(1).default(0.16),
+  taxaIva: taxaIvaSchema(),
 });
 
 // Devolução
