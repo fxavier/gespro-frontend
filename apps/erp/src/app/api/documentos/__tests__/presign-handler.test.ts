@@ -87,7 +87,8 @@ describe('presign — segurança', () => {
       }),
     );
     expect(res.status).toBe(200);
-    const body = await res.json();
+    // #189: o sucesso vem no envelope { data } do withApi.
+    const { data: body } = await res.json();
     expect(body.key.startsWith('tenant/tenant-abc/fornecedor/ckxyz0000000000000000000/')).toBe(true);
     expect(body.key).not.toContain('..');
     expect(body.key).not.toContain('outro');
