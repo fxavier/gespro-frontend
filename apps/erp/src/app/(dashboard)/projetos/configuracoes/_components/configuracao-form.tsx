@@ -28,20 +28,9 @@ const TIPOS_TAREFA = [
   { value: 'TESTE', label: 'Teste' },
 ];
 
-const PAPEIS_EQUIPA = [
-  { value: 'GERENTE', label: 'Gerente' },
-  { value: 'LIDER', label: 'Líder' },
-  { value: 'DESENVOLVEDOR', label: 'Desenvolvedor' },
-  { value: 'DESIGNER', label: 'Designer' },
-  { value: 'ANALISTA', label: 'Analista' },
-  { value: 'TESTER', label: 'Tester' },
-  { value: 'OUTRO', label: 'Outro' },
-];
-
 const Schema = z.object({
   politicaAprovacaoTimesheet: z.enum(['MANUAL', 'AUTOMATICA']),
   tiposTarefaAtivos: z.array(z.string()).min(1, 'Seleccione pelo menos um tipo de tarefa'),
-  papeisEquipaAtivos: z.array(z.string()).min(1, 'Seleccione pelo menos um papel'),
   observacoes: z.string().max(2000).optional(),
 });
 type FormValues = z.infer<typeof Schema>;
@@ -55,7 +44,6 @@ interface ConfiguracaoFormProps {
   configuracao: {
     politicaAprovacaoTimesheet: string;
     tiposTarefaAtivos: string[];
-    papeisEquipaAtivos: string[];
     observacoes: string | null;
   };
 }
@@ -68,7 +56,6 @@ export function ConfiguracaoForm({ projetoId, configuracao }: ConfiguracaoFormPr
         projetoId,
         politicaAprovacaoTimesheet: data.politicaAprovacaoTimesheet,
         tiposTarefaAtivos: data.tiposTarefaAtivos as ('TAREFA' | 'BUG' | 'MELHORIA' | 'DOCUMENTACAO' | 'TESTE')[],
-        papeisEquipaAtivos: data.papeisEquipaAtivos as ('GERENTE' | 'LIDER' | 'DESENVOLVEDOR' | 'DESIGNER' | 'ANALISTA' | 'TESTER' | 'OUTRO')[],
         observacoes: data.observacoes || undefined,
       }) as Promise<ActionState>;
     },
@@ -86,7 +73,6 @@ export function ConfiguracaoForm({ projetoId, configuracao }: ConfiguracaoFormPr
     defaultValues: {
       politicaAprovacaoTimesheet: (configuracao.politicaAprovacaoTimesheet as 'MANUAL' | 'AUTOMATICA') ?? 'MANUAL',
       tiposTarefaAtivos: configuracao.tiposTarefaAtivos,
-      papeisEquipaAtivos: configuracao.papeisEquipaAtivos,
       observacoes: configuracao.observacoes ?? '',
     },
   });
@@ -100,7 +86,6 @@ export function ConfiguracaoForm({ projetoId, configuracao }: ConfiguracaoFormPr
   }, [state]);
 
   const tiposTarefaAtivos = watch('tiposTarefaAtivos');
-  const papeisAtivos = watch('papeisEquipaAtivos');
 
   function toggleTipo(value: string) {
     const current = tiposTarefaAtivos ?? [];
@@ -108,14 +93,6 @@ export function ConfiguracaoForm({ projetoId, configuracao }: ConfiguracaoFormPr
       ? current.filter((v) => v !== value)
       : [...current, value];
     setValue('tiposTarefaAtivos', updated, { shouldDirty: true });
-  }
-
-  function togglePapel(value: string) {
-    const current = papeisAtivos ?? [];
-    const updated = current.includes(value)
-      ? current.filter((v) => v !== value)
-      : [...current, value];
-    setValue('papeisEquipaAtivos', updated, { shouldDirty: true });
   }
 
   return (
@@ -162,25 +139,6 @@ export function ConfiguracaoForm({ projetoId, configuracao }: ConfiguracaoFormPr
             </div>
             {errors.tiposTarefaAtivos && (
               <p className="text-xs text-destructive">{errors.tiposTarefaAtivos.message}</p>
-            )}
-          </div>
-
-          {/* Papéis de equipa activos */}
-          <div className="space-y-2">
-            <Label>Papéis de Equipa Activos</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {PAPEIS_EQUIPA.map((p) => (
-                <label key={p.value} className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={(papeisAtivos ?? []).includes(p.value)}
-                    onCheckedChange={() => togglePapel(p.value)}
-                  />
-                  <span className="text-sm">{p.label}</span>
-                </label>
-              ))}
-            </div>
-            {errors.papeisEquipaAtivos && (
-              <p className="text-xs text-destructive">{errors.papeisEquipaAtivos.message}</p>
             )}
           </div>
 

@@ -1,4 +1,5 @@
 import 'server-only';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
@@ -267,9 +268,45 @@ export const ProjetoService = {
 // TarefaService — kanban com posicao fraccional
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuração do projecto (#168) — lida pelo comportamento que o nome promete
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Configuração gravada do projecto, ou `null` (omissão: aprovação MANUAL, todos os tipos activos). */
+function lerConfiguracaoProjeto(projetoId: string, ctx: Ctx) {
+  return prisma.configuracaoProjeto.findFirst({
+    where: { projetoId, tenantId: ctx.tenantId },
+    select: { politicaAprovacaoTimesheet: true, tiposTarefaAtivos: true },
+  });
+}
+
+/** Soma as horas de um timesheet aprovado à tarefa associada (aprovação manual ou automática). */
+async function somarHorasATarefa(
+  db: Prisma.TransactionClient | typeof prisma,
+  tarefaId: string,
+  duracaoHoras: number,
+  ctx: Ctx,
+): Promise<void> {
+  await db.tarefaProjeto.updateMany({
+    where: { id: tarefaId, tenantId: ctx.tenantId },
+    data: { horasTrabalhadas: { increment: Math.round(duracaoHoras) } },
+  });
+}
+
 export const TarefaService = {
   async criar(input: CreateTarefaInput, ctx: Ctx): Promise<{ id: string }> {
     await exigirProjetoDoTenant(input.projetoId, ctx);
+
+    // Tipos activos do projecto (#168). Sem configuração (ou lista vazia, legado) → todos activos.
+    const tipo = input.tipo ?? 'TAREFA';
+    const config = await lerConfiguracaoProjeto(input.projetoId, ctx);
+    const activos = config?.tiposTarefaAtivos ?? [];
+    if (activos.length > 0 && !activos.includes(tipo)) {
+      throw new BusinessRuleError(
+        'TIPO_TAREFA_INATIVO',
+        'Este tipo de tarefa está desactivado nas configurações do projecto',
+      );
+    }
 
     // Posição inicial: última tarefa + delta (inserir no fim do kanban)
     const ultima = await prisma.tarefaProjeto.findFirst({
@@ -289,7 +326,7 @@ export const TarefaService = {
         codigo: input.codigo,
         titulo: input.titulo,
         descricao: input.descricao,
-        tipo: input.tipo ?? 'TAREFA',
+        tipo,
         status: 'A_FAZER',
         prioridade: input.prioridade ?? 'MEDIA',
         posicao,
@@ -457,24 +494,36 @@ export const TimesheetService = {
       throw new BusinessRuleError('DURACAO_INVALIDA', 'Hora de fim deve ser posterior à hora de início');
     }
 
-    const ts = await prisma.timesheet.create({
-      data: {
-        tenantId: ctx.tenantId,
-        projetoId: input.projetoId,
-        tarefaId: input.tarefaId,
-        colaboradorId: input.colaboradorId,
-        data: input.data,
-        horaInicio: input.horaInicio,
-        horaFim: input.horaFim,
-        duracaoHoras,
-        descricao: input.descricao,
-        tipo: input.tipo ?? 'DESENVOLVIMENTO',
-        faturavel: input.faturavel ?? false,
-        aprovado: false,
-      },
-      select: { id: true },
+    // Política de aprovação do projecto (#168). AUTOMATICA: nasce aprovado, sem aprovador
+    // humano (`aprovadoPorId` fica null), e as horas somam-se à tarefa como em `aprovar`.
+    const config = await lerConfiguracaoProjeto(input.projetoId, ctx);
+    const automatica = config?.politicaAprovacaoTimesheet === 'AUTOMATICA';
+
+    return prisma.$transaction(async (rawTx) => {
+      const tx = rawTx as unknown as Prisma.TransactionClient;
+      const ts = await tx.timesheet.create({
+        data: {
+          tenantId: ctx.tenantId,
+          projetoId: input.projetoId,
+          tarefaId: input.tarefaId,
+          colaboradorId: input.colaboradorId,
+          data: input.data,
+          horaInicio: input.horaInicio,
+          horaFim: input.horaFim,
+          duracaoHoras,
+          descricao: input.descricao,
+          tipo: input.tipo ?? 'DESENVOLVIMENTO',
+          faturavel: input.faturavel ?? false,
+          aprovado: automatica,
+          ...(automatica ? { dataAprovacao: new Date() } : {}),
+        },
+        select: { id: true },
+      });
+      if (automatica && input.tarefaId) {
+        await somarHorasATarefa(tx, input.tarefaId, duracaoHoras, ctx);
+      }
+      return { id: ts.id };
     });
-    return { id: ts.id };
   },
 
   async aprovar(id: string, ctx: Ctx): Promise<void> {
@@ -499,10 +548,7 @@ export const TimesheetService = {
       select: { tarefaId: true, duracaoHoras: true },
     });
     if (atualizado?.tarefaId) {
-      await prisma.tarefaProjeto.update({
-        where: { id: atualizado.tarefaId },
-        data: { horasTrabalhadas: { increment: Math.round(Number(atualizado.duracaoHoras)) } },
-      });
+      await somarHorasATarefa(prisma, atualizado.tarefaId, Number(atualizado.duracaoHoras), ctx);
     }
   },
 
