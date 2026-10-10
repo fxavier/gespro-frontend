@@ -5,7 +5,7 @@
 
 import 'server-only';
 import { prisma } from '@/server/db/client';
-import { calcularEstadoDocumento } from './alocacao.service';
+import { calcularEstadoDocumento, calcularEstadoDocumentoMotorista } from './alocacao.service';
 import type {
   IAlertasService,
   Alerta,
@@ -165,9 +165,9 @@ export async function recalcularEstadosDocumentos(ctx: {
     }
   }
 
-  // Actualizar documentos de motorista (prazoAlertaDias = 30 por defeito)
+  // Actualizar documentos de motorista (prazo fixo — mesma regra da criação)
   for (const doc of docsMotorista) {
-    const estadoCalculado = calcularEstadoDocumento(doc.dataValidade, 30);
+    const estadoCalculado = calcularEstadoDocumentoMotorista(doc.dataValidade);
     const estadoPrisma =
       estadoCalculado === 'EXPIRADO'
         ? ('EXPIRADO' as const)

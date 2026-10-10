@@ -5,7 +5,7 @@
  * Padrão golden standard: useTransition + Server Action, sem Dialog.
  */
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -14,11 +14,19 @@ import { FormPage, FormSection } from '@/components/patterns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   criarMotoristaAction,
   atualizarMotoristaAction,
 } from '@/server/actions/transporte.actions';
-import { CriarMotoristaSchema } from '@/lib/validations/transporte';
+import { CriarMotoristaSchema, type AtualizarMotoristaInput } from '@/lib/validations/transporte';
+
+type EstadoOperacional = NonNullable<AtualizarMotoristaInput['estadoOperacional']>;
+
+const ESTADOS_OPERACIONAIS: { value: EstadoOperacional; label: string }[] = [
+  { value: 'ACTIVO', label: 'Activo' },
+  { value: 'INACTIVO', label: 'Inactivo' },
+];
 
 export interface MotoristaFormValores {
   id: string;
@@ -32,6 +40,7 @@ export interface MotoristaFormValores {
   validadeCarta: string; // yyyy-mm-dd
   localActividade: string | null;
   observacoes: string | null;
+  estadoOperacional: EstadoOperacional;
 }
 
 interface MotoristaFormProps {
@@ -42,6 +51,9 @@ export function MotoristaForm({ motorista }: MotoristaFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const edicao = Boolean(motorista);
+  const [estadoOperacional, setEstadoOperacional] = useState<EstadoOperacional>(
+    motorista?.estadoOperacional ?? 'ACTIVO',
+  );
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -79,7 +91,7 @@ export function MotoristaForm({ motorista }: MotoristaFormProps) {
 
     startTransition(async () => {
       const result = edicao
-        ? await atualizarMotoristaAction({ id: motorista!.id, ...parsed.data })
+        ? await atualizarMotoristaAction({ id: motorista!.id, ...parsed.data, estadoOperacional })
         : await criarMotoristaAction(parsed.data);
 
       if (result.ok) {
@@ -124,6 +136,28 @@ export function MotoristaForm({ motorista }: MotoristaFormProps) {
               <Label htmlFor="localActividade">Local de Actividade</Label>
               <Input id="localActividade" name="localActividade" maxLength={200} defaultValue={motorista?.localActividade ?? ''} />
             </div>
+            {edicao && (
+              <div className="space-y-1.5">
+                <Label htmlFor="estadoOperacional">Estado</Label>
+                <Select
+                  value={estadoOperacional}
+                  onValueChange={(v) => setEstadoOperacional(v as EstadoOperacional)}
+                >
+                  <SelectTrigger id="estadoOperacional" className="w-full">
+                    <SelectValue>
+                      {ESTADOS_OPERACIONAIS.find((e) => e.value === estadoOperacional)?.label}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ESTADOS_OPERACIONAIS.map((e) => (
+                      <SelectItem key={e.value} value={e.value}>
+                        {e.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
               <Label htmlFor="morada">Morada</Label>
               <Input id="morada" name="morada" maxLength={500} defaultValue={motorista?.morada ?? ''} />

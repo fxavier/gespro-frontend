@@ -58,6 +58,7 @@ export default async function EditarMotoristaPage({ params }: PageProps) {
           validadeCarta: toDateInput(motorista.validadeCarta),
           localActividade: motorista.localActividade,
           observacoes: motorista.observacoes,
+          estadoOperacional: motorista.estadoOperacional as 'ACTIVO' | 'INACTIVO' | 'SUSPENSO',
         }}
       />
     </div>

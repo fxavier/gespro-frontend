@@ -6,7 +6,7 @@ import 'server-only';
 import { prisma, prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
-import { transitar } from './_helpers';
+import { transitar, ocuparViaturaEmTx, libertarViaturaEmTx, trocarViaturaEmTx } from './_helpers';
 import { proximoNumeroSerie } from '@/server/services/financas';
 import { TRANSICOES_ATIVIDADE } from './atividade.interface';
 import { validarAlocacaoViatura, validarAlocacaoMotorista } from './alocacao.service';
@@ -192,7 +192,16 @@ async function transitarAtividade(
     dataUpdate.dataConclusaoReal = new Date();
   }
 
+  // #174 — a viatura acompanha a actividade: ocupada ao iniciar, libertada ao terminar a partir
+  // de um estado em curso (suspender mantém-na ocupada; cancelar uma PLANEADA não lhe toca).
+  const inicia = estadoActual === 'PLANEADA' && estadoAlvo === 'EM_CURSO';
+  const termina =
+    (estadoActual === 'EM_CURSO' || estadoActual === 'SUSPENSA') &&
+    (estadoAlvo === 'CONCLUIDA' || estadoAlvo === 'CANCELADA');
+
   await prisma.$transaction(async (tx) => {
+    if (atividade.viaturaId && inicia) await ocuparViaturaEmTx(tx, atividade.viaturaId, ctx);
+    if (atividade.viaturaId && termina) await libertarViaturaEmTx(tx, atividade.viaturaId, ctx);
     await tx.atividade.update({ where: { id: atividadeId }, data: dataUpdate });
     await tx.eventoAtividade.create({
       data: {
@@ -308,24 +317,34 @@ async function atualizarAtividade(
   input: AtualizarAtividadeInput,
   ctx: Ctx,
 ): Promise<AtividadeDetalhe> {
-  const existente = await prisma.atividade.findFirst({ where: { id, tenantId: ctx.tenantId }, select: { id: true } });
+  const existente = await prisma.atividade.findFirst({
+    where: { id, tenantId: ctx.tenantId },
+    select: { id: true, estado: true, viaturaId: true },
+  });
   if (!existente) throw new NotFoundError('Atividade não encontrada.');
 
-  await prisma.atividade.update({
-    where: { id },
-    data: {
-      ...(input.titulo ? { titulo: input.titulo } : {}),
-      ...(input.descricao !== undefined ? { descricao: input.descricao ?? null } : {}),
-      ...(input.tipoActividade ? { tipoActividade: input.tipoActividade } : {}),
-      ...(input.localActividade ? { localActividade: input.localActividade } : {}),
-      ...(input.dataInicioPrevista ? { dataInicioPrevista: input.dataInicioPrevista } : {}),
-      ...(input.dataConclusaoPrevista !== undefined ? { dataConclusaoPrevista: input.dataConclusaoPrevista ?? null } : {}),
-      ...(input.motoristaResponsavelId !== undefined ? { motoristaResponsavelId: input.motoristaResponsavelId ?? null } : {}),
-      ...(input.viaturaId !== undefined ? { viaturaId: input.viaturaId ?? null } : {}),
-      ...(input.prioridade ? { prioridade: input.prioridade } : {}),
-      ...(input.observacoes !== undefined ? { observacoes: input.observacoes ?? null } : {}),
-      ...(input.anexos ? { anexos: input.anexos } : {}),
-    },
+  // #174 — trocar a viatura de uma actividade em curso liberta a antiga e ocupa a nova.
+  const emCurso = existente.estado === 'EM_CURSO' || existente.estado === 'SUSPENSA';
+  await prisma.$transaction(async (tx) => {
+    if (input.viaturaId !== undefined) {
+      await trocarViaturaEmTx(tx, existente.viaturaId, input.viaturaId ?? null, emCurso, ctx);
+    }
+    await tx.atividade.update({
+      where: { id },
+      data: {
+        ...(input.titulo ? { titulo: input.titulo } : {}),
+        ...(input.descricao !== undefined ? { descricao: input.descricao ?? null } : {}),
+        ...(input.tipoActividade ? { tipoActividade: input.tipoActividade } : {}),
+        ...(input.localActividade ? { localActividade: input.localActividade } : {}),
+        ...(input.dataInicioPrevista ? { dataInicioPrevista: input.dataInicioPrevista } : {}),
+        ...(input.dataConclusaoPrevista !== undefined ? { dataConclusaoPrevista: input.dataConclusaoPrevista ?? null } : {}),
+        ...(input.motoristaResponsavelId !== undefined ? { motoristaResponsavelId: input.motoristaResponsavelId ?? null } : {}),
+        ...(input.viaturaId !== undefined ? { viaturaId: input.viaturaId ?? null } : {}),
+        ...(input.prioridade ? { prioridade: input.prioridade } : {}),
+        ...(input.observacoes !== undefined ? { observacoes: input.observacoes ?? null } : {}),
+        ...(input.anexos ? { anexos: input.anexos } : {}),
+      },
+    });
   });
 
   return obterDetalhe(id, ctx);
