@@ -20,49 +20,10 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { checkA11y } from './helpers/a11y';
 import { esperarFormularioLogin } from './helpers/auth';
 import { emitirFatura, emitirNotaCredito } from './helpers/faturacao-ui';
 import { anularRascunho, criarRascunho, hrefLancamento } from './helpers/lancamentos-ui';
-
-// ─── Helper: executar axe e falhar em violações AA ────────────────────────────
-
-async function checkA11y(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  page: any,
-  context?: string
-) {
-  const accessibilityScanResults = await new AxeBuilder({ page })
-    // WCAG 2.1 Level AA
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-    // Excluir regras conhecidas como false-positive em componentes Radix/shadcn
-    .exclude('[data-radix-popper-content-wrapper]')
-    .analyze();
-
-  // Filtrar apenas violações críticas e sérias (BLOCKER conforme spec)
-  const blockerViolations = accessibilityScanResults.violations.filter(
-    (v) => v.impact === 'critical' || v.impact === 'serious'
-  );
-
-  if (blockerViolations.length > 0) {
-    const msg = blockerViolations
-      .map((v) => `[${v.impact}] ${v.id}: ${v.description}\n  → ${v.help}\n  → Nós afectados: ${v.nodes.length}`)
-      .join('\n\n');
-    throw new Error(
-      `A11y BLOCKER${context ? ` em "${context}"` : ''}: ${blockerViolations.length} violação(ões) WCAG AA\n\n${msg}`
-    );
-  }
-
-  // Reportar avisos (moderate/minor) sem falhar
-  const warnings = accessibilityScanResults.violations.filter(
-    (v) => v.impact === 'moderate' || v.impact === 'minor'
-  );
-  if (warnings.length > 0) {
-    console.warn(
-      `A11y aviso${context ? ` em "${context}"` : ''}: ${warnings.length} violação(ões) moderate/minor`
-    );
-  }
-}
 
 // ─── Testes ───────────────────────────────────────────────────────────────────
 

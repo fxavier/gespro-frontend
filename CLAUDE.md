@@ -66,6 +66,10 @@ Os E2E do ERP (`e2e`, `a11y`) correm um projecto `setup` que **reescreve `apps/e
 com uma sessão fresca; depois de qualquer corrida, `git checkout -- apps/erp/playwright/.auth/admin.json`.
 O ficheiro versionado tem uma sessão expirada — um script ad-hoc com esse `storageState` cai no login;
 corre `npx playwright test --project=setup` primeiro.
+O E2E 36 regista um tenant por corrida; o limite do `/registo` (3/h por IP) só o deixa passar porque o
+`playwright.config.ts` arranca o servidor com `RATE_LIMIT_REGISTO_DESLIGADO=1` (lida pela porta de rate-limit,
+**ignorada com `NODE_ENV=production`**). Um servidor já a correr (`reuseExistingServer`, outra porta) precisa
+da variável no próprio arranque. O spec limpa o tenant que criou no `afterAll` (`e2e/helpers/db.ts`).
 
 ```bash
 # Desempenho (ADR-0018) — cenários k6, planos de execução e a linha de base

@@ -97,6 +97,12 @@ export default defineConfig({
       // o intervalo de re-resolução em SEGUNDOS — nenhum teste espera 15 min
       // (ADR-0013 §6). Sobrepõe-se com AUTH_SESSION_MAX_AGE no ambiente.
       AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE ?? '8',
+      // #373: o E2E 36 regista um tenant novo por corrida e o registo público só
+      // deixa 3/h por IP e por e-mail. A porta de rate-limit honra esta bandeira
+      // só fora de produção (NODE_ENV ≠ production) e só para o registo. Com um
+      // servidor reutilizado (`reuseExistingServer`) não se aplica: arranca-o com
+      // RATE_LIMIT_REGISTO_DESLIGADO=1.
+      RATE_LIMIT_REGISTO_DESLIGADO: process.env.RATE_LIMIT_REGISTO_DESLIGADO ?? '1',
     },
   },
 });
