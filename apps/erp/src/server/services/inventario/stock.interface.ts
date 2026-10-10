@@ -158,7 +158,7 @@ export interface IStockService {
     varianteProdutoId?: string,
   ): Promise<{ disponivel: boolean; saldoDisponivel: string }>;
 
-  obterAlertasStockMinimo(ctx: Ctx): Promise<SaldoStockDto[]>;
+  obterAlertasStockMinimo(ctx: Ctx): Promise<SaldoStockComDetalheDto[]>;
 
   // Movimentos
   listarMovimentos(

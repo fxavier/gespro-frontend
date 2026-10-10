@@ -6,24 +6,29 @@
  * REGRA: definições de colunas com funções `render` VIVEM SEMPRE num módulo
  * Client Component. Funções não serializam para o servidor ("Functions cannot
  * be passed directly to Client Components"). O Server Component pai importa
- * este wrapper; os dados SaldoStockDto são objectos planos e serializam bem.
+ * este wrapper; os dados SaldoStockComDetalheDto são objectos planos e serializam bem.
  */
 
 import { DataTable, EmptyState, StatusBadge } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
-import type { SaldoStockDto } from '@/server/services/inventario/stock.interface';
+import type { SaldoStockComDetalheDto } from '@/server/services/inventario/stock.interface';
 
-const columns: TableColumn<SaldoStockDto>[] = [
+const columns: TableColumn<SaldoStockComDetalheDto>[] = [
   {
     key: 'produtoId',
     label: 'Produto',
-    render: (row) => <span className="font-medium tabular-nums text-primary">{row.produtoId.slice(0, 8)}…</span>,
+    render: (row) => (
+      <div className="flex flex-col">
+        <span className="font-medium">{row.produto.nome}</span>
+        <span className="text-xs text-muted-foreground tabular-nums">{row.produto.codigo}</span>
+      </div>
+    ),
   },
   {
     key: 'localizacaoId',
     label: 'Localização',
     mobileHidden: true,
-    render: (row) => <span className="text-sm text-muted-foreground">{row.localizacaoId.slice(0, 8)}…</span>,
+    render: (row) => <span className="text-sm text-muted-foreground">{row.localizacao.nome}</span>,
   },
   {
     key: 'saldo',
@@ -69,7 +74,7 @@ const columns: TableColumn<SaldoStockDto>[] = [
 ];
 
 interface ReposicaoTableProps {
-  data: SaldoStockDto[];
+  data: SaldoStockComDetalheDto[];
 }
 
 export function ReposicaoTable({ data }: ReposicaoTableProps) {

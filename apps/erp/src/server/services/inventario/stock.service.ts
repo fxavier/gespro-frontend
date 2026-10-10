@@ -269,18 +269,43 @@ export async function verificarDisponibilidade(
   };
 }
 
-export async function obterAlertasStockMinimo(ctx: Ctx): Promise<SaldoStockDto[]> {
-  // Produtos com saldo total < stockMinimo
+export async function obterAlertasStockMinimo(ctx: Ctx): Promise<SaldoStockComDetalheDto[]> {
+  // Um alerta por produto: saldo TOTAL (todas as localizações) < stockMinimo. O ecrã
+  // mostra nomes (#126), por isso o produto e as localizações vêm no mesmo passo.
   const produtos = await prisma.produto.findMany({
-    where: { deletedAt: null },
-    select: { id: true, stockMinimo: true },
+    where: { tenantId: ctx.tenantId, deletedAt: null },
+    select: { id: true, sku: true, nome: true, unidadeMedida: true, stockMinimo: true },
   });
-  const resultados: SaldoStockDto[] = [];
+  const saldos = await prisma.saldoStock.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      varianteProdutoId: VARIANTE_SEM,
+      produtoId: { in: produtos.map((p) => p.id) },
+    },
+    select: { produtoId: true, saldo: true, localizacao: { select: { nome: true } } },
+  });
+  const porProduto = new Map<string, typeof saldos>();
+  for (const s of saldos) {
+    const lista = porProduto.get(s.produtoId) ?? [];
+    lista.push(s);
+    porProduto.set(s.produtoId, lista);
+  }
+  const resultados: SaldoStockComDetalheDto[] = [];
   for (const p of produtos) {
     const total = await obterSaldoTotal(p.id, ctx);
-    if (new Prisma.Decimal(total.saldo).lessThan(p.stockMinimo)) {
-      resultados.push(total);
-    }
+    if (!new Prisma.Decimal(total.saldo).lessThan(p.stockMinimo)) continue;
+    const comStock = (porProduto.get(p.id) ?? []).filter((s) => !s.saldo.isZero());
+    const nomeLocalizacao =
+      comStock.length === 1
+        ? comStock[0].localizacao.nome
+        : comStock.length === 0
+          ? 'Sem stock'
+          : 'Várias localizações';
+    resultados.push({
+      ...total,
+      produto: { codigo: p.sku, nome: p.nome, unidade: p.unidadeMedida },
+      localizacao: { nome: nomeLocalizacao },
+    });
   }
   return resultados;
 }
