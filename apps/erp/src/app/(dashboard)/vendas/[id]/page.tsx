@@ -194,8 +194,13 @@ export default async function VendaDetalhePage({ params }: Props) {
               <div key={h.id} className="flex items-start gap-4 rounded-lg border p-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <StatusBadge status={h.estadoAntes} />
-                    <span className="text-muted-foreground">→</span>
+                    {/* #328: antes = depois é a marca de nascimento — mostra só o estado inicial. */}
+                    {h.estadoAntes !== h.estadoDepois && (
+                      <>
+                        <StatusBadge status={h.estadoAntes} />
+                        <span className="text-muted-foreground">→</span>
+                      </>
+                    )}
                     <StatusBadge status={h.estadoDepois} />
                     <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                       {formatarDataHora(h.createdAt)}

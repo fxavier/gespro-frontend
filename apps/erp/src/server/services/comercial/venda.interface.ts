@@ -77,21 +77,39 @@ export type MetodoPagamentoTipo =
  *
  * ENCOMENDA (caminho completo):
  *   RASCUNHO → PENDENTE → CONFIRMADA → EM_PREPARACAO → FATURADA → CONCLUIDA
- *   (qualquer estado não-terminal) → CANCELADA
+ *   (RASCUNHO, PENDENTE, CONFIRMADA, EM_PREPARACAO) → CANCELADA
  *   FATURADA → DEVOLVIDA (via nota de crédito em WS D)
  *
- * CONCLUIDA, CANCELADA, DEVOLVIDA são estados terminais.
+ * Anulação por nota de crédito (ADR-0041 §8, `vendaService.anular`, #328):
+ *   CONCLUIDA → CANCELADA (venda POS paga) · FATURADA → CANCELADA (a crédito/mista, #322).
+ *   Estas duas arestas só as percorre a anulação: a porta manual (`vendaService.transitar`)
+ *   recusa-as — ver `ARESTAS_SO_ANULACAO_VENDA`.
+ *
+ * Nascimento: a venda nasce já no estado inicial (RASCUNHO, PENDENTE, FATURADA ou CONCLUIDA);
+ * o histórico grava-o como marca `estadoAntes = estadoDepois`, não como aresta deste mapa.
+ *
+ * CANCELADA e DEVOLVIDA são estados terminais. Nada volta a RASCUNHO.
  */
 export const TRANSICOES_VENDA: Record<StatusVenda, StatusVenda[]> = {
   RASCUNHO: ['PENDENTE', 'CANCELADA'],
   PENDENTE: ['CONFIRMADA', 'FATURADA', 'CANCELADA'], // FATURADA = caminho rápido POS
   CONFIRMADA: ['EM_PREPARACAO', 'FATURADA', 'CANCELADA'],
   EM_PREPARACAO: ['FATURADA', 'CANCELADA'],
-  FATURADA: ['CONCLUIDA', 'DEVOLVIDA'],
-  CONCLUIDA: [],   // terminal
+  FATURADA: ['CONCLUIDA', 'DEVOLVIDA', 'CANCELADA'], // CANCELADA só por anulação (NC)
+  CONCLUIDA: ['CANCELADA'], // só por anulação (NC)
   CANCELADA: [],   // terminal
   DEVOLVIDA: [],   // terminal
 };
+
+/**
+ * Arestas de `TRANSICOES_VENDA` que só a anulação por nota de crédito percorre (#328).
+ * `vendaService.transitar` recusa-as com `TRANSICAO_INVALIDA`: cancelar uma venda concluída ou
+ * facturada sem a NC que a compense deixaria stock e documento por desfazer.
+ */
+export const ARESTAS_SO_ANULACAO_VENDA: ReadonlyArray<readonly [StatusVenda, StatusVenda]> = [
+  ['CONCLUIDA', 'CANCELADA'],
+  ['FATURADA', 'CANCELADA'],
+];
 
 /**
  * Valida transição de estado da Venda.

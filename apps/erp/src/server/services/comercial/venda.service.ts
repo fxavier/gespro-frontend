@@ -55,6 +55,7 @@ import { exigirClienteParaCredito } from '@/lib/cliente-credito';
 import type { IComissaoService } from './comissao.interface';
 import {
   TRANSICOES_VENDA,
+  ARESTAS_SO_ANULACAO_VENDA,
   transitarVenda,
   TRANSICOES_SESSAO_POS,
   transitarSessaoPOS,
@@ -623,7 +624,9 @@ export class VendaService implements IVendaService {
         data: {
           tenantId: ctx.tenantId,
           vendaId: venda.id,
-          estadoAntes: 'PENDENTE', // pré-criação
+          // Marca de nascimento (#328): antes = depois. Não é aresta de TRANSICOES_VENDA — a venda
+          // nasce já no estado inicial (ex.: a ENCOMENDA em RASCUNHO, a que nada volta).
+          estadoAntes: statusInicial,
           estadoDepois: statusInicial,
           motivo: 'Venda criada',
           userId: ctx.userId,
@@ -721,6 +724,15 @@ export class VendaService implements IVendaService {
       throw new BusinessRuleError(
         'VENDA_COM_DOCUMENTO',
         `A venda ${venda.numero} tem documento fiscal: use «Anular venda» (nota de crédito total) ou registe uma devolução.`,
+      );
+    }
+
+    // #328: as arestas da anulação estão no mapa, mas a porta manual não as percorre.
+    if (ARESTAS_SO_ANULACAO_VENDA.some(([de, para]) => de === venda.status && para === input.paraStatus)) {
+      throw new BusinessRuleError(
+        'TRANSICAO_INVALIDA',
+        `A venda ${venda.numero} no estado ${venda.status} não se cancela directamente: só uma nota de crédito a desfaz.`,
+        { estadoActual: venda.status, estadoAlvo: input.paraStatus },
       );
     }
 
@@ -957,9 +969,10 @@ export class VendaService implements IVendaService {
         );
       }
 
-      // 5. Venda CANCELADA. Deliberadamente FORA de TRANSICOES_VENDA: lá CONCLUIDA é terminal,
-      //    e continua a sê-lo para o `transitar` (cancelar sem documento). Aqui o fim da venda é
-      //    acompanhado pela NC que a compensa — é a única porta para CANCELADA de uma venda paga.
+      // 5. Venda CANCELADA: aresta de TRANSICOES_VENDA que só esta anulação percorre
+      //    (ARESTAS_SO_ANULACAO_VENDA, #328) — o `transitar` recusa-a. O fim da venda é
+      //    acompanhado pela NC que a compensa.
+      transitarVenda(venda.status as StatusVenda, 'CANCELADA');
       const anulada = await tx.venda.update({
         where: { id: venda.id },
         data: { status: 'CANCELADA' },
