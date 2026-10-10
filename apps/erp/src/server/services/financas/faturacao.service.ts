@@ -18,7 +18,7 @@ import {
   periodoFiscalDe,
   registarLancamentoContabilistico,
 } from './contabilidade.service';
-import { resolverContaMeioPagamento } from './meio-pagamento.service';
+import { resolverContaMeioPagamento, resolverContasPagamentoPOS } from './meio-pagamento.service';
 import { SERIES_INICIAIS } from '@/server/provisioning/tenant-bootstrap';
 import { resolverContaNaturezaNotaDebito, validarContaParaNatureza } from './natureza-nota-debito.service';
 import { registarMovimentoCaixa } from './caixa.service';
@@ -954,25 +954,34 @@ export async function emitirDocumentoEmTx(
   ctx: Ctx,
   opcoes: OpcoesEmissaoDocumento = {},
 ): Promise<FaturaCompleta> {
-  const { tipoSerie = 'FATURA', construirLancamento = construirLancamentoFatura } = opcoes;
+  const { tipoSerie = 'FATURA', pagamentos } = opcoes;
   exigirMotivoIsencao(input.linhas);
   const totais = calcularTotaisLinhas(input.linhas);
+  const ZERO = new Prisma.Decimal(0);
+  if (pagamentos) {
+    const pago = pagamentos.reduce((a, p) => a.plus(p.valor), ZERO);
+    if (!pago.equals(totais.total)) {
+      throw new BusinessRuleError(
+        'PAGAMENTOS_NAO_BATEM_TOTAL',
+        `A soma dos pagamentos (${pago.toFixed(2)}) não coincide com o total do documento (${totais.total.toFixed(2)}).`,
+      );
+    }
+  }
   // Factura-Recibo ⇔ PAGA (ADR-0041 §1); factura com parte recebida ⇔ PARCIALMENTE_PAGA (§4).
-  // O estado deriva da série e do valor recebido; contradizê-los é recusado.
-  const recebido = opcoes.totalPago ?? (tipoSerie === 'FATURA_RECIBO' ? totais.total : new Prisma.Decimal(0));
-  const recebidoValido =
+  // O estado deriva da série e dos pagamentos: recebido = Σ dos meios que não são CREDITO.
+  const recebido =
     tipoSerie === 'FATURA_RECIBO'
-      ? recebido.equals(totais.total)
-      : recebido.isZero() || (recebido.greaterThan(0) && recebido.lessThan(totais.total));
-  const statusDerivado =
-    tipoSerie === 'FATURA_RECIBO' ? 'PAGA' : recebido.greaterThan(0) ? 'PARCIALMENTE_PAGA' : 'EMITIDA';
-  const status = opcoes.status ?? statusDerivado;
-  if (!recebidoValido || status !== statusDerivado) {
+      ? totais.total
+      : (pagamentos ?? []).filter((p) => p.tipo !== 'CREDITO').reduce((a, p) => a.plus(p.valor), ZERO);
+  if (tipoSerie !== 'FATURA_RECIBO' && !recebido.isZero() && !recebido.lessThan(totais.total)) {
     throw new BusinessRuleError(
       'OPCOES_EMISSAO_INCOERENTES',
-      `Um documento da série ${tipoSerie} com ${recebido.toFixed(2)} recebidos não pode nascer ${status}.`,
+      `Um documento da série ${tipoSerie} recebido por inteiro (${recebido.toFixed(2)}) tem de ser Factura-Recibo.`,
     );
   }
+  const status = tipoSerie === 'FATURA_RECIBO' ? 'PAGA' : recebido.greaterThan(0) ? 'PARCIALMENTE_PAGA' : 'EMITIDA';
+  // Conta a débito por meio (configuração do tenant, ADR-0041 §4) — lida antes de qualquer escrita.
+  const contasMeio = pagamentos ? await resolverContasPagamentoPOS(tx, ctx) : {};
   // W9: validar FKs cross-domínio contra tenant
   const cliente = await tx.cliente.findFirst({
     where: { id: input.clienteId, tenantId: ctx.tenantId },
@@ -1049,16 +1058,17 @@ export async function emitirDocumentoEmTx(
   // O retorno é guardado para ligar Fatura.lancamentoId — sem esta ligação
   // a pré-condição DOCUMENTO_SEM_LANCAMENTO impede o apuramento de IVA e o
   // fecho do período em TODOS os meses com actividade (verificado em prod).
+  const lancavel = {
+    id: fatura.id,
+    numero: fatura.numero,
+    total: totais.total,
+    subtotal: totais.subtotal,
+    ivaTotal: totais.ivaTotal,
+    dataEmissao: input.dataEmissao,
+  };
   const lancamentoFatura = await registarLancamentoContabilistico(
     tx,
-    construirLancamento({
-      id: fatura.id,
-      numero: fatura.numero,
-      total: totais.total,
-      subtotal: totais.subtotal,
-      ivaTotal: totais.ivaTotal,
-      dataEmissao: input.dataEmissao,
-    }),
+    pagamentos ? construirLancamentoVendaPOS(lancavel, pagamentos, contasMeio) : construirLancamentoFatura(lancavel),
     ctx,
   );
   await tx.fatura.update({
@@ -1547,6 +1557,133 @@ async function compensarNaFaturaOriginalEmTx(
 }
 
 /**
+ * #325 — Plano de liquidação TOTAL de uma NC (EMITIDA → LIQUIDADA). As três entradas públicas
+ * (`liquidarNotaCredito`, `devolverNotaCreditoPelosMeiosOriginaisEmTx`, `liquidarNotaCreditoEmTx`)
+ * só montam o plano; quem o executa — e o único que grava a NC como liquidada — é
+ * `liquidarNotaCreditoNucleoEmTx`.
+ *
+ * O enum gravado `FormaLiquidacaoNC.COMPENSACAO` cobre DUAS coisas distintas, que aqui têm nome:
+ *   - `ABATE_FATURA_ORIGINAL`: o valor abate-se ao saldo em aberto da factura que a NC credita
+ *     (`compensarNaFaturaOriginalEmTx`, sem lançamento — a NC já creditou a 411);
+ *   - `ABATE_DOCUMENTO_TROCA`: o valor abate-se ao documento novo da troca (a nova Factura-Recibo
+ *     debita a 411 no seu próprio lançamento) → aqui não se escreve nada.
+ * Havendo abate (de qualquer tipo), grava-se COMPENSACAO; senão DEVOLUCAO.
+ */
+type AbateNC = { destino: 'ABATE_FATURA_ORIGINAL' | 'ABATE_DOCUMENTO_TROCA'; valor: Prisma.Decimal };
+
+/** Saída de dinheiro: D 411 por `valor` / C em cada conta de `creditos` (caixa/banca). */
+type ReembolsoNC = {
+  valor: Prisma.Decimal;
+  creditos: Array<{ contaCodigo: string; valor: Prisma.Decimal }>;
+  diarioTipo: 'CAIXA' | 'BANCO';
+  historico: string;
+  /** Só a liquidação manual escreve o movimento de caixa; nos núcleos POS é do chamador. */
+  sessaoCaixaId?: string;
+};
+
+type PlanoLiquidacaoNC = { data: Date; abate?: AbateNC; reembolso?: ReembolsoNC };
+
+type NotaCreditoTrancada = NonNullable<Awaited<ReturnType<Prisma.TransactionClient['notaCredito']['findFirst']>>>;
+
+/**
+ * Núcleo único da liquidação de NC (#325): tranca a NC, valida a transição para LIQUIDADA, pede o
+ * plano à variante (`planear`, que valida e lê o que precisar dentro da tx) e executa-o — abate,
+ * lançamento de reembolso, movimento de caixa e, por fim, a gravação da NC.
+ */
+async function liquidarNotaCreditoNucleoEmTx(
+  tx: Prisma.TransactionClient,
+  notaCreditoId: string,
+  ctx: Ctx,
+  planear: (nc: NotaCreditoTrancada) => Promise<PlanoLiquidacaoNC>,
+): Promise<NotaCredito> {
+  await trancarLinha(tx, 'NotaCredito', notaCreditoId, ctx.tenantId);
+  const nc = await tx.notaCredito.findFirst({ where: { id: notaCreditoId, tenantId: ctx.tenantId } });
+  if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
+  transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
+
+  const plano = await planear(nc);
+
+  if (plano.abate?.destino === 'ABATE_FATURA_ORIGINAL') {
+    await compensarNaFaturaOriginalEmTx(tx, nc, plano.abate.valor, plano.data, ctx);
+  }
+
+  let lancamentoLiquidacaoId: string | null = null;
+  const reembolso = plano.reembolso;
+  if (reembolso) {
+    const lancamento = await registarLancamentoContabilistico(
+      tx,
+      {
+        data: plano.data,
+        diarioTipo: reembolso.diarioTipo,
+        origem: 'PAGAMENTO',
+        documentoOrigemId: nc.id,
+        documentoOrigemTipo: 'NotaCredito',
+        historico: reembolso.historico,
+        partidas: [
+          { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor: reembolso.valor.toFixed(2) },
+          ...reembolso.creditos.map((c) => ({ contaCodigo: c.contaCodigo, tipo: 'CREDITO' as const, valor: c.valor.toFixed(2) })),
+        ],
+      },
+      ctx,
+    );
+    lancamentoLiquidacaoId = lancamento.id;
+
+    if (reembolso.sessaoCaixaId) {
+      await registarMovimentoCaixa(
+        tx,
+        {
+          sessaoCaixaId: reembolso.sessaoCaixaId,
+          tipo: 'DEVOLUCAO',
+          valor: reembolso.valor.toFixed(2),
+          descricao: reembolso.historico,
+          documentoOrigemId: nc.id,
+          documentoOrigemTipo: 'NotaCredito',
+        },
+        ctx,
+      );
+    }
+  }
+
+  return tx.notaCredito.update({
+    where: { id: nc.id },
+    data: {
+      status: 'LIQUIDADA',
+      formaLiquidacao: plano.abate ? 'COMPENSACAO' : 'DEVOLUCAO',
+      dataLiquidacao: plano.data,
+      lancamentoLiquidacaoId,
+    },
+  }) as unknown as NotaCredito;
+}
+
+/**
+ * #325 — meios por que um documento foi recebido, lidos das partidas do seu lançamento (função
+ * pura). Soma por conta os DÉBITOS (os CRÉDITOS ignoram-se): o débito na 411 (parte a crédito)
+ * não se devolve — é o `compensado`; as outras contas são os `creditos` do lançamento de
+ * devolução, pela ordem em que aparecem.
+ */
+export function meiosOriginaisDe(
+  partidas: ReadonlyArray<{
+    tipo: string;
+    valor: Prisma.Decimal | string | number;
+    conta?: { codigo: string };
+    contaCodigo?: string;
+  }>,
+): { creditos: Array<{ contaCodigo: string; valor: Prisma.Decimal }>; compensado: Prisma.Decimal } {
+  const porConta = new Map<string, Prisma.Decimal>();
+  for (const p of partidas) {
+    if (p.tipo !== 'DEBITO') continue;
+    const codigo = p.contaCodigo ?? p.conta?.codigo;
+    if (!codigo) continue;
+    porConta.set(codigo, (porConta.get(codigo) ?? new Prisma.Decimal(0)).plus(new Prisma.Decimal(String(p.valor))));
+  }
+  const compensado = porConta.get(PGC_FATURACAO.CLIENTES_CC) ?? new Prisma.Decimal(0);
+  const creditos = [...porConta]
+    .filter(([contaCodigo]) => contaCodigo !== PGC_FATURACAO.CLIENTES_CC)
+    .map(([contaCodigo, valor]) => ({ contaCodigo, valor }));
+  return { creditos, compensado };
+}
+
+/**
  * #148 — liquidação TOTAL da NC (EMITIDA → LIQUIDADA).
  * DEVOLUCAO: 411 D / conta do meio C pelo total (e saída de caixa em numerário);
  * COMPENSACAO: abate ao `totalPago` da factura original, sem lançamento — a 411 já
@@ -1562,74 +1699,35 @@ export async function liquidarNotaCredito(
   return prisma.$transaction(async (rawTx) => {
     const tx = rawTx as unknown as Prisma.TransactionClient;
 
-    await trancarLinha(tx, 'NotaCredito', input.id, ctx.tenantId);
-    const nc = await tx.notaCredito.findFirst({ where: { id: input.id, tenantId: ctx.tenantId } });
-    if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
-    transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
-    // Dias civis de Maputo, não instantes: liquidar no próprio dia da emissão é válido.
-    if (diaMaputo(input.data) < diaMaputo(nc.dataEmissao)) {
-      throw new BusinessRuleError(
-        'NC_DATA_ANTERIOR_EMISSAO',
-        `A data da liquidação não pode ser anterior à data de emissão da nota de crédito ${nc.numero}.`,
-      );
-    }
+    return liquidarNotaCreditoNucleoEmTx(tx, input.id, ctx, async (nc) => {
+      // Dias civis de Maputo, não instantes: liquidar no próprio dia da emissão é válido.
+      if (diaMaputo(input.data) < diaMaputo(nc.dataEmissao)) {
+        throw new BusinessRuleError(
+          'NC_DATA_ANTERIOR_EMISSAO',
+          `A data da liquidação não pode ser anterior à data de emissão da nota de crédito ${nc.numero}.`,
+        );
+      }
+      const total = new Prisma.Decimal(String(nc.total));
 
-    let lancamentoLiquidacaoId: string | null = null;
-
-    if (input.forma === 'COMPENSACAO') {
-      await compensarNaFaturaOriginalEmTx(tx, nc, new Prisma.Decimal(String(nc.total)), input.data, ctx);
-    } else {
+      if (input.forma === 'COMPENSACAO') {
+        return { data: input.data, abate: { destino: 'ABATE_FATURA_ORIGINAL', valor: total } };
+      }
       const meio = await resolverContaMeioPagamento(
         tx,
         { forma: input.formaPagamento, contaBancariaId: input.contaBancariaId },
         ctx,
       );
-      const valor = new Prisma.Decimal(String(nc.total)).toFixed(2);
-      const descricao = `Devolução da nota de crédito ${nc.numero}`;
-
-      const lancamento = await registarLancamentoContabilistico(
-        tx,
-        {
-          data: input.data,
+      return {
+        data: input.data,
+        reembolso: {
+          valor: total,
+          creditos: [{ contaCodigo: meio.contaCodigo, valor: total }],
           diarioTipo: meio.diarioTipo,
-          origem: 'PAGAMENTO',
-          documentoOrigemId: nc.id,
-          documentoOrigemTipo: 'NotaCredito',
-          historico: descricao,
-          partidas: [
-            { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor },
-            { contaCodigo: meio.contaCodigo, tipo: 'CREDITO', valor },
-          ],
+          historico: `Devolução da nota de crédito ${nc.numero}`,
+          sessaoCaixaId: meio.sessaoCaixaId,
         },
-        ctx,
-      );
-      lancamentoLiquidacaoId = lancamento.id;
-
-      if (meio.sessaoCaixaId) {
-        await registarMovimentoCaixa(
-          tx,
-          {
-            sessaoCaixaId: meio.sessaoCaixaId,
-            tipo: 'DEVOLUCAO',
-            valor,
-            descricao,
-            documentoOrigemId: nc.id,
-            documentoOrigemTipo: 'NotaCredito',
-          },
-          ctx,
-        );
-      }
-    }
-
-    return tx.notaCredito.update({
-      where: { id: nc.id },
-      data: {
-        status: 'LIQUIDADA',
-        formaLiquidacao: input.forma,
-        dataLiquidacao: input.data,
-        lancamentoLiquidacaoId,
-      },
-    }) as unknown as NotaCredito;
+      };
+    });
   });
 }
 
@@ -1661,83 +1759,52 @@ export async function devolverNotaCreditoPelosMeiosOriginaisEmTx(
   input: { notaCreditoId: string; data: Date },
   ctx: Ctx,
 ): Promise<NotaCredito> {
-  await trancarLinha(tx, 'NotaCredito', input.notaCreditoId, ctx.tenantId);
-  const nc = await tx.notaCredito.findFirst({ where: { id: input.notaCreditoId, tenantId: ctx.tenantId } });
-  if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
-  transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
+  return liquidarNotaCreditoNucleoEmTx(tx, input.notaCreditoId, ctx, async (nc) => {
+    const fatura = await tx.fatura.findFirst({
+      where: { id: nc.faturaOriginalId, tenantId: ctx.tenantId },
+      select: { numero: true, total: true, lancamentoId: true },
+    });
+    if (!fatura) throw new NotFoundError('Factura original não encontrada');
+    if (!fatura.lancamentoId) {
+      throw new BusinessRuleError(
+        'DOCUMENTO_SEM_LANCAMENTO',
+        `A factura ${fatura.numero} não tem lançamento: não se sabe por que meios foi recebida.`,
+      );
+    }
+    const total = new Prisma.Decimal(String(nc.total));
+    if (!total.equals(new Prisma.Decimal(String(fatura.total)))) {
+      throw new BusinessRuleError(
+        'NC_DEVOLUCAO_PARCIAL',
+        `A nota de crédito ${nc.numero} não credita a factura ${fatura.numero} inteira: a devolução pelos meios originais só cobre o documento todo.`,
+      );
+    }
 
-  const fatura = await tx.fatura.findFirst({
-    where: { id: nc.faturaOriginalId, tenantId: ctx.tenantId },
-    select: { numero: true, total: true, lancamentoId: true },
+    const partidas = await tx.partidaLancamento.findMany({
+      where: { lancamentoId: fatura.lancamentoId, tenantId: ctx.tenantId, tipo: 'DEBITO' },
+      select: { tipo: true, valor: true, conta: { select: { codigo: true } } },
+      orderBy: { id: 'asc' },
+    });
+    // Parte a crédito (#322): a 411 que a factura debitou não se devolve — compensa-se contra o
+    // saldo em aberto da própria factura, sem lançamento (a NC já creditou a 411). Se a factura já
+    // recebeu pagamentos em Facturação, o saldo não chega e recusa (NC_COMPENSACAO_EXCEDE_SALDO).
+    const { creditos, compensado } = meiosOriginaisDe(partidas);
+
+    // Parte paga: devolve-se por onde entrou.
+    const devolvido = total.minus(compensado);
+    return {
+      data: input.data,
+      abate: compensado.greaterThan(0) ? { destino: 'ABATE_FATURA_ORIGINAL', valor: compensado } : undefined,
+      reembolso: devolvido.greaterThan(0)
+        ? {
+            valor: devolvido,
+            creditos,
+            // Há sempre caixa ou banco do outro lado; com numerário, o diário é o de caixa.
+            diarioTipo: creditos.some((c) => c.contaCodigo === CONTA_MEIO_PAGAMENTO_POS.DINHEIRO) ? 'CAIXA' : 'BANCO',
+            historico: `Devolução da nota de crédito ${nc.numero} (anulação de ${fatura.numero})`,
+          }
+        : undefined,
+    };
   });
-  if (!fatura) throw new NotFoundError('Factura original não encontrada');
-  if (!fatura.lancamentoId) {
-    throw new BusinessRuleError(
-      'DOCUMENTO_SEM_LANCAMENTO',
-      `A factura ${fatura.numero} não tem lançamento: não se sabe por que meios foi recebida.`,
-    );
-  }
-  const total = new Prisma.Decimal(String(nc.total));
-  if (!total.equals(new Prisma.Decimal(String(fatura.total)))) {
-    throw new BusinessRuleError(
-      'NC_DEVOLUCAO_PARCIAL',
-      `A nota de crédito ${nc.numero} não credita a factura ${fatura.numero} inteira: a devolução pelos meios originais só cobre o documento todo.`,
-    );
-  }
-
-  const debitos = await tx.partidaLancamento.findMany({
-    where: { lancamentoId: fatura.lancamentoId, tenantId: ctx.tenantId, tipo: 'DEBITO' },
-    select: { valor: true, conta: { select: { codigo: true } } },
-    orderBy: { id: 'asc' },
-  });
-  const porConta = new Map<string, Prisma.Decimal>();
-  for (const p of debitos) {
-    porConta.set(p.conta.codigo, (porConta.get(p.conta.codigo) ?? new Prisma.Decimal(0)).plus(p.valor));
-  }
-  // Parte a crédito (#322): a 411 que a factura debitou não se devolve — compensa-se contra o
-  // saldo em aberto da própria factura, sem lançamento (a NC já creditou a 411). Se a factura já
-  // recebeu pagamentos em Facturação, o saldo não chega e recusa (NC_COMPENSACAO_EXCEDE_SALDO).
-  const compensado = porConta.get(PGC_FATURACAO.CLIENTES_CC) ?? new Prisma.Decimal(0);
-  porConta.delete(PGC_FATURACAO.CLIENTES_CC);
-  if (compensado.greaterThan(0)) {
-    await compensarNaFaturaOriginalEmTx(tx, nc, compensado, input.data, ctx);
-  }
-
-  // Parte paga: devolve-se por onde entrou.
-  let lancamentoLiquidacaoId: string | null = null;
-  const devolvido = total.minus(compensado);
-  if (devolvido.greaterThan(0)) {
-    const descricao = `Devolução da nota de crédito ${nc.numero} (anulação de ${fatura.numero})`;
-    const lancamento = await registarLancamentoContabilistico(
-      tx,
-      {
-        data: input.data,
-        // Há sempre caixa ou banco do outro lado; com numerário, o diário é o de caixa.
-        diarioTipo: porConta.has(CONTA_MEIO_PAGAMENTO_POS.DINHEIRO) ? 'CAIXA' : 'BANCO',
-        origem: 'PAGAMENTO',
-        documentoOrigemId: nc.id,
-        documentoOrigemTipo: 'NotaCredito',
-        historico: descricao,
-        partidas: [
-          { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor: devolvido.toFixed(2) },
-          ...[...porConta].map(([contaCodigo, v]) => ({ contaCodigo, tipo: 'CREDITO' as const, valor: v.toFixed(2) })),
-        ],
-      },
-      ctx,
-    );
-    lancamentoLiquidacaoId = lancamento.id;
-  }
-
-  return tx.notaCredito.update({
-    where: { id: nc.id },
-    data: {
-      status: 'LIQUIDADA',
-      // Convenção do liquidarNotaCreditoEmTx: havendo parte compensada, é COMPENSACAO.
-      formaLiquidacao: compensado.greaterThan(0) ? 'COMPENSACAO' : 'DEVOLUCAO',
-      dataLiquidacao: input.data,
-      lancamentoLiquidacaoId,
-    },
-  }) as unknown as NotaCredito;
 }
 
 /**
@@ -1759,52 +1826,29 @@ export async function liquidarNotaCreditoEmTx(
   input: { notaCreditoId: string; data: Date; numerario: Prisma.Decimal; compensado: Prisma.Decimal },
   ctx: Ctx,
 ): Promise<NotaCredito> {
-  await trancarLinha(tx, 'NotaCredito', input.notaCreditoId, ctx.tenantId);
-  const nc = await tx.notaCredito.findFirst({ where: { id: input.notaCreditoId, tenantId: ctx.tenantId } });
-  if (!nc) throw new NotFoundError('Nota de crédito não encontrada');
-  transitarNC(nc.status as StatusNotaCredito, 'LIQUIDADA');
-
-  const total = new Prisma.Decimal(String(nc.total));
-  const { numerario, compensado } = input;
-  if (numerario.isNegative() || compensado.isNegative() || !numerario.plus(compensado).equals(total)) {
-    throw new BusinessRuleError(
-      'NC_LIQUIDACAO_INCOMPLETA',
-      `A liquidação da nota de crédito ${nc.numero} (${numerario.toFixed(2)} em numerário + ` +
-        `${compensado.toFixed(2)} compensados) não cobre o total ${total.toFixed(2)}.`,
-    );
-  }
-
-  let lancamentoLiquidacaoId: string | null = null;
-  if (numerario.greaterThan(0)) {
-    const valor = numerario.toFixed(2);
-    const lancamento = await registarLancamentoContabilistico(
-      tx,
-      {
-        data: input.data,
-        diarioTipo: 'CAIXA',
-        origem: 'PAGAMENTO',
-        documentoOrigemId: nc.id,
-        documentoOrigemTipo: 'NotaCredito',
-        historico: `Devolução em numerário da nota de crédito ${nc.numero}`,
-        partidas: [
-          { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'DEBITO', valor },
-          { contaCodigo: CONTA_MEIO_PAGAMENTO_POS.DINHEIRO, tipo: 'CREDITO', valor },
-        ],
-      },
-      ctx,
-    );
-    lancamentoLiquidacaoId = lancamento.id;
-  }
-
-  return tx.notaCredito.update({
-    where: { id: nc.id },
-    data: {
-      status: 'LIQUIDADA',
-      formaLiquidacao: compensado.greaterThan(0) ? 'COMPENSACAO' : 'DEVOLUCAO',
-      dataLiquidacao: input.data,
-      lancamentoLiquidacaoId,
-    },
-  }) as unknown as NotaCredito;
+  return liquidarNotaCreditoNucleoEmTx(tx, input.notaCreditoId, ctx, async (nc) => {
+    const total = new Prisma.Decimal(String(nc.total));
+    const { numerario, compensado } = input;
+    if (numerario.isNegative() || compensado.isNegative() || !numerario.plus(compensado).equals(total)) {
+      throw new BusinessRuleError(
+        'NC_LIQUIDACAO_INCOMPLETA',
+        `A liquidação da nota de crédito ${nc.numero} (${numerario.toFixed(2)} em numerário + ` +
+          `${compensado.toFixed(2)} compensados) não cobre o total ${total.toFixed(2)}.`,
+      );
+    }
+    return {
+      data: input.data,
+      abate: compensado.greaterThan(0) ? { destino: 'ABATE_DOCUMENTO_TROCA', valor: compensado } : undefined,
+      reembolso: numerario.greaterThan(0)
+        ? {
+            valor: numerario,
+            creditos: [{ contaCodigo: CONTA_MEIO_PAGAMENTO_POS.DINHEIRO, valor: numerario }],
+            diarioTipo: 'CAIXA',
+            historico: `Devolução em numerário da nota de crédito ${nc.numero}`,
+          }
+        : undefined,
+    };
+  });
 }
 
 /**
@@ -2451,7 +2495,6 @@ export const faturacaoService = {
   emitirFatura,
   emitirDocumentoEmTx,
   avisosLimiteCreditoEmTx,
-  construirLancamentoVendaPOS,
   obterFatura,
   listarFaturas,
   registarPagamento,

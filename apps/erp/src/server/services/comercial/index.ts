@@ -6,11 +6,10 @@
  *  - WS A: stockService (baixarStock, reservarStock, libertarStock, entradaStock, confirmarConsumoStock)
  *  - WS D (contratos de finanças efectivamente usados):
  *      caixaService: registarMovimentoCaixa
- *      faturacaoService (injectado): proximoNumeroSerie, emitirDocumentoEmTx, construirLancamentoVendaPOS,
+ *      faturacaoService (injectado): proximoNumeroSerie, emitirDocumentoEmTx (conta a débito por meio, ADR-0041 §4),
  *        emitirNotaCreditoEmTx, liquidarNotaCreditoEmTx, devolverNotaCreditoPelosMeiosOriginaisEmTx
  *        — núcleos que correm na tx do chamador (ADR-0041)
  *      contabilidadeService: registarLancamentoContabilistico (encomendas)
- *      resolverContasPagamentoPOS (conta a débito por meio, ADR-0041 §4)
  *      importados directamente: proximoNumeroSerie (devolução, encomenda), exigirEmailConfirmadoParaEmitir,
  *        exigirPeriodoAbertoEm, exigirSessaoCaixaAbertaDoUtilizador (travões do chamador com sessão, fora da tx)
  */
@@ -20,7 +19,6 @@ import { stockService } from '@/server/services/inventario/stock.service';
 import { caixaService } from '@/server/services/financas/caixa.service';
 import { faturacaoService } from '@/server/services/financas/faturacao.service';
 import { contabilidadeService } from '@/server/services/financas/contabilidade.service';
-import { resolverContasPagamentoPOS } from '@/server/services/financas';
 import { VendaService, SessaoPOSService } from './venda.service';
 import { ComissaoService } from './comissao.service';
 import { EncomendaService } from './encomenda.service';
@@ -38,7 +36,6 @@ export const vendaService = new VendaService(
   caixaService,
   faturacaoService,
   _comissaoService,
-  { resolverContasPagamentoPOS },
 );
 
 export const sessaoPOSService = new SessaoPOSService();
@@ -58,9 +55,7 @@ export const devolucaoService = new DevolucaoService(
 );
 
 // TrocaService: NC + Factura-Recibo da troca pelos núcleos em tx (ADR-0041 §8)
-export const trocaService = new TrocaService(stockService, caixaService, faturacaoService, {
-  resolverContasPagamentoPOS,
-});
+export const trocaService = new TrocaService(stockService, caixaService, faturacaoService);
 
 // Re-exportar os singletons que já existem nos ficheiros individuais
 export { clienteService } from './cliente.service';
