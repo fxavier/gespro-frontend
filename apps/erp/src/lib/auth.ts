@@ -163,6 +163,7 @@ export async function resolverUtilizadorLocal(keycloakSub: string): Promise<Reso
 export type MotivoRecusaLogin =
   | 'credenciais'
   | 'conta-por-activar'
+  | 'convite-por-concluir'
   | 'conta-desactivada'
   | 'nao-provisionado'
   | 'inactivo'

@@ -22,6 +22,8 @@ const MENSAGENS: Record<string, string> = {
   credenciais: 'E-mail ou palavra-passe incorrectos.',
   // 'conta-por-activar' não aparece aqui: essa recusa leva ao ecrã de mudança
   // de palavra-passe (ADR-0030 §4), que é onde ela se resolve.
+  'convite-por-concluir':
+    'O seu convite ainda não foi concluído. Abra a ligação do convite que recebeu por e-mail ou peça ao administrador que o reenvie.',
   'conta-desactivada': 'Esta conta está desactivada. Contacte o administrador da sua empresa.',
   'nao-provisionado':
     'A sua identidade foi reconhecida, mas ainda não existe um utilizador associado numa empresa GestPro. Contacte o administrador da sua empresa.',
