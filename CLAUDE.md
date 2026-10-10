@@ -354,7 +354,7 @@ singular (ex.: `definirContaNaturezaNotaDebito`).
 **Páginas-protótipo que parecem reais** — algumas páginas antigas são `'use client'` e leem/escrevem
 `localStorage` em vez da base (tabelas vazias, «guardado» que ninguém lê). Antes de corrigir um sintoma numa
 página, confirma que ela chega ao servidor: `git grep -l localStorage -- 'apps/erp/src/app/**/page.tsx'`
-(hoje: `balancete/nova` — «Salvar» ainda é fictício — e `projetos/lista/{novo,[id]/editar}`). Os tipos de
+(hoje: `projetos/lista/{novo,[id]/editar}`; o «registo» do balancete em `localStorage` saiu com a #282). Os tipos de
 contabilidade reais estão nos `*.interface.ts` dos serviços (os de protótipo, `src/types/contabilidade.ts`, saíram
 com o gerador `lib/contabilidade/balancete.ts`, #282).
 
