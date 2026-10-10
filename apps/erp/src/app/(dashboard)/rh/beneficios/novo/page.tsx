@@ -1,12 +1,12 @@
 /**
  * Novo Benefício — Server Component.
- * A página é Server Component; o formulário interactivo está em NovoBeneficioForm.
+ * A página é Server Component; o formulário interactivo está em BeneficioForm (partilhado com editar).
  */
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { PageHeader } from '@/components/patterns';
-import { NovoBeneficioForm } from './_components/novo-beneficio-form';
+import { BeneficioForm } from '../_components/beneficio-form';
 
 export default async function NovoBeneficioPage() {
   const session = await auth();
@@ -24,7 +24,7 @@ export default async function NovoBeneficioPage() {
         ]}
       />
 
-      <NovoBeneficioForm />
+      <BeneficioForm />
     </div>
   );
 }

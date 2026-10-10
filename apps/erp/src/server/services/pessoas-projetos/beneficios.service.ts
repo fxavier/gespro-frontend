@@ -135,7 +135,9 @@ export const BeneficioService = {
       where: { id, tenantId: ctx.tenantId },
       include: {
         atribuicoes: {
-          where: { status: 'ACTIVO' },
+          // ACTIVAS e SUSPENSAS (#162): sem a suspensa no detalhe, reactivá-la ou terminá-la
+          // é inalcançável pela UI. As TERMINADAS ficam de fora (estado final, sem acções).
+          where: { status: { in: ['ACTIVO', 'SUSPENSO'] } },
           select: {
             id: true,
             colaboradorId: true,
@@ -286,7 +288,7 @@ export const BeneficioColaboradorService = {
   async terminar(input: TerminarBeneficioInput, ctx: Ctx): Promise<void> {
     const atribuicao = await prisma.beneficioColaborador.findFirst({
       where: { id: input.id, tenantId: ctx.tenantId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, dataInicio: true },
     });
     if (!atribuicao) throw new NotFoundError('Atribuição de benefício não encontrada');
 
@@ -294,11 +296,25 @@ export const BeneficioColaboradorService = {
       throw new BusinessRuleError('ATRIBUICAO_JA_TERMINADA', 'Esta atribuição já está terminada');
     }
 
+    // Uma vigência que acaba antes de começar é impossível (#162): uma data EXPLÍCITA anterior ao
+    // início recusa-se. Sem data, termina hoje — ou no próprio início, se este ainda não chegou
+    // (atribuição com início futuro, ou o dia corrente antes das 02:00 de Maputo): de outro modo a
+    // UI, que só confirma, não teria forma de a terminar.
+    const agora = new Date();
+    const dataFim =
+      input.dataFim ?? (agora < atribuicao.dataInicio ? atribuicao.dataInicio : agora);
+    if (input.dataFim && dataFim < atribuicao.dataInicio) {
+      throw new BusinessRuleError(
+        'DATA_FIM_ANTERIOR_INICIO',
+        'A data de fim não pode ser anterior à data de início da atribuição',
+      );
+    }
+
     await prisma.beneficioColaborador.update({
       where: { id: input.id },
       data: {
         status: 'TERMINADO',
-        dataFim: input.dataFim ?? new Date(),
+        dataFim,
         ...(input.observacoes !== undefined && { observacoes: input.observacoes }),
       },
     });
