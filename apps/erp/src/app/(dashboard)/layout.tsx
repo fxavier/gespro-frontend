@@ -1,34 +1,13 @@
-import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { COOKIE_BARRA_LATERAL, VALOR_RECOLHIDA } from '@/lib/barra-lateral';
 import { AppHeader } from '@/components/layout/AppHeader';
-import { CommandPalette } from '@/components/layout/CommandPalette';
-import { NotificationBell } from '@/components/layout/NotificationBell';
+import { SinoNotificacoes } from '@/components/layout/SinoNotificacoes';
 import { FaixaLeitura } from '@/components/layout/FaixaLeitura';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
-import { notificacaoService } from '@/server/services/plataforma/notificacao.service';
 import { assinaturaService } from '@/server/services/plataforma/assinatura.service';
-
-/**
- * Componente servidor para o sino de notificações.
- * Renderiza o badge com o contador real de não-lidas.
- * Envolto em Suspense para não bloquear o layout em caso de lentidão da DB.
- */
-async function NotificationBellServer({
-  tenantId,
-  userId,
-}: {
-  tenantId: string;
-  userId: string;
-}) {
-  const count = await runWithTenantContext({ tenantId, userId }, () =>
-    notificacaoService.naoLidasCount({ tenantId, userId }),
-  );
-  return <NotificationBell count={count} />;
-}
 
 /**
  * Layout global do dashboard — Server Component.
@@ -62,12 +41,6 @@ export default async function DashboardLayout({
     diasDeLeitura = assinatura?.diasRestantesLeitura ?? 0;
   }
 
-  const notificationSlot = (
-    <Suspense fallback={<NotificationBell count={0} />}>
-      <NotificationBellServer tenantId={tenantId} userId={userId} />
-    </Suspense>
-  );
-
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
       {/* Sidebar esquerda — filtrada pelas permissões da sessão */}
@@ -79,7 +52,9 @@ export default async function DashboardLayout({
       {/* Área de conteúdo principal */}
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         {/* Cabeçalho com breadcrumbs, notificações e menu de utilizador */}
-        <AppHeader notificationSlot={notificationSlot} />
+        <AppHeader
+          notificationSlot={<SinoNotificacoes tenantId={tenantId} userId={userId} />}
+        />
 
         {/* Modo de leitura: em todas as páginas, porque o bloqueio é em todas */}
         {session.user.acesso === 'leitura' && <FaixaLeitura diasRestantes={diasDeLeitura} />}
@@ -93,9 +68,6 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
-
-      {/* Paleta de comandos global (Cmd+K) */}
-      <CommandPalette />
     </div>
   );
 }

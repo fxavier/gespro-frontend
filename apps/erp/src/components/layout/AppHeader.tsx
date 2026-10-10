@@ -14,11 +14,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Breadcrumbs } from './Breadcrumbs';
+import { CommandPalette } from './CommandPalette';
 import { cn } from '@/lib/utils';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 interface AppHeaderProps {
-  onCommandPaletteOpen?: () => void;
   /** Slot para o sino de notificações — Server Component pai injeta o contador real. */
   notificationSlot?: ReactNode;
 }
@@ -61,10 +61,13 @@ function ThemeToggleMenu() {
 /**
  * Cabeçalho global do dashboard.
  * Inclui breadcrumbs, botão Cmd+K, sino de notificações e menu de utilizador.
+ * É dono da paleta de comandos: o botão de pesquisa e o atalho ⌘K/Ctrl+K abrem a
+ * mesma instância (#182) — os layouts são Server Components e não podem passar handlers.
  * O sino de notificações é injectado como slot pelo Server Component pai (layout.tsx)
  * para que o contador de não-lidas seja renderizado no servidor.
  */
-export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderProps) {
+export function AppHeader({ notificationSlot }: AppHeaderProps) {
+  const [paletaAberta, setPaletaAberta] = useState(false);
   const { data: session } = useSession();
   const user = session?.user;
 
@@ -85,7 +88,7 @@ export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderP
             'hidden md:flex items-center gap-2 h-9 w-64 justify-start rounded-md border border-border bg-background px-3 text-muted-foreground shadow-none',
             'hover:bg-secondary hover:text-foreground transition-colors'
           )}
-          onClick={onCommandPaletteOpen}
+          onClick={() => setPaletaAberta(true)}
           aria-label="Abrir paleta de comandos"
         >
           <Search className="h-3.5 w-3.5" />
@@ -127,10 +130,6 @@ export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderP
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <a href="/configuracoes">Configurações</a>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               // Desde o ADR-0029 não há sessão SSO a encerrar: o `signOut`
@@ -143,6 +142,9 @@ export function AppHeader({ onCommandPaletteOpen, notificationSlot }: AppHeaderP
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Paleta de comandos global (botão de pesquisa e ⌘K/Ctrl+K) */}
+      <CommandPalette open={paletaAberta} onOpenChange={setPaletaAberta} />
     </header>
   );
 }
