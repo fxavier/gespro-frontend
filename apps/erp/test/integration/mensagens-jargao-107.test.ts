@@ -16,6 +16,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
+import { CreateFornecedorSchema } from '@/lib/validations/fornecedores';
 
 const skip = process.env.SKIP_INTEGRATION === 'true' || !process.env.INTEGRATION_DB_URL;
 
@@ -62,17 +63,20 @@ describe.skipIf(skip)('#107 — mensagens de duplicado sem jargão — DB eféme
   });
 
   it('fornecedor com NUIT repetido → NUIT_DUPLICADO, mensagem com o NUIT e sem «tenant»; nada se grava', async () => {
-    const dados = (nome: string) => ({
-      nome,
-      tipo: 'PESSOA_JURIDICA',
-      nuit: NUIT,
-      email: `${nome.toLowerCase().replace(/\s+/g, '-')}-${sufixo}@test.mz`,
-      formasPagamento: [],
-      tags: [],
-    });
+    // Pelo schema do formulário, não por `as never`: uma mudança de contrato (como o `codigo`
+    // obrigatório do #116) aparece aqui como erro de validação, não como erro do Prisma.
+    // Códigos distintos — a recusa tem de vir do NUIT, não do código.
+    const dados = (nome: string, n: number) =>
+      CreateFornecedorSchema.parse({
+        codigo: `F107-${n}-${sufixo}`,
+        nome,
+        tipo: 'PESSOA_JURIDICA',
+        nuit: NUIT,
+        email: `${nome.toLowerCase().replace(/\s+/g, '-')}-${sufixo}@test.mz`,
+      });
 
-    await noCtx(() => fornecedorService.criar(dados('Fornecedor Um') as never, ctx));
-    const erro = await capturarErro(() => noCtx(() => fornecedorService.criar(dados('Fornecedor Dois') as never, ctx)));
+    await noCtx(() => fornecedorService.criar(dados('Fornecedor Um', 1), ctx));
+    const erro = await capturarErro(() => noCtx(() => fornecedorService.criar(dados('Fornecedor Dois', 2), ctx)));
 
     expect(erro, 'o segundo fornecedor com o mesmo NUIT tinha de ser recusado').toBeDefined();
     expect(erro.name).toBe('BusinessRuleError');
