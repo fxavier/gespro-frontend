@@ -18,7 +18,7 @@ import {
   periodoFiscalDe,
   registarLancamentoContabilistico,
 } from './contabilidade.service';
-import { resolverContaMeioPagamento } from './meio-pagamento.service';
+import { resolverContaMeioPagamento, resolverContasPagamentoPOS } from './meio-pagamento.service';
 import { SERIES_INICIAIS } from '@/server/provisioning/tenant-bootstrap';
 import { resolverContaNaturezaNotaDebito, validarContaParaNatureza } from './natureza-nota-debito.service';
 import { registarMovimentoCaixa } from './caixa.service';
@@ -954,25 +954,34 @@ export async function emitirDocumentoEmTx(
   ctx: Ctx,
   opcoes: OpcoesEmissaoDocumento = {},
 ): Promise<FaturaCompleta> {
-  const { tipoSerie = 'FATURA', construirLancamento = construirLancamentoFatura } = opcoes;
+  const { tipoSerie = 'FATURA', pagamentos } = opcoes;
   exigirMotivoIsencao(input.linhas);
   const totais = calcularTotaisLinhas(input.linhas);
+  const ZERO = new Prisma.Decimal(0);
+  if (pagamentos) {
+    const pago = pagamentos.reduce((a, p) => a.plus(p.valor), ZERO);
+    if (!pago.equals(totais.total)) {
+      throw new BusinessRuleError(
+        'PAGAMENTOS_NAO_BATEM_TOTAL',
+        `A soma dos pagamentos (${pago.toFixed(2)}) não coincide com o total do documento (${totais.total.toFixed(2)}).`,
+      );
+    }
+  }
   // Factura-Recibo ⇔ PAGA (ADR-0041 §1); factura com parte recebida ⇔ PARCIALMENTE_PAGA (§4).
-  // O estado deriva da série e do valor recebido; contradizê-los é recusado.
-  const recebido = opcoes.totalPago ?? (tipoSerie === 'FATURA_RECIBO' ? totais.total : new Prisma.Decimal(0));
-  const recebidoValido =
+  // O estado deriva da série e dos pagamentos: recebido = Σ dos meios que não são CREDITO.
+  const recebido =
     tipoSerie === 'FATURA_RECIBO'
-      ? recebido.equals(totais.total)
-      : recebido.isZero() || (recebido.greaterThan(0) && recebido.lessThan(totais.total));
-  const statusDerivado =
-    tipoSerie === 'FATURA_RECIBO' ? 'PAGA' : recebido.greaterThan(0) ? 'PARCIALMENTE_PAGA' : 'EMITIDA';
-  const status = opcoes.status ?? statusDerivado;
-  if (!recebidoValido || status !== statusDerivado) {
+      ? totais.total
+      : (pagamentos ?? []).filter((p) => p.tipo !== 'CREDITO').reduce((a, p) => a.plus(p.valor), ZERO);
+  if (tipoSerie !== 'FATURA_RECIBO' && !recebido.isZero() && !recebido.lessThan(totais.total)) {
     throw new BusinessRuleError(
       'OPCOES_EMISSAO_INCOERENTES',
-      `Um documento da série ${tipoSerie} com ${recebido.toFixed(2)} recebidos não pode nascer ${status}.`,
+      `Um documento da série ${tipoSerie} recebido por inteiro (${recebido.toFixed(2)}) tem de ser Factura-Recibo.`,
     );
   }
+  const status = tipoSerie === 'FATURA_RECIBO' ? 'PAGA' : recebido.greaterThan(0) ? 'PARCIALMENTE_PAGA' : 'EMITIDA';
+  // Conta a débito por meio (configuração do tenant, ADR-0041 §4) — lida antes de qualquer escrita.
+  const contasMeio = pagamentos ? await resolverContasPagamentoPOS(tx, ctx) : {};
   // W9: validar FKs cross-domínio contra tenant
   const cliente = await tx.cliente.findFirst({
     where: { id: input.clienteId, tenantId: ctx.tenantId },
@@ -1049,16 +1058,17 @@ export async function emitirDocumentoEmTx(
   // O retorno é guardado para ligar Fatura.lancamentoId — sem esta ligação
   // a pré-condição DOCUMENTO_SEM_LANCAMENTO impede o apuramento de IVA e o
   // fecho do período em TODOS os meses com actividade (verificado em prod).
+  const lancavel = {
+    id: fatura.id,
+    numero: fatura.numero,
+    total: totais.total,
+    subtotal: totais.subtotal,
+    ivaTotal: totais.ivaTotal,
+    dataEmissao: input.dataEmissao,
+  };
   const lancamentoFatura = await registarLancamentoContabilistico(
     tx,
-    construirLancamento({
-      id: fatura.id,
-      numero: fatura.numero,
-      total: totais.total,
-      subtotal: totais.subtotal,
-      ivaTotal: totais.ivaTotal,
-      dataEmissao: input.dataEmissao,
-    }),
+    pagamentos ? construirLancamentoVendaPOS(lancavel, pagamentos, contasMeio) : construirLancamentoFatura(lancavel),
     ctx,
   );
   await tx.fatura.update({
@@ -2485,7 +2495,6 @@ export const faturacaoService = {
   emitirFatura,
   emitirDocumentoEmTx,
   avisosLimiteCreditoEmTx,
-  construirLancamentoVendaPOS,
   obterFatura,
   listarFaturas,
   registarPagamento,

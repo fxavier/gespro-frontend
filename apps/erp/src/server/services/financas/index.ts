@@ -46,12 +46,6 @@ export type {
 } from './caixa.interface';
 
 // ---------------------------------------------------------------------------
-// Conta a débito por meio de pagamento do POS (ADR-0041 §4 — WS C)
-// ---------------------------------------------------------------------------
-export type { IMeioPagamentoPOSService } from './meio-pagamento.service';
-export { resolverContasPagamentoPOS } from './meio-pagamento.service';
-
-// ---------------------------------------------------------------------------
 // Tipos de faturação + numeração (fonte única para WS A, B, C, E, F)
 // ---------------------------------------------------------------------------
 export type {
