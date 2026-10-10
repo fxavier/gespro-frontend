@@ -9,26 +9,16 @@ import { Plus } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { stockService } from '@/server/services/inventario/stock.service';
-import { MovimentoStockFilterSchema, type MovimentoStockFilter } from '@/lib/validations/stock';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
 import type { TipoMovimentoStock } from '@prisma/client';
-import { MovimentoStockFilterSchema } from '@/lib/validations/stock';
+import { MovimentoStockFilterSchema, type MovimentoStockFilter } from '@/lib/validations/stock';
 import { opcoesDeEnum } from '@/lib/opcoes-enum';
 import { TableSkeleton } from '../ativos/_components/table-skeletons';
 import { MovimentosStockTable } from './_components/movimentos-stock-table';
 
 const FILTROS_DEFAULT: MovimentoStockFilter = { take: 25 };
-const MovimentacaoFilterUrlSchema = z.object({
-  q: MovimentoStockFilterSchema.shape.q,
-  tipo: MovimentoStockFilterSchema.shape.tipo,
-  cursor: z.string().optional(),
-  take: z.coerce.number().int().positive().max(100).default(25),
-});
-
-type MovimentacaoFilterUrl = z.infer<typeof MovimentacaoFilterUrlSchema>;
-const FILTROS_DEFAULT: MovimentacaoFilterUrl = { take: 25 };
 
 async function MovimentacoesTableSection({
   filtros,
@@ -41,11 +31,7 @@ async function MovimentacoesTableSection({
 }) {
   const ctx = { tenantId, userId };
   const result = await runWithTenantContext({ tenantId, userId }, () =>
-    stockService.listarMovimentos(
-      { tipo: filtros.tipo, search: filtros.search, cursor: filtros.cursor, take: filtros.take },
-      { q: filtros.q, tipo: filtros.tipo, cursor: filtros.cursor, take: filtros.take },
-      ctx
-    )
+    stockService.listarMovimentos({ ...filtros }, ctx)
   );
 
   return <MovimentosStockTable data={result.items} nextCursor={result.nextCursor} />;
@@ -64,12 +50,6 @@ const FILTER_CONFIGS: FilterConfig[] = [
     key: 'tipo',
     label: 'Tipo',
     placeholder: 'Todos os tipos',
-    options: [
-      { label: 'Entrada', value: 'ENTRADA' },
-      { label: 'Saída', value: 'SAIDA' },
-      { label: 'Transferência', value: 'TRANSFERENCIA' },
-      { label: 'Ajuste', value: 'AJUSTE' },
-    ],
     options: opcoesDeEnum(ROTULOS_TIPO),
   },
 ];

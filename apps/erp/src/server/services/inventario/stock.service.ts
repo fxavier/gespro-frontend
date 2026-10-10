@@ -345,7 +345,6 @@ export async function listarMovimentos(
               ],
             },
           } : {}),
-          ...(filter.tipo ? { tipo: filter.tipo as never } : {}),
           // Em AND: o filtro de localização já ocupa o `OR` do topo.
           ...(filter.q
             ? {
