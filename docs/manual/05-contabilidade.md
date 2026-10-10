@@ -309,10 +309,11 @@ Por baixo do quadro, o indicador **Balancete equilibrado** verifica três iguald
 
 > **Nota:** o balancete já não se escolhe por datas livres (para isso use o **Razão Geral**).
 
-> **Atenção:** o botão **Registar Balancete Oficial** (`/contabilidade/balancete/nova`) é um protótipo: o balancete «registado» fica guardado só no seu browser, não na base de dados da empresa, e não é visto por mais ninguém. Não o use como registo oficial.
+> **Nota:** a imagem abaixo é uma captura anterior do ecrã do Balancete: pode ainda mostrar o botão «registar» do antigo protótipo, que foi retirado, e não reflectir todos os campos e colunas descritos acima. Vale o texto desta secção.
 
 <!-- captura: 05-contabilidade/balancete.png | /contabilidade/balancete -->
-![Balancete de verificação](img/05-contabilidade/balancete.png)
+<!-- recaptura pendente (#301): a imagem é anterior ao ecrã actual (ADR-0040, sem o botão do protótipo retirado pela #282). Recapturar com a ferramenta de capturas acordada; não substituir à mão. -->
+![Balancete de verificação (captura anterior ao ecrã actual)](img/05-contabilidade/balancete.png)
 
 ### Como abrir um exercício manualmente
 
