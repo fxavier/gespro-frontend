@@ -7,8 +7,18 @@
  *
  * ISOLAMENTO: cada corrida regista um tenant NOVO por `/registo` (ADR-0031) e é o ADMIN dele. O
  * `demo` partilhado nunca é tocado. O registo público tem limite de 3/h por IP e por e-mail
- * (`registoLimiter`, memória por processo com `RATE_LIMIT_DRIVER=memory`) e NÃO há bandeira de
- * dev/teste que o desligue: este spec corre no máximo três vezes por hora contra o mesmo servidor.
+ * (`registoLimiter`); fora de produção, `RATE_LIMIT_REGISTO_DESLIGADO=1` desliga-o (#373), e o
+ * `playwright.config.ts` liga-a no `pnpm dev` que arranca. Contra um servidor já a correr
+ * (`reuseExistingServer`, `BASE_URL`), arranca-o com essa variável, senão o spec só corre três
+ * vezes por hora.
+ *
+ * LIMPEZA (#373): o `afterAll` apaga o tenant registado nesta corrida (`limparTenant`, de
+ * `helpers/db.ts`: todas as tabelas com `tenantId`, as junções `UserRole`/`RolePermission` e o
+ * `Tenant`) e afirma que não ficou resíduo. A identidade `e2e366.<stamp>@exemplo.mz` no realm
+ * Keycloak fica — o e-mail é único por corrida. Resíduos de corridas anteriores a #373, à mão:
+ *
+ *   SELECT u."tenantId" FROM "User" u WHERE u.email LIKE 'e2e366.%@exemplo.mz';
+ *   -- e, para cada um, `limparTenant(<tenantId>)` (helpers/db.ts).
  * O captcha: sem `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, o formulário submete a sentinela e o servidor,
  * com `CAPTCHA_PROVIDER` por omissão (`none`), aceita-a.
  *
@@ -24,11 +34,9 @@
  * fica com Caixa 700,00 (activo), 4411 100,00 (passivo) e 88 600,00 (capital próprio).
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
 import { test, expect, type Page, type Locator } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
-import { Client } from 'pg';
+import { checkA11y } from './helpers/a11y';
+import { comBaseDados, limparTenant, residuoDoTenant, tenantIdDoUtilizador } from './helpers/db';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -46,30 +54,12 @@ const NUIT = `4${STAMP.slice(-8)}`;
 
 // ─── utilitários ─────────────────────────────────────────────────────────────
 
-function urlBaseDados(): string {
-  for (const f of [path.join(process.cwd(), '.env'), path.join(process.cwd(), 'apps/erp/.env')]) {
-    if (fs.existsSync(f)) {
-      try {
-        process.loadEnvFile(f);
-      } catch {
-        // já carregado — usa o que estiver em process.env
-      }
-      break;
-    }
-  }
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL não está definida — verifique apps/erp/.env');
-  return url;
-}
-
 /**
  * Fecha os 12 períodos mensais do exercício 2020 do tenant do utilizador `email` — e só desse.
  * Devolve o número de linhas tocadas (tem de ser 12).
  */
 async function fecharMesesDe2020(email: string): Promise<number> {
-  const c = new Client({ connectionString: urlBaseDados() });
-  await c.connect();
-  try {
+  return comBaseDados(async (c) => {
     const r = await c.query(
       `UPDATE "PeriodoContabil" p
           SET estado = 'FECHADO', "fechadoEm" = now(), "fechadoPorId" = u.id, "updatedAt" = now()
@@ -83,9 +73,7 @@ async function fecharMesesDe2020(email: string): Promise<number> {
       [email],
     );
     return r.rowCount ?? 0;
-  } finally {
-    await c.end();
-  }
+  });
 }
 
 /** O cartão do exercício `codigo` na lista. */
@@ -186,19 +174,6 @@ async function lancarEConfirmar(
   await expect(page.getByRole('button', { name: 'Confirmar' })).toHaveCount(0);
 }
 
-/** axe WCAG 2.1 AA; falha em violações `critical`/`serious` (a regra do `a11y.a11y.ts`). */
-async function checkA11y(page: Page, contexto: string) {
-  const r = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-    .exclude('[data-radix-popper-content-wrapper]')
-    .analyze();
-  const bloqueantes = r.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
-  expect(
-    bloqueantes.map((v) => `[${v.impact}] ${v.id}: ${v.help} (${v.nodes.length} nós)`),
-    `A11y BLOCKER em "${contexto}"`,
-  ).toEqual([]);
-}
-
 /**
  * A secção de uma massa do balanço, pelo título (`<h2>`). Não pelo papel `region`: o nome
  * acessível é afirmado à parte (`expect.soft` no passo 7), para um defeito de acessibilidade não
@@ -224,6 +199,16 @@ function totalBalanco(page: Page, massa: string): Locator {
 // ─── o ciclo ─────────────────────────────────────────────────────────────────
 
 test.describe('ciclo de fim de exercício completo num tenant novo (#366)', () => {
+  // #373: o tenant registado nesta corrida sai da base — passe ou falhe o ciclo. Sem `.catch`:
+  // uma limpeza que falhe tem de se ver. Se o registo nem chegou a criar o utilizador, não há
+  // nada a limpar.
+  test.afterAll(async () => {
+    const tenantId = await tenantIdDoUtilizador(EMAIL);
+    if (!tenantId) return;
+    expect(await limparTenant(tenantId)).toBeGreaterThan(0);
+    expect(await residuoDoTenant(tenantId), `resíduo do tenant ${EMPRESA}`).toEqual({});
+  });
+
   test('registo → lançamentos → encerrar → arquivo → abertura → aplicar/anular → reabrir → definitivo', async ({
     page,
   }) => {
@@ -251,7 +236,7 @@ test.describe('ciclo de fim de exercício completo num tenant novo (#366)', () =
       expect(
         motivo,
         /Demasiados pedidos/.test(motivo)
-          ? 'registo recusado pelo limite de 3/h por IP (registoLimiter) — volte a correr depois de a janela passar'
+          ? 'registo recusado pelo limite de 3/h (registoLimiter) — o servidor não tem RATE_LIMIT_REGISTO_DESLIGADO=1 (#373)'
           : 'o registo foi recusado',
       ).toBe('');
       await page.waitForURL(/\/dashboard/, { timeout: 60_000 });

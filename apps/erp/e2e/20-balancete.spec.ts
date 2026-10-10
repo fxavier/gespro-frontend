@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { Client } from 'pg';
+import { urlBaseDados } from './helpers/db';
 
 /**
  * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3, #284 S4, #285 S5, #286 S6).
@@ -995,22 +995,6 @@ const RAZAO = '/contabilidade/razao-geral';
 const BASE_S4 = 'exercicio=2026&de=3&ate=5';
 const NOME_121 = 'Depósitos à ordem';
 const ROTULO_121 = `Razão da conta 121 — ${NOME_121}`;
-
-function urlBaseDados(): string {
-  for (const f of [path.join(process.cwd(), '.env'), path.join(process.cwd(), 'apps/erp/.env')]) {
-    if (fs.existsSync(f)) {
-      try {
-        process.loadEnvFile(f);
-      } catch {
-        // já carregado — usa o que estiver em process.env
-      }
-      break;
-    }
-  }
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL não está definida — verifique apps/erp/.env');
-  return url;
-}
 
 /** Só leitura: id e aceitaLancamento das contas do tenant demo, por código. */
 async function contasDemo(): Promise<Map<string, { id: string; aceitaLancamento: boolean }>> {

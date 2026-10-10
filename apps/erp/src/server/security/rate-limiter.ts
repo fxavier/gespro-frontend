@@ -180,11 +180,32 @@ export function createRateLimiterFromEnv(opts: RateLimiterExtendedOptions): Rate
  * pedido (e-mail enviado + provisão de tenant com 504 contas PGC). Deixar
  * passar sem limitação em caso de falha do Valkey é uma porta escancarada.
  */
-export const registoLimiter = createRateLimiterFromEnv({
-  windowMs: 60 * 60 * 1000,
-  max: 3,
-  failClosed: true,
-});
+export const registoLimiter = comExcepcaoDeTeste(
+  'RATE_LIMIT_REGISTO_DESLIGADO',
+  createRateLimiterFromEnv({
+    windowMs: 60 * 60 * 1000,
+    max: 3,
+    failClosed: true,
+  }),
+);
+
+/**
+ * Excepção de TESTE (#373): com `<bandeira>=1` e `NODE_ENV` ≠ `production`, o limitador deixa
+ * passar tudo sem tocar no adaptador (nem no Valkey). Em produção a bandeira é IGNORADA — nunca
+ * há limite desligado em produção, nem por engano de configuração. Usada só pelo registo
+ * público, para o E2E 36 poder registar um tenant por corrida (o `playwright.config.ts` liga-a
+ * no servidor que arranca).
+ */
+function comExcepcaoDeTeste(bandeira: string, limiter: RateLimiter): RateLimiter {
+  const desligado = () =>
+    process.env.NODE_ENV !== 'production' && process.env[bandeira] === '1';
+  const livre: RateLimitResult = { limited: false, remaining: Number.MAX_SAFE_INTEGER, retryAfterSec: 0 };
+  return {
+    check: (key) => (desligado() ? Promise.resolve(livre) : limiter.check(key)),
+    increment: (key) => (desligado() ? Promise.resolve() : limiter.increment(key)),
+    consume: (key) => (desligado() ? Promise.resolve(livre) : limiter.consume(key)),
+  };
+}
 
 /**
  * Início de sessão: 10 tentativas/15 min por IP e outras tantas por
