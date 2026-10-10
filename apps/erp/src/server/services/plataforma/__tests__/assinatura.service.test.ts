@@ -639,6 +639,36 @@ describe('cancelamento', () => {
     expect(r.fimDoPeriodo).toBe(false);
     expect(mocks.tx.assinatura.updateMany.mock.calls[0][0].data.estado).toBe('LEITURA');
   });
+
+  // Oráculo da issue #180 (nó C:papeis-detalhe-subscricao-202-180; escrito pelo VERIFICADOR —
+  // alterá-lo do lado de quem implementa é BLOCKER). Cancelar só faz sentido numa assinatura
+  // TRIAL/ATIVA: em LEITURA/FECHADA (ADR-0032) o ecrã já não oferece o botão e o servidor
+  // RECUSA a chamada directa, sem tocar no Stripe nem na base.
+  it.each(['LEITURA', 'FECHADA'])(
+    '#180: em %s recusa com BusinessRuleError sem tocar no Stripe nem na base',
+    async (estado) => {
+      mocks.assinaturaFindFirst.mockResolvedValue(
+        assinaturaDb({
+          estado,
+          stripeCustomerId: 'cus_1',
+          stripeSubscriptionId: 'sub_1',
+          leituraFim: estado === 'LEITURA' ? new Date(Date.now() + 10 * 86_400_000) : null,
+        }),
+      );
+      mocks.subsUpdate.mockResolvedValue({});
+
+      const erro = await cancelarSubscricao({ motivo: 'x' }, CTX).then(
+        () => null,
+        (e: unknown) => e,
+      );
+
+      expect(erro, 'cancelar em ' + estado + ' tem de ser recusado').not.toBeNull();
+      expect((erro as any)?.constructor?.name).toBe('BusinessRuleError');
+      expect(mocks.subsUpdate).not.toHaveBeenCalled();
+      expect(mocks.$transaction).not.toHaveBeenCalled();
+      expect(mocks.assinaturaUpdateMany).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('subscrição de trial em background', () => {

@@ -8,6 +8,7 @@ import { PageHeader, StatusBadge, KpiCard, EmptyState } from '@/components/patte
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PLANOS, TRIAL_DIAS, type PlanoId } from '@/lib/planos';
+import { assinaturaCancelavel } from '@/lib/state-machines';
 import { FaturacaoAcoes } from './faturacao-acoes';
 
 /**
@@ -175,7 +176,7 @@ async function Subscricao({ tenantId, userId }: { tenantId: string; userId: stri
         planoActual={assinatura.planoAssinatura as PlanoId}
         cicloActual={assinatura.ciclo}
         temSubscricaoStripe={Boolean(assinatura.stripeCustomerId)}
-        cancelavel={assinatura.estado !== 'CANCELADA'}
+        cancelavel={assinaturaCancelavel(assinatura.estado)}
       />
     </div>
   );

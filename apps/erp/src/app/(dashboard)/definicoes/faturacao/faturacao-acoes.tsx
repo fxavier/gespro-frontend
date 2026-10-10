@@ -23,6 +23,7 @@ import {
   iniciarCheckout,
 } from '@/server/actions/onboarding.actions';
 import { PLANOS, PLANO_IDS, type CicloId, type PlanoId } from '@/lib/planos';
+import { LEITURA_DIAS } from '@/lib/state-machines';
 
 /**
  * Folha cliente da página de subscrição.
@@ -179,8 +180,10 @@ export function FaturacaoAcoes({
               <AlertDialogHeader>
                 <AlertDialogTitle>Cancelar a subscrição do GestPro?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  O acesso mantém-se até ao fim do período já pago. Depois disso, os utilizadores
-                  deixam de conseguir iniciar sessão até nova subscrição. Os dados não são apagados.
+                  O acesso completo mantém-se até ao fim do período já pago (num teste sem
+                  pagamento, termina já). Depois disso, a conta passa a modo de Leitura durante{' '}
+                  {LEITURA_DIAS} dias: consulta e exporta tudo, mas não grava. Nada se apaga — nem
+                  depois desses {LEITURA_DIAS} dias — e uma nova subscrição repõe o acesso.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

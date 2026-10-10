@@ -7,6 +7,7 @@ import { logger } from '@/server/observability/logger';
 import type { Ctx } from '@/server/services/types';
 import {
   LEITURA_DIAS,
+  assinaturaCancelavel,
   estadoDeAcesso,
   transicaoAssinaturaValida,
   type EstadoAcesso,
@@ -396,6 +397,13 @@ export async function cancelarSubscricao(
   ctx: Ctx,
 ): Promise<{ fimDoPeriodo: boolean }> {
   const assinatura = await obter(ctx);
+
+  if (!assinaturaCancelavel(assinatura.estado)) {
+    throw new BusinessRuleError(
+      'ASSINATURA_NAO_CANCELAVEL',
+      'Só uma subscrição em teste ou activa pode ser cancelada.',
+    );
+  }
 
   if (!assinatura.stripeSubscriptionId) {
     // Trial sem subscrição Stripe: cancela localmente (nada a cobrar).

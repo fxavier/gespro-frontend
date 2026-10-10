@@ -306,6 +306,15 @@ export function estadoDeAcesso(
   return 'fechado';
 }
 
+/**
+ * Só uma subscrição viva (`TRIAL`/`ATIVA`) se cancela (issue #180). Em `LEITURA`/`FECHADA` já não
+ * há nada para cancelar — o cancelamento é precisamente o que leva à Leitura — e os estados
+ * legados só têm a saída de pagar. Partilhada pelo ecrã (mostra o botão) e pelo serviço (recusa).
+ */
+export function assinaturaCancelavel(estado: string): boolean {
+  return estado === 'TRIAL' || estado === 'ATIVA';
+}
+
 /** Rota única onde a sessão em `pagamento` pode estar (issue #99). */
 export const ROTA_REGULARIZAR_SUBSCRICAO = '/definicoes/faturacao';
 
