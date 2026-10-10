@@ -5,7 +5,7 @@ import 'server-only';
 import { prisma } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
-import { transitar } from './_helpers';
+import { transitar, ocuparViaturaEmTx, libertarViaturaEmTx, trocarViaturaEmTx } from './_helpers';
 import { TRANSICOES_ROTA } from './rota.interface';
 import { validarAlocacaoViatura, validarAlocacaoMotorista } from './alocacao.service';
 import type { IRotaService, EstadoRota, RotaDetalhe, RotaResumo, PontoEntregaRef } from './rota.interface';
@@ -178,7 +178,18 @@ async function transitarRota(
     dataUpdate.dataFim = new Date();
   }
 
-  await prisma.rota.update({ where: { id: rotaId }, data: dataUpdate });
+  // #174 — a viatura acompanha a rota: ocupada ao activar, libertada ao terminar a partir de um
+  // estado em curso (pausar mantém-na ocupada; cancelar uma PLANEADA não lhe toca).
+  const inicia = estadoActual === 'PLANEADA' && estadoAlvo === 'ATIVA';
+  const termina =
+    (estadoActual === 'ATIVA' || estadoActual === 'PAUSADA') &&
+    (estadoAlvo === 'CONCLUIDA' || estadoAlvo === 'CANCELADA');
+
+  await prisma.$transaction(async (tx) => {
+    if (rota.viaturaId && inicia) await ocuparViaturaEmTx(tx, rota.viaturaId, ctx);
+    if (rota.viaturaId && termina) await libertarViaturaEmTx(tx, rota.viaturaId, ctx);
+    await tx.rota.update({ where: { id: rotaId }, data: dataUpdate });
+  });
 
   return obterDetalhe(rotaId, ctx);
 }
@@ -251,26 +262,39 @@ async function listarRotas(
   };
 }
 
+/** Rota em curso — a viatura dela está `EM_ACTIVIDADE` (#174). */
+function rotaEmCurso(estado: string): boolean {
+  return estado === 'ATIVA' || estado === 'PAUSADA';
+}
+
 async function atualizarRota(id: string, input: AtualizarRotaInput, ctx: Ctx): Promise<RotaDetalhe> {
-  const existente = await prisma.rota.findFirst({ where: { id, tenantId: ctx.tenantId }, select: { id: true } });
+  const existente = await prisma.rota.findFirst({
+    where: { id, tenantId: ctx.tenantId },
+    select: { id: true, estado: true, viaturaId: true },
+  });
   if (!existente) throw new NotFoundError('Rota não encontrada.');
 
-  await prisma.rota.update({
-    where: { id },
-    data: {
-      ...(input.nome ? { nome: input.nome } : {}),
-      ...(input.descricao !== undefined ? { descricao: input.descricao ?? null } : {}),
-      ...(input.origem ? { origem: input.origem } : {}),
-      ...(input.destino ? { destino: input.destino } : {}),
-      ...(input.viaturaId !== undefined ? { viaturaId: input.viaturaId ?? null } : {}),
-      ...(input.motoristaId !== undefined ? { motoristaId: input.motoristaId ?? null } : {}),
-      ...(input.dataInicio ? { dataInicio: input.dataInicio } : {}),
-      ...(input.dataFim !== undefined ? { dataFim: input.dataFim ?? null } : {}),
-      ...(input.distanciaTotal !== undefined ? { distanciaTotal: input.distanciaTotal ?? null } : {}),
-      ...(input.tempoEstimadoMin !== undefined ? { tempoEstimadoMin: input.tempoEstimadoMin ?? null } : {}),
-      ...(input.custoEstimado !== undefined ? { custoEstimado: input.custoEstimado ?? null } : {}),
-      ...(input.observacoes !== undefined ? { observacoes: input.observacoes ?? null } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    if (input.viaturaId !== undefined) {
+      await trocarViaturaEmTx(tx, existente.viaturaId, input.viaturaId ?? null, rotaEmCurso(existente.estado), ctx);
+    }
+    await tx.rota.update({
+      where: { id },
+      data: {
+        ...(input.nome ? { nome: input.nome } : {}),
+        ...(input.descricao !== undefined ? { descricao: input.descricao ?? null } : {}),
+        ...(input.origem ? { origem: input.origem } : {}),
+        ...(input.destino ? { destino: input.destino } : {}),
+        ...(input.viaturaId !== undefined ? { viaturaId: input.viaturaId ?? null } : {}),
+        ...(input.motoristaId !== undefined ? { motoristaId: input.motoristaId ?? null } : {}),
+        ...(input.dataInicio ? { dataInicio: input.dataInicio } : {}),
+        ...(input.dataFim !== undefined ? { dataFim: input.dataFim ?? null } : {}),
+        ...(input.distanciaTotal !== undefined ? { distanciaTotal: input.distanciaTotal ?? null } : {}),
+        ...(input.tempoEstimadoMin !== undefined ? { tempoEstimadoMin: input.tempoEstimadoMin ?? null } : {}),
+        ...(input.custoEstimado !== undefined ? { custoEstimado: input.custoEstimado ?? null } : {}),
+        ...(input.observacoes !== undefined ? { observacoes: input.observacoes ?? null } : {}),
+      },
+    });
   });
 
   return obterDetalhe(id, ctx);
@@ -284,7 +308,7 @@ async function atribuirRecursos(
 ): Promise<RotaDetalhe> {
   const rota = await prisma.rota.findFirst({
     where: { id: rotaId, tenantId: ctx.tenantId },
-    select: { id: true, estado: true },
+    select: { id: true, estado: true, viaturaId: true },
   });
   if (!rota) throw new NotFoundError('Rota não encontrada.');
 
@@ -295,12 +319,15 @@ async function atribuirRecursos(
     );
   }
 
-  await prisma.rota.update({
-    where: { id: rotaId },
-    data: {
-      ...(viaturaId !== null ? { viaturaId } : {}),
-      ...(motoristaId !== null ? { motoristaId } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    if (viaturaId !== null) await trocarViaturaEmTx(tx, rota.viaturaId, viaturaId, rotaEmCurso(rota.estado), ctx);
+    await tx.rota.update({
+      where: { id: rotaId },
+      data: {
+        ...(viaturaId !== null ? { viaturaId } : {}),
+        ...(motoristaId !== null ? { motoristaId } : {}),
+      },
+    });
   });
 
   return obterDetalhe(rotaId, ctx);
