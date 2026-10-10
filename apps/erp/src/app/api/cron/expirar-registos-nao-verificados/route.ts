@@ -1,5 +1,5 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { withApi } from '@/lib/api/with-api';
+import { NextResponse } from 'next/server';
+import { withCron } from '@/lib/api/with-cron';
 import { logger } from '@/server/observability/logger';
 import { expurgarRegistosNaoVerificados } from '@/server/services/plataforma/expurgo.service';
 
@@ -11,29 +11,19 @@ import { expurgarRegistosNaoVerificados } from '@/server/services/plataforma/exp
  * funcionalmente (sem `primeiroAcessoEm` não há sessão possível) mas ocupa
  * espaço em DB e Keycloak — ao fim de 7 dias é elimináveis.
  *
- * Diferente dos outros crons: passa pelo `withApi` (`public: true`) para ganhar
+ * Passa pelo `withApi` (`public: true`, via `withCron`) para ganhar
  * a observabilidade transversal (requestId, logging, métricas RED). Isto
  * corrige um dos seis achados da revisão da spec 19 — as tarefas agendadas
  * existentes executam fora do pipeline e não aparecem no Grafana.
  *
- * Protecção: `Authorization: Bearer <CRON_SECRET>` verificado dentro do handler.
+ * Protecção: `Authorization: Bearer <CRON_SECRET>`, verificado pelo `withCron`.
  * O endpoint está em `/api/cron/` que o middleware.ts não intercepta (PUBLIC_PATHS).
  * Agendamento recomendado: diário, 03:30 UTC (depois do reconciliar-identidades).
  */
 export const runtime = 'nodejs';
 
-export const GET = withApi(
-  async (req: NextRequest) => {
-    // Autenticação com CRON_SECRET — mesmo padrão dos outros crons.
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
-    const esperado = process.env.CRON_SECRET;
-    if (!esperado || token !== esperado) {
-      return NextResponse.json(
-        { error: { code: 'NAO_AUTENTICADO', message: 'Token inválido.' } },
-        { status: 401 },
-      );
-    }
-
+export const GET = withCron(
+  async () => {
     try {
       const resultado = await expurgarRegistosNaoVerificados();
       logger.info({ ...resultado }, '[cron] expirar-registos-nao-verificados concluído');
@@ -49,5 +39,4 @@ export const GET = withApi(
       );
     }
   },
-  { public: true },
 );
