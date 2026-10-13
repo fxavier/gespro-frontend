@@ -14,7 +14,12 @@ import {
   type EstadoAcesso,
   type EstadoAssinatura,
 } from '@/lib/state-machines';
-import { autenticarPorPalavraPasse, emailVerificadoDoToken } from '@/server/auth/direct-grant';
+import {
+  autenticarPorPalavraPasse,
+  emailVerificadoDoToken,
+  plataformaAdminDoToken,
+} from '@/server/auth/direct-grant';
+import type { JWT } from 'next-auth/jwt';
 import { loginLimiter } from '@/server/security/rate-limiter';
 import { createElement, type ReactElement } from 'react';
 import { redirect } from 'next/navigation';
@@ -151,6 +156,28 @@ export async function resolverUtilizadorLocal(keycloakSub: string): Promise<Reso
   return { ok: true, userId: user.id, tenantId: user.tenantId, permissions, acesso };
 }
 
+/**
+ * Administrador geral do sistema SEM `User` de tenant (ADR-0011 §5, #525).
+ *
+ * O papel `plataforma-admin` vem do Keycloak e só abre a sessão a quem não está
+ * provisionado em tenant nenhum: qualquer outra recusa da resolução local
+ * (inactivo, subscrição) continua a ser recusa, porque essas são decisões
+ * sobre um `User` que existe. A sessão fica sem `tenantId` e sem permissões —
+ * o papel não abre dados de tenant; o middleware leva-a a `/plataforma`.
+ */
+function soPlataforma(res: Resolucao, plataformaAdmin: boolean): boolean {
+  return !res.ok && res.motivo === 'nao-provisionado' && plataformaAdmin;
+}
+
+function aplicarSessaoSoPlataforma(token: JWT, keycloakSub: string): void {
+  // Sem `User` local, o identificador estável é o `sub` do Keycloak.
+  token.uid = keycloakSub;
+  delete token.tenantId;
+  token.permissions = [];
+  token.acesso = 'aberto';
+  token.plataformaAdmin = true;
+}
+
 // ---------------------------------------------------------------------------
 // NextAuth
 // ---------------------------------------------------------------------------
@@ -254,6 +281,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const res = await resolverUtilizadorLocal(kc.sub);
+        if (soPlataforma(res, kc.plataformaAdmin)) {
+          logger.info({ keycloakSub: kc.sub }, '[auth] sessão de administrador de plataforma');
+          return {
+            id: kc.sub,
+            email: identificador.toLowerCase(),
+            keycloakSub: kc.sub,
+            kcRefreshToken: kc.refreshToken,
+            emailVerificado: kc.emailVerificado,
+            plataformaAdmin: true,
+          };
+        }
         if (!res.ok) {
           logger.warn(
             { keycloakSub: kc.sub, motivo: res.motivo },
@@ -275,6 +313,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           keycloakSub: kc.sub,
           kcRefreshToken: kc.refreshToken,
           emailVerificado: kc.emailVerificado,
+          plataformaAdmin: kc.plataformaAdmin,
         };
       },
     }),
@@ -296,14 +335,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const refresh = (user as { kcRefreshToken?: unknown }).kcRefreshToken;
         if (typeof sub !== 'string' || typeof refresh !== 'string') return null;
 
+        const plataformaAdmin = (user as { plataformaAdmin?: unknown }).plataformaAdmin === true;
         const res = await resolverUtilizadorLocal(sub);
-        // O authorize já recusou os casos !ok; isto cobre a corrida entre os dois.
-        if (!res.ok) return null;
-
-        token.uid = res.userId;
-        token.tenantId = res.tenantId;
-        token.permissions = res.permissions;
-        token.acesso = res.acesso;
+        if (soPlataforma(res, plataformaAdmin)) {
+          aplicarSessaoSoPlataforma(token, sub);
+        } else if (!res.ok) {
+          // O authorize já recusou os casos !ok; isto cobre a corrida entre os dois.
+          return null;
+        } else {
+          token.uid = res.userId;
+          token.tenantId = res.tenantId;
+          token.permissions = res.permissions;
+          token.acesso = res.acesso;
+          token.plataformaAdmin = plataformaAdmin;
+        }
         token.keycloakSub = sub;
         token.kcRefreshToken = refresh;
         // ADR-0031 §6: o estado de verificação NÃO tem coluna local — entra
@@ -342,11 +387,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // alguém. Em `indisponivel` mantém-se o valor anterior: uma avaria do
         // Keycloak não deve levantar nem impor travões.
         token.emailVerificado = emailVerificadoDoToken(renovado.accessToken);
+        // #525: o papel de plataforma re-lê-se aqui, pelo mesmo motivo e no
+        // mesmo intervalo. Retirado no Keycloak, cai na renovação seguinte.
+        token.plataformaAdmin = plataformaAdminDoToken(renovado.accessToken);
       }
       // `indisponivel`: mantém-se o token de renovação actual e segue-se para
       // a re-resolução em Postgres — é ela que impõe a revogação (ADR-0011).
 
       const res = await resolverUtilizadorLocal(token.keycloakSub);
+      if (soPlataforma(res, token.plataformaAdmin === true)) {
+        aplicarSessaoSoPlataforma(token, token.keycloakSub);
+        token.resolverEm = agora + intervaloResolucaoSegundos();
+        return token;
+      }
       if (!res.ok) {
         logger.warn(
           { keycloakSub: token.keycloakSub, motivo: res.motivo },
@@ -365,8 +418,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
     async session({ session, token }) {
       session.user.id = token.uid;
-      session.user.tenantId = token.tenantId;
-      session.user.permissions = token.permissions;
+      // Ausente só na sessão do administrador de plataforma sem tenant (#525):
+      // o middleware leva-a a `/plataforma` e os dois pipelines recusam-na
+      // antes de qualquer contexto de tenant.
+      session.user.tenantId = token.tenantId as string;
+      session.user.permissions = token.permissions ?? [];
+      // #525 — ausente (token anterior) conta como false.
+      session.user.plataformaAdmin = token.plataformaAdmin === true;
       // Ausente conta como NÃO verificado (fail-closed): um token emitido
       // antes do ADR-0031 não tem o campo, e os travões do §5 recusam até à
       // re-resolução seguinte, que é reversível por um clique.

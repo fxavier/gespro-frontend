@@ -144,6 +144,9 @@ export function withApi<Q = undefined, P = ParamsBrutos>(
         const session = await auth();
         if (!session?.user) throw new UnauthorizedError();
         const { id: uid, tenantId: tid, permissions } = session.user;
+        // #525: a sessão do administrador de plataforma sem tenant não chega
+        // a rotas de tenant — o papel não abre dados de tenant.
+        if (!tid) throw new ForbiddenError();
         tenantId = tid;
         userId = uid;
         perms = new Set(permissions);

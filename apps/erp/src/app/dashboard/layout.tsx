@@ -21,6 +21,8 @@ export default async function DashboardLayout({
 }) {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
+  // Defesa em profundidade (#525): sessão sem tenant vai para /plataforma.
+  if (!session.user.tenantId) redirect('/plataforma');
   const barraRecolhida =
     (await cookies()).get(COOKIE_BARRA_LATERAL)?.value === VALOR_RECOLHIDA;
 

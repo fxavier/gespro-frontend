@@ -30,7 +30,7 @@
     "realm": [
       {
         "name": "plataforma-admin",
-        "description": "Pessoal da GestPro que administra a consola de identidade (ADR-0011 §5). NÃO dá acesso aos dados de nenhum cliente — administra identidades, não facturas. Sem correspondência em Postgres e sem membros neste ficheiro."
+        "description": "Administrador geral do sistema — pessoal da GestPro (ADR-0011 §5, #525): dá acesso à área /plataforma do ERP (planos de subscrição) e à consola de identidade. NÃO dá acesso aos dados de nenhum cliente. Sem correspondência em Postgres: quem o tem e não tem User de tenant entra numa sessão sem tenant."
       }
     ]
   },
@@ -60,7 +60,8 @@
       "defaultClientScopes": [
         "basic",
         "profile",
-        "email"
+        "email",
+        "roles"
       ],
       "optionalClientScopes": []
     }
@@ -148,6 +149,26 @@
           "value": "demo1234",
           "temporary": false
         }
+      ],
+      "requiredActions": []
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000525",
+      "username": "plataforma@gespro.mz",
+      "email": "plataforma@gespro.mz",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Administrador",
+      "lastName": "Plataforma",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo1234",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "plataforma-admin"
       ],
       "requiredActions": []
     },

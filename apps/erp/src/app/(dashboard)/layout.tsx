@@ -24,6 +24,11 @@ export default async function DashboardLayout({
   if (!session?.user) {
     redirect('/auth/login');
   }
+  // Defesa em profundidade (#525): o middleware já desvia a sessão sem tenant
+  // (administrador da plataforma) para /plataforma; aqui não se confia só nele.
+  if (!session.user.tenantId) {
+    redirect('/plataforma');
+  }
 
   const { tenantId, id: userId } = session.user;
   // Estado da barra lateral, escrito pelo próprio componente ao recolher/expandir.
