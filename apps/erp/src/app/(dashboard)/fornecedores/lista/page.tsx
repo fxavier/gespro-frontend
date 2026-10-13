@@ -14,7 +14,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus, Building, CheckCircle, Users, TrendingUp } from 'lucide-react';
+import { Plus, Building, CheckCircle, Users, TrendingUp, Archive, List } from 'lucide-react';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -33,11 +33,17 @@ import { TableSkeleton, KpiSkeleton } from '../_components/table-skeletons';
 const FiltroFornecedorUrlSchema = FilterFornecedorSchema.extend({
   take: z.coerce.number().int().positive().max(100).default(25),
   cursor: z.string().optional(),
+  // No URL a bandeira chega como texto: só `arquivados=1` liga a vista dos arquivados.
+  arquivados: z
+    .string()
+    .optional()
+    .transform((v) => v === '1' || v === 'true'),
 });
 
 type FiltroFornecedorUrl = z.infer<typeof FiltroFornecedorUrlSchema>;
 
 const FILTROS_DEFAULT: FiltroFornecedorUrl = {
+  arquivados: false,
   take: 25,
   orderBy: 'nome',
   orderDir: 'asc',
@@ -110,11 +116,11 @@ async function FornecedoresTableSection({
   tenantId: string;
   userId: string;
 }) {
-  const { status, classificacao, tipo, termo, cursor, take, orderBy, orderDir } = filtros;
+  const { status, classificacao, tipo, termo, arquivados, cursor, take, orderBy, orderDir } = filtros;
 
   const result = await runWithTenantContext({ tenantId, userId }, () =>
     fornecedorService.listar(
-      { status, classificacao, tipo, termo, cursor, take, orderBy, orderDir },
+      { status, classificacao, tipo, termo, arquivados, cursor, take, orderBy, orderDir },
       { tenantId, userId }
     )
   );
@@ -186,23 +192,45 @@ export default async function FornecedoresListaPage({ searchParams }: PageProps)
 
   const parseResult = FiltroFornecedorUrlSchema.safeParse(flatParams);
   const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
+  const { arquivados } = filtros;
 
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title="Fornecedores"
-        description="Gestão completa de fornecedores e parceiros comerciais"
+        title={arquivados ? 'Fornecedores arquivados' : 'Fornecedores'}
+        description={
+          arquivados
+            ? 'Fornecedores arquivados — abra um para o reactivar'
+            : 'Gestão completa de fornecedores e parceiros comerciais'
+        }
         breadcrumbs={[
           { label: 'Fornecedores', href: '/fornecedores/lista' },
-          { label: 'Lista' },
+          { label: arquivados ? 'Arquivados' : 'Lista' },
         ]}
         actions={
-          <Button asChild size="sm">
-            <Link href="/fornecedores/novo">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Fornecedor
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {arquivados ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/fornecedores/lista">
+                  <List className="h-4 w-4 mr-2" />
+                  Activos
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/fornecedores/lista?arquivados=1">
+                  <Archive className="h-4 w-4 mr-2" />
+                  Arquivados
+                </Link>
+              </Button>
+            )}
+            <Button asChild size="sm">
+              <Link href="/fornecedores/novo">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Fornecedor
+              </Link>
+            </Button>
+          </div>
         }
       />
 

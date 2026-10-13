@@ -146,6 +146,7 @@ afterAll(async () => {
   await prismaBase.localizacao.deleteMany(W);
   await prismaBase.produto.deleteMany(W);
   await prismaBase.categoriaProduto.deleteMany(W);
+  await prismaBase.historicoTransacao.deleteMany(W); // #134: FK HistoricoTransacao→Cliente
   // Resto do bootstrapContabilidade
   await prismaBase.cliente.deleteMany(W);
   await prismaBase.regraSugestaoLancamento.deleteMany(W);

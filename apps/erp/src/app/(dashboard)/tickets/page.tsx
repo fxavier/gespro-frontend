@@ -35,35 +35,33 @@ function KpiSkeleton() {
 async function TicketsDashboardKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
 
-  const [abertos, emAtraso] = await Promise.all([
-    runWithTenantContext(ctx, () =>
-      ticketService.listarTickets({ estado: 'ABERTO', take: 50, orderBy: 'createdAt', order: 'desc' }, ctx)
-    ),
-    runWithTenantContext(ctx, () =>
-      ticketService.listarTickets({ slaEmAtraso: true, take: 50, orderBy: 'createdAt', order: 'desc' }, ctx)
-    ),
+  const [abertos, emAtraso, emProgresso, urgentes] = await Promise.all([
+    runWithTenantContext(ctx, () => ticketService.contarTickets({ estado: 'ABERTO' }, ctx)),
+    runWithTenantContext(ctx, () => ticketService.contarTickets({ slaEmAtraso: true }, ctx)),
+    runWithTenantContext(ctx, () => ticketService.contarTickets({ estado: 'EM_PROGRESSO' }, ctx)),
+    runWithTenantContext(ctx, () => ticketService.contarTickets({ estado: 'ABERTO', prioridade: 'URGENTE' }, ctx)),
   ]);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <KpiCard
         title="Tickets Abertos"
-        value={String(abertos.items.length)}
+        value={String(abertos)}
         icon={<Ticket className="h-5 w-5" />}
       />
       <KpiCard
         title="SLA em Atraso"
-        value={String(emAtraso.items.length)}
+        value={String(emAtraso)}
         icon={<AlertTriangle className="h-5 w-5" />}
       />
       <KpiCard
         title="Em Progresso"
-        value={String(abertos.items.filter(t => t.estado === 'EM_PROGRESSO').length)}
+        value={String(emProgresso)}
         icon={<Clock className="h-5 w-5" />}
       />
       <KpiCard
         title="Urgentes"
-        value={String(abertos.items.filter(t => t.prioridade === 'URGENTE').length)}
+        value={String(urgentes)}
         icon={<Zap className="h-5 w-5" />}
       />
     </div>

@@ -56,7 +56,6 @@ describe.skipIf(skip)('Devolução/troca → NC, iteração 2 (compensação, ex
   let produtoB: string;
   let localizacaoId: string;
   let op: Operador;
-  let serieNCId: string;
 
   async function capturarErro(fn: () => Promise<unknown>): Promise<any> {
     try {
@@ -118,12 +117,12 @@ describe.skipIf(skip)('Devolução/troca → NC, iteração 2 (compensação, ex
 
   function processar(devolucaoId: string, opcoes: { sessaoCaixaId?: string }, quem: Operador = op) {
     return runCtx(quem.ctx, () =>
-      comercial.devolucaoService.processar(devolucaoId, quem.ctx, { localizacaoId, serieNotaCreditoId: serieNCId, ...opcoes }),
+      comercial.devolucaoService.processar(devolucaoId, quem.ctx, { localizacaoId, ...opcoes }),
     );
   }
 
   function trocar(input: Record<string, unknown>, quem: Operador = op) {
-    const parsed = validacoes.CreateTrocaSchema.parse({ localizacaoId, serieNotaCreditoId: serieNCId, ...input });
+    const parsed = validacoes.CreateTrocaSchema.parse({ localizacaoId, ...input });
     return runCtx(quem.ctx, () => comercial.trocaService.criar(parsed, quem.ctx));
   }
 
@@ -253,7 +252,6 @@ describe.skipIf(skip)('Devolução/troca → NC, iteração 2 (compensação, ex
 
     const serieNC = await db.serieDocumento.findFirst({ where: { tenantId: TENANT, tipo: 'NOTA_CREDITO', ativo: true } });
     expect(serieNC, 'série NOTA_CREDITO activa no bootstrap').not.toBeNull();
-    serieNCId = serieNC.id;
 
     op = await novoOperador();
   });

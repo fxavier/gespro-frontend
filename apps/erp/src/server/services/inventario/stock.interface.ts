@@ -158,13 +158,16 @@ export interface IStockService {
     varianteProdutoId?: string,
   ): Promise<{ disponivel: boolean; saldoDisponivel: string }>;
 
-  obterAlertasStockMinimo(ctx: Ctx): Promise<SaldoStockDto[]>;
+  obterAlertasStockMinimo(ctx: Ctx): Promise<SaldoStockComDetalheDto[]>;
 
   // Movimentos
   listarMovimentos(
     filter: MovimentoStockFilter,
     ctx: Ctx,
   ): Promise<PaginatedResult<MovimentoStockDto>>;
+
+  /** Conta todos os movimentos de stock do tenant — KPI do dashboard de stock (#104). */
+  contarMovimentos(filter: Record<string, never>, ctx: Ctx): Promise<number>;
 
   registarTransferencia(
     data: TransferenciaStockInput,

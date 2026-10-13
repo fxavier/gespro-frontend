@@ -261,6 +261,24 @@ export async function obterSessaoAtual(
   }) as unknown as SessaoCaixa | null;
 }
 
+/**
+ * #150: a sessão que o fecho de caixa mostra. `sessaoId` (do URL) vale só se for uma sessão
+ * ABERTA do tenant; senão — ausente, inexistente, de outro tenant, FECHADA/CANCELADA — cai na
+ * sessão ABERTA do utilizador. Fechar a de outro continua recusado em `fecharSessao` (#267).
+ */
+export async function obterSessaoParaFecho(
+  sessaoId: string | undefined,
+  ctx: Ctx,
+): Promise<SessaoCaixa | null> {
+  if (sessaoId) {
+    const pedida = await prisma.sessaoCaixa.findFirst({
+      where: { id: sessaoId, tenantId: ctx.tenantId, status: 'ABERTA' },
+    });
+    if (pedida) return pedida as unknown as SessaoCaixa;
+  }
+  return obterSessaoAtual(ctx);
+}
+
 export async function obterSessao(id: string, ctx: Ctx): Promise<SessaoCaixaComMovimentos | null> {
   const sessao = await prisma.sessaoCaixa.findFirst({
     where: { id, tenantId: ctx.tenantId },

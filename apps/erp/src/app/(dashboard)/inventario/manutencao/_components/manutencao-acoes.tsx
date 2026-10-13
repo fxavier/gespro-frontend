@@ -34,11 +34,19 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELADA: 'Cancelada',
 };
 
-const STATUS_ACOES: Record<string, string> = {
-  AGENDADA: 'Iniciar',
-  EM_ANDAMENTO: 'Concluir',
-  ORCAMENTO: 'Retomar',
-};
+/** Etiqueta do botão pelo estado de DESTINO (o de origem só distingue Iniciar/Retomar) — #122. */
+function etiquetaAcao(status: string, novoStatus: string): string {
+  switch (novoStatus) {
+    case 'EM_ANDAMENTO':
+      return status === 'ORCAMENTO' ? 'Retomar' : 'Iniciar';
+    case 'ORCAMENTO':
+      return 'Aguardar orçamento';
+    case 'CONCLUIDA':
+      return 'Concluir';
+    default:
+      return STATUS_LABELS[novoStatus] ?? novoStatus;
+  }
+}
 
 /**
  * Acções de estado de uma manutenção.
@@ -100,7 +108,7 @@ export function ManutencaoAcoes({ id, status, modoCompacto = false }: Manutencao
           disabled={pending}
           onClick={() => handleTransitar(novoStatus)}
         >
-          {pending ? 'A processar…' : (STATUS_ACOES[status] ?? STATUS_LABELS[novoStatus])}
+          {pending ? 'A processar…' : etiquetaAcao(status, novoStatus)}
         </Button>
       ))}
 

@@ -11,7 +11,6 @@ import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { devolucaoService } from '@/server/services/comercial/index';
 import { stockService } from '@/server/services/inventario/stock.service';
-import { listarSeries } from '@/server/services/financas/faturacao.service';
 import { obterSessaoAtual } from '@/server/services/financas/caixa.service';
 import { PageHeader } from '@/components/patterns';
 import { ProcessarDevolucaoForm } from '../../_components/processar-devolucao-form';
@@ -33,18 +32,13 @@ export default async function ProcessarDevolucaoPage({ params }: PageProps) {
   if (!devolucao) notFound();
   if (devolucao.status !== 'APROVADA') redirect(`/vendas/devolucoes/${id}`);
 
-  const [localizacoes, series, sessaoCaixa] = await runWithTenantContext(ctx, () =>
+  const [localizacoes, sessaoCaixa] = await runWithTenantContext(ctx, () =>
     Promise.all([
       stockService.listarLocalizacoes({ take: 100, ativa: true }, ctx),
-      listarSeries(ctx),
       // Reembolso ao cliente: o dinheiro sai da gaveta da sessão aberta e liquida a NC.
       devolucao.reembolso ? obterSessaoAtual(ctx) : Promise.resolve(null),
     ]),
   );
-  // Com factura, o serviço exige uma série de NC: é a activa (a mais recente primeiro).
-  const serieNotaCreditoId = devolucao.faturaId
-    ? series.find((s) => s.tipo === 'NOTA_CREDITO' && s.ativo)?.id
-    : undefined;
 
   return (
     <div className="p-6 space-y-6">
@@ -65,7 +59,6 @@ export default async function ProcessarDevolucaoPage({ params }: PageProps) {
 
       <ProcessarDevolucaoForm
         devolucaoId={devolucao.id}
-        serieNotaCreditoId={serieNotaCreditoId}
         reembolso={devolucao.reembolso}
         sessaoCaixaId={sessaoCaixa?.id}
         localizacoes={localizacoes.items.map((l) => ({ id: l.id, codigo: l.codigo, nome: l.nome }))}

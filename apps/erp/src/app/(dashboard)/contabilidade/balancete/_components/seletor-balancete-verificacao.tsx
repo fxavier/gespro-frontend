@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { codigoContaPGCValido } from '@/lib/validations/contabilidade';
+import { normalizarIntervaloPeriodos, opcoesPeriodo } from '@/lib/balancete-params';
 import {
   Select,
   SelectContent,
@@ -23,36 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-// ---------------------------------------------------------------------------
-// Dados estáticos de períodos
-// ---------------------------------------------------------------------------
-
-const NOMES_MES = [
-  'Janeiro',
-  'Fevereiro',
-  'Março',
-  'Abril',
-  'Maio',
-  'Junho',
-  'Julho',
-  'Agosto',
-  'Setembro',
-  'Outubro',
-  'Novembro',
-  'Dezembro',
-];
-
-/** Separador em traço (U+2014 — em dash), como o PHC usa. */
-const SEP = '—';
-
-const OPCOES_PERIODO = [
-  ...NOMES_MES.map((nome, i) => ({
-    value: String(i + 1),
-    label: `${String(i + 1).padStart(2, '0')} ${SEP} ${nome}`,
-  })),
-  { value: '13', label: `13 ${SEP} Encerramento` },
-];
 
 // ---------------------------------------------------------------------------
 // Componente
@@ -165,8 +136,9 @@ export function SeletorBalanceteVerificacao({
       setErros({});
     }
 
-  const labelInicial = OPCOES_PERIODO.find((o) => o.value === String(pInicial))?.label ?? '';
-  const labelFinal = OPCOES_PERIODO.find((o) => o.value === String(pFinal))?.label ?? '';
+  const opcoesPer = opcoesPeriodo(incl13);
+  const labelInicial = opcoesPer.find((o) => o.value === String(pInicial))?.label ?? '';
+  const labelFinal = opcoesPer.find((o) => o.value === String(pFinal))?.label ?? '';
   const labelClasse = classes.find((o) => o.value === filtros.classe)?.label ?? 'Todas';
   const labelTipo = OPCOES_TIPO.find((o) => o.value === filtros.tipo)?.label ?? '';
 
@@ -181,8 +153,11 @@ export function SeletorBalanceteVerificacao({
     if (Object.values(novosErros).some(Boolean)) return; // não navega; os valores ficam
 
     // Clamp before push so the URL already carries the normalised values
-    const ateEfetivo = incl13 ? pFinal : Math.min(pFinal, 12);
-    const deEfetivo = Math.min(pInicial, ateEfetivo);
+    const { periodoInicial: deEfetivo, periodoFinal: ateEfetivo } = normalizarIntervaloPeriodos({
+      periodoInicial: pInicial,
+      periodoFinal: pFinal,
+      incluir13: incl13,
+    });
     const params = new URLSearchParams();
     params.set('exercicio', exercicio);
     params.set('de', String(deEfetivo));
@@ -236,7 +211,7 @@ export function SeletorBalanceteVerificacao({
               <SelectValue placeholder="Período inicial">{labelInicial}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {OPCOES_PERIODO.filter((o) => o.value !== '13' || incl13).map((o) => (
+              {opcoesPer.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
                 </SelectItem>
@@ -256,7 +231,7 @@ export function SeletorBalanceteVerificacao({
               <SelectValue placeholder="Período final">{labelFinal}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {OPCOES_PERIODO.filter((o) => o.value !== '13' || incl13).map((o) => (
+              {opcoesPer.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
                 </SelectItem>

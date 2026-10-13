@@ -36,6 +36,17 @@ export function calcularEstadoDocumento(
   return 'VALIDO';
 }
 
+/** Prazo de alerta dos documentos de motorista (o modelo não guarda prazo próprio). */
+export const PRAZO_ALERTA_DOCUMENTO_MOTORISTA_DIAS = 30;
+
+/**
+ * Estado de um documento de motorista — a regra única usada na criação e no recálculo do cron.
+ * (Os de viatura usam `calcularEstadoDocumento` com o `prazoAlertaDias` do próprio documento.)
+ */
+export function calcularEstadoDocumentoMotorista(dataValidade: Date): 'VALIDO' | 'PROXIMO_EXPIRAR' | 'EXPIRADO' {
+  return calcularEstadoDocumento(dataValidade, PRAZO_ALERTA_DOCUMENTO_MOTORISTA_DIAS);
+}
+
 // ============================================================
 // verificarConflitosAgenda (pure)
 // ============================================================

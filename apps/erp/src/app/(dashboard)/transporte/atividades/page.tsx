@@ -73,6 +73,7 @@ async function AtividadesTableSection({
   const result = await runWithTenantContext(ctx, () =>
     atividadeService.listarAtividades(
       {
+        q: filtros.q,
         estado: filtros.estado,
         tipoActividade: filtros.tipoActividade,
         prioridade: filtros.prioridade,

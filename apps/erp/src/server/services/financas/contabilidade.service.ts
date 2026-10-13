@@ -555,6 +555,18 @@ async function trancarRascunho(
   return linha;
 }
 
+/**
+ * A recusa `PERIODO_FECHADO` de quem escreve no razão: diz qual é o período, onde se reabre e
+ * como (#144). Única fonte do texto — todas as portas de escrita lançam esta.
+ */
+function recusaPeriodoFechado(codigo: string): BusinessRuleError {
+  return new BusinessRuleError(
+    'PERIODO_FECHADO',
+    `O período ${codigo} está fechado e não aceita lançamentos. Para lançar nele, reabra-o em ` +
+      `Contabilidade › Exercícios (período ${codigo} → Reabrir), indicando o motivo.`,
+  );
+}
+
 /** Tranca o período (`FOR SHARE`, ADR-0033 §5) e exige que esteja ABERTO. */
 async function trancarPeriodoAberto(
   tx: Prisma.TransactionClient,
@@ -568,7 +580,7 @@ async function trancarPeriodoAberto(
   `;
   if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
   if (periodo.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodo.codigo);
   }
   return periodo;
 }
@@ -666,6 +678,16 @@ export async function desativarConta(id: string, ctx: Ctx): Promise<ContaPGC> {
     throw new BusinessRuleError('CONTA_COM_LANCAMENTOS', 'Conta tem lançamentos — não pode ser desativada');
   }
   return prisma.contaPGC.update({ where: { id }, data: { ativo: false } }) as unknown as ContaPGC;
+}
+
+/**
+ * Reactivar uma conta desactivada (#142). Simétrica de `desativarConta`: só `ativo`,
+ * escrita singular pelo cliente estendido (fica no AuditLog — `ContaPGC` em AUDIT_MODELS).
+ */
+export async function reativarConta(id: string, ctx: Ctx): Promise<ContaPGC> {
+  const conta = await prisma.contaPGC.findFirst({ where: { id, tenantId: ctx.tenantId } });
+  if (!conta) throw new NotFoundError('Conta não encontrada');
+  return prisma.contaPGC.update({ where: { id }, data: { ativo: true } }) as unknown as ContaPGC;
 }
 
 export async function obterConta(id: string, ctx: Ctx): Promise<ContaPGC | null> {
@@ -787,6 +809,11 @@ export async function listarContas(
   ) as unknown as Promise<PaginacaoContabilidade<ContaPGC>>;
 }
 
+/** KPI (#104): número de contas do plano do tenant — o universo de `listarContas` sem filtros. */
+export async function contarContas(_filtro: Record<string, never>, ctx: Ctx): Promise<number> {
+  return prisma.contaPGC.count({ where: { tenantId: ctx.tenantId } });
+}
+
 export async function arvoreContas(ctx: Ctx): Promise<ContaPGC[]> {
   return prisma.contaPGC.findMany({
     where: { tenantId: ctx.tenantId, ativo: true },
@@ -890,7 +917,7 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
     `;
     if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
     if (periodoLocked.estado !== 'ABERTO') {
-      throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
+      throw recusaPeriodoFechado(periodoLocked.codigo);
     }
     // Na mesma tx: se `resolverPeriodo` criou um exercício, a recusa desfá-lo.
     await exigirDiarioDeLancamentoManual(tx, diario.tipo, periodoLocked.id, ctx.tenantId);
@@ -1070,7 +1097,7 @@ export async function estornarLancamentoEmTx(
   `;
   if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
   if (periodoLocked.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodoLocked.codigo);
   }
 
   return gravarEstornoEmTx(tx, lancamento, periodoLocked, dataEstorno, input.motivo, ctx);
@@ -1324,6 +1351,19 @@ export async function listarLancamentos(filtro: FiltroLancamentoInput, ctx: Ctx)
       }),
     { cursor: filtro.cursor, take: filtro.take },
   ) as unknown as Promise<PaginacaoContabilidade<LancamentoComPartidas>>;
+}
+
+/**
+ * KPI (#104): número de lançamentos do tenant com o mesmo critério de estado de `listarLancamentos`
+ * (sem estado pedido, os anulados ficam de fora).
+ */
+export async function contarLancamentos(
+  filtro: { status?: FiltroLancamentoInput['status'] },
+  ctx: Ctx,
+): Promise<number> {
+  return prisma.lancamento.count({
+    where: { tenantId: ctx.tenantId, status: filtro.status ?? { not: 'ANULADO' } },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -2379,7 +2419,7 @@ export async function registarLancamentoContabilistico(
   `;
   if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
   if (periodoLocked.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodoLocked.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodoLocked.codigo);
   }
 
   const numero = await proximoNumeroLancamento(tx, diario.id, periodoLocked.codigo, ctx.tenantId);
@@ -2474,7 +2514,7 @@ export async function criarLancamentoEncerramentoEmTx(
     );
   }
   if (periodo.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodo.codigo);
   }
 
   if (input.partidas.length === 0 || input.partidas.some((p) => !p.valor.greaterThan(0))) {
@@ -2550,7 +2590,7 @@ export async function estornarLancamentoEncerramentoEmTx(
     );
   }
   if (periodo.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodo.codigo);
   }
 
   const lancamento = await tx.lancamento.findFirst({
@@ -2665,7 +2705,7 @@ export async function criarLancamentoAberturaEmTx(
   `;
   if (!periodo) throw new NotFoundError('Período 1 do exercício seguinte não encontrado');
   if (periodo.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodo.codigo);
   }
 
   if (input.partidas.length === 0 || input.partidas.some((p) => !p.valor.greaterThan(0))) {
@@ -2746,7 +2786,7 @@ export async function estornarLancamentoAberturaEmTx(
   `;
   if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
   if (periodo.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodo.codigo);
   }
 
   // O estorno leva a origem da abertura (o exercício anterior): é o que o tira dos leitores
@@ -2876,7 +2916,7 @@ export async function criarLancamentoAplicacaoResultadoEmTx(
     );
   }
   if (periodo.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodo.codigo);
   }
 
   if (input.partidas.length === 0 || input.partidas.some((p) => !p.valor.greaterThan(0))) {
@@ -2958,7 +2998,7 @@ export async function estornarLancamentoAplicacaoResultadoEmTx(
   `;
   if (!periodo) throw new NotFoundError('Período contabilístico não encontrado');
   if (periodo.estado !== 'ABERTO') {
-    throw new BusinessRuleError('PERIODO_FECHADO', `Período ${periodo.codigo} está fechado`);
+    throw recusaPeriodoFechado(periodo.codigo);
   }
 
   return gravarEstornoEmTx(tx, lancamento, periodo, lancamento.data, input.motivo, ctx, {
@@ -3109,6 +3149,7 @@ export const contabilidadeService = {
   criarConta,
   atualizarConta,
   desativarConta,
+  reativarConta,
   obterConta,
   listarContas,
   arvoreContas,

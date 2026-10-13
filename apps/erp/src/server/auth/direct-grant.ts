@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { logger } from '@/server/observability/logger';
-import { kcConfig } from './keycloak';
+import { kcConfig, procurarPorEmail } from './keycloak';
 
 /**
  * Direct Access Grant — ADR-0029.
@@ -31,9 +31,13 @@ export type ResultadoAutenticacao =
    * `credenciais` — o Keycloak disse que não. É a única que se pode mostrar
    * ao utilizador como «dados errados».
    *
-   * `conta-por-activar` — há acções obrigatórias pendentes (`VERIFY_EMAIL`,
-   * `UPDATE_PASSWORD`). Pelo ADR-0013 §2 é o estado NORMAL de quem nunca
-   * entrou: o *direct grant* recusa-o, e a saída é o ecrã do Keycloak.
+   * `conta-por-activar` — só a palavra-passe provisória está pendente
+   * (`UPDATE_PASSWORD`, ADR-0030): resolve-se no ecrã «Defina a sua
+   * palavra-passe».
+   *
+   * `convite-por-concluir` — o convite por e-mail ainda não foi concluído
+   * (`VERIFY_EMAIL` pendente, ADR-0013 §5-bis). Mudar a palavra-passe não o
+   * resolve (#185): a saída é a ligação do convite.
    *
    * `conta-desactivada` — desactivada no fornecedor de identidade.
    *
@@ -41,7 +45,15 @@ export type ResultadoAutenticacao =
    * percebe. Nunca se diz a alguém que errou a palavra-passe por causa de uma
    * falha nossa.
    */
-  | { ok: false; motivo: 'credenciais' | 'conta-por-activar' | 'conta-desactivada' | 'indisponivel' };
+  | {
+      ok: false;
+      motivo:
+        | 'credenciais'
+        | 'conta-por-activar'
+        | 'convite-por-concluir'
+        | 'conta-desactivada'
+        | 'indisponivel';
+    };
 
 /**
  * Lê a payload do access token, sem verificar assinatura: o token acabou de
@@ -80,14 +92,34 @@ export function emailVerificadoDoToken(accessToken: string): boolean {
 }
 
 /** Mapeia a descrição de erro do Keycloak para um motivo nosso. */
-function motivoDaRecusa(descricao: string): Exclude<
-  Extract<ResultadoAutenticacao, { ok: false }>['motivo'],
-  'indisponivel'
-> {
+function motivoDaRecusa(descricao: string): 'credenciais' | 'conta-por-activar' | 'conta-desactivada' {
   const d = descricao.toLowerCase();
   if (d.includes('not fully set up')) return 'conta-por-activar';
   if (d.includes('disabled')) return 'conta-desactivada';
   return 'credenciais';
+}
+
+/**
+ * #185 — o Keycloak diz «not fully set up» tanto ao convite por concluir como
+ * à palavra-passe provisória. Desempata-se pelas acções obrigatórias da
+ * identidade. Só se chega aqui depois de o Keycloak ter ACEITE a palavra-passe
+ * (a frase só sai com ela certa), logo não serve para enumerar contas; e a
+ * palavra-passe não entra nesta consulta.
+ */
+async function desempatarContaPorConfigurar(
+  identificador: string,
+): Promise<'conta-por-activar' | 'convite-por-concluir' | 'indisponivel'> {
+  try {
+    const u = await procurarPorEmail(identificador.toLowerCase().trim());
+    if (!u) {
+      logger.error({ identificador }, '[auth] conta por configurar sem identidade no realm');
+      return 'indisponivel';
+    }
+    return u.requiredActions?.includes('VERIFY_EMAIL') ? 'convite-por-concluir' : 'conta-por-activar';
+  } catch (e) {
+    logger.error({ err: (e as Error)?.message }, '[auth] acções obrigatórias ilegíveis (Admin API)');
+    return 'indisponivel';
+  }
 }
 
 export async function autenticarPorPalavraPasse(
@@ -129,7 +161,8 @@ export async function autenticarPorPalavraPasse(
     } catch {
       /* corpo não-JSON: trata-se como credenciais inválidas */
     }
-    const motivo = motivoDaRecusa(descricao);
+    let motivo: Extract<ResultadoAutenticacao, { ok: false }>['motivo'] = motivoDaRecusa(descricao);
+    if (motivo === 'conta-por-activar') motivo = await desempatarContaPorConfigurar(identificador);
     // `identificador` entra no log de propósito: é o que permite investigar
     // uma campanha de tentativas. A palavra-passe, nunca.
     logger.info({ identificador, motivo, status: res.status }, '[auth] direct grant recusado');

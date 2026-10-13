@@ -19,7 +19,7 @@ import { EquipaTable } from './_components/equipa-table';
 import type { EquipaRow } from './_components/equipa-table';
 
 const FiltroUrlSchema = z.object({
-  search: z.string().optional(),
+  q: z.string().optional(),
   status: z.string().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().positive().max(100).default(25),
@@ -42,7 +42,7 @@ async function EquipaTableSection({
   const result = await runWithTenantContext(ctx, () =>
     EquipaService.listar(
       {
-        search: filtros.search,
+        search: filtros.q,
         status: filtros.status as never,
         cursor: filtros.cursor,
         take: filtros.take,

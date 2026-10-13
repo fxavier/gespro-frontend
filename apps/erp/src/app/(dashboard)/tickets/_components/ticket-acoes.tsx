@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { transitarTicketAction } from '@/server/actions/tickets.actions';
-import { TRANSICOES_TICKET } from '@/lib/state-machines';
+import { TRANSICOES_TICKET, ticketCancelavel } from '@/lib/state-machines';
 import type { EstadoTicket } from '@/server/services/operacoes/ticket.interface';
 
 const ESTADO_LABELS: Record<EstadoTicket, string> = {
@@ -68,7 +68,7 @@ export function TicketAcoes({ id, estado, modoCompacto = false }: TicketAcoesPro
     (s) => s !== 'CANCELADO'
   ) as EstadoTicket[];
 
-  const podeCancelar = estado !== 'CANCELADO' && estado !== 'FECHADO';
+  const podeCancelar = ticketCancelavel(estado);
 
   const handleTransitar = (estadoAlvo: EstadoTicket) => {
     startTransitar(async () => {

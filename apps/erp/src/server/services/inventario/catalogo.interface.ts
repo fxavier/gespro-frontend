@@ -88,6 +88,9 @@ export interface ICatalogoProdutoService {
     ctx: Ctx,
   ): Promise<PaginatedResult<ProdutoDto>>;
 
+  /** Conta os produtos não apagados do catálogo — KPI do dashboard de stock (#104). */
+  contarProdutos(filter: Record<string, never>, ctx: Ctx): Promise<number>;
+
   obterProduto(id: string, ctx: Ctx): Promise<ProdutoDto>;
 
   obterProdutoPorSku(sku: string, ctx: Ctx): Promise<ProdutoDto>;

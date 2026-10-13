@@ -14,6 +14,7 @@ import { TicketsTable } from '../_components/tickets-table';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const UrlSchema = z.object({
+  q: z.string().max(200).optional(),
   take: z.coerce.number().int().positive().max(100).default(25),
   cursor: z.string().optional(),
   orderBy: z.enum(['createdAt', 'prioridade', 'slaDataLimiteResolucao']).default('createdAt'),
@@ -49,13 +50,13 @@ async function ResolvidosTable({
   const [resolvidos, fechados] = await Promise.all([
     runWithTenantContext(ctx, () =>
       ticketService.listarTickets(
-        { estado: 'RESOLVIDO', take: filtros.take, orderBy: filtros.orderBy, order: filtros.order },
+        { estado: 'RESOLVIDO', take: filtros.take, orderBy: filtros.orderBy, order: filtros.order, pesquisa: filtros.q },
         ctx
       )
     ),
     runWithTenantContext(ctx, () =>
       ticketService.listarTickets(
-        { estado: 'FECHADO', take: filtros.take, orderBy: filtros.orderBy, order: filtros.order },
+        { estado: 'FECHADO', take: filtros.take, orderBy: filtros.orderBy, order: filtros.order, pesquisa: filtros.q },
         ctx
       )
     ),
@@ -116,7 +117,6 @@ export default async function TicketsResolvidosPage({ searchParams }: PageProps)
 
       <FilterBar
         searchPlaceholder="Pesquisar…"
-        searchKey="pesquisa"
         filters={FILTER_CONFIGS}
       />
 

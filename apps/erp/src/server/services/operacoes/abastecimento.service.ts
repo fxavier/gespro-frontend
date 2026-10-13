@@ -103,6 +103,9 @@ async function listarAbastecimentos(
     ...(filtros.viaturaId ? { viaturaId: filtros.viaturaId } : {}),
     ...(filtros.motoristaId ? { motoristaId: filtros.motoristaId } : {}),
     ...(filtros.tipoCombustivel ? { tipoCombustivel: filtros.tipoCombustivel } : {}),
+    ...(filtros.q
+      ? { OR: [{ viatura: { matricula: { contains: filtros.q, mode: 'insensitive' as const } } }, { posto: { contains: filtros.q, mode: 'insensitive' as const } }] }
+      : {}),
     ...(filtros.dataInicio || filtros.dataFim
       ? { data: { ...(filtros.dataInicio ? { gte: filtros.dataInicio } : {}), ...(filtros.dataFim ? { lte: filtros.dataFim } : {}) } }
       : {}),

@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 import { withApi } from '@/lib/api/with-api';
 import { prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
+
+/**
+ * Query validada pelo `withApi` (issue #188): um `take` que não seja inteiro
+ * positivo é 422 antes de tocar na base; acima de 100 mantém o tecto de 100.
+ */
+const AuditQuerySchema = z.object({
+  cursor: z.string().min(1).optional(),
+  take: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20)
+    .transform((n) => Math.min(n, 100)),
+  entity: z.string().min(1).optional(),
+  userId: z.string().min(1).optional(),
+});
 
 /**
  * GET /api/audit?cursor=<id>&take=<n>&entity=<entidade>
@@ -12,12 +28,8 @@ import { paginate } from '@/server/db/paginate';
  * equivalente porque este endpoint pode ser consumido por ferramentas externas.
  */
 export const GET = withApi(
-  async (req: NextRequest, ctx) => {
-    const url = new URL(req.url);
-    const cursor = url.searchParams.get('cursor') ?? undefined;
-    const take = Math.min(Number(url.searchParams.get('take') ?? '20'), 100);
-    const entity = url.searchParams.get('entity') ?? undefined;
-    const userId = url.searchParams.get('userId') ?? undefined;
+  async (_req, ctx) => {
+    const { cursor, take, entity, userId } = ctx.query;
 
     const page = await paginate(
       (args) =>
@@ -46,5 +58,5 @@ export const GET = withApi(
 
     return NextResponse.json({ data: page });
   },
-  { permission: 'admin:ver_auditoria' },
+  { permission: 'admin:ver_auditoria', query: AuditQuerySchema },
 );

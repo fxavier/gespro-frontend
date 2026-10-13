@@ -8,10 +8,13 @@
  *
  *   (a) um `||` logo a seguir a uma taxa:  /taxa\w*\)?\s*\|\|/i
  *   (b) `taxaIva` definido com `z.coerce.number()` (mesmo partido em várias linhas)
+ *   (c) #207: `taxaIva` definido com `z.number()` cru (aceita 0.17) — a taxa sai sempre de
+ *       `taxaIvaSchema()` de `@/lib/iva`, a mesma da faturação
  *
- * Excepções explícitas — decisão D4 da issue #77: `validations/vendas.ts`,
- * `validations/servicos.ts` e `validations/plataforma.ts` ficam fora de âmbito
- * (continuam a aceitar 0..1); não são varridos aqui. Tudo o resto tem de estar limpo.
+ * Excepção explícita — decisão D4 da issue #77: `validations/plataforma.ts` fica fora de
+ * âmbito (o `taxaIvaDefault` do tenant continua a aceitar 0..1); não é varrido aqui.
+ * `validations/vendas.ts` e `validations/servicos.ts` deixaram de ser excepção com a #207.
+ * Tudo o resto tem de estar limpo.
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -19,15 +22,13 @@ import path from 'node:path';
 
 const RAIZ_SRC = path.resolve(__dirname, '../..'); // apps/erp/src
 
-/** D4 (issue #77): fora de âmbito — continuam a aceitar 0..1. */
-const EXCEPCOES_D4 = new Set(
-  ['lib/validations/vendas.ts', 'lib/validations/servicos.ts', 'lib/validations/plataforma.ts'].map((p) =>
-    path.join(RAIZ_SRC, p),
-  ),
-);
+/** D4 (issue #77): fora de âmbito — continua a aceitar 0..1. Vendas e serviços saíram com a #207. */
+const EXCEPCOES_D4 = new Set(['lib/validations/plataforma.ts'].map((p) => path.join(RAIZ_SRC, p)));
 
 const PADRAO_OU = /taxa\w*\)?\s*\|\|/i;
 const PADRAO_COERCE = /taxaIva\s*:\s*z\s*\.\s*coerce\s*\.\s*number\b/g;
+/** #207: `taxaIva: z.number()` (também partido em várias linhas); `taxaIvaDefault` não casa. */
+const PADRAO_NUMBER_CRU = /\btaxaIva\s*:\s*z\s*\.\s*number\b/g;
 
 function listarFicheiros(dir: string): string[] {
   const saida: string[] = [];
@@ -50,6 +51,7 @@ function linhaDoIndice(texto: string, indice: number): number {
 function varrer(ficheiros: string[]) {
   const ou: string[] = [];
   const coerce: string[] = [];
+  const cru: string[] = [];
   for (const f of ficheiros) {
     const texto = fs.readFileSync(f, 'utf8');
     const rel = path.relative(RAIZ_SRC, f);
@@ -59,8 +61,11 @@ function varrer(ficheiros: string[]) {
     for (const m of texto.matchAll(PADRAO_COERCE)) {
       coerce.push(`${rel}:${linhaDoIndice(texto, m.index ?? 0)}: ${m[0].replace(/\s+/g, ' ')}`);
     }
+    for (const m of texto.matchAll(PADRAO_NUMBER_CRU)) {
+      cru.push(`${rel}:${linhaDoIndice(texto, m.index ?? 0)}: ${m[0].replace(/\s+/g, ' ')}`);
+    }
   }
-  return { ou, coerce };
+  return { ou, coerce, cru };
 }
 
 describe('guarda estática da taxa de IVA', () => {
@@ -72,6 +77,16 @@ describe('guarda estática da taxa de IVA', () => {
     expect('taxaIva: z.coerce.number().default(0.16),'.match(PADRAO_COERCE)).not.toBeNull();
     expect('taxaIva: z.coerce\n    .number()\n    .refine(x)'.match(PADRAO_COERCE)).not.toBeNull();
     expect('taxaIva: taxaIvaSchema(),'.match(PADRAO_COERCE)).toBeNull();
+    expect('taxaIva: z.number().min(0).max(1).default(0.16),'.match(PADRAO_NUMBER_CRU)).not.toBeNull();
+    expect('taxaIva: z\n    .number()\n    .min(0)'.match(PADRAO_NUMBER_CRU)).not.toBeNull();
+    expect('taxaIvaDefault: z.number().min(0).max(1),'.match(PADRAO_NUMBER_CRU)).toBeNull();
+    expect('taxaIva: taxaIvaSchema(),'.match(PADRAO_NUMBER_CRU)).toBeNull();
+  });
+
+  it('vendas.ts e servicos.ts já não são excepção (#207)', () => {
+    for (const p of ['lib/validations/vendas.ts', 'lib/validations/servicos.ts']) {
+      expect(EXCEPCOES_D4.has(path.join(RAIZ_SRC, p)), p).toBe(false);
+    }
   });
 
   it('as excepções D4 existem (se uma for renomeada, a excepção deixa de ter efeito)', () => {
@@ -79,7 +94,7 @@ describe('guarda estática da taxa de IVA', () => {
   });
 
   const ficheiros = listarFicheiros(RAIZ_SRC).filter((f) => !EXCEPCOES_D4.has(f));
-  const { ou, coerce } = varrer(ficheiros);
+  const { ou, coerce, cru } = varrer(ficheiros);
 
   it('varre um número plausível de ficheiros', () => {
     expect(ficheiros.length).toBeGreaterThan(200);
@@ -91,5 +106,9 @@ describe('guarda estática da taxa de IVA', () => {
 
   it('(b) nenhum `taxaIva: z.coerce.number()` em src/ (fora das excepções D4)', () => {
     expect(coerce, `\n${coerce.join('\n')}\n`).toEqual([]);
+  });
+
+  it('(c) nenhum `taxaIva: z.number()` cru em src/ (#207 — só taxaIvaSchema)', () => {
+    expect(cru, `\n${cru.join('\n')}\n`).toEqual([]);
   });
 });

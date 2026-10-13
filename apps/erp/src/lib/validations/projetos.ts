@@ -330,7 +330,6 @@ export const UpdateConfiguracaoProjetoSchema = z.object({
   projetoId: z.string().cuid(),
   politicaAprovacaoTimesheet: z.enum(['MANUAL', 'AUTOMATICA']).default('MANUAL'),
   tiposTarefaAtivos: z.array(TipoTarefaEnum).default(['TAREFA', 'BUG', 'MELHORIA', 'DOCUMENTACAO', 'TESTE']),
-  papeisEquipaAtivos: z.array(PapelMembroEquipaEnum).default(['GERENTE', 'LIDER', 'DESENVOLVEDOR', 'DESIGNER', 'ANALISTA', 'TESTER', 'OUTRO']),
   observacoes: z.string().max(2000).optional(),
 });
 

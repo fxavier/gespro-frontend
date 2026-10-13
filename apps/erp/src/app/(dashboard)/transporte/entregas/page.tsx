@@ -64,6 +64,7 @@ async function EntregasTableSection({
   const result = await runWithTenantContext(ctx, () =>
     entregaService.listarEntregas(
       {
+        q: filtros.q,
         estado: filtros.estado,
         prioridade: filtros.prioridade,
         cursor: filtros.cursor,

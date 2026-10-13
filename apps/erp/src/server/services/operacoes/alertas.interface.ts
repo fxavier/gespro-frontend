@@ -95,7 +95,7 @@ export type GerarAlertasManutencaoFn = (
  */
 export type RecalcularEstadosDocumentosFn = (ctx: {
   tenantId: string;
-}) => Promise<{ viaturasActualizadas: number; motoistasActualizados: number }>;
+}) => Promise<{ viaturasActualizadas: number; motoristasActualizados: number }>;
 
 /** Contrato do serviço de alertas (implementado na Wave 2). */
 export interface IAlertasService {

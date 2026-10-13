@@ -22,6 +22,7 @@ vi.mock('@/server/observability/logger', () => ({
 }));
 
 import { autenticarPorPalavraPasse } from '../direct-grant';
+import { __limparCacheAdminToken } from '../keycloak';
 
 function resposta(status: number, corpo: unknown = {}) {
   return { ok: status >= 200 && status < 300, status, json: async () => corpo } as Response;
@@ -39,6 +40,9 @@ const SEGREDO = 'palavra-passe-secretissima';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // #185: um teste instala um router de `fetch` e a Admin API tem cache de token.
+  fetchMock.mockReset();
+  __limparCacheAdminToken();
   logs.length = 0;
   process.env.KEYCLOAK_ISSUER = 'http://localhost:8081/realms/gespro';
   delete process.env.KEYCLOAK_ISSUER_INTERNO;
@@ -136,10 +140,29 @@ describe('autenticarPorPalavraPasse — cada recusa é distinguida', () => {
     });
   });
 
-  it('conta por activar — acções obrigatórias pendentes (ADR-0013 §2)', async () => {
-    fetchMock.mockResolvedValueOnce(
-      resposta(400, { error: 'invalid_grant', error_description: 'Account is not fully set up' }),
-    );
+  it('conta por activar — palavra-passe provisória pendente (ADR-0030; #185 separa o convite)', async () => {
+    // #185: «not fully set up» passou a ser desempatado pelas acções
+    // obrigatórias da identidade (Admin API). Só `UPDATE_PASSWORD` é a
+    // provisória; com `VERIFY_EMAIL` é convite por concluir — ver
+    // direct-grant-convite-185.test.ts.
+    fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith('/protocol/openid-connect/token')) {
+        const grant = new URLSearchParams(String(init?.body ?? '')).get('grant_type');
+        if (grant === 'client_credentials') {
+          return resposta(200, { access_token: 'adm', expires_in: 300 });
+        }
+        return resposta(400, {
+          error: 'invalid_grant',
+          error_description: 'Account is not fully set up',
+        });
+      }
+      if (u.includes('/admin/realms/gespro/users')) {
+        const utilizador = { id: 'sub-1', email: 'a@b.mz', requiredActions: ['UPDATE_PASSWORD'] };
+        return resposta(200, u.includes('?') ? [utilizador] : utilizador);
+      }
+      throw new Error(`fetch inesperado: ${u}`);
+    });
     expect(await autenticarPorPalavraPasse('a@b.mz', SEGREDO)).toEqual({
       ok: false,
       motivo: 'conta-por-activar',

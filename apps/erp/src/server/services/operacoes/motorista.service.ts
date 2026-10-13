@@ -6,6 +6,7 @@ import 'server-only';
 import { prisma } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { NotFoundError } from '@/lib/errors';
+import { calcularEstadoDocumentoMotorista } from './alocacao.service';
 import type { Ctx, PaginatedResult } from '@/server/services/types';
 import type {
   CriarMotoristaInput,
@@ -152,6 +153,9 @@ export async function listarMotoristas(
   const where = {
     tenantId: ctx.tenantId,
     ...(filtros.estadoOperacional ? { estadoOperacional: filtros.estadoOperacional } : {}),
+    ...(filtros.q
+      ? { OR: [{ nomeCompleto: { contains: filtros.q, mode: 'insensitive' as const } }, { numeroCarta: { contains: filtros.q, mode: 'insensitive' as const } }] }
+      : {}),
     ...(filtros.disponivel !== undefined
       ? { disponibilidade: { disponivel: filtros.disponivel } }
       : {}),
@@ -255,6 +259,8 @@ export async function adicionarDocumentoMotorista(
       entidadeEmissora: input.entidadeEmissora,
       anexo: input.anexo ?? null,
       observacoes: input.observacoes ?? null,
+      // #174 — nasce com o estado da validade (mesma regra do cron), não com o omissão VALIDO
+      estado: calcularEstadoDocumentoMotorista(input.dataValidade),
     },
     select: { id: true, tipo: true, numero: true, dataEmissao: true, dataValidade: true, entidadeEmissora: true, estado: true },
   });

@@ -152,6 +152,8 @@ vi.mock('@/server/db/client', () => ({
         create: vi.fn().mockResolvedValue(pagamentoMock),
         update: vi.fn(),
       },
+      // #116: a recepção grava o nome do responsável lido do `User` (ctx.userId).
+      user: { findFirst: vi.fn().mockResolvedValue({ nome: 'Utilizador Teste' }) },
     })),
     // nível de topo (não usados nestes testes mas necessários para inicialização)
     pedidoCompra: { findUnique: vi.fn() },

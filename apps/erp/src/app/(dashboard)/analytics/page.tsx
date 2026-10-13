@@ -15,12 +15,10 @@ import {
   DollarSign,
   Users,
   Ticket,
-  Download,
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { dashboardService } from '@/server/services/plataforma/analytics.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   GraficoVendasWrapper as GraficoVendas,
@@ -301,12 +299,6 @@ export default async function AnalyticsPage(_props: PageProps) {
         title="Analytics"
         description="Indicadores de desempenho de todos os domínios do sistema"
         breadcrumbs={[{ label: 'Analytics' }]}
-        actions={
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Exportar Relatório
-          </Button>
-        }
       />
 
       {/* Vendas */}

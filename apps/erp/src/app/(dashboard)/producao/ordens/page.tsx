@@ -18,7 +18,7 @@ import { OrdensTable } from './_components/ordens-table';
 import type { OrdemRow } from './_components/ordens-table';
 
 const FiltroUrlSchema = z.object({
-  search: z.string().optional(),
+  q: z.string().optional(),
   status: z.string().optional(),
   prioridade: z.string().optional(),
   cursor: z.string().optional(),
@@ -42,6 +42,7 @@ async function OrdensTableSection({
   const result = await runWithTenantContext(ctx, () =>
     OrdemProducaoService.listar(
       {
+        search: filtros.q,
         status: filtros.status as never,
         prioridade: filtros.prioridade as never,
         cursor: filtros.cursor,

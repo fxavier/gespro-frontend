@@ -14,11 +14,13 @@ import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, TableSkeleton } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
+import type { StatusOrcamento } from '@prisma/client';
+import { opcoesDeEnum } from '@/lib/opcoes-enum';
 import { OrcamentosTable } from './_components/orcamentos-table';
 import type { OrcamentoRow } from './_components/orcamentos-table';
 
 const FiltroUrlSchema = z.object({
-  search: z.string().optional(),
+  q: z.string().optional(),
   status: z.string().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().positive().max(100).default(25),
@@ -43,6 +45,9 @@ async function OrcamentosTableSection({
       where: {
         tenantId,
         ...(filtros.status ? { status: filtros.status as never } : {}),
+        ...(filtros.q
+          ? { projeto: { nome: { contains: filtros.q, mode: 'insensitive' as const } } }
+          : {}),
       },
       include: {
         projeto: { select: { nome: true } },
@@ -67,18 +72,15 @@ async function OrcamentosTableSection({
   return <OrcamentosTable data={data} nextCursor={nextCursor} />;
 }
 
+const ROTULOS_STATUS: Record<StatusOrcamento, string> = {
+  RASCUNHO: 'Rascunho',
+  REVISAO: 'Em Revisão',
+  APROVADO: 'Aprovado',
+  REJEITADO: 'Rejeitado',
+};
+
 const FILTER_CONFIG: FilterConfig[] = [
-  {
-    key: 'status',
-    label: 'Estado',
-    options: [
-      { label: 'Rascunho', value: 'RASCUNHO' },
-      { label: 'Pendente', value: 'PENDENTE' },
-      { label: 'Aprovado', value: 'APROVADO' },
-      { label: 'Rejeitado', value: 'REJEITADO' },
-      { label: 'Encerrado', value: 'ENCERRADO' },
-    ],
-  },
+  { key: 'status', label: 'Estado', options: opcoesDeEnum(ROTULOS_STATUS) },
 ];
 
 export default async function OrcamentoPage({
@@ -120,7 +122,7 @@ export default async function OrcamentoPage({
         }
       />
 
-      <FilterBar filters={FILTER_CONFIG} />
+      <FilterBar searchPlaceholder="Pesquisar por projecto…" filters={FILTER_CONFIG} />
 
       <Suspense
         key={JSON.stringify(filtros)}

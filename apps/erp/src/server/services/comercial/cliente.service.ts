@@ -18,6 +18,7 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { Ctx, TxClient } from '@/server/services/types';
 import { CLIENTE_CONSUMIDOR_FINAL } from '@/lib/consumidor-final';
 import { creditoUtilizadoDoCliente } from '@/server/services/financas';
+import { registarHistoricoTransacaoEmTx } from './historico-transacao';
 import type {
   IClienteService,
   ClienteRow,
@@ -383,7 +384,7 @@ export class ClienteService implements IClienteService {
     return mapClienteRow(atualizado);
   }
 
-  async desativar(id: string, ctx: Ctx): Promise<void> {
+  async desativar(id: string, ctx: Ctx, motivo?: string): Promise<void> {
     const cliente = await prisma.cliente.findUnique({
       where: { id },
       select: { tenantId: true, deletedAt: true, codigo: true },
@@ -403,9 +404,29 @@ export class ClienteService implements IClienteService {
       );
     }
 
-    await prisma.cliente.update({
-      where: { id },
-      data: { deletedAt: new Date(), status: 'INATIVO' },
+    // #136 — o motivo fica no histórico do cliente (append-only), na mesma transacção.
+    const motivoAparado = motivo?.trim();
+    await prisma.$transaction(async (tx) => {
+      const agora = new Date();
+      await tx.cliente.update({
+        where: { id, tenantId: ctx.tenantId },
+        data: { deletedAt: agora, status: 'INATIVO' },
+      });
+      if (motivoAparado) {
+        await registarHistoricoTransacaoEmTx(
+          tx as Prisma.TransactionClient,
+          {
+            clienteId: id,
+            tipo: 'AJUSTE',
+            referencia: cliente.codigo,
+            descricao: `Cliente desactivado. Motivo: ${motivoAparado}`,
+            valor: '0',
+            dataTransacao: agora,
+            status: 'CONCLUIDO',
+          },
+          ctx,
+        );
+      }
     });
   }
 

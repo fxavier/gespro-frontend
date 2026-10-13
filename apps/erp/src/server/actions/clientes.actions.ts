@@ -79,14 +79,15 @@ export const atualizarCliente = createSafeAction({
 export const desativarCliente = createSafeAction({
   schema: z.object({
     id: z.string().cuid('ID inválido'),
+    motivo: z.string().trim().max(500, 'O motivo tem no máximo 500 caracteres').optional(),
   }),
   permission: 'clientes:desativar',
   revalidate: {
     paths: ['/clientes'],
     tags: ['clientes'],
   },
-  handler: async ({ id }, ctx) => {
-    await clienteService.desativar(id, ctx);
+  handler: async ({ id, motivo }, ctx) => {
+    await clienteService.desativar(id, ctx, motivo);
     return { id };
   },
 });

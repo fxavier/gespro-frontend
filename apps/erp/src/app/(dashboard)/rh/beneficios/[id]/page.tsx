@@ -1,6 +1,6 @@
 /**
  * Detalhe de Benefício — Server Component (NUNCA 'use client').
- * Exibe metadados + atribuições activas do benefício.
+ * Exibe metadados + atribuições activas e suspensas do benefício, com as suas acções (#162).
  */
 
 import Link from 'next/link';

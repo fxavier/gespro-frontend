@@ -6,57 +6,51 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { stockService } from '@/server/services/inventario/stock.service';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
+import type { TipoMovimentoStock } from '@prisma/client';
+import { MovimentoStockFilterSchema, type MovimentoStockFilter } from '@/lib/validations/stock';
+import { opcoesDeEnum } from '@/lib/opcoes-enum';
 import { TableSkeleton } from '../ativos/_components/table-skeletons';
 import { MovimentosStockTable } from './_components/movimentos-stock-table';
 
-const MovimentacaoFilterUrlSchema = z.object({
-  tipo: z.string().optional(),
-  cursor: z.string().optional(),
-  take: z.coerce.number().int().positive().max(100).default(25),
-});
-
-type MovimentacaoFilterUrl = z.infer<typeof MovimentacaoFilterUrlSchema>;
-const FILTROS_DEFAULT: MovimentacaoFilterUrl = { take: 25 };
+const FILTROS_DEFAULT: MovimentoStockFilter = { take: 25 };
 
 async function MovimentacoesTableSection({
   filtros,
   tenantId,
   userId,
 }: {
-  filtros: MovimentacaoFilterUrl;
+  filtros: MovimentoStockFilter;
   tenantId: string;
   userId: string;
 }) {
   const ctx = { tenantId, userId };
   const result = await runWithTenantContext({ tenantId, userId }, () =>
-    stockService.listarMovimentos(
-      { cursor: filtros.cursor, take: filtros.take },
-      ctx
-    )
+    stockService.listarMovimentos({ ...filtros }, ctx)
   );
 
   return <MovimentosStockTable data={result.items} nextCursor={result.nextCursor} />;
 }
+
+const ROTULOS_TIPO: Record<TipoMovimentoStock, string> = {
+  ENTRADA: 'Entrada',
+  SAIDA: 'Saída',
+  AJUSTE: 'Ajuste',
+  TRANSFERENCIA_ENTRADA: 'Transferência (entrada)',
+  TRANSFERENCIA_SAIDA: 'Transferência (saída)',
+};
 
 const FILTER_CONFIGS: FilterConfig[] = [
   {
     key: 'tipo',
     label: 'Tipo',
     placeholder: 'Todos os tipos',
-    options: [
-      { label: 'Entrada', value: 'ENTRADA' },
-      { label: 'Saída', value: 'SAIDA' },
-      { label: 'Transferência', value: 'TRANSFERENCIA' },
-      { label: 'Baixa', value: 'BAIXA' },
-      { label: 'Ajuste', value: 'AJUSTE' },
-    ],
+    options: opcoesDeEnum(ROTULOS_TIPO),
   },
 ];
 
@@ -75,7 +69,7 @@ export default async function MovimentacoesPage({ searchParams }: PageProps) {
     Object.entries(rawParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
   );
 
-  const parseResult = MovimentacaoFilterUrlSchema.safeParse(flatParams);
+  const parseResult = MovimentoStockFilterSchema.safeParse(flatParams);
   const filtros = parseResult.success ? parseResult.data : FILTROS_DEFAULT;
 
   return (
@@ -99,7 +93,6 @@ export default async function MovimentacoesPage({ searchParams }: PageProps) {
 
       <FilterBar
         searchPlaceholder="Pesquisar movimentações…"
-        searchKey="search"
         filters={FILTER_CONFIGS}
       />
 

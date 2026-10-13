@@ -171,6 +171,9 @@ const menuItems: MenuItem[] = [
       { title: 'Motoristas', href: '/transporte/motoristas', icon: User },
       { title: 'Rotas', href: '/transporte/rotas', icon: MapPin },
       { title: 'Combustível', href: '/transporte/combustivel', icon: Fuel },
+      { title: 'Entregas', href: '/transporte/entregas', icon: Package },
+      { title: 'Documentos das viaturas', href: '/transporte/veiculos/documentos', icon: FileCheck },
+      { title: 'Documentos dos motoristas', href: '/transporte/motoristas/documentos', icon: FileText },
     ],
   },
   {

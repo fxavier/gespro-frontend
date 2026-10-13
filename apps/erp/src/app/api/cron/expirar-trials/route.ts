@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { withCron } from '@/lib/api/with-cron';
 import { logger } from '@/server/observability/logger';
 import { processarCicloDeVida } from '@/server/services/plataforma/assinatura.service';
 
@@ -18,8 +19,9 @@ import { processarCicloDeVida } from '@/server/services/plataforma/assinatura.se
  * Idempotente: quem decide é o compare-and-set dentro das transições, não o
  * `findMany`. Correr duas vezes tem o mesmo efeito que correr uma.
  *
- * Protecção: `Authorization: Bearer <CRON_SECRET>` (mesmo padrão do cron de
- * transporte). NÃO está em `PUBLIC_PATHS` — é chamado com credencial própria.
+ * Protecção: `Authorization: Bearer <CRON_SECRET>`, verificada pelo `withCron`
+ * (dentro do `withApi`, issue #186). NÃO está em `PUBLIC_PATHS` — é chamado com
+ * credencial própria.
  * Agendamento: diário, 03:00 UTC — ver `infra/local/cron/` e o runbook.
  *
  * O nome da rota mantém-se por ser contrato com o agendador: mudá-lo obrigaria
@@ -27,21 +29,7 @@ import { processarCicloDeVida } from '@/server/services/plataforma/assinatura.se
  */
 export const runtime = 'nodejs';
 
-function autorizado(request: NextRequest): boolean {
-  const token = request.headers.get('authorization')?.replace('Bearer ', '');
-  const esperado = process.env.CRON_SECRET;
-  if (!esperado) return false;
-  return token === esperado;
-}
-
-export async function GET(request: NextRequest): Promise<Response> {
-  if (!autorizado(request)) {
-    return NextResponse.json(
-      { error: { code: 'NAO_AUTENTICADO', message: 'Token inválido.' } },
-      { status: 401 },
-    );
-  }
-
+export const GET = withCron(async () => {
   try {
     const resultado = await processarCicloDeVida();
 
@@ -60,4 +48,4 @@ export async function GET(request: NextRequest): Promise<Response> {
       { status: 500 },
     );
   }
-}
+});

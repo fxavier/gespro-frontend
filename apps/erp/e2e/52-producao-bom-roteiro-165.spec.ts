@@ -222,8 +222,10 @@ test.describe(`Activar BOM/roteiro e gerir centros de trabalho (#165, ${MARCA})`
   });
 
   test('BOM: a lista leva ao detalhe, que existe (não é 404)', async ({ page }) => {
-    await abrir(page, `${BASE}/producao/estrutura?search=${encodeURIComponent(COD.bomRasc)}`);
-    await page.getByText(COD.bomRasc).first().click();
+    await abrir(page, `${BASE}/producao/estrutura?q=${encodeURIComponent(COD.bomRasc)}`);
+    // Com `q` lido pela página (#105/#106), a FilterBar mostra o chip «Pesquisa: "<código>"»:
+    // o clique tem de ir à linha da tabela, não ao primeiro texto que case.
+    await page.locator('tbody').getByText(COD.bomRasc).first().click();
     await page.waitForURL(new RegExp(`/producao/estrutura/${ID_BOM_RASC}$`), { timeout: 15_000 });
     await page.waitForLoadState('networkidle');
     await expect(page.getByText(COD.bomRasc).first()).toBeVisible();

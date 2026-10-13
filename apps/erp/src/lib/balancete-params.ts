@@ -48,6 +48,40 @@ function lerUm(params: ParametrosEntrada, chave: string): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
+export interface IntervaloPeriodos {
+  periodoInicial: number;
+  periodoFinal: number;
+  incluir13: boolean;
+}
+
+const NOMES_MES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+/**
+ * Opções dos selectores de período (balancete e razão): «01 — Janeiro» … «12 — Dezembro»
+ * e, só com `incluir13`, «13 — Encerramento». Separador U+2014, como o PHC usa.
+ */
+export function opcoesPeriodo(incluir13: boolean): { value: string; label: string }[] {
+  const opcoes = NOMES_MES.map((nome, i) => ({
+    value: String(i + 1),
+    label: `${String(i + 1).padStart(2, '0')} — ${nome}`,
+  }));
+  if (incluir13) opcoes.push({ value: '13', label: '13 — Encerramento' });
+  return opcoes;
+}
+
+/**
+ * A regra única dos períodos: final ≤ 12 sem p13, e inicial ≤ final. É a que
+ * `lerParametrosBalancete` aplica ao URL e a que os selectores aplicam antes do push.
+ */
+export function normalizarIntervaloPeriodos(intervalo: IntervaloPeriodos): IntervaloPeriodos {
+  const periodoFinal = intervalo.incluir13 ? intervalo.periodoFinal : Math.min(intervalo.periodoFinal, 12);
+  const periodoInicial = Math.min(intervalo.periodoInicial, periodoFinal);
+  return { periodoInicial, periodoFinal, incluir13: intervalo.incluir13 };
+}
+
 /**
  * Lê os parâmetros do balancete do URL. Valores inválidos são ignorados, nunca
  * dão erro:
@@ -87,9 +121,9 @@ export function lerParametrosBalancete<E extends ExercicioBalancete>(
   const codigoPedido = pedido ? pedido : null;
   const exercicio = exercicioCorrente(exercicios, codigoPedido);
 
-  // Períodos.
-  const lido = FiltroBalanceteVerificacaoSchema.safeParse({
-    exercicioId: exercicio.id,
+  // Períodos. O exercício já vem da lista do servidor: só os períodos se validam aqui,
+  // para que a regra dos períodos não dependa do formato do id (#343).
+  const lido = FiltroBalanceteVerificacaoSchema.omit({ exercicioId: true }).safeParse({
     periodoInicial: p('de'),
     periodoFinal: p('ate') ?? mesAtual,
     incluir13: p('p13') === '1',
@@ -97,8 +131,7 @@ export function lerParametrosBalancete<E extends ExercicioBalancete>(
   const bruto = lido.success
     ? lido.data
     : { periodoInicial: 1, periodoFinal: mesAtual, incluir13: false };
-  const periodoFinal = bruto.incluir13 ? bruto.periodoFinal : Math.min(bruto.periodoFinal, 12);
-  const periodoInicial = Math.min(bruto.periodoInicial, periodoFinal);
+  const { periodoInicial, periodoFinal } = normalizarIntervaloPeriodos(bruto);
 
   // Hierarquia.
   const nivel = parseInt(p('nivel') ?? '', 10);

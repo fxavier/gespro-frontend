@@ -162,9 +162,10 @@ export interface IClienteService {
   /**
    * Soft delete — marca deletedAt; não remove registos transaccionais.
    * Lança BusinessRuleError('CLIENTE_COM_DEBITOS_PENDENTES') se tiver facturas em aberto
-   * (`creditoUtilizadoDoCliente` > 0, #318).
+   * (`creditoUtilizadoDoCliente` > 0, #318). Com `motivo` (aparado, não vazio), grava na
+   * mesma transacção uma entrada AJUSTE de 0 MT no histórico do cliente (#136).
    */
-  desativar(id: string, ctx: Ctx): Promise<void>;
+  desativar(id: string, ctx: Ctx, motivo?: string): Promise<void>;
 
   // --- Endereços ---
   adicionarEndereco(

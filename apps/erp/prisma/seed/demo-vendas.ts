@@ -746,7 +746,8 @@ async function seedVendasEFaturas(
     data: cabecalhos.map((c) => ({
       tenantId,
       vendaId: vendaPorNumero.get(c.dados.numero)!,
-      estadoAntes: 'PENDENTE' as const,
+      // Marca de nascimento (#328): antes = depois — PENDENTE→CONCLUIDA não é aresta de TRANSICOES_VENDA.
+      estadoAntes: c.dados.status as Prisma.VendaCreateManyInput['status'] as never,
       estadoDepois: c.dados.status as Prisma.VendaCreateManyInput['status'] as never,
       userId: c.dados.vendedorId,
       createdAt: c.dados.dataVenda as Date,

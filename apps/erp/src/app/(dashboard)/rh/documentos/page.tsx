@@ -118,7 +118,7 @@ export default async function DocumentosRHPage({
         actions={
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Upload via ficha do colaborador</span>
+            <span className="text-sm text-muted-foreground">Upload no separador «Documentos» da ficha do colaborador</span>
           </div>
         }
       />

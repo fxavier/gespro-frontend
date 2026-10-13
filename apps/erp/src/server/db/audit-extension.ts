@@ -41,6 +41,8 @@ export const AUDIT_MODELS = new Set<string>([
   'Tenant', 'ConfiguracaoFiscal',
   // #465 — (des)activar uma conta bancária tira-a dos pagamentos, do POS e da reconciliação.
   'ContaBancaria',
+  // #142 — (des)activar uma conta do plano tira-a ou devolve-a aos lançamentos.
+  'ContaPGC',
 ]);
 
 /**

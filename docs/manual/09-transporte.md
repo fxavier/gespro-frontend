@@ -2,11 +2,50 @@
 
 > **Para quem:** Administrador, Gestor, Operador (consulta: Financeiro, Leitura) · **Onde:** menu › Transporte & Logística
 
-## Para que serve
+## Objectivo do módulo
 
 O módulo de Transporte gere a frota da empresa: as viaturas e os seus documentos, os motoristas e a sua disponibilidade, as rotas, as actividades de transporte, as entregas a clientes (com prova de entrega), os abastecimentos de combustível e as manutenções. O painel inicial mostra os indicadores principais e os alertas de documentos a expirar e de manutenções em atraso.
 
+O objectivo é **pôr a mercadoria no cliente com a viatura e o motorista em condições** — documentos
+válidos, inspecção sem avarias, carta em dia — e saber quanto custa a frota em combustível e manutenção.
+
+| | |
+|---|---|
+| **Que problema resolve** | Seguros e inspecções caducados descobertos numa operação STOP, entregas sem prova de recepção, combustível sem controlo de consumo. |
+| **Quem usa** | Operador e responsável de logística; Gestor para os indicadores. |
+| **O que entra** | Viaturas, documentos, motoristas, rotas, entregas, abastecimentos, manutenções e inspecções. |
+| **O que sai** | Alertas de documentos a expirar, entregas com prova, consumo médio (km/L) e custo de combustível. |
+| **Liga-se a** | [Vendas](04-vendas-e-pos.md) (o que se entrega), [Inventário](03-inventario.md) (a viatura como activo). |
+
 Os registos deste módulo não mexem no stock, na caixa nem na contabilidade: uma entrega marcada como **Entregue** não baixa stock e a taxa de entrega não gera movimento de caixa.
+
+## Exemplo prático — entregar 100 sacos na obra da Machava
+
+**Situação:** a Construções Machava comprou 100 sacos de cimento e 200 varões (ver [Faturação](06-faturacao-caixa-tesouraria.md#exemplo-prático--da-proposta-ao-dinheiro-no-banco)).
+A Ana organiza a entrega com o camião da loja e o motorista Jorge Mabote.
+
+1. **Viatura** → [Como registar uma viatura](#como-registar-uma-viatura): matrícula `AAB 123 MC`, **Pesado de
+   Mercadorias**, Isuzu NPR, capacidade **4** **Toneladas (ton)**, local «Maputo». Em **Documentos**, carrega o
+   **Seguro** e a **Inspecção** com as datas de validade. Os dois aparecem **Válidos**.
+2. **Motorista** → [Como registar um motorista](#como-registar-um-motorista-e-gerir-a-disponibilidade): Jorge
+   Mabote, carta categorias «B, C», validade em 2028.
+3. **Inspecção de rotina** → [Checklist](#como-mudar-o-estado-de-uma-viatura-registar-manutenção-ou-inspecção):
+   pneus, travões e luzes **OK**. (Um item em **Avaria** impediria iniciar a rota.)
+4. **Rota** → [Como planear e executar uma rota](#como-planear-e-executar-uma-rota): «Armazém → Obra Machava»,
+   viatura e motorista acima, 18 km, 45 min. Fica **Planeada**; no dia, **Activa**.
+5. **Entrega** → [Como criar e acompanhar uma entrega](#como-criar-e-acompanhar-uma-entrega): Código do Cliente
+   `400300400`, morada da obra, Prioridade **Alta**, itens CIM-50 × 100 (5 000 kg) e VAR-12 × 200. **Agendada** →
+   **Em Trânsito** → **Entregue**, com Recebedor «Eng.º Tembe» e prova **Assinatura**.
+6. **Abastecimento no regresso** → [Como registar um abastecimento](#como-registar-um-abastecimento): **Diesel**,
+   **60** litros a **87,00** MT/L (valor de exemplo) → **Valor Total 5 220,00**; 480 km desde o último
+   abastecimento → consumo médio **8 km/L**.
+
+**Resultado esperado:** a entrega **Entregue** com o separador **Prova de Entrega**; a rota **Concluída**; o
+Dashboard com o custo de combustível do mês; e, 30 dias antes de o seguro caducar, o alerta **A Expirar** no
+Dashboard e no sino de notificações.
+
+> **Lembre-se:** a entrega não baixa o stock — a saída aconteceu na venda — e o combustível não lança na
+> contabilidade; a factura do posto regista-se como despesa pelo circuito de fornecedores.
 
 ## Conceitos
 
@@ -44,6 +83,8 @@ Os registos deste módulo não mexem no stock, na caixa nem na contabilidade: um
 
 > **Atenção:** os ecrãs marcados com «—» ainda não têm entrada no menu nem atalho. Abra-os escrevendo o endereço na barra do navegador (por exemplo, `/transporte/entregas`). Os documentos só se carregam na ficha da viatura ou do motorista.
 
+Se o seu perfil não tiver permissão para consultar o Transporte, o grupo **Transporte & Logística** não aparece no menu lateral e, se abrir um endereço do módulo, vê o aviso **Sem permissão**.
+
 <!-- captura: 09-transporte/dashboard.png | /transporte -->
 ![Dashboard de Transporte](img/09-transporte/dashboard.png)
 
@@ -59,6 +100,8 @@ Os registos deste módulo não mexem no stock, na caixa nem na contabilidade: um
 | Total de Motoristas | Motoristas registados. |
 
 Em **Alertas Operacionais** aparecem até 10 alertas, por exemplo «Viatura ABC-123-MP: SEGURO (nº …) expira em …» ou «… manutenção preventiva prevista para … está em atraso.» Os documentos expirados aparecem a vermelho; os restantes a amarelo.
+
+Os alertas de documentos a expirar ou expirados chegam também ao sino de notificações, uma vez por dia, quando o processo automático recalcula o estado dos documentos. Só os recebem os utilizadores com permissão para consultar as viaturas (nos perfis de sistema, todos a têm).
 
 ## Tarefas
 
@@ -96,7 +139,7 @@ Para alterar os dados, use **Editar** na ficha (ou no menu de acções da linha 
 
 > **Atenção:** preencha todos os campos **antes** de escolher o ficheiro. O documento é gravado no momento em que o ficheiro é carregado.
 
-Um documento novo aparece como **Válido**. O estado passa a **A Expirar** ou **Expirado** quando o sistema faz o recálculo automático periódico. Uma viatura com documentos **Expirados** não pode passar a **Em Actividade** nem ser usada para iniciar uma rota ou actividade.
+Um documento novo aparece como **Válido**. O estado passa a **A Expirar** ou **Expirado** quando o sistema faz o recálculo automático diário. Uma viatura com documentos **Expirados** não pode passar a **Em Actividade** nem ser usada para iniciar uma rota ou actividade.
 
 ### Como mudar o estado de uma viatura, registar manutenção ou inspecção
 
@@ -292,7 +335,7 @@ O **Estado Operacional** (Activo, Inactivo, Suspenso) é mostrado na lista e na 
 ## Perguntas frequentes
 
 **Carreguei um seguro já vencido e aparece como Válido. Porquê?**
-O estado dos documentos é recalculado por um processo automático periódico. Até lá, um documento novo aparece como Válido.
+O estado dos documentos é recalculado por um processo automático diário. Até lá, um documento novo aparece como Válido; no recálculo seguinte passa a **Expirado** e o alerta aparece no Dashboard e no sino de notificações.
 
 **A pesquisa nas listas de rotas, motoristas, entregas ou combustível não filtra.**
 Use os filtros (Estado, Prioridade, Tipo, Combustível). Nestas listas a caixa de pesquisa ainda não tem efeito.

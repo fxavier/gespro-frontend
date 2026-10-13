@@ -111,14 +111,15 @@ describe('hierarquizarBalancete — maeMostradaId e profundidade (exemplos)', ()
     expect(forma(hierarquizarBalancete(nucleo, contas, { nivelMaximo: 2 }))).toEqual([
       '1<->0', '11<1>1', '12<1>1', 'SUB:1<->0',
       '5<->0', '51<5>1', 'SUB:5<->0',
-      '6<->0', '69<6>1', 'SUB:6<->0',
+      // #298: a órfã 63299 (nível 5) é raiz da sua cadeia, grau relativo 1 ⇒ nunca desaparece.
+      '6<->0', '69<6>1', '63299<->0', 'SUB:6<->0',
       'SINT<->1', 'SUB:8<->0',
     ]);
   });
 
-  it('apenasRazao: só nível 2, todas raízes (profundidade 0)', () => {
+  it('apenasRazao: só nível 2, todas raízes (profundidade 0); a raiz órfã também (#298)', () => {
     expect(forma(hierarquizarBalancete(nucleo, contas, { apenasRazao: true }))).toEqual([
-      '11<->0', '12<->0', 'SUB:1<->0', '51<->0', 'SUB:5<->0', '69<->0', 'SUB:6<->0', 'SINT<->1', 'SUB:8<->0',
+      '11<->0', '12<->0', 'SUB:1<->0', '51<->0', 'SUB:5<->0', '63299<->0', '69<->0', 'SUB:6<->0', 'SINT<->1', 'SUB:8<->0',
     ]);
   });
 

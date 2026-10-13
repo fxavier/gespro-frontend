@@ -207,6 +207,7 @@ function criarTx(numeracao: unknown[] | 'por-tipo' = 'por-tipo') {
     venda: { findFirst: vi.fn(async () => ({ id: 'ven-93' })) },
     fatura: modelo('fatura'),
     linhaFatura: modelo('linhaFatura'),
+    historicoTransacao: modelo('historicoTransacao'), // #134: a emissão escreve a ficha do cliente
     notaCredito: modelo('notaCredito'),
     linhaNotaCredito: modelo('linhaNotaCredito'),
     notaDebito: modelo('notaDebito'),

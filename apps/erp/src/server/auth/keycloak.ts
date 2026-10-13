@@ -249,6 +249,8 @@ export interface UtilizadorKeycloak {
   id: string;
   email?: string;
   enabled?: boolean;
+  /** Acções obrigatórias pendentes (`VERIFY_EMAIL`, `UPDATE_PASSWORD`…). */
+  requiredActions?: string[];
 }
 
 /**

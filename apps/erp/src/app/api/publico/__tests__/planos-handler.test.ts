@@ -85,3 +85,88 @@ describe('GET /api/publico/planos', () => {
     expect(res.status).toBe(204);
   });
 });
+
+/**
+ * Issue #197 — o preflight tem de anunciar exactamente o que o GET aplica.
+ * O GET é público e sem credenciais (`GET, OPTIONS`, sem Allow-Credentials);
+ * um OPTIONS que anuncie `POST` e `Allow-Credentials: true` promete ao browser
+ * um contrato que o endpoint não cumpre.
+ */
+describe('OPTIONS /api/publico/planos — preflight coerente com o GET (#197)', () => {
+  const CORS = [
+    'access-control-allow-origin',
+    'access-control-allow-methods',
+    'access-control-allow-headers',
+    'access-control-allow-credentials',
+    'access-control-max-age',
+    'vary',
+  ] as const;
+
+  function cabecalhosCors(res: Response) {
+    return Object.fromEntries(CORS.map((h) => [h, res.headers.get(h)]));
+  }
+
+  function metodos(res: Response) {
+    return (res.headers.get('access-control-allow-methods') ?? '')
+      .split(',')
+      .map((m) => m.trim().toUpperCase())
+      .filter(Boolean)
+      .sort();
+  }
+
+  function pedidos(origem: string) {
+    const url = 'http://localhost:3000/api/publico/planos';
+    return {
+      get: new NextRequest(url, { headers: { origin: origem } }),
+      options: new NextRequest(url, {
+        method: 'OPTIONS',
+        headers: {
+          origin: origem,
+          'access-control-request-method': 'GET',
+        },
+      }),
+    };
+  }
+
+  it('origem permitida: anuncia só GET e OPTIONS (nunca POST)', async () => {
+    const { options } = pedidos('https://www.gespro.mz');
+    const res = await (OPTIONS as (r: NextRequest) => Response | Promise<Response>)(options);
+    expect(res.status).toBe(204);
+    expect(metodos(res)).toEqual(['GET', 'OPTIONS']);
+    expect(metodos(res)).not.toContain('POST');
+  });
+
+  it('origem permitida: não anuncia credenciais (o GET é sem credenciais)', async () => {
+    const { get, options } = pedidos('https://www.gespro.mz');
+    const resGet = await GET_PLANOS(get);
+    const res = await (OPTIONS as (r: NextRequest) => Response | Promise<Response>)(options);
+    expect(resGet.headers.get('access-control-allow-credentials')).toBeNull();
+    expect(res.headers.get('access-control-allow-credentials')).toBeNull();
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://www.gespro.mz');
+  });
+
+  it.each(['https://www.gespro.mz', 'https://atacante.example', ''])(
+    'cabeçalhos CORS do OPTIONS iguais aos do GET (origem %j)',
+    async (origem) => {
+      const { get, options } = pedidos(origem);
+      const resGet = await GET_PLANOS(get);
+      const res = await (OPTIONS as (r: NextRequest) => Response | Promise<Response>)(options);
+      expect(cabecalhosCors(res)).toEqual(cabecalhosCors(resGet));
+    },
+  );
+
+  it('origem fora da allowlist: preflight sem Allow-Origin e nunca wildcard', async () => {
+    const { options } = pedidos('https://atacante.example');
+    const res = await (OPTIONS as (r: NextRequest) => Response | Promise<Response>)(options);
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+    expect(res.headers.get('access-control-allow-credentials')).toBeNull();
+  });
+
+  it('nunca emite Access-Control-Allow-Origin: * no preflight', async () => {
+    for (const origem of ['https://www.gespro.mz', 'https://atacante.example', '']) {
+      const { options } = pedidos(origem);
+      const res = await (OPTIONS as (r: NextRequest) => Response | Promise<Response>)(options);
+      expect(res.headers.get('access-control-allow-origin')).not.toBe('*');
+    }
+  });
+});

@@ -74,6 +74,13 @@ export const desativarContaPGC = createSafeAction({
   handler: (input, ctx) => contabilidade.desativarConta(input.id, ctx),
 });
 
+export const reativarContaPGC = createSafeAction({
+  schema: z.object({ id: idEntidade('ID de conta inválido') }),
+  permission: 'financas:plano-contas:escrita',
+  revalidate: { tags: ['contabilidade', 'contas-pgc'] },
+  handler: (input, ctx) => contabilidade.reativarConta(input.id, ctx),
+});
+
 export const listarContasPGC = createSafeAction({
   schema: FiltroContaPGCSchema,
   permission: 'financas:leitura',

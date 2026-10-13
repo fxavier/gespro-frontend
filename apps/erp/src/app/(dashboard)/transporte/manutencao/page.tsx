@@ -16,11 +16,13 @@ import { TipoManutencaoViatura } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar, KpiCard } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
+import { opcoesDeEnum } from '@/lib/opcoes-enum';
 import { ManutencaoTable } from './_components/manutencao-table';
 import type { ManutencaoComViatura } from './_components/manutencao-table';
 import { TableSkeleton, KpiSkeleton } from '../_components/table-skeletons';
 
 const FiltroManutencaoUrlSchema = z.object({
+  q: z.string().optional(),
   tipo: z.string().optional(),
   take: z.coerce.number().int().positive().max(100).default(25),
   cursor: z.string().optional(),
@@ -86,6 +88,14 @@ async function ManutencaoTableSection({
     where: {
       tenantId,
       ...(tipoFiltro ? { tipo: tipoFiltro } : {}),
+      ...(filtros.q
+        ? {
+            OR: [
+              { descricao: { contains: filtros.q, mode: 'insensitive' as const } },
+              { viatura: { matricula: { contains: filtros.q, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
     },
     select: {
       id: true,
@@ -129,19 +139,17 @@ async function ManutencaoTableSection({
   );
 }
 
+const ROTULOS_TIPO: Record<TipoManutencaoViatura, string> = {
+  PREVENTIVA: 'Preventiva',
+  CORRECTIVA: 'Correctiva',
+};
+
 const FILTER_CONFIGS: FilterConfig[] = [
   {
     key: 'tipo',
     label: 'Tipo',
     placeholder: 'Todos os tipos',
-    options: [
-      { label: 'Preventiva', value: 'PREVENTIVA' },
-      { label: 'Correctiva', value: 'CORRECTIVA' },
-      { label: 'Revisão', value: 'REVISAO' },
-      { label: 'Inspecção', value: 'INSPECAO' },
-      { label: 'Pneus', value: 'PNEUS' },
-      { label: 'Outro', value: 'OUTRO' },
-    ],
+    options: opcoesDeEnum(ROTULOS_TIPO),
   },
 ];
 

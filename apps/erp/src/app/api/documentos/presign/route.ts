@@ -61,7 +61,7 @@ export const POST = withApi(async (req: NextRequest, ctx) => {
   const key = derivarKey({ tenantId: ctx.tenantId, recurso, recursoId, nome });
 
   const storage = getObjectStorage();
-  const { url, headers } = await storage.presignPut(key, {
+  const { method, url, fields, headers } = await storage.presignPut(key, {
     contentType,
     maxBytes: MAX_DOCUMENTO_BYTES,
   });
@@ -71,11 +71,17 @@ export const POST = withApi(async (req: NextRequest, ctx) => {
     'presign emitido',
   );
 
+  // Envelope `{ data }` do withApi (issue #189).
   return NextResponse.json({
-    uploadUrl: url,
-    key,
-    requiredHeaders: headers,
-    /** Ref a guardar no campo `url` da action de registo (compat). */
-    urlRef: keyParaUrlRef(key),
+    data: {
+      uploadUrl: url,
+      /** PUT do ficheiro cru (local) ou POST multipart com política de tamanho (s3, #430). */
+      uploadMethod: method ?? 'PUT',
+      ...(fields ? { uploadFields: fields } : {}),
+      key,
+      requiredHeaders: headers,
+      /** Ref a guardar no campo `url` da action de registo (compat). */
+      urlRef: keyParaUrlRef(key),
+    },
   });
 });

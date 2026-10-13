@@ -19,10 +19,13 @@ import {
   KpiCard,
 } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
+import type { TipoCentroTrabalho } from '@prisma/client';
+import { opcoesDeEnum } from '@/lib/opcoes-enum';
 import { CapacidadeTable } from './_components/capacidade-table';
 import type { CentroRow } from './_components/capacidade-table';
 
 const FiltroUrlSchema = z.object({
+  q: z.string().optional(),
   tipo: z.string().optional(),
   ativo: z.string().optional(),
   cursor: z.string().optional(),
@@ -74,6 +77,14 @@ async function CapacidadeTableSection({
         tenantId,
         ...(filtros.tipo ? { tipo: filtros.tipo as never } : {}),
         ...(filtros.ativo !== undefined ? { ativo: filtros.ativo === 'true' } : {}),
+        ...(filtros.q
+          ? {
+              OR: [
+                { nome: { contains: filtros.q, mode: 'insensitive' as const } },
+                { codigo: { contains: filtros.q, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,
@@ -106,18 +117,15 @@ async function CapacidadeTableSection({
   return <CapacidadeTable data={data} nextCursor={nextCursor} />;
 }
 
+const ROTULOS_TIPO: Record<TipoCentroTrabalho, string> = {
+  MAQUINA: 'Máquina',
+  PESSOA: 'Pessoa',
+  CELULA: 'Célula',
+  LINHA: 'Linha',
+};
+
 const FILTER_CONFIG: FilterConfig[] = [
-  {
-    key: 'tipo',
-    label: 'Tipo',
-    options: [
-      { label: 'Produção', value: 'PRODUCAO' },
-      { label: 'Montagem', value: 'MONTAGEM' },
-      { label: 'Qualidade', value: 'QUALIDADE' },
-      { label: 'Armazém', value: 'ARMAZEM' },
-      { label: 'Outro', value: 'OUTRO' },
-    ],
-  },
+  { key: 'tipo', label: 'Tipo', options: opcoesDeEnum(ROTULOS_TIPO) },
   {
     key: 'ativo',
     label: 'Estado',
@@ -171,7 +179,7 @@ export default async function CapacidadePage({
         <CapacidadeKpis tenantId={tenantId} userId={userId} />
       </Suspense>
 
-      <FilterBar filters={FILTER_CONFIG} />
+      <FilterBar searchPlaceholder="Pesquisar por nome ou código…" filters={FILTER_CONFIG} />
 
       <Suspense
         key={JSON.stringify(filtros)}

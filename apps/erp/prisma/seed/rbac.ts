@@ -440,8 +440,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
   // FINANCEIRO — contabilidade, faturação, caixa + leituras gerais
   FINANCEIRO: allCodes().filter((code) => {
-    // Permissões sensíveis que o FINANCEIRO não tem: só ADMIN/roles específicos
-    if (['financas:periodo:reabrir', 'financas:exercicio:abrir'].includes(code)) return false;
+    // Reabrir período é só do ADMIN (decisão conservadora, #143). Abrir o exercício é do
+    // FINANCEIRO (#143): cai em `financas:` abaixo; a migração liga-a nos tenants existentes.
+    if (code === 'financas:periodo:reabrir') return false;
     // ADR-0035: encerrar, encerrar em definitivo e reabrir o exercício são só do ADMIN.
     if (['financas:exercicio:encerrar', 'financas:exercicio:encerrar-definitivo',
          'financas:exercicio:reabrir', 'financas:exercicio:aplicar-resultado'].includes(code)) return false;
@@ -475,6 +476,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     if (isReadOnly(code)) return true;
     // Inventário — #81: aprovar discrepância de contagem é de ADMIN/GESTOR.
     if (code === 'inventario:contagens:aprovar-discrepancia') return false;
+    // #124 — administrar o inventário é de ADMIN/GESTOR (a migração retira-o aos tenants existentes).
+    if (code === 'inventario:admin') return false;
     if (code.startsWith('inventario:')) return true;
     // Produção
     if (code.startsWith('producao:')) return true;
@@ -503,6 +506,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
          'rh:ausencias:create', 'rh:ferias:solicitar', 'rh:recrutamento:read'].includes(code)) return true;
     // Produtos/clientes/fornecedores (leitura já coberta acima)
     if (['produtos:write'].includes(code)) return true;
+    // #124 — registar e editar activos fixos é operacional (a amortização, `ativos:admin`, não).
+    if (code === 'ativos:write') return true;
     return false;
   }),
 
@@ -529,7 +534,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
       'faturacao:series:escrita',
       'rh:colaboradores:delete',
       'ativos:admin',
-      'inventario:admin',
     ];
     return !restricted.includes(code);
   }),

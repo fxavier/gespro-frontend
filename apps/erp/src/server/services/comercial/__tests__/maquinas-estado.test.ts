@@ -54,10 +54,14 @@ describe('TRANSICOES_VENDA', () => {
   });
 
   it('estados terminais têm array vazio', () => {
-    const terminais = ['CONCLUIDA', 'CANCELADA', 'DEVOLVIDA'] as const;
+    // #328: CONCLUIDA deixou de ser terminal NO MAPA — a anulação por nota de crédito (ADR-0041 §8)
+    // grava CONCLUIDA → CANCELADA, e é essa a sua única saída. A porta manual (`transitar`)
+    // continua a recusá-la (oráculo de integração transicoes-venda-328).
+    const terminais = ['CANCELADA', 'DEVOLVIDA'] as const;
     for (const t of terminais) {
       expect(TRANSICOES_VENDA[t]).toHaveLength(0);
     }
+    expect(TRANSICOES_VENDA.CONCLUIDA).toEqual(['CANCELADA']);
   });
 
   it('estados não-terminais têm pelo menos uma transição', () => {

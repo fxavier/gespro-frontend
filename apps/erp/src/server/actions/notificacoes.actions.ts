@@ -6,6 +6,8 @@
  * autenticado (ctx.tenantId + ctx.userId), sem guard de permissão adicional —
  * a autenticação (sessão válida) é suficiente para aceder às próprias notificações.
  * Não existem permissões "notificacoes:*" no catálogo RBAC; a isenção é intencional.
+ * Pelo mesmo motivo declaram `permiteEmLeitura: true` (#184): mexem no estado do próprio
+ * utilizador, não em dados do tenant — em modo Leitura continua a poder marcar como lida.
  *
  * A action emitirNotificacao foi removida: não tem consumidor na UI e o único
  * produtor (cron) chama o serviço diretamente — manter a action aumentava a
@@ -21,6 +23,7 @@ import { MarcarLidaSchema, ActualizarPreferenciaSchema } from '@/lib/validations
 
 export const marcarNotificacaoLida = createSafeAction({
   schema: MarcarLidaSchema,
+  permiteEmLeitura: true,
   revalidate: { tags: ['notificacoes'] },
   handler: async ({ id }, ctx) => {
     await notificacaoService.marcarLida(id, ctx);
@@ -33,6 +36,7 @@ export const marcarNotificacaoLida = createSafeAction({
 // ---------------------------------------------------------------------------
 
 export const marcarTodasNotificacoesLidas = createSafeAction({
+  permiteEmLeitura: true,
   revalidate: { tags: ['notificacoes'] },
   handler: async (_input, ctx) => notificacaoService.marcarTodasLidas(ctx),
 });
@@ -43,6 +47,7 @@ export const marcarTodasNotificacoesLidas = createSafeAction({
 
 export const actualizarPreferenciaNotificacao = createSafeAction({
   schema: ActualizarPreferenciaSchema,
+  permiteEmLeitura: true,
   revalidate: { tags: ['notificacoes', 'preferencias-notificacoes'] },
   handler: async ({ tipo, canais }, ctx) => {
     await notificacaoService.actualizarPreferencia(tipo, canais, ctx);

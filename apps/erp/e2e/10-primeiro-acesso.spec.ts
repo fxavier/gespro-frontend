@@ -90,7 +90,10 @@ test('convite por e-mail continua a ser o caminho por omissão', async ({ page }
   await page.waitForURL(/\/core-tenancy\/utilizadores$/, { timeout: 60_000 });
   await expect(page.getByRole('heading', { name: 'Utilizador criado' })).toHaveCount(0);
 
-  // Repor gera uma provisória e volta a exigir a mudança — o mesmo caminho.
+  // #185: repor gera uma provisória, mas o convite continua por concluir
+  // (`VERIFY_EMAIL` pendente). O ecrã «Defina a sua palavra-passe» não o
+  // resolve — mudar a palavra-passe deixava o `VERIFY_EMAIL` e o login voltava
+  // a recusar, em ciclo. O login tem de dizer que é o convite que falta.
   await page.getByRole('row', { name: new RegExp(email) }).click();
   await page.waitForURL(/\/core-tenancy\/utilizadores\/[a-z0-9]+$/, { timeout: 60_000 });
   await page.getByRole('button', { name: /Repor palavra-passe/ }).click();
@@ -105,5 +108,9 @@ test('convite por e-mail continua a ser o caminho por omissão', async ({ page }
   await page.locator('#identificador').fill(email);
   await page.locator('#palavraPasse').fill(provisoria);
   await page.locator('button[type=submit]').click();
-  await page.waitForURL(/\/auth\/mudar-palavra-passe/, { timeout: 60_000 });
+  await expect(page.locator(alerta)).toContainText(/convite/i, { timeout: 60_000 });
+  // Mensagem própria: não é «dados errados» — a palavra-passe estava certa.
+  await expect(page.locator(alerta)).not.toContainText(/incorrect/i);
+  await expect(page).toHaveURL(/\/auth\/login/);
+  await expect(page).not.toHaveURL(/\/auth\/mudar-palavra-passe/);
 });

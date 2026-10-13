@@ -269,18 +269,43 @@ export async function verificarDisponibilidade(
   };
 }
 
-export async function obterAlertasStockMinimo(ctx: Ctx): Promise<SaldoStockDto[]> {
-  // Produtos com saldo total < stockMinimo
+export async function obterAlertasStockMinimo(ctx: Ctx): Promise<SaldoStockComDetalheDto[]> {
+  // Um alerta por produto: saldo TOTAL (todas as localizações) < stockMinimo. O ecrã
+  // mostra nomes (#126), por isso o produto e as localizações vêm no mesmo passo.
   const produtos = await prisma.produto.findMany({
-    where: { deletedAt: null },
-    select: { id: true, stockMinimo: true },
+    where: { tenantId: ctx.tenantId, deletedAt: null },
+    select: { id: true, sku: true, nome: true, unidadeMedida: true, stockMinimo: true },
   });
-  const resultados: SaldoStockDto[] = [];
+  const saldos = await prisma.saldoStock.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      varianteProdutoId: VARIANTE_SEM,
+      produtoId: { in: produtos.map((p) => p.id) },
+    },
+    select: { produtoId: true, saldo: true, localizacao: { select: { nome: true } } },
+  });
+  const porProduto = new Map<string, typeof saldos>();
+  for (const s of saldos) {
+    const lista = porProduto.get(s.produtoId) ?? [];
+    lista.push(s);
+    porProduto.set(s.produtoId, lista);
+  }
+  const resultados: SaldoStockComDetalheDto[] = [];
   for (const p of produtos) {
     const total = await obterSaldoTotal(p.id, ctx);
-    if (new Prisma.Decimal(total.saldo).lessThan(p.stockMinimo)) {
-      resultados.push(total);
-    }
+    if (!new Prisma.Decimal(total.saldo).lessThan(p.stockMinimo)) continue;
+    const comStock = (porProduto.get(p.id) ?? []).filter((s) => !s.saldo.isZero());
+    const nomeLocalizacao =
+      comStock.length === 1
+        ? comStock[0].localizacao.nome
+        : comStock.length === 0
+          ? 'Sem stock'
+          : 'Várias localizações';
+    resultados.push({
+      ...total,
+      produto: { codigo: p.sku, nome: p.nome, unidade: p.unidadeMedida },
+      localizacao: { nome: nomeLocalizacao },
+    });
   }
   return resultados;
 }
@@ -317,6 +342,11 @@ function mapMov(m: {
   };
 }
 
+/** KPI (#104): todos os movimentos de stock do tenant — o universo de `listarMovimentos` sem filtros. */
+export async function contarMovimentos(_filter: Record<string, never>, ctx: Ctx): Promise<number> {
+  return prisma.movimentoStock.count({ where: { tenantId: ctx.tenantId } });
+}
+
 export async function listarMovimentos(
   filter: MovimentoStockFilter,
   ctx: Ctx,
@@ -328,7 +358,32 @@ export async function listarMovimentos(
         where: {
           ...(filter.produtoId ? { produtoId: filter.produtoId } : {}),
           ...(filter.localizacaoId ? { OR: [{ localizacaoOrigemId: filter.localizacaoId }, { localizacaoDestinoId: filter.localizacaoId }] } : {}),
-          ...(filter.tipo ? { tipo: filter.tipo as never } : {}),
+          ...(filter.tipo === 'TRANSFERENCIA'
+            ? { tipo: { in: ['TRANSFERENCIA_ENTRADA', 'TRANSFERENCIA_SAIDA'] as const } }
+            : filter.tipo ? { tipo: filter.tipo } : {}),
+          // Em `produto` (relação), não num segundo `OR` de topo, que apagaria o da localização.
+          ...(filter.search ? {
+            produto: {
+              OR: [
+                { nome: { contains: filter.search, mode: 'insensitive' as const } },
+                { sku: { contains: filter.search, mode: 'insensitive' as const } },
+              ],
+            },
+          } : {}),
+          // Em AND: o filtro de localização já ocupa o `OR` do topo.
+          ...(filter.q
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { produto: { nome: { contains: filter.q, mode: 'insensitive' as const } } },
+                      { produto: { sku: { contains: filter.q, mode: 'insensitive' as const } } },
+                      { motivo: { contains: filter.q, mode: 'insensitive' as const } },
+                    ],
+                  },
+                ],
+              }
+            : {}),
           ...(filter.dataInicio || filter.dataFim ? {
             createdAt: {
               ...(filter.dataInicio ? { gte: filter.dataInicio } : {}),
@@ -683,7 +738,7 @@ export async function confirmarConsumoStock(
     select: { id: true, status: true, produtoId: true, varianteProdutoId: true, localizacaoId: true, quantidade: true, documentoReferenciaId: true, documentoReferenciaTipo: true },
   });
   if (!reserva) throw new NotFoundError('Reserva de stock não encontrada');
-  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'CONSUMIDA' as never, 'ReservaStock');
+  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'CONSUMIDA' as never, 'reserva de stock');
 
   const qtd = new Prisma.Decimal(reserva.quantidade.toString());
 
@@ -723,7 +778,7 @@ export async function libertarStock(
     select: { id: true, status: true, produtoId: true, varianteProdutoId: true, localizacaoId: true, quantidade: true },
   });
   if (!reserva) throw new NotFoundError('Reserva de stock não encontrada');
-  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'LIBERADA' as never, 'ReservaStock');
+  transitar(TRANSICOES_RESERVA_STOCK as never, reserva.status as never, 'LIBERADA' as never, 'reserva de stock');
 
   const qtd = new Prisma.Decimal(reserva.quantidade.toString());
 
@@ -765,6 +820,7 @@ export const stockService: IStockService = {
   verificarDisponibilidade,
   obterAlertasStockMinimo,
   listarMovimentos,
+  contarMovimentos,
   registarTransferencia,
   entradaStock,
   baixarStock,

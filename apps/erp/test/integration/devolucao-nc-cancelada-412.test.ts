@@ -49,7 +49,6 @@ describe.skipIf(skip)('#412 — devolução: NC reutilizada verificada em todos 
   let produtoA: string;
   let localizacaoId: string;
   let op: Operador;
-  let serieNCId: string;
 
   async function capturarErro(fn: () => Promise<unknown>): Promise<any> {
     try {
@@ -145,7 +144,7 @@ describe.skipIf(skip)('#412 — devolução: NC reutilizada verificada em todos 
 
   function processar(devolucaoId: string, opcoes: { sessaoCaixaId?: string } = {}) {
     return runCtx(op.ctx, () =>
-      comercial.devolucaoService.processar(devolucaoId, op.ctx, { localizacaoId, serieNotaCreditoId: serieNCId, ...opcoes }),
+      comercial.devolucaoService.processar(devolucaoId, op.ctx, { localizacaoId, ...opcoes }),
     );
   }
 
@@ -213,7 +212,6 @@ describe.skipIf(skip)('#412 — devolução: NC reutilizada verificada em todos 
 
     const serieNC = await db.serieDocumento.findFirst({ where: { tenantId: TENANT, tipo: 'NOTA_CREDITO', ativo: true } });
     expect(serieNC, 'série NOTA_CREDITO activa no bootstrap').not.toBeNull();
-    serieNCId = serieNC.id;
 
     op = await novoOperador();
   });

@@ -32,7 +32,7 @@ const FiltroUrlSchema = FiltroNotificacoesSchema.extend({
     .transform((v) => v === 'true'),
 });
 
-const FILTROS_DEFAULT = { take: 20, apenasNaoLidas: false as const };
+const FILTROS_DEFAULT: z.infer<typeof FiltroUrlSchema> = { take: 20, apenasNaoLidas: false };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Secção de lista (assíncrona — Suspense)
@@ -52,6 +52,7 @@ async function NotificacoesSection({
       {
         apenasNaoLidas: filtros.apenasNaoLidas,
         tipo: filtros.tipo,
+        q: filtros.q,
         cursor: filtros.cursor,
         take: filtros.take,
       },

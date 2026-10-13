@@ -191,6 +191,7 @@ export interface IServicoService {
   // ---- Categorias ----
   criarCategoria(input: CreateCategoriaServicoInput, ctx: Ctx): Promise<CategoriaServicoDto>;
   listarCategorias(ctx: Ctx): Promise<CategoriaServicoDto[]>;
+  obterCategoria(id: string, ctx: Ctx): Promise<CategoriaServicoDto>;
   actualizarCategoria(
     id: string,
     input: z.infer<typeof UpdateCategoriaServicoSchema>,
@@ -265,6 +266,7 @@ export interface IServicoService {
   ): Promise<PaginatedResult<ContratoServicoDto>>;
   /** Renovar contrato com nova dataFim (baseada em periodicidade). */
   renovarContrato(id: string, ctx: Ctx): Promise<ContratoServicoDto>;
+  obterContrato(id: string, ctx: Ctx): Promise<ContratoServicoDto>;
   /** Contratos a expirar nos próximos N dias. */
   contratosAExpirar(diasAntecedencia: number, ctx: Ctx): Promise<ContratoServicoDto[]>;
 }

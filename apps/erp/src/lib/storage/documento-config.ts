@@ -50,8 +50,7 @@ export const RECURSOS_SO_SERVIDOR: readonly RecursoDocumento[] = ['encerramento'
 
 /**
  * Mapa recurso → permissão de escrita do recurso (ver `prisma/seed/rbac.ts`).
- * Usada tanto no presign (autorizar o upload) como no download (autorizar o
- * acesso ao ficheiro) — um documento é tão sensível como o recurso que descreve.
+ * Autoriza o upload (presign + PUT local). O download usa a de LEITURA (#193).
  */
 export const PERMISSAO_ESCRITA_POR_RECURSO: Record<RecursoDocumento, string> = {
   fornecedor: 'fornecedores:editar',
@@ -59,6 +58,21 @@ export const PERMISSAO_ESCRITA_POR_RECURSO: Record<RecursoDocumento, string> = {
   viatura: 'transporte:viatura:documentos',
   motorista: 'transporte:motorista:documentos',
   colaborador: 'rh:colaboradores:update',
+  // Ler os PDF arquivados do encerramento é exportar mapas contabilísticos.
+  encerramento: 'financas:exportar',
+};
+
+/**
+ * Mapa recurso → permissão de LEITURA do recurso (#193), a mesma que as Server Actions de
+ * consulta de cada recurso declaram. Autoriza o download: um documento é tão sensível como o
+ * recurso que descreve, e quem consulta o recurso consulta os seus documentos.
+ */
+export const PERMISSAO_LEITURA_POR_RECURSO: Record<RecursoDocumento, string> = {
+  fornecedor: 'fornecedores:ver',
+  ativo: 'ativos:read',
+  viatura: 'transporte:viatura:listar',
+  motorista: 'transporte:motorista:listar',
+  colaborador: 'rh:colaboradores:read',
   // Ler os PDF arquivados do encerramento é exportar mapas contabilísticos.
   encerramento: 'financas:exportar',
 };

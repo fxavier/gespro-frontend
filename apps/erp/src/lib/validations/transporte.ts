@@ -260,6 +260,8 @@ export const AtualizarDisponibilidadeMotoristaSchema = z.object({
 });
 
 export const FiltrarMotoristasSchema = z.object({
+  /** Pesquisa de texto da `FilterBar` (#106): parcial, sem distinção de maiúsculas. */
+  q: z.string().optional(),
   estadoOperacional: EstadoOperacionalMotoristaEnum.optional(),
   disponivel: z.boolean().optional(),
   cursor: z.string().optional(),
@@ -329,6 +331,8 @@ export const TransitarAtividadeSchema = z.object({
 });
 
 export const FiltrarAtividadesSchema = z.object({
+  /** Pesquisa de texto da `FilterBar` (#106): parcial, sem distinção de maiúsculas. */
+  q: z.string().optional(),
   estado: EstadoAtividadeEnum.optional(),
   tipoActividade: TipoActividadeEnum.optional(),
   prioridade: PrioridadeAtividadeEnum.optional(),
@@ -375,6 +379,8 @@ export const TransitarRotaSchema = z.object({
 });
 
 export const FiltrarRotasSchema = z.object({
+  /** Pesquisa de texto da `FilterBar` (#106): parcial, sem distinção de maiúsculas. */
+  q: z.string().optional(),
   estado: EstadoRotaEnum.optional(),
   viaturaId: z.string().cuid().optional(),
   motoristaId: z.string().cuid().optional(),
@@ -443,6 +449,8 @@ export const RegistarProvaEntregaSchema = z.object({
 });
 
 export const FiltrarEntregasSchema = z.object({
+  /** Pesquisa de texto da `FilterBar` (#106): parcial, sem distinção de maiúsculas. */
+  q: z.string().optional(),
   estado: EstadoEntregaEnum.optional(),
   prioridade: PrioridadeEntregaEnum.optional(),
   clienteId: z.string().optional(),
@@ -490,6 +498,8 @@ export const RegistarAbastecimentoSchema = z.object({
 );
 
 export const FiltrarAbastecimentosSchema = z.object({
+  /** Pesquisa de texto da `FilterBar` (#106): parcial, sem distinção de maiúsculas. */
+  q: z.string().optional(),
   viaturaId: z.string().cuid().optional(),
   motoristaId: z.string().cuid().optional(),
   tipoCombustivel: TipoCombustivelEnum.optional(),

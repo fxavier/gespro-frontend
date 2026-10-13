@@ -305,6 +305,35 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   PENDING: 'warning',
   VALIDATED: 'success',
   PROVISORIO: 'warning',
+
+  // #103 — valores de enums Prisma que apareciam em bruto
+  PREFERENCIAL: 'success',          // ClassificacaoFornecedor
+  RECUSADA: 'destructive',          // StatusCotacaoFornecedor
+  COMPLETO: 'success',              // StatusRecebimento
+  PARCIAL: 'warning',
+  COM_DIVERGENCIA: 'destructive',
+  AJUSTE: 'secondary',              // TipoMovimentoStock (ENTRADA/SAIDA já acima)
+  TRANSFERENCIA_ENTRADA: 'info',
+  TRANSFERENCIA_SAIDA: 'warning',
+  CONSUMIDA: 'secondary',           // StatusReservaStock
+  EM_USO: 'success',                // EstadoAtivo
+  OBSOLETO: 'secondary',
+  BAIXADO: 'outline',
+  EM_TRANSFERENCIA: 'info',
+  ORCAMENTO: 'secondary',           // StatusManutencaoAtivo
+  AGENDADO: 'info',                 // StatusInventarioFisico (PLANEJADO já acima)
+  VALIDO: 'success',                // EstadoDocumento
+  PROXIMO_EXPIRAR: 'warning',
+  OK: 'success',                    // EstadoItemChecklist
+  AVARIA: 'destructive',
+  FALTA: 'warning',
+  PUBLICADO: 'success',             // EstadoBaseConhecimento
+  INATIVA: 'secondary',             // EstadoEquipeSuporte / StatusEquipa
+  OCUPADO: 'warning',               // EstadoMembroEquipeSuporte
+  OFFLINE: 'secondary',
+  LICENCA: 'warning',               // StatusMembroEquipa (FERIAS já acima)
+  ALTO: 'warning',                  // ComplexidadeBOM / ImpactoRisco (MEDIO, MUITO_ALTO já acima)
+  BAIXO: 'outline',                 // como BAIXA
 };
 
 const badgeVariants = cva(
@@ -514,7 +543,10 @@ export const STATUS_LABELS: Record<string, string> = {
   // Assinatura SaaS — Spec 19
   TRIAL: 'Período de Teste',
   LEITURA: 'Modo de Leitura',
-  FECHADA: 'Acesso Fechado',
+  // #102 — FECHADA é também o estado final da sessão de caixa, da sessão POS,
+  // da vaga e da qualidade: etiqueta neutra. A subscrição tem o seu próprio
+  // aviso; quem precisar de outro texto passa `label`, nunca um mapa local.
+  FECHADA: 'Fechada',
   EXPIRADO: 'Expirado',
   MENSAL: 'Mensal',
   ANUAL: 'Anual',
@@ -534,6 +566,40 @@ export const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Por validar',
   VALIDATED: 'Validado',
   PROVISORIO: 'Provisório',
+
+  // #103 — valores de enums Prisma que apareciam em bruto
+  PREFERENCIAL: 'Preferencial',
+  RECUSADA: 'Recusada',
+  COMPLETO: 'Completo',
+  PARCIAL: 'Parcial',
+  COM_DIVERGENCIA: 'Com Divergência',
+  AJUSTE: 'Ajuste',
+  TRANSFERENCIA_ENTRADA: 'Transferência de Entrada',
+  TRANSFERENCIA_SAIDA: 'Transferência de Saída',
+  CONSUMIDA: 'Consumida',
+  EM_USO: 'Em Uso',
+  OBSOLETO: 'Obsoleto',
+  BAIXADO: 'Abatido',
+  EM_TRANSFERENCIA: 'Em Transferência',
+  ORCAMENTO: 'Orçamento',
+  PLANEJADO: 'Planeado',
+  AGENDADO: 'Agendado',
+  VALIDO: 'Válido',
+  PROXIMO_EXPIRAR: 'A Expirar',
+  OK: 'Conforme',
+  AVARIA: 'Avaria',
+  FALTA: 'Em Falta',
+  ACTIVO: 'Activo',
+  FERIAS: 'Férias',
+  AFASTADO: 'Afastado',
+  LICENCA: 'Licença',
+  EM_PRODUCAO: 'Em Produção',
+  PUBLICADO: 'Publicado',
+  INATIVA: 'Inactiva',
+  OCUPADO: 'Ocupado',
+  OFFLINE: 'Offline',
+  ALTO: 'Alto',
+  BAIXO: 'Baixo',
 };
 
 interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {

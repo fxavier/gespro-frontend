@@ -3,6 +3,9 @@ import { withApi } from '@/lib/api/with-api';
 import { buildCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
 import { catalogoPublico } from '@/lib/planos';
 
+/** Endpoint público e só de leitura: sem POST, sem credenciais — GET e preflight iguais (#197). */
+const CORS_PLANOS = { methods: 'GET, OPTIONS', credentials: false } as const;
+
 /**
  * GET /api/publico/planos — catálogo de planos (público, sem sessão).
  *
@@ -16,7 +19,7 @@ import { catalogoPublico } from '@/lib/planos';
  */
 export const GET = withApi(
   async (req: NextRequest) => {
-    const cors = buildCorsHeaders(req, { methods: 'GET, OPTIONS', credentials: false });
+    const cors = buildCorsHeaders(req, CORS_PLANOS);
     return NextResponse.json(
       { data: catalogoPublico() },
       {
@@ -31,5 +34,5 @@ export const GET = withApi(
 );
 
 export function OPTIONS(req: NextRequest): Response {
-  return corsPreflightResponse(req);
+  return corsPreflightResponse(req, CORS_PLANOS);
 }

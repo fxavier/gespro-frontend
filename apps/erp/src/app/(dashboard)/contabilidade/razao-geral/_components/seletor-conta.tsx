@@ -6,6 +6,9 @@
  * Dois modos seleccionáveis por radio:
  *   «Por datas»:    contaId + dataInicio + dataFim
  *   «Por períodos»: contaId + exercicio (código) + de + ate [+ p13=1]
+ *                   — o mesmo URL do drill-down do balancete (`hrefRazaoPeriodos`)
+ *                   e os mesmos controlos (`opcoesPeriodo`, `normalizarIntervaloPeriodos`;
+ *                   issue #343).
  *
  * O estado reflecte os parâmetros do URL (padrão React «ajustar estado quando
  * uma prop muda»: guarda a chave anterior em estado e repõe quando difere) —
@@ -21,7 +24,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Combobox, type ComboboxOption } from '@/components/patterns';
+import {
+  hrefRazaoPeriodos,
+  normalizarIntervaloPeriodos,
+  opcoesPeriodo,
+} from '@/lib/balancete-params';
 
 type Modo = 'datas' | 'periodos';
 
@@ -65,8 +80,8 @@ export function SeletorConta({
   const [dataFim, setDataFim] = useState(dataFimProp);
   // Períodos
   const [exercicio, setExercicio] = useState(exercicioProp || exercicioOmissao);
-  const [periodoInicial, setPeriodoInicial] = useState(String(periodoInicialProp));
-  const [periodoFinal, setPeriodoFinal] = useState(String(periodoFinalProp));
+  const [periodoInicial, setPeriodoInicial] = useState(periodoInicialProp);
+  const [periodoFinal, setPeriodoFinal] = useState(periodoFinalProp);
   const [incluir13, setIncluir13] = useState(incluir13Prop);
 
   // ── Sincronização de URL → estado (padrão «ajustar estado quando prop muda») ──
@@ -79,26 +94,31 @@ export function SeletorConta({
     setDataInicio(dataInicioProp);
     setDataFim(dataFimProp);
     setExercicio(exercicioProp || exercicioOmissao);
-    setPeriodoInicial(String(periodoInicialProp));
-    setPeriodoFinal(String(periodoFinalProp));
+    setPeriodoInicial(periodoInicialProp);
+    setPeriodoFinal(periodoFinalProp);
     setIncluir13(incluir13Prop);
   }
 
+  const opcoesPer = opcoesPeriodo(incluir13);
+  const labelInicial = opcoesPer.find((o) => o.value === String(periodoInicial))?.label ?? '';
+  const labelFinal = opcoesPer.find((o) => o.value === String(periodoFinal))?.label ?? '';
+
   // ── Submissão ─────────────────────────────────────────────────────────────
   const consultar = () => {
+    if (modo === 'periodos') {
+      router.push(
+        hrefRazaoPeriodos(
+          conta,
+          exercicio,
+          normalizarIntervaloPeriodos({ periodoInicial, periodoFinal, incluir13 }),
+        ),
+      );
+      return;
+    }
     const params = new URLSearchParams();
     params.set('contaId', conta);
-
-    if (modo === 'periodos') {
-      params.set('exercicio', exercicio);
-      params.set('de', periodoInicial);
-      params.set('ate', periodoFinal);
-      if (incluir13) params.set('p13', '1');
-    } else {
-      params.set('dataInicio', dataInicio);
-      params.set('dataFim', dataFim);
-    }
-
+    params.set('dataInicio', dataInicio);
+    params.set('dataFim', dataFim);
     router.push(`/contabilidade/razao-geral?${params.toString()}`);
   };
 
@@ -188,49 +208,64 @@ export function SeletorConta({
           <div className="grid gap-3 sm:grid-cols-4">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="razao-exercicio">Exercício</Label>
-              <select
-                id="razao-exercicio"
-                value={exercicio}
-                onChange={(e) => setExercicio(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                {exercicios.map((e) => (
-                  <option key={e.codigo} value={e.codigo}>
-                    {e.codigo}
-                  </option>
-                ))}
-              </select>
+              <Select value={exercicio} onValueChange={setExercicio}>
+                <SelectTrigger id="razao-exercicio">
+                  <SelectValue placeholder="Exercício">{exercicio}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {exercicios.map((e) => (
+                    <SelectItem key={e.codigo} value={e.codigo}>
+                      {e.codigo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="razao-periodo-inicial">Do período</Label>
-              <Input
-                id="razao-periodo-inicial"
-                type="number"
-                min={1}
-                max={13}
-                value={periodoInicial}
-                onChange={(e) => setPeriodoInicial(e.target.value)}
-              />
+              <Select value={String(periodoInicial)} onValueChange={(v) => setPeriodoInicial(Number(v))}>
+                <SelectTrigger id="razao-periodo-inicial">
+                  <SelectValue placeholder="Do período">{labelInicial}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {opcoesPer.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="razao-periodo-final">Ao período</Label>
-              <Input
-                id="razao-periodo-final"
-                type="number"
-                min={1}
-                max={13}
-                value={periodoFinal}
-                onChange={(e) => setPeriodoFinal(e.target.value)}
-              />
+              <Select value={String(periodoFinal)} onValueChange={(v) => setPeriodoFinal(Number(v))}>
+                <SelectTrigger id="razao-periodo-final">
+                  <SelectValue placeholder="Ao período">{labelFinal}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {opcoesPer.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="sm:col-span-4 flex items-center gap-2 pt-1">
               <Checkbox
                 id="razao-incluir13"
                 checked={incluir13}
-                onCheckedChange={(v) => setIncluir13(v === true)}
+                onCheckedChange={(v) => {
+                  const novo = v === true;
+                  setIncluir13(novo);
+                  // Sem p13 o 13 deixa de existir: corta à vista, não em silêncio no servidor.
+                  const n = normalizarIntervaloPeriodos({ periodoInicial, periodoFinal, incluir13: novo });
+                  setPeriodoInicial(n.periodoInicial);
+                  setPeriodoFinal(n.periodoFinal);
+                }}
               />
               <Label htmlFor="razao-incluir13" className="cursor-pointer">
                 Incluir período 13

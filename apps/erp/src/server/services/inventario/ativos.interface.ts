@@ -160,6 +160,9 @@ export interface IAtivoService {
   // Ativos
   listarAtivos(filter: AtivoFilter, ctx: Ctx): Promise<PaginatedResult<AtivoDto>>;
 
+  /** Conta activos não apagados (opcionalmente por estado) — KPIs do dashboard (#104). */
+  contarAtivos(filter: { estado?: AtivoFilter['estado'] }, ctx: Ctx): Promise<number>;
+
   obterAtivo(id: string, ctx: Ctx): Promise<AtivoDto>;
 
   obterAtivoPorCodigo(codigoInterno: string, ctx: Ctx): Promise<AtivoDto>;

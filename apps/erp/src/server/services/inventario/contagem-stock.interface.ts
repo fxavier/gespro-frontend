@@ -140,6 +140,9 @@ export interface IContagemStockService {
    */
   listar(filter: FilterContagem, ctx: Ctx): Promise<PaginatedResult<ContagemStockDto>>;
 
+  /** Conta contagens do tenant (opcionalmente por estado) — KPIs da listagem (#104). */
+  contar(filter: { status?: FilterContagem['status'] }, ctx: Ctx): Promise<number>;
+
   /**
    * Obtém detalhe completo de uma contagem com itens.
    */

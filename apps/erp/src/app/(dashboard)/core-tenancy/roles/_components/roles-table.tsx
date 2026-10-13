@@ -19,6 +19,7 @@ import {
 import { DataTable, EmptyState } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
 import type { RoleRow } from '@/server/services/plataforma/user-admin.interface';
+import { formatarData } from '@/lib/format-date';
 import { RoleAcoes } from './role-acoes';
 
 const columns: TableColumn<RoleRow>[] = [
@@ -58,11 +59,7 @@ const columns: TableColumn<RoleRow>[] = [
     mobileHidden: true,
     render: (row) => (
       <span className="text-xs text-muted-foreground tabular-nums">
-        {new Date(row.createdAt).toLocaleDateString('pt-MZ', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })}
+        {formatarData(row.createdAt)}
       </span>
     ),
   },
@@ -120,6 +117,7 @@ export function RolesTable({ data }: RolesTableProps) {
     <DataTable
       data={tableData}
       columns={columns as TableColumn<typeof tableData[0]>[]}
+      rowHref={(row) => `/core-tenancy/roles/${row.id}`}
       emptyState={
         <EmptyState
           title="Sem papéis configurados"

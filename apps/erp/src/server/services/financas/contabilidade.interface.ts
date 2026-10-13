@@ -1,4 +1,5 @@
 import 'server-only'; // A5: serviços são server-only
+import { BusinessRuleError } from '@/lib/errors';
 import type { Prisma, AplicacaoResultado as AplicacaoResultadoModelo } from '@prisma/client';
 import type {
   CriarContaPGCInput,
@@ -247,11 +248,11 @@ export function transitarLancamento(
 ): void {
   const permitidas = TRANSICOES_LANCAMENTO[actual];
   if (!permitidas.includes(alvo)) {
-    const err = new Error(
-      `Transição inválida: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
+    throw new BusinessRuleError(
+      'TRANSICAO_INVALIDA',
+      `Transição inválida de lançamento: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
+      { estadoActual: actual, estadoAlvo: alvo, permitidas },
     );
-    Object.assign(err, { code: 'TRANSICAO_INVALIDA', status: 409 });
-    throw err;
   }
 }
 
@@ -549,6 +550,7 @@ export interface IContabilidadeService {
   criarConta(input: CriarContaPGCInput, ctx: Ctx): Promise<ContaPGC>;
   atualizarConta(input: AtualizarContaPGCInput, ctx: Ctx): Promise<ContaPGC>;
   desativarConta(id: string, ctx: Ctx): Promise<ContaPGC>;
+  reativarConta(id: string, ctx: Ctx): Promise<ContaPGC>;
   obterConta(id: string, ctx: Ctx): Promise<ContaPGC | null>;
   listarContas(
     filtro: FiltroContaPGCInput,

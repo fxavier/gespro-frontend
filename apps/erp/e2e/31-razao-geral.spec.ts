@@ -16,6 +16,9 @@
  * 10.   Invariante: saldo final do razão de 121 (de=1&ate=6) = saldo devedor do balancete.
  * 11.   Invariante Σ D/C: total débito e crédito do razão = movimento D/C do balancete.
  *
+ * #343 (verificador): testes 3, 7, 8 e 13 adaptados ao ui/Select — `toHaveValue`/`fill`
+ * passaram a rótulo mostrado e escolha de opção; nenhuma asserção removida.
+ *
  * Regras de casa: sem sleeps arbitrários; networkidle antes de ler valores;
  * expect com auto-retry; só leitura da base.
  */
@@ -137,7 +140,10 @@ test('3. submeter «Por períodos» escreve exercicio/de/ate no URL sem dataInic
 
   // Modo períodos deve estar activo; alterar «Ao período» e re-submeter
   await expect(page.getByRole('radio', { name: 'Por períodos' })).toBeChecked();
-  await page.getByLabel('Ao período').fill('6');
+  // #343: «Ao período» é um ui/Select com as opções do balancete (antes: Input type=number).
+  await page.getByRole('combobox', { name: 'Ao período' }).click();
+  await page.getByRole('option', { name: '06 — Junho', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Ao período' })).toContainText('06 — Junho');
   await page.getByRole('button', { name: 'Consultar' }).click();
   await aguardar(page);
 
@@ -208,9 +214,10 @@ test('7. URL ?exercicio=2026&de=3&ate=5 → modo «Por períodos» activo, campo
   await aguardar(page);
 
   await expect(page.getByRole('radio', { name: 'Por períodos' })).toBeChecked();
-  await expect(page.getByLabel('Exercício')).toHaveValue(EXERCICIO);
-  await expect(page.getByLabel('Do período')).toHaveValue('3');
-  await expect(page.getByLabel('Ao período')).toHaveValue('5');
+  // #343: os três são ui/Select (role combobox) — o valor lê-se pelo rótulo mostrado.
+  await expect(page.getByRole('combobox', { name: 'Exercício' })).toContainText(EXERCICIO);
+  await expect(page.getByRole('combobox', { name: 'Do período' })).toContainText('03 — Março');
+  await expect(page.getByRole('combobox', { name: 'Ao período' })).toContainText('05 — Maio');
   // Sem p13 no URL → checkbox inactivo
   await expect(page.getByRole('checkbox', { name: 'Incluir período 13' })).not.toBeChecked();
 });
@@ -228,8 +235,9 @@ test('8. URL ?exercicio=2026&de=12&ate=13&p13=1 → checkbox «Incluir período 
 
   await expect(page.getByRole('radio', { name: 'Por períodos' })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Incluir período 13' })).toBeChecked();
-  await expect(page.getByLabel('Do período')).toHaveValue('12');
-  await expect(page.getByLabel('Ao período')).toHaveValue('13');
+  // #343: ui/Select — rótulos do balancete.
+  await expect(page.getByRole('combobox', { name: 'Do período' })).toContainText('12 — Dezembro');
+  await expect(page.getByRole('combobox', { name: 'Ao período' })).toContainText('13 — Encerramento');
 });
 
 // ---------------------------------------------------------------------------
@@ -407,8 +415,9 @@ test('13. exercicio=1999 (inexistente): razao-intervalo não contém «1999»; a
 
   // O campo «Exercício» no seletor mostra o exercício realmente usado (não «1999»)
   // «1999» não existe na lista → nunca pode aparecer como valor seleccionado
-  const exField = page.getByLabel('Exercício');
+  const exField = page.getByRole('combobox', { name: 'Exercício' });
   await expect(exField).toBeVisible();
+  await expect(exField).not.toContainText('1999');
 
   // Aviso visível que menciona o código pedido «1999» como não encontrado
   // (texto tipo: «Exercício 1999 não encontrado»)

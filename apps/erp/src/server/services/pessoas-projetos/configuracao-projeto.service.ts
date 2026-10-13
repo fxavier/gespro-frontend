@@ -11,7 +11,6 @@ import type { UpdateConfiguracaoProjetoInput } from '@/lib/validations/projetos'
 const DEFAULTS = {
   politicaAprovacaoTimesheet: 'MANUAL',
   tiposTarefaAtivos: ['TAREFA', 'BUG', 'MELHORIA', 'DOCUMENTACAO', 'TESTE'],
-  papeisEquipaAtivos: ['GERENTE', 'LIDER', 'DESENVOLVEDOR', 'DESIGNER', 'ANALISTA', 'TESTER', 'OUTRO'],
 };
 
 export const ConfiguracaoProjetoService = {
@@ -58,13 +57,14 @@ export const ConfiguracaoProjetoService = {
         projetoId: input.projetoId,
         politicaAprovacaoTimesheet: input.politicaAprovacaoTimesheet,
         tiposTarefaAtivos: input.tiposTarefaAtivos as string[],
-        papeisEquipaAtivos: input.papeisEquipaAtivos as string[],
+        // #168: papéis de equipa saíram da configuração (vivem em `MembroEquipa`, de uma
+        // `Equipa` partilhável) — a coluna fica, sem escolha nenhuma.
+        papeisEquipaAtivos: [],
         observacoes: input.observacoes,
       },
       update: {
         politicaAprovacaoTimesheet: input.politicaAprovacaoTimesheet,
         tiposTarefaAtivos: input.tiposTarefaAtivos as string[],
-        papeisEquipaAtivos: input.papeisEquipaAtivos as string[],
         observacoes: input.observacoes,
       },
     });
@@ -86,7 +86,6 @@ export const ConfiguracaoProjetoService = {
           select: {
             politicaAprovacaoTimesheet: true,
             tiposTarefaAtivos: true,
-            papeisEquipaAtivos: true,
           },
         },
       },

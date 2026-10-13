@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   ativoFindFirst: vi.fn(),
   viaturaFindFirst: vi.fn(),
   motoristaFindFirst: vi.fn(),
+  // #163: `colaborador` passa a ter buscador; a procura sem `?recurso` também o consulta.
+  colaboradorFindFirst: vi.fn(),
 }));
 
 vi.mock('@/lib/auth', () => ({ auth: mocks.auth }));
@@ -19,6 +21,7 @@ vi.mock('@/server/db/client', () => ({
     documentoAtivo: { findFirst: mocks.ativoFindFirst },
     documentoViatura: { findFirst: mocks.viaturaFindFirst },
     documentoMotorista: { findFirst: mocks.motoristaFindFirst },
+    documentoColaborador: { findFirst: mocks.colaboradorFindFirst },
   },
 }));
 
@@ -38,12 +41,14 @@ function sessao(permissions: string[] = []) {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.STORAGE_DRIVER = 'local';
-  mocks.auth.mockResolvedValue(sessao(['fornecedores:editar', 'ativos:write']));
+  // #193: o download exige a permissão de LEITURA do recurso.
+  mocks.auth.mockResolvedValue(sessao(['fornecedores:ver', 'ativos:read']));
   // Todos os findFirst já filtram por { id, tenantId } → cross-tenant devolve null.
   mocks.fornecedorFindFirst.mockResolvedValue(null);
   mocks.ativoFindFirst.mockResolvedValue(null);
   mocks.viaturaFindFirst.mockResolvedValue(null);
   mocks.motoristaFindFirst.mockResolvedValue(null);
+  mocks.colaboradorFindFirst.mockResolvedValue(null);
 });
 
 describe('download — posse de tenant', () => {
@@ -112,7 +117,7 @@ describe('download — posse de tenant', () => {
 
   // M1: sem a permissão do recurso, não descarrega (mesmo pertencendo ao tenant).
   it('403 quando o utilizador não tem a permissão do recurso', async () => {
-    mocks.auth.mockResolvedValue(sessao([])); // sem fornecedores:editar
+    mocks.auth.mockResolvedValue(sessao([])); // sem fornecedores:ver
     mocks.fornecedorFindFirst.mockResolvedValue({
       id: 'doc5',
       nome: 'contrato.pdf',

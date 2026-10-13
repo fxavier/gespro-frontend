@@ -20,8 +20,9 @@ import {
  *
  * Os códigos de erro publicados em `docs/handoff/site-provisionamento.md` §2
  * são contrato: resposta 201 `{ tenantSlug, mensagem }`, erros
- * `{ traceId, erro, error: { code, message, details? } }` — sem stack. O 429
- * mantém-se sem `error` (nunca teve código publicado), com `Retry-After`.
+ * `{ traceId, erro, error: { code, message, details? } }` — sem stack. Por
+ * #189 os campos de topo ficam e acrescenta-se o envelope do withApi: `data`
+ * no 201, `error.traceId` nos erros e `error` também no 429 (com `Retry-After`).
  */
 
 export const runtime = 'nodejs';
@@ -45,7 +46,12 @@ function respostaDeFalha(
 ): Response {
   if (resultado.estado === 429) {
     return NextResponse.json(
-      { traceId: traceId(), erro: resultado.mensagem },
+      {
+        traceId: traceId(),
+        erro: resultado.mensagem,
+        // #189: envelope de erro do withApi, aditivo ao contrato publicado.
+        error: { code: resultado.code, message: resultado.mensagem, traceId: traceId() },
+      },
       {
         status: 429,
         headers: { ...cors, 'Retry-After': String(resultado.retryAfterSec ?? 60) },
@@ -59,6 +65,7 @@ function respostaDeFalha(
       error: {
         code: resultado.code,
         message: resultado.mensagem,
+        traceId: traceId(),
         ...(resultado.detalhes !== undefined ? { details: resultado.detalhes } : {}),
       },
     },
@@ -107,10 +114,10 @@ export const POST = withApi(
     // Corpo montado campo a campo: `sub` e `email` viajam no resultado (e na
     // chave de idempotência) para quem provisiona a partir do ERP, e **não**
     // pertencem à resposta pública.
-    return NextResponse.json(
-      { tenantSlug: resultado.tenantSlug, mensagem: resultado.mensagem },
-      { status: 201, headers: cors },
-    );
+    // Topo = contrato publicado (site-provisionamento.md §2); `data` = envelope
+    // do withApi (#189), aditivo.
+    const sucesso = { tenantSlug: resultado.tenantSlug, mensagem: resultado.mensagem };
+    return NextResponse.json({ ...sucesso, data: sucesso }, { status: 201, headers: cors });
   },
   { public: true },
 );

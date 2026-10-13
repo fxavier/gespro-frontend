@@ -86,6 +86,7 @@ async function CombustivelTableSection({
   const result = await runWithTenantContext(ctx, () =>
     abastecimentoService.listarAbastecimentos(
       {
+        q: filtros.q,
         tipoCombustivel: filtros.tipoCombustivel,
         cursor: filtros.cursor,
         take: filtros.take,

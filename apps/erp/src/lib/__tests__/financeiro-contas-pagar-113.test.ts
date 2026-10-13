@@ -75,7 +75,8 @@ describe('#113 — o FINANCEIRO regista pagamentos a fornecedores e gere contas 
     for (const code of ['financas:exportar', 'caixa:operar', 'compras:ver', 'fornecedores:ver']) {
       expect(fin, `FINANCEIRO mantém ${code}`).toContain(code);
     }
-    for (const code of ['financas:periodo:reabrir', 'financas:exercicio:abrir', 'compras:aprovar',
+    // #143 — `financas:exercicio:abrir` passou a ser do FINANCEIRO (oráculo em rbac-exercicio-143.test.ts).
+    for (const code of ['financas:periodo:reabrir', 'financas:exercicio:encerrar', 'compras:aprovar',
                         'compras:pedido:criar', 'compras:recebimento:registar', 'fornecedores:editar']) {
       expect(fin, `FINANCEIRO não leva ${code}`).not.toContain(code);
     }

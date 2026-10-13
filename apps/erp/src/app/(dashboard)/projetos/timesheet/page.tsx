@@ -22,7 +22,7 @@ import { TimesheetTable } from './_components/timesheet-table';
 import type { TimesheetRow } from './_components/timesheet-table';
 
 const FiltroUrlSchema = z.object({
-  search: z.string().optional(),
+  q: z.string().optional(),
   tipo: z.string().optional(),
   cursor: z.string().optional(),
   take: z.coerce.number().int().positive().max(100).default(25),
@@ -47,6 +47,15 @@ async function TimesheetTableSection({
       where: {
         tenantId,
         ...(filtros.tipo ? { tipo: filtros.tipo as never } : {}),
+        ...(filtros.q
+          ? {
+              OR: [
+                { descricao: { contains: filtros.q, mode: 'insensitive' as const } },
+                { projeto: { nome: { contains: filtros.q, mode: 'insensitive' as const } } },
+                { colaborador: { nome: { contains: filtros.q, mode: 'insensitive' as const } } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,
@@ -136,7 +145,7 @@ export default async function TimesheetPage({
         }
       />
 
-      <FilterBar filters={FILTER_CONFIG} />
+      <FilterBar searchPlaceholder="Pesquisar por projecto, colaborador ou descrição…" filters={FILTER_CONFIG} />
 
       <Suspense
         key={JSON.stringify(filtros)}

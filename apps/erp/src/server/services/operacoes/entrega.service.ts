@@ -135,6 +135,9 @@ async function listarEntregas(
     ...(filtros.rotaId ? { rotaId: filtros.rotaId } : {}),
     ...(filtros.viaturaId ? { viaturaId: filtros.viaturaId } : {}),
     ...(filtros.motoristaId ? { motoristaId: filtros.motoristaId } : {}),
+    ...(filtros.q
+      ? { OR: [{ numero: { contains: filtros.q, mode: 'insensitive' as const } }, { clienteNome: { contains: filtros.q, mode: 'insensitive' as const } }] }
+      : {}),
     ...(filtros.dataInicio || filtros.dataFim
       ? { dataAgendada: { ...(filtros.dataInicio ? { gte: filtros.dataInicio } : {}), ...(filtros.dataFim ? { lte: filtros.dataFim } : {}) } }
       : {}),

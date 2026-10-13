@@ -47,42 +47,37 @@ const FILTROS_DEFAULT: FiltroColaboradorUrl = {
 async function ColaboradoresKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   const ctx = { tenantId, userId };
 
-  // Contar por status em paralelo
-  const [total, activos, inactivos, periodoExp] = await runWithTenantContext(ctx, async () => {
-    const [all, act, inact, exp] = await Promise.all([
-      ColaboradorService.listar({ take: 1 }, ctx),
-      ColaboradorService.listar({ take: 1, status: 'ACTIVO' }, ctx),
-      ColaboradorService.listar({ take: 1, status: 'INACTIVO' }, ctx),
-      ColaboradorService.listar({ take: 1, status: 'PERIODO_EXPERIMENTAL' }, ctx),
-    ]);
-    return [all, act, inact, exp];
-  });
-
-  // Usar total de registos a partir do count — aqui apenas mostramos os items carregados
-  // (paginação cursor-based não tem count total; mostramos contagens por status)
-  void total;
+  // Contar por status em paralelo (count no serviço, #104)
+  const [total, activos, inactivos, periodoExp] = await runWithTenantContext(ctx, () =>
+    Promise.all([
+      ColaboradorService.contar({}, ctx),
+      ColaboradorService.contar({ status: 'ACTIVO' }, ctx),
+      ColaboradorService.contar({ status: 'INACTIVO' }, ctx),
+      ColaboradorService.contar({ status: 'PERIODO_EXPERIMENTAL' }, ctx),
+    ])
+  );
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <KpiCard
         title="Colaboradores Activos"
-        value={String(activos.items.length)}
+        value={String(activos)}
         icon={<UserCheck className="h-5 w-5" />}
         description="Estado activo"
       />
       <KpiCard
         title="Inactivos"
-        value={String(inactivos.items.length)}
+        value={String(inactivos)}
         icon={<UserX className="h-5 w-5" />}
       />
       <KpiCard
         title="Período Experimental"
-        value={String(periodoExp.items.length)}
+        value={String(periodoExp)}
         icon={<Clock className="h-5 w-5" />}
       />
       <KpiCard
-        title="Total Carregado"
-        value={String(activos.items.length + inactivos.items.length + periodoExp.items.length)}
+        title="Total de Colaboradores"
+        value={String(total)}
         icon={<Users className="h-5 w-5" />}
       />
     </div>

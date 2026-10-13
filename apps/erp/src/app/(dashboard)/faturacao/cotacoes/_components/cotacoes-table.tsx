@@ -22,7 +22,9 @@ export interface CotacaoResumo {
   dataValidade: string;
   total: string;
   status: string;
-  /** Transição permitida E permissão — decidido no servidor. */
+  /** Transição permitida E permissão — decidido no servidor (`acoesMenuCotacao`). */
+  podeConverter: boolean;
+  podeRejeitar: boolean;
   podeCancelar: boolean;
 }
 
@@ -82,19 +84,25 @@ const columns: TableColumn<CotacaoResumo>[] = [
               Ver detalhe
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href={`/faturacao/cotacoes/${row.id}/converter`}>
-              <FileCheck className="mr-2 h-4 w-4" />
-              Converter em Proforma
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href={`/faturacao/cotacoes/${row.id}/rejeitar`} className="text-destructive">
-              <XCircle className="mr-2 h-4 w-4" />
-              Rejeitar
-            </Link>
-          </DropdownMenuItem>
+          {row.podeConverter && (
+            <DropdownMenuItem asChild>
+              <Link href={`/faturacao/cotacoes/${row.id}/converter`}>
+                <FileCheck className="mr-2 h-4 w-4" />
+                Converter em Proforma
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {row.podeRejeitar && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/faturacao/cotacoes/${row.id}/rejeitar`} className="text-destructive">
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Rejeitar
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
           {row.podeCancelar && (
             <>
               <DropdownMenuSeparator />

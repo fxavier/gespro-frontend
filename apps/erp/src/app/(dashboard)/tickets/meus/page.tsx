@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ticketService } from '@/server/services/operacoes/ticket.service';
+import { FiltrarTicketsSchema } from '@/lib/validations/tickets';
 import { Button } from '@/components/ui/button';
 import { PageHeader, FilterBar } from '@/components/patterns';
 import type { FilterConfig } from '@/components/patterns';
@@ -18,7 +19,8 @@ import { TicketsTable } from '../_components/tickets-table';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const UrlSchema = z.object({
-  estado: z.string().optional(),
+  q: z.string().max(200).optional(),
+  estado: FiltrarTicketsSchema.shape.estado,
   take: z.coerce.number().int().positive().max(100).default(25),
   cursor: z.string().optional(),
   orderBy: z.enum(['createdAt', 'prioridade', 'slaDataLimiteResolucao']).default('createdAt'),
@@ -55,6 +57,8 @@ async function MeusTicketsTable({
     ticketService.listarTickets(
       {
         atribuidoParaId: userId,
+        estado: filtros.estado,
+        pesquisa: filtros.q,
         take: filtros.take,
         orderBy: filtros.orderBy,
         order: filtros.order,
@@ -125,7 +129,6 @@ export default async function MeusTicketsPage({ searchParams }: PageProps) {
 
       <FilterBar
         searchPlaceholder="Pesquisar…"
-        searchKey="pesquisa"
         filters={FILTER_CONFIGS}
       />
 

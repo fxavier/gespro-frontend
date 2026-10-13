@@ -4,17 +4,15 @@
  * Tabela de localizações — CLIENT COMPONENT.
  */
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
-import { MoreHorizontal, Edit, PowerOff, MapPin } from 'lucide-react';
+import { MoreHorizontal, PowerOff, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -149,7 +147,8 @@ const columns: TableColumn<LocalizacaoDto>[] = [
     key: 'acoes',
     label: '',
     className: 'w-10',
-    render: (row) => (
+    // Sem rota de edição (#123): o menu só existe enquanto há o que desactivar.
+    render: (row) => row.ativa && (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -163,20 +162,9 @@ const columns: TableColumn<LocalizacaoDto>[] = [
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link href={`/inventario/localizacoes/${row.id}/editar`}>
-              <Edit className="mr-2 h-4 w-4" />
-              Editar
-            </Link>
-          </DropdownMenuItem>
-          {row.ativa && (
-            <>
-              <DropdownMenuSeparator />
-              <div onClick={(e) => e.stopPropagation()}>
-                <DesactivarButton id={row.id} nome={row.nome} />
-              </div>
-            </>
-          )}
+          <div onClick={(e) => e.stopPropagation()}>
+            <DesactivarButton id={row.id} nome={row.nome} />
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
     ),

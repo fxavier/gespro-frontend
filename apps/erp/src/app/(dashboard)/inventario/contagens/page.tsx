@@ -35,13 +35,13 @@ async function ContagensKpis({ tenantId, userId }: { tenantId: string; userId: s
   const ctx = { tenantId, userId };
   const [emContagem, reconciliadas, concluidas] = await Promise.all([
     runWithTenantContext({ tenantId, userId }, () =>
-      contagemStockService.listar({ take: 1, status: 'EM_CONTAGEM' }, ctx)
+      contagemStockService.contar({ status: 'EM_CONTAGEM' }, ctx)
     ),
     runWithTenantContext({ tenantId, userId }, () =>
-      contagemStockService.listar({ take: 1, status: 'RECONCILIADA' }, ctx)
+      contagemStockService.contar({ status: 'RECONCILIADA' }, ctx)
     ),
     runWithTenantContext({ tenantId, userId }, () =>
-      contagemStockService.listar({ take: 1, status: 'CONCLUIDA' }, ctx)
+      contagemStockService.contar({ status: 'CONCLUIDA' }, ctx)
     ),
   ]);
 
@@ -49,19 +49,19 @@ async function ContagensKpis({ tenantId, userId }: { tenantId: string; userId: s
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <KpiCard
         title="Em Contagem"
-        value={emContagem.items.length > 0 ? '1+' : '0'}
+        value={String(emContagem)}
         icon={<Clock className="h-4 w-4" />}
         description="Contagens abertas"
       />
       <KpiCard
         title="Reconciliadas"
-        value={reconciliadas.items.length > 0 ? '1+' : '0'}
+        value={String(reconciliadas)}
         icon={<ClipboardCheck className="h-4 w-4" />}
         description="Aguardam conclusão"
       />
       <KpiCard
         title="Concluídas"
-        value={concluidas.items.length > 0 ? '1+' : '0'}
+        value={String(concluidas)}
         icon={<CheckCircle2 className="h-4 w-4" />}
         description="Contagens finalizadas"
       />

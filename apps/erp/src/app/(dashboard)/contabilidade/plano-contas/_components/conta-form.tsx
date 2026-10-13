@@ -33,21 +33,11 @@ import {
   MSG_CONTA_MAE_NAO_ENCONTRADA,
   type CriarContaPGCInput,
 } from '@/lib/validations/contabilidade';
+import { CLASSE_PGC_LABEL } from '@/lib/plano-contas';
 
 const SEM_PAI = '__none__';
 const OPCAO_SEM_PAI: ComboboxOption = { value: SEM_PAI, label: 'Nenhuma (conta raiz)' };
 const LISTA = '/contabilidade/plano-contas';
-
-const CLASSE_LABEL: Record<CriarContaPGCInput['classe'], string> = {
-  CLASSE_1: 'Classe 1 — Meios financeiros',
-  CLASSE_2: 'Classe 2 — Contas a receber/pagar',
-  CLASSE_3: 'Classe 3 — Existências',
-  CLASSE_4: 'Classe 4 — Investimentos',
-  CLASSE_5: 'Classe 5 — Capital próprio',
-  CLASSE_6: 'Classe 6 — Gastos',
-  CLASSE_7: 'Classe 7 — Rendimentos',
-  CLASSE_8: 'Classe 8 — Resultados',
-};
 
 const TIPO_LABEL: Record<CriarContaPGCInput['tipo'], string> = {
   ATIVO: 'Ativo',
@@ -188,9 +178,9 @@ export function ContaForm({
                 <FormItem>
                   <FormLabel>Código</FormLabel>
                   <FormControl>
-                    <Input placeholder="ex.: 1.1.1" maxLength={20} disabled={trancado} {...field} />
+                    <Input placeholder="ex.: 111" maxLength={20} disabled={trancado} {...field} />
                   </FormControl>
-                  <FormDescription>Formato PGC (ex.: 1.1.1)</FormDescription>
+                  <FormDescription>Código PGC-NIRF, sem pontos (ex.: 111 — Caixa)</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -250,7 +240,7 @@ export function ContaForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.entries(CLASSE_LABEL).map(([value, label]) => (
+                      {Object.entries(CLASSE_PGC_LABEL).map(([value, label]) => (
                         <SelectItem key={value} value={value}>
                           {label}
                         </SelectItem>

@@ -117,6 +117,7 @@ export function ManutencaoTable({
       nextCursor={nextCursor}
       currentOrderBy={currentOrderBy}
       currentOrderDir={currentOrderDir as 'asc' | 'desc'}
+      rowHref={(row) => `/transporte/manutencao/${row.id}`}
       emptyState={
         <EmptyState
           title="Sem registos de manutenção"

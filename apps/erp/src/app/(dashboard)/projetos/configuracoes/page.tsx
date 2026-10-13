@@ -1,7 +1,7 @@
 /**
  * Configurações de Projectos — Server Component.
- * Permite configurar política de timesheet, tipos de tarefa e papéis de equipa
- * por projecto. Usa FormPage com configuração persistida na DB.
+ * Permite configurar a política de aprovação de timesheet e os tipos de tarefa
+ * activos por projecto. Usa FormPage com configuração persistida na DB.
  */
 
 import { Suspense } from 'react';
@@ -35,7 +35,6 @@ async function ConfiguracaoSection({
       configuracao={{
         politicaAprovacaoTimesheet: config.politicaAprovacaoTimesheet,
         tiposTarefaAtivos: config.tiposTarefaAtivos,
-        papeisEquipaAtivos: config.papeisEquipaAtivos,
         observacoes: config.observacoes,
       }}
     />
@@ -105,7 +104,7 @@ export default async function ConfiguracoesProjetosPage({ searchParams }: PagePr
     <div className="p-6 space-y-6">
       <PageHeader
         title="Configurações"
-        description="Configurações por projecto: política de aprovação, tipos de tarefa e papéis"
+        description="Configurações por projecto: política de aprovação de timesheet e tipos de tarefa activos"
         breadcrumbs={[
           { label: 'Projectos', href: '/projetos/lista' },
           { label: 'Configurações' },

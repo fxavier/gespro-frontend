@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { Client } from 'pg';
+import { urlBaseDados } from './helpers/db';
 
 /**
  * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3, #284 S4, #285 S5, #286 S6).
@@ -996,22 +996,6 @@ const BASE_S4 = 'exercicio=2026&de=3&ate=5';
 const NOME_121 = 'Depósitos à ordem';
 const ROTULO_121 = `Razão da conta 121 — ${NOME_121}`;
 
-function urlBaseDados(): string {
-  for (const f of [path.join(process.cwd(), '.env'), path.join(process.cwd(), 'apps/erp/.env')]) {
-    if (fs.existsSync(f)) {
-      try {
-        process.loadEnvFile(f);
-      } catch {
-        // já carregado — usa o que estiver em process.env
-      }
-      break;
-    }
-  }
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL não está definida — verifique apps/erp/.env');
-  return url;
-}
-
 /** Só leitura: id e aceitaLancamento das contas do tenant demo, por código. */
 async function contasDemo(): Promise<Map<string, { id: string; aceitaLancamento: boolean }>> {
   const c = new Client({ connectionString: urlBaseDados() });
@@ -1152,8 +1136,10 @@ test('27. clicar na ligação da 121 abre o razão da conta 121 nos períodos 3.
   // O seletor mostra a conta e está no modo por períodos
   await expect(page.locator('#conta')).toContainText(`121 — ${NOME_121}`);
   await expect(page.getByRole('radio', { name: 'Por períodos' })).toBeChecked();
-  await expect(page.getByLabel('Do período')).toHaveValue('3');
-  await expect(page.getByLabel('Ao período')).toHaveValue('5');
+  // #343 (verificador): no razão «Do/Ao período» passaram a ui/Select (role combobox) com as
+  // opções do balancete — o valor lê-se pelo rótulo mostrado, e o URL (de=3/ate=5) já está fixo acima.
+  await expect(page.getByRole('combobox', { name: 'Do período' })).toContainText('03 — Março');
+  await expect(page.getByRole('combobox', { name: 'Ao período' })).toContainText('05 — Maio');
   // E o razão executou: linhas de saldo anterior e final presentes
   await expect(page.getByTestId('razao-saldo-anterior')).toBeVisible();
   await expect(page.getByTestId('razao-saldo-final')).toBeVisible();

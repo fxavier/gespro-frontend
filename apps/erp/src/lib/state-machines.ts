@@ -37,6 +37,11 @@ export const TRANSICOES_TICKET: Record<string, string[]> = {
   CANCELADO: [],
 };
 
+/** #173 — o botão «Cancelar» de um ticket aparece só onde a máquina aceita CANCELADO. */
+export function ticketCancelavel(estado: string): boolean {
+  return (TRANSICOES_TICKET[estado] ?? []).includes('CANCELADO');
+}
+
 // Spec 05: Contagem de Stock
 export const TRANSICOES_CONTAGEM_STOCK: Record<string, string[]> = {
   RASCUNHO:     ['EM_CONTAGEM', 'CANCELADA'],
@@ -127,6 +132,30 @@ export const TRANSICOES_DEVOLUCAO: Record<string, string[]> = {
   APROVADA:  ['PROCESSADA'],
   PROCESSADA: [],
   REJEITADA: [],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Faturação — Cotação comercial e Proforma (#154/#259)
+// Espelho de `faturacao.interface.ts` (o serviço continua a ser quem decide).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const TRANSICOES_COTACAO_COMERCIAL: Record<string, string[]> = {
+  RASCUNHO:   ['ENVIADA', 'CANCELADA'],
+  ENVIADA:    ['ACEITE', 'REJEITADA', 'EXPIRADA'],
+  ACEITE:     ['CONVERTIDA'],
+  REJEITADA:  [],
+  CONVERTIDA: [],
+  EXPIRADA:   [],
+  CANCELADA:  [],
+};
+
+export const TRANSICOES_PROFORMA: Record<string, string[]> = {
+  RASCUNHO:   ['ENVIADA', 'CANCELADA'],
+  ENVIADA:    ['ACEITE', 'EXPIRADA', 'CANCELADA'],
+  ACEITE:     ['CONVERTIDA', 'CANCELADA'],
+  CONVERTIDA: [],
+  EXPIRADA:   [],
+  CANCELADA:  [],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,6 +309,15 @@ export function estadoDeAcesso(
   if (estado === 'LEITURA') return 'leitura';
   if (estado === 'FECHADA') return 'pagamento';
   return 'fechado';
+}
+
+/**
+ * Só uma subscrição viva (`TRIAL`/`ATIVA`) se cancela (issue #180). Em `LEITURA`/`FECHADA` já não
+ * há nada para cancelar — o cancelamento é precisamente o que leva à Leitura — e os estados
+ * legados só têm a saída de pagar. Partilhada pelo ecrã (mostra o botão) e pelo serviço (recusa).
+ */
+export function assinaturaCancelavel(estado: string): boolean {
+  return estado === 'TRIAL' || estado === 'ATIVA';
 }
 
 /** Rota única onde a sessão em `pagamento` pode estar (issue #99). */

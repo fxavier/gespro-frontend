@@ -250,7 +250,7 @@ async function executarProvisionamento(
       if (!roleAdmin) {
         throw new BusinessRuleError(
           'RBAC_INCOMPLETO',
-          'Falha ao preparar os perfis de acesso do tenant.',
+          'Falha ao preparar os perfis de acesso da empresa.',
         );
       }
 

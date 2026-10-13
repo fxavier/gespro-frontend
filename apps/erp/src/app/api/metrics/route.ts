@@ -29,7 +29,7 @@
  * Cardinalidade: tenant_id é a única etiqueta de alta cardinalidade.
  * userId e requestId NUNCA aparecem aqui — estão nos logs e nos traces.
  */
-import { type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { withApi } from '@/lib/api/with-api';
 import { registry } from '@/server/observability/prom-registry';
 import { timingSafeEqual, createHash } from 'node:crypto';
@@ -40,10 +40,10 @@ export const GET = withApi(
     // Comparação timing-safe para evitar timing oracle attacks (NIT fix).
     const secret = process.env.METRICS_SECRET;
     if (!secret) {
-      return new Response(JSON.stringify({ error: 'Métricas desactivadas' }), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json(
+        { error: { code: 'METRICAS_DESACTIVADAS', message: 'Métricas desactivadas' } },
+        { status: 503 },
+      );
     }
 
     const auth = req.headers.get('authorization') ?? '';
@@ -54,10 +54,10 @@ export const GET = withApi(
     const expectedHash = createHash('sha256').update(expected).digest();
 
     if (!timingSafeEqual(authHash, expectedHash)) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json(
+        { error: { code: 'NAO_AUTENTICADO', message: 'Não autenticado' } },
+        { status: 401 },
+      );
     }
 
     const metricsText = await registry.metrics();

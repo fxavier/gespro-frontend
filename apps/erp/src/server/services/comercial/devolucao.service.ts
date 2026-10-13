@@ -387,7 +387,6 @@ export class DevolucaoService {
     options?: {
       sessaoCaixaId?: string;
       localizacaoId?: string;
-      serieNotaCreditoId?: string;
     },
   ): Promise<DevolucaoRow> {
     const previa = await prismaBase.devolucao.findFirst({
@@ -395,8 +394,9 @@ export class DevolucaoService {
       select: { faturaId: true, notaCreditoId: true },
     });
     if (!previa) throw new NotFoundError('Devolução não encontrada');
-    // O travão de e-mail é de quem tem sessão (o núcleo da NC não o aplica) — só quando se emite.
-    if (previa.faturaId && !previa.notaCreditoId && options?.serieNotaCreditoId) {
+    // O travão de e-mail é de quem tem sessão (o núcleo da NC não o aplica) — só quando se emite:
+    // há factura e ainda não há NC. A série é a activa do tipo/ano (#93, #241).
+    if (previa.faturaId && !previa.notaCreditoId) {
       await exigirEmailConfirmadoParaEmitir();
     }
 
@@ -408,14 +408,6 @@ export class DevolucaoService {
         throw new BusinessRuleError(
           'TRANSICAO_INVALIDA',
           `Devolução: transição inválida ${devolucao.status} → PROCESSADA`,
-        );
-      }
-
-      // Com factura, exige série de NC antes de avançar.
-      if (devolucao.faturaId && !options?.serieNotaCreditoId) {
-        throw new BusinessRuleError(
-          'SERIE_NC_OBRIGATORIA',
-          'Esta devolução está associada a uma fatura. É obrigatório fornecer uma série de nota de crédito.',
         );
       }
 

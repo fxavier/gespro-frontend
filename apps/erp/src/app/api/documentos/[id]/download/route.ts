@@ -5,8 +5,8 @@
  * Segurança (spec 01 §RF4, §RNF2, revisão B1/M1):
  *   - Verifica que o metadado (por `id`) pertence ao `tenantId` do contexto.
  *     Cross-tenant → `NotFoundError` (404, NUNCA 403).
- *   - Exige a MESMA permissão do recurso que o presign exige (M1): um doc é tão
- *     sensível como o recurso que descreve. Sem a permissão → 403.
+ *   - Exige a permissão de LEITURA do recurso (M1, #193): um doc é tão sensível
+ *     como o recurso que descreve. Sem a permissão → 403.
  *   - Reafirma que a key resolvida está sob o prefixo do tenant ANTES de assinar
  *     (B1): defesa contra `url`/`anexo` (controlados pelo cliente no registo)
  *     apontarem para a key de outro tenant no mesmo bucket. → 404.
@@ -24,7 +24,7 @@ import { logger } from '@/server/observability/logger';
 import { prismaBase } from '@/server/db/client';
 import { getObjectStorage, urlRefParaKey, prefixoTenant } from '@/lib/storage/objeto';
 import {
-  PERMISSAO_ESCRITA_POR_RECURSO,
+  PERMISSAO_LEITURA_POR_RECURSO,
   type RecursoDocumento,
 } from '@/lib/storage/documento-config';
 
@@ -39,7 +39,7 @@ interface DocMeta {
 
 type Buscador = (id: string, tenantId: string) => Promise<DocMeta | null>;
 
-// `colaborador` ainda não tem tabela de documentos → sem buscador (Partial).
+// `encerramento` não tem metadado por id (PDF só do servidor) → sem buscador (Partial).
 const BUSCADORES: Partial<Record<RecursoDocumento, Buscador>> = {
   fornecedor: async (id, tenantId) => {
     const d = await prismaBase.documentoFornecedor.findFirst({
@@ -68,6 +68,14 @@ const BUSCADORES: Partial<Record<RecursoDocumento, Buscador>> = {
       select: { id: true, numero: true, storageKey: true, anexo: true },
     });
     return d ? { id: d.id, nome: d.numero, storageKey: d.storageKey, url: d.anexo ?? '' } : null;
+  },
+  // #163: `DocumentoColaborador` não tem `storageKey` — a key sai da ref em `url`.
+  colaborador: async (id, tenantId) => {
+    const d = await prismaBase.documentoColaborador.findFirst({
+      where: { id, tenantId },
+      select: { id: true, nome: true, url: true },
+    });
+    return d ? { ...d, storageKey: null } : null;
   },
 };
 
@@ -102,8 +110,8 @@ export const GET = withApi(async (req: NextRequest, ctx) => {
   if (!encontrado) throw new NotFoundError('Documento não encontrado');
   const { doc, recurso } = encontrado;
 
-  // M1: aceder ao ficheiro exige a permissão do recurso (não basta o tenant).
-  const permissao = PERMISSAO_ESCRITA_POR_RECURSO[recurso];
+  // M1/#193: aceder ao ficheiro exige a permissão de leitura do recurso (não basta o tenant).
+  const permissao = PERMISSAO_LEITURA_POR_RECURSO[recurso];
   if (!ctx.permissions.has(permissao)) throw new ForbiddenError();
 
   const log = logger.child({ tenantId: ctx.tenantId, userId: ctx.userId });

@@ -153,6 +153,8 @@ export const FilterFornecedorSchema = z.object({
   classificacao: ClassificacaoFornecedorEnum.optional(),
   categoria: z.string().max(100).optional(),
   ratingMin: z.number().min(1).max(5).optional(),
+  /** true → só os arquivados (deletedAt preenchido); omisso → só os não arquivados. */
+  arquivados: z.boolean().optional(),
   // Paginação por cursor
   cursor: z.string().cuid().optional(),
   take: z.number().int().positive().max(100).default(25),

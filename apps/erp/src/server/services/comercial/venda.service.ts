@@ -43,7 +43,6 @@ import type { BaixaStockInput, IStockService, ReservaStockInput } from '@/server
 import type { RegistarMovimentoCaixaInput, TipoSerieDocumento } from '@/server/services/financas';
 import type { IFaturacaoService } from '@/server/services/financas';
 import type { ICaixaService } from '@/server/services/financas';
-import type { IMeioPagamentoPOSService } from '@/server/services/financas';
 import {
   exigirEmailConfirmadoParaEmitir,
   exigirPeriodoAbertoEm,
@@ -55,6 +54,7 @@ import { exigirClienteParaCredito } from '@/lib/cliente-credito';
 import type { IComissaoService } from './comissao.interface';
 import {
   TRANSICOES_VENDA,
+  ARESTAS_SO_ANULACAO_VENDA,
   transitarVenda,
   TRANSICOES_SESSAO_POS,
   transitarSessaoPOS,
@@ -310,7 +310,6 @@ export class VendaService implements IVendaService {
       | 'proximoNumeroSerie'
       | 'emitirDocumentoEmTx'
       | 'avisosLimiteCreditoEmTx'
-      | 'construirLancamentoVendaPOS'
       | 'emitirNotaCreditoEmTx'
       | 'devolverNotaCreditoPelosMeiosOriginaisEmTx'
       | 'motivoIsencaoAutomaticoEmTx'
@@ -319,7 +318,6 @@ export class VendaService implements IVendaService {
       IComissaoService,
       'calcularComissao' | 'registarComissao'
     >,
-    private readonly meioPagamentoPOSService: IMeioPagamentoPOSService,
   ) {}
 
   async criar(input: CreateVendaInput, ctx: Ctx): Promise<VendaRow> {
@@ -332,7 +330,7 @@ export class VendaService implements IVendaService {
 
     // 1a. Venda POS: Σ pagamentos = total, ao cêntimo (ADR-0041 §4). Verificado antes da
     //     transacção para que esta regra fale primeiro — dentro dela, um crédito desalinhado
-    //     chegaria ao núcleo da emissão como OPCOES_EMISSAO_INCOERENTES.
+    //     seria recusado pelo núcleo da emissão já com o stock mexido na tx.
     if (input.origem === 'POS') {
       const pago = input.pagamentos.reduce((a, p) => a.plus(String(p.valor)), new Prisma.Decimal(0));
       if (!pago.equals(total)) {
@@ -623,7 +621,9 @@ export class VendaService implements IVendaService {
         data: {
           tenantId: ctx.tenantId,
           vendaId: venda.id,
-          estadoAntes: 'PENDENTE', // pré-criação
+          // Marca de nascimento (#328): antes = depois. Não é aresta de TRANSICOES_VENDA — a venda
+          // nasce já no estado inicial (ex.: a ENCOMENDA em RASCUNHO, a que nada volta).
+          estadoAntes: statusInicial,
           estadoDepois: statusInicial,
           motivo: 'Venda criada',
           userId: ctx.userId,
@@ -664,15 +664,13 @@ export class VendaService implements IVendaService {
       if (!cf) {
         throw new BusinessRuleError(
           'CONSUMIDOR_FINAL_INEXISTENTE',
-          `O cliente técnico ${CLIENTE_CONSUMIDOR_FINAL.nome} (${CLIENTE_CONSUMIDOR_FINAL.codigo}) não existe neste tenant.`,
+          `O cliente técnico ${CLIENTE_CONSUMIDOR_FINAL.nome} (${CLIENTE_CONSUMIDOR_FINAL.codigo}) não existe nesta empresa.`,
         );
       }
       clienteId = cf.id;
     }
 
     const pagamentos = input.pagamentos.map((p) => ({ tipo: p.tipo, valor: new Prisma.Decimal(String(p.valor)) }));
-    // Conta a débito por meio configurada pelo tenant; os ausentes caem na omissão (ADR-0041 §4).
-    const contas = await this.meioPagamentoPOSService.resolverContasPagamentoPOS(tx, ctx);
     const motivoIsencao = await this.faturacaoService.motivoIsencaoAutomaticoEmTx(tx, ctx);
     const fatura = await this.faturacaoService.emitirDocumentoEmTx(
       tx,
@@ -689,16 +687,9 @@ export class VendaService implements IVendaService {
         ),
       },
       ctx,
-      {
-        // FR nasce PAGA pela série (§1); a Factura nasce com o que foi recebido fora do crédito (§4).
-        ...(clienteCredito
-          ? {
-              tipoSerie: 'FATURA' as const,
-              totalPago: pagamentos.filter((p) => p.tipo !== 'CREDITO').reduce((a, p) => a.plus(p.valor), new Prisma.Decimal(0)),
-            }
-          : { tipoSerie: 'FATURA_RECIBO' as const }),
-        construirLancamento: (doc) => this.faturacaoService.construirLancamentoVendaPOS(doc, pagamentos, contas),
-      },
+      // O núcleo deriva dos pagamentos o estado (FR PAGA §1; Factura com o recebido fora do
+      // crédito §4) e o lançamento, com a conta de cada meio configurada pelo tenant.
+      { tipoSerie: clienteCredito ? 'FATURA' : 'FATURA_RECIBO', pagamentos },
     );
 
     await tx.venda.updateMany({ where: { id: vendaId, tenantId: ctx.tenantId }, data: { faturaId: fatura.id } });
@@ -721,6 +712,15 @@ export class VendaService implements IVendaService {
       throw new BusinessRuleError(
         'VENDA_COM_DOCUMENTO',
         `A venda ${venda.numero} tem documento fiscal: use «Anular venda» (nota de crédito total) ou registe uma devolução.`,
+      );
+    }
+
+    // #328: as arestas da anulação estão no mapa, mas a porta manual não as percorre.
+    if (ARESTAS_SO_ANULACAO_VENDA.some(([de, para]) => de === venda.status && para === input.paraStatus)) {
+      throw new BusinessRuleError(
+        'TRANSICAO_INVALIDA',
+        `A venda ${venda.numero} no estado ${venda.status} não se cancela directamente: só uma nota de crédito a desfaz.`,
+        { estadoActual: venda.status, estadoAlvo: input.paraStatus },
       );
     }
 
@@ -957,9 +957,10 @@ export class VendaService implements IVendaService {
         );
       }
 
-      // 5. Venda CANCELADA. Deliberadamente FORA de TRANSICOES_VENDA: lá CONCLUIDA é terminal,
-      //    e continua a sê-lo para o `transitar` (cancelar sem documento). Aqui o fim da venda é
-      //    acompanhado pela NC que a compensa — é a única porta para CANCELADA de uma venda paga.
+      // 5. Venda CANCELADA: aresta de TRANSICOES_VENDA que só esta anulação percorre
+      //    (ARESTAS_SO_ANULACAO_VENDA, #328) — o `transitar` recusa-a. O fim da venda é
+      //    acompanhado pela NC que a compensa.
+      transitarVenda(venda.status as StatusVenda, 'CANCELADA');
       const anulada = await tx.venda.update({
         where: { id: venda.id },
         data: { status: 'CANCELADA' },

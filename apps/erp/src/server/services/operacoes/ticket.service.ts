@@ -4,6 +4,7 @@
 // SLA calculado por prioridade (SLA_PADRAO_MIN) sobreposto pela CategoriaTicket.
 
 import 'server-only';
+import type { Prisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
@@ -49,15 +50,56 @@ export const calcularSla: CalcularSlaFn = (
   };
 };
 
+/** Estados em que o SLA deixa de correr — nunca estão «em atraso». */
+const ESTADOS_SLA_TERMINAIS: EstadoTicket[] = ['RESOLVIDO', 'FECHADO', 'CANCELADO'];
+
 export const recalcularSlaEmAtraso: RecalcularSlaEmAtrasaFn = (
   estado,
   slaDataLimiteResolucao,
   agora,
 ): boolean => {
-  const terminais: EstadoTicket[] = ['RESOLVIDO', 'FECHADO', 'CANCELADO'];
-  if (terminais.includes(estado)) return false;
+  if (ESTADOS_SLA_TERMINAIS.includes(estado)) return false;
   return agora > slaDataLimiteResolucao;
 };
+
+/**
+ * #173 — «SLA em atraso» é derivado na LEITURA (prazo < agora e estado não terminal), com a
+ * mesma regra de `recalcularSlaEmAtraso`. A coluna `slaEmAtraso` só era escrita na transição e
+ * ficava parada; deixou de decidir o que se mostra, filtra ou conta.
+ */
+function whereSlaEmAtraso(emAtraso: boolean, agora: Date) {
+  return emAtraso
+    ? { estado: { notIn: ESTADOS_SLA_TERMINAIS }, slaDataLimiteResolucao: { lt: agora } }
+    : { OR: [{ estado: { in: ESTADOS_SLA_TERMINAIS } }, { slaDataLimiteResolucao: { gte: agora } }] };
+}
+
+type FiltrosWhereTickets = Partial<Omit<FiltrarTicketsInput, 'take' | 'cursor' | 'orderBy' | 'order'>>;
+
+/** `where` único de listagem e contagem — tenant explícito, filtros combinados por E. */
+function whereTickets(filtros: FiltrosWhereTickets, ctx: Ctx, agora: Date) {
+  const e: object[] = [];
+  if (filtros.slaEmAtraso !== undefined) e.push(whereSlaEmAtraso(filtros.slaEmAtraso, agora));
+  if (filtros.pesquisa) {
+    e.push({ OR: [
+      { titulo: { contains: filtros.pesquisa, mode: 'insensitive' as const } },
+      { numero: { contains: filtros.pesquisa, mode: 'insensitive' as const } },
+    ] });
+  }
+  return {
+    tenantId: ctx.tenantId,
+    ...(filtros.estado ? { estado: filtros.estado } : {}),
+    ...(filtros.prioridade ? { prioridade: filtros.prioridade } : {}),
+    ...(filtros.tipo ? { tipo: filtros.tipo } : {}),
+    ...(filtros.categoriaId ? { categoriaId: filtros.categoriaId } : {}),
+    ...(filtros.solicitanteId ? { solicitanteId: filtros.solicitanteId } : {}),
+    ...(filtros.atribuidoParaId ? { atribuidoParaId: filtros.atribuidoParaId } : {}),
+    ...(filtros.equipeId ? { equipeId: filtros.equipeId } : {}),
+    ...(filtros.dataInicio || filtros.dataFim
+      ? { dataAbertura: { ...(filtros.dataInicio ? { gte: filtros.dataInicio } : {}), ...(filtros.dataFim ? { lte: filtros.dataFim } : {}) } }
+      : {}),
+    ...(e.length ? { AND: e } : {}),
+  } satisfies Prisma.TicketWhereInput;
+}
 
 // ============================================================
 // Helpers de mapeamento
@@ -105,7 +147,8 @@ async function obterDetalheTicket(id: string, ctx: Ctx): Promise<TicketDetalhe> 
     solicitanteId: t.solicitanteId, solicitanteNome: t.solicitanteNome,
     atribuidoParaId: t.atribuidoParaId, atribuidoParaNome: t.atribuidoParaNome,
     equipeId: t.equipeId, origemTipo: t.origemTipo, origemId: t.origemId,
-    slaEmAtraso: t.slaEmAtraso, slaDataLimiteResolucao: t.slaDataLimiteResolucao,
+    slaEmAtraso: recalcularSlaEmAtraso(t.estado as EstadoTicket, t.slaDataLimiteResolucao, new Date()),
+    slaDataLimiteResolucao: t.slaDataLimiteResolucao,
     dataAbertura: t.dataAbertura, createdAt: t.createdAt, updatedAt: t.updatedAt,
     descricao: t.descricao, subcategoria: t.subcategoria,
     solicitanteEmail: t.solicitanteEmail, solicitanteTelefone: t.solicitanteTelefone ?? null,
@@ -199,26 +242,8 @@ async function listarTickets(
   filtros: FiltrarTicketsInput,
   ctx: Ctx,
 ): Promise<PaginatedResult<TicketResumo>> {
-  const where = {
-    tenantId: ctx.tenantId,
-    ...(filtros.estado ? { estado: filtros.estado } : {}),
-    ...(filtros.prioridade ? { prioridade: filtros.prioridade } : {}),
-    ...(filtros.tipo ? { tipo: filtros.tipo } : {}),
-    ...(filtros.categoriaId ? { categoriaId: filtros.categoriaId } : {}),
-    ...(filtros.solicitanteId ? { solicitanteId: filtros.solicitanteId } : {}),
-    ...(filtros.atribuidoParaId ? { atribuidoParaId: filtros.atribuidoParaId } : {}),
-    ...(filtros.equipeId ? { equipeId: filtros.equipeId } : {}),
-    ...(filtros.slaEmAtraso !== undefined ? { slaEmAtraso: filtros.slaEmAtraso } : {}),
-    ...(filtros.dataInicio || filtros.dataFim
-      ? { dataAbertura: { ...(filtros.dataInicio ? { gte: filtros.dataInicio } : {}), ...(filtros.dataFim ? { lte: filtros.dataFim } : {}) } }
-      : {}),
-    ...(filtros.pesquisa
-      ? { OR: [
-          { titulo: { contains: filtros.pesquisa, mode: 'insensitive' as const } },
-          { numero: { contains: filtros.pesquisa, mode: 'insensitive' as const } },
-        ] }
-      : {}),
-  };
+  const agora = new Date();
+  const where = whereTickets(filtros, ctx, agora);
 
   const page = await paginate(
     (args) => prisma.ticket.findMany({ where, orderBy: { [filtros.orderBy]: filtros.order }, select: TICKET_RESUMO_SELECT, ...args }),
@@ -232,11 +257,20 @@ async function listarTickets(
       solicitanteId: t.solicitanteId, solicitanteNome: t.solicitanteNome,
       atribuidoParaId: t.atribuidoParaId, atribuidoParaNome: t.atribuidoParaNome,
       equipeId: t.equipeId, origemTipo: t.origemTipo, origemId: t.origemId,
-      slaEmAtraso: t.slaEmAtraso, slaDataLimiteResolucao: t.slaDataLimiteResolucao,
+      slaEmAtraso: recalcularSlaEmAtraso(t.estado as EstadoTicket, t.slaDataLimiteResolucao, agora),
+      slaDataLimiteResolucao: t.slaDataLimiteResolucao,
       dataAbertura: t.dataAbertura, createdAt: t.createdAt, updatedAt: t.updatedAt,
     })),
     nextCursor: page.nextCursor,
   };
+}
+
+/** KPI por `count` (#173) — mesmos filtros e mesma derivação do SLA da listagem. */
+async function contarTickets(
+  filtros: Pick<FiltrarTicketsInput, 'estado' | 'prioridade' | 'slaEmAtraso'>,
+  ctx: Ctx,
+): Promise<number> {
+  return prisma.ticket.count({ where: whereTickets(filtros, ctx, new Date()) });
 }
 
 async function atualizarTicket(id: string, input: AtualizarTicketInput, ctx: Ctx): Promise<TicketDetalhe> {
@@ -464,6 +498,7 @@ export const ticketService: ITicketService = {
   criarTicket,
   obterTicket,
   listarTickets,
+  contarTickets,
   atualizarTicket,
   transitarTicket,
   atribuirTicket,

@@ -539,16 +539,23 @@ function esperadoComDiferenca(r: BalanceteVerificacaoResult, opcoes: Parameters<
 }
 
 describe('GET formato=pdf — «Total das linhas mostradas» decidido pelos dados (Esclarecimentos 2)', () => {
-  it('nivel=2 com conta órfã de nível 5: as duas linhas de totais', async () => {
+  it('nivel=2 com conta órfã de nível 5 (#298): a órfã é mostrada e entra na soma ⇒ só «Totais»', async () => {
+    // Antes da #298 a órfã desaparecia com nivel=2 e o PDF reconciliava com «Total das
+    // linhas mostradas». Agora é raiz da sua cadeia (grau relativo 1): aparece, a soma
+    // mostrada bate com os totais e não há linha extra.
     const r = resultadoDe(PLANO_ORFA, MOV_ORFA, MOV_ORFA);
+    const linhas = hierarquizarBalancete(r, r.contas, { nivelMaximo: 2 });
+    expect(linhas.some((l) => l.tipo === 'CONTA' && l.conta!.codigo === '63299'), 'a órfã 63299 tem de ser mostrada').toBe(true);
     const e = esperadoComDiferenca(r, { nivelMaximo: 2 });
-    expect(e.difere, 'calibração: a órfã tem de ficar de fora da soma mostrada').toBe(true);
+    expect(e.difere, 'a órfã entra na soma mostrada: sem diferença').toBe(false);
     mocks.gerarBalanceteVerificacao.mockResolvedValue(r);
 
     const t = textoCompacto(await pdfDe(await chamar('exercicio=2026&de=2&ate=5&nivel=2&formato=pdf')));
     expect(t).not.toContain('filtros:excluir');
-    expect(t).toContain(`totaldaslinhasmostradas${valores(e.mostrada)}`);
-    expect(t).toContain(`${compactar('Totais do balancete (sem filtros)')}${valores(e.totais)}`);
+    expect(t).toContain(compactar('63299'));
+    expect(t).toContain(`totais${valores(e.totais)}`);
+    expect(t).not.toContain('totaldaslinhasmostradas');
+    expect(t).not.toContain('semfiltros');
   }, 60_000);
 
   it('razao=1 com folhas de saldos opostos: as duas linhas de totais', async () => {

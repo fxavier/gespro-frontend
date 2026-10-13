@@ -86,14 +86,26 @@ class Duplo {
   $queryRawUnsafe = async (...args: unknown[]) => this.trancar(args);
   $executeRaw = async (...args: unknown[]) => this.trancar(args).length;
 
+  /** #134: o pagamento escreve uma entrada na ficha do cliente, na mesma tx (reverte com ela). */
+  historicos: Row[] = [];
+  readonly historicoTransacao = {
+    create: async (args: Row) => {
+      const r = { id: `hist-${this.historicos.length + 1}`, ...args.data };
+      this.historicos.push(r);
+      return { ...r };
+    },
+  };
+
   $transaction = async (fn: unknown) => {
     if (typeof fn !== 'function') throw new Error('duplo: só $transaction interactiva (callback)');
     const antes = this.faturas.map((r) => ({ ...r }));
+    const historicosAntes = [...this.historicos];
     this.profundidade += 1;
     try {
       return await (fn as (tx: Duplo) => Promise<unknown>)(this);
     } catch (e) {
       this.faturas = antes;
+      this.historicos = historicosAntes;
       throw e;
     } finally {
       this.profundidade -= 1;

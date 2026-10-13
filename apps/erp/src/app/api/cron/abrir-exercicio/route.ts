@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { withApi } from '@/lib/api/with-api';
+import { withCron } from '@/lib/api/with-cron';
 import { logger } from '@/server/observability/logger';
 import { prismaBase } from '@/server/db/client';
 import { listarTenantsComAcesso } from '@/server/provisioning/tenants-com-acesso';
@@ -43,22 +43,13 @@ import {
  *
  * Idempotente: @@unique([tenantId, codigo]) garante que reexecutar não duplica nem lança erro.
  *
- * Protecção: Authorization: Bearer <CRON_SECRET> verificado dentro do handler.
+ * Protecção: Authorization: Bearer <CRON_SECRET>, verificado pelo `withCron`.
  * Agendamento: diário, 02:00 UTC — ver infra/local/cron/crontab e o runbook.
  */
 export const runtime = 'nodejs';
 
-export const GET = withApi(
+export const GET = withCron(
   async (req: NextRequest) => {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
-    const esperado = process.env.CRON_SECRET;
-    if (!esperado || token !== esperado) {
-      return NextResponse.json(
-        { error: { code: 'NAO_AUTENTICADO', message: 'Token inválido.' } },
-        { status: 401 },
-      );
-    }
-
     // `?ano=YYYY` força a abertura de um ano específico, ignorando a configuração de cada tenant.
     // Sem validação, `?ano=abc` daria NaN e atravessaria o ciclo inteiro para falhar tenant a tenant.
     // Os limites são os mesmos do `AbrirExercicioSchema`.
@@ -176,5 +167,4 @@ export const GET = withApi(
       },
     });
   },
-  { public: true },
 );

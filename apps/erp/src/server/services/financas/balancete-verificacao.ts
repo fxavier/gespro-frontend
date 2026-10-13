@@ -439,7 +439,8 @@ function maesEfectivas(contaPorId: Map<string, ContaBV>): Map<string, string | n
  *
  * @param nucleo  - resultado de montarBalanceteVerificacao (não é modificado)
  * @param contas  - TODAS as contas do tenant (mães e folhas)
- * @param opcoes  - nivelMaximo: oculta CONTA com nivel > N; apenasRazao: só nivel 2 (ganha);
+ * @param opcoes  - nivelMaximo: oculta CONTA com grau relativo à raiz > N; apenasRazao: só nivel 2
+ *                  numa cadeia de raiz nível 1 (ganha); uma órfã-raiz mostra-se sempre (#298);
  *                  incluirSemMovimento: todas as contas do plano, as sem valores a zeros
  */
 export function hierarquizarBalancete(
@@ -447,8 +448,6 @@ export function hierarquizarBalancete(
   contas: ContaBV[],
   opcoes?: { nivelMaximo?: number; apenasRazao?: boolean; incluirSemMovimento?: boolean },
 ): LinhaHierarquica[] {
-  const passaFiltro = (nivel: number): boolean =>
-    opcoes?.apenasRazao ? nivel === 2 : nivel <= (opcoes?.nivelMaximo ?? Infinity);
 
   // --- Entradas ---
   const contaPorId = new Map<string, ContaBV>();
@@ -462,6 +461,22 @@ export function hierarquizarBalancete(
   }
 
   const mae = maesEfectivas(contaPorId);
+
+  // #298: o grau conta-se a partir da raiz efectiva da cadeia (grau relativo =
+  // nivel − nivel da raiz + 1). Numa cadeia com raiz de nível 1 é o próprio nível;
+  // uma órfã (raiz de nível > 1) nunca desaparece — é o grau 1 da sua cadeia.
+  const raizDe = (id: string): ContaBV => {
+    let raiz = id;
+    for (let cur = mae.get(id) ?? null; cur !== null; cur = mae.get(cur) ?? null) raiz = cur;
+    return contaPorId.get(raiz)!;
+  };
+  const passaFiltro = (id: string): boolean => {
+    const conta = contaPorId.get(id)!;
+    const raiz = raizDe(id);
+    if (raiz.nivel !== 1 && raiz.id === id) return true;
+    if (opcoes?.apenasRazao) return raiz.nivel === 1 && conta.nivel === 2;
+    return conta.nivel - raiz.nivel + 1 <= (opcoes?.nivelMaximo ?? Infinity);
+  };
 
   // --- Presença e roll-up: cada linha do núcleo sobe a sua cadeia efectiva ---
   const valores = new Map<string, Valores>();
@@ -484,11 +499,11 @@ export function hierarquizarBalancete(
   const blocoDe = new Map<string, ClassePGC>();
   for (const id of valores.keys()) {
     const conta = contaPorId.get(id)!;
-    if (!passaFiltro(conta.nivel)) continue;
+    if (!passaFiltro(id)) continue;
     let mostrada: string | null = null;
     let raiz = id;
     for (let cur = mae.get(id) ?? null; cur !== null; cur = mae.get(cur) ?? null) {
-      if (mostrada === null && passaFiltro(contaPorId.get(cur)!.nivel)) mostrada = cur;
+      if (mostrada === null && passaFiltro(cur)) mostrada = cur;
       raiz = cur;
     }
     blocoDe.set(id, contaPorId.get(raiz)!.classe);

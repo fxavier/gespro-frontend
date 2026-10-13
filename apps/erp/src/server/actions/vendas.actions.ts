@@ -404,12 +404,8 @@ export const processarDevolucao = createSafeAction({
     paths: ['/vendas/devolucoes'],
     tags: ['devolucoes'],
   },
-  handler: async ({ id, localizacaoId, sessaoCaixaId, serieNotaCreditoId }, ctx) => {
-    return devolucaoService.processar(id, ctx, {
-      localizacaoId,
-      sessaoCaixaId,
-      serieNotaCreditoId,
-    });
+  handler: async ({ id, localizacaoId, sessaoCaixaId }, ctx) => {
+    return devolucaoService.processar(id, ctx, { localizacaoId, sessaoCaixaId });
   },
 });
 

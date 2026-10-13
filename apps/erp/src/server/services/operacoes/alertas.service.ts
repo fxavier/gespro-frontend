@@ -5,7 +5,7 @@
 
 import 'server-only';
 import { prisma } from '@/server/db/client';
-import { calcularEstadoDocumento } from './alocacao.service';
+import { calcularEstadoDocumento, calcularEstadoDocumentoMotorista } from './alocacao.service';
 import type {
   IAlertasService,
   Alerta,
@@ -127,7 +127,7 @@ export function gerarAlertasManutencao(
 
 export async function recalcularEstadosDocumentos(ctx: {
   tenantId: string;
-}): Promise<{ viaturasActualizadas: number; motoistasActualizados: number }> {
+}): Promise<{ viaturasActualizadas: number; motoristasActualizados: number }> {
   const { tenantId } = ctx;
 
   // Carregar todos os documentos do tenant
@@ -143,7 +143,7 @@ export async function recalcularEstadosDocumentos(ctx: {
   ]);
 
   let viaturasActualizadas = 0;
-  let motoistasActualizados = 0;
+  let motoristasActualizados = 0;
 
   // Actualizar documentos de viatura com estado desactualizado
   for (const doc of docsViatura) {
@@ -165,9 +165,9 @@ export async function recalcularEstadosDocumentos(ctx: {
     }
   }
 
-  // Actualizar documentos de motorista (prazoAlertaDias = 30 por defeito)
+  // Actualizar documentos de motorista (prazo fixo — mesma regra da criação)
   for (const doc of docsMotorista) {
-    const estadoCalculado = calcularEstadoDocumento(doc.dataValidade, 30);
+    const estadoCalculado = calcularEstadoDocumentoMotorista(doc.dataValidade);
     const estadoPrisma =
       estadoCalculado === 'EXPIRADO'
         ? ('EXPIRADO' as const)
@@ -180,11 +180,11 @@ export async function recalcularEstadosDocumentos(ctx: {
         where: { id: doc.id },
         data: { estado: estadoPrisma },
       });
-      motoistasActualizados++;
+      motoristasActualizados++;
     }
   }
 
-  return { viaturasActualizadas, motoistasActualizados };
+  return { viaturasActualizadas, motoristasActualizados };
 }
 
 // ============================================================

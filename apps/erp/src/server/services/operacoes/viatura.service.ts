@@ -7,6 +7,7 @@ import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { transitar, assertTenant } from './_helpers';
 import { TRANSICOES_VIATURA } from './viatura.interface';
+import { calcularEstadoDocumento } from './alocacao.service';
 import type { IViaturaService, EstadoViatura, ViaturaDetalhe, ViaturaResumo, DocumentoViaturaRef, ManutencaoViaturaRef, ChecklistRef } from './viatura.interface';
 import type { Ctx, PaginatedResult } from '@/server/services/types';
 import type { CriarViaturaInput, AtualizarViaturaInput, FiltrarViaturasInput, CriarDocumentoViaturaInput, CriarManutencaoViaturaInput, CriarChecklistInput } from '@/lib/validations/transporte';
@@ -259,7 +260,8 @@ async function adicionarDocumentoViatura(
       prazoAlertaDias: input.prazoAlertaDias,
       anexo: input.anexo ?? null,
       observacoes: input.observacoes ?? null,
-      // estado VALIDO é o default — será actualizado pelo cron F3
+      // #174 — nasce com o estado da validade (mesma regra do cron F3, que depois o mantém)
+      estado: calcularEstadoDocumento(input.dataValidade, input.prazoAlertaDias),
     },
     select: { id: true, tipo: true, numero: true, dataEmissao: true, dataValidade: true, entidadeEmissora: true, estado: true, prazoAlertaDias: true },
   });

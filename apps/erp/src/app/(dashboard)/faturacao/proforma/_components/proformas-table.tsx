@@ -22,7 +22,8 @@ export interface ProformaResumo {
   dataValidade: string;
   total: string;
   status: string;
-  /** Transição permitida E permissão — decidido no servidor. */
+  /** Transição permitida E permissão — decidido no servidor (`acoesMenuProforma`). */
+  podeConverter: boolean;
   podeCancelar: boolean;
 }
 
@@ -82,12 +83,14 @@ const columns: TableColumn<ProformaResumo>[] = [
               Ver detalhe
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href={`/faturacao/proforma/${row.id}/converter`}>
-              <FileCheck className="mr-2 h-4 w-4" />
-              Converter em Fatura
-            </Link>
-          </DropdownMenuItem>
+          {row.podeConverter && (
+            <DropdownMenuItem asChild>
+              <Link href={`/faturacao/proforma/${row.id}/converter`}>
+                <FileCheck className="mr-2 h-4 w-4" />
+                Converter em Fatura
+              </Link>
+            </DropdownMenuItem>
+          )}
           {row.podeCancelar && (
             <>
               <DropdownMenuSeparator />

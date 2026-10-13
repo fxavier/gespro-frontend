@@ -4,9 +4,10 @@
 import 'server-only';
 
 import { PrismaClient } from '@prisma/client';
-import { prisma } from '@/server/db/client';
+import { prisma, prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
+import { comCodigoUnico } from './codigo-unico';
 import { getObjectStorage, urlRefParaKey, prefixoTenant } from '@/lib/storage/objeto';
 import { logger } from '@/server/observability/logger';
 import type {
@@ -108,12 +109,8 @@ function toFornecedorDetalhe(f: any): FornecedorDetalhe {
       id: d.id, tipo: d.tipo, nome: d.nome,
       dataUpload: d.dataUpload, dataValidade: d.dataValidade ?? null, url: d.url,
     })),
+    arquivadoEm: f.deletedAt ?? null,
   };
-}
-
-async function gerarCodigoFornecedor(ctx: Ctx): Promise<string> {
-  const count = await db.fornecedor.count({ where: { tenantId: ctx.tenantId } });
-  return `FOR-${String(count + 1).padStart(4, '0')}`;
 }
 
 // =====================================================================
@@ -124,16 +121,14 @@ export const fornecedorService: IFornecedorService = {
   async criar(input: CreateFornecedorInput, ctx: Ctx): Promise<FornecedorDetalhe> {
     // Verificar NUIT único no tenant
     const existe = await db.fornecedor.findFirst({ where: { tenantId: ctx.tenantId, nuit: input.nuit } });
-    if (existe) throw new BusinessRuleError('NUIT_DUPLICADO', `NUIT ${input.nuit} já registado neste tenant`);
+    if (existe) throw new BusinessRuleError('NUIT_DUPLICADO', `Já existe um fornecedor com o NUIT ${input.nuit}.`);
 
-    const codigo = await gerarCodigoFornecedor(ctx);
-
+    // #116: o código é o do formulário (o schema exige-o), nunca um FOR- automático.
     const { enderecos, contactos, ...campos } = input as any;
 
-    const fornecedor = await db.fornecedor.create({
+    const fornecedor = await comCodigoUnico('um fornecedor', input.codigo, () => db.fornecedor.create({
       data: {
         ...campos,
-        codigo,
         saldoDevedor: 0,
         totalCompras: 0,
         enderecos: enderecos?.length
@@ -144,7 +139,7 @@ export const fornecedorService: IFornecedorService = {
           : undefined,
       },
       include: { enderecos: true, contactos: true, documentos: true },
-    });
+    }));
     return toFornecedorDetalhe(fornecedor);
   },
 
@@ -171,6 +166,16 @@ export const fornecedorService: IFornecedorService = {
     await db.fornecedor.update({ where: { id }, data: { deletedAt: new Date(), status: 'INATIVO' } });
   },
 
+  async reactivar(id: string, ctx: Ctx): Promise<void> {
+    const fornecedor = await db.fornecedor.findUnique({ where: { id } });
+    if (!fornecedor || fornecedor.tenantId !== ctx.tenantId) throw new NotFoundError('Fornecedor não encontrado');
+    if (!fornecedor.deletedAt) {
+      throw new BusinessRuleError('FORNECEDOR_NAO_ARQUIVADO', 'O fornecedor não está arquivado.');
+    }
+    // O estado anterior ao arquivo não é guardado: volta a ATIVO.
+    await db.fornecedor.update({ where: { id }, data: { deletedAt: null, status: 'ATIVO' } });
+  },
+
   async obter(id: string, ctx: Ctx): Promise<FornecedorDetalhe> {
     const fornecedor = await db.fornecedor.findUnique({
       where: { id },
@@ -181,10 +186,10 @@ export const fornecedorService: IFornecedorService = {
   },
 
   async listar(filtros: FilterFornecedorInput, ctx: Ctx) {
-    const { status, classificacao, tipo, termo, cursor, take = 25 } = filtros as any;
+    const { status, classificacao, tipo, termo, arquivados, cursor, take = 25 } = filtros as any;
     const where: any = {
       tenantId: ctx.tenantId,
-      deletedAt: null,
+      deletedAt: arquivados ? { not: null } : null,
       ...(status ? { status } : {}),
       ...(classificacao ? { classificacao } : {}),
       ...(tipo ? { tipo } : {}),
@@ -196,8 +201,11 @@ export const fornecedorService: IFornecedorService = {
         ]
       } : {}),
     };
+    // A extensão de tenant força `deletedAt: null` no findMany: os arquivados só se leem pelo
+    // cliente cru, com o tenant explícito no `where` (acima).
+    const cliente = arquivados ? (prismaBase as unknown as PrismaClient) : db;
     return paginate(
-      (a) => db.fornecedor.findMany({ ...a, where, orderBy: { createdAt: 'desc' } }),
+      (a) => cliente.fornecedor.findMany({ ...a, where, orderBy: { createdAt: 'desc' } }),
       { cursor, take },
     ).then((p: any) => ({ items: p.items.map(toFornecedorResumo), nextCursor: p.nextCursor }));
   },
@@ -251,7 +259,7 @@ export const fornecedorService: IFornecedorService = {
     if (keyCandidata && !keyCandidata.startsWith(prefixoTenant(ctx.tenantId))) {
       throw new BusinessRuleError(
         'STORAGE_KEY_CROSS_TENANT',
-        'A referência de armazenamento do documento não pertence a este tenant',
+        'A referência de armazenamento do documento não pertence a esta empresa',
       );
     }
 

@@ -17,18 +17,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader, StatusBadge, EmptyState } from '@/components/patterns';
 import { formatMZN } from '@/lib/format-currency';
+import { CLASSE_PGC_LABEL } from '@/lib/plano-contas';
 import { DesactivarConta } from '../_components/desactivar-conta';
-
-const CLASSE_LABEL: Record<string, string> = {
-  CLASSE_1: 'Classe 1 — Meios financeiros',
-  CLASSE_2: 'Classe 2 — Contas a receber/pagar',
-  CLASSE_3: 'Classe 3 — Existências',
-  CLASSE_4: 'Classe 4 — Investimentos',
-  CLASSE_5: 'Classe 5 — Capital próprio',
-  CLASSE_6: 'Classe 6 — Gastos',
-  CLASSE_7: 'Classe 7 — Rendimentos',
-  CLASSE_8: 'Classe 8 — Resultados',
-};
+import { ReactivarConta } from '../_components/reactivar-conta';
 
 const TIPO_LABEL: Record<string, string> = {
   ATIVO: 'Activo',
@@ -75,7 +66,7 @@ export default async function ContaDetalhePage({
 
   const identidade: { label: string; value: React.ReactNode }[] = [
     { label: 'Código', value: <span className="font-mono">{conta.codigo}</span> },
-    { label: 'Classe', value: CLASSE_LABEL[conta.classe] ?? conta.classe },
+    { label: 'Classe', value: CLASSE_PGC_LABEL[conta.classe] ?? conta.classe },
     { label: 'Tipo', value: TIPO_LABEL[conta.tipo] ?? conta.tipo },
     { label: 'Natureza', value: conta.natureza === 'DEVEDORA' ? 'Devedora' : 'Credora' },
     { label: 'Nível', value: String(conta.nivel) },
@@ -119,13 +110,15 @@ export default async function ContaDetalhePage({
                 </Link>
               </Button>
             )}
-            {conta.ativo && (
+            {conta.ativo ? (
               <DesactivarConta
                 id={conta.id}
                 codigo={conta.codigo}
                 nome={conta.nome}
                 movimentos={movimentosTotais}
               />
+            ) : (
+              <ReactivarConta id={conta.id} codigo={conta.codigo} nome={conta.nome} />
             )}
             <Button asChild size="sm">
               <Link href={`/contabilidade/plano-contas/${conta.id}/editar`}>

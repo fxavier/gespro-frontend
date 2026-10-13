@@ -63,7 +63,7 @@ export class VendedorService {
       if (existente) {
         throw new BusinessRuleError(
           'VENDEDOR_DUPLICADO',
-          'Já existe um vendedor associado a este utilizador neste tenant.',
+          'Este utilizador já é vendedor.',
         );
       }
     }

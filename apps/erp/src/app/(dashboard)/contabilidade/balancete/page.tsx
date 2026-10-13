@@ -433,9 +433,6 @@ export default async function BalancetePage({ searchParams }: PageProps) {
                 Exportar PDF
               </a>
             </Button>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/contabilidade/balancete/nova">Registar Balancete Oficial</Link>
-            </Button>
           </div>
         }
       />

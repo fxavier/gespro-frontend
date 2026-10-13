@@ -6,6 +6,7 @@ import { withApi } from '@/lib/api/with-api';
 import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
 import { gerarPdf, PDF_A4, type PdfLinha, type PdfTexto } from '@/lib/pdf/simple-pdf';
 import { NotFoundError } from '@/lib/errors';
+import { formatarData } from '@/lib/format-date';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -91,7 +92,7 @@ export const GET = withApi(
     y -= 24;
     if (payroll.dataPagamento) {
       textos.push({
-        texto: `Pago em: ${payroll.dataPagamento.toLocaleDateString('pt-PT')}`,
+        texto: `Pago em: ${formatarData(payroll.dataPagamento)}`,
         x: margem,
         y,
         tamanho: 9,
@@ -102,6 +103,8 @@ export const GET = withApi(
     return new Response(pdf, {
       headers: {
         'Content-Type': 'application/pdf',
+        // Documento pessoal (salário, NUIT, NIB): nenhuma cache o guarda (#200).
+        'Cache-Control': 'no-store',
         'Content-Disposition': `attachment; filename="recibo-${colaborador.codigo}-${payroll.anoReferencia}-${String(payroll.mesReferencia).padStart(2, '0')}.pdf"`,
       },
     });

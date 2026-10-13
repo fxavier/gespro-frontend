@@ -8,6 +8,7 @@
  *   proximoNumeroSerie(tx, tipo, ctx)               → string (tipos: 'CONTA_PAGAR' | 'PAGAMENTO')
  */
 import 'server-only';
+import { BusinessRuleError } from '@/lib/errors';
 
 import type {
   CreateContaPagarInput,
@@ -73,7 +74,11 @@ export const TRANSICOES_PAGAMENTO: Record<StatusPagamento, StatusPagamento[]> = 
 export function transitarContaPagar(actual: StatusContaPagar, alvo: StatusContaPagar): void {
   const permitidos = TRANSICOES_CONTA_PAGAR[actual];
   if (!permitidos.includes(alvo)) {
-    throw new Error(`Transição inválida de ContaPagar: ${actual} → ${alvo}`);
+    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Transição inválida de conta a pagar: ${actual} → ${alvo}`, {
+      estadoActual: actual,
+      estadoAlvo: alvo,
+      permitidas: permitidos,
+    });
   }
 }
 
@@ -84,7 +89,11 @@ export function transitarContaPagar(actual: StatusContaPagar, alvo: StatusContaP
 export function transitarPagamento(actual: StatusPagamento, alvo: StatusPagamento): void {
   const permitidos = TRANSICOES_PAGAMENTO[actual];
   if (!permitidos.includes(alvo)) {
-    throw new Error(`Transição inválida de Pagamento: ${actual} → ${alvo}`);
+    throw new BusinessRuleError('TRANSICAO_INVALIDA', `Transição inválida de pagamento: ${actual} → ${alvo}`, {
+      estadoActual: actual,
+      estadoAlvo: alvo,
+      permitidas: permitidos,
+    });
   }
 }
 

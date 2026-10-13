@@ -12,6 +12,7 @@
  *  4. `antiguidade`  — saldo 4438 por período de origem (para reembolsos)
  */
 import { withApi } from '@/lib/api/with-api';
+import { formatarDiaIso } from '@/lib/format-date';
 import { celulaTextoCsv, neutralizarFormula } from '@/lib/reporting/csv';
 import { ValidationError, NotFoundError } from '@/lib/errors';
 import { ObterMapaIvaSchema } from '@/lib/validations/apuramento-iva';
@@ -49,6 +50,22 @@ export const GET = withApi(
     });
     if (!periodo) throw new NotFoundError(`Período ${codigoPeriodo} não encontrado`);
 
+    // Só a declaração vive do apuramento deste período; os outros mapas leem os
+    // documentos do período (clientes/fornecedores) ou os apuramentos de todos os
+    // períodos (antiguidade) e não podem ficar presos a um apuramento em falta (#199).
+    switch (tipo) {
+      case 'clientes':
+        return gerarMapaClientes(periodo, ctx.tenantId);
+      case 'fornecedores':
+        return gerarMapaFornecedores(periodo, ctx.tenantId);
+      case 'antiguidade':
+        return gerarMapaAntiguidade(ctx.tenantId);
+      case 'declaracao':
+        break;
+      default:
+        throw new ValidationError('Tipo de mapa inválido');
+    }
+
     // Obter o apuramento mais recente (APURADO ou DECLARADO)
     const apuramento = await prismaBase.apuramentoIva.findFirst({
       where: {
@@ -65,18 +82,7 @@ export const GET = withApi(
       );
     }
 
-    switch (tipo) {
-      case 'declaracao':
-        return gerarMapaDeclaracao(apuramento, ctx.tenantId);
-      case 'clientes':
-        return gerarMapaClientes(periodo, ctx.tenantId);
-      case 'fornecedores':
-        return gerarMapaFornecedores(periodo, ctx.tenantId);
-      case 'antiguidade':
-        return gerarMapaAntiguidade(ctx.tenantId);
-      default:
-        throw new ValidationError('Tipo de mapa inválido');
-    }
+    return gerarMapaDeclaracao(apuramento, periodo.codigo);
   },
   { permission: 'financas:iva:mapas', limitarExportacao: true },
 );
@@ -85,10 +91,7 @@ export const GET = withApi(
 // Mapa 1: suporte à Declaração Periódica (Modelo A)
 // ---------------------------------------------------------------------------
 
-function gerarMapaDeclaracao(
-  apuramento: ApuramentoComLinhas,
-  tenantId: string,
-): Response {
+function gerarMapaDeclaracao(apuramento: ApuramentoComLinhas, codigoPeriodo: string): Response {
   const linhasDeclaracao = apuramento.linhas.map((l) => ({
     conta: l.contaCodigo,
     contaNome: l.contaNome,
@@ -101,14 +104,14 @@ function gerarMapaDeclaracao(
   }));
 
   const dados = {
-    periodo: apuramento.id,
+    periodo: codigoPeriodo,
     versao: apuramento.versao,
     estado: apuramento.estado,
-    declaradoEm: apuramento.declaradoEm?.toISOString() ?? null,
+    declaradoEm: apuramento.declaradoEm ? formatarDiaIso(apuramento.declaradoEm) : null,
     referenciaEntrega: apuramento.referenciaEntrega,
     resumo: {
       ivaLiquidadoTotal: apuramento.totalIvaLiquidado.toString(),
-      ivaDedutívelTotal: apuramento.totalIvaDedutivel.toString(),
+      ivaDedutivelTotal: apuramento.totalIvaDedutivel.toString(),
       regularizacoesTotal: apuramento.totalRegularizacoes.toString(),
       creditoReportado: apuramento.creditoReportado.toString(),
       saldo: apuramento.saldoApuramento.toString(),
@@ -129,19 +132,33 @@ function gerarMapaDeclaracao(
       })),
   };
 
-  const csv = construirCsvDeclaracao(apuramento, linhasDeclaracao);
+  const csv = construirCsvDeclaracao(apuramento, dados);
   return new Response(csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="mapa-iva-declaracao-${apuramento.id}-v${apuramento.versao}.csv"`,
+      'Content-Disposition': `attachment; filename="mapa-iva-declaracao-${codigoPeriodo}-v${apuramento.versao}.csv"`,
       'X-Mapa-Tipo': 'declaracao',
       'X-Apuramento-Estado': apuramento.estado,
     },
   });
 }
 
-function construirCsvDeclaracao(
-  ap: { totalIvaLiquidado: Prisma.Decimal; totalIvaDedutivel: Prisma.Decimal; saldoApuramento: Prisma.Decimal },
+type DadosDeclaracao = {
+  periodo: string;
+  versao: number;
+  estado: string;
+  declaradoEm: string | null;
+  referenciaEntrega: string | null;
+  resumo: Record<
+    | 'ivaLiquidadoTotal'
+    | 'ivaDedutivelTotal'
+    | 'regularizacoesTotal'
+    | 'creditoReportado'
+    | 'saldo'
+    | 'aPagar'
+    | 'aRecuperar',
+    string
+  >;
   linhas: Array<{
     conta: string;
     contaNome: string;
@@ -151,8 +168,45 @@ function construirCsvDeclaracao(
     imposto: string;
     divergenciaBase: string | null;
     temDivergencia: boolean;
-  }>,
+  }>;
+  avisos: Array<{ conta: string; mensagem: string }>;
+};
+
+/**
+ * Ficheiro da declaração: identificação e resumo no cabeçalho, a tabela das
+ * linhas, os totais e os avisos de divergência no rodapé. Texto (rótulos,
+ * conta, referência, mensagens) neutralizado contra fórmulas (#294); os
+ * valores são números e ficam em bruto.
+ */
+function construirCsvDeclaracao(
+  ap: { totalIvaLiquidado: Prisma.Decimal; totalIvaDedutivel: Prisma.Decimal; saldoApuramento: Prisma.Decimal },
+  dados: DadosDeclaracao,
 ): string {
+  const texto = (rotulo: string, valor: string | null) =>
+    `${celulaTextoCsv(rotulo)};${celulaTextoCsv(valor ?? '')}`;
+  const numero = (rotulo: string, valor: string) => `${celulaTextoCsv(rotulo)};${valor}`;
+  const { resumo } = dados;
+  const cabecalho = [
+    texto('Período', dados.periodo),
+    numero('Versão', String(dados.versao)),
+    texto('Estado', dados.estado),
+    texto('Declarado em', dados.declaradoEm),
+    texto('Referência de entrega', dados.referenciaEntrega),
+    '',
+    numero('IVA liquidado total', resumo.ivaLiquidadoTotal),
+    numero('IVA dedutível total', resumo.ivaDedutivelTotal),
+    numero('Regularizações total', resumo.regularizacoesTotal),
+    numero('Crédito reportado', resumo.creditoReportado),
+    numero('Saldo', resumo.saldo),
+    numero('A pagar', resumo.aPagar),
+    numero('A recuperar', resumo.aRecuperar),
+    '',
+  ];
+  const rodapeAvisos =
+    dados.avisos.length === 0
+      ? []
+      : ['', 'Avisos', ...dados.avisos.map((a) => `${celulaTextoCsv(a.conta)};${celulaTextoCsv(a.mensagem)}`)];
+  const linhas = dados.linhas;
   const header = 'Conta;Nome;Lado;BaseImponivel;Taxa;Imposto;Divergencia';
   const corpo = linhas.map((l) =>
     [
@@ -170,7 +224,7 @@ function construirCsvDeclaracao(
     `;;IVA DEDUTÍVEL TOTAL;;;${ap.totalIvaDedutivel.toFixed(2)};`,
     `;;SALDO;;;${ap.saldoApuramento.toFixed(2)};`,
   ];
-  return `﻿${[header, ...corpo, '', ...totais].join('\r\n')}`;
+  return `﻿${[...cabecalho, header, ...corpo, '', ...totais, ...rodapeAvisos].join('\r\n')}`;
 }
 
 // ---------------------------------------------------------------------------

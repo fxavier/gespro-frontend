@@ -31,16 +31,14 @@ import { PageHeader, KpiCard } from '@/components/patterns';
 
 async function ContabilidadeKpis({ tenantId, userId }: { tenantId: string; userId: string }) {
   try {
-    const [lancamentos, contas, diarios] = await runWithTenantContext({ tenantId, userId }, () =>
+    const [pendentes, lancados, contas, diarios] = await runWithTenantContext({ tenantId, userId }, () =>
       Promise.all([
-        contabilidadeService.listarLancamentos({ take: 100 }, { tenantId, userId }),
-        contabilidadeService.listarContas({ take: 100 }, { tenantId, userId }),
+        contabilidadeService.contarLancamentos({ status: 'RASCUNHO' }, { tenantId, userId }),
+        contabilidadeService.contarLancamentos({ status: 'LANCADO' }, { tenantId, userId }),
+        contabilidadeService.contarContas({}, { tenantId, userId }),
         contabilidadeService.listarDiarios({ tenantId, userId }),
       ])
     );
-
-    const pendentes = lancamentos.items.filter((l) => l.status === 'RASCUNHO').length;
-    const lancados = lancamentos.items.filter((l) => l.status === 'LANCADO').length;
 
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -57,7 +55,7 @@ async function ContabilidadeKpis({ tenantId, userId }: { tenantId: string; userI
         />
         <KpiCard
           title="Contas no Plano"
-          value={String(contas.items.length)}
+          value={String(contas)}
           icon={<BookOpen className="h-5 w-5" />}
         />
         <KpiCard

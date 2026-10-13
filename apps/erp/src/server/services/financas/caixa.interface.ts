@@ -1,4 +1,5 @@
 import 'server-only'; // A5: serviços são server-only
+import { BusinessRuleError } from '@/lib/errors';
 import type { Prisma } from '@prisma/client';
 import type {
   AbrirSessaoCaixaInput,
@@ -95,11 +96,11 @@ export function transitarSessaoCaixa(
 ): void {
   const permitidas = TRANSICOES_SESSAO_CAIXA[actual];
   if (!permitidas.includes(alvo)) {
-    const err = new Error(
-      `Transição inválida: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
+    throw new BusinessRuleError(
+      'TRANSICAO_INVALIDA',
+      `Transição inválida de sessão de caixa: ${actual} → ${alvo}. Permitidas: ${permitidas.join(', ') || 'nenhuma'}`,
+      { estadoActual: actual, estadoAlvo: alvo, permitidas },
     );
-    Object.assign(err, { code: 'TRANSICAO_INVALIDA', status: 409 });
-    throw err;
   }
 }
 

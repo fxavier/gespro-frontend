@@ -11,6 +11,7 @@ import { ColaboradorService } from '@/server/services/pessoas-projetos/rh.servic
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
 import { ColaboradorAcoes } from '../_components/colaborador-acoes';
+import { DocumentosColaborador } from '../_components/documentos-colaborador';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -26,15 +27,17 @@ export default async function ColaboradorDetalhePage({ params }: Props) {
   const ctx = { tenantId, userId };
 
   let colaborador;
+  let documentos;
   try {
-    colaborador = await runWithTenantContext(ctx, () =>
-      ColaboradorService.obter(id, ctx)
+    [colaborador, documentos] = await runWithTenantContext(ctx, () =>
+      Promise.all([ColaboradorService.obter(id, ctx), ColaboradorService.listarDocumentos(id, ctx)])
     );
   } catch {
     notFound();
   }
 
   if (!colaborador) notFound();
+  const podeGerirDocumentos = (session.user.permissions ?? []).includes('rh:colaboradores:update');
 
   const podeEditar = colaborador.status !== 'INACTIVO';
 
@@ -120,6 +123,23 @@ export default async function ColaboradorDetalhePage({ params }: Props) {
             label: 'Formação',
             count: colaborador.formacaoAcademica.length,
             content: tabFormacao,
+          },
+          {
+            key: 'documentos',
+            label: 'Documentos',
+            count: documentos.length,
+            content: (
+              <DocumentosColaborador
+                colaboradorId={colaborador.id}
+                documentos={documentos.map((d) => ({
+                  id: d.id,
+                  tipo: d.tipo,
+                  nome: d.nome,
+                  dataUpload: d.dataUpload.toISOString(),
+                }))}
+                podeGerir={podeGerirDocumentos}
+              />
+            ),
           },
         ]}
         metadata={metadata}

@@ -81,6 +81,10 @@ documentos no tenant `demo` a cada corrida — e a sentinela do `projecao.golden
 rascunhos de 1,00 MT (SQL de limpeza no cabeçalho do `32`). Em combobox, o campo `Pesquisar…` tem de ter âmbito
 no popover aberto — `page.locator('[data-radix-popper-content-wrapper]').last()` —, senão, durante os ~150 ms da
 animação de fecho do anterior, há dois e o modo estrito falha. Corrige-se o locator, nunca a animação nem o produto.
+O E2E 36 regista um tenant por corrida; o limite do `/registo` (3/h por IP) só o deixa passar porque o
+`playwright.config.ts` arranca o servidor com `RATE_LIMIT_REGISTO_DESLIGADO=1` (lida pela porta de rate-limit,
+**ignorada com `NODE_ENV=production`**). Um servidor já a correr (`reuseExistingServer`, outra porta) precisa
+da variável no próprio arranque. O spec limpa o tenant que criou no `afterAll` (`e2e/helpers/db.ts`).
 
 ```bash
 # Desempenho (ADR-0018) — cenários k6, planos de execução e a linha de base
@@ -447,7 +451,7 @@ singular (ex.: `definirContaNaturezaNotaDebito`).
 **Páginas-protótipo que parecem reais** — algumas páginas antigas são `'use client'` e leem/escrevem
 `localStorage` em vez da base (tabelas vazias, «guardado» que ninguém lê). Antes de corrigir um sintoma numa
 página, confirma que ela chega ao servidor: `git grep -l localStorage -- 'apps/erp/src/app/**/page.tsx'`
-(hoje: `balancete/nova` — «Salvar» ainda é fictício — e `projetos/lista/{novo,[id]/editar}`). Os tipos de
+(hoje: `projetos/lista/{novo,[id]/editar}`; o «registo» do balancete em `localStorage` saiu com a #282). Os tipos de
 contabilidade reais estão nos `*.interface.ts` dos serviços (os de protótipo, `src/types/contabilidade.ts`, saíram
 com o gerador `lib/contabilidade/balancete.ts`, #282).
 

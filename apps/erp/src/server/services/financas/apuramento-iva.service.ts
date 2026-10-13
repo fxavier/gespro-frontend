@@ -381,7 +381,9 @@ export async function apurarIva(
         `O período ${periodo.codigo} tem ${numeros.length} documento(s) fiscal(is) sem ` +
           `lançamento: ${numeros.slice(0, 10).join(', ')}` +
           (numeros.length > 10 ? ` e mais ${numeros.length - 10}.` : '.') +
-          ' Gere os lançamentos em falta antes de apurar.',
+          ' O lançamento de um documento fiscal é criado e ligado ao documento na emissão;' +
+          ' um lançamento manual não fica ligado e não levanta esta recusa.' +
+          ' Contacte o suporte do GestPro com estes números.',
         { documentos: documentosSemLancamento },
       );
     }

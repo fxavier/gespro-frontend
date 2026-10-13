@@ -122,13 +122,29 @@ beforeEach(() => {
 });
 
 describe('201 — contrato de sucesso', () => {
-  it('devolve tenantSlug e mensagem no topo do corpo (sem envelope, sem handoffToken)', async () => {
+  it('devolve tenantSlug e mensagem no topo do corpo (contrato publicado, sem handoffToken)', async () => {
     const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
     expect(res.status).toBe(201);
     const corpo = await res.json();
     expect(corpo.tenantSlug).toBe('padaria-ana-lda');
     expect(corpo.mensagem).toContain('caixa de correio');
     expect(corpo).not.toHaveProperty('handoffToken');
+  });
+
+  // #189 (nó A:withapi-traceid-zod-envelope-187-189): o sucesso passa também a
+  // vir no envelope `{ data }` do withApi. Escolha conservadora: ADITIVO — os
+  // campos de topo são contrato publicado (docs/handoff/site-provisionamento.md
+  // §2) e ficam, para não partir quem já os consome.
+  it('#189 — devolve também o envelope { data: { tenantSlug, mensagem } }', async () => {
+    const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
+    expect(res.status).toBe(201);
+    const corpo = await res.json();
+    expect(corpo.data, 'o 201 não traz o envelope { data }').toBeDefined();
+    expect(corpo.data.tenantSlug).toBe('padaria-ana-lda');
+    expect(corpo.data.mensagem).toBe(corpo.mensagem);
+    expect(corpo.data).not.toHaveProperty('handoffToken');
+    expect(JSON.stringify(corpo.data)).not.toContain('ana@padaria.mz');
+    expect(JSON.stringify(corpo.data)).not.toContain('kc-sub-ana');
   });
 
   it('devolve CORS para a origem do site na allowlist', async () => {
@@ -171,6 +187,9 @@ describe('códigos de erro publicados', () => {
     expect(body.error.code).toBe('IDEMPOTENCY_KEY_OBRIGATORIA');
     expect(body.traceId).toBeTruthy();
     expect(body.erro).toBeTruthy();
+    // #189: o traceId vive também dentro do envelope de erro, como no withApi.
+    expect(body.error.traceId).toBe(body.traceId);
+    expect(body.error.traceId).toBe(res.headers.get('x-request-id'));
     expect(mocks.provisionarTenant).not.toHaveBeenCalled();
   });
 
@@ -275,6 +294,21 @@ describe('códigos de erro publicados', () => {
     expect(res.headers.get('retry-after')).toBe('120');
   });
 
+  it('#189 — o 429 passa a trazer o envelope { error: { code, message, traceId } }', async () => {
+    mocks.consumir.mockResolvedValue({ limited: true, remaining: 0, retryAfterSec: 120 });
+    const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error, 'o 429 continua sem envelope de erro').toBeDefined();
+    expect(body.error.code).toBeTypeOf('string');
+    expect(body.error.code.length).toBeGreaterThan(0);
+    expect(body.error.message).toBeTypeOf('string');
+    expect(body.error.traceId).toBe(res.headers.get('x-request-id'));
+    // Compatibilidade com o contrato publicado: os campos de topo ficam.
+    expect(body.traceId).toBeTruthy();
+    expect(body.erro).toBeTruthy();
+  });
+
   it('ERRO_INTERNO (500) sem stack em falha inesperada', async () => {
     mocks.provisionarTenant.mockRejectedValue(new Error('ligação perdida'));
     const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
@@ -282,6 +316,9 @@ describe('códigos de erro publicados', () => {
     const body = await res.json();
     expect(body.error.code).toBe('ERRO_INTERNO');
     expect(body.traceId).toBeTruthy();
+    expect(body.error.traceId, '#187: o 500 não traz error.traceId').toBe(
+      res.headers.get('x-request-id'),
+    );
     expect(JSON.stringify(body)).not.toContain('ligação perdida');
     expect(mocks.falharChave).toHaveBeenCalled();
   });
@@ -295,10 +332,10 @@ describe('idempotência no handler', () => {
     });
     const res = await POST(pedido(CORPO_VALIDO, COM_CHAVE));
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({
-      tenantSlug: 'padaria-ana-lda',
-      mensagem: 'corpo-original',
-    });
+    // Contrato publicado (topo) + envelope #189 (aditivo), ambos com a resposta gravada.
+    const corpo = await res.json();
+    expect(corpo).toMatchObject({ tenantSlug: 'padaria-ana-lda', mensagem: 'corpo-original' });
+    expect(corpo.data).toEqual({ tenantSlug: 'padaria-ana-lda', mensagem: 'corpo-original' });
     expect(mocks.provisionarTenant).not.toHaveBeenCalled();
     // A reentrega não toca no Keycloak: nem cria identidade nem reescreve credencial.
     expect(mocks.garantirUtilizador).not.toHaveBeenCalled();
