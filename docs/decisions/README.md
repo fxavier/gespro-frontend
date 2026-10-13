@@ -10,7 +10,7 @@ o histórico).
 - **Ficheiro**: `ADR-<NNNN>-<slug>.md` (quatro dígitos, zero-padded). Os ADRs 0001–0004 usam o
   prefixo curto `<NNNN>-<slug>.md` por razões históricas; do 0006 em diante a convenção é
   `ADR-<NNNN>-<slug>.md`.
-- **Numeração**: sequencial e **única**. O próximo número livre é **0049**.
+- **Numeração**: sequencial e **única**. O próximo número livre é **0050**.
 - **Estado**: `Proposto` → `Aceite` → (`Substituído por ADR-XXXX` | `Descontinuado`).
 - **Citação**: use sempre o identificador canónico da coluna «ADR» deste índice. Para os três
   documentos que colidem no número 0005, o identificador canónico é `ADR-0005-a`, `-b` ou `-c`
@@ -58,12 +58,13 @@ o histórico).
 | [0015](./ADR-0015-auditoria-documentos-financeiros.md) | Trilho de auditoria dos documentos financeiros | Proposto | 0011 (correlação) |
 | [0016](./ADR-0016-anti-abuso-registo.md) | Protecção anti-abuso do registo público | Proposto | 0014 |
 | [0021](./ADR-0021-fiscalidade-subscricao-saas.md) | Fiscalidade moçambicana da subscrição SaaS | **Proposto — requer parecer externo** | 0009 |
-| [0027](./ADR-0027-modelo-comercial-planos-limites.md) | Modelo comercial: planos, limites e ciclo de vida do acesso | Proposto | 0009, 0011, 0017, 0021 |
+| [0027](./ADR-0027-modelo-comercial-planos-limites.md) | Modelo comercial: planos, limites e ciclo de vida do acesso | Proposto¹⁰ | 0009, 0011, 0017, 0021 |
 | [0032](./ADR-0032-aplicacao-da-leitura.md) | **Como a Leitura é aplicada** | Proposto | 0027 (§6, §7), 0011 (§3), 0022 (§6), 0026 (§2) |
 | [0028](./ADR-0028-ecra-de-entrada-templates-do-tema.md) | O ecrã de entrada: templates próprios no tema do Keycloak | Proposto⁵ | substitui 0012 §8 (tecto) |
 | [0029](./ADR-0029-login-no-erp-direct-grant.md) | **O início de sessão volta ao ERP (Direct Access Grant)** | Proposto⁶ | substitui 0012 §8 e 0028 §2 |
 | [0030](./ADR-0030-palavra-passe-inicial-atribuida.md) | **A palavra-passe inicial é atribuída pelo ERP** | Proposto | substitui 0029 §5; revê 0013 §5-bis |
 | [0031](./ADR-0031-entrada-imediata-registo-publico.md) | **Entrada imediata: o registo público volta a ter palavra-passe** | Proposto | substitui 0013 §4 e §5; 0027, 0029, 0030 |
+| [0049](./ADR-0049-catalogo-planos-administrador-plataforma.md) | **Catálogo de planos na base de dados e administrador de plataforma** | Proposto | emenda 0027 (fonte do catálogo); concretiza 0011 §5; 0009, 0029, 0032 |
 
 **Operação e capacidade**
 
@@ -156,6 +157,8 @@ declarativos são parametrização e confirmam-se antes de `Aceite`.
 ⁶ O §5 — que deixava o primeiro acesso e a reposição no ecrã do Keycloak — foi substituído pelo [ADR-0030](./ADR-0030-palavra-passe-inicial-atribuida.md). O resto do ADR-0029 mantém-se.
 
 ⁷ O §4 (verificação de e-mail delegada ao Keycloak) e o §5 (registo público sem palavra-passe, entrada pelo e-mail de acções) foram substituídos pelo [ADR-0031](./ADR-0031-entrada-imediata-registo-publico.md). O §2 — Keycloak como fonte de verdade da identidade — mantém-se e é pressuposto do 0031.
+
+¹⁰ Emenda o [ADR-0027](./ADR-0027-modelo-comercial-planos-limites.md) só na fonte do catálogo: a constante `src/lib/planos.ts` e o enum `PlanoAssinatura` dão lugar à tabela global `Plano`, gerida na área `/plataforma` (do §1 do 0027 cai só o número fixo de três planos — o preço continua a ser do escalão, nunca do assento; os §2–§7 mantêm-se, e o §5 é finalmente cumprido). Concretiza o [ADR-0011](./ADR-0011-fronteira-autorizacao.md) §5: o papel de realm `plataforma-admin` passa a ser lido para a sessão, sem dar acesso a dados de nenhum tenant.
 
 ## O que **não** tem ADR, e porquê
 
