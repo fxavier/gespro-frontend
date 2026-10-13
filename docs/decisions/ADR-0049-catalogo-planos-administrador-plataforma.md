@@ -174,8 +174,14 @@ O ADR-0009 mantém-se: **o Stripe é a fonte de verdade do valor cobrado**. O qu
   previa. Atribuir e retirar o papel faz-se na consola do Keycloak; o ERP não tem ecrã para isso nem tabela
   que o espelhe (uma segunda fonte de «quem é administrador de plataforma» seria a sincronização que o
   ADR-0011 rejeitou para os papéis de negócio).
+- **Alarga o papel, não abre a superfície transversal.** O ADR-0011 §5 reservou `plataforma-admin` à
+  consola de identidade e rejeitou «sem discussão» uma superfície transversal no ERP. `/plataforma` alarga
+  o papel ao catálogo de planos — dados globais, sem `tenantId` — e não é essa superfície: nunca entra em
+  contexto de tenant, e nenhuma consulta dela devolve dados de um cliente. Se um dia precisar de ver dados
+  de um tenant, é outro ADR.
 - **Como chega à sessão.** O `callbacks.jwt` lê `realm_access.roles` do **access token** do Keycloak (que o
-  ERP recebe desde o ADR-0029) na emissão inicial e **em cada re-resolução** — a mesma cadência de 15
+  ERP recebe desde o ADR-0029) na emissão inicial e **em cada re-resolução** (o ramo de renovação do `jwt` tem de usar o access token
+  renovado, não só o Postgres: o papel não vive na base) — a mesma cadência de 15
   minutos do ADR-0011 §3. Retirar o papel tem efeito em 15 minutos, como retirar um papel de negócio.
   A sessão ganha `session.user.plataformaAdmin: boolean`.
 - **Pode não ter tenant.** Uma Identidade com o papel e **sem** `User` local abre sessão — é a única

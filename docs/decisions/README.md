@@ -58,13 +58,13 @@ o histórico).
 | [0015](./ADR-0015-auditoria-documentos-financeiros.md) | Trilho de auditoria dos documentos financeiros | Proposto | 0011 (correlação) |
 | [0016](./ADR-0016-anti-abuso-registo.md) | Protecção anti-abuso do registo público | Proposto | 0014 |
 | [0021](./ADR-0021-fiscalidade-subscricao-saas.md) | Fiscalidade moçambicana da subscrição SaaS | **Proposto — requer parecer externo** | 0009 |
-| [0027](./ADR-0027-modelo-comercial-planos-limites.md) | Modelo comercial: planos, limites e ciclo de vida do acesso | Proposto | 0009, 0011, 0017, 0021 |
+| [0027](./ADR-0027-modelo-comercial-planos-limites.md) | Modelo comercial: planos, limites e ciclo de vida do acesso | Proposto¹⁰ | 0009, 0011, 0017, 0021 |
 | [0032](./ADR-0032-aplicacao-da-leitura.md) | **Como a Leitura é aplicada** | Proposto | 0027 (§6, §7), 0011 (§3), 0022 (§6), 0026 (§2) |
 | [0028](./ADR-0028-ecra-de-entrada-templates-do-tema.md) | O ecrã de entrada: templates próprios no tema do Keycloak | Proposto⁵ | substitui 0012 §8 (tecto) |
 | [0029](./ADR-0029-login-no-erp-direct-grant.md) | **O início de sessão volta ao ERP (Direct Access Grant)** | Proposto⁶ | substitui 0012 §8 e 0028 §2 |
 | [0030](./ADR-0030-palavra-passe-inicial-atribuida.md) | **A palavra-passe inicial é atribuída pelo ERP** | Proposto | substitui 0029 §5; revê 0013 §5-bis |
 | [0031](./ADR-0031-entrada-imediata-registo-publico.md) | **Entrada imediata: o registo público volta a ter palavra-passe** | Proposto | substitui 0013 §4 e §5; 0027, 0029, 0030 |
-| [0049](./ADR-0049-catalogo-planos-administrador-plataforma.md) | **Catálogo de planos na base de dados e administrador de plataforma** | Proposto¹⁰ | emenda 0027 (fonte do catálogo); concretiza 0011 §5; 0009, 0029, 0032 |
+| [0049](./ADR-0049-catalogo-planos-administrador-plataforma.md) | **Catálogo de planos na base de dados e administrador de plataforma** | Proposto | emenda 0027 (fonte do catálogo); concretiza 0011 §5; 0009, 0029, 0032 |
 
 **Operação e capacidade**
 
