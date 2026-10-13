@@ -6,7 +6,6 @@ import type {
   FilterTenantInput,
   ConfiguracaoFiscalInput,
   DadosEmpresaInput,
-  PlanoAssinatura,
   RegimeIva,
 } from '@/lib/validations/plataforma';
 
@@ -17,7 +16,6 @@ import type {
 export interface ConfiguracaoFiscalRow {
   id: string;
   tenantId: string;
-  planoAssinatura: PlanoAssinatura;
   statusAtivo: boolean;
   email: string | null;
   telefone: string | null;

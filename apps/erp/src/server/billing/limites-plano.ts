@@ -1,13 +1,14 @@
 import 'server-only';
 import { BusinessRuleError } from '@/lib/errors';
-import { PLANOS, type PlanoId } from '@/lib/planos';
 
 /**
  * Limites do plano (ADR-0027 §2–§4, issue #98).
  *
  * Só LÊ o limite: a contagem fica com cada ponto de verificação (criar/reactivar
  * `User`, criar/passar a `Localizacao` ARMAZEM activa), como o ADR-0027 §3 pede.
- * O plano vem da `Assinatura` (§5) — nunca da `ConfiguracaoFiscal`.
+ * O plano vem da `Assinatura` (§5) — nunca da `ConfiguracaoFiscal` — e os números da tabela
+ * `Plano` (ADR-0049 §2), lidos a cada verificação: mudar um limite na base vale de imediato,
+ * sem deploy, para todos os Tenants nesse plano (arquivado ou não).
  */
 export type RecursoLimitado = 'utilizadores' | 'armazens';
 
@@ -16,14 +17,27 @@ interface LeitorAssinatura {
   assinatura: {
     findUnique(args: {
       where: { tenantId: string };
-      select: { planoAssinatura: true };
-    }): Promise<{ planoAssinatura: string } | null>;
+      select: { plano: { select: typeof CAMPOS_PLANO } };
+    }): Promise<{ plano: PlanoLimites | null } | null>;
   };
 }
 
+const CAMPOS_PLANO = { nome: true, limiteUtilizadores: true, limiteArmazens: true } as const;
+
+interface PlanoLimites {
+  nome: string;
+  limiteUtilizadores: number;
+  limiteArmazens: number;
+}
+
+const COLUNA: Record<RecursoLimitado, 'limiteUtilizadores' | 'limiteArmazens'> = {
+  utilizadores: 'limiteUtilizadores',
+  armazens: 'limiteArmazens',
+};
+
 /**
  * Limite do recurso no plano do tenant, ou `null` quando não há limite:
- * tenant sem Assinatura, plano desconhecido, limite ausente ou `-1`.
+ * tenant sem Assinatura, limite ausente ou `-1`.
  * Em TRIAL valem os limites do plano escolhido.
  */
 export async function limiteDoPlano(
@@ -33,11 +47,11 @@ export async function limiteDoPlano(
 ): Promise<{ limite: number; planoNome: string } | null> {
   const assinatura = await db.assinatura.findUnique({
     where: { tenantId },
-    select: { planoAssinatura: true },
+    select: { plano: { select: CAMPOS_PLANO } },
   });
-  if (!assinatura) return null;
-  const plano = PLANOS[assinatura.planoAssinatura as PlanoId];
-  const limite = plano?.limites[recurso];
+  const plano = assinatura?.plano;
+  if (!plano) return null;
+  const limite = plano[COLUNA[recurso]];
   if (typeof limite !== 'number' || limite < 0) return null;
   return { limite, planoNome: plano.nome };
 }

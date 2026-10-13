@@ -100,7 +100,8 @@ describe.skipIf(skip)('#98 — limites do plano aplicados — DB efémera', () =
 
   /**
    * Tenant com um ADMIN activo (o chamador) e um papel. `plano: null` = sem Assinatura.
-   * A `ConfiguracaoFiscal` fica de propósito em BÁSICO: o plano que conta é o da Assinatura.
+   * O plano que conta é o da Assinatura: desde a issue #524 (ADR-0049) a
+   * `ConfiguracaoFiscal` já nem tem coluna de plano, e os limites vêm da tabela `Plano`.
    */
   async function novoTenant(
     rotulo: string,
@@ -114,7 +115,7 @@ describe.skipIf(skip)('#98 — limites do plano aplicados — DB efémera', () =
     await db.tenant.create({
       data: { id: tenantId, nome: `Tenant ${slug}`, slug, nuit: `${sufixo + seq * 7}`.slice(-9) },
     });
-    await db.configuracaoFiscal.create({ data: { tenantId, planoAssinatura: 'BASICO' } });
+    await db.configuracaoFiscal.create({ data: { tenantId } });
     if (plano) {
       await db.assinatura.create({
         data: {

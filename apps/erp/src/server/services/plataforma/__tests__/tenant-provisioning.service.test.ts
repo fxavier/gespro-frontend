@@ -8,9 +8,13 @@ const mocks = vi.hoisted(() => {
     user: { create: vi.fn() },
     userRole: { create: vi.fn() },
     notificacao: { create: vi.fn() },
+    plano: { findUnique: vi.fn(), findFirst: vi.fn() },
   };
   return {
     tx,
+    // Catálogo na tabela `Plano` desde a issue #524 (ADR-0049).
+    planoFindUnique: vi.fn(),
+    planoFindFirst: vi.fn(),
     tenantFindFirst: vi.fn(),
     tenantFindMany: vi.fn(),
     userFindFirst: vi.fn(),
@@ -23,13 +27,15 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/server/db/client', () => ({
-  prismaBase: {
+vi.mock('@/server/db/client', () => {
+  const base = {
     tenant: { findFirst: mocks.tenantFindFirst, findMany: mocks.tenantFindMany },
     user: { findFirst: mocks.userFindFirst },
+    plano: { findUnique: mocks.planoFindUnique, findFirst: mocks.planoFindFirst },
     $transaction: mocks.$transaction,
-  },
-}));
+  };
+  return { prismaBase: base, prisma: base };
+});
 
 vi.mock('@/server/provisioning/tenant-bootstrap', () => ({
   bootstrapRbac: mocks.bootstrapRbac,
@@ -68,8 +74,35 @@ const INPUT = {
   provincia: 'Maputo Cidade',
 };
 
+/** Os três planos de origem existem e estão activos; qualquer outro código não existe. */
+function procurarPlano(args?: { where?: { codigo?: unknown } }) {
+  const c = args?.where?.codigo;
+  const existe = typeof c === 'string' && ['BASICO', 'PROFISSIONAL', 'EMPRESARIAL'].includes(c);
+  return Promise.resolve(
+    existe
+      ? {
+          codigo: c,
+          nome: c,
+          descricao: '',
+          limiteUtilizadores: -1,
+          limiteArmazens: -1,
+          suporte: '',
+          funcionalidades: [],
+          ordem: 0,
+          destaque: false,
+          stripePriceIdMensal: null,
+          stripePriceIdAnual: null,
+          arquivadoEm: null,
+        }
+      : null,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  for (const f of [mocks.planoFindUnique, mocks.planoFindFirst, mocks.tx.plano.findUnique, mocks.tx.plano.findFirst]) {
+    f.mockImplementation(procurarPlano);
+  }
   mocks.tenantFindFirst.mockResolvedValue(null);
   mocks.tenantFindMany.mockResolvedValue([]);
   mocks.userFindFirst.mockResolvedValue(null);
@@ -156,6 +189,8 @@ describe('provisionamento atómico', () => {
     expect(data.timezone).toBe('Africa/Maputo');
     expect(data.statusAtivo).toBe(true);
     expect(data.provincia).toBe('Maputo Cidade');
+    // O plano é da Assinatura (ADR-0027 §5, ADR-0049 §1): a cópia na configuração fiscal saiu.
+    expect(data).not.toHaveProperty('planoAssinatura');
   });
 
   it('ADR-0013 §2: Keycloak PRIMEIRO, Postgres depois — e o sub fica no User', async () => {

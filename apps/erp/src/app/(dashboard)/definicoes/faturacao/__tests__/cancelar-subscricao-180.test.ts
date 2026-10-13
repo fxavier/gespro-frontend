@@ -50,6 +50,40 @@ vi.mock('@/server/services/plataforma/assinatura.service', () => {
   return { obterOuNulo, obter, assinaturaService: { obterOuNulo, obter } };
 });
 
+// Desde o #524 / ADR-0049 o catálogo vem da tabela global `Plano` (serviço server-only, lido
+// pelo Server Component e passado à folha cliente por props). Dobra-se com os três planos do
+// seed, para que a página tenha planos para «Subscrever» como tinha com a constante.
+vi.mock('@/server/services/plataforma/plano.service', () => {
+  const plano = (
+    id: string,
+    nome: string,
+    utilizadores: number,
+    armazens: number,
+    mensal: number,
+    destaque = false,
+  ) => ({
+    id,
+    nome,
+    descricao: `Plano ${nome}`,
+    limites: { utilizadores, armazens, suporte: 'Email' },
+    precoMensal: { valor: mensal, moeda: 'USD' },
+    precoAnual: { valor: mensal * 10, moeda: 'USD' },
+    destaque,
+    funcionalidades: [],
+  });
+  const planos = [
+    plano('BASICO', 'Básico', 3, 1, 29),
+    plano('PROFISSIONAL', 'Profissional', 15, 5, 79, true),
+    plano('EMPRESARIAL', 'Empresarial', -1, -1, 199),
+  ];
+  const listarPlanosPublicos = vi.fn(async () => planos);
+  const obterPlano = vi.fn(async (codigo: string) => {
+    const p = planos.find((x) => x.id === codigo);
+    return p ? { codigo: p.id, nome: p.nome, arquivadoEm: null } : null;
+  });
+  return { listarPlanosPublicos, obterPlano, planoService: { listarPlanosPublicos, obterPlano } };
+});
+
 vi.mock('@/server/actions/onboarding.actions', () => ({
   abrirPortalCliente: vi.fn(),
   cancelarSubscricao: vi.fn(),

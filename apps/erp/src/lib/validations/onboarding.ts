@@ -4,9 +4,9 @@
 import { z } from 'zod';
 import { validarNUIT } from '@/lib/validacao-nuit';
 import { getProvincias } from '@/lib/provincias-mocambique';
-import { PLANO_IDS, CICLO_IDS } from '@/lib/planos';
+import { CICLO_IDS } from '@/lib/planos';
+import { codigoPlano } from '@/lib/validations/common';
 
-export const planoIdEnum = z.enum(PLANO_IDS as unknown as [string, ...string[]]);
 export const cicloEnum = z.enum(CICLO_IDS as unknown as [string, ...string[]]);
 
 export const estadoAssinaturaEnum = z.enum([
@@ -60,7 +60,7 @@ export const RegistoTenantSchema = z
       .min(10, 'A palavra-passe tem de ter pelo menos 10 caracteres')
       .max(200),
     confirmacao: z.string().min(1, 'Confirme a palavra-passe'),
-    planoId: planoIdEnum,
+    planoId: codigoPlano(),
     provincia: z.string().refine((v) => getProvincias().includes(v), {
       message: 'Província inválida para Moçambique',
     }),
@@ -78,7 +78,7 @@ export type RegistoTenantInput = z.infer<typeof RegistoTenantSchema>;
 // ---------------------------------------------------------------------------
 
 export const CheckoutSchema = z.object({
-  planoId: planoIdEnum,
+  planoId: codigoPlano(),
   ciclo: cicloEnum,
 });
 

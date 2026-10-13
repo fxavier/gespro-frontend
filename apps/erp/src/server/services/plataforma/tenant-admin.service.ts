@@ -3,7 +3,9 @@ import { Prisma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
+import { TRIAL_DIAS } from '@/lib/planos';
 import type { Page } from '@/server/db/paginate';
+import { exigirPlanoDisponivel } from './plano.service';
 import type { Ctx } from '@/server/services/types';
 import type {
   CreateTenantInput,
@@ -28,7 +30,6 @@ function mapCfg(cfg: PrismaCfg): ConfiguracaoFiscalRow {
   return {
     id: cfg.id,
     tenantId: cfg.tenantId,
-    planoAssinatura: cfg.planoAssinatura as ConfiguracaoFiscalRow['planoAssinatura'],
     statusAtivo: cfg.statusAtivo,
     email: cfg.email,
     telefone: cfg.telefone,
@@ -79,17 +80,24 @@ export const tenantAdminService: ITenantAdminService = {
   async listar(filter: FilterTenantInput): Promise<Page<TenantRow>> {
     const { search, planoAssinatura, statusAtivo, cursor, take = 25 } = filter;
 
-    // Pré-filtro por ConfiguracaoFiscal se necessário
-    let cfgFilter: string[] | undefined;
-    if (planoAssinatura !== undefined || statusAtivo !== undefined) {
-      const cfgs = await prismaBase.configuracaoFiscal.findMany({
-        where: {
-          ...(planoAssinatura !== undefined ? { planoAssinatura } : {}),
-          ...(statusAtivo !== undefined ? { statusAtivo } : {}),
-        },
+    // Pré-filtros: o plano é da Assinatura (ADR-0027 §5, ADR-0049 §1); o estado, da configuração.
+    let idsFiltro: string[] | undefined;
+    const restringir = (ids: string[]) => {
+      idsFiltro = idsFiltro === undefined ? ids : idsFiltro.filter((id) => ids.includes(id));
+    };
+    if (planoAssinatura !== undefined) {
+      const assinaturas = await prismaBase.assinatura.findMany({
+        where: { planoAssinatura },
         select: { tenantId: true },
       });
-      cfgFilter = cfgs.map((c) => c.tenantId);
+      restringir(assinaturas.map((a) => a.tenantId));
+    }
+    if (statusAtivo !== undefined) {
+      const cfgs = await prismaBase.configuracaoFiscal.findMany({
+        where: { statusAtivo },
+        select: { tenantId: true },
+      });
+      restringir(cfgs.map((c) => c.tenantId));
     }
 
     const tenants = await prismaBase.tenant.findMany({
@@ -98,7 +106,7 @@ export const tenantAdminService: ITenantAdminService = {
       where: {
         deletedAt: null,
         ...(search ? { nome: { contains: search, mode: 'insensitive' } } : {}),
-        ...(cfgFilter !== undefined ? { id: { in: cfgFilter } } : {}),
+        ...(idsFiltro !== undefined ? { id: { in: idsFiltro } } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -137,6 +145,9 @@ export const tenantAdminService: ITenantAdminService = {
         existing.slug === input.slug ? 'Slug já existe' : 'NUIT já registado',
       );
     }
+    // Código validado contra o catálogo antes de escrever (ADR-0049 §3): inexistente ou
+    // arquivado → PLANO_INDISPONIVEL (409), não um P2003 da FK que sairia como «Erro interno».
+    await exigirPlanoDisponivel(input.planoAssinatura);
 
     const tenant = await prismaBase.$transaction(async (tx) => {
       const t = await tx.tenant.create({
@@ -145,7 +156,6 @@ export const tenantAdminService: ITenantAdminService = {
       await tx.configuracaoFiscal.create({
         data: {
           tenantId: t.id,
-          planoAssinatura: input.planoAssinatura ?? 'BASICO',
           regimeIva: input.regimeIva ?? 'NORMAL',
           taxaIvaDefault: input.taxaIvaDefault ?? 0.16,
           moedaBase: input.moedaBase ?? 'MZN',
@@ -158,6 +168,18 @@ export const tenantAdminService: ITenantAdminService = {
           codigoPostal: input.codigoPostal ?? null,
         },
       });
+      // O plano é da Assinatura (ADR-0027 §5): nasce em TRIAL, como no registo público. A FK
+      // para `Plano.codigo` recusa um código inexistente.
+      const agora = new Date();
+      await tx.assinatura.create({
+        data: {
+          tenantId: t.id,
+          planoAssinatura: input.planoAssinatura,
+          estado: 'TRIAL',
+          trialInicio: agora,
+          trialFim: new Date(agora.getTime() + TRIAL_DIAS * 24 * 60 * 60 * 1000),
+        },
+      });
       return t;
     });
 
@@ -167,6 +189,8 @@ export const tenantAdminService: ITenantAdminService = {
   async actualizar(tenantId: string, input: UpdateTenantInput): Promise<TenantRow> {
     const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId, deletedAt: null } });
     if (!tenant) throw new NotFoundError('Empresa não encontrada');
+    // Só se entra num plano disponível; um plano arquivado não se volta a escolher (ADR-0049 §3).
+    if (input.planoAssinatura !== undefined) await exigirPlanoDisponivel(input.planoAssinatura);
 
     await prismaBase.$transaction(async (tx) => {
       if (input.nome) {
@@ -175,11 +199,34 @@ export const tenantAdminService: ITenantAdminService = {
 
       const cfgFields: Record<string, unknown> = {};
       const fieldMap: (keyof typeof input)[] = [
-        'planoAssinatura', 'regimeIva', 'taxaIvaDefault', 'moedaBase',
+        'regimeIva', 'taxaIvaDefault', 'moedaBase',
         'timezone', 'email', 'telefone', 'endereco', 'cidade', 'provincia', 'codigoPostal',
       ];
       for (const f of fieldMap) {
         if (input[f] !== undefined) cfgFields[f] = input[f];
+      }
+
+      if (input.planoAssinatura !== undefined) {
+        // Escrita singular e nunca silenciosa: um tenant sem
+        // Assinatura ganha uma, em TRIAL, como no registo — não um updateMany de 0 linhas.
+        const assinatura = await tx.assinatura.findFirst({ where: { tenantId } });
+        if (assinatura) {
+          await tx.assinatura.update({
+            where: { id: assinatura.id },
+            data: { planoAssinatura: input.planoAssinatura },
+          });
+        } else {
+          const agora = new Date();
+          await tx.assinatura.create({
+            data: {
+              tenantId,
+              planoAssinatura: input.planoAssinatura,
+              estado: 'TRIAL',
+              trialInicio: agora,
+              trialFim: new Date(agora.getTime() + TRIAL_DIAS * 24 * 60 * 60 * 1000),
+            },
+          });
+        }
       }
 
       if (Object.keys(cfgFields).length > 0) {

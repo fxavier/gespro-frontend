@@ -20,12 +20,6 @@ enum RegimeIva {
   ISENTO
 }
 
-enum PlanoAssinatura {
-  BASICO
-  PROFISSIONAL
-  EMPRESARIAL
-}
-
 /// Configuração fiscal, de contacto e de subscrição do tenant.
 /// Complementa o modelo minimalista Tenant (Wave 0) com os dados ricos do mock
 /// (conflito #17 do mapa de entidades). Relação 1:1 com Tenant via tenantId @unique.
@@ -36,8 +30,8 @@ model ConfiguracaoFiscal {
   tenantId String @unique
 
   // --- Subscrição ---
-  planoAssinatura PlanoAssinatura @default(BASICO)
-  statusAtivo     Boolean         @default(true)
+  // O plano é da `Assinatura` (ADR-0027 §5, ADR-0049 §1): a cópia que vivia aqui saiu.
+  statusAtivo Boolean @default(true)
 
   // --- Contacto e localização da empresa ---
   email        String?
@@ -238,7 +232,10 @@ model Assinatura {
   /// alguma vez disparasse. Os serviços filtram por `tenantId` explicitamente.
   tenantId String @unique
 
-  planoAssinatura PlanoAssinatura  @default(BASICO)
+  /// Código do `Plano` (ADR-0049 §1). FK Restrict nos dois sentidos: um plano em uso não se
+  /// apaga nem muda de código. Sem omissão — quem cria a Assinatura escolhe o plano.
+  planoAssinatura String
+  plano           Plano            @relation(fields: [planoAssinatura], references: [codigo], onDelete: Restrict, onUpdate: Restrict)
   ciclo           CicloFaturacao?
   estado          EstadoAssinatura @default(TRIAL)
 
@@ -274,10 +271,53 @@ model Assinatura {
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+  @@index([planoAssinatura])
   /// Cron de fallback: estado=TRIAL AND trialFim < now().
   @@index([estado, trialFim])
   /// Mesmo cron, outra ponta: estado=LEITURA AND leituraFim < now().
   @@index([estado, leituraFim])
+}
+
+/// Catálogo de planos de subscrição (ADR-0049 §1, issue #524) — GLOBAL: sem `tenantId`, igual
+/// para todos os Tenants, fora do scoping da tenant-extension. Lido sem contexto de tenant pelo
+/// registo público, pelo endpoint público e pelos limites do plano (`limites-plano.ts`).
+///
+/// Preços em USD são de EXIBIÇÃO (ADR-0009: o Stripe é a fonte do valor cobrado). Os Price IDs
+/// não são segredos; vazios, `resolverPriceId` recorre à env `STRIPE_PRICE_<CODIGO>_<CICLO>`.
+model Plano {
+  id String @id @default(cuid())
+
+  /// Imutável depois de criado (SCREAMING_SNAKE): viaja no URL do funil, no metadata do Stripe,
+  /// nas env vars dos planos de origem e na FK da Assinatura.
+  codigo    String @unique
+  nome      String
+  descricao String
+
+  precoMensalUsd Decimal @db.Decimal(12, 2)
+  precoAnualUsd  Decimal @db.Decimal(12, 2)
+
+  stripePriceIdMensal String?
+  stripePriceIdAnual  String?
+
+  /// -1 = ilimitado. Verificado em `exigirLugarNoPlano` (ADR-0027 §3).
+  limiteUtilizadores Int
+  /// -1 = ilimitado. Conta Localizações ARMAZEM activas.
+  limiteArmazens     Int
+  suporte            String
+  /// Texto mostrado ao cliente, por ordem. Não liga nem desliga módulo nenhum.
+  funcionalidades    String[] @default([])
+
+  ordem    Int     @default(0)
+  destaque Boolean @default(false)
+  /// Arquivado: fora do catálogo público e de checkouts novos; quem já o tem mantém-no.
+  arquivadoEm DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assinaturas Assinatura[]
+
+  @@index([arquivadoEm, ordem])
 }
 
 /// Livro de idempotência dos webhooks Stripe.

@@ -1,15 +1,17 @@
 import 'server-only';
 import Stripe from 'stripe';
 import { AppError } from '@/lib/errors';
-import { nomeEnvPrice, type CicloId, type PlanoId } from '@/lib/planos';
+import type { Prisma } from '@prisma/client';
+import { CICLO_IDS, type CicloId, type PlanoId } from '@/lib/planos';
+import { prismaBase } from '@/server/db/client';
 
 /**
  * Singleton do SDK Stripe + resolução de Price IDs a partir do ambiente.
  *
  * Segredos NUNCA vivem no repositório: `STRIPE_SECRET_KEY` e
  * `STRIPE_WEBHOOK_SECRET` vêm do Secrets Manager em produção (spec 16) e de
- * `.env` em dev. O catálogo (`src/lib/planos.ts`) guarda só o *nome* da env var
- * de cada Price — resolvido aqui, no servidor.
+ * `.env` em dev. O Price ID de cada plano vem da tabela `Plano` (não é segredo) e, na
+ * falta, da env `STRIPE_PRICE_<CODIGO>_<CICLO>` (ADR-0049 §4) — resolvido aqui, no servidor.
  *
  * Se a chave não estiver configurada, `getStripe()` lança `STRIPE_NAO_CONFIGURADO`
  * (503): o onboarding continua a funcionar em modo trial local — a criação da
@@ -59,22 +61,53 @@ export function getWebhookSecret(): string {
   return secret;
 }
 
+/** Nome da env var do Stripe Price para (plano, ciclo). Nunca devolve o valor. */
+export function nomeEnvPrice(codigo: PlanoId, ciclo: CicloId): string {
+  return `STRIPE_PRICE_${codigo}_${ciclo}`;
+}
+
 /**
- * Resolve o Stripe Price ID de (plano, ciclo) a partir do ambiente.
- * Lança `PRICE_NAO_CONFIGURADO` (503) se a env var estiver por preencher — nunca
- * inventa um preço nem cai em omissão silenciosa.
+ * Resolve o Stripe Price ID de (plano, ciclo): a coluna da tabela `Plano` ganha; vazia, recorre
+ * à env `STRIPE_PRICE_<CODIGO>_<CICLO>` (os três planos de origem). Lança
+ * `PRICE_NAO_CONFIGURADO` (503) se nenhum dos dois existir — nunca inventa um preço nem cai em
+ * omissão silenciosa.
  */
-export function resolverPriceId(planoId: PlanoId, ciclo: CicloId): string {
-  const envVar = nomeEnvPrice(planoId, ciclo);
-  const priceId = process.env[envVar];
+export async function resolverPriceId(codigo: PlanoId, ciclo: CicloId): Promise<string> {
+  const plano = await prismaBase.plano.findUnique({
+    where: { codigo },
+    select: { stripePriceIdMensal: true, stripePriceIdAnual: true },
+  });
+  const daTabela = ciclo === 'ANUAL' ? plano?.stripePriceIdAnual : plano?.stripePriceIdMensal;
+  const priceId = daTabela || process.env[nomeEnvPrice(codigo, ciclo)];
   if (!priceId) {
     throw new AppError(
       'PRICE_NAO_CONFIGURADO',
-      `Preço não configurado para o plano ${planoId} (${ciclo}).`,
+      `Preço não configurado para o plano ${codigo} (${ciclo}).`,
       503,
     );
   }
   return priceId;
+}
+
+/**
+ * Caminho inverso: o código do plano a que um Stripe Price pertence, ou `null` se não for de
+ * nenhum. A tabela (qualquer ciclo) ganha à env; a env só cobre os planos de origem.
+ */
+export async function planoDoPriceId(
+  db: Pick<Prisma.TransactionClient, 'plano'>,
+  priceId: string,
+): Promise<PlanoId | null> {
+  const planos = await db.plano.findMany({
+    select: { codigo: true, stripePriceIdMensal: true, stripePriceIdAnual: true },
+  });
+  const daTabela = planos.find(
+    (p) => p.stripePriceIdMensal === priceId || p.stripePriceIdAnual === priceId,
+  );
+  if (daTabela) return daTabela.codigo;
+  const daEnv = planos.find((p) =>
+    CICLO_IDS.some((ciclo) => process.env[nomeEnvPrice(p.codigo, ciclo)] === priceId),
+  );
+  return daEnv?.codigo ?? null;
 }
 
 // ---------------------------------------------------------------------------

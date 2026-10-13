@@ -18,7 +18,8 @@
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { PLANOS, PLANO_IDS, TRIAL_DIAS, type PlanoId } from '@/lib/planos';
+import { TRIAL_DIAS, type PlanoId } from '@/lib/planos';
+import { listarPlanosPublicos } from '@/server/services/plataforma/plano.service';
 import { getProvincias } from '@/lib/provincias-mocambique';
 import { normalizarUtm, urlSite } from '@/server/analytics/plausible';
 import { RegistoForm } from './registo-form';
@@ -37,12 +38,12 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-function planoEscolhido(bruto: string | string[] | undefined): PlanoId {
+/** O plano do URL, se estiver no catálogo; senão o PROFISSIONAL, ou o primeiro disponível. */
+function planoEscolhido(bruto: string | string[] | undefined, disponiveis: PlanoId[]): PlanoId {
   const valor = Array.isArray(bruto) ? bruto[0] : bruto;
-  const normalizado = valor?.trim().toUpperCase();
-  return (PLANO_IDS as readonly string[]).includes(normalizado ?? '')
-    ? (normalizado as PlanoId)
-    : 'PROFISSIONAL';
+  const normalizado = valor?.trim().toUpperCase() ?? '';
+  if (disponiveis.includes(normalizado)) return normalizado;
+  return disponiveis.includes('PROFISSIONAL') ? 'PROFISSIONAL' : (disponiveis[0] ?? '');
 }
 
 export default async function RegistoPage({
@@ -51,18 +52,23 @@ export default async function RegistoPage({
   searchParams: Promise<Parametros>;
 }) {
   const parametros = await searchParams;
-  const plano = planoEscolhido(parametros.plano);
+  // Catálogo da tabela `Plano` (ADR-0049): só os não arquivados, por `ordem`.
+  const catalogo = await listarPlanosPublicos();
+  const plano = planoEscolhido(
+    parametros.plano,
+    catalogo.map((p) => p.id),
+  );
 
   // Os `utm_*` chegam do site no encaminhamento 307 de `/comecar` e seguem
   // para o evento de conversão. Normalizados aqui — só as cinco chaves
   // conhecidas atravessam a fronteira RSC (Requisito 7.2).
   const utm = normalizarUtm(parametros);
 
-  const planos = PLANO_IDS.map((id) => ({
-    id,
-    nome: PLANOS[id].nome,
-    descricao: PLANOS[id].descricao,
-    preco: PLANOS[id].precoMensal,
+  const planos = catalogo.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    descricao: p.descricao,
+    preco: p.precoMensal,
   }));
 
   return (

@@ -6,6 +6,14 @@ const mocks = vi.hoisted(() => {
   const mockTx = {
     tenant: { create: vi.fn(), update: vi.fn() },
     configuracaoFiscal: { create: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
+    assinatura: {
+      create: vi.fn(),
+      update: vi.fn(),
+      upsert: vi.fn(),
+      updateMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    plano: { findUnique: vi.fn(), findFirst: vi.fn() },
   };
   return {
     mockTenant,
@@ -13,13 +21,25 @@ const mocks = vi.hoisted(() => {
     mockTx,
     tenantFindMany: vi.fn(),
     cfgFindMany: vi.fn(),
+    // O plano vem da Assinatura (ADR-0027 §5, ADR-0049 §1, issue #524).
+    assinaturaFindMany: vi.fn(),
+    assinaturaFindUnique: vi.fn(),
+    assinaturaFindFirst: vi.fn(),
     cfgUpsert: vi.fn(),
+    // Catálogo global (ADR-0049 §1): o `exigirPlanoDisponivel` lê-o pelo prismaBase.
+    planoFindUnique: vi.fn(),
     $transaction: vi.fn(async (fn: (tx: typeof mockTx) => unknown) => fn(mockTx)),
   };
 });
 
 vi.mock('@/server/db/client', () => ({
   prismaBase: {
+    plano: { findUnique: mocks.planoFindUnique },
+    assinatura: {
+      findMany: mocks.assinaturaFindMany,
+      findUnique: mocks.assinaturaFindUnique,
+      findFirst: mocks.assinaturaFindFirst,
+    },
     tenant: {
       findFirst: mocks.mockTenant,
       findMany: mocks.tenantFindMany,
@@ -39,6 +59,13 @@ vi.mock('@/server/db/client', () => ({
 import { tenantAdminService } from '../tenant-admin.service';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
 import { prismaBase } from '@/server/db/client';
+import { TRIAL_DIAS } from '@/lib/planos';
+
+const PLANO_BASICO = {
+  codigo: 'BASICO',
+  nome: 'Básico',
+  arquivadoEm: null as Date | null,
+};
 
 const CTX = { tenantId: 'tenant-1', userId: 'user-1' };
 
@@ -55,7 +82,6 @@ const DEMO_TENANT = {
 const DEMO_CFG = {
   id: 'cfg-1',
   tenantId: 'tenant-1',
-  planoAssinatura: 'PROFISSIONAL',
   statusAtivo: true,
   email: 'a@b.com',
   telefone: null,
@@ -77,6 +103,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.mockTenant.mockResolvedValue(DEMO_TENANT);
   mocks.mockCfg.mockResolvedValue(DEMO_CFG);
+  mocks.assinaturaFindMany.mockResolvedValue([]);
+  mocks.assinaturaFindUnique.mockResolvedValue(null);
+  mocks.assinaturaFindFirst.mockResolvedValue(null);
+  mocks.mockTx.assinatura.findFirst.mockResolvedValue(null);
+  mocks.planoFindUnique.mockImplementation(async ({ where }: { where: { codigo: string } }) =>
+    where.codigo === 'BASICO' ? PLANO_BASICO : null,
+  );
   // Re-atribuir $transaction após clearAllMocks
   mocks.$transaction.mockImplementation(async (fn: (tx: typeof mocks.mockTx) => unknown) => fn(mocks.mockTx));
 });
@@ -116,15 +149,23 @@ describe('tenantAdminService.listar', () => {
     expect(page.items[1].configuracaoFiscal).toBeNull(); // tenant-2 sem CFG
   });
 
-  it('pré-filtra por planoAssinatura usando 2 queries CFG', async () => {
-    mocks.cfgFindMany
-      .mockResolvedValueOnce([DEMO_CFG])   // pré-filtro
-      .mockResolvedValueOnce([DEMO_CFG]);  // batch fetch
+  it('pré-filtra por planoAssinatura pela Assinatura (nunca pela ConfiguracaoFiscal)', async () => {
+    mocks.assinaturaFindMany.mockResolvedValue([{ tenantId: 'tenant-1' }]);
+    mocks.cfgFindMany.mockResolvedValue([DEMO_CFG]); // batch fetch
     mocks.tenantFindMany.mockResolvedValue([DEMO_TENANT]);
 
     const page = await tenantAdminService.listar({ planoAssinatura: 'PROFISSIONAL', take: 25 });
     expect(page.items).toHaveLength(1);
-    expect(mocks.cfgFindMany).toHaveBeenCalledTimes(2);
+
+    // O pré-filtro é UMA leitura da Assinatura pelo plano…
+    expect(mocks.assinaturaFindMany).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mocks.assinaturaFindMany.mock.calls[0][0].where)).toContain('PROFISSIONAL');
+    // …que restringe os tenants aos ids que ela devolveu…
+    expect(JSON.stringify(mocks.tenantFindMany.mock.calls[0][0].where)).toContain('tenant-1');
+    // …e a ConfiguracaoFiscal já não é consultada pelo plano.
+    for (const [args] of mocks.cfgFindMany.mock.calls) {
+      expect(JSON.stringify(args ?? {})).not.toContain('planoAssinatura');
+    }
   });
 });
 
@@ -164,6 +205,140 @@ describe('tenantAdminService.criar', () => {
         taxaIvaDefault: 0.16,
       }),
     ).rejects.toBeInstanceOf(BusinessRuleError);
+  });
+});
+
+const NOVO_TENANT = {
+  nome: 'Demo',
+  slug: 'demo',
+  nuit: '400000000',
+  timezone: 'Africa/Maputo',
+  moedaBase: 'MZN',
+  regimeIva: 'NORMAL' as const,
+  taxaIvaDefault: 0.16,
+};
+
+function semEscritaNaTx() {
+  expect(mocks.$transaction).not.toHaveBeenCalled();
+  expect(mocks.mockTx.tenant.create).not.toHaveBeenCalled();
+  expect(mocks.mockTx.tenant.update).not.toHaveBeenCalled();
+  expect(mocks.mockTx.configuracaoFiscal.create).not.toHaveBeenCalled();
+  expect(mocks.mockTx.configuracaoFiscal.upsert).not.toHaveBeenCalled();
+  expect(mocks.mockTx.assinatura.create).not.toHaveBeenCalled();
+  expect(mocks.mockTx.assinatura.update).not.toHaveBeenCalled();
+  expect(mocks.mockTx.assinatura.updateMany).not.toHaveBeenCalled();
+  expect(mocks.mockTx.assinatura.upsert).not.toHaveBeenCalled();
+}
+
+async function esperarPlanoIndisponivel(p: Promise<unknown>) {
+  const erro = await p.then(
+    () => null,
+    (e: unknown) => e,
+  );
+  expect(erro).toBeInstanceOf(BusinessRuleError);
+  expect((erro as BusinessRuleError).code).toBe('PLANO_INDISPONIVEL');
+}
+
+describe('tenantAdminService.criar — plano do catálogo (ADR-0049 §3, #524)', () => {
+  it('cria a Assinatura em TRIAL com o plano escolhido', async () => {
+    mocks.mockTx.tenant.create.mockResolvedValue(DEMO_TENANT);
+    mocks.mockTenant.mockResolvedValueOnce(null).mockResolvedValueOnce(DEMO_TENANT);
+
+    await tenantAdminService.criar({ ...NOVO_TENANT, planoAssinatura: 'BASICO' });
+
+    expect(mocks.planoFindUnique).toHaveBeenCalledWith({ where: { codigo: 'BASICO' } });
+    expect(mocks.mockTx.assinatura.create).toHaveBeenCalledOnce();
+    const data = mocks.mockTx.assinatura.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({ tenantId: 'tenant-1', planoAssinatura: 'BASICO', estado: 'TRIAL' });
+  });
+
+  it('plano inexistente → PLANO_INDISPONIVEL e nada escrito', async () => {
+    mocks.mockTenant.mockResolvedValueOnce(null);
+    await esperarPlanoIndisponivel(
+      tenantAdminService.criar({ ...NOVO_TENANT, planoAssinatura: 'NAO_EXISTE' }),
+    );
+    expect(mocks.planoFindUnique).toHaveBeenCalledWith({ where: { codigo: 'NAO_EXISTE' } });
+    semEscritaNaTx();
+  });
+
+  it('plano arquivado → PLANO_INDISPONIVEL e nada escrito', async () => {
+    mocks.mockTenant.mockResolvedValueOnce(null);
+    mocks.planoFindUnique.mockResolvedValue({ ...PLANO_BASICO, arquivadoEm: new Date('2026-01-01') });
+    await esperarPlanoIndisponivel(
+      tenantAdminService.criar({ ...NOVO_TENANT, planoAssinatura: 'BASICO' }),
+    );
+    semEscritaNaTx();
+  });
+});
+
+describe('tenantAdminService.actualizar — plano do catálogo (ADR-0049 §3, #524)', () => {
+  it('plano inexistente → PLANO_INDISPONIVEL e nada escrito', async () => {
+    await esperarPlanoIndisponivel(
+      tenantAdminService.actualizar('tenant-1', { nome: 'Novo', planoAssinatura: 'NAO_EXISTE' }),
+    );
+    semEscritaNaTx();
+  });
+
+  it('plano arquivado → PLANO_INDISPONIVEL e nada escrito', async () => {
+    mocks.planoFindUnique.mockResolvedValue({ ...PLANO_BASICO, arquivadoEm: new Date('2026-01-01') });
+    await esperarPlanoIndisponivel(
+      tenantAdminService.actualizar('tenant-1', { nome: 'Novo', planoAssinatura: 'BASICO' }),
+    );
+    semEscritaNaTx();
+  });
+
+  it('plano válido → update singular da Assinatura do tenant (nunca updateMany)', async () => {
+    mocks.mockTx.assinatura.findFirst.mockResolvedValue({
+      id: 'ass-1',
+      tenantId: 'tenant-1',
+      planoAssinatura: 'PROFISSIONAL',
+      estado: 'ATIVA',
+    });
+
+    await tenantAdminService.actualizar('tenant-1', { planoAssinatura: 'BASICO' });
+
+    expect(mocks.mockTx.assinatura.findFirst).toHaveBeenCalledOnce();
+    expect(JSON.stringify(mocks.mockTx.assinatura.findFirst.mock.calls[0][0].where)).toContain(
+      'tenant-1',
+    );
+    expect(mocks.mockTx.assinatura.update).toHaveBeenCalledOnce();
+    expect(mocks.mockTx.assinatura.update).toHaveBeenCalledWith({
+      where: { id: 'ass-1' },
+      data: { planoAssinatura: 'BASICO' },
+    });
+    expect(mocks.mockTx.assinatura.updateMany).not.toHaveBeenCalled();
+    expect(mocks.mockTx.assinatura.upsert).not.toHaveBeenCalled();
+    expect(mocks.mockTx.assinatura.create).not.toHaveBeenCalled();
+  });
+
+  it('tenant sem Assinatura → cria uma em TRIAL com esse plano', async () => {
+    mocks.mockTx.assinatura.findFirst.mockResolvedValue(null);
+    const antes = Date.now();
+
+    await tenantAdminService.actualizar('tenant-1', { planoAssinatura: 'BASICO' });
+
+    expect(mocks.mockTx.assinatura.create).toHaveBeenCalledOnce();
+    const data = mocks.mockTx.assinatura.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({ tenantId: 'tenant-1', planoAssinatura: 'BASICO', estado: 'TRIAL' });
+    expect(data.trialInicio).toBeInstanceOf(Date);
+    expect(data.trialFim.getTime() - data.trialInicio.getTime()).toBe(TRIAL_DIAS * 24 * 60 * 60 * 1000);
+    expect(data.trialInicio.getTime()).toBeGreaterThanOrEqual(antes);
+    expect(mocks.mockTx.assinatura.update).not.toHaveBeenCalled();
+    expect(mocks.mockTx.assinatura.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('sem planoAssinatura → não lê o catálogo nem toca na Assinatura', async () => {
+    await tenantAdminService.actualizar('tenant-1', { nome: 'Novo', cidade: 'Maputo' });
+
+    expect(mocks.planoFindUnique).not.toHaveBeenCalled();
+    expect(mocks.mockTx.assinatura.findFirst).not.toHaveBeenCalled();
+    expect(mocks.mockTx.assinatura.create).not.toHaveBeenCalled();
+    expect(mocks.mockTx.assinatura.update).not.toHaveBeenCalled();
+    expect(mocks.mockTx.assinatura.updateMany).not.toHaveBeenCalled();
+    expect(mocks.mockTx.assinatura.upsert).not.toHaveBeenCalled();
+    // …mas o resto da actualização acontece.
+    expect(mocks.mockTx.tenant.update).toHaveBeenCalledOnce();
+    expect(mocks.mockTx.configuracaoFiscal.upsert).toHaveBeenCalledOnce();
   });
 });
 

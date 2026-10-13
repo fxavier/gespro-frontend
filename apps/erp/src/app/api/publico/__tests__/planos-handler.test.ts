@@ -8,9 +8,53 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(async () => null) }));
 
+/**
+ * Desde a issue #524 (ADR-0049) o catálogo vem da tabela `Plano` pelo serviço
+ * `plano.service.listarPlanosPublicos()` — aqui dobrado, para o teste não depender da base local.
+ * A leitura real (só não arquivados, por `ordem`, valores de origem) está provada em
+ * `test/integration/catalogo-bd-planos-524.test.ts` (C4/C5).
+ */
+const CATALOGO = vi.hoisted(() => [
+  {
+    id: 'BASICO',
+    nome: 'Básico',
+    descricao: 'Para empresas em arranque.',
+    limites: { utilizadores: 3, armazens: 1, suporte: 'Email (48h)' },
+    precoMensal: { valor: 29, moeda: 'USD' },
+    precoAnual: { valor: 290, moeda: 'USD' },
+    destaque: false,
+    funcionalidades: ['Facturação'],
+  },
+  {
+    id: 'PROFISSIONAL',
+    nome: 'Profissional',
+    descricao: 'Contabilidade completa.',
+    limites: { utilizadores: 15, armazens: 5, suporte: 'Email + telefone (24h)' },
+    precoMensal: { valor: 79, moeda: 'USD' },
+    precoAnual: { valor: 790, moeda: 'USD' },
+    destaque: true,
+    funcionalidades: ['Contabilidade PGC-NIRF', 'Recursos humanos'],
+  },
+  {
+    id: 'PLANO_SO_NA_BASE',
+    nome: 'Só na base',
+    descricao: 'Criado pelo administrador de plataforma, sem deploy.',
+    limites: { utilizadores: -1, armazens: -1, suporte: 'Dedicado' },
+    precoMensal: { valor: 12.5, moeda: 'USD' },
+    precoAnual: { valor: 125, moeda: 'USD' },
+    destaque: false,
+    funcionalidades: [],
+  },
+]);
+
+vi.mock('@/server/services/plataforma/plano.service', () => {
+  const listarPlanosPublicos = vi.fn(async () => CATALOGO);
+  const obterPlano = vi.fn(async () => null);
+  return { listarPlanosPublicos, obterPlano, planoService: { listarPlanosPublicos, obterPlano } };
+});
+
 import { NextRequest } from 'next/server';
 import { GET as GET_PLANOS, OPTIONS } from '../planos/route';
-import { PLANO_IDS } from '@/lib/planos';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -31,7 +75,9 @@ describe('GET /api/publico/planos', () => {
 
     const { data } = await res.json();
     expect(data.trialDias).toBe(14);
-    expect(data.planos.map((p: { id: string }) => p.id)).toEqual([...PLANO_IDS]);
+    // O que o serviço devolve, pela ordem do serviço — incluindo um plano que não é de origem.
+    expect(data.planos.map((p: { id: string }) => p.id)).toEqual(CATALOGO.map((p) => p.id));
+    expect(data.planos).toEqual(CATALOGO);
 
     for (const plano of data.planos) {
       expect(plano).toMatchObject({
@@ -41,6 +87,7 @@ describe('GET /api/publico/planos', () => {
         precoMensal: { valor: expect.any(Number), moeda: 'USD' },
         precoAnual: { valor: expect.any(Number), moeda: 'USD' },
         destaque: expect.any(Boolean),
+        funcionalidades: expect.any(Array),
       });
       expect(plano.limites.utilizadores).toBeDefined();
       expect(plano.limites.armazens).toBeDefined();
