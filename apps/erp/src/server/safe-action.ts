@@ -7,6 +7,7 @@ import {
   AcessoLeituraError,
   AppError,
   ForbiddenError,
+  NotFoundError,
   UnauthorizedError,
   ValidationError,
 } from '@/lib/errors';
@@ -25,7 +26,17 @@ export interface ActionCtx {
   permissions: Set<string>;
 }
 
+/**
+ * Contexto de uma action de PLATAFORMA (#525): quem a chama e mais nada. Sem
+ * `tenantId` de propósito — o administrador geral do sistema não actua dentro
+ * de um tenant, e um `tenantId` aqui seria um convite a usá-lo.
+ */
+export interface PlataformaActionCtx {
+  userId: string;
+}
+
 interface SafeActionOptions<S extends z.ZodType | undefined, T> {
+  plataforma?: false;
   schema?: S;
   permission?: string;
   revalidate?: { paths?: string[]; tags?: string[] };
@@ -53,6 +64,28 @@ interface SafeActionOptions<S extends z.ZodType | undefined, T> {
 }
 
 /**
+ * Action do administrador geral do sistema (ADR-0011 §5, #525). Só corre com o
+ * papel `plataforma-admin` na sessão; NÃO estabelece contexto de tenant (nem
+ * quando quem a chama também tem tenant); recusa um `tenantId` vindo do
+ * cliente; e não é travada pelo modo de Leitura/pagamento de nenhum tenant —
+ * não actua sobre o tenant de quem a chama. Sem o papel: `NAO_ENCONTRADO`,
+ * como a guarda das páginas, para não revelar que a área existe.
+ */
+interface SafeActionPlataformaOptions<S extends z.ZodType | undefined, T> {
+  plataforma: true;
+  schema?: S;
+  revalidate?: { paths?: string[]; tags?: string[] };
+  handler: (
+    input: S extends z.ZodType ? z.infer<S> : undefined,
+    ctx: PlataformaActionCtx,
+  ) => Promise<T>;
+}
+
+type SafeAction<S extends z.ZodType | undefined, T> = (
+  raw: S extends z.ZodType ? z.input<S> : void,
+) => Promise<ActionResult<Serializado<T>>>;
+
+/**
  * Única porta para mutações a partir da UI. Autentica, verifica permissão,
  * valida input com Zod, corre o handler dentro do contexto de tenant e
  * devolve sempre `ActionResult<T>` — nunca lança para o cliente.
@@ -68,8 +101,15 @@ interface SafeActionOptions<S extends z.ZodType | undefined, T> {
  *   - Erros inesperados → ActionResult.error.details inclui `traceId` (sem stack ao cliente).
  */
 export function createSafeAction<S extends z.ZodType | undefined, T>(
+  opts: SafeActionPlataformaOptions<S, T>,
+): SafeAction<S, T>;
+export function createSafeAction<S extends z.ZodType | undefined, T>(
   opts: SafeActionOptions<S, T>,
-) {
+): SafeAction<S, T>;
+export function createSafeAction<S extends z.ZodType | undefined, T>(
+  opts: SafeActionOptions<S, T> | SafeActionPlataformaOptions<S, T>,
+): SafeAction<S, T> {
+  if (opts.plataforma === true) return criarAccaoPlataforma(opts);
   type Input = S extends z.ZodType ? z.input<S> : void;
   return async (raw: Input): Promise<ActionResult<Serializado<T>>> => {
     const requestId = newRequestId();
@@ -80,6 +120,11 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
       if (!session?.user) throw new UnauthorizedError();
       const { id: userId, tenantId, permissions } = session.user;
       const perms = new Set(permissions);
+
+      // #525: a sessão do administrador de plataforma sem tenant não corre
+      // actions de tenant — o papel não abre dados de tenant. Antes da
+      // permissão, para valer também nas actions que não declaram nenhuma.
+      if (!tenantId) throw new ForbiddenError();
 
       if (opts.permission && !perms.has(opts.permission)) throw new ForbiddenError();
 
@@ -109,7 +154,11 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
 
       const data = await runWithRequestContext({ requestId, tenantId, userId }, () =>
         runWithTenantContext({ tenantId, userId }, () =>
-          opts.handler(input as never, { tenantId, userId, permissions: perms }),
+          opts.handler(input as never, {
+            tenantId,
+            userId,
+            permissions: perms,
+          }),
         ),
       );
 
@@ -122,37 +171,105 @@ export function createSafeAction<S extends z.ZodType | undefined, T>(
 
       return { ok: true, data: serializarDecimais(data) };
     } catch (e) {
-      const duration = Date.now() - startTime;
-      const log = logger.child({ requestId, action: opts.permission ?? 'action' });
+      return resultadoDeErro(e, requestId, startTime, opts.permission ?? 'action');
+    }
+  };
+}
 
-      if (e instanceof AppError) {
-        // Erro de aplicação conhecido: log ao nível adequado, devolver código estável
-        if (e.status >= 500) {
-          log.error({ code: e.code, status: e.status, duration }, e.message);
-        } else {
-          log.warn({ code: e.code, status: e.status, duration }, e.message);
-        }
-        recordRequest(duration, e.status >= 500);
-        return { ok: false, error: { code: e.code, message: e.message, details: e.details } };
+function criarAccaoPlataforma<S extends z.ZodType | undefined, T>(
+  opts: SafeActionPlataformaOptions<S, T>,
+): SafeAction<S, T> {
+  return async (raw) => {
+    const requestId = newRequestId();
+    const startTime = Date.now();
+
+    try {
+      const session = await auth();
+      if (!session?.user) throw new UnauthorizedError();
+      if (session.user.plataformaAdmin !== true) throw new NotFoundError();
+      const userId = session.user.id;
+
+      // O `tenantId` nunca vem do cliente — e aqui nem do contexto: uma action
+      // de plataforma não actua dentro de um tenant. Recusa-se em vez de se
+      // ignorar, para que quem o mande saiba que não teve efeito.
+      if (raw && typeof raw === 'object' && 'tenantId' in raw) {
+        throw new ValidationError('Dados inválidos', {
+          tenantId: ['Não aceite numa acção de plataforma'],
+        });
       }
 
-      // Erro inesperado: logar no servidor com stack trace; ao cliente só traceId
-      recordRequest(duration, true);
-      log.error(
-        {
-          err: { message: (e as Error)?.message, stack: (e as Error)?.stack },
-          duration,
-        },
-        '[safe-action] erro inesperado',
+      let input: unknown = undefined;
+      if (opts.schema) {
+        const parsed = opts.schema.safeParse(raw);
+        if (!parsed.success) throw new ValidationError('Dados inválidos', parsed.error.flatten());
+        input = parsed.data;
+      }
+
+      const log = logger.child({
+        requestId,
+        userId,
+        plataforma: true,
+        action: 'plataforma',
+      });
+      log.info({}, 'action start');
+
+      // Sem `runWithTenantContext`, de propósito (#525).
+      const data = await runWithRequestContext({ requestId, userId }, () =>
+        opts.handler(input as never, { userId }),
       );
-      return {
-        ok: false,
-        error: {
-          code: 'ERRO_INTERNO',
-          message: 'Erro interno',
-          details: { traceId: requestId },
-        },
-      };
+
+      opts.revalidate?.paths?.forEach((p) => revalidatePath(p));
+      opts.revalidate?.tags?.forEach((t) => updateTag(t));
+
+      const duration = Date.now() - startTime;
+      log.info({ duration }, 'action end');
+      recordRequest(duration, false);
+
+      return { ok: true, data: serializarDecimais(data) };
+    } catch (e) {
+      return resultadoDeErro(e, requestId, startTime, 'plataforma');
     }
+  };
+}
+
+function resultadoDeErro(
+  e: unknown,
+  requestId: string,
+  startTime: number,
+  action: string,
+): { ok: false; error: { code: string; message: string; details?: unknown } } {
+  const duration = Date.now() - startTime;
+  const log = logger.child({ requestId, action });
+
+  if (e instanceof AppError) {
+    // Erro de aplicação conhecido: log ao nível adequado, devolver código estável
+    if (e.status >= 500) {
+      log.error({ code: e.code, status: e.status, duration }, e.message);
+    } else {
+      log.warn({ code: e.code, status: e.status, duration }, e.message);
+    }
+    recordRequest(duration, e.status >= 500);
+    return {
+      ok: false,
+      error: { code: e.code, message: e.message, details: e.details },
+    };
+  }
+
+  // Erro inesperado: logar no servidor com stack trace; ao cliente só traceId
+  recordRequest(duration, true);
+  log.error(
+    {
+      err: { message: (e as Error)?.message, stack: (e as Error)?.stack },
+      duration,
+    },
+    '[safe-action] erro inesperado',
+  );
+  return {
+    ok: false,
+    error: {
+      code: 'ERRO_INTERNO',
+      message: 'Erro interno',
+      details: { traceId: requestId },
+    },
   };
 }

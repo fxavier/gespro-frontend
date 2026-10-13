@@ -70,6 +70,27 @@ function permitidoEmPagamento(pathname: string): boolean {
   );
 }
 
+/**
+ * Sessão SEM tenant — o administrador geral do sistema sem `User` de tenant
+ * (ADR-0011 §5, #525): só a área `/plataforma`. A API passa (os pipelines
+ * recusam a sessão sem tenant) e os ficheiros estáticos também. É também
+ * assim que o login, cujo destino por omissão é `/dashboard`, a leva para
+ * `/plataforma`. Aqui e não num layout, pela mesma razão do `pagamento`.
+ *
+ * O 404 a quem não tem o papel decide-se no layout da área
+ * (`exigirPlataformaAdmin`), não aqui.
+ */
+const ROTA_PLATAFORMA = '/plataforma';
+
+function permitidoSemTenant(pathname: string): boolean {
+  return (
+    pathname === ROTA_PLATAFORMA ||
+    pathname.startsWith(`${ROTA_PLATAFORMA}/`) ||
+    pathname.startsWith('/api/') ||
+    /\.[a-z0-9]+$/i.test(pathname)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Gerador de nonce CSP (edge-safe: crypto.getRandomValues + btoa)
 // ---------------------------------------------------------------------------
@@ -129,6 +150,12 @@ export async function middleware(req: NextRequest) {
       const loginUrl = new URL('/auth/login', req.url);
       loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname + req.nextUrl.search);
       const redirectResponse = NextResponse.redirect(loginUrl);
+      applyHeaders(redirectResponse, securityHeaders);
+      return redirectResponse;
+    }
+
+    if (!token.tenantId && !permitidoSemTenant(pathname)) {
+      const redirectResponse = NextResponse.redirect(new URL(ROTA_PLATAFORMA, req.url));
       applyHeaders(redirectResponse, securityHeaders);
       return redirectResponse;
     }
