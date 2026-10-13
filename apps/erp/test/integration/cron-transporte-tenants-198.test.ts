@@ -67,6 +67,7 @@ describe.skipIf(skip)('#198 — cron transporte-alertas filtra tenants sem acess
         data: {
           tenantId: id,
           estado,
+          planoAssinatura: 'BASICO',
           trialFim:
             estado === 'TRIAL'
               ? new Date(Date.now() + 10 * 86_400_000)

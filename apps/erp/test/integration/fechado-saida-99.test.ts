@@ -66,6 +66,7 @@ describe.skipIf(skip)('#99 — FECHADA tem saída pelo produto (DB efémera)', (
       data: {
         tenantId: id,
         estado,
+        planoAssinatura: 'BASICO',
         trialFim: new Date(Date.now() - 60 * 86_400_000),
         leituraFim: estado === 'LEITURA' ? new Date(Date.now() + 10 * 86_400_000) : null,
       },

@@ -143,7 +143,6 @@ describe.skipIf(skip)('#177 — dados da empresa e configuração fiscal — DB 
         codigoPostal: '2100',
         email: 'antigo@ecf177.mz',
         telefone: '820000177',
-        planoAssinatura: 'BASICO',
         statusAtivo: true,
       },
     });
@@ -247,9 +246,10 @@ describe.skipIf(skip)('#177 — dados da empresa e configuração fiscal — DB 
       codigoPostal: DADOS.codigoPostal,
       email: DADOS.email,
       telefone: DADOS.telefone,
-      planoAssinatura: 'BASICO',
       statusAtivo: true,
     });
+    // O plano é da Assinatura (ADR-0027 §5, ADR-0049 §1): a configuração fiscal não o tem.
+    expect(c).not.toHaveProperty('planoAssinatura');
     expect(c.id, 'a configuração é actualizada, não substituída').toBe(cfgId);
 
     expect(row.id).toBe(TENANT);
@@ -353,6 +353,7 @@ describe.skipIf(skip)('#177 — dados da empresa e configuração fiscal — DB 
     expect(typeof acao, 'actualizarDadosEmpresa não está exportada de plataforma.actions').toBe('function');
     const antesOutroT = await lerTenant(OUTRO);
     const antesOutroC = await lerCfg(OUTRO);
+    const antesAssinatura = await db.assinatura.findMany({ where: { tenantId: TENANT } });
     const r = await acao({
       ...DADOS,
       nuit: NUIT_ACAO,
@@ -369,7 +370,10 @@ describe.skipIf(skip)('#177 — dados da empresa e configuração fiscal — DB 
     expect(t.nome).toBe(DADOS.nome);
     expect(t.slug).toBe(TENANT);
     const c = await lerCfg(TENANT);
-    expect(c.planoAssinatura).toBe('BASICO');
+    // O `planoAssinatura` enviado não chega a lado nenhum: nem à configuração fiscal (que já
+    // não tem plano, issue #524) nem à Assinatura do tenant, que fica exactamente como estava.
+    expect(c).not.toHaveProperty('planoAssinatura');
+    expect(await db.assinatura.findMany({ where: { tenantId: TENANT } })).toEqual(antesAssinatura);
     expect(c.statusAtivo).toBe(true);
     expect(c.regimeIva).toBe('SIMPLIFICADO');
 

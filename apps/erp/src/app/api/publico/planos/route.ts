@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { withApi } from '@/lib/api/with-api';
 import { buildCorsHeaders, corsPreflightResponse } from '@/lib/api/cors';
-import { catalogoPublico } from '@/lib/planos';
+import { TRIAL_DIAS } from '@/lib/planos';
+import { listarPlanosPublicos } from '@/server/services/plataforma/plano.service';
 
 /** Endpoint público e só de leitura: sem POST, sem credenciais — GET e preflight iguais (#197). */
 const CORS_PLANOS = { methods: 'GET, OPTIONS', credentials: false } as const;
@@ -13,7 +14,8 @@ const CORS_PLANOS = { methods: 'GET, OPTIONS', credentials: false } as const;
  * renderiza o que este endpoint devolver e nunca hardcoda valores
  * (`docs/handoff/site-provisionamento.md` §1).
  *
- * Sem dados de tenant, sem PII, sem segredos — só o catálogo estático. Por isso
+ * O catálogo vem da tabela global `Plano` (ADR-0049): só os não arquivados, por `ordem`.
+ * Sem dados de tenant, sem PII, sem segredos nem Price IDs — só o catálogo. Por isso
  * é cacheável na borda; um preço desactualizado durante 5 minutos é aceitável e
  * evita que uma vaga de tráfego do site chegue ao servidor da aplicação.
  */
@@ -21,7 +23,7 @@ export const GET = withApi(
   async (req: NextRequest) => {
     const cors = buildCorsHeaders(req, CORS_PLANOS);
     return NextResponse.json(
-      { data: catalogoPublico() },
+      { data: { trialDias: TRIAL_DIAS, planos: await listarPlanosPublicos() } },
       {
         headers: {
           ...(cors as Record<string, string>),

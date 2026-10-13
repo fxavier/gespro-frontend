@@ -17,9 +17,11 @@ import { TRIAL_DIAS, type CicloId, type PlanoId } from '@/lib/planos';
 import {
   getStripe,
   getWebhookSecret,
+  planoDoPriceId,
   resolverPriceId,
   stripeConfigurado,
 } from '@/server/billing/stripe-client';
+import { exigirPlanoDisponivel } from '@/server/services/plataforma/plano.service';
 
 /**
  * Ciclo de vida da subscrição SaaS — spec 19, Requisitos 3 a 6.
@@ -202,7 +204,7 @@ export async function aplicarTransicao(
     data: {
       estado: novoEstado as never,
       ...(patch.planoAssinatura !== undefined
-        ? { planoAssinatura: patch.planoAssinatura as never }
+        ? { planoAssinatura: patch.planoAssinatura }
         : {}),
       ...(patch.ciclo !== undefined ? { ciclo: patch.ciclo as never } : {}),
       ...(patch.stripeCustomerId !== undefined
@@ -338,16 +340,18 @@ export interface ResultadoCheckout {
 
 /**
  * Cria uma Checkout Session em modo `subscription` para o plano/ciclo pedidos.
- * O plano vem revalidado contra o catálogo server-side (`resolverPriceId`) —
- * nunca se confia num identificador de preço enviado pelo cliente.
+ * O plano vem revalidado contra a tabela `Plano` — inexistente ou arquivado é
+ * `PLANO_INDISPONIVEL`, antes de tocar no Stripe (ADR-0049 §3) — e o Price sai do
+ * servidor (`resolverPriceId`): nunca se confia num identificador de preço do cliente.
  */
 export async function iniciarCheckout(
   input: { planoId: PlanoId; ciclo: CicloId },
   ctx: Ctx,
 ): Promise<ResultadoCheckout> {
   const assinatura = await obter(ctx);
+  await exigirPlanoDisponivel(input.planoId);
   const stripe = getStripe();
-  const priceId = resolverPriceId(input.planoId, input.ciclo);
+  const priceId = await resolverPriceId(input.planoId, input.ciclo);
   const customerId = await garantirCustomer(assinatura, ctx);
   const base = urlBase();
 
@@ -458,7 +462,7 @@ export async function criarSubscricaoTrial(
 
   try {
     const stripe = getStripe();
-    const priceId = resolverPriceId(planoId, ciclo);
+    const priceId = await resolverPriceId(planoId, ciclo);
 
     const assinatura = await prismaBase.assinatura.findFirst({
       where: { tenantId },
@@ -809,10 +813,14 @@ async function aplicarEvento(
       if (!novoEstado) return false;
 
       const priceId = extrairPriceId(objecto);
+      // Mudança de plano no Portal do Stripe: o Price diz o plano (tabela, depois env). Um Price
+      // que não é de plano nenhum não muda o plano — fica só registado.
+      const plano = priceId ? await planoDoPriceId(tx, priceId) : null;
       const patch: PatchAssinatura = {
         stripeSubscriptionId: ctx.subscriptionId ?? undefined,
         stripeCustomerId: ctx.customerId ?? undefined,
         ...(priceId ? { stripePriceId: priceId } : {}),
+        ...(plano ? { planoAssinatura: plano } : {}),
         ...(novoEstado === 'ATIVA'
           ? { dataAtivacao: agora, tentativasFalhadas: 0, leituraFim: null }
           : {}),

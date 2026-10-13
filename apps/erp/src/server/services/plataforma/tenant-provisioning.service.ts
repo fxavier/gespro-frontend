@@ -11,6 +11,7 @@ import {
   garantirCatalogoPermissoes,
 } from '@/server/provisioning/tenant-bootstrap';
 import { garantirUtilizador } from '@/server/auth/keycloak';
+import { exigirPlanoDisponivel } from '@/server/services/plataforma/plano.service';
 
 /**
  * Provisionamento self-service de tenants — spec 19, Requisito 1, revisto
@@ -152,6 +153,10 @@ export async function provisionarTenant(
     );
   }
 
+  // O plano tem de existir e estar activo na tabela `Plano` (ADR-0049 §3) — antes do Keycloak,
+  // para uma recusa não deixar identidade nenhuma para trás.
+  await exigirPlanoDisponivel(input.planoId);
+
   // Catálogo global de permissões fora da tx: é partilhado por todos os
   // tenants, e escrevê-lo dentro da tx punha dois registos concorrentes a
   // disputar o mesmo índice único (deadlock possível num endpoint público).
@@ -223,7 +228,6 @@ async function executarProvisionamento(
       await tx.configuracaoFiscal.create({
         data: {
           tenantId,
-          planoAssinatura: input.planoId as never,
           statusAtivo: true,
           email: input.admin.email,
           provincia: input.provincia,
@@ -237,7 +241,7 @@ async function executarProvisionamento(
       await tx.assinatura.create({
         data: {
           tenantId,
-          planoAssinatura: input.planoId as never,
+          planoAssinatura: input.planoId,
           estado: 'TRIAL',
           trialInicio: agora,
           trialFim,

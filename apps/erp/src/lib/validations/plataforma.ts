@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { validarNUIT } from '@/lib/validacao-nuit';
 import { getProvincias } from '@/lib/provincias-mocambique';
+import { codigoPlano } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Helpers de refinamento moçambicanos
@@ -31,8 +32,8 @@ export const provinciaSchema = z
 export const regimeIvaEnum = z.enum(['NORMAL', 'SIMPLIFICADO', 'ISENTO']);
 export type RegimeIva = z.infer<typeof regimeIvaEnum>;
 
-export const planoAssinaturaEnum = z.enum(['BASICO', 'PROFISSIONAL', 'EMPRESARIAL']);
-export type PlanoAssinatura = z.infer<typeof planoAssinaturaEnum>;
+/** Código de um `Plano` — validado contra a tabela no serviço (ADR-0049 §1). */
+export type PlanoAssinatura = string;
 
 // ---------------------------------------------------------------------------
 // Gestão de Tenants — admin de plataforma (permissão: plataforma:admin)
@@ -58,7 +59,8 @@ export const CreateTenantSchema = z.object({
     .string()
     .length(3, 'Código de moeda ISO 4217 (3 letras)')
     .default('MZN'),
-  planoAssinatura: planoAssinaturaEnum.default('BASICO'),
+  // Sem omissão (ADR-0049 §1): quem cria escolhe o plano; o serviço grava-o na Assinatura.
+  planoAssinatura: codigoPlano(),
   regimeIva: regimeIvaEnum.default('NORMAL'),
   // IVA como FRACÇÃO (ADR-0003 §4): 0.16 = 16 %. Consistente com A/B/C/D.
   taxaIvaDefault: z.number().min(0).max(1).default(0.16),
@@ -74,7 +76,7 @@ export type UpdateTenantInput = z.infer<typeof UpdateTenantSchema>;
 
 export const FilterTenantSchema = z.object({
   search: z.string().max(200).optional(),
-  planoAssinatura: planoAssinaturaEnum.optional(),
+  planoAssinatura: codigoPlano().optional(),
   statusAtivo: z.boolean().optional(),
   cursor: z.string().optional(),
   take: z.number().int().min(1).max(100).default(25),

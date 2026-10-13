@@ -5,7 +5,6 @@ import {
   getWebhookSecret,
   paraCentavos,
   resetStripeClient,
-  resolverPriceId,
   stripeConfigurado,
 } from '../stripe-client';
 
@@ -82,15 +81,8 @@ describe('cliente Stripe', () => {
   });
 });
 
-describe('resolução de Price IDs', () => {
-  it('lê o Price da env var indicada pelo catálogo', () => {
-    process.env.STRIPE_PRICE_BASICO_MENSAL = 'price_123';
-    expect(resolverPriceId('BASICO', 'MENSAL')).toBe('price_123');
-  });
-
-  it('falha explicitamente se o preço não estiver configurado (nunca inventa)', () => {
-    expect(() => resolverPriceId('BASICO', 'MENSAL')).toThrowError(
-      expect.objectContaining({ code: 'PRICE_NAO_CONFIGURADO', status: 503 }),
-    );
-  });
-});
+// `resolverPriceId` passou a ler a tabela `Plano` (coluna ?? env `STRIPE_PRICE_<CODIGO>_<CICLO>`,
+// issue #524, ADR-0049 §4). As duas asserções que viviam aqui — «lê o Price da env var» e
+// «PRICE_NAO_CONFIGURADO (503) se nada estiver configurado» — passaram, sem enfraquecer, para
+// `test/integration/catalogo-bd-planos-524.test.ts` (C7), contra a base real, junto com
+// «a coluna ganha à env».

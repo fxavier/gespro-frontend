@@ -36,7 +36,6 @@ import {
   type Utm,
 } from '@/server/analytics/plausible';
 import type { RegistoTenantInput } from '@/lib/validations/onboarding';
-import { PLANO_IDS } from '@/lib/planos';
 
 export interface EntradaRegistoPublico {
   dados: RegistoTenantInput;
@@ -80,8 +79,13 @@ function ipDosCabecalhos(h: Headers): string {
   return encaminhado || h.get('x-real-ip')?.trim() || 'unknown';
 }
 
+/** Forma de um código de plano (SCREAMING_SNAKE, ADR-0049 §1). */
+const RE_CODIGO_PLANO = /^[A-Z][A-Z0-9_]{0,63}$/;
+
 /**
- * O plano, reduzido a uma das três constantes do catálogo — ou a string vazia.
+ * O plano, reduzido a algo com a forma de um código de plano — ou a string vazia. Os planos
+ * vivem na tabela (ADR-0049), por isso aqui só se garante a FORMA; a existência verifica-a o
+ * provisionamento (`PLANO_INDISPONIVEL`).
  *
  * Entra no log e na propriedade do evento de medição ANTES de o Zod da
  * fronteira partilhada correr, e vem do cliente: sem isto, quem chamasse a
@@ -89,9 +93,7 @@ function ipDosCabecalhos(h: Headers): string {
  * fornecedor de analítica.
  */
 function planoSeguro(valor: unknown): string {
-  return typeof valor === 'string' && (PLANO_IDS as readonly string[]).includes(valor)
-    ? valor
-    : '';
+  return typeof valor === 'string' && RE_CODIGO_PLANO.test(valor) ? valor : '';
 }
 
 /**

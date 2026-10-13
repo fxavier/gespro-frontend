@@ -27,17 +27,52 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth', () => ({ auth: mocks.auth }));
 
-vi.mock('@/server/db/client', () => ({
-  prisma: {},
-  prismaBase: {
-    assinatura: {
-      findFirst: mocks.assinaturaFindFirst,
-      updateMany: mocks.assinaturaUpdateMany,
+// Catálogo na tabela `Plano` desde a issue #524 (ADR-0049): o PROFISSIONAL existe e está activo.
+const catalogo = vi.hoisted(() => {
+  const PLANO_PROFISSIONAL = {
+    codigo: 'PROFISSIONAL',
+    nome: 'Profissional',
+    descricao: '',
+    precoMensalUsd: { toString: () => '79' },
+    precoAnualUsd: { toString: () => '790' },
+    stripePriceIdMensal: null,
+    stripePriceIdAnual: null,
+    limiteUtilizadores: 15,
+    limiteArmazens: 5,
+    suporte: '',
+    funcionalidades: [],
+    ordem: 2,
+    destaque: true,
+    arquivadoEm: null,
+    createdAt: new Date('2026-10-13'),
+    updatedAt: new Date('2026-10-13'),
+  };
+  const procurarPlano = async (args?: { where?: { codigo?: unknown } }) =>
+    args?.where?.codigo === 'PROFISSIONAL' ? PLANO_PROFISSIONAL : null;
+  return {
+    plano: {
+      findUnique: procurarPlano,
+      findFirst: procurarPlano,
+      findMany: async () => [PLANO_PROFISSIONAL],
     },
-    tenant: { findFirst: mocks.tenantFindFirst },
-    configuracaoFiscal: { findFirst: mocks.cfgFindFirst },
-  },
-}));
+  };
+});
+
+vi.mock('@/server/db/client', () => {
+  const { plano } = catalogo;
+  return {
+    prisma: { plano },
+    prismaBase: {
+      assinatura: {
+        findFirst: mocks.assinaturaFindFirst,
+        updateMany: mocks.assinaturaUpdateMany,
+      },
+      tenant: { findFirst: mocks.tenantFindFirst },
+      configuracaoFiscal: { findFirst: mocks.cfgFindFirst },
+      plano,
+    },
+  };
+});
 
 vi.mock('@/server/billing/stripe-client', async () => {
   const real = await vi.importActual<typeof import('@/server/billing/stripe-client')>(

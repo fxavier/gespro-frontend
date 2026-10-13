@@ -47,7 +47,12 @@ describe.skipIf(skip)('#186/#201 — transporte-alertas no withApi, com motorist
       },
     });
     await db.assinatura.create({
-      data: { tenantId, estado: 'ATIVA', trialFim: new Date(Date.now() - 60 * 86_400_000) },
+      data: {
+        tenantId,
+        estado: 'ATIVA',
+        planoAssinatura: 'BASICO',
+        trialFim: new Date(Date.now() - 60 * 86_400_000),
+      },
     });
 
     const viatura = await db.viatura.create({

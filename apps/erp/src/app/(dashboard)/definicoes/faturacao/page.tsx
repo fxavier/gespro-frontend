@@ -7,7 +7,8 @@ import { assinaturaService } from '@/server/services/plataforma/assinatura.servi
 import { PageHeader, StatusBadge, KpiCard, EmptyState } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PLANOS, TRIAL_DIAS, type PlanoId } from '@/lib/planos';
+import { TRIAL_DIAS } from '@/lib/planos';
+import { listarPlanosPublicos, obterPlano } from '@/server/services/plataforma/plano.service';
 import { assinaturaCancelavel } from '@/lib/state-machines';
 import { FaturacaoAcoes } from './faturacao-acoes';
 
@@ -80,7 +81,12 @@ async function Subscricao({ tenantId, userId }: { tenantId: string; userId: stri
     );
   }
 
-  const plano = PLANOS[assinatura.planoAssinatura as PlanoId];
+  // O plano actual pode estar arquivado (mantém-se para quem o tem); a escolha só mostra os
+  // não arquivados (ADR-0049 §3). Os planos chegam à folha cliente por props.
+  const [plano, planos] = await Promise.all([
+    obterPlano(assinatura.planoAssinatura),
+    listarPlanosPublicos(),
+  ]);
   const dataFmt = new Intl.DateTimeFormat('pt-PT', { dateStyle: 'long' });
 
   return (
@@ -173,7 +179,8 @@ async function Subscricao({ tenantId, userId }: { tenantId: string; userId: stri
       )}
 
       <FaturacaoAcoes
-        planoActual={assinatura.planoAssinatura as PlanoId}
+        planos={planos}
+        planoActual={assinatura.planoAssinatura}
         cicloActual={assinatura.ciclo}
         temSubscricaoStripe={Boolean(assinatura.stripeCustomerId)}
         cancelavel={assinaturaCancelavel(assinatura.estado)}

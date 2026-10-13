@@ -22,7 +22,7 @@ import {
   cancelarSubscricao,
   iniciarCheckout,
 } from '@/server/actions/onboarding.actions';
-import { PLANOS, PLANO_IDS, type CicloId, type PlanoId } from '@/lib/planos';
+import type { CicloId, PlanoId, PlanoPublico } from '@/lib/planos';
 import { LEITURA_DIAS } from '@/lib/state-machines';
 
 /**
@@ -33,11 +33,14 @@ import { LEITURA_DIAS } from '@/lib/state-machines';
  * destrutiva do cancelamento — a excepção permitida pelas convenções de UI.
  */
 export function FaturacaoAcoes({
+  planos,
   planoActual,
   cicloActual,
   temSubscricaoStripe,
   cancelavel,
 }: {
+  /** Catálogo (não arquivados), lido pelo Server Component — nunca importado aqui. */
+  planos: PlanoPublico[];
   planoActual: PlanoId;
   cicloActual: CicloId | null;
   temSubscricaoStripe: boolean;
@@ -109,8 +112,8 @@ export function FaturacaoAcoes({
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {PLANO_IDS.map((id) => {
-          const plano = PLANOS[id];
+        {planos.map((plano) => {
+          const id = plano.id;
           const preco = ciclo === 'ANUAL' ? plano.precoAnual : plano.precoMensal;
           const actual = id === planoActual;
           return (

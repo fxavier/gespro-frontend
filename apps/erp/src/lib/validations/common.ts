@@ -100,6 +100,13 @@ export const idEntidade = (mensagem = 'ID inválido') =>
 // ---------------------------------------------------------------------------
 
 /** Intervalo de anos aceite numa data de documento (emissão, vencimento, validade). */
+/**
+ * Código de um `Plano` (ADR-0049 §1). O Zod não fixa a lista — os planos vivem na tabela e um
+ * plano novo não pode exigir deploy; a existência e o estado (arquivado) verificam-se no serviço
+ * contra a tabela (`PLANO_INDISPONIVEL`).
+ */
+export const codigoPlano = () => z.string().trim().min(1, 'Plano obrigatório').max(64, 'Plano inválido');
+
 export const ANO_DOCUMENTO_MIN = 2000;
 export const ANO_DOCUMENTO_MAX = 2100;
 

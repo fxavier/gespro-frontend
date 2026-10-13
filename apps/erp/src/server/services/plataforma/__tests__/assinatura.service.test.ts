@@ -7,9 +7,14 @@ const mocks = vi.hoisted(() => {
     eventoWebhookStripe: { create: vi.fn() },
     user: { findMany: vi.fn() },
     notificacao: { createManyAndReturn: vi.fn() },
+    plano: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
   };
   return {
     tx,
+    // Catálogo na tabela `Plano` desde a issue #524 (ADR-0049): os três de origem, activos.
+    planoFindUnique: vi.fn(),
+    planoFindFirst: vi.fn(),
+    planoFindMany: vi.fn(),
     assinaturaFindFirst: vi.fn(),
     assinaturaFindMany: vi.fn(),
     assinaturaUpdateMany: vi.fn(),
@@ -36,8 +41,8 @@ vi.mock('@/server/email', () => ({
   emailProvider: { enviar: vi.fn().mockResolvedValue(undefined) },
 }));
 
-vi.mock('@/server/db/client', () => ({
-  prismaBase: {
+vi.mock('@/server/db/client', () => {
+  const base = {
     assinatura: {
       findFirst: mocks.assinaturaFindFirst,
       findMany: mocks.assinaturaFindMany,
@@ -49,9 +54,15 @@ vi.mock('@/server/db/client', () => ({
     user: { findMany: mocks.userFindMany },
     tenant: { findFirst: mocks.tenantFindFirst },
     configuracaoFiscal: { findFirst: mocks.cfgFindFirst },
+    plano: {
+      findUnique: mocks.planoFindUnique,
+      findFirst: mocks.planoFindFirst,
+      findMany: mocks.planoFindMany,
+    },
     $transaction: mocks.$transaction,
-  },
-}));
+  };
+  return { prismaBase: base, prisma: base };
+});
 
 vi.mock('@/server/billing/stripe-client', async () => {
   const real = await vi.importActual<typeof import('@/server/billing/stripe-client')>(
@@ -110,6 +121,42 @@ function assinaturaDb(over: Record<string, unknown> = {}) {
   };
 }
 
+/** Linha da tabela `Plano` (issue #524): os três de origem, activos, sem Price IDs na coluna. */
+function planoDb(codigo: string) {
+  return {
+    codigo,
+    nome: codigo,
+    descricao: '',
+    precoMensalUsd: { toString: () => '29' },
+    precoAnualUsd: { toString: () => '290' },
+    stripePriceIdMensal: null,
+    stripePriceIdAnual: null,
+    limiteUtilizadores: -1,
+    limiteArmazens: -1,
+    suporte: '',
+    funcionalidades: [],
+    ordem: 0,
+    destaque: false,
+    arquivadoEm: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+const ORIGEM = ['BASICO', 'PROFISSIONAL', 'EMPRESARIAL'];
+
+/** Procura por `codigo` (só os três de origem existem); qualquer outra procura não encontra. */
+function procurarPlano(args?: { where?: { codigo?: unknown } }) {
+  const c = args?.where?.codigo;
+  return Promise.resolve(typeof c === 'string' && ORIGEM.includes(c) ? planoDb(c) : null);
+}
+
+/** Sem filtro (ou só por arquivo) devolve os três; qualquer outro filtro não encontra nada. */
+function listarPlanos(args?: { where?: Record<string, unknown> }) {
+  const chaves = Object.keys(args?.where ?? {}).filter((k) => k !== 'arquivadoEm');
+  return Promise.resolve(chaves.length === 0 ? ORIGEM.map(planoDb) : []);
+}
+
 function evento(tipo: string, object: Record<string, unknown>, id = 'evt_1') {
   return { id, type: tipo, data: { object } } as never;
 }
@@ -128,6 +175,10 @@ beforeEach(() => {
   mocks.notificacaoUpdate.mockResolvedValue({});
   mocks.userFindMany.mockResolvedValue([]);
   mocks.assinaturaUpdateMany.mockResolvedValue({ count: 1 });
+  for (const f of [mocks.planoFindUnique, mocks.planoFindFirst, mocks.tx.plano.findUnique, mocks.tx.plano.findFirst]) {
+    f.mockImplementation(procurarPlano);
+  }
+  for (const f of [mocks.planoFindMany, mocks.tx.plano.findMany]) f.mockImplementation(listarPlanos);
 });
 
 // ---------------------------------------------------------------------------
