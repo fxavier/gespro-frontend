@@ -1,0 +1,4 @@
+32b9124a1ad2663e3a37436ceea5fbf87b88580a48c82590787b879774e0231d  apps/erp/src/server/provisioning/__tests__/tenant-bootstrap.test.ts
+8381ff7e502b3b1cf60b07b947cb8c226f547601f4e68394070c67fc3247b591  apps/erp/test/integration/natureza-classe-4-295.test.ts
+16ef541134b10e597d563be77c89ca2dd5bfcd2936810cf2143f416449f7dda4  apps/erp/src/server/services/financas/__tests__/fixtures/dfc-seed-demo.json
+cb8e0658f28f32863c4b7c9b906caf047922c9c8cd81e7c85974e61158f08c2d  apps/erp/e2e/20-balancete.spec.ts

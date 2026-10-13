@@ -1,0 +1,4 @@
+c98be12a44079d340173d8a4404243db661dc5fdbfa58c918902a2563f3b9e5d  apps/erp/src/lib/__tests__/assinatura-state-machine.test.ts
+95832f4aef92ca5b7b92ffb8a2142f256773a2bf5f8d54a404bbe9d9305876ab  apps/erp/src/server/__tests__/acesso-pagamento-pipelines.test.ts
+750f8465203d8938875655eeef9544722e891eec51f945a0f8e100543f51a617  apps/erp/src/server/services/plataforma/__tests__/assinatura.service.test.ts
+b914fffc618ee7bdebc70ad74529d7854d45b3a97727fa8fdbb505ddf7774180  apps/erp/test/integration/fechado-saida-99.test.ts

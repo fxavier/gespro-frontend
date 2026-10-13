@@ -1,0 +1,3 @@
+b8d965dc67862bf51d66d09044563534336e9f2b66f291a36eb8f0eec07c7294  apps/erp/test/integration/compras-cotacao-rfq-109.test.ts
+12b002812df05c3eab146de12fe97e2809ef72e0cc84342f25496d41d592fc27  apps/erp/e2e/48-compras-cotacao-rfq-109.spec.ts
+a4c154755188e40c6ff6c889c5145547e78e0e6fd026f1a30a1a24c6fa55b495  apps/erp/src/server/services/compras/__tests__/compras.service.test.ts

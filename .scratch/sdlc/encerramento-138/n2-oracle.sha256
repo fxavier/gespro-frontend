@@ -1,0 +1,4 @@
+7341b017547f1f3f5af347c90574716c18c09cf1b52b69cefc83b9703ebdbf28  src/lib/__tests__/encerramento-fundacao.test.ts
+6e43fe10208046d4342c2a7c9c8ed8c6497139e39c848c794c80dd9fdbf79537  src/server/services/financas/__tests__/exercicio-permissoes.test.ts
+64988acbb864fe1723f9869ceed40df14efd11a9ce4b57a00fb8003b9e7a2f54  src/server/db/audit-extension.test.ts
+52ce01835853290c7d9c940743051604b430661f5003bc3506c3465cd8d18d0c  src/server/services/financas/__tests__/helpers/duplo-config-dfc.ts

@@ -1,0 +1,7 @@
+2b1c55ec8cdc0d30773bc9f6e6b153f6ee8a1ad7fa4caf20b0f2dde705048f1b  apps/erp/test/integration/clientes-historico-134.test.ts
+f52de749d34ed411e04200d54bdf591fa23383b7dca31abdcaac7043f38d9c80  apps/erp/src/server/services/financas/__tests__/emitir-documento-em-tx.test.ts
+8ca9a5717a3a06c1c802d3d64646fa6d62d4c470a8a526fb425f643c6f53f9a9  apps/erp/src/server/services/financas/__tests__/faturacao-iva-zero.test.ts
+6f51dabf2ab17bad73b96e2c00b3a74cfec075b5f24e3e0315e091eafe6c7844  apps/erp/src/server/services/financas/__tests__/serie-na-emissao.test.ts
+28d5ecc1290a7225fd73f532b7abfc609dd58abd79663bb94d61caa0dd8fcf5a  apps/erp/src/server/services/financas/__tests__/travao-emissao-verificacao.test.ts
+91af3b78d4103e8944dc8f5969fa60f4e5ddd4e226d789b79b6031ff3d84652b  apps/erp/src/server/services/financas/__tests__/faturacao-concorrencia.test.ts
+4dd625de4529ed6eb866722ea35a56d7c3dc512d479c5261954fb51b20e05707  apps/erp/src/server/services/comercial/__tests__/venda-integracao.test.ts

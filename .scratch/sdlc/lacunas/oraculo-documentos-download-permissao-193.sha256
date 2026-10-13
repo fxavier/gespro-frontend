@@ -1,0 +1,4 @@
+b886f54e851ef27e3ade43f3abc052f62493096a95513298ffde8233502d17dc  apps/erp/src/app/api/documentos/__tests__/download-permissao-leitura-193.test.ts
+61a266c4dfa0968a44968e4d12d591506df2149c6ce510e0ddb651cbf51df7fd  apps/erp/src/lib/__tests__/rbac-documentos-download-193.test.ts
+6cb7f258377fc5a3c3f7e5808c76a8c845bf11d989cdb27cc9cd138b246d109d  apps/erp/src/app/api/documentos/__tests__/download-colaborador-163.test.ts
+4dee4cab6d907342401862fb67c6bc949be05f458486828409eb30bb3e227c33  apps/erp/src/app/api/documentos/__tests__/download-handler.test.ts

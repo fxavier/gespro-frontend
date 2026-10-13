@@ -1,0 +1,4 @@
+bfb44bee9a1fc5fdab94ceb517a798ea0444880ac17dc10ee2435971191975cb  apps/erp/src/lib/validations/__tests__/taxa-iva-vendas-servicos-207.test.ts
+00c2592d18c46e6950c6d956766d9bbe7b6ce0fec13697e2cf1deab2b63c3cf0  apps/erp/src/lib/__tests__/taxa-iva-ui-125-207.test.ts
+edfa57fc00d5b3483febc8cfc153f763f5c41dce5bfd2099a565e23e69f59435  apps/erp/src/lib/__tests__/iva-guarda.test.ts
+88acec35e48589ec671797136b8d8470502283008952634aeede45981fea230b  apps/erp/test/integration/compras-valores-ignorados-116.test.ts

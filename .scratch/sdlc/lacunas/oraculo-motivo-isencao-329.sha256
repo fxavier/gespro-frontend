@@ -1,0 +1,8 @@
+58ae8e85eaf56889c19f0661a4c8983e8c828a23a6ac1e34079948e6fa3d0509  apps/erp/test/integration/motivo-isencao-329.test.ts
+8ac61f8d340d93a3e3e93b2096b57a7fc5a872bebd7a08ccb2aa9dd376bf9f7b  apps/erp/src/lib/validations/__tests__/motivo-isencao-329.test.ts
+c8e30c7b7f46e9650972b1469724f5c79f175c60338f9decf6f437efe2940713  apps/erp/src/lib/documents/__tests__/fatura-model-motivo-isencao-329.test.ts
+b38ffd70d2a38ff7e6536f4b2e8fab24656478f8cb217ca63d451dcb2eb5c99f  apps/erp/e2e/44-motivo-isencao-329.spec.ts
+54929b92407e225a0f10faaf1439fe131e03a96082295239a0bbb363bc9031f9  apps/erp/e2e/17-iva-isento.spec.ts
+616dfc10fbba1a2afd2af6cdaeff047b71bca67400420aaf6fa78c1b3b76a346  apps/erp/src/server/services/financas/__tests__/faturacao-iva-zero.test.ts
+fd6b8b16f074a058a2c4d4191b98f5a160503d50053b6c840530423e1bf5ecd1  apps/erp/test/integration/tesouraria-tenant-sintetico.test.ts
+b190ef3da433a5bed1db6fd30ff0debc6f0cd199571848a44e022ceba4ed4be1  apps/erp/test/integration/devolucao-troca-documento-2.test.ts

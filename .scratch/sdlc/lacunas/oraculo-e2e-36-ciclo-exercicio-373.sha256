@@ -1,0 +1,8 @@
+d70f038d35b169d808a2d4d74329e953f81d88f0c49357837bd6393b57c2afab  apps/erp/src/server/security/__tests__/rate-limit-registo-teste-373.test.ts
+e7526eb6b28f5a2fbc354c0017db246bca6394346e1dd7cfc4cbe7447648ef7e  apps/erp/test/integration/e2e-limpar-tenant-373.test.ts
+459adab49623087ec78bb43597b9f05f8c196062d93bfb29941f9d7e804b0082  apps/erp/e2e/helpers/db.ts
+5e3415c628353f21e5de678e738711c3e883b066413757297cfb41d90db552a2  apps/erp/e2e/helpers/a11y.ts
+aea60b3c0f17382dca53884242e5f14554999f434bb737ed632d19aa7a75b0f2  apps/erp/e2e/36-exercicio-ciclo-completo.spec.ts
+ee33338bb3bacf554d8351e5655915da650a2f7cfd2831b364d5dafbbf2d59b5  apps/erp/e2e/20-balancete.spec.ts
+2acad1fbda2a97fa96ce330e33733eeec967c125126a23ee36fde63286327f90  apps/erp/e2e/a11y.a11y.ts
+68f34d1b2d0fba4dc0c905b2d78caf27d41e50359350accef143ee7cec6cfc5f  apps/erp/playwright.config.ts

@@ -1,0 +1,4 @@
+dd742c718e6ef7e5732d77e0b2fe70a18a7c93b298dd5c833175e29747c634ee  apps/erp/test/integration/compras-valores-ignorados-116.test.ts
+c80d1ef846f3a0c9d4a80a37b260e1bf327c536b0ec0265ee570ddf7e2465790  apps/erp/e2e/57-compras-valores-ignorados-116.spec.ts
+f1984ae7cf3e7dda7120f3055bdc73119e94396291a1b535f7eee21dcd4bf3b8  apps/erp/src/server/services/compras/__tests__/compras.service.test.ts
+7c932def6b8b507a145f009865d0ae3bad68e7de18d92e01fda13e98b803ab99  apps/erp/src/server/services/compras/__tests__/wave3-integration.test.ts

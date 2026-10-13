@@ -1,0 +1,3 @@
+234fe2b718d189638ab2c4d40c111c3499c398fdd34341c2626e0f55bb1b659b  apps/erp/src/app/(dashboard)/core-tenancy/roles/__tests__/roles-lista-202.test.ts
+55c651ffa29bff3bf209d2b03636908b0f5f6f4c55ed0eb7bb324acf145e0bf6  apps/erp/src/app/(dashboard)/definicoes/faturacao/__tests__/cancelar-subscricao-180.test.ts
+c9b53273c9b7b462c96b0381df9fee8773ed9e627cac3273498e5e14c85a1876  apps/erp/src/server/services/plataforma/__tests__/assinatura.service.test.ts

@@ -1,0 +1,4 @@
+6478a1c26f458ceb392d4deb445c570de2633c8a52d3404f1d6b2d09166bcb78  apps/erp/test/integration/nd-natureza-lancamento.test.ts
+38837d4c8f2f8cabe04694a93738e48015634c9c0c1f5998fd849bd395c2d064  apps/erp/e2e/38-nota-debito-natureza.spec.ts
+ee26ea995491f045184360aabbdfa7909bc35ec944cf2461e408abb9a9e7f190  apps/erp/src/server/services/financas/__tests__/serie-na-emissao.test.ts
+a589d184f90033fcf17e067c2d9380ed4c3e559597314910c2c69aa8b537b607  apps/erp/src/server/services/financas/__tests__/travao-emissao-verificacao.test.ts

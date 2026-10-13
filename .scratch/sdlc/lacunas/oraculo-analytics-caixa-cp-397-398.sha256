@@ -1,0 +1,2 @@
+628d06a43199abafd37f571bb55cdd503fd060339da3641b8861437b3bc72ee6  apps/erp/test/integration/analytics-caixa-cp-397-398.test.ts
+e91f84e4bd7428eac7c7dfc54420bbb997c6bf9432453acbd2744a1026ac47c6  apps/erp/src/server/services/plataforma/__tests__/analytics.service.test.ts

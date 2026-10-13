@@ -1,3 +1,15 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+allowBuilds:
+  '@parcel/watcher': true
+  '@prisma/engines': true
+  '@swc/core': true
+  '@tailwindcss/oxide': true
+  cpu-features: true
+  esbuild: true
+  prisma: true
+  protobufjs: true
+  sharp: true
+  ssh2: true
+  unrs-resolver: true

@@ -1,0 +1,6 @@
+39fced0d323013f2f6a11dda44a801e12df94d98c25756131805527bae9cf160  apps/erp/src/lib/api/__tests__/with-api-187-189.test.ts
+9200d870e9cbaec66612af23b91840bb0a9dff7a70b081e7596b94172d05558b  apps/erp/src/app/api/audit/__tests__/audit-query-188.test.ts
+5b6c0b5f5e0c2b2e61d9f715c49c135e5ca98c5ac1c1578ba9ec4829a8c34bbe  apps/erp/src/app/api/__tests__/envelope-189.test.ts
+3bfc832bb46e6f090a8a5fd47eb45278a60bbf5b99425df6c827f7b3d308c007  apps/erp/src/app/api/publico/__tests__/registo-handler.test.ts
+65a03b1c8c5ecd70faa7fe636ffaac0447693adae9c7492ec5236af218a78ce5  apps/erp/src/app/api/documentos/__tests__/presign-handler.test.ts
+530570a09350525672220c52e9aa4cc334d1f53d4be8f1448ceaf7ff089576e9  apps/erp/src/app/api/documentos/__tests__/documentos-permissao-194-195.test.ts

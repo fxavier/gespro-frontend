@@ -1,0 +1,4 @@
+ba8948d55c7518b384736617407301b656769cea6e576a2b9ddcefba040cca9d  apps/erp/src/lib/__tests__/pos-pagamentos-128.test.ts
+06d5cde29c3ec55c7ca210da2cd0fc3ee81f71d4f494ff5a70e0ab0df0771489  apps/erp/test/integration/pos-multi-pagamento-128.test.ts
+1b81b36f1d8110df18ba03d019a7462f5d798a346fe4d2b9142d6c9a3fce8020  apps/erp/e2e/53-pos-multi-pagamento-128.spec.ts
+850f9608715bf92c774c98c9234126f0004946a7369314913d19ffdf4b0edf72  apps/erp/e2e/27-pos-documento-fiscal.spec.ts

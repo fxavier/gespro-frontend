@@ -1,0 +1,3 @@
+354a5691d9ca4914ae1e7f0baadd190e79fa74542083aa4eff5a9c8648ec64e8  apps/erp/test/integration/credito-utilizado-318.test.ts
+90d37ce8d9e236ce505bf932d57e09bff950579bd6c5e3d7b0320f1ec592bb3f  apps/erp/src/server/services/comercial/__tests__/credito-utilizado-318.test.ts
+8164ba46fdd279dd796d98334bbbc855d23eb76b84a3bcff6e531addcf3e6b34  apps/erp/e2e/42-credito-utilizado-318.spec.ts
