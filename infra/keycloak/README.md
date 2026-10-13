@@ -36,9 +36,21 @@
   `partialImport` na Admin API; fica fora do realm porque o
   `realm-demo-sync.test.ts` exige os cinco demo e só esses. O Keycloak avisa
   que o `id` não é UUID («future migration might fail») — aceitável em CI.
-- **`plataforma-admin`** — único papel que vive no Keycloak (ADR-0011 §5):
-  administra identidades, não dá acesso a dados de nenhum cliente. Sem membros
-  neste ficheiro.
+- **`plataforma-admin`** — único papel que vive no Keycloak (ADR-0011 §5,
+  #525): administrador geral do sistema. O ERP lê-o de `realm_access.roles` do
+  access token (por isso o cliente `gespro-erp` tem o âmbito `roles` nos
+  `defaultClientScopes`) e abre a área `/plataforma`; não dá acesso a dados de
+  nenhum cliente. Único membro: **`plataforma@gespro.mz`** (`sub` fixo
+  `a0000000-0000-4000-8000-000000000525`, mesma palavra-passe dos demo), SEM
+  `User` de tenant em Postgres — entra numa sessão sem tenant. Este
+  utilizador (e a sua senha de demonstração) é só do realm local de
+  desenvolvimento: o realm de produção nunca o importa.
+  Num Keycloak local que já tenha importado o realm, aplica-se pela Admin API
+  (o import só corre com o realm vazio): `partialImport` com
+  `ifResourceExists: SKIP` só desse utilizador (o mesmo passo do `perf.yml`), e
+  `PUT /admin/realms/gespro/clients/<id de gespro-erp>/default-client-scopes/<id de roles>`.
+  Nunca um `partialImport` do cliente: o segredo é um placeholder de ambiente
+  que a Admin API não substitui.
 - A conta de serviço do `gespro-erp` tem `view-users`/`manage-users`: é com ela
   que o ERP provisiona utilizadores (registo público e convites — ADR-0013 §2 e
   §5-bis) e dispara o `execute-actions-email`.

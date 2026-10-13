@@ -68,6 +68,9 @@ describe('autenticarPorPalavraPasse — caminho feliz', () => {
       refreshToken: 'refresh-xyz',
       // ADR-0031 §6: sem o claim, conta como NÃO verificado (fail-closed).
       emailVerificado: false,
+      // #525: sem `realm_access.roles` com `plataforma-admin`, NÃO é
+      // administrador de plataforma (fail-closed, como o e-mail acima).
+      plataformaAdmin: false,
     });
   });
 

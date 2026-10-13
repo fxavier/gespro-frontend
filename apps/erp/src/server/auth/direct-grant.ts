@@ -26,6 +26,12 @@ export type ResultadoAutenticacao =
        * Keycloak por pedido.
        */
       emailVerificado: boolean;
+      /**
+       * Papel de realm `plataforma-admin` no *access token* (ADR-0011 §5,
+       * #525): administrador geral do sistema, fora de qualquer tenant.
+       * Re-lido na renovação, como o `emailVerificado`.
+       */
+      plataformaAdmin: boolean;
     }
   /**
    * `credenciais` — o Keycloak disse que não. É a única que se pode mostrar
@@ -89,6 +95,22 @@ function subDoToken(accessToken: string): string | null {
  */
 export function emailVerificadoDoToken(accessToken: string): boolean {
   return payloadDoToken(accessToken)?.email_verified === true;
+}
+
+/** Papel de realm do administrador geral do sistema (ADR-0011 §5, #525). */
+export const PAPEL_PLATAFORMA_ADMIN = 'plataforma-admin';
+
+/**
+ * Lê o papel de realm `plataforma-admin` de um access token do Keycloak
+ * (`realm_access.roles`). Só o papel de REALM conta — um papel de cliente com
+ * o mesmo nome não — e a comparação é exacta. Ausente, mal formado ou token
+ * ilegível conta como `false` (fail-closed, como `emailVerificadoDoToken`).
+ */
+export function plataformaAdminDoToken(accessToken: string): boolean {
+  const realmAccess = payloadDoToken(accessToken)?.realm_access;
+  if (!realmAccess || typeof realmAccess !== 'object') return false;
+  const roles = (realmAccess as { roles?: unknown }).roles;
+  return Array.isArray(roles) && roles.includes(PAPEL_PLATAFORMA_ADMIN);
 }
 
 /** Mapeia a descrição de erro do Keycloak para um motivo nosso. */
@@ -193,5 +215,6 @@ export async function autenticarPorPalavraPasse(
     sub,
     refreshToken: corpo.refresh_token,
     emailVerificado: emailVerificadoDoToken(accessToken),
+    plataformaAdmin: plataformaAdminDoToken(accessToken),
   };
 }

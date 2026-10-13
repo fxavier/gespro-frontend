@@ -25,10 +25,13 @@ interface RealmUser {
   emailVerified?: boolean;
   serviceAccountClientId?: string;
   requiredActions?: string[];
+  realmRoles?: string[];
+  credentials?: Array<{ type?: string; value?: string; temporary?: boolean }>;
 }
 
 interface Realm {
   realm: string;
+  roles?: { realm?: Array<{ name: string }> };
   ssoSessionIdleTimeout: unknown;
   ssoSessionMaxLifespan: unknown;
   users: RealmUser[];
@@ -44,8 +47,17 @@ interface Realm {
 const realmPath = path.resolve(__dirname, '../../../../../../infra/keycloak/realm-gespro.json');
 const realm = JSON.parse(readFileSync(realmPath, 'utf8')) as Realm;
 
+/** #525 — papel de realm do administrador de plataforma (ADR-0011 §5). */
+const PAPEL_PLATAFORMA = 'plataforma-admin';
+const EMAIL_PLATAFORMA = 'plataforma@gespro.mz';
+
 describe('realm-gespro.json ↔ prisma/seed/demo-users.ts', () => {
-  const realmDemoUsers = realm.users.filter((u) => !u.serviceAccountClientId);
+  // Utilizadores de TENANT do realm: nem contas de serviço nem administradores
+  // de plataforma (#525). O administrador de plataforma não tem `User` local —
+  // é verificado à parte, abaixo, e NÃO pode entrar no seed.
+  const realmDemoUsers = realm.users.filter(
+    (u) => !u.serviceAccountClientId && !(u.realmRoles ?? []).includes(PAPEL_PLATAFORMA),
+  );
 
   it('os cinco utilizadores demo existem no realm, e só esses', () => {
     expect(realmDemoUsers.map((u) => u.username).sort()).toEqual(
@@ -65,6 +77,50 @@ describe('realm-gespro.json ↔ prisma/seed/demo-users.ts', () => {
       expect(noRealm!.requiredActions ?? []).toEqual([]);
     },
   );
+});
+
+describe('#525 — administrador de plataforma no realm local', () => {
+  const plataforma = realm.users.find((u) => u.username === EMAIL_PLATAFORMA);
+
+  it('o papel de realm `plataforma-admin` existe', () => {
+    expect((realm.roles?.realm ?? []).map((r) => r.name)).toContain(PAPEL_PLATAFORMA);
+  });
+
+  it('existe o utilizador plataforma@gespro.mz, com sub fixo, activo e sem acções pendentes', () => {
+    expect(plataforma, `${EMAIL_PLATAFORMA} em falta no realm`).toBeDefined();
+    expect(plataforma!.email).toBe(EMAIL_PLATAFORMA);
+    // `sub` fixo (UUID), como os demo: o E2E e o ADR dependem dele.
+    expect(plataforma!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(plataforma!.enabled).toBe(true);
+    expect(plataforma!.emailVerified).toBe(true);
+    expect(plataforma!.requiredActions ?? []).toEqual([]);
+    expect(plataforma!.serviceAccountClientId).toBeUndefined();
+  });
+
+  it('tem o papel de realm `plataforma-admin`', () => {
+    expect(plataforma?.realmRoles ?? []).toContain(PAPEL_PLATAFORMA);
+  });
+
+  it('usa a mesma palavra-passe de demonstração dos outros utilizadores demo, não provisória', () => {
+    const credDemo = realm.users.find((u) => u.username === 'admin@demo.mz')?.credentials?.[0];
+    const cred = plataforma?.credentials?.find((c) => c.type === 'password');
+    expect(cred, 'credencial de palavra-passe em falta').toBeDefined();
+    // Compara-se com a do admin demo, sem a escrever aqui.
+    expect(cred!.value).toBe(credDemo?.value);
+    expect(cred!.temporary).toBe(false);
+  });
+
+  it('NÃO tem `User` de tenant no seed (nem por e-mail nem por sub)', () => {
+    expect(DEMO_USERS.map((d) => d.email)).not.toContain(EMAIL_PLATAFORMA);
+    expect(DEMO_USERS.map((d) => d.keycloakSub)).not.toContain(plataforma?.id);
+  });
+
+  it('nenhum utilizador demo de tenant recebe o papel de plataforma', () => {
+    for (const demo of DEMO_USERS) {
+      const u = realm.users.find((x) => x.email === demo.email);
+      expect(u?.realmRoles ?? [], demo.email).not.toContain(PAPEL_PLATAFORMA);
+    }
+  });
 });
 
 describe('invariantes do realm que o E2E assume', () => {
