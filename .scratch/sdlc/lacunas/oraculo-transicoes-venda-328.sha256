@@ -1,0 +1,3 @@
+e2fdf5ca18dfaed79d242a9b5a87443e623e9ab09f8849ba9eaae8b86b6a2742  apps/erp/src/server/services/comercial/__tests__/transicoes-venda-328.test.ts
+3ef6c6eeb6ed321ad9fe62704b7a32b8ce8ced5789133e71ff3880329d498b14  apps/erp/src/server/services/comercial/__tests__/maquinas-estado.test.ts
+d98bab76c98a1cdfe0bb65a11c83b41e21573de755f62b28d0c2526e3a4735b3  apps/erp/test/integration/transicoes-venda-328.test.ts

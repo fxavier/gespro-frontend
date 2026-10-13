@@ -1,0 +1,6 @@
+42228c43db3b8625270816654d81a0dd646aa0de4fe185be5c40b39d9064e755  apps/erp/src/lib/__tests__/caixa-movimentos.test.ts
+ece54bb13b1460401e5b116b546a3904d98c3d5aea51bc9eeacafd8bc65977f8  apps/erp/src/server/services/financas/__tests__/caixa.test.ts
+b58f11fce2e158d2aa9b5e0c6958d618b694fdf1152070d781f3384df9de05fe  apps/erp/src/server/services/financas/__tests__/projecao.integracao.test.ts
+037910c6f1d2ef4f0fed217b7a4bc3c5dc89804581222a31941ee5e9cb7c6195  apps/erp/test/integration/caixa-totais-91-92.test.ts
+b4c7050878b5003fd30c77f74c4e09686fe152bde24aab08c81be994ad5fe5e4  apps/erp/test/integration/tesouraria-tenant-sintetico.test.ts
+80befdfab5b16c88f16f6a976500b7c0ec0633e6c8205dec72a7712f195f543b  apps/erp/e2e/42-caixa-totais-91-92.spec.ts

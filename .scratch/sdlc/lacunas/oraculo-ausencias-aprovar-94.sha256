@@ -1,0 +1,3 @@
+ab5dcaef86758bd26aae3beaeb79c83f629b050a184262f21c001bc2de98f445  apps/erp/test/integration/ausencias-aprovar-94.test.ts
+9014a1c7cc3e0a27922771269fbe9c55516c5d700c23cf02c6c3af8f57834776  apps/erp/src/server/services/pessoas-projetos/__tests__/ausencias-aprovar-permissoes.test.ts
+62507d562f69a94aa4210287893bdd3276026b07d3b93d7b3000a0710a2df6b2  apps/erp/e2e/42-ausencias-aprovar-94.spec.ts

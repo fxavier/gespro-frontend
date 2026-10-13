@@ -1,0 +1,4 @@
+62b5228b21e6884eebe15d7640508e8de9575ea052f1a8a3d0218ee360b5cabe  apps/erp/src/lib/__tests__/rbac-exercicio-143.test.ts
+57a8276b8d7199b2624efbf2a947cfa84037aa5c2385ce085c1c0b98f28190d7  apps/erp/test/integration/rbac-exercicio-143.test.ts
+2bee119544fe59cb783557e37c37a77b1bad7dbf75a672d2c8dfcef746a397e0  apps/erp/src/server/services/financas/__tests__/exercicio-permissoes.test.ts
+eea12841bb4d28d49251152686885109f96e86e44ba49535b1d4e939a0ff8f61  apps/erp/src/lib/__tests__/financeiro-contas-pagar-113.test.ts

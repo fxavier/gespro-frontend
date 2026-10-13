@@ -1,0 +1,2098 @@
+=== 39af348 2026-10-06 17:12:21 +0100
+fix(faturação): «Descarregar PDF» do menu ⋯ da lista descarrega o PDF fiscal
+
+O item do menu da linha não tinha destino: clicar não fazia nada. Passa a
+ser um <a download> para /api/faturacao/<id>/pdf, a mesma rota (e a mesma
+permissão faturacao:leitura) do botão do detalhe, que já aparecia em todas
+as facturas desde a #133.
+
+Oráculo: e2e/39-fatura-pdf (download real, %PDF, rota certa).
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/39-fatura-pdf.spec.ts                 | 68 ++++++++++++++++++++++
+ .../faturacao/_components/faturas-table.tsx        |  9 ++-
+ 2 files changed, 74 insertions(+), 3 deletions(-)
+=== 6e09767 2026-10-06 17:27:49 +0100
+feat(faturação): registar pagamento de factura com lançamento (D meio / C 411)
+
+Não havia no módulo forma de registar o pagamento de uma factura, e o
+serviço que existia só mexia no estado: a 411 continuava a mostrar a
+dívida do cliente depois de paga.
+
+- Ecrã /faturacao/[id]/pagamento (ligado do detalhe quando a factura é
+  pagável e o utilizador tem faturacao:fatura:pagar): valor (pendente por
+  omissão), data, forma de pagamento e conta bancária fora do numerário.
+- registarPagamento: permissão do meio antes da tx (caixa:operar /
+  financas:banca:escrita, partilhada com a devolução de NC); dentro da tx,
+  com a factura trancada: FATURA_NAO_PAGAVEL, PAGAMENTO_EXCEDE_SALDO,
+  PAGAMENTO_DATA_ANTERIOR_EMISSAO (dias de Maputo); lançamento D conta do
+  meio / C 411 (origem PAGAMENTO, documento Fatura, data do pagamento);
+  numerário também RECEBIMENTO na sessão de caixa aberta. Recusa = nada
+  escrito; período fechado recusa pelo contrato do lançamento.
+- Schema: formaPagamento + contaBancariaId (obrigatória fora do numerário,
+  regra partilhada com a NC); sessaoCaixaId sai (resolvida pelo meio).
+- Seed demo-contabilidade: «já lançado» passa a ser decidido pela origem
+  (emissão = VENDA; recebimento = RECEBIMENTO ou PAGAMENTO) — sem isto o
+  próximo db:seed lançava um segundo recebimento sobre um pago pela UI.
+- Oráculos: integração fatura-pagamento-lancamento e
+  seed-recebimento-idempotente, E2E 40; testes existentes adaptados ao
+  contrato pelo verificador (concorrência, nc-accoes, tesouraria).
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/40-fatura-pagamento.spec.ts           |  92 ++++
+ apps/erp/prisma/seed/demo-contabilidade.ts         |  30 +-
+ .../_components/registar-pagamento-fatura-form.tsx | 312 +++++++++++
+ .../(dashboard)/faturacao/[id]/pagamento/page.tsx  | 112 ++++
+ .../src/app/(dashboard)/faturacao/[id]/page.tsx    |  16 +-
+ .../faturacao/_components/acesso-documento.tsx     |   1 +
+ apps/erp/src/lib/validations/faturacao.ts          |  63 ++-
+ apps/erp/src/server/actions/faturacao.actions.ts   |   4 +-
+ .../__tests__/faturacao-concorrencia.test.ts       |  38 +-
+ .../services/financas/faturacao.interface.ts       |   5 +-
+ .../server/services/financas/faturacao.service.ts  | 111 +++-
+ .../fatura-pagamento-lancamento.test.ts            | 585 +++++++++++++++++++++
+ apps/erp/test/integration/nc-accoes.test.ts        |  32 +-
+ .../seed-recebimento-idempotente.test.ts           | 215 ++++++++
+ .../tesouraria-tenant-sintetico.test.ts            |  12 +-
+ 15 files changed, 1565 insertions(+), 63 deletions(-)
+=== c170c4d 2026-10-06 17:41:55 +0100
+feat(faturação): marcar factura como vencida a partir do dia seguinte ao vencimento
+
+O serviço marcarVencida existia sem ecrã e aceitava marcar uma factura
+como vencida antes do vencimento.
+
+- marcarVencida recusa FATURA_NAO_VENCIDA enquanto o dia civil de Maputo
+  de hoje não for posterior ao do vencimento (na leitura trancada, depois
+  da verificação de transição — TRANSICAO_INVALIDA mantém a precedência).
+- Detalhe: «Marcar como vencida» só em Emitida/Parcialmente paga, vencida,
+  com faturacao:fatura:gerir; confirmação por AlertDialog; a página
+  refresca e mostra Vencida.
+- Oráculos: integração fatura-marcar-vencida (fronteira Maputo vs UTC),
+  E2E 41.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/41-fatura-vencida.spec.ts             | 101 +++++++++
+ .../[id]/_components/marcar-vencida-button.tsx     |  72 ++++++
+ .../src/app/(dashboard)/faturacao/[id]/page.tsx    |   7 +
+ .../faturacao/_components/acesso-documento.tsx     |   1 +
+ .../server/services/financas/faturacao.service.ts  |  17 ++
+ .../test/integration/fatura-marcar-vencida.test.ts | 250 +++++++++++++++++++++
+ 6 files changed, 448 insertions(+)
+=== c39e9e1 2026-10-07 14:04:15 +0100
+fix(payroll): benefícios atribuídos entram no processamento salarial
+
+O payroll ignorava as atribuições de benefícios vigentes: o bruto, os
+descontos e o total do processamento saíam sem elas (#95).
+
+Decisão: comparticipações tributáveis entram como proventos (base de
+INSS/IRPS) e todos os descontos entram na folha; as não tributáveis ficam
+de fora, com nota, porque o motor não tem canal isento.
+
+Testes: oráculo de integração payroll-beneficios (9/9, Testcontainers),
+contrato payroll-beneficios e unitários de pessoas-projetos (267/267).
+
+Closes #95
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../__tests__/payroll-beneficios.contrato.test.ts  |  61 ++++
+ .../__tests__/payroll.service.test.ts              |   8 +
+ .../pessoas-projetos/beneficios.interface.ts       |   2 +-
+ .../pessoas-projetos/beneficios.service.ts         | 129 ++++----
+ .../services/pessoas-projetos/payroll-calculo.ts   |  14 +-
+ .../services/pessoas-projetos/payroll.service.ts   |  81 ++++-
+ .../test/integration/payroll-beneficios.test.ts    | 363 +++++++++++++++++++++
+ 7 files changed, 585 insertions(+), 73 deletions(-)
+=== c4f2918 2026-10-07 14:13:21 +0100
+fix(rh): aprovar e rejeitar ausências com permissão própria (#94)
+
+As ausências ficavam pendentes para sempre: não havia forma de as aprovar
+nem rejeitar. Acrescenta a acção de aprovar/rejeitar (com motivo de
+rejeição, coluna nova em Ausencia), a permissão ligada a ADMIN e GESTOR e
+o detalhe /rh/ausencias/[id].
+
+Decisão: aprovar/rejeitar não recalcula a folha automaticamente; a UI
+avisa quando o mês já tem folha processada.
+
+Testes: integração ausencias-aprovar-94 (7/7, inclui o desconto da FALTA
+na folha), unit de permissões (4/4) e E2E 42.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/42-ausencias-aprovar-94.spec.ts       | 175 ++++++++++++
+ .../migration.sql                                  |   3 +
+ apps/erp/prisma/schema/pessoas-projetos.prisma     |   2 +
+ apps/erp/prisma/seed/rbac.ts                       |   2 +
+ .../_components/rejeitar-ausencia-form.tsx         |  72 +++++
+ .../rh/ausencias/[id]/rejeitar/page.tsx            |  61 +++++
+ .../rh/ausencias/_components/aprovar-ausencia.tsx  |  88 ++++++
+ .../rh/ausencias/_components/ausencias-table.tsx   |  32 ++-
+ apps/erp/src/app/(dashboard)/rh/ausencias/page.tsx |  29 +-
+ apps/erp/src/lib/validations/rh.ts                 |   9 +
+ apps/erp/src/server/actions/rh.actions.ts          |  18 ++
+ .../__tests__/ausencias-aprovar-permissoes.test.ts |  42 +++
+ .../server/services/pessoas-projetos/rh.service.ts |   6 +
+ .../test/integration/ausencias-aprovar-94.test.ts  | 300 +++++++++++++++++++++
+ 14 files changed, 834 insertions(+), 5 deletions(-)
+=== 88b7b86 2026-10-07 14:15:27 +0100
+fix(vendas): recusar crédito a cliente não ATIVO (#317)
+
+A venda POS a crédito e a emissão de factura (não paga) aceitavam clientes
+SUSPENSO, INATIVO ou apagados, abrindo dívida a quem já não devia tê-la.
+
+Decisão: só o crédito é recusado (CLIENTE_NAO_ATIVO); a venda a pronto
+continua. A regra vive em lib/cliente-credito.ts e é usada pela venda POS e
+pela emissão de factura.
+
+Testes: oráculo de integração venda-pos-credito (20/20), suite de
+integração completa, tsc, eslint e gates verdes.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/src/lib/cliente-credito.ts                |  19 +++
+ .../src/server/services/comercial/venda.service.ts |   7 +-
+ .../__tests__/emitir-documento-em-tx.test.ts       |   2 +-
+ .../financas/__tests__/faturacao-iva-zero.test.ts  |   2 +-
+ .../financas/__tests__/serie-na-emissao.test.ts    |   2 +-
+ .../__tests__/travao-emissao-verificacao.test.ts   |   2 +-
+ .../server/services/financas/faturacao.service.ts  |   5 +-
+ .../erp/test/integration/venda-pos-credito.test.ts | 156 +++++++++++++++++++++
+ 8 files changed, 188 insertions(+), 7 deletions(-)
+=== f4caf81 2026-10-07 14:23:00 +0100
+fix(caixa): totais da sessão derivados dos movimentos (#91, #92)
+
+As colunas totalEntradas/totalSaidas da sessão só eram escritas no fecho,
+por isso o fechamento e a projecção de tesouraria subestimavam caixas
+abertas. Os totais passam a ser derivados dos movimentos
+(totaisSessaoCaixa), sem agregado armazenado; sessões já fechadas
+ficam sem backfill. Golden da spec 22 re-derivada pelo verificador.
+
+Testes: unit caixa-movimentos/caixa/projecao (35/35), integração
+caixa-totais-91-92 e tesouraria-tenant-sintetico (12/12), tsc, eslint, gates.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/42-caixa-totais-91-92.spec.ts         | 207 +++++++++++++++++
+ .../fechamento/_components/fechamento-wizard.tsx   |  10 +-
+ .../src/app/(dashboard)/caixa/fechamento/page.tsx  |  13 +-
+ .../erp/src/lib/__tests__/caixa-movimentos.test.ts | 117 ++++++++++
+ apps/erp/src/lib/caixa-movimentos.ts               |  33 +++
+ .../services/financas/__tests__/caixa.test.ts      |  26 ++-
+ .../financas/__tests__/projecao.integracao.test.ts |  67 +++++-
+ .../src/server/services/financas/caixa.service.ts  |  67 ++++--
+ .../server/services/financas/projecao.interface.ts |   5 +-
+ .../server/services/financas/projecao.service.ts   |  16 +-
+ .../test/integration/caixa-totais-91-92.test.ts    | 252 +++++++++++++++++++++
+ .../tesouraria-tenant-sintetico.test.ts            |  61 +++++
+ docs/decisions/ADR-0036-projecao-tesouraria.md     |   7 +
+ 13 files changed, 830 insertions(+), 51 deletions(-)
+=== a583d04 2026-10-07 14:27:20 +0100
+fix(inventario): item JUSTIFICADO não é ajustado na reconciliação da contagem
+
+A reconciliação ajustava o stock também dos itens marcados JUSTIFICADO, e o
+limiar/aprovador da discrepância vinham do cliente. Agora os JUSTIFICADO
+ficam de fora dos ajustes, o limiar e o aprovador são resolvidos no servidor,
+e aprovar uma discrepância exige a nova permissão
+inventario:contagens:aprovar-discrepancia.
+
+Testes: oráculo unitário (5/5) e de integração (11/11) verdes; tsc, eslint
+e pnpm gates OK.
+
+Closes #81
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/prisma/seed/rbac.ts                       |   5 +-
+ .../contagens/[id]/_components/contagem-acoes.tsx  |   5 +-
+ .../erp/src/lib/validations/inventario-contagem.ts |   8 +-
+ apps/erp/src/server/actions/inventario.actions.ts  |   4 +-
+ .../__tests__/contagem-justificado-81.test.ts      |  59 ++++
+ .../inventario/contagem-stock.interface.ts         |   7 +-
+ .../services/inventario/contagem-stock.service.ts  |  56 ++-
+ .../integration/contagem-justificado-81.test.ts    | 381 +++++++++++++++++++++
+ 8 files changed, 489 insertions(+), 36 deletions(-)
+=== 690ed59 2026-10-07 14:28:14 +0100
+fix(payroll): pagamento da folha escolhe o meio e a data efectiva
+
+Pagar uma folha creditava sempre a mesma conta e usava a data do dia, sem
+saber por onde o dinheiro saiu. Agora há uma rota dedicada
+/rh/payroll/folhas/[id]/pagar onde se escolhe o meio de pagamento e a data.
+
+Decisão: a conta de crédito vem de resolverContaMeioPagamento (com a
+permissão do meio conferida no serviço), o lançamento mantém o diário
+SALARIOS na data efectiva, e o pagamento em dinheiro regista um movimento
+PAGAMENTO na caixa. Sem migração.
+
+Testes: unitários do payroll.service (36), integração
+payroll-pagar-folha (21) e E2E 42-payroll-pagar-96.
+
+Closes #96
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/42-payroll-pagar-96.spec.ts           |  85 ++++
+ .../rh/payroll/_components/folhas-section.tsx      |  30 +-
+ .../[id]/pagar/_components/pagar-folha-form.tsx    | 290 +++++++++++
+ .../rh/payroll/folhas/[id]/pagar/page.tsx          | 122 +++++
+ apps/erp/src/lib/validations/faturacao.ts          |   4 +-
+ apps/erp/src/lib/validations/payroll.ts            |  20 +-
+ apps/erp/src/server/actions/payroll.actions.ts     |   4 +-
+ .../__tests__/payroll.service.test.ts              | 145 +++++-
+ .../services/pessoas-projetos/payroll.service.ts   |  70 ++-
+ .../test/integration/payroll-pagar-folha.test.ts   | 556 +++++++++++++++++++++
+ 10 files changed, 1255 insertions(+), 71 deletions(-)
+=== dd2d269 2026-10-07 14:36:08 +0100
+fix(payroll): cabeçalho neutro no mapa INSS exportado
+
+O cabeçalho do CSV do mapa INSS trazia as taxas embutidas nos nomes
+(INSS_Trabalhador_3;INSS_Entidade_4), que deixam de ser verdade quando a
+tabela de vigência muda. Passa a cabeçalho neutro, sem taxas:
+Codigo;Nome;NUIT;NISS;SalarioBruto;INSS_Trabalhador;INSS_Entidade;INSS_Total.
+
+Testes: route.test.ts (oráculo separado, trancado por SHA) vermelho
+antes (3 de 4 falhavam), verde depois; tsc, eslint e pnpm gates verdes.
+
+Closes #97
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../rh/payroll/mapas/inss/__tests__/route.test.ts  | 143 +++++++++++++++++++++
+ .../erp/src/app/api/rh/payroll/mapas/inss/route.ts |   2 +-
+ 2 files changed, 144 insertions(+), 1 deletion(-)
+=== 1e8397c 2026-10-07 14:41:59 +0100
+fix(compras): contas a pagar vencidas derivadas na leitura
+
+O filtro «vencidas» e o KPI ignoravam contas já marcadas VENCIDA e cortavam
+o último dia à meia-noite UTC. A vencida passa a derivar-se na leitura
+(ABERTA/PARCIAL/VENCIDA com vencimento antes do início do dia em Maputo),
+sem cron; helper partilhado em lib/periodo-fiscal.ts, usado também pela
+faturação.
+
+Testes: oráculo de integração conta-pagar-vencidas-79 (9/9, vermelho antes
+7/9), integrações relacionadas 51/51, tsc e eslint limpos.
+
+Closes #79
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../(dashboard)/fornecedores/contas-pagar/page.tsx |  12 +-
+ apps/erp/src/lib/periodo-fiscal.ts                 |  18 ++
+ .../server/services/compras/conta-pagar.service.ts |  14 +-
+ .../server/services/financas/faturacao.service.ts  |  10 +-
+ .../integration/conta-pagar-vencidas-79.test.ts    | 339 +++++++++++++++++++++
+ 5 files changed, 377 insertions(+), 16 deletions(-)
+=== 8f9ed73 2026-10-07 14:51:24 +0100
+fix(vendas): crédito utilizado derivado dos saldos em aberto (#318)
+
+O contador creditoUtilizado do cliente divergia da dívida real (facturas
+pagas/anuladas não o libertavam). Passa a ser derivado dos saldos em aberto
+das facturas, sem contador; o limite de crédito é um aviso não bloqueante.
+Relatório de clientes e desactivação passam a ler o valor derivado.
+
+Testes: oráculo unitário 5/5, integração credito-utilizado-318 15/15,
+12 suites de integração relacionadas 106/106; E2E 42-credito-utilizado-318.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/42-credito-utilizado-318.spec.ts      |  56 +++
+ apps/erp/prisma/schema/comercial.prisma            |   2 +
+ .../nova/_components/nova-fatura-form.tsx          |   2 +
+ .../(dashboard)/pos/_components/pos-terminal.tsx   |   2 +
+ .../faturas/nova/_components/nova-fatura-form.tsx  |   4 +-
+ .../__tests__/credito-utilizado-318.test.ts        |  73 +++
+ .../server/services/comercial/cliente.interface.ts |  23 +-
+ .../server/services/comercial/cliente.service.ts   |  71 +--
+ .../server/services/comercial/venda.interface.ts   |   2 +
+ .../src/server/services/comercial/venda.service.ts |  12 +-
+ .../services/financas/faturacao.interface.ts       |  10 +-
+ .../server/services/financas/faturacao.service.ts  |  84 +++-
+ apps/erp/src/server/services/financas/index.ts     |   4 +
+ .../services/plataforma/relatorios.service.ts      |  25 +-
+ .../test/integration/credito-utilizado-318.test.ts | 546 +++++++++++++++++++++
+ 15 files changed, 816 insertions(+), 100 deletions(-)
+=== 315e781 2026-10-07 14:51:51 +0100
+fix(plataforma): conta fechada por falta de pagamento tem saída para pagar
+
+Uma Assinatura FECHADA por falta de pagamento deixava o cliente sem
+caminho de volta: a sessão não abria e não havia como pagar.
+
+Decisão: FECHADA (não pela GestPro) resolve para acesso 'pagamento' —
+sessão restrita a quem gere a subscrição, redireccionada pelo middleware
+para /definicoes/faturacao; createSafeAction e withApi só deixam passar
+as actions de subscrição. Fechado pela GestPro continua terminal. Sem
+endpoint público.
+
+Testes: oráculo separado (máquina de estados, pipelines) vermelho antes;
+integração fechado-saida-99 7/7, unitários 464 verdes.
+
+Closes #99
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/middleware.ts                             |  25 +++
+ apps/erp/src/app/(auth)/auth/erro/page.tsx         |   9 +-
+ apps/erp/src/app/(auth)/auth/login/login-form.tsx  |   4 +-
+ .../lib/__tests__/assinatura-state-machine.test.ts |  40 ++++-
+ apps/erp/src/lib/api/with-api.ts                   |   5 +-
+ apps/erp/src/lib/auth.ts                           |  19 +-
+ apps/erp/src/lib/state-machines.ts                 |  12 +-
+ .../__tests__/acesso-pagamento-pipelines.test.ts   | 139 +++++++++++++++
+ apps/erp/src/server/safe-action.ts                 |   4 +-
+ .../__tests__/assinatura.service.test.ts           |   7 +-
+ apps/erp/test/integration/fechado-saida-99.test.ts | 193 +++++++++++++++++++++
+ 11 files changed, 437 insertions(+), 20 deletions(-)
+=== 8a4123f 2026-10-07 14:59:26 +0100
+fix(inventario): saldos por localização no detalhe do produto
+
+O detalhe do produto não mostrava onde estava o stock: os saldos por
+localização existiam na base mas nenhuma leitura os expunha (#80).
+
+Decisão: secção «Stock por localização» no detalhe do produto, sem
+lista nova. listarSaldos devolve produto, localização e stockBaixo por
+linha, sempre filtrado pelo tenant do contexto.
+
+Testes: integração stock-saldos-80 (6, vermelho antes: 5 falhavam),
+unitário listar-saldos-tenant-80, E2E 43-stock-saldos-80; tsc, eslint
+e gates verdes.
+
+Closes #80
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/43-stock-saldos-80.spec.ts            | 153 ++++++++++++
+ .../erp/src/app/(dashboard)/produtos/[id]/page.tsx |  45 ++++
+ .../__tests__/listar-saldos-tenant-80.test.ts      |  30 +++
+ .../server/services/inventario/stock.interface.ts  |   8 +-
+ .../server/services/inventario/stock.service.ts    |  32 ++-
+ apps/erp/test/integration/stock-saldos-80.test.ts  | 272 +++++++++++++++++++++
+ 6 files changed, 535 insertions(+), 5 deletions(-)
+=== 93a7e02 2026-10-07 15:18:15 +0100
+fix(vendas): nota de crédito só oferece facturas com saldo creditável (#86, #266)
+
+A procura de facturas da nova nota de crédito listava facturas já totalmente
+creditadas; o utilizador escolhia-as e a emissão era recusada depois.
+
+Decisão: a procura esconde facturas sem saldo creditável (total − notas de
+crédito emitidas) e o rótulo da opção mostra o saldo disponível.
+
+Testes: oráculo de integração procurar-faturas-creditaveis (15/15, vermelho
+antes 10/15), unitários do rótulo e da procura, E2E 43; tsc e eslint limpos.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/43-nc-saldo-creditavel-86.spec.ts     | 122 +++++++
+ .../nova/_components/nova-nota-credito-form.tsx    |  30 +-
+ .../(dashboard)/vendas/notas-credito/nova/page.tsx |  28 +-
+ .../lib/documentos/__tests__/rotulo-fatura.test.ts |  54 +++
+ apps/erp/src/lib/documentos/rotulo-fatura.ts       |  13 +-
+ .../__tests__/procurar-faturas-creditaveis.test.ts | 102 +-----
+ .../server/services/financas/faturacao.service.ts  |  53 +--
+ .../procurar-faturas-creditaveis.test.ts           | 372 +++++++++++++++++++++
+ 8 files changed, 636 insertions(+), 138 deletions(-)
+=== 61bcf5d 2026-10-07 15:18:47 +0100
+fix(plataforma): limites do plano nos utilizadores e produtos (#98)
+
+Os limites de utilizadores e produtos do plano não eram verificados:
+um tenant no Básico criava o 4.º utilizador sem aviso. Agora a criação
+de utilizador, a reactivação e a criação de produto contam os activos
+(dois COUNT inline, ADR-0027 §3) e recusam acima do limite. Tenant sem
+Assinatura não tem limite; desactivar e downgrade nunca são travados.
+
+Testes: integração limites-plano-98 (28 verdes, 9 vermelhos antes),
+user-admin.service (34), plataforma/inventario/billing (251), tsc limpo.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/src/server/billing/limites-plano.ts       |  74 +++
+ .../server/services/inventario/stock.service.ts    |  19 +-
+ .../__tests__/user-admin.service.test.ts           |  11 +-
+ .../services/plataforma/user-admin.service.ts      |  21 +-
+ apps/erp/test/integration/limites-plano-98.test.ts | 540 +++++++++++++++++++++
+ 5 files changed, 662 insertions(+), 3 deletions(-)
+=== 402c2d7 2026-10-07 15:28:08 +0100
+fix(permissoes): esconder e recusar módulos sem permissão de consulta
+
+Um utilizador sem permissão de leitura de um módulo via-o na barra lateral
+e abria as páginas. Cada módulo ganha um layout.tsx que exige a permissão
+de consulta, e um mapa rota→permissão (lib/permissoes-rotas.ts) alimenta a
+barra lateral, que passa a esconder o que não se pode abrir. Migração
+data-only retira admin:ver_* ao OPERADOR/LEITURA nos papéis de sistema.
+
+Testes: oráculo permissoes-rotas-76 21/21, tsc, eslint e pnpm gates verdes.
+
+Closes #76
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/43-visibilidade-permissao-76.spec.ts  |  91 ++++++++
+ .../migration.sql                                  |  11 +
+ apps/erp/prisma/seed/rbac.ts                       |   3 +
+ apps/erp/src/app/(dashboard)/analytics/layout.tsx  |   6 +
+ apps/erp/src/app/(dashboard)/caixa/layout.tsx      |   6 +
+ apps/erp/src/app/(dashboard)/clientes/layout.tsx   |   6 +
+ apps/erp/src/app/(dashboard)/compras/layout.tsx    |   6 +
+ .../app/(dashboard)/contabilidade/dfc/layout.tsx   |   6 +
+ .../exercicios/[id]/aplicacao/anular/page.tsx      |   3 +-
+ .../exercicios/[id]/aplicar-resultado/page.tsx     |   3 +-
+ .../exercicios/[id]/encerrar/page.tsx              |   3 +-
+ .../contabilidade/exercicios/[id]/reabrir/page.tsx |   3 +-
+ .../contabilidade/exercicios/_lib/acesso.tsx       |   8 -
+ .../fluxo-caixa/rubricas/[id]/editar/page.tsx      |   5 +-
+ .../fluxo-caixa/rubricas/_components/acesso.tsx    |  11 -
+ .../fluxo-caixa/rubricas/contas-caixa/page.tsx     |   5 +-
+ .../fluxo-caixa/rubricas/mapear/page.tsx           |   5 +-
+ .../fluxo-caixa/rubricas/nova/page.tsx             |   5 +-
+ .../contabilidade/fluxo-caixa/rubricas/page.tsx    |   5 +-
+ .../fluxo-caixa/rubricas/validar/page.tsx          |   5 +-
+ .../fluxo-caixa/rubricas/versoes/page.tsx          |   5 +-
+ .../src/app/(dashboard)/contabilidade/layout.tsx   |   6 +
+ .../reconciliacao/regras/[id]/editar/page.tsx      |   5 +-
+ .../reconciliacao/regras/_components/acesso.tsx    |  11 -
+ .../reconciliacao/regras/nova/page.tsx             |   5 +-
+ .../contabilidade/reconciliacao/regras/page.tsx    |   5 +-
+ .../(dashboard)/core-tenancy/auditoria/layout.tsx  |   6 +
+ .../src/app/(dashboard)/core-tenancy/layout.tsx    |   6 +
+ .../core-tenancy/utilizadores/layout.tsx           |   6 +
+ .../(dashboard)/definicoes/faturacao/layout.tsx    |   6 +
+ .../(dashboard)/faturacao/[id]/pagamento/page.tsx  |   6 +-
+ .../faturacao/_components/acesso-documento.tsx     |  15 --
+ .../faturacao/cotacoes/[id]/cancelar/page.tsx      |   5 +-
+ apps/erp/src/app/(dashboard)/faturacao/layout.tsx  |   6 +
+ .../faturacao/nota-credito/[id]/cancelar/page.tsx  |   5 +-
+ .../faturacao/nota-credito/[id]/liquidar/page.tsx  |   6 +-
+ .../faturacao/proforma/[id]/cancelar/page.tsx      |   5 +-
+ .../faturacao/series/[id]/editar/page.tsx          |   5 +-
+ .../faturacao/series/_components/acesso.tsx        |  11 -
+ .../app/(dashboard)/faturacao/series/layout.tsx    |   6 +
+ .../app/(dashboard)/faturacao/series/nova/page.tsx |   5 +-
+ .../src/app/(dashboard)/faturacao/series/page.tsx  |   5 +-
+ .../src/app/(dashboard)/fornecedores/layout.tsx    |   6 +
+ apps/erp/src/app/(dashboard)/inventario/layout.tsx |   6 +
+ apps/erp/src/app/(dashboard)/pos/layout.tsx        |   6 +
+ apps/erp/src/app/(dashboard)/producao/layout.tsx   |   6 +
+ apps/erp/src/app/(dashboard)/produtos/layout.tsx   |   6 +
+ apps/erp/src/app/(dashboard)/projetos/layout.tsx   |   6 +
+ apps/erp/src/app/(dashboard)/rh/layout.tsx         |   6 +
+ apps/erp/src/app/(dashboard)/servicos/layout.tsx   |   6 +
+ apps/erp/src/app/(dashboard)/tesouraria/layout.tsx |   6 +
+ apps/erp/src/app/(dashboard)/tickets/layout.tsx    |   6 +
+ apps/erp/src/app/(dashboard)/transporte/layout.tsx |   6 +
+ apps/erp/src/app/(dashboard)/vendas/layout.tsx     |   6 +
+ apps/erp/src/components/layout/AppSidebar.tsx      |  37 ++--
+ apps/erp/src/components/patterns/sem-permissao.tsx |  35 +++
+ .../src/lib/__tests__/permissoes-rotas-76.test.ts  | 237 +++++++++++++++++++++
+ apps/erp/src/lib/auth.ts                           |  21 ++
+ apps/erp/src/lib/permissoes-rotas.ts               |  80 +++++++
+ 59 files changed, 700 insertions(+), 119 deletions(-)
+=== d8937e7 2026-10-07 15:39:48 +0100
+docs(adr): ADR-0042 custo das vendas e inventário (Proposto)
+
+A baixa de stock não lança D 61 / C 32 (ADR-0041 §9): o custo das vendas
+não chega à contabilidade. O ADR-0042 regista a decisão de como lançá-lo,
+assente no plano PGC semeado (22/221/222, 6112, 6842, 764, 59), no
+mapeamento das rubricas da DFC e no lançamento D 211 / C 421 da recepção
+em compras.service.ts. Estado Proposto; sem código. Índice actualizado
+(próximo livre 0043).
+
+Closes #332
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../ADR-0042-custo-das-vendas-inventario.md        | 248 +++++++++++++++++++++
+ docs/decisions/README.md                           |   3 +-
+ 2 files changed, 250 insertions(+), 1 deletion(-)
+=== 01c0bdc 2026-10-07 15:49:24 +0100
+docs(lacunas): onda 1 — gravidade A resolvida, issues novas registadas
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ docs/sistema/08-lacunas-conhecidas.md | 88 ++++++++++++++++++++++++++---------
+ 1 file changed, 67 insertions(+), 21 deletions(-)
+=== a92fdb4 2026-10-07 15:51:07 +0100
+docs(lacunas): PRs da onda 1 já no main — retira «por fundir»
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ docs/sistema/08-lacunas-conhecidas.md | 19 +++++++++----------
+ 1 file changed, 9 insertions(+), 10 deletions(-)
+=== 9da3b1f 2026-10-07 16:19:39 +0100
+fix(analytics): saldo de caixa pelos movimentos e contas a pagar vencidas pelo predicado partilhado
+
+O painel mostrava o saldo de caixa sem as vendas das sessões abertas
+(#397) e contava contas a pagar vencidas com um critério próprio (#398).
+
+Decisão: o saldo de caixa passa a ser derivado dos movimentos
+(prismaBase.groupBy + totaisSessaoCaixa); as vencidas usam o predicado
+partilhado (dia de Maputo, ABERTA/PARCIALMENTE_PAGA/VENCIDA), exportado
+como ESTADOS_CONTA_PAGAR_EM_DIVIDA.
+
+Testes: analytics.service.test.ts (24/24) e integração
+analytics-caixa-cp-397-398.test.ts (5/5); tsc limpo.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../compras/conta-pagar.service.interface.ts       |   6 +
+ .../server/services/compras/conta-pagar.service.ts |   7 +-
+ .../plataforma/__tests__/analytics.service.test.ts | 171 +++++++++++-
+ .../services/plataforma/analytics.service.ts       |  52 ++--
+ .../integration/analytics-caixa-cp-397-398.test.ts | 300 +++++++++++++++++++++
+ 5 files changed, 511 insertions(+), 25 deletions(-)
+=== 74809e1 2026-10-07 16:20:45 +0100
+fix(iva): recusar apuramento com saídas isentas a 0% a partir de 2026
+
+Um período com operações isentas (linhas de Factura ou ND a 0%) era
+apurado como se a dedução fosse integral, sem pro rata. Sem suporte de
+pro rata, o apuramento passa a recusar com PRORATA_NAO_SUPORTADO e o
+formulário mostra a razão. Compras ficam inalteradas.
+
+Testes: oráculo de integração apuramento-iva-prorata-isentas (5/5),
+vermelho antes da correcção; restantes integrações de IVA verdes.
+
+Closes #208
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../apurar/_components/apurar-iva-form.tsx         |   8 +-
+ .../services/financas/apuramento-iva.service.ts    |  58 ++-
+ .../apuramento-iva-prorata-isentas.test.ts         | 410 +++++++++++++++++++++
+ 3 files changed, 458 insertions(+), 18 deletions(-)
+=== 7b573cf 2026-10-07 16:26:00 +0100
+fix(reporting): neutralizar injecção de fórmulas nas exportações CSV
+
+Uma célula de texto que comece por = + - @ TAB ou CR era aberta pelo
+Excel/LibreOffice como fórmula (nomes de fornecedores, NUIT, descrições
+nos mapas de IVA, INSS e IRPS).
+
+Decisão: o csv.ts prefixa ' nessas células de texto; as colunas
+numéricas ficam intactas. A coluna «Valor» da exportação da
+reconciliação passa a 'decimal', para os negativos não ganharem o '.
+
+Testes: oráculo separado (4 ficheiros, trancado por SHA), vermelho antes
+e verde depois; 135/135 nos testes de reporting, IVA, payroll e
+contabilidade.
+
+Closes #294
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../[periodo]/__tests__/route-csv-injeccao.test.ts | 217 +++++++++++++++++++++
+ .../app/api/financas/iva/mapas/[periodo]/route.ts  |  23 +--
+ .../reconciliacao/periodos/[id]/export/route.ts    |   2 +-
+ .../inss/__tests__/route-csv-injeccao.test.ts      | 127 ++++++++++++
+ .../erp/src/app/api/rh/payroll/mapas/inss/route.ts |   9 +-
+ .../irps/__tests__/route-csv-injeccao.test.ts      | 129 ++++++++++++
+ .../erp/src/app/api/rh/payroll/mapas/irps/route.ts |   7 +-
+ .../lib/reporting/__tests__/csv-injeccao.test.ts   | 166 ++++++++++++++++
+ apps/erp/src/lib/reporting/csv.ts                  |  28 ++-
+ 9 files changed, 686 insertions(+), 22 deletions(-)
+=== 677472e 2026-10-07 16:43:00 +0100
+fix(comissoes): vigência das regras por dia civil de Maputo
+
+As datas de início/fim das regras de comissão entravam à meia-noite UTC,
+pelo que uma regra deixava de fora as vendas do último dia (e, a leste de
+Greenwich, apanhava o dia errado). Os schemas passam a normalizar com
+inicioDoDia/fimDoDia e o predicado de vigência compara por dia civil de
+Maputo (diaCivilMaputo), o que cobre também as linhas antigas sem migração.
+
+Testes: oráculo de schema e de serviço (vermelho antes, 10 falhas), pasta
+comercial 122/122, integração 8/8, tsc e eslint limpos.
+
+Closes #352
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/src/lib/periodo-fiscal.ts                 |   5 +
+ .../regra-comissao-dia-maputo-352.test.ts          | 118 +++++++++++++++
+ apps/erp/src/lib/validations/vendas.ts             |   8 +-
+ .../comissao-vigencia-dia-maputo-352.test.ts       | 166 +++++++++++++++++++++
+ .../server/services/comercial/comissao.service.ts  |   7 +-
+ .../integration/comissao-dia-maputo-352.test.ts    | 158 ++++++++++++++++++++
+ 6 files changed, 456 insertions(+), 6 deletions(-)
+=== 955586b 2026-10-07 16:49:41 +0100
+fix(contabilidade): estorno e declaração do IVA à prova de corrida
+
+Dois estornos simultâneos do mesmo lançamento passavam ambos, e um estorno
+podia correr contra a declaração do apuramento do IVA que o usava.
+
+Decisão: compare-and-set (updateMany com o estado no WHERE) em
+gravarEstornoEmTx e marcarDeclarado; quem perde a corrida recebe erro de
+negócio. Sem índice único.
+
+Testes: oráculo de integração separado (Testcontainers) — vermelho sem a
+correcção (2 falhas esperadas), verde com ela (7/7).
+
+Closes #356
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../services/financas/apuramento-iva.service.ts    |  15 +-
+ .../services/financas/contabilidade.service.ts     |  13 +-
+ .../apuramento-iva-estorno-concorrente.test.ts     | 148 ++++++++++++++
+ .../lancamento-estorno-concorrente.test.ts         | 212 +++++++++++++++++++++
+ 4 files changed, 384 insertions(+), 4 deletions(-)
+=== 3a60868 2026-10-07 16:53:10 +0100
+fix(faturacao): exigir motivo de isenção nas linhas a IVA 0%
+
+Uma linha a 0% sem motivo legal de isenção saía num documento fiscal
+válido (#329). A verificação passa a viver nos núcleos de emissão
+(factura, nota de crédito, nota de débito, conversão de proforma); os
+formulários pedem o motivo e o POS, a troca e a devolução preenchem um
+texto legal fixo a partir do regime fiscal do tenant. Sem migração.
+
+Testes: oráculo de integração motivo-isencao-329 (17/17), suite de
+integração completa verde, oráculos unitários de validação e PDF.
+
+Closes #329
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/17-iva-isento.spec.ts                 |  14 +
+ apps/erp/e2e/44-motivo-isencao-329.spec.ts         | 128 ++++++
+ .../nova/_components/nova-nota-credito-form.tsx    |  21 +-
+ .../nova/_components/nova-fatura-form.tsx          |  21 +-
+ .../faturas/nova/_components/nova-fatura-form.tsx  |  25 +-
+ .../nova/_components/nova-nota-credito-form.tsx    |  25 +-
+ .../nova/_components/nova-nota-debito-form.tsx     |  23 +-
+ .../fatura-model-motivo-isencao-329.test.ts        |  68 +++
+ apps/erp/src/lib/documents/fatura-model.ts         |  16 +
+ apps/erp/src/lib/documents/pdf/fatura-pdf.tsx      |   7 +-
+ .../__tests__/motivo-isencao-329.test.ts           |  85 ++++
+ apps/erp/src/lib/validations/faturacao.ts          |  26 +-
+ .../server/services/comercial/devolucao.service.ts |   9 +-
+ .../src/server/services/comercial/troca.service.ts |   9 +-
+ .../src/server/services/comercial/venda.service.ts |   9 +-
+ .../financas/__tests__/faturacao-iva-zero.test.ts  |  10 +-
+ .../services/financas/faturacao.interface.ts       |  11 +
+ .../server/services/financas/faturacao.service.ts  |  45 ++
+ .../services/plataforma/documentos.service.ts      |   1 +
+ .../devolucao-troca-documento-2.test.ts            |   8 +-
+ .../test/integration/motivo-isencao-329.test.ts    | 497 +++++++++++++++++++++
+ .../tesouraria-tenant-sintetico.test.ts            |   1 +
+ 22 files changed, 1040 insertions(+), 19 deletions(-)
+=== 96d45fc 2026-10-07 19:19:39 +0100
+fix(contabilidade): conta-mãe não oferece a própria conta nem descendentes
+
+Ao editar uma conta do plano, a lista de conta-mãe oferecia a própria
+conta e as suas descendentes, abrindo caminho a ciclos. O serviço já os
+recusava desde a #347; agora a lista do formulário exclui-os à partida
+(idsDescendentes por CTE recursiva + listarContas com excluirIds).
+
+Testes: oráculo de integração conta-mae-descendentes-296 (vermelho antes,
+verde depois) e conta-mae-validacao da #347; tsc e eslint limpos.
+
+Closes #296
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../plano-contas/[id]/editar/page.tsx              |  10 +-
+ .../src/server/actions/contabilidade.actions.ts    |  16 +-
+ .../services/financas/contabilidade.service.ts     |  26 ++-
+ .../integration/conta-mae-descendentes-296.test.ts | 242 +++++++++++++++++++++
+ 4 files changed, 279 insertions(+), 15 deletions(-)
+=== 9b5e1d2 2026-10-07 20:54:30 +0100
+fix(faturacao): hash de integridade encadeado por série em Factura/FR
+
+A emissão de Factura e Factura-Recibo não deixava rasto de integridade
+(#336). Cada documento passa a gravar um hashValidacao sha256 encadeado
+com o do documento anterior da mesma série, mostrado no detalhe e no PDF.
+Sem QR; documentos antigos ficam com hash null.
+
+Testes: oráculo de integração hash-documento-336 (15/15) e E2E 45 (2/2);
+tsc, eslint e pnpm gates verdes.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/45-hash-documento-336.spec.ts         | 105 ++++++
+ .../src/app/(dashboard)/faturacao/[id]/page.tsx    |   2 +-
+ .../app/(dashboard)/vendas/faturas/[id]/page.tsx   |   2 +-
+ apps/erp/src/lib/documents/fatura-model.ts         |  43 ++-
+ apps/erp/src/lib/documents/pdf/fatura-pdf.tsx      |   7 +
+ .../server/services/financas/faturacao.service.ts  |  89 ++++--
+ .../services/plataforma/documentos.service.ts      |   1 +
+ .../test/integration/hash-documento-336.test.ts    | 355 +++++++++++++++++++++
+ 8 files changed, 574 insertions(+), 30 deletions(-)
+=== f39bc9d 2026-10-07 20:59:06 +0100
+fix(contabilidade): natureza conta a conta da classe 4 do PGC
+
+A classe 4 estava toda DEVEDORA, pelo que 421 Fornecedores c/c e 44331 IVA
+liquidado apareciam no balancete com o sinal trocado. Passa a lista binária
+conta a conta; as ambíguas (441, 4435, 445, 446) ficam DEVEDORA e documentadas.
+A migração 20261007200000_natureza_classe_4 corrige natureza e tipo só nas
+contas que ainda têm o valor do seed. Golden da DFC re-derivada pelo verificador.
+
+Testes: tenant-bootstrap.test.ts 59/59; natureza-classe-4-295 (Testcontainers) 4/4;
+oráculo trancado por SHA.
+
+Closes #295
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ CLAUDE.md                                          |   6 +-
+ apps/erp/e2e/20-balancete.spec.ts                  |  45 ++----
+ .../20261007200000_natureza_classe_4/migration.sql |  29 ++++
+ apps/erp/prisma/seed/data/plano-contas-pgc.json    | 140 ++++++++--------
+ apps/erp/scripts/extract-pgc.mjs                   |  27 +++-
+ .../__tests__/tenant-bootstrap.test.ts             | 133 +++++++++++++++
+ .../financas/__tests__/fixtures/dfc-seed-demo.json |  21 +--
+ apps/erp/src/server/services/financas/dfc.model.ts |   4 +-
+ .../test/integration/natureza-classe-4-295.test.ts | 178 +++++++++++++++++++++
+ docs/handoff/dfc-servico-v.md                      |  35 ++++
+ 10 files changed, 498 insertions(+), 120 deletions(-)
+=== 72e0370 2026-10-07 21:25:24 +0100
+fix(vendas): série própria TROCA e tranca da NC reutilizada na troca (#331)
+
+A troca reutilizava uma NC sem a trancar, permitindo dupla liquidação
+concorrente, e numerava-se numa série alheia. Agora a NC é lida com
+SELECT … FOR UPDATE e recusada com NC_JA_LIQUIDADA ou NC_CANCELADA; a
+troca ganha a série TROCA (TRC) em SERIES_INICIAIS e duas migrações
+(enum + INSERT para os tenants existentes).
+
+Testes: oráculo unitário (5/5) e de integração (13/13) do verificador.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../20261007160000_serie_troca_enum/migration.sql  |   4 +
+ .../migration.sql                                  |  16 +
+ apps/erp/prisma/schema/comercial.prisma            |   2 +-
+ apps/erp/prisma/schema/financas.prisma             |   2 +
+ .../provisioning/__tests__/serie-troca-331.test.ts |  68 +++
+ .../src/server/provisioning/tenant-bootstrap.ts    |   2 +
+ .../server/services/comercial/devolucao.service.ts |  28 +-
+ .../src/server/services/comercial/troca.service.ts |  16 +-
+ .../services/financas/faturacao.interface.ts       |   4 +-
+ .../integration/troca-serie-nc-tranca-331.test.ts  | 498 +++++++++++++++++++++
+ 10 files changed, 621 insertions(+), 19 deletions(-)
+=== 8e4c25c 2026-10-07 21:28:53 +0100
+docs(lacunas): onda 1b — gravidade A aparecida depois do documento
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ docs/sistema/08-lacunas-conhecidas.md | 36 +++++++++++++++++++----------------
+ 1 file changed, 20 insertions(+), 16 deletions(-)
+=== 87ee6b9 2026-10-07 21:49:25 +0100
+fix(observabilidade): /api/ready e /api/metrics sem erros crus e métricas fechadas sem segredo
+
+As sondas sem autenticação devolviam a mensagem de erro crua (campo `error`
+em /api/ready, `detail` em /api/metrics), expondo detalhes internos como
+hosts da base. E /api/metrics servia as métricas a qualquer um quando
+METRICS_SECRET não estava definido.
+
+Decisão: erros crus nunca saem sem autenticação (ficam só no log);
+/api/metrics é fail-closed — 503 sem METRICS_SECRET, 401 com segredo errado.
+
+Testes: oráculo ready-metrics-190-191.test.ts (11 verdes; 7 vermelhos
+antes da correcção), tsc e eslint limpos.
+
+Closes #190, closes #191
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../api/__tests__/ready-metrics-190-191.test.ts    | 269 +++++++++++++++++++++
+ apps/erp/src/app/api/metrics/route.ts              |  61 ++---
+ apps/erp/src/app/api/ready/route.ts                |   8 +-
+ docs/handoff/feat-14-observabilidade.md            |   2 +-
+ docs/sistema/04-seguranca-e-identidade.md          |   2 +-
+ docs/sistema/05-api.md                             |  17 +-
+ docs/sistema/08-lacunas-conhecidas.md              |   2 -
+ 7 files changed, 318 insertions(+), 43 deletions(-)
+=== 5f18997 2026-10-07 21:50:56 +0100
+fix(devolucao): recusar nota de crédito reutilizada que não esteja emitida
+
+Uma devolução sem reembolso (ou sem sessão de caixa) aceitava uma nota de
+crédito reutilizada já cancelada ou liquidada: a verificação
+exigirNotaCreditoComCredito só corria no ramo do reembolso em caixa.
+
+Decisão: processar recusa a NC reutilizada que não esteja EMITIDA em todos
+os ramos (NC_CANCELADA / NC_JA_LIQUIDADA), antes de qualquer escrita.
+
+Testes: oráculo de integração devolucao-nc-cancelada-412 (7/7, vermelho
+antes: 6 falhas), integração relacionada 33/33, serviços comerciais
+109/109, tsc e eslint limpos.
+
+Closes #412
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../server/services/comercial/devolucao.service.ts |   5 +-
+ .../integration/devolucao-nc-cancelada-412.test.ts | 356 +++++++++++++++++++++
+ 2 files changed, 360 insertions(+), 1 deletion(-)
+=== cb74d22 2026-10-07 21:52:29 +0100
+fix(rh): avaliador da avaliação é o Colaborador do utilizador da sessão
+
+A nova avaliação enviava o id do User como avaliadorId, que é um
+Colaborador: a gravação rebentava com erro interno. O servidor passa a
+resolver o Colaborador ligado ao utilizador da sessão (por e-mail) e
+recusa com AVALIADOR_SEM_COLABORADOR quando não existe; o formulário
+deixa de enviar o avaliador.
+
+Testes: test/integration/avaliacao-avaliador-155.test.ts (6/6), tsc e
+eslint verdes.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../nova/_components/nova-avaliacao-form.tsx       |   5 +-
+ .../app/(dashboard)/rh/avaliacoes/nova/page.tsx    |   2 +-
+ apps/erp/src/lib/validations/rh.ts                 |   8 +-
+ .../server/services/pessoas-projetos/rh.service.ts |  24 ++-
+ .../integration/avaliacao-avaliador-155.test.ts    | 213 +++++++++++++++++++++
+ 5 files changed, 242 insertions(+), 10 deletions(-)
+=== c7d9ccb 2026-10-07 21:52:48 +0100
+fix(plataforma): papéis só delegam permissões que o actor já tem
+
+Quem cria ou edita papéis, ou atribui papéis a utilizadores, podia
+conceder permissões que não tinha — escalada de privilégios (#181).
+criarRole, actualizarRole, atribuirRoles e criarUtilizador passam a
+recusar com PERMISSAO_NAO_DELEGAVEL qualquer permissão fora do conjunto
+do actor; o ADMIN continua sem restrição.
+
+Testes: oráculo de integração papeis-escalada-181 (13 casos, C1–C6) e
+unitários do user-admin.service.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../__tests__/user-admin.service.test.ts           |  63 +++-
+ .../services/plataforma/user-admin.service.ts      |  41 +++
+ .../test/integration/papeis-escalada-181.test.ts   | 318 +++++++++++++++++++++
+ 3 files changed, 417 insertions(+), 5 deletions(-)
+=== f72cf10 2026-10-07 22:01:41 +0100
+fix(documentos): PUT local exige a permissão do recurso e impõe o tamanho na escrita
+
+O PUT de /api/documentos/local aceitava qualquer sessão e qualquer tamanho:
+bastava a chave para escrever no anexo de um recurso sem permissão sobre ele
+(#194), e o limite de 10 MB só existia no presign (#195).
+
+Decisão: o PUT verifica a mesma permissão do recurso que o presign;
+recursoId valida com idEntidade(); o tamanho é verificado também na escrita
+(422 acima do limite).
+
+Testes: oráculo novo documentos-permissao-194-195.test.ts (22/22); suites
+de documentos e storage verdes (54/54); tsc e eslint limpos.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../__tests__/documentos-permissao-194-195.test.ts | 319 +++++++++++++++++++++
+ .../src/app/api/documentos/local/[...key]/route.ts |  52 +++-
+ apps/erp/src/app/api/documentos/presign/route.ts   |  10 +-
+ apps/erp/src/lib/storage/documento-config.ts       |  13 +
+ apps/erp/src/lib/storage/objeto/index.ts           |   1 +
+ apps/erp/src/lib/storage/objeto/key.ts             |  12 +
+ 6 files changed, 396 insertions(+), 11 deletions(-)
+=== d973c76 2026-10-07 22:04:42 +0100
+fix(vendas): «Submeter» passa a pedir RASCUNHO → PENDENTE
+
+O botão «Submeter» partilhava o handler de «Confirmar» e pedia sempre
+CONFIRMADA; TRANSICOES_VENDA só permite RASCUNHO → PENDENTE|CANCELADA,
+pelo que toda a submissão de um rascunho falhava. Cada botão passa a
+pedir o seu estado-alvo.
+
+Testes: oráculo unitário venda-acoes-submeter-132 (11/11) e integração
+venda-submeter-rascunho-132 (3/3); tsc, eslint e gates verdes.
+
+Closes #132
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../__tests__/venda-acoes-submeter-132.test.ts     | 134 ++++++++++++++
+ .../(dashboard)/vendas/_components/venda-acoes.tsx |  25 ++-
+ .../venda-submeter-rascunho-132.test.ts            | 198 +++++++++++++++++++++
+ 3 files changed, 349 insertions(+), 8 deletions(-)
+=== cc0cf46 2026-10-07 22:07:53 +0100
+fix(plataforma): OPERADOR deixa de ter financas:exportar (#299)
+
+O filtro de leitura do seed aceitava qualquer código terminado em
+':exportar', e o OPERADOR herdava tudo o que o filtro aceitava — logo
+exportava balancete, balanço, DFC, DRE e encerramento. O filtro do
+OPERADOR passa a excluir as exportações de finanças; a migração retira a
+permissão aos papéis OPERADOR já existentes.
+
+Testes: oráculo unitário (9/9) e de integração com Testcontainers (3/3).
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../migration.sql                                  |  12 ++
+ apps/erp/prisma/seed/rbac.ts                       |   3 +
+ .../lib/__tests__/operador-exportar-299.test.ts    |  76 ++++++++++
+ .../test/integration/operador-exportar-299.test.ts | 167 +++++++++++++++++++++
+ 4 files changed, 258 insertions(+)
+=== 21eaabc 2026-10-07 22:10:21 +0100
+fix(rh): editar colaborador grava contrato e regime e recusa campos não editáveis
+
+O #272 (tipoContrato/regimeTrabalho ignorados no actualizar) já estava
+corrigido no main (9f2cf8a); fica trancado por um teste de integração.
+O #275 continuava aberto: o UpdateColaboradorSchema era o Create
+.partial().omit({codigo}), e deixava passar campos que a edição não deve
+mudar. Passa a um pick explícito dos campos editáveis, .strict().
+
+Testes: colaborador-update-schema-275 (32/32), integração
+colaborador-editar-272 (10/10), tsc, eslint, pnpm gates.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../colaborador-update-schema-275.test.ts          | 170 ++++++++++++++++
+ apps/erp/src/lib/validations/rh.ts                 |  27 ++-
+ .../integration/colaborador-editar-272.test.ts     | 214 +++++++++++++++++++++
+ 3 files changed, 410 insertions(+), 1 deletion(-)
+=== 0b49873 2026-10-07 22:23:20 +0100
+fix(compras): FINANCEIRO passa a registar pagamentos e gerir contas a pagar (#113)
+
+O perfil Financeiro via as contas a pagar mas não podia registar o pagamento
+nem criar/cancelar contas — só ADMIN e GESTOR tinham essas permissões.
+
+Decisão: o filtro do FINANCEIRO em rbac.ts deixa passar compras:pagamento:registar,
+compras:conta-pagar:criar e compras:conta-pagar:cancelar (depois das exclusões
+sensíveis). Migração idempotente liga-as ao papel nos tenants existentes.
+
+Testes: unitário de tabela (11/11) e integração com Testcontainers (3/3),
+escritos por verificador separado e vermelhos antes da correcção.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../migration.sql                                  |  13 ++
+ apps/erp/prisma/seed/rbac.ts                       |   4 +
+ .../__tests__/financeiro-contas-pagar-113.test.ts  |  83 +++++++++
+ .../financeiro-contas-pagar-113.test.ts            | 187 +++++++++++++++++++++
+ 4 files changed, 287 insertions(+)
+=== 49322a1 2026-10-07 22:25:23 +0100
+fix(caixa): fechar ou cancelar a sessão de caixa fecha as sessões POS abertas nela
+
+Até aqui, fecharSessao e cancelarSessao só mexiam na SessaoCaixa: as sessões
+POS abertas nela ficavam órfãs, abertas sobre um caixa já fechado.
+
+Decisão: na mesma transacção, as sessões POS abertas na sessão de caixa são
+fechadas; se houver vendas pendentes, a operação é recusada (opção
+conservadora). A ligação vive em comercial/sessao-pos-caixa.ts, chamada como
+contrato, sem import de internals.
+
+Testes: integração caixa-sessoes-pos-orfas-270 (8/8), fronteira de domínio +
+caixa-pagamento (6/6), tsc, eslint e pnpm gates verdes.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../server/services/comercial/sessao-pos-caixa.ts  |  44 +++
+ .../caixa-sessoes-pos-fronteira-270.test.ts        |  21 ++
+ .../src/server/services/financas/caixa.service.ts  | 139 +++++----
+ .../caixa-sessoes-pos-orfas-270.test.ts            | 343 +++++++++++++++++++++
+ 4 files changed, 483 insertions(+), 64 deletions(-)
+=== fa731fa 2026-10-07 22:33:18 +0100
+fix(seguranca): limitar por utilizador as exportações, PDFs e mapas fiscais
+
+As rotas de exportação (CSV/XLSX/PDF), PDF de factura, recibos e mapas de
+IVA/INSS/IRPS geram trabalho pesado e síncrono sem tecto por utilizador
+(#196). Passam a declarar rate-limit no withApi, com a porta de rate-limit
+existente (chave utilizador+rota), e respondem 429 quando excedido.
+
+Testes: oráculo do verificador (rate-limit-exportacoes-196 e
+rate-limit-comentarios-196, 19/19), tsc e eslint limpos.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../api/contabilidade/balancete/export/route.ts    |   6 +-
+ .../app/api/contabilidade/balanco/export/route.ts  |   6 +-
+ .../src/app/api/contabilidade/dfc/export/route.ts  |   6 +-
+ .../src/app/api/contabilidade/dre/export/route.ts  |   6 +-
+ .../[id]/encerramento/[documento]/route.ts         |   2 +-
+ apps/erp/src/app/api/export/[modulo]/route.ts      |   2 +-
+ apps/erp/src/app/api/faturacao/[id]/pdf/route.ts   |   2 +-
+ .../app/api/financas/iva/mapas/[periodo]/route.ts  |   2 +-
+ .../reconciliacao/periodos/[id]/export/route.ts    |   6 +-
+ .../src/app/api/rh/payroll/[id]/recibo/route.ts    |   7 +-
+ .../erp/src/app/api/rh/payroll/mapas/inss/route.ts |   7 +-
+ .../erp/src/app/api/rh/payroll/mapas/irps/route.ts |   7 +-
+ apps/erp/src/lib/api/with-api.ts                   |  18 +-
+ .../__tests__/rate-limit-comentarios-196.test.ts   |  59 +++++
+ .../__tests__/rate-limit-exportacoes-196.test.ts   | 293 +++++++++++++++++++++
+ apps/erp/src/server/security/rate-limiter.ts       |  13 +-
+ 16 files changed, 387 insertions(+), 55 deletions(-)
+=== c6f248c 2026-10-07 22:33:49 +0100
+fix(rh): «Admitir como Colaborador» funciona a partir de CONTRATADO
+
+A candidatura em CONTRATADO sem colaborador era recusada com
+CANDIDATURA_JA_ADMITIDA, deixando o fluxo sem saída. A admissão passa a
+aceitar PROPOSTA e CONTRATADO (sem colaborador associado); moverEtapa
+mantém PROPOSTA→CONTRATADO (decisão conservadora).
+
+Testes: oráculo de integração recrutamento-admitir-157 (6/6) e E2E 46.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/46-recrutamento-admitir-157.spec.ts   | 159 +++++++++++
+ .../candidaturas/[id]/admitir/page.tsx             |   5 +-
+ .../rh/recrutamento/candidaturas/[id]/page.tsx     |   3 +-
+ apps/erp/src/lib/state-machines.ts                 |  10 +
+ .../pessoas-projetos/recrutamento.service.ts       |  23 +-
+ .../integration/recrutamento-admitir-157.test.ts   | 304 +++++++++++++++++++++
+ 6 files changed, 494 insertions(+), 10 deletions(-)
+=== d5f704a 2026-10-07 22:56:01 +0100
+fix(transporte): cron de alertas só percorre tenants com acesso e corre no contexto de cada um
+
+O cron /api/cron/transporte-alertas listava todos os tenants sem filtro
+(apagados e fechados incluídos) e chamava recalcularEstadosDocumentos sem
+contexto de tenant, pelo que respondia 500 (SEM_CONTEXTO_TENANT) para todos.
+
+Decisão: tenants-com-acesso.ts selecciona tenants não apagados com acesso
+aberto; cada recálculo corre dentro de runWithTenantContext. O cron de
+abrir-exercicio partilha o mesmo critério.
+
+Testes: oráculo de integração cron-transporte-tenants-198 (8/8, vermelho
+antes da correcção), tsc, eslint e pnpm gates verdes.
+
+Closes #198
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/src/app/api/cron/abrir-exercicio/route.ts |  16 +-
+ .../src/app/api/cron/transporte-alertas/route.ts   |  15 +-
+ .../src/server/provisioning/tenants-com-acesso.ts  |  23 +++
+ .../cron-transporte-tenants-198.test.ts            | 165 +++++++++++++++++++++
+ 4 files changed, 201 insertions(+), 18 deletions(-)
+=== 16df9b5 2026-10-07 23:14:40 +0100
+feat(rh): aprovar, rejeitar e cancelar pedidos de férias na UI
+
+A gestão de férias só permitia criar pedidos: aprovar e iniciar existiam
+como actions sem ecrã, e rejeitar/cancelar não existiam. Decisão: aprovar
+e cancelar por AlertDialog na lista, rejeitar numa rota dedicada com
+motivo (sem modal); período aquisitivo com rota própria. O pedido guarda
+quem o solicitou (migração ADD COLUMN nula).
+
+Testes: oráculo de integração ferias-aprovar-156 (15/15, antes 8 falhavam)
+e E2E 47-ferias-aprovar-156.
+
+Closes #156
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/47-ferias-aprovar-156.spec.ts         | 249 ++++++++++++
+ .../migration.sql                                  |   3 +
+ apps/erp/prisma/schema/pessoas-projetos.prisma     |   2 +
+ .../rejeitar/_components/rejeitar-ferias-form.tsx  |  79 ++++
+ .../(dashboard)/rh/ferias/[id]/rejeitar/page.tsx   |  61 +++
+ .../rh/ferias/_components/aprovar-ferias.tsx       |  82 ++++
+ .../rh/ferias/_components/cancelar-ferias.tsx      |  73 ++++
+ .../rh/ferias/_components/ferias-table.tsx         |  43 +-
+ .../_components/nova-solicitacao-ferias-form.tsx   |   2 +
+ .../src/app/(dashboard)/rh/ferias/nova/page.tsx    |   5 +-
+ apps/erp/src/app/(dashboard)/rh/ferias/page.tsx    |  45 ++-
+ .../novo/_components/novo-periodo-ferias-form.tsx  | 152 +++++++
+ .../(dashboard)/rh/ferias/periodos/novo/page.tsx   |  54 +++
+ apps/erp/src/lib/validations/rh.ts                 |  10 +-
+ apps/erp/src/server/actions/rh.actions.ts          |  13 +-
+ .../services/pessoas-projetos/rh.interface.ts      |   2 +-
+ .../server/services/pessoas-projetos/rh.service.ts |  67 ++--
+ .../test/integration/ferias-aprovar-156.test.ts    | 436 +++++++++++++++++++++
+ 18 files changed, 1336 insertions(+), 42 deletions(-)
+=== 1e95f36 2026-10-07 23:15:27 +0100
+feat(caixa): sangria, reforço e cancelamento a partir da sessão de caixa
+
+As Server Actions registarSangria, registarReforco e cancelarSessaoCaixa
+existiam mas nenhum ecrã as chamava: a sessão só mostrava «Fechar caixa».
+Acrescentam-se rotas dedicadas (sem modal) /caixa/[id]/{sangria,reforco,
+cancelar}, com os botões visíveis só a quem tem caixa:sangria,
+caixa:reforco ou caixa:cancelar (as permissões que as actions exigem).
+
+Testes: oráculo unitário (23 casos) e E2E 46-caixa-sangria-reforco-146.
+
+Closes #146
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/46-caixa-sangria-reforco-146.spec.ts  | 246 +++++++++++++++++++++
+ .../[id]/_components/cancelar-sessao-form.tsx      | 114 ++++++++++
+ .../[id]/_components/movimento-manual-form.tsx     | 105 +++++++++
+ .../caixa/[id]/_components/sessao-com-acoes.ts     |  28 +++
+ .../app/(dashboard)/caixa/[id]/cancelar/page.tsx   |  42 ++++
+ apps/erp/src/app/(dashboard)/caixa/[id]/page.tsx   |  49 +++-
+ .../app/(dashboard)/caixa/[id]/reforco/page.tsx    |  41 ++++
+ .../app/(dashboard)/caixa/[id]/sangria/page.tsx    |  41 ++++
+ .../caixa/__tests__/rotas-sessao-146.test.ts       |  79 +++++++
+ .../lib/__tests__/caixa-acoes-sessao-146.test.ts   | 114 ++++++++++
+ apps/erp/src/lib/caixa-acoes.ts                    |  29 +++
+ apps/erp/src/lib/validations/caixa.ts              |   8 +
+ apps/erp/src/server/actions/caixa.actions.ts       |   3 +-
+ 13 files changed, 890 insertions(+), 9 deletions(-)
+=== bad0139 2026-10-07 23:43:06 +0100
+test(pos): ponta-a-ponta respeita a recusa do pro rata com saídas a 0% (#208)
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../pos-contabilidade-ponta-a-ponta.test.ts        | 70 ++++++++++++++++++----
+ 1 file changed, 59 insertions(+), 11 deletions(-)
+=== ac0edcd 2026-10-08 01:39:52 +0100
+fix(utilizadores): ecrã para mudar os papéis de um utilizador existente
+
+A edição do utilizador mostrava «Papéis Actuais» só de leitura e nenhum
+ecrã chamava atribuirRoles (#176). O formulário de edição ganha a
+selecção de papéis, que respeita a não-delegação do #181, e o serviço
+recusa retirar o papel ADMIN ao último administrador (ULTIMO_ADMIN).
+
+Testes: oráculo de integração utilizador-papeis-176 (13/13) e E2E 47.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/47-utilizador-papeis-176.spec.ts      | 225 +++++++++++++++
+ .../editar/_components/editar-utilizador-form.tsx  |  24 +-
+ .../editar/_components/papeis-utilizador-form.tsx  | 102 +++++++
+ .../services/plataforma/user-admin.service.ts      |  16 +-
+ .../test/integration/utilizador-papeis-176.test.ts | 313 +++++++++++++++++++++
+ 5 files changed, 657 insertions(+), 23 deletions(-)
+=== 7aabd6c 2026-10-08 01:50:52 +0100
+feat(produtos): ecrã de categorias de produto (lista, nova, editar)
+
+O serviço de catálogo já sabia criar e actualizar categorias, mas não havia
+ecrã: quem criava um produto sem categorias ficava sem forma de as criar.
+
+Decisão: CRUD de categorias em /produtos/categorias (lista + nova + editar)
+sobre o serviço existente, com acesso a partir de /produtos, da barra lateral
+e do formulário de novo produto quando não há categorias.
+
+Testes: oráculo do verificador (unitário, integração com 8 casos e E2E),
+trancado por SHA; vermelho no origin/main, verde nesta branch.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/47-categorias-produto-119.spec.ts     | 151 ++++++++++++++++++
+ .../novo-produto-form-sem-categorias-119.test.ts   |  46 ++++++
+ .../produtos/_components/novo-produto-form.tsx     |  10 ++
+ .../produtos/categorias/[id]/editar/page.tsx       |  59 +++++++
+ .../_components/categoria-produto-form.tsx         | 171 +++++++++++++++++++++
+ .../_components/categorias-produto-table.tsx       | 101 ++++++++++++
+ .../(dashboard)/produtos/categorias/nova/page.tsx  |  29 ++++
+ .../app/(dashboard)/produtos/categorias/page.tsx   | 108 +++++++++++++
+ apps/erp/src/app/(dashboard)/produtos/page.tsx     |  22 ++-
+ apps/erp/src/components/layout/AppSidebar.tsx      |   3 +-
+ apps/erp/src/server/actions/inventario.actions.ts  |  11 +-
+ .../server/services/inventario/catalogo.service.ts |  27 +++-
+ .../integration/categorias-produto-119.test.ts     | 168 ++++++++++++++++++++
+ 13 files changed, 886 insertions(+), 20 deletions(-)
+=== 8a3c340 2026-10-08 01:53:04 +0100
+feat(compras): aprovar e rejeitar requisições na UI pelo circuito existente
+
+O serviço já tinha aprovação por níveis (decidirAprovacao) e criação de
+circuitos (criarConfiguracaoWorkflow), mas nenhuma página chamava as actions:
+uma requisição submetida ficava parada para sempre (#108).
+
+Decisão: o detalhe da requisição mostra Aprovar/Rejeitar ao aprovador do
+nível corrente; rejeitar é rota dedicada (/rejeitar, sem modais). A
+configuração de circuitos entra em /compras/configuracoes porque o serviço
+já existe.
+
+Testes: oráculo de integração separado (9/9) e E2E 47.
+
+Closes #108
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../e2e/47-compras-requisicao-aprovar-108.spec.ts  | 291 ++++++++++++++
+ .../novo/_components/novo-circuito-form.tsx        | 354 +++++++++++++++++
+ .../circuitos-aprovacao/novo/page.tsx              |  52 +++
+ .../configuracoes/circuitos-aprovacao/page.tsx     | 103 +++++
+ .../(dashboard)/compras/requisicoes/[id]/page.tsx  |  11 +-
+ .../_components/rejeitar-requisicao-form.tsx       |  95 +++++
+ .../compras/requisicoes/[id]/rejeitar/page.tsx     |  61 +++
+ .../requisicoes/_components/requisicao-decisao.tsx |  99 +++++
+ apps/erp/src/components/layout/AppSidebar.tsx      |   1 +
+ apps/erp/src/lib/compras-aprovacao.ts              |  33 ++
+ apps/erp/src/lib/validations/compras.ts            |   7 +
+ apps/erp/src/server/actions/compras.actions.ts     |  10 +-
+ .../services/compras/compras.service.interface.ts  |  21 +
+ .../src/server/services/compras/compras.service.ts |  89 ++++-
+ .../compras-requisicao-aprovar-108.test.ts         | 424 +++++++++++++++++++++
+ 15 files changed, 1648 insertions(+), 3 deletions(-)
+=== e764ab9 2026-10-08 02:11:07 +0100
+fix(utilizadores): desactivar um utilizador passa a ser reversível
+
+Desactivar gravava ativo=false e deletedAt; como todas as leituras filtram
+deletedAt null, o utilizador desaparecia sem caminho de volta, ao contrário
+do que a confirmação prometia. Agora desactivar só põe ativo=false (e há
+reactivar); deletedAt fica reservado para apagar. «Cancelar subscrição»
+deixa de aparecer em LEITURA/FECHADA, com texto actualizado (#180).
+
+Testes: oráculo de integração utilizador-desactivar-179 (16/16), __tests__
+de plataforma (182/182) e E2E 48-utilizador-desactivar-179.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/48-utilizador-desactivar-179.spec.ts  | 192 +++++++++
+ .../utilizadores/_components/utilizador-acoes.tsx  |  37 +-
+ .../_components/utilizadores-table.tsx             |  12 +-
+ apps/erp/src/server/actions/plataforma.actions.ts  |  11 +
+ .../__tests__/user-admin.service.test.ts           |   2 +
+ .../services/plataforma/user-admin.interface.ts    |  11 +-
+ .../services/plataforma/user-admin.service.ts      |  13 +-
+ .../integration/utilizador-desactivar-179.test.ts  | 431 +++++++++++++++++++++
+ 8 files changed, 694 insertions(+), 15 deletions(-)
+=== 460055d 2026-10-08 02:17:17 +0100
+fix(relatorios): XLSX escreve decimais e moeda como número com formato
+
+As exportações XLSX escreviam valores Decimal como texto, pelo que o Excel
+não somava nem ordenava as colunas de valores (#300).
+
+Decisão: células decimal/moeda passam a número com formato #,##0.00 desde
+que caibam em 15 dígitos significativos (precisão do double); acima disso
+continuam texto, para não perder valor. Texto continua texto. Emenda
+registada no ADR-0005 (motor PDF/exportação).
+
+Testes: oráculo novo xlsx-decimais.test.ts (vermelho antes: 9 falhas);
+npx vitest run src/lib/reporting 49/49; tsc e eslint limpos; pnpm gates verde.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../lib/reporting/__tests__/xlsx-decimais.test.ts  | 258 +++++++++++++++++++++
+ apps/erp/src/lib/reporting/xlsx.ts                 |  37 ++-
+ docs/decisions/0005-motor-pdf.md                   |   6 +
+ 3 files changed, 293 insertions(+), 8 deletions(-)
+=== ec6eac9 2026-10-08 02:19:29 +0100
+fix(vendas): encomenda confirma, converte em venda e cancela a partir do detalhe
+
+O detalhe da encomenda só mostrava o estado em bruto e o «Editar» do
+RASCUNHO: as transições existiam no serviço mas não chegavam à UI (#129).
+
+Decisão: confirmar (com escolha da localização de stock, rota própria
+/vendas/pedidos/[id]/confirmar), converter em venda e cancelar passam a
+acções no detalhe; o Editar já existia (#375).
+
+Testes: oráculo de integração encomenda-transicoes-129 (13/13) e E2E
+47-encomenda-transicoes-129, escritos pelo verificador e trancados por SHA.
+
+Closes #129
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/47-encomenda-transicoes-129.spec.ts   | 169 +++++++
+ .../vendas/pedidos/[id]/confirmar/page.tsx         |  56 +++
+ .../app/(dashboard)/vendas/pedidos/[id]/page.tsx   |  28 +-
+ .../_components/confirmar-encomenda-form.tsx       | 103 +++++
+ .../vendas/pedidos/_components/encomenda-acoes.tsx | 144 ++++++
+ apps/erp/src/lib/cliente-credito.ts                |  20 +
+ apps/erp/src/lib/state-machines.ts                 |   3 +
+ apps/erp/src/lib/validations/vendas.ts             |   9 +-
+ apps/erp/src/server/actions/vendas.actions.ts      |  36 ++
+ .../server/services/comercial/encomenda.service.ts | 171 ++++---
+ .../src/server/services/comercial/venda.service.ts |  10 +-
+ .../integration/encomenda-transicoes-129.test.ts   | 507 +++++++++++++++++++++
+ 12 files changed, 1181 insertions(+), 75 deletions(-)
+=== 022fd12 2026-10-08 02:58:07 +0100
+fix(definicoes): ecrã de dados da empresa e configuração fiscal
+
+Não havia ecrã que chamasse actualizarTenant nem actualizarConfiguracaoFiscal;
+a primeira recebia o id do tenant do cliente e a segunda escrevia por upsert
+em prismaBase, sem AuditLog.
+
+Decisão: ecrã /definicoes/empresa sobre o modelo existente, com permissão de
+administração; o tenant vem da sessão, NUIT validado, regime fiscal, e escritas
+singulares auditadas.
+
+Testes: oráculo unitário (18), integração Testcontainers (13) e E2E 49.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/49-empresa-config-fiscal-177.spec.ts  | 197 ++++++++++
+ apps/erp/src/app/(dashboard)/core-tenancy/page.tsx |   9 +-
+ .../empresa/_components/dados-empresa-form.tsx     | 170 +++++++++
+ .../app/(dashboard)/definicoes/empresa/layout.tsx  |   6 +
+ .../app/(dashboard)/definicoes/empresa/page.tsx    |  44 +++
+ .../__tests__/empresa-config-fiscal-177.test.ts    | 157 ++++++++
+ apps/erp/src/lib/permissoes-rotas.ts               |   2 +
+ apps/erp/src/lib/validations/plataforma.ts         |  23 ++
+ apps/erp/src/server/actions/plataforma.actions.ts  |  12 +
+ apps/erp/src/server/db/audit-extension.ts          |   6 +
+ .../services/plataforma/tenant-admin.interface.ts  |   9 +
+ .../services/plataforma/tenant-admin.service.ts    |  56 ++-
+ .../integration/empresa-config-fiscal-177.test.ts  | 419 +++++++++++++++++++++
+ 13 files changed, 1108 insertions(+), 2 deletions(-)
+=== 67f7da5 2026-10-08 02:59:16 +0100
+feat(compras): enviar, registar resposta, adjudicar e cancelar cotações RFQ na UI
+
+O circuito RFQ já existia no serviço e nas actions, mas não havia página de
+detalhe nem rotas para o operar: a cotação ficava presa em rascunho.
+
+Decisão: detalhe /compras/cotacoes/[id] com acções e rotas dedicadas
+(registar resposta, adjudicar) sobre os serviços existentes, sem modais;
+valorTotal do convite passa a ser a soma dos subtotais.
+
+Testes: oráculo de integração (12/12), E2E 48 e unitário do serviço.
+
+Closes #109
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/48-compras-cotacao-rfq-109.spec.ts    | 325 ++++++++++++++
+ .../_components/adjudicar-cotacao-form.tsx         | 106 +++++
+ .../compras/cotacoes/[id]/adjudicar/page.tsx       |  73 +++
+ .../app/(dashboard)/compras/cotacoes/[id]/page.tsx | 220 +++++++++
+ .../_components/registar-resposta-form.tsx         | 172 +++++++
+ .../compras/cotacoes/[id]/resposta/page.tsx        |  86 ++++
+ .../compras/cotacoes/_components/cotacao-acoes.tsx | 113 +++++
+ .../cotacoes/_components/cotacoes-table.tsx        |  13 +-
+ apps/erp/src/lib/validations/compras.ts            |  24 +
+ apps/erp/src/server/actions/compras.actions.ts     |   6 +-
+ .../compras/__tests__/compras.service.test.ts      |  41 +-
+ .../src/server/services/compras/compras.service.ts |  82 +++-
+ .../integration/compras-cotacao-rfq-109.test.ts    | 498 +++++++++++++++++++++
+ 13 files changed, 1713 insertions(+), 46 deletions(-)
+=== 25cd475 2026-10-08 03:12:25 +0100
+feat(faturacao): criar séries do ano seguinte a partir de /faturacao/series
+
+Até aqui as séries do ano N+1 só nasciam via abrirExercicio ou no
+bootstrap de Dezembro; sem elas, os documentos de Janeiro falham com
+«série activa não encontrada». Nova acção «Criar séries do ano
+seguinte» cria, de forma idempotente, as séries de todos os tipos para
+o ano seguinte.
+
+Testes: oráculo de integração series-ano-seguinte-235 (9/9) e E2E
+48-series-ano-seguinte-235 (3/3); 19-series-documento sem regressão.
+
+Closes #235
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/48-series-ano-seguinte-235.spec.ts    | 129 +++++++++
+ .../_components/criar-series-ano-seguinte.tsx      |  80 ++++++
+ .../src/app/(dashboard)/faturacao/series/page.tsx  |  19 +-
+ apps/erp/src/server/actions/faturacao.actions.ts   |   6 +
+ .../server/services/financas/faturacao.service.ts  |  42 +++
+ .../integration/series-ano-seguinte-235.test.ts    | 301 +++++++++++++++++++++
+ 6 files changed, 570 insertions(+), 7 deletions(-)
+=== 3b9e262 2026-10-08 03:28:38 +0100
+feat(auth): recuperação de palavra-passe self-service
+
+O ecrã de login só apontava para /contactos: quem esquecia a palavra-passe
+ficava sem saída. Nova rota /auth/recuperar com Server Action que pede ao
+Keycloak o execute-actions-email UPDATE_PASSWORD. A resposta é sempre a
+mesma, exista ou não o e-mail, e há limitadores por e-mail (5/h) e por IP
+(10/h).
+
+Testes: 15 unitários em auth/recuperar (vermelhos antes, verdes agora),
+E2E 50-recuperar-palavra-passe-178, tsc, eslint e pnpm gates verdes.
+
+Closes #178
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../erp/e2e/50-recuperar-palavra-passe-178.spec.ts | 103 +++++
+ apps/erp/src/app/(auth)/auth/login/page.tsx        |   6 +
+ .../__tests__/recuperar-palavra-passe-178.test.ts  | 453 +++++++++++++++++++++
+ apps/erp/src/app/(auth)/auth/recuperar/actions.ts  |  61 +++
+ apps/erp/src/app/(auth)/auth/recuperar/page.tsx    |  35 ++
+ .../recuperar/recuperar-palavra-passe-form.tsx     |  79 ++++
+ apps/erp/src/lib/validations/plataforma.ts         |   6 +
+ apps/erp/src/server/auth/keycloak.ts               |  45 +-
+ apps/erp/src/server/security/rate-limiter.ts       |  25 ++
+ 9 files changed, 804 insertions(+), 9 deletions(-)
+=== 312cf64 2026-10-08 03:34:49 +0100
+feat(compras): converter requisição em pedido, enviar, confirmar e cancelar pedidos na UI
+
+A requisição aprovada não tinha caminho para pedido de compra na UI, e o
+pedido não podia ser confirmado nem passar a em trânsito, apesar de a
+máquina de estados o prever — a recepção, que exige EM_TRANSITO, ficava
+inalcançável.
+
+Decisão: acrescentar ao serviço as transições em falta sobre
+TRANSICOES_PEDIDO_COMPRA e expô-las por Server Actions; UI com rota de
+conversão a partir da requisição, detalhe do pedido com acções e rota de
+cancelamento com formulário (sem modais).
+
+Testes: oráculo de integração compras-pedido-110 (12/12) e E2E
+49-compras-pedido-110.
+
+Closes #110
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/49-compras-pedido-110.spec.ts         | 372 +++++++++++++
+ .../cancelar/_components/cancelar-pedido-form.tsx  |  85 +++
+ .../compras/pedidos/[id]/cancelar/page.tsx         |  63 +++
+ .../app/(dashboard)/compras/pedidos/[id]/page.tsx  | 176 ++++++
+ .../compras/pedidos/_components/pedido-acoes.tsx   |  57 ++
+ .../_components/converter-requisicao-form.tsx      | 105 ++++
+ .../compras/requisicoes/[id]/converter/page.tsx    |  76 +++
+ .../(dashboard)/compras/requisicoes/[id]/page.tsx  |  12 +-
+ apps/erp/src/lib/validations/compras.ts            |  16 +
+ apps/erp/src/server/actions/compras.actions.ts     |  28 +-
+ .../services/compras/compras.service.interface.ts  |  14 +
+ .../src/server/services/compras/compras.service.ts |  60 +-
+ .../test/integration/compras-pedido-110.test.ts    | 616 +++++++++++++++++++++
+ 13 files changed, 1669 insertions(+), 11 deletions(-)
+=== c6caed9 2026-10-08 03:36:54 +0100
+feat(vendas): ecrãs para aprovar, processar e rejeitar devoluções e criar trocas
+
+As actions aprovarDevolucao, processarDevolucao, rejeitarDevolucao e criarTroca
+existiam sem ecrã: o detalhe da devolução só mostrava o estado e «Nova Troca»
+levava à lista de devoluções. Acrescenta acções no detalhe, a rota
+/vendas/devolucoes/[id]/processar e /vendas/trocas/nova, sobre os serviços
+existentes.
+
+Testes: integração devolucoes-ecras-130 (10 casos) e E2E 48.
+
+Closes #130
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/48-devolucoes-ecras-130.spec.ts       | 359 +++++++++++++++
+ .../(dashboard)/vendas/devolucoes/[id]/page.tsx    |  56 ++-
+ .../vendas/devolucoes/[id]/processar/page.tsx      |  75 ++++
+ .../devolucoes/_components/devolucao-acoes.tsx     | 125 ++++++
+ .../_components/processar-devolucao-form.tsx       | 134 ++++++
+ .../vendas/trocas/_components/nova-troca-form.tsx  | 355 +++++++++++++++
+ .../app/(dashboard)/vendas/trocas/nova/page.tsx    | 156 +++++++
+ .../erp/src/app/(dashboard)/vendas/trocas/page.tsx |   4 +-
+ apps/erp/src/lib/validations/vendas.ts             |  24 +
+ apps/erp/src/server/actions/vendas.actions.ts      |  10 +-
+ .../server/services/comercial/devolucao.service.ts |  70 ++-
+ .../test/integration/devolucoes-ecras-130.test.ts  | 489 +++++++++++++++++++++
+ 12 files changed, 1797 insertions(+), 60 deletions(-)
+=== 1fa9906 2026-10-08 08:17:15 +0100
+fix(vendas): anular venda POS a crédito ou mista emite nota de crédito (#322)
+
+Até aqui a anulação de uma venda POS com parte a crédito era recusada com
+VENDA_A_CREDITO_NAO_ANULAVEL. Agora emite uma nota de crédito total,
+compensa a factura em aberto e reentra o stock, tudo na mesma transacção.
+
+Testes: oráculo de integração venda-pos-anulacao-credito-322 (10/10,
+trancado por SHA), suite de integração completa verde, tsc, eslint e
+gates; E2E 49-pos-anular-credito-322.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/27-pos-documento-fiscal.spec.ts       |   4 +-
+ apps/erp/e2e/49-pos-anular-credito-322.spec.ts     | 139 +++++
+ .../app/(dashboard)/vendas/[id]/anular/page.tsx    |  17 +-
+ apps/erp/src/app/(dashboard)/vendas/[id]/page.tsx  |   2 +-
+ .../server/services/comercial/venda.interface.ts   |  16 +-
+ .../src/server/services/comercial/venda.service.ts |  17 +-
+ .../services/financas/faturacao.interface.ts       |   5 +-
+ .../server/services/financas/faturacao.service.ts  | 148 ++---
+ .../venda-pos-anulacao-credito-322.test.ts         | 598 +++++++++++++++++++++
+ 9 files changed, 855 insertions(+), 91 deletions(-)
+=== e867c81 2026-10-08 16:54:17 +0100
+feat(compras): recepção de pedido confirmado e conta a pagar manual
+
+O pedido de compra confirmado não tinha ecrã de recepção e as contas a
+pagar só nasciam por recepção: faltavam /compras/pedidos/[id]/receber e
+/fornecedores/contas-pagar/nova (#111).
+
+Decisão: a recepção usa o serviço existente, que gera a entrada de stock
+e a conta a pagar na mesma transacção; a conta a pagar manual tem rota
+própria (sem modais).
+
+Testes: oráculo trancado por SHA (unitário, integração e E2E 50),
+vermelho antes; tsc, eslint, gates e vitest de compras verdes.
+
+Closes #111
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/50-compras-recepcao-111.spec.ts       | 412 +++++++++++++++
+ .../app/(dashboard)/compras/pedidos/[id]/page.tsx  |  14 +-
+ .../receber/_components/registar-recepcao-form.tsx | 186 +++++++
+ .../compras/pedidos/[id]/receber/page.tsx          |  94 ++++
+ .../nova/_components/nova-conta-pagar-form.tsx     | 188 +++++++
+ .../fornecedores/contas-pagar/nova/page.tsx        |  54 ++
+ .../(dashboard)/fornecedores/contas-pagar/page.tsx |  17 +-
+ apps/erp/src/lib/validations/compras.ts            |   2 +-
+ .../erp/src/server/actions/fornecedores.actions.ts |  20 +
+ .../compras/__tests__/compras.service.test.ts      |  17 +
+ .../compras/__tests__/wave3-integration.test.ts    |  23 +
+ .../src/server/services/compras/compras.service.ts |  40 +-
+ .../test/integration/compras-recepcao-111.test.ts  | 554 +++++++++++++++++++++
+ 13 files changed, 1613 insertions(+), 8 deletions(-)
+=== dbe206e 2026-10-08 17:01:59 +0100
+fix(utilizadores): papéis e dados gravados num único formulário de edição
+
+O ecrã de edição ainda mostrava «Papéis Actuais» só para leitura e nada
+em src/app chamava atribuirRoles (#176). O formulário passa a permitir
+mudar os papéis do utilizador, respeitando a regra de não-delegação do
+#181 (só se atribui o que o próprio admin tem).
+
+Testes: oráculo de integração utilizador-papeis-176 (13/13), suite de
+integração verde salvo os casos pro-rata já corrigidos em bad0139; tsc.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../editar/_components/editar-utilizador-form.tsx  | 104 ++++++++++++---------
+ .../editar/_components/papeis-utilizador-form.tsx  |  60 ++++--------
+ 2 files changed, 80 insertions(+), 84 deletions(-)
+=== d24edb5 2026-10-08 17:25:00 +0100
+fix(vendas): anular venda POS no dia seguinte devolve pela sessão aberta de quem anula
+
+A anulação de uma venda de dias anteriores falhava porque a devolução em
+numerário ia para a sessão de caixa da venda, já fechada. Agora, quando há
+dinheiro a devolver, a DEVOLUCAO entra na sessão de caixa aberta do
+utilizador que anula (resolvida antes de qualquer escrita); a sessão fechada
+da venda fica intacta e a gaveta de outro utilizador nunca é usada.
+
+Testes: oráculo #327 (vermelho antes, verde depois), suite de integração
+completa (833), tsc, eslint e pnpm gates verdes.
+
+Closes #327
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../app/(dashboard)/vendas/[id]/anular/page.tsx    |   2 +-
+ .../src/server/services/comercial/venda.service.ts |  28 +-
+ .../server/services/financas/faturacao.service.ts  |   2 +-
+ .../venda-pos-anulacao-credito-322.test.ts         |  10 +-
+ .../test/integration/venda-pos-anulacao.test.ts    |  11 +-
+ .../venda-pos-anular-dia-seguinte-327.test.ts      | 344 +++++++++++++++++++++
+ 6 files changed, 373 insertions(+), 24 deletions(-)
+=== 4d8ab00 2026-10-08 17:30:09 +0100
+docs(lacunas): onda 2 — lotes 2a e 2b
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ docs/sistema/08-lacunas-conhecidas.md | 79 ++++++++++++++++++++++-------------
+ 1 file changed, 50 insertions(+), 29 deletions(-)
+=== d65f29c 2026-10-08 17:54:00 +0100
+fix(payroll): impor regras de vigência nas tabelas INSS/IRPS (#158)
+
+O ecrã /rh/payroll/tabelas já existia, mas o serviço não impunha duas
+regras do contrato: a nova vigência tem de começar no mês corrente ou
+futuro, e não pode reclamar meses de folhas já PROCESSADO/PAGO.
+
+Decisão: travão no serviço (exigirVigenciaNovaPermitida) antes de criar
+a versão; vigências passadas nunca se editam.
+
+Testes: oráculo payroll-tabelas-vigencia-158 + tesouraria-tenant-sintetico
+(30 verdes), suite de integração completa (851 verdes) e unitários.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../__tests__/payroll.service.test.ts              |  21 +-
+ .../services/pessoas-projetos/payroll.service.ts   |  35 +++
+ .../payroll-tabelas-vigencia-158.test.ts           | 292 +++++++++++++++++++++
+ .../tesouraria-tenant-sintetico.test.ts            |  57 ++--
+ 4 files changed, 381 insertions(+), 24 deletions(-)
+=== dc16729 2026-10-08 18:10:50 +0100
+feat(inventario): contagem e transições do inventário físico de activos
+
+O detalhe do inventário físico só mostrava dados: sem botões de
+transição, sem lista de contagens e sem rota para contar (#117).
+
+Liga a UI ao serviço existente (transitarStatus, registarContagem):
+acções de transição no detalhe e rota de contagens. O serviço passa a
+recusar contagens com o inventário PAUSADO, CONCLUIDO ou CANCELADO.
+
+Testes: oráculo de integração do verificador (3 casos vermelhos antes,
+11/11 verdes depois); suite de integração completa verde (838 testes);
+E2E 51-activos-inventario-fisico-117.
+
+Closes #117
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../e2e/51-activos-inventario-fisico-117.spec.ts   | 271 ++++++++++++++++
+ .../_components/registar-contagem-form.tsx         | 154 +++++++++
+ .../fisico/[id]/contagens/[contagemId]/page.tsx    |  94 ++++++
+ .../(dashboard)/inventario/fisico/[id]/page.tsx    | 100 +++++-
+ .../fisico/_components/inventario-fisico-acoes.tsx | 113 +++++++
+ apps/erp/src/lib/validations/inventario-ativos.ts  |   9 +
+ .../inventario/inventario-fisico.interface.ts      |   9 +
+ .../inventario/inventario-fisico.service.ts        |  91 ++++--
+ .../activos-inventario-fisico-117.test.ts          | 343 +++++++++++++++++++++
+ 9 files changed, 1148 insertions(+), 36 deletions(-)
+=== 9e2d240 2026-10-08 18:12:52 +0100
+fix(producao): aprovar/reprovar qualidade da ordem de produção
+
+Nada escrevia qualidadeAprovada = true, e a conclusão da ordem exige-o:
+nenhuma ordem podia ser concluída. Também não havia página de detalhe
+(/producao/ordens/<id> dava 404).
+
+Acção de avaliar qualidade (aprovar/reprovar) com permissão existente,
+três colunas anuláveis de avaliação na OrdemProducao e página de detalhe.
+
+Testes: integração producao-qualidade-166 (15/15), suite de integração
+completa verde; E2E 51-producao-qualidade-166.
+
+Closes #166
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/51-producao-qualidade-166.spec.ts     | 221 +++++++++++
+ .../migration.sql                                  |   5 +
+ apps/erp/prisma/schema/pessoas-projetos.prisma     |   6 +
+ .../ordens/[id]/_components/qualidade-acoes.tsx    |  95 +++++
+ .../app/(dashboard)/producao/ordens/[id]/page.tsx  | 156 ++++++++
+ .../_components/reprovar-qualidade-form.tsx        |  91 +++++
+ .../ordens/[id]/reprovar-qualidade/page.tsx        |  56 +++
+ apps/erp/src/components/patterns/status-badge.tsx  |   2 +
+ apps/erp/src/lib/validations/producao.ts           |  18 +
+ apps/erp/src/server/actions/producao.actions.ts    |  23 ++
+ .../services/pessoas-projetos/producao.service.ts  |  41 ++
+ .../integration/producao-qualidade-166.test.ts     | 414 +++++++++++++++++++++
+ 12 files changed, 1128 insertions(+)
+=== 26fb440 2026-10-08 18:14:36 +0100
+fix(projetos): transições de estado, tarefas, rejeição de timesheets e marcos
+
+O módulo de projectos tinha lacunas (#167): «Nova Tarefa» apontava para a
+lista de projectos, não existiam as rotas de tarefa (criar/editar), detalhe
+de timesheet nem criação de marco, o detalhe do projecto não tinha botões de
+estado e o TimesheetService não tinha caminho de rejeição.
+
+Decisão: tudo sobre os serviços existentes — transições do projecto pelo
+mapa de estados, TarefaService criar/editar, rejeição de timesheet com
+motivo (nova coluna motivoRejeicao) e criação de marcos.
+
+Testes: oráculo de integração projectos-transicoes-167 (16/16, vermelho
+antes com 9 falhas), suite de integração completa verde, E2E 51.
+
+Closes #167
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/51-projectos-transicoes-167.spec.ts   | 372 +++++++++++++++
+ .../migration.sql                                  |   2 +
+ apps/erp/prisma/schema/pessoas-projetos.prisma     |   2 +
+ .../projetos/_components/campo-projeto.tsx         |  42 ++
+ .../lista/[id]/_components/transicoes-projeto.tsx  | 123 +++++
+ .../app/(dashboard)/projetos/lista/[id]/page.tsx   |   9 +-
+ .../marcos/novo/_components/novo-marco-form.tsx    | 130 ++++++
+ .../app/(dashboard)/projetos/marcos/novo/page.tsx  |  36 ++
+ .../src/app/(dashboard)/projetos/marcos/page.tsx   |  12 +-
+ .../projetos/tarefas/[id]/editar/page.tsx          |  53 +++
+ .../app/(dashboard)/projetos/tarefas/[id]/page.tsx | 107 +++++
+ .../projetos/tarefas/_components/tarefa-form.tsx   | 223 +++++++++
+ .../app/(dashboard)/projetos/tarefas/novo/page.tsx |  36 ++
+ .../src/app/(dashboard)/projetos/tarefas/page.tsx  |   2 +-
+ .../[id]/_components/decisao-timesheet.tsx         |  83 ++++
+ .../(dashboard)/projetos/timesheet/[id]/page.tsx   | 135 ++++++
+ .../timesheet/_components/timesheet-table.tsx      |  14 +-
+ .../app/(dashboard)/projetos/timesheet/page.tsx    |   2 +
+ apps/erp/src/lib/validations/projetos.ts           |   9 +
+ apps/erp/src/server/actions/projetos.actions.ts    |   8 +
+ .../services/pessoas-projetos/projetos.service.ts  |  67 ++-
+ .../integration/projectos-transicoes-167.test.ts   | 503 +++++++++++++++++++++
+ 22 files changed, 1961 insertions(+), 9 deletions(-)
+=== c22c500 2026-10-08 18:40:45 +0100
+fix(rh): confirmar «Recalcular» do payroll PENDENTE com AlertDialog
+
+O recálculo de uma folha PENDENTE refaz as linhas calculadas sobre
+recalcularPayrollNoTx; corria directamente do clique, sem confirmação.
+O botão passa a AlertDialogTrigger (acção destrutiva confirmada); a rota
+de ajuste manual por linha (motivo obrigatório) mantém-se.
+
+Testes: oráculo acoes-payroll-recalcular-159 (5/5), integração
+payroll-recalcular-ajustes-159 e suite de integração completa verde.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/25-payroll-ajustes.spec.ts            |  11 +-
+ .../e2e/51-payroll-recalcular-ajustes-159.spec.ts  | 134 +++++++++
+ .../__tests__/acoes-payroll-recalcular-159.test.ts | 161 ++++++++++
+ .../rh/payroll/[id]/_components/acoes-payroll.tsx  |  42 ++-
+ .../payroll-recalcular-ajustes-159.test.ts         | 327 +++++++++++++++++++++
+ 5 files changed, 667 insertions(+), 8 deletions(-)
+=== 297a28e 2026-10-08 18:46:21 +0100
+feat(inventario): movimentação de activos e processamento da amortização mensal
+
+Os serviços de movimentação de activos e de amortização mensal existiam,
+mas nenhuma página os chamava (#118). Acrescenta o separador
+«Movimentações» e a rota /inventario/ativos/[id]/movimentar no detalhe do
+activo, e o processamento do mês na página de amortização. O serviço de
+movimentação passa a validar tenant e estado e a actualizar o activo.
+
+Testes: oráculo de integração (13/13) e E2E 52, suite de integração
+completa verde, tsc e eslint limpos.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ ...52-activos-movimentacao-amortizacao-118.spec.ts | 231 ++++++++++++
+ .../_components/processar-amortizacao-mes.tsx      |  78 ++++
+ .../(dashboard)/inventario/amortizacao/page.tsx    |   6 +
+ .../[id]/_components/movimentacoes-ativo.tsx       |  70 ++++
+ .../_components/movimentar-ativo-form.tsx          | 192 ++++++++++
+ .../inventario/ativos/[id]/movimentar/page.tsx     |  72 ++++
+ .../(dashboard)/inventario/ativos/[id]/page.tsx    |  24 +-
+ apps/erp/src/server/actions/inventario.actions.ts  |  20 +-
+ .../services/inventario/amortizacao.service.ts     |  54 ++-
+ .../server/services/inventario/ativos.interface.ts |  18 +
+ .../server/services/inventario/ativos.service.ts   | 146 +++++++-
+ .../activos-movimentacao-amortizacao-118.test.ts   | 401 +++++++++++++++++++++
+ 12 files changed, 1287 insertions(+), 25 deletions(-)
+=== f066857 2026-10-08 18:53:16 +0100
+fix(tickets): atribuir agente, comentar e avaliar ticket no detalhe
+
+O serviço e as actions de atribuição, comentário, avaliação e transição
+existiam, mas nenhuma UI as chamava e ABERTO → EM_PROGRESSO não era
+alcançável (o schema de atribuição exigia campos que a UI não tinha).
+
+O detalhe do ticket passa a ter a gestão (atribuir agente, comentar,
+avaliar) e a atribuição leva o ticket de ABERTO a EM_PROGRESSO.
+
+Testes: oráculo de integração tickets-agente-169 (19 verdes), suite de
+integração completa verde, tsc e eslint limpos, gates 5/5, E2E 52.
+
+Closes #169
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/52-tickets-agente-169.spec.ts         | 246 ++++++++++++
+ apps/erp/src/app/(dashboard)/tickets/[id]/page.tsx |  72 +++-
+ .../tickets/_components/ticket-gestao.tsx          | 219 ++++++++++
+ apps/erp/src/lib/validations/tickets.ts            |   4 +-
+ apps/erp/src/server/actions/tickets.actions.ts     |   8 +
+ .../server/services/operacoes/ticket.interface.ts  |  11 +-
+ .../server/services/operacoes/ticket.service.ts    |  44 +-
+ .../test/integration/tickets-agente-169.test.ts    | 446 +++++++++++++++++++++
+ 8 files changed, 1030 insertions(+), 20 deletions(-)
+=== 7e62f6c 2026-10-09 00:11:07 +0100
+feat(producao): activar BOM/roteiro e gerir centros de trabalho na UI
+
+A #165 continuava aberta: não havia rotas de detalhe de estrutura (BOM) nem
+de roteiro, logo não se conseguia activar/desactivar nenhum dos dois, nem
+criar centros de trabalho, apesar de as transições e o CentroTrabalhoService
+já existirem em producao.service.ts.
+
+Decisão: expor na UI os serviços existentes — detalhe /producao/estrutura/[id]
+e /producao/roteiros/[id] com activar/desactivar, e /producao/centros-trabalho
+(lista, novo, editar). Estados novos registados no StatusBadge.
+
+Testes: oráculo de integração producao-bom-roteiro-165 (26 verdes), suite de
+integração completa (947 + 1 todo), tsc e eslint limpos; E2E 52.
+
+Closes #165
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/52-producao-bom-roteiro-165.spec.ts   | 325 ++++++++++++++
+ .../producao/_components/activar-desactivar.tsx    |  54 +++
+ .../_components/alvo-activar-desactivar.ts         |  13 +
+ .../producao/centros-trabalho/[id]/editar/page.tsx |  63 +++
+ .../_components/centro-trabalho-form.tsx           | 300 +++++++++++++
+ .../_components/centros-trabalho-table.tsx         |  80 ++++
+ .../producao/centros-trabalho/novo/page.tsx        |  38 ++
+ .../(dashboard)/producao/centros-trabalho/page.tsx | 152 +++++++
+ .../(dashboard)/producao/estrutura/[id]/page.tsx   | 136 ++++++
+ apps/erp/src/app/(dashboard)/producao/page.tsx     |   7 +
+ .../(dashboard)/producao/roteiros/[id]/page.tsx    | 144 ++++++
+ apps/erp/src/components/patterns/status-badge.tsx  |   2 +
+ apps/erp/src/lib/validations/producao.ts           |   2 +-
+ .../pessoas-projetos/producao.interface.ts         |   2 +-
+ .../services/pessoas-projetos/producao.service.ts  |  34 +-
+ .../integration/producao-bom-roteiro-165.test.ts   | 500 +++++++++++++++++++++
+ 16 files changed, 1845 insertions(+), 7 deletions(-)
+=== 8db99b1 2026-10-09 00:27:53 +0100
+fix(pos): vários meios de pagamento, pesquisa no servidor e troco (#128)
+
+O terminal POS carregava só 60 produtos e enviava um único meio de
+pagamento por venda: produtos fora da primeira página eram
+inalcançáveis e uma venda não se podia dividir entre meios.
+
+Decisão: o terminal aceita várias linhas de pagamento por venda,
+pesquisa produtos no servidor e valida o valor recebido (troco), com
+a lógica em lib/pos-pagamentos.ts.
+
+Testes: unitário pos-pagamentos-128 (21/21), integração
+pos-multi-pagamento-128 (4/4), suite de integração completa verde,
+tsc e eslint limpos; E2E 53 novo e 27 ajustado.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/27-pos-documento-fiscal.spec.ts       |   3 +-
+ apps/erp/e2e/53-pos-multi-pagamento-128.spec.ts    | 169 +++++++++++++
+ .../(dashboard)/pos/_components/pos-terminal.tsx   | 245 +++++++++++++------
+ apps/erp/src/app/(dashboard)/pos/page.tsx          |   3 +-
+ .../src/lib/__tests__/pos-pagamentos-128.test.ts   | 267 +++++++++++++++++++++
+ apps/erp/src/lib/pos-pagamentos.ts                 | 110 +++++++++
+ apps/erp/src/server/actions/vendas.actions.ts      |  25 ++
+ .../integration/pos-multi-pagamento-128.test.ts    | 231 ++++++++++++++++++
+ 8 files changed, 977 insertions(+), 76 deletions(-)
+=== 270897a 2026-10-09 00:36:25 +0100
+feat(vendas): aprovar, pagar e cancelar comissões e editar/desactivar vendedores na UI
+
+As actions aprovarComissao, marcarComissaoPaga e cancelarComissao existiam
+sem nenhum ecrã que as chamasse, e o vendedor não se editava nem desactivava.
+Liga a UI aos serviços existentes: detalhe da comissão com acções, rota de
+cancelamento com motivo, edição e desactivação do vendedor.
+
+Testes: oráculo de integração comissoes-vendedores-131 (11/11), suite de
+integração completa verde, tsc e eslint limpos; E2E 52.
+
+Closes #131
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/52-comissoes-vendedores-131.spec.ts   | 320 +++++++++++++
+ .../comissoes/[id]/_components/comissao-acoes.tsx  |  91 ++++
+ .../_components/cancelar-comissao-form.tsx         |  85 ++++
+ .../vendas/comissoes/[id]/cancelar/page.tsx        |  64 +++
+ .../app/(dashboard)/vendas/comissoes/[id]/page.tsx | 133 ++++++
+ .../comissoes/_components/comissoes-table.tsx      |  11 +-
+ .../[id]/_components/desativar-vendedor-botao.tsx  |  69 +++
+ .../vendas/vendedores/[id]/comissoes/page.tsx      |  28 +-
+ .../editar/_components/editar-vendedor-form.tsx    | 159 +++++++
+ .../vendas/vendedores/[id]/editar/page.tsx         |  64 +++
+ .../(dashboard)/vendas/vendedores/[id]/page.tsx    |  67 ++-
+ apps/erp/src/lib/validations/vendas.ts             |   7 +
+ apps/erp/src/server/actions/comissoes.actions.ts   |  10 +-
+ apps/erp/src/server/actions/vendas.actions.ts      |  17 +
+ .../services/comercial/comissao.interface.ts       |   3 +
+ .../server/services/comercial/comissao.service.ts  |  70 +--
+ .../server/services/comercial/vendedor.service.ts  |  36 ++
+ .../integration/comissoes-vendedores-131.test.ts   | 509 +++++++++++++++++++++
+ 18 files changed, 1680 insertions(+), 63 deletions(-)
+=== 32fb87c 2026-10-09 00:48:50 +0100
+fix(producao): ciclo de vida das ordens e consumo de material ligados ao stock
+
+As ordens de produção não tinham botões de transição e o registo de
+consumo gravava o ConsumoProducao sem baixar stock (#164).
+
+Decisão: as transições usam os contratos de stock existentes — libertar
+reserva os insumos da BOM, concluir confirma os consumos e dá entrada do
+produto acabado, cancelar liberta as reservas. A página de detalhe ganha
+as acções de transição e a rota dedicada «Registar consumo».
+
+Testes: test/integration/producao-ordens-164.test.ts (22 casos, 4 vermelhos
+antes) e e2e/53-producao-ordens-164.spec.ts; suite de integração verde.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/53-producao-ordens-164.spec.ts        | 350 +++++++++++++
+ .../ordens/[id]/_components/transicoes-ordem.tsx   | 150 ++++++
+ .../app/(dashboard)/producao/ordens/[id]/page.tsx  |  73 ++-
+ .../_components/registar-consumo-form.tsx          | 157 ++++++
+ .../producao/ordens/[id]/registar-consumo/page.tsx |  73 +++
+ apps/erp/src/server/actions/producao.actions.ts    |  27 +-
+ .../pessoas-projetos/producao.interface.ts         |  15 +-
+ .../services/pessoas-projetos/producao.service.ts  |  36 +-
+ .../test/integration/producao-ordens-164.test.ts   | 568 +++++++++++++++++++++
+ 9 files changed, 1433 insertions(+), 16 deletions(-)
+=== 9494ffb 2026-10-09 01:10:24 +0100
+feat(pos): terminais POS com sessão de caixa própria (#267)
+
+Não havia modelo de terminal: a sessão de caixa era só por utilizador, e
+duas caixas físicas não se distinguiam. Passa a existir TerminalPOS
+(código único por tenant) e SessaoCaixa.terminalId.
+
+Decisão conservadora: uma sessão POS aberta por utilizador e por
+terminal, cada uma com a sua caixa; o terminalId aceita cuid e uuid
+(idEntidade).
+
+Testes: oráculo de integração pos-terminais-267 (17) e unitário de
+validação caixa-terminal-267 (4), vermelhos antes da implementação;
+suite de integração completa verde (961).
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../20261009003721_terminal_pos/migration.sql      |  25 ++
+ apps/erp/prisma/schema/financas.prisma             |  17 +
+ .../__tests__/caixa-terminal-267.test.ts           |  40 ++
+ apps/erp/src/lib/validations/caixa.ts              |   4 +-
+ .../server/services/comercial/venda.interface.ts   |   5 +-
+ .../src/server/services/comercial/venda.service.ts |  27 +-
+ .../server/services/financas/caixa.interface.ts    |   6 +-
+ .../src/server/services/financas/caixa.service.ts  |  67 ++-
+ .../erp/test/integration/pos-terminais-267.test.ts | 451 +++++++++++++++++++++
+ 9 files changed, 617 insertions(+), 25 deletions(-)
+=== 17f6526 2026-10-09 01:21:58 +0100
+fix(compras): editar e desactivar circuitos de aprovação; tranca na decisão de pedidos
+
+Não havia forma de editar nem desactivar um circuito de aprovação, e a
+decisão de aprovação no ramo pedidoCompraId não trancava a linha nem
+recusava estados terminais, ao contrário das requisições.
+
+- serviço e actions para actualizar/desactivar o circuito; rota
+  [id]/editar e confirmação de desactivação (AlertDialog);
+- a decisão sobre pedido de compra ganha a mesma tranca e guarda de
+  estado terminal das requisições;
+- a unicidade do circuito activo é verificada dentro da transacção.
+
+Testes: oráculo de integração (14 casos, 13 vermelhos antes) e E2E 54;
+suite de integração completa e testes de compras verdes.
+
+Closes #445
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../erp/e2e/54-compras-circuito-pedido-445.spec.ts | 202 +++++++
+ .../circuitos-aprovacao/[id]/editar/page.tsx       |  75 +++
+ .../circuito-form.tsx}                             |  30 +-
+ .../_components/desactivar-circuito.tsx            |  75 +++
+ .../circuitos-aprovacao/novo/page.tsx              |   4 +-
+ .../configuracoes/circuitos-aprovacao/page.tsx     |  21 +-
+ apps/erp/src/lib/validations/compras.ts            |   4 +
+ apps/erp/src/server/actions/compras.actions.ts     |  16 +
+ .../services/compras/compras.service.interface.ts  |  12 +
+ .../src/server/services/compras/compras.service.ts | 158 ++++--
+ .../compras-circuito-pedido-445.test.ts            | 618 +++++++++++++++++++++
+ 11 files changed, 1164 insertions(+), 51 deletions(-)
+=== 58be98d 2026-10-09 02:04:45 +0100
+fix(ui): campos de id colado passam a Combobox com pesquisa no servidor
+
+Onze formulários (cotações, pedidos, estrutura e ordens de produção,
+orçamento de projeto, ausências, benefícios, contratos, regras de comissão,
+devoluções) e a nova contagem de stock (localização e categoria) pediam ao
+utilizador que colasse um id. Cada campo passa a ComboboxRemoto (pesquisa no
+servidor, primeira página fundida com o registo escolhido) ou Combobox local
+quando a lista é curta, um formulário de cada vez.
+
+Testes: oráculo estático 125/125, integração 1036 verdes, e2e 53 novo e
+e2e 17 ajustado ao novo campo.
+
+Closes #101, closes #265
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/17-iva-isento.spec.ts                 |  21 +-
+ apps/erp/e2e/53-combobox-ids-101-265.spec.ts       | 240 ++++++++++
+ .../__tests__/combobox-ids-101-265.test.ts         | 217 ++++++++++
+ .../compras/_components/opcoes-compras.ts          |  32 ++
+ .../novo/_components/nova-cotacao-form.tsx         | 100 ++++-
+ .../app/(dashboard)/compras/cotacoes/novo/page.tsx |  20 +-
+ .../pedidos/novo/_components/novo-pedido-form.tsx  | 102 ++++-
+ .../app/(dashboard)/compras/pedidos/novo/page.tsx  |  26 +-
+ .../nova/_components/nova-contagem-form.tsx        |  53 ++-
+ .../(dashboard)/inventario/contagens/nova/page.tsx |  38 +-
+ .../nova/_components/nova-estrutura-form.tsx       |  41 +-
+ .../(dashboard)/producao/estrutura/nova/page.tsx   |  10 +-
+ .../ordens/nova/_components/nova-ordem-form.tsx    |  25 +-
+ .../app/(dashboard)/producao/ordens/nova/page.tsx  |  22 +-
+ .../_components/novo-orcamento-projeto-form.tsx    |  34 +-
+ .../(dashboard)/projetos/orcamento/novo/page.tsx   |  10 +-
+ .../rh/_components/campo-colaborador.tsx           |  47 ++
+ .../nova/_components/nova-ausencia-form.tsx        |  24 +-
+ .../src/app/(dashboard)/rh/ausencias/nova/page.tsx |  10 +-
+ .../_components/atribuir-beneficio-form.tsx        |  62 +--
+ .../(dashboard)/rh/beneficios/atribuir/page.tsx    |  14 +-
+ .../novo/_components/novo-contrato-form.tsx        |  42 +-
+ .../(dashboard)/servicos/contratos/novo/page.tsx   |  20 +-
+ .../nova/_components/nova-regra-comissao-form.tsx  |  34 +-
+ .../vendas/comissoes/regras/nova/page.tsx          |  10 +-
+ .../devolucoes/_components/nova-devolucao-form.tsx | 120 +++--
+ .../(dashboard)/vendas/devolucoes/nova/page.tsx    |  22 +-
+ apps/erp/src/components/campos/campo-produto.tsx   |  65 +++
+ apps/erp/src/lib/validations/compras.ts            |   2 +
+ apps/erp/src/server/actions/compras.actions.ts     |  27 ++
+ apps/erp/src/server/actions/projetos.actions.ts    |  14 +
+ apps/erp/src/server/actions/rh.actions.ts          |  15 +
+ apps/erp/src/server/actions/vendas.actions.ts      |  22 +
+ .../src/server/services/compras/compras.service.ts |   8 +-
+ .../test/integration/combobox-ids-101-265.test.ts  | 481 +++++++++++++++++++++
+ 35 files changed, 1832 insertions(+), 198 deletions(-)
+=== 82ee595 2026-10-09 12:13:17 +0100
+fix(contabilidade): Centros de Custo e Contas Bancárias no menu lateral
+
+As páginas existiam mas só se abriam pelo endereço (#145). A DRE já estava
+no menu; faltavam Centros de Custo e Contas Bancárias. Entram no grupo
+Contabilidade, filtradas pela permissão de consulta do mapa rota→permissão
+(#76); Contas Bancárias ganha entrada própria em vez de cair no prefixo
+/contabilidade, e um layout que impõe a mesma permissão na rota.
+
+Testes: oráculo menu-contabilidade-145 (vitest) e e2e 55; vitest src/lib,
+integração, tsc, eslint e pnpm gates verdes.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ apps/erp/e2e/55-menu-contabilidade-145.spec.ts     |  73 ++++++++
+ .../contabilidade/contas-bancarias/layout.tsx      |   6 +
+ apps/erp/src/components/layout/AppSidebar.tsx      |   4 +
+ .../lib/__tests__/menu-contabilidade-145.test.ts   | 183 +++++++++++++++++++++
+ apps/erp/src/lib/permissoes-rotas.ts               |   2 +
+ 5 files changed, 268 insertions(+)
+=== 566c3ac 2026-10-09 12:26:07 +0100
+fix(contabilidade): desactivar e reactivar conta bancária
+
+A conta bancária não tinha forma de mudar de estado: o serviço não
+escrevia `ativo`, o formulário não o enviava e não havia action nem botão.
+
+- `definirContaBancariaActiva` no serviço + action com permissão própria;
+  botão no editar com AlertDialog de confirmação.
+- Aviso (não bloqueio) quando a conta está num meio de pagamento do POS;
+  a conta inactiva deixa de ser oferecida nas escolhas.
+- `ContaBancaria` entra em `AUDIT_MODELS`: a mudança fica no trilho.
+
+Testes: oráculo de integração (16/16), suite de integração completa,
+tsc, eslint e `pnpm gates` verdes; E2E 55.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+
+ .../e2e/55-conta-bancaria-desactivar-465.spec.ts   | 227 +++++++++++++
+ .../contas-bancarias/[id]/editar/page.tsx          |  19 +-
+ .../_components/activar-conta-bancaria.tsx         |  97 ++++++
+ apps/erp/src/lib/validations/contabilidade.ts      |   7 +
+ .../src/server/actions/contabilidade.actions.ts    |   8 +
+ apps/erp/src/server/db/audit-extension.ts          |   2 +
+ .../services/financas/contabilidade.service.ts     |  12 +
+ .../conta-bancaria-desactivar-465.test.ts          | 357 +++++++++++++++++++++
+ 8 files changed, 727 insertions(+), 2 deletions(-)

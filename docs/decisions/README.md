@@ -10,7 +10,7 @@ o histórico).
 - **Ficheiro**: `ADR-<NNNN>-<slug>.md` (quatro dígitos, zero-padded). Os ADRs 0001–0004 usam o
   prefixo curto `<NNNN>-<slug>.md` por razões históricas; do 0006 em diante a convenção é
   `ADR-<NNNN>-<slug>.md`.
-- **Numeração**: sequencial e **única**. O próximo número livre é **0043**.
+- **Numeração**: sequencial e **única**. O próximo número livre é **0049**.
 - **Estado**: `Proposto` → `Aceite` → (`Substituído por ADR-XXXX` | `Descontinuado`).
 - **Citação**: use sempre o identificador canónico da coluna «ADR» deste índice. Para os três
   documentos que colidem no número 0005, o identificador canónico é `ADR-0005-a`, `-b` ou `-c`
@@ -116,6 +116,24 @@ o histórico).
 > O 0036 olha para a frente (o que está prestes a mover-se) e o 0037 para trás (o que se moveu, e
 > porquê). Partilham `prisma/schema/financas.prisma` e a FK `CompromissoTesouraria.rubricaId`, por
 > isso os dois épicos da spec 22 não correm em paralelo.
+
+**Contabilidade orçamental e financiamentos** (spec 24)
+
+| ADR | Título | Estado | Depende de |
+|---|---|---|---|
+| [0043](./ADR-0043-dominio-orcamental-financiamentos.md) | **Domínio orçamental: financiamentos e orçamento versionado** | Proposto | 0033, 0025, 0015 |
+| [0044](./ADR-0044-imputacao-analitica-multipla.md) | **Imputação analítica múltipla das partidas** | Proposto | 0043, 0033 |
+| [0045](./ADR-0045-ciclo-despesa-controlo-disponibilidade.md) | **Ciclo da despesa e controlo de disponibilidade orçamental** | Proposto | 0043, 0044; cruza 0036, 0018 |
+| [0046](./ADR-0046-fundos-cambio-fifo-tranche.md) | **Fundos recebidos, câmbio FIFO por tranche e tesouraria por financiamento** | Proposto | 0043, 0044, 0033; cruza 0036, 0038 |
+| [0047](./ADR-0047-reconhecimento-financiamentos.md) | **Reconhecimento contabilístico dos financiamentos** | Proposto⁹ | 0045, 0046, 0033; cruza 0035, 0037 |
+| [0048](./ADR-0048-prestacao-contas-evidencia.md) | **Prestação de contas ao financiador, elegibilidade e evidência documental** | Proposto | 0045, 0046, 0015, 0017, 0005-a |
+
+> A execução orçamental não é um registo paralelo: o 0044 põe a imputação no lançamento e o 0045 faz
+> o razão escrever a execução na mesma transacção (invariante `C1`). Cabimento e compromisso são as
+> únicas fases fora do razão.
+
+⁹ As contas de omissão e o normativo aplicável às entidades sem fins lucrativos esperam confirmação
+contra o `plano-contas-pgc.json` e parecer externo.
 
 > Os três formam uma cadeia e lêem-se por esta ordem: o 0033 cria o exercício e o período e tranca a
 > escrita; o 0034 apura o IVA dentro de um período trancado e é pré-condição do fecho mensal; o 0035

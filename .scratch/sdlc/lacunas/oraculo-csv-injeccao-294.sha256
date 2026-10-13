@@ -1,0 +1,4 @@
+19240dd903777fb5ffc2062042bc21af6f72c8c30a6bf8fc93b1eabd75dec278  apps/erp/src/lib/reporting/__tests__/csv-injeccao.test.ts
+8daccf77d8abbfa0b0c81817c18a86213b5bda6e0811fa4787043905bbac463e  apps/erp/src/app/api/financas/iva/mapas/[periodo]/__tests__/route-csv-injeccao.test.ts
+f99455fc9214c6afe968e82aa0b09998e4df8297c242187ac1e6fd942bd4051a  apps/erp/src/app/api/rh/payroll/mapas/inss/__tests__/route-csv-injeccao.test.ts
+3432823f7d95782136807ac8787a35bbf32698b0ea8e12b5b28c839a7b3a3c42  apps/erp/src/app/api/rh/payroll/mapas/irps/__tests__/route-csv-injeccao.test.ts

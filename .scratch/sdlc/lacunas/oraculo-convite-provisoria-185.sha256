@@ -1,0 +1,5 @@
+64125b7565fff292197d33c28b13453d40c89aa494733487b54341354aec5d2d  apps/erp/src/server/auth/__tests__/direct-grant-convite-185.test.ts
+84d1e180c9ecab42519a3a52e7559d90b24f999ff022e7b1b79bee53f2daba60  apps/erp/src/server/auth/__tests__/direct-grant.test.ts
+ca010d55d9ae939555fa790374c7e09187d38c5696a181daf609b2e6eb326aa0  apps/erp/src/app/(auth)/auth/login/__tests__/convite-provisoria-185.test.ts
+b62bcf1a877dfaf27be450d7c1c2e49e6131680f3b817bfc8be79bf91ce3963c  apps/erp/src/app/(auth)/auth/mudar-palavra-passe/__tests__/convite-provisoria-185.test.ts
+30ec07f61612f3aa37f35ab2fbe2b0924751afd82e98c302892d425685febd02  apps/erp/e2e/10-primeiro-acesso.spec.ts

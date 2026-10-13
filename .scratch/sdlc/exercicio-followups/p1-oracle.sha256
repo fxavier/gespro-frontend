@@ -1,0 +1,3 @@
+4f4600a88090d4b24a7656b0507b96d119bd411c63fdfc8c7f34b77cd04db898  test/integration/exercicio-auditoria-resultado-zero.test.ts
+eda974448297ad0f5cea2e3db9b7890bb6e233026e498c5904312d0cf7d8fab0  test/integration/encerramento-exercicio.test.ts
+4017a5530888a0d3eb086632a369f091f7bf4ec60fb742f074fa5c3f7a6fded6  src/server/services/financas/__tests__/exercicio-permissoes.test.ts

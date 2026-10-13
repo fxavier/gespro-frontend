@@ -1,0 +1,3 @@
+345b063e11ab7ef0cb634c223bbfb87ebbcfd6b1dd66835d86b9bbc21c290cd7  apps/erp/src/server/services/financas/__tests__/apuramento-iva-mensagens-recusa-144.test.ts
+6bca9b6433c60683e8a33f2b43f4ba05a13773278072f99a405bc75d4f798404  apps/erp/src/lib/__tests__/textos-recusa-contabilidade-144.test.ts
+e0555ae1a904d90e92c4d70e773614ca982d2c4365aa2bb3dec623dfe25d1660  apps/erp/test/integration/mensagens-recusa-144.test.ts

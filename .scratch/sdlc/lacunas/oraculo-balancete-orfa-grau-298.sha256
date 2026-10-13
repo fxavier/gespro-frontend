@@ -1,0 +1,5 @@
+a6668c08b23415e5a789c18dcc0cc87c12605915dd772447e65c406127f1d8a8  apps/erp/src/server/services/financas/__tests__/balancete-orfa-grau-298.test.ts
+cf0c3b2b55918da9c697930c2327b8ee14eaf35519e43f442c2fde099546a8e2  apps/erp/src/server/services/financas/__tests__/balancete-hierarquia.property.test.ts
+f1940bbbe2fb9c6493ad9f3b269dd9ed83316bba8922abda5bf5b38505875e95  apps/erp/src/server/services/financas/__tests__/balancete-hierarquia.mostrada.test.ts
+d46726048ad96048747478bed37088f1afd8a28f1beb2cc36fcf6608170aaf9e  apps/erp/src/server/services/financas/__tests__/balancete-hierarquia.test.ts
+4997ca05bd50275cecc534c0b681f69e0f2984109dcf97866b2f563f2d3f0366  apps/erp/src/app/api/contabilidade/balancete/export/__tests__/route-pdf.test.ts

@@ -291,6 +291,62 @@ Conta de nível 2 do PGC-NIRF (dois dígitos, ex.: `11` Caixa, `12` Bancos). O f
 contas de razão» do balancete mostra só este nível.
 
 
+## Contabilidade orçamental e financiamentos
+
+Spec 24, ADR-0043 a 0048. A execução orçamental **lê** o razão e não é um registo paralelo.
+
+### Financiador
+Quem concede os fundos: doador, fundação, governo, cliente ou a própria organização (`PROPRIO`).
+**Não é** um `Cliente`, embora possa estar ligado a um.
+
+### Financiamento
+O acordo com um [[Financiador]]: montante e moeda do acordo, período de elegibilidade, regras de
+controlo. **Não é** um projecto: um projecto tem vários financiamentos, e um financiamento cobre
+vários projectos.
+
+### Rubrica do financiador
+Linha de orçamento na nomenclatura do acordo («Pessoal», «Viagens»). **Não é** uma conta PGC: a
+ligação faz-se pelo mapeamento conta → rubrica do financiamento.
+
+### Actividade
+Unidade orçamentada de um projecto (código de quadro lógico). **Não é** uma `TarefaProjeto`.
+
+### Linha de controlo
+O grão onde se mede a disponibilidade: (financiamento, actividade, rubrica). **Não é** um período.
+
+### Orçamento aprovado / revisto
+Aprovado é a versão `INICIAL` aprovada. Revisto é a versão vigente. As revisões são versões
+completas, nunca deltas.
+
+### Cabimento
+Reserva de dotação antes de haver obrigação com terceiros (requisição aprovada). Não lança no
+razão.
+
+### Compromisso orçamental
+Obrigação assumida com terceiros (pedido, adiantamento aprovado). **Não é** o
+`CompromissoTesouraria`, que é previsão de caixa (ADR-0036). Diz-se sempre «compromisso
+orçamental».
+
+### Executado
+Despesa reconhecida no razão e imputada ao financiamento. É escrito pelo serviço de contabilidade
+na transacção do lançamento. **Não é** pago.
+
+### Disponível
+Dotação vigente − cabimento em aberto − compromisso em aberto − executado, na moeda do acordo.
+**Não é** saldo bancário.
+
+### Imputação
+Repartição de uma partida por financiamento, actividade, rubrica, projecto e centro de custo, em
+percentagem. Substitui o `centroCustoId` da partida.
+
+### Tranche
+Recebimento de fundos com a sua taxa de câmbio efectiva. As execuções consomem as tranches por
+ordem FIFO.
+
+### Saldo do fundo
+Recebido − pago − adiantamentos por justificar, por financiamento. Só coincide com o saldo
+bancário quando há conta dedicada.
+
 ## Vendas e facturação
 
 ### Venda POS

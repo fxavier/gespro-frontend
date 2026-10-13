@@ -1,0 +1,4 @@
+aeef235a1efa6c54109de1867689f68e05828b46b241b9db367ce78a387aa9a3  apps/erp/test/integration/procurar-faturas-creditaveis.test.ts
+3344b7564cb94681b5f7a754aa641afa3b267b6e5eab9bb3847587ac8cfe9040  apps/erp/src/lib/documentos/__tests__/rotulo-fatura.test.ts
+47f46931745ab3bc18e0a1df508b3c6bf9e33cc64795d5767140e841cbdac56e  apps/erp/src/server/services/financas/__tests__/procurar-faturas-creditaveis.test.ts
+08168cf74555573701f2309b0d9c082479684b3f3f91baeb72c3c043d497f053  apps/erp/e2e/43-nc-saldo-creditavel-86.spec.ts

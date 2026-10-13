@@ -1,0 +1,4 @@
+0bce1174e3efb905eaa005b38500740909019567783d7cc17217ce54c373ab70  apps/erp/src/lib/storage/objeto/__tests__/s3-post-politica-430.test.ts
+29b317681932f0c47129d8f5914967bb5dcf999b7e656fac19ab10dbad3a5653  apps/erp/src/app/api/documentos/__tests__/presign-metodo-430.test.ts
+915936fcfa971d5aebad0457f3cc95deccb7523ffeba1992b37b5d8e082be09f  apps/erp/src/lib/storage/__tests__/pedido-upload-430.test.ts
+5b24c4a35e12c09fa85fb36aeaa4425e84c95ec5eebb0ecbec81ca1dded985a6  apps/erp/test/integration/s3-politica-post-minio-430.test.ts

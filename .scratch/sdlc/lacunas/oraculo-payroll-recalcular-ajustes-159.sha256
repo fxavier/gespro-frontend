@@ -1,0 +1,4 @@
+ed12159109c3c5058a26665472f0d819afde5943bc0ea07fba96b74709bc815f  apps/erp/src/app/(dashboard)/rh/payroll/[id]/_components/__tests__/acoes-payroll-recalcular-159.test.ts
+fce2990a7f3068fddba77e425ab9130e5831650ed21a713ae76b102b38ec8e0c  apps/erp/test/integration/payroll-recalcular-ajustes-159.test.ts
+dffae4fba9cb77c7344255780a643db231dedc021fa8b09650e5503b98fa2842  apps/erp/e2e/51-payroll-recalcular-ajustes-159.spec.ts
+f329c31d26e40f1221db130553f6ebbd0fe63b2076236557b0190b491be6af76  apps/erp/e2e/25-payroll-ajustes.spec.ts

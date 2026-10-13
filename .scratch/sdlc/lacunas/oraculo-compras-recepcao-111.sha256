@@ -1,0 +1,4 @@
+33a9b3006e3e8a29aefb855f2a3d789d51ed1b0b0cbdceb90716adb126979346  apps/erp/test/integration/compras-recepcao-111.test.ts
+1b07b912ce90ac587cf06a31bedf83ae943cbd060b6c21d6ec5c2b18b0203f1f  apps/erp/e2e/50-compras-recepcao-111.spec.ts
+6f3390e829938f7fefae1163d4dabc274e754e44cfb509a6c1270aa968bc8c60  apps/erp/src/server/services/compras/__tests__/wave3-integration.test.ts
+2309605f62d28eb419f79191b66de126e3a819579ef06b0e778cf580630df0bf  apps/erp/src/server/services/compras/__tests__/compras.service.test.ts

@@ -1,0 +1,5 @@
+f116c25ff81a596ef7180fab8fb050f7c02618af6a4ebb714015dcb5827543bf  apps/erp/test/integration/venda-pos-credito.test.ts
+6c8dfd9620d2ffb89d04d8fd758ff7e68004be2d408fa34ed89a791f0e6cf1dd  apps/erp/src/server/services/financas/__tests__/emitir-documento-em-tx.test.ts
+10d534c8f58c939ec2be53e45ca87bb3c67461b100473c34aa14873989bef6d5  apps/erp/src/server/services/financas/__tests__/faturacao-iva-zero.test.ts
+6ff17c68beb318814ab434933a1bafd195641b7ad5718c129cc559eee1b85989  apps/erp/src/server/services/financas/__tests__/serie-na-emissao.test.ts
+6988868037f7eeab47e75003e0ead3e0717c40d1fae6f87a59dd615eb5965288  apps/erp/src/server/services/financas/__tests__/travao-emissao-verificacao.test.ts

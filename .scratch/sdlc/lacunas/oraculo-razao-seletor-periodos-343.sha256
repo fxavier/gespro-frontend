@@ -1,0 +1,4 @@
+912ea63f808a52fd68b86b2139121799bd7be2d5d95f159c2f60f3c6b6be87f8  apps/erp/src/lib/__tests__/razao-seletor-periodos-343.test.ts
+33cc1031f5611e4646fa2dbf6d52a94bdf611a7bd7ba72e8a804d23e2c151a6a  apps/erp/e2e/60-razao-seletor-periodos-343.spec.ts
+1ff13475398f9ecbbc0aec680fcd3992ef548814361be6eba1a8119d1fc318cf  apps/erp/e2e/31-razao-geral.spec.ts
+a6ead63763213d407784966cb40aa60870bce65c45f0fec324c1881b4fa26b5e  apps/erp/e2e/20-balancete.spec.ts

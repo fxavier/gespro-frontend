@@ -60,18 +60,37 @@ npx playwright test e2e/03-caixa.spec.ts
 
 # Testes de integração isolados (Testcontainers, Postgres efémero — spec 15)
 pnpm test:integration
+npx vitest run -c vitest.integration.config.ts test/integration/venda-pos-documento.test.ts   # um só (a partir de apps/erp)
 ```
+
+Os testes em `test/integration/` montam o tenant com o `bootstrapContabilidade` real (plano, séries, diários,
+Consumidor Final) e só dobram o `@/lib/auth` (`vi.hoisted` mutável quando o caso precisa de e-mail por confirmar).
+Os `__tests__` em `src/` que tocam a base correm **contra a base local** dentro do `pnpm check` — limpam o tenant
+descartável no `afterAll` (o `ContaPGC` apaga-se nível a nível, do mais fundo para cima: o plano vai ao nível 7).
 
 Os E2E do ERP (`e2e`, `a11y`) correm um projecto `setup` que **reescreve `apps/erp/playwright/.auth/admin.json`**
 com uma sessão fresca; depois de qualquer corrida, `git checkout -- apps/erp/playwright/.auth/admin.json`.
 O ficheiro versionado tem uma sessão expirada — um script ad-hoc com esse `storageState` cai no login;
 corre `npx playwright test --project=setup` primeiro.
+Para correr os E2E contra outro servidor (ex.: worktree na 3109): `BASE_URL=http://localhost:3109 npx playwright test …`
+— o `playwright.config.ts` lê `BASE_URL` e reutiliza um servidor que já esteja a responder. Relatório HTML com trace
+de cada passo: `npx playwright show-report` (em `apps/erp/playwright-report/`). Os E2E que concluem vendas
+(`27-pos-documento-fiscal`) e os que emitem ou pagam documentos (`13` encomendas, `38` nota de débito, `40`/`41`
+facturas paga e vencidas, e quase todos os `42-…` a `55-…` das lacunas — cada um diz no cabeçalho o que deixa) deixam
+documentos no tenant `demo` a cada corrida — e a sentinela do `projecao.golden` acusa; os de lançamentos (`24`, `32`) deixam
+rascunhos de 1,00 MT (SQL de limpeza no cabeçalho do `32`). Em combobox, o campo `Pesquisar…` tem de ter âmbito
+no popover aberto — `page.locator('[data-radix-popper-content-wrapper]').last()` —, senão, durante os ~150 ms da
+animação de fecho do anterior, há dois e o modo estrito falha. Corrige-se o locator, nunca a animação nem o produto.
 
 ```bash
 # Desempenho (ADR-0018) — cenários k6, planos de execução e a linha de base
 ls perf/k6 perf/sql perf/explain     # os cenários e as consultas medidas
 cat perf/README.md                   # como correr e como ler os resultados
 ```
+O `k6` não está instalado no host: usa a imagem `grafana/k6:0.57.0` (alvo `host.docker.internal`). Antes da primeira
+corrida, os utilizadores de carga têm de existir no realm local (`partialImport` de `infra/keycloak/perf-users.json`,
+o passo de `.github/workflows/perf.yml`) e o `perf/.generated/seed-manifest.json` tem de vir de um `pnpm db:seed:volume`
+posterior à #240 — sem isso o `setup()` do k6 cai em `CredentialsSignin`. `next start` exige `KEYCLOAK_CLIENT_SECRET`.
 
 ```bash
 # Site de marketing (apps/site) — estático, sem DB nem Keycloak; só /comecar depende do ERP
@@ -85,7 +104,8 @@ O `e2e:funil` espera `NEXT_PUBLIC_APP_URL=http://localhost:3000`; um `.env` com 
 
 `pnpm check` **não** apanha: (1) erros de runtime RSC (ver "Fronteira Servidor↔Cliente"); (2) erros que **só o build de produção** revela; (3) formulários que se recusam a submeter — o `zodResolver` rejeita e, se o campo não renderizar o seu erro, não acontece nada visível. Para UI, confirma sempre com um **smoke autenticado** (`pnpm dev` + login) ou `pnpm e2e`; antes de entregar algo que toque em build/deploy, corre também `pnpm build` (ver "Build de produção" nas regras invioláveis).
 
-Na suite E2E completa (`workers: 1`, `timeout: 30_000`) cai quase sempre **um** teste por corrida, e nem sempre o mesmo: com o `pnpm dev` a compilar rotas à medida, uma rota fria estoura o tecto. Antes de culpar uma alteração, corre o ficheiro sozinho. Falha conhecida e alheia ao código: `e2e/07-sessao.spec.ts:60` precisa de `AUTH_SESSION_MAX_AGE=8`, que só se aplica quando é o Playwright a arrancar o servidor (`reuseExistingServer`).
+Na suite E2E completa (`workers: 1`, `timeout: 30_000`) cai quase sempre **um** teste por corrida, e nem sempre o mesmo: com o `pnpm dev` a compilar rotas à medida, uma rota fria estoura o tecto. Antes de culpar uma alteração, corre o ficheiro sozinho. Falha conhecida e alheia ao código: `e2e/07-sessao.spec.ts:60` precisa de `AUTH_SESSION_MAX_AGE=8`, que só se aplica quando é o Playwright a arrancar o servidor (`reuseExistingServer`). `e2e/21-nc-proforma-cotacao.spec.ts:84`
+(cancelar NC, `waitForURL` estoura) falha também no `main` desde 2026-10 — por investigar, não é regressão de quem o vê.
 
 **Golden fixture da spec 22** (`src/server/services/financas/__tests__/projecao.golden.test.ts`) corre dentro do
 `pnpm check` contra a **base local** e falha de propósito quando o tenant `demo` não é o do seed: basta um
@@ -96,12 +116,43 @@ re-deriva a fixture à mão (handoff da spec 22) — nunca `vitest -u`.
 **Scripts ad-hoc de smoke** (Playwright fora da suite): o pacote instalado é `@playwright/test` (não
 `playwright`), e o script tem de viver dentro de `apps/erp/` para o resolver. Em `pnpm dev`, espera
 `networkidle` antes de escrever num campo: preencher antes da hidratação muda o DOM e não o estado do React,
-e o teste afirma sobre valores que a página nunca usou.
+e o teste afirma sobre valores que a página nunca usou. Para a sessão, importa `loginAs(page, USERS.admin)` de
+`e2e/helpers/auth` e dá ao script um config mínimo com `use: { baseURL }` — `--config=/dev/null` rebenta com `EBADF`.
+
+Um segundo ERP a partir de uma worktree (ao lado do `pnpm dev` na 3000) precisa do `apps/erp/.env` copiado,
+`pnpm install --prefer-offline`, **`npx prisma generate`** (sem ele o `tsc` acusa modelos inexistentes) e da sessão
+apontada à porta nova: `AUTH_URL=http://localhost:3108 NEXTAUTH_URL=… NEXT_PUBLIC_APP_URL=… npx next dev -p 3108`.
+A base e o Keycloak são os mesmos — o que o smoke gravar fica no tenant `demo` de todos. Testes que leem a base
+com `pg` directo: as colunas `DateTime` são `timestamp` **sem** fuso e o `pg` interpreta-as na hora local da
+máquina — compara com literais SQL (`timestamp '2099-01-01 00:00:00'`, `to_char(…)`), nunca com `Date` do JS.
+
+**PRs empilhados**: fazer merge de um PR cuja base é outro branch de feature leva-o para **esse** branch, não
+para o `main`. Apaga o branch da base no merge (o GitHub reaponta os seguintes) ou muda a base para `main`
+antes do merge — senão as fatias ficam presas em branches intermédios e o `main` mostra a UI antiga.
+Aconteceu três vezes numa só semana (#387, #403, #404 tiveram de ser reabertos). Por isso, mesmo quando um branch
+parte de outro, o PR abre-se **sempre com base `main`** e a dependência fica escrita no corpo («faz merge do #X
+primeiro»); confirma no fim com `git merge-base --is-ancestor <head do PR> origin/main`.
+
+**Dois PRs verdes não fazem um `main` verde**: cada PR corre os seus testes, mas uma regra nova pode partir um teste
+antigo de outro módulo (o #401 passou a recusar o pro rata com saídas a 0% e partiu
+`test/integration/pos-contabilidade-ponta-a-ponta.test.ts`, que vendia uma linha a 0%). Antes de entregar uma regra
+de negócio, corre a suite de integração **inteira** (`npx vitest run -c vitest.integration.config.ts`, ~15 min),
+não só o ficheiro novo. Com a máquina carregada (várias worktrees com `next dev` e Testcontainers), testes unitários
+pesados como `reconciliacao/__tests__/extracto.parser.test.ts` estouram o tecto de 5 s — repete-os com a máquina
+livre antes de culpar o código.
 
 **Shell do agente é zsh**: `$VAR` sem aspas **não** se parte em palavras (`vitest run $FICHEIROS` passa um
 único argumento) — usa um array `F=(a b); … "${F[@]}"`. O `psql` não está instalado no host e o utilizador
 do Postgres não é `postgres`:
 `docker exec gespro-db psql -U "$(docker exec gespro-db printenv POSTGRES_USER)" -d "$(docker exec gespro-db printenv POSTGRES_DB)" -c '…'`.
+
+**Docker pendurado / disco cheio**: o `gespro-db` arquiva WAL com `test ! -f <arquivo>/%f && cp …`. Uma cópia
+interrompida deixa um ficheiro de 0 bytes no arquivo e, a partir daí, o arquivamento falha para sempre, o Postgres
+deixa de reciclar WAL e o `pg_wal` cresce até encher o disco (já chegou a 247 GB). Sintoma: «archive command
+failed» nos logs. Ver `du -sh $PGDATA/pg_wal` e `pg_stat_archiver`. Recuperação usada em 2026-09 (perde o PITR
+desde o bloqueio, que já estava partido): no contentor, `archive_status/*.ready` → `*.done`, apagar o ficheiro de
+0 bytes do arquivo, `CHECKPOINT`, confirmar que `pg_switch_wal()` arquiva, e nova cópia base com
+`infra/local/scripts/backup-base.sh`. Os runbooks (`docs/runbooks/restauro-bd.md`) só cobrem o restauro.
 
 ### Migrations — só o orquestrador, e **não-interativas**
 `pnpm db:migrate:dev` (`prisma migrate dev`) exige TTY e **rebenta em ambiente não-interactivo**. Para gerar uma migration a partir do delta schema↔DB sem prompts:
@@ -111,6 +162,13 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --scr
 npx prisma migrate deploy
 ```
 Renomear (valor de enum **ou coluna**): o `migrate diff` gera **drop+create** e perde os dados — escreve à mão `ALTER TYPE "X" RENAME VALUE 'A' TO 'B';` ou `ALTER TABLE "T" RENAME COLUMN "a" TO "b";` (renomeia também a constraint: `ALTER TABLE "T" RENAME CONSTRAINT …`, senão o próximo `migrate diff` vê deriva) e marca com `prisma migrate resolve --applied <migration>`. Confirma no fim que `migrate diff --from-config-datasource --to-schema prisma/schema --script` devolve *empty migration*. Em produção usa **sempre** `migrate deploy`, nunca `migrate dev`.
+
+Várias worktrees partilham a **mesma** base local: uma migração aplicada numa worktree fica aplicada para todas, e o
+`migrate diff` de outra worktree (sem esse ficheiro) vê-a como deriva. Migrações de **dados** (permissões por papel,
+séries para tenants existentes, natureza de contas) escrevem-se à mão e não precisam do `diff`. Ramos paralelos
+usam carimbos de data **distintos** — dois `20261009120000_*` com nomes diferentes funcionam (ordenam pelo nome), mas
+é sorte, não regra. Adicionar um valor a um enum e usá-lo exige **duas** migrações (`ALTER TYPE … ADD VALUE` não pode
+ser usado na mesma transacção) — precedente: `20261007160000_serie_troca_enum` + `20261007160100_serie_troca_tenants`.
 
 **Não corras `prisma format`**: reformata os onze ficheiros de `prisma/schema/` inteiros e o diff deixa de ser
 revisível. Edita o schema à mão e valida com `npx prisma validate`.
@@ -170,12 +228,19 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 - **D/finanças expõe**: `registarLancamentoContabilistico` (partida dobrada), `registarMovimentoCaixa`, `proximoNumeroSerie` (numeração atómica `UPDATE...RETURNING FOR UPDATE`, sem lacunas).
 - **D/finanças expõe também (ADR-0041)**: `emitirDocumentoEmTx` (núcleo da emissão, na tx do chamador; `FATURA_RECIBO` nasce `PAGA`) e `construirLancamentoVendaPOS` (D meio de pagamento / C 711 / C 44331) — chamados pelo `faturacaoService` injectado, nunca por import do módulo.
 - Fluxos ligados: venda/POS→stock+caixa+documento+contabilidade · recepção→stock+conta a pagar · factura→contabilidade · produção→consumo/entrada de stock.
-- **O que (não) lança na contabilidade, do lado das vendas**: factura, nota de crédito, nota de débito e encomenda
-  lançam D 411 / C 711 / C 44331 (diário de vendas). A **venda POS** (ADR-0041) emite, na mesma tx, Factura-Recibo
+- **O que (não) lança na contabilidade, do lado das vendas**: factura, nota de crédito e encomenda
+  lançam D 411 / C 711 / C 44331 (diário de vendas). A **nota de débito** credita a conta da sua **natureza**
+  (ADR-0039 §1): `contaCreditoId` escolhida no acto ?? omissão do tenant (`ContaNaturezaNotaDebito`, ecrã
+  `/contabilidade/configuracoes/naturezas-nota-debito`: 711 acerto de preço, 781 juros, 769 penalização; despesas
+  repercutidas — classe 6 — e outro não têm omissão → `CONTA_CREDITO_OBRIGATORIA`). A validação da conta é
+  `validarContaParaNatureza`, partilhada com o ecrã — não a dupliques. A **venda POS** (ADR-0041) emite, na mesma tx, Factura-Recibo
   (paga, série `FATURA_RECIBO`, nasce `PAGA`) ou Factura (parte a `CREDITO`: `EMITIDA`/`PARCIALMENTE_PAGA`, a venda nasce `FATURADA`) e
   lança D meio de pagamento (111 dinheiro · 411 crédito · conta do meio em `/contabilidade/configuracoes/meios-pagamento-pos`,
-  omissão 121) / C 711 / C 44331; só o `DINHEIRO` entra na caixa. Continuam a **não** lançar: o recebimento de
-  facturas (`registarPagamento` muda o estado e não credita a 411) e o **custo das vendas** (a baixa de stock não
+  omissão 121) / C 711 / C 44331; só o `DINHEIRO` entra na caixa. O **recebimento de facturas**
+  (`registarPagamento`, ecrã `/faturacao/[id]/pagamento`) lança D conta do meio / C 411 (origem `PAGAMENTO`,
+  `documentoOrigemTipo 'Fatura'`, meio por `resolverContaMeioPagamento`; numerário também `RECEBIMENTO` na caixa) —
+  logo uma factura tem **vários** lançamentos com o seu id como origem: o da emissão lê-se por `Fatura.lancamentoId`,
+  nunca por `documentoOrigemId`. Continua a **não** lançar o **custo das vendas** (a baixa de stock não
   faz D 61 / C 32 — ADR-0041 §9). As vendas POS anteriores ao ADR-0041 não têm documento nem lançamento.
 - **Venda POS — armadilhas (ADR-0041)**:
   - Σ pagamentos = total ao cêntimo, verificado no início de `vendaService.criar` (`PAGAMENTOS_NAO_BATEM_TOTAL`);
@@ -194,15 +259,25 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 - **Observabilidade** (`src/server/observability/*`, `instrumentation.ts`) — logger estruturado com redacção de segredos/PII, `requestId` num `AsyncLocalStorage` **separado** do tenant, métricas RED. `withApi`/`createSafeAction` estão envelopados: erros inesperados devolvem `traceId` sem stack ao cliente. `/api/health` (liveness), `/api/ready` (SELECT 1), `/api/metrics` (protegido por `METRICS_SECRET`).
 - **Segurança** (`middleware.ts`, `src/lib/security/headers.ts`, `src/lib/api/cors.ts`) — CSP com nonce por pedido (report-only por omissão; `CSP_ENFORCE=true` em prod só após smoke), HSTS/X-Frame/nosniff/Referrer/Permissions; CORS por allowlist (`ALLOWED_ORIGINS`), **nunca wildcard**; rate-limit em reset/convite/exports. `middleware.ts` é o **único** dono dos headers de segurança e dos paths públicos.
 - **Documentos/exportação** (`src/lib/documents/*`, `src/lib/reporting/*`) — PDF fiscal via `@react-pdf/renderer` (**só runtime Node**, nunca no cliente) que **reflecte** o documento emitido (append-only, nunca recalcula); export CSV/XLSX com `Decimal`→string lossless. Servidos por Route Handlers (`withApi`), nunca Server Actions.
+  O layout do `@react-pdf` é **CPU síncrona no pedido** (~3,7 ms por linha de tabela; 500 linhas ≈ 2 s com a instância
+  parada para todos) — relatórios longos levam tecto de linhas (ex.: balancete, 422 acima de 3000). Paginação por N
+  linhas fixas só bate com «Página x de N» se nenhuma célula partir linha (`maxLines: 1, textOverflow: 'ellipsis'`).
+  A sessão (`auth()`) **não** traz nome nem email do utilizador: para «emitido por», lê o `User` pelo `ctx.userId`.
 - **Notificações** (`src/server/services/plataforma/notificacao.service.ts`, `src/server/email/*`) — padrão "persistir-depois-enviar": grava `Notificacao` (estado `PENDENTE`) dentro da tx, envia email como efeito colateral **fora** da tx; porta `EmailProvider` (smtp/noop).
 
 ### UI
 - **Golden standard**: `src/app/(dashboard)/compras/requisicoes/**` — o molde a replicar (lista SC + `@panel`/`(.)[id]` + detalhe com tabs + `novo`/`[id]/editar`). **Nota:** o interceptor `@panel/(.)[id]` captura também o segmento literal `novo` (o rewrite de intercepção é `/<lista>/:id`; um `(.)novo` estático interceptaria na mesma). Devolver `null` em vez de `notFound()` tira o 404 mas **não chega**: a navegação client-side fica na listagem, porque o `children` não muda numa rota interceptada. O molde resolve com `_components/abrir-rota-real.tsx`: quando o id é `novo`, o painel faz um carregamento completo de `/<lista>/novo` (que não é interceptado). Ao replicar, copia o par painel + `AbrirRotaReal`, e prova o `novo` com E2E contra `next start` — em `pnpm dev` aquecido o defeito não aparece.
 - `src/components/patterns/*` — biblioteca única (PageHeader, DataTable, FilterBar, StatusBadge, KpiCard, DetailShell, FormPage, Stepper, UnsavedChangesGuard…). Compor a partir daqui, não dos primitivos `ui/`.
 - `StatusBadge` usa um **mapa único** status→variante (`patterns/status-badge.tsx`); proibido mapa local. Estado sem entrada no mapa aparece **em bruto** (`LANCADO`) — ao introduzir um estado novo, regista-o lá.
-- Escolher uma entidade: `Combobox` (filtro local) ou `ComboboxRemoto` (pesquisa no servidor, com atraso e sem corridas) — nunca um campo de texto para colar um id. Acima de uma página de registos é `ComboboxRemoto`, senão os registos fora da primeira página ficam inalcançáveis.
+- Escolher uma entidade: `Combobox` (filtro local) ou `ComboboxRemoto` (pesquisa no servidor, com atraso e sem corridas) — nunca um campo de texto para colar um id. Acima de uma página de registos é `ComboboxRemoto`, senão os registos fora da primeira página ficam inalcançáveis
+  (foi assim com as contas do lançamento, #87, e a conta-mãe, #344). O `ComboboxRemoto` **nunca** chama `procurar('')`:
+  sem `opcoesIniciais` abre vazio, e em edição sem a opção escolhida mostra o campo em branco. A página passa a
+  primeira página (`take: 50`) fundida por id (`Map`) com o registo já escolhido. Subir o `take` e voltar ao
+  `Combobox` local não é correcção — é o mesmo tecto, escondido.
 - `TableSkeleton` (patterns) é uma **tabela completa**, para `<Suspense fallback>`; dentro de um `<tbody>` usa-se `LinhasSkeleton`. Linhas `<tr>` soltas dentro de uma `<div>` são HTML inválido e dão erro de hidratação.
 - `Select` com valor inicial: passa o rótulo como filho — `<SelectValue placeholder="…">{opcaoEscolhida?.label}</SelectValue>`. O Radix só resolve o texto do item **depois** de a lista abrir; sem isto o campo aparece vazio apesar de haver valor escolhido.
+- `SelectItem` (ui) **descarta** items com `value=""` — a opção nunca aparece. Para «Todos/Nenhum» usa uma sentinela (`'todos'`) e traduz ao construir o URL.
+- Client Component que inicializa estado com `useState(prop)` (ex.: selectores de filtros) **não é remontado** quando um `router.push` muda só os search params — nem com `key` diferente. O estado fica com o valor antigo enquanto a página mostra o novo. Sincroniza durante o render (padrão React «ajustar estado quando uma prop muda»: guarda a chave anterior em estado e repõe quando difere), não com `useEffect`+`setState` (o lint recusa).
 - Formulários: `react-hook-form` + `zodResolver` com o **mesmo** schema de `src/lib/validations/<modulo>.ts`, submit via Server Action com `useActionState`.
 
 ## Regras invioláveis (não-óbvias — causaram crashes/fugas reais)
@@ -282,13 +357,29 @@ migração `*_natureza_classe_4`; o `scripts/extract-pgc.mjs` só reproduz o JSO
 - `fecharPeriodo` verifica sete pré-condições e devolve-as **todas** em `impedimentos: string[]` — uma de
   cada vez obriga o utilizador a sete voltas. O estado que decide vem da leitura **trancada**
   (`FOR SHARE` na escrita, `FOR UPDATE` no fecho), nunca de uma leitura anterior à tranca.
+- Leitores **por datas** (DRE, razão, DFC, projecção) excluem o período 13 e o diário de abertura automático (e o
+  seu estorno) com `FORA_DE_FECHO_E_ABERTURA` / `sqlForaDeFechoEAbertura` (`fora-de-fecho-e-abertura.ts`); sem isso o
+  apuramento do resultado (6/7→81/82→88) anula a DRE do ano e a abertura duplica os saldos. As vistas **por período**
+  usam o AB — não lhes apliques o filtro.
 - Mapas, balancete, razão e DRE filtram lançamentos por `FILTRO_LANCAMENTO_MAPA`
   (`LANCADO` + `ESTORNADO`), exportado do serviço — nunca um literal local, que foi como quatro cópias
   divergiram.
 - Uma data `aaaa-mm-dd` que entra por `z.coerce.date()` fica à **meia-noite UTC**; como `dataFim` num
-  `lte`, deixa de fora os lançamentos do próprio último dia. As páginas de mapas (balancete, DRE, razão)
+  `lte`, deixa de fora os lançamentos do próprio último dia. As páginas de mapas por datas (DRE, razão)
   passam as datas por `intervaloDoDiaMaputo` (`lib/periodo-fiscal.ts`) antes do schema: início às
   00:00 e fim às 23:59:59.999 de Maputo.
+- Os limites de `PeriodoContabil` são **instantes** de Maputo (o início de Março é `2026-02-28T22:00Z`):
+  `toISOString().slice(0,10)` dá o dia errado. Para dias civis no cliente, `intervaloDiasDosPeriodos`
+  (`lib/periodo-fiscal.ts`, `Intl`); `diaCivilEmMaputo` vive no serviço `server-only`.
+- **Balancete (ADR-0040)** — dois caminhos, não os confundas:
+  - `gerarBalancete` (movimento por datas, saldo com sinal pela natureza, só folhas, «desde sempre») é o
+    **contrato da DFC** — não se mexe; os golden/duplo da DFC estão protegidos.
+  - O ecrã `/contabilidade/balancete` usa `gerarBalanceteVerificacao` (movimento por **período** do
+    lançamento; acumulado do exercício + abertura implícita enquanto não houver diário AB) →
+    `hierarquizarBalancete` (roll-up por `contaMaeId`, nunca por prefixo; ciclos e órfãs tratados como cadeia
+    partida) → `filtrarBalancete` (contexto pela `maeMostradaId`). Página e exportação (`/api/contabilidade/
+    balancete/export`, CSV/XLSX/PDF) partilham `lerParametrosBalancete` + `balanceteApresentado` — mudar uma
+    regra de URL num sítio só. Filtros **nunca** mudam «Totais» nem as três igualdades (vêm do núcleo).
 
 **Datas de `<input type="date">`** — `new Date('aaaa-mm-dd')` lê como UTC e, a leste de Greenwich, cai no dia
 anterior — muda o período fiscal. Parte a string e constrói `new Date(ano, mes - 1, dia, 12)`.
@@ -309,7 +400,9 @@ vazio e o seed pode escrever pelos serviços (numeração em série, lançamento
 `demo-contabilidade.ts`) — o catálogo é sempre `upsert`; o funil transaccional (cotações, encomendas,
 vendas, facturas, lançamentos) só corre **se ainda não houver vendas**, porque re-executá-lo duplicaria
 documentos numerados. Consequência prática: mexer no gerador e voltar a correr `pnpm db:seed` **não faz
-nada** e não avisa. Para o exercitar a sério é preciso limpar primeiro o funil do tenant `demo`.
+nada** e não avisa. O `demo-contabilidade` decide «já lançado» pela **origem** do lançamento (emissão = `VENDA`,
+recebimento = `RECEBIMENTO`/`PAGAMENTO`), não pelo `documentoOrigemTipo` — chavear pelo tipo lançava um segundo
+recebimento sobre facturas pagas pela UI (teste `seed-recebimento-idempotente`). Para o exercitar a sério é preciso limpar primeiro o funil do tenant `demo`.
 
 **Realm Keycloak** — `infra/keycloak/realm-gespro.json` tem `verifyEmail: false` e assim tem de ficar (ADR-0031
 §2-ter): com `true`, a primeira tentativa de login de uma conta acabada de registar carimba `VERIFY_EMAIL` e o

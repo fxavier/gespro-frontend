@@ -1,0 +1,3 @@
+0540844100325547279f1661373ca44d2e2ec4246bd1454670e3bce782374975  src/lib/storage/objeto/__tests__/put.test.ts
+f8f2e56da045b913753e5399008e948166c8c549e81893f81a413d1ac9309cb4  src/server/services/financas/__tests__/balanco-dre-pdf.test.ts
+2998847276754330cd8659884da039f10f315c87c397535b4fd36015ed87f1c7  test/integration/balanco-e-arquivo.test.ts

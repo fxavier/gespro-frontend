@@ -1,0 +1,9 @@
+c299aa520c26d2cf67460eec898d1ca5183d806a84994a5633e93bc96be11d19  apps/erp/test/integration/serie-nc-bandeira-241.test.ts
+4778fa39eaecb6b5f7c580fe9dd1285fbef517f98306edd6eb03a28e64bcf8ec  apps/erp/src/lib/validations/__tests__/serie-nc-bandeira-241.test.ts
+f28f42f6b90f47802d3346668fbafeeaa477adf9436b3343e99bf2cfb2ec8caf  apps/erp/src/server/services/comercial/__tests__/ws10-property.test.ts
+84ee1c32b683ea8b94000620d69d1f5a26a4bb1502d0a7432299b4e2e75f35b4  apps/erp/test/integration/devolucao-nc-cancelada-412.test.ts
+539c625525f57cf6b0f80c549a25b5c9e4755e73147fe839c5325dd54aa8ff76  apps/erp/test/integration/devolucao-troca-documento.test.ts
+e987b6ccb3c26d2417917e26a62c16e6b439bf3d094a2e0d3121cee965781bc2  apps/erp/test/integration/devolucao-troca-documento-2.test.ts
+c581ea6ebab5e332ffbfb09b9a8d82fcb68e36f45030dc2c595c9d12f4aab3ec  apps/erp/test/integration/devolucoes-ecras-130.test.ts
+1886d725ccf1b6b6fcd7c3ee3048d440decc6c28bdd312a10f0b97104b26d760  apps/erp/test/integration/motivo-isencao-329.test.ts
+cca4ea70ba76d99423b8880683847a551df3723f2cabbabd97f9ba2630c171dd  apps/erp/test/integration/troca-serie-nc-tranca-331.test.ts

@@ -1,0 +1,6 @@
+7645b29a1adbd79e1d056042325db6fee2ac3e1c266f334265b3d2398ea39689  apps/erp/test/integration/fatura-pagamento-lancamento.test.ts
+704a601f6aa0b212669444932eaa3865cab6d4dc19de3a1138e5a4aa7538207c  apps/erp/e2e/40-fatura-pagamento.spec.ts
+49c3bad46f3f7554c6d4b691663f9fd7ef73d2609a549545f66be1ec2b343f42  apps/erp/src/server/services/financas/__tests__/faturacao-concorrencia.test.ts
+6b56c3cf85e494638f22b649dd1797b052ff37eaddf7100d4a2995ce1c7fd623  apps/erp/test/integration/nc-accoes.test.ts
+c5d03d8131986c9dd955a19c88431195ca57b5166d7e06c4a456530dabee6a76  apps/erp/test/integration/tesouraria-tenant-sintetico.test.ts
+fc71b1dd7b9ff1c2166a0f25bcceafb7115a8c0336ff219ad0e99e45a4f2b767  apps/erp/test/integration/seed-recebimento-idempotente.test.ts
