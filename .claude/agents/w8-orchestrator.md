@@ -46,7 +46,7 @@ tools: Read, Grep, Glob, Bash, Task
   `auth → financas → plataforma → pessoas-projetos`. A migração do ADR-0013 é destrutiva: localmente
   aplica-se de uma vez, mas o **procedimento** em duas fases (ADR-0022 §6) é exercitado contra as duas
   instâncias da pilha — é aí que se prova que funciona, antes de haver produção.
-- **Ficheiros com dono único por fase** (ver handoff §3): `middleware.ts`, `src/lib/auth.ts`,
+- **Ficheiros com dono único por fase** (ver handoff §3): `src/proxy.ts`, `src/lib/auth.ts`,
   `auth.prisma` **e `plataforma.prisma`** → `w8-identidade`; `docker-compose.yml` e `infra/local/**` →
   `w8-plataforma-local`;
   `audit-extension.ts` → `w8-auditoria`; `scripts/gate-*.mjs` → `w8-gates`. Se dois agentes

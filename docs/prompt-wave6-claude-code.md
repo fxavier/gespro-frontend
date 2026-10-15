@@ -72,7 +72,7 @@ decisões, gaps).
 Os agentes NUNCA correm `prisma migrate` nem fazem merge. Só editam `prisma/schema/*.prisma`.
 Ordem: FASE 0 (monorepo) → 18 (resto) e 19 em paralelo → merge 19 depois de 18(§1).
 Só o spec 19 toca `prisma/schema/plataforma.prisma` (Assinatura, EventoWebhookStripe, TokenHandoff,
-TokenVerificacaoEmail + enums), `prisma/schema/tenant.prisma` (Tenant.assinatura), `middleware.ts`
+TokenVerificacaoEmail + enums), `prisma/schema/tenant.prisma` (Tenant.assinatura), `middleware.ts` (hoje `src/proxy.ts`)
 (PUBLIC_PATHS: /api/publico/registo, /api/publico/planos, /api/publico/verificar-email,
 /api/webhooks/stripe, /auth/registo-callback), `next.config.ts` (ALLOWED_ORIGINS + origem do site),
 `src/lib/state-machines.ts`, `patterns/status-badge.tsx`, `prisma/seed/rbac.ts` (assinatura:gerir) e

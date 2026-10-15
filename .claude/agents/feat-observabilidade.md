@@ -10,7 +10,7 @@ Implementas o spec `.kiro/specs/14-observabilidade-operacoes/` end-to-end, no wo
 Camada transversal, **envelope** sobre `withApi`/`createSafeAction` (não alteras contratos). Correlação (`requestId`)
 no mesmo `AsyncLocalStorage` do tenant; instrumentação só server-only (nunca importada em Client Components — fronteira RSC).
 
-**Não editas `middleware.ts`** (pertence ao spec 17): o `requestId` vem de `instrumentation.ts` + envelopes.
+**Não editas `src/proxy.ts`** (pertence ao spec 17): o `requestId` vem de `instrumentation.ts` + envelopes.
 Rediges um ADR (skill `engineering:architecture`) para pino + OpenTelemetry + captura de erros. Redacção obrigatória
 de segredos/PII nos logs. Editas apenas o bloco `dependencies` do `package.json` — orquestrador resolve.
 

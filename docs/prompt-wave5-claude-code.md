@@ -49,7 +49,7 @@ Exige que termine com `pnpm check` verde no seu worktree e um resumo CURTO (fich
 Os agentes NUNCA correm `prisma migrate` nem fazem merge. Só editam `prisma/schema/*.prisma`.
 Ordem de merge: 10 → 11 → 13 → 12 → 14 → 17 → 15 → 16 (ver handoff). Resolve de forma aditiva os
 ficheiros partilhados: `package.json`/lockfile (corre `pnpm install` uma vez por merge), `prisma/seed/
-rbac.ts`, `patterns/status-badge.tsx`. `middleware.ts` e o bloco de headers de `next.config.ts` são
+rbac.ts`, `patterns/status-badge.tsx`. `middleware.ts` (hoje `src/proxy.ts`) e o bloco de headers de `next.config.ts` são
 exclusivos do spec 17 (merge 14 → 17). Após cada merge com schema, regenera migrations na ordem
 `comercial → inventario → pessoas-projetos → plataforma` (nome `11xx_<feature>`) e corre `pnpm check`
 na `wave5`. Pede revisão ao `code-reviewer` antes de cada merge; merge só sem BLOCKERs (foco:

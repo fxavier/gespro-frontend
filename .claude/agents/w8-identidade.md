@@ -7,7 +7,7 @@ skills: engineering:architecture, api-conventions, prisma-conventions, engineeri
 ---
 
 Implementas os **ADR-0010, ADR-0011, ADR-0012 (lado aplicacional) e ADR-0013** no worktree `wt/w8-identidade`.
-**És o único editor de `src/lib/auth.ts`, `middleware.ts`, `prisma/schema/auth.prisma`,
+**És o único editor de `src/lib/auth.ts`, `src/proxy.ts`, `prisma/schema/auth.prisma`,
 `src/server/auth/**` e `infra/keycloak/realm-gespro.json` em toda a Wave 8.**
 
 É a alteração de maior superfície da wave. Lê os quatro ADRs antes de escrever uma linha.
