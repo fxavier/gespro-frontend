@@ -66,6 +66,29 @@ export function nomeEnvPrice(codigo: PlanoId, ciclo: CicloId): string {
   return `STRIPE_PRICE_${codigo}_${ciclo}`;
 }
 
+/** As duas fontes do Price de (plano, ciclo), pela ordem em que contam: tabela, depois env. */
+async function fontesPriceId(
+  codigo: PlanoId,
+  ciclo: CicloId,
+): Promise<{ daTabela: string | null; daEnv: string | null }> {
+  const plano = await prismaBase.plano.findUnique({
+    where: { codigo },
+    select: { stripePriceIdMensal: true, stripePriceIdAnual: true },
+  });
+  const daTabela = ciclo === 'ANUAL' ? plano?.stripePriceIdAnual : plano?.stripePriceIdMensal;
+  return { daTabela: daTabela || null, daEnv: process.env[nomeEnvPrice(codigo, ciclo)] || null };
+}
+
+/**
+ * De onde o `resolverPriceId` tiraria o Price de (plano, ciclo) — `'tabela'`, `'env'` ou `null`
+ * (o checkout desse ciclo falharia). Devolve SÓ a origem, nunca o valor (ADR-0049 §4, #534).
+ */
+export async function origemPriceId(codigo: PlanoId, ciclo: CicloId): Promise<'tabela' | 'env' | null> {
+  const { daTabela, daEnv } = await fontesPriceId(codigo, ciclo);
+  if (daTabela) return 'tabela';
+  return daEnv ? 'env' : null;
+}
+
 /**
  * Resolve o Stripe Price ID de (plano, ciclo): a coluna da tabela `Plano` ganha; vazia, recorre
  * à env `STRIPE_PRICE_<CODIGO>_<CICLO>` (os três planos de origem). Lança
@@ -73,12 +96,8 @@ export function nomeEnvPrice(codigo: PlanoId, ciclo: CicloId): string {
  * omissão silenciosa.
  */
 export async function resolverPriceId(codigo: PlanoId, ciclo: CicloId): Promise<string> {
-  const plano = await prismaBase.plano.findUnique({
-    where: { codigo },
-    select: { stripePriceIdMensal: true, stripePriceIdAnual: true },
-  });
-  const daTabela = ciclo === 'ANUAL' ? plano?.stripePriceIdAnual : plano?.stripePriceIdMensal;
-  const priceId = daTabela || process.env[nomeEnvPrice(codigo, ciclo)];
+  const { daTabela, daEnv } = await fontesPriceId(codigo, ciclo);
+  const priceId = daTabela || daEnv;
   if (!priceId) {
     throw new AppError(
       'PRICE_NAO_CONFIGURADO',
