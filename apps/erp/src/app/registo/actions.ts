@@ -36,6 +36,7 @@ import {
   type Utm,
 } from '@/server/analytics/plausible';
 import type { RegistoTenantInput } from '@/lib/validations/onboarding';
+import { RE_CODIGO_PLANO } from '@/lib/validations/common';
 
 export interface EntradaRegistoPublico {
   dados: RegistoTenantInput;
@@ -78,9 +79,6 @@ function ipDosCabecalhos(h: Headers): string {
   const encaminhado = h.get('x-forwarded-for')?.split(',')[0]?.trim();
   return encaminhado || h.get('x-real-ip')?.trim() || 'unknown';
 }
-
-/** Forma de um código de plano (SCREAMING_SNAKE, ADR-0049 §1). */
-const RE_CODIGO_PLANO = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 /**
  * O plano, reduzido a algo com a forma de um código de plano — ou a string vazia. Os planos
