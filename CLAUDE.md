@@ -315,6 +315,10 @@ a colidir no `@@unique([tenantId, numero])` — e o erro aparece ao utilizador, 
 **Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`.
 
 **Middleware e probes** — `middleware.ts` redirige pedidos não-autenticados para `/auth/login`. Endpoints que têm de responder sem sessão (`/api/health`, `/api/ready`, `/api/metrics` para o HEALTHCHECK do Docker/App Runner; `/api/auth/*`) **têm de estar em `PUBLIC_PATHS`** — senão os health checks recebem 307 em vez de 200.
+O `next dev` só carrega o middleware a partir de `apps/erp/src/` (hoje `src/middleware.ts`, que reexporta o
+da raiz de `apps/erp`; com o #533 passa a um só `src/proxy.ts`, convenção do Next 16); o `next build` resolve a raiz.
+Sem o ficheiro em `src/`, dev, E2E e smokes correm sem cabeçalhos de segurança nem redireccionamentos, e a imagem
+de produção corre-os — o defeito só aparece num dos lados.
 
 **Fronteira `'use client'` no servidor** — tudo o que um módulo `'use client'` exporta chega a um Server
 Component como *referência de cliente*, incluindo constantes: `cookies().get(COOKIE)` com `COOKIE` importado
@@ -432,6 +436,21 @@ abrem um `DropdownMenu` (rato, toque e teclado). ⌘B/Ctrl+B alterna.
   `Tenant.deletedAt`, e quem os arbitra é `estadoDeAcesso()`, em `lib/state-machines.ts`.
 - `EXPIRADO`, `SUSPENSA` e `CANCELADA` continuam no enum e **não se escrevem** — só existem por
   causa de linhas antigas.
+
+**Catálogo de planos (ADR-0049)** — os planos vivem na tabela global `Plano` (sem `tenantId`, chave `codigo`
+imutável), geridos pelo administrador de plataforma em `/plataforma/planos`; o número de planos não é fixo.
+Nunca reintroduzas uma constante de catálogo nem um enum de códigos: `lib/planos.ts` só tem tipos e funções
+client-safe, e a leitura é do `plano.service.ts` (server-only). `Assinatura.planoAssinatura` é texto com FK
+`Restrict` para `Plano.codigo` — apagar um plano em uso falha (`PLANO_EM_USO`); retira-se arquivando
+(`arquivadoEm` preenchido). Escolher um plano inexistente ou arquivado (registo, mudança de plano, checkout)
+dá `PLANO_INDISPONIVEL`. O Price ID do Stripe vem da coluna da tabela e, se vazia, da variável
+`STRIPE_PRICE_<CODIGO>_<CICLO>` (`resolverPriceId`); sem nenhum, `PRICE_NAO_CONFIGURADO`.
+
+**Administrador de plataforma (ADR-0049 §5)** — é o papel de realm Keycloak `plataforma-admin` (local:
+`plataforma@gespro.mz` / `demo1234`), não um papel de tenant: a sessão é **sem `tenantId`** e o middleware leva-a
+para `/plataforma`. As suas actions usam `createSafeAction({ plataforma: true, … })` — correm sem contexto de
+tenant e o `gate-leitura` reconhece-as. As escritas de plataforma ficam no trilho global `AuditoriaPlataforma`,
+**não** no `AuditLog` do tenant (que exige `tenantId`): quem escreve uma acção de plataforma nova grava lá à mão.
 
 **Notificações fora do `notificacao.service.criar()`** — quem escreve notificações dentro de uma
 `$transaction` não pode fazer I/O externo lá dentro: persiste com `createManyAndReturn`, guarda os

@@ -1,5 +1,19 @@
 # Estado do Programa de Modernização — GestPro ERP
 
+## 🗂️ Catálogo de planos na base de dados e administrador de plataforma (ADR-0049 · #523) — entregue (2026-10-15)
+
+Run `planos-plataforma`: issues #523 (ADR) e #524–#527, PRs #528–#532. O catálogo saiu da constante `lib/planos.ts`
+para a tabela global `Plano` (#524/#529), com `Assinatura.planoAssinatura` em texto e FK `Restrict`, `arquivadoEm` em
+vez de apagar e Price ID da tabela ?? `STRIPE_PRICE_<CODIGO>_<CICLO>`. O administrador de plataforma é o papel de realm
+Keycloak `plataforma-admin`, com sessão sem tenant e área própria em `/plataforma` (#525/#530); gere os planos em
+`/plataforma/planos`, com trilho global `AuditoriaPlataforma` (#526/#531). Funcionalidades e limites do plano chegam
+ao site e ao ecrã de facturação (#527/#532). ADR em
+[`decisions/ADR-0049-catalogo-planos-administrador-plataforma.md`](decisions/ADR-0049-catalogo-planos-administrador-plataforma.md)
+(**Proposto** — marcá-lo `Aceite` é um acto humano); documentação alinhada no #536.
+
+**Seguimento**: #533 (middleware → `src/proxy.ts`, convenção do Next 16), #534 (avisos do formulário de planos,
+Price ID duplicado por campo, acção de auditoria como enum), #535 (ordem dos planos no site e grelha com 4+ planos).
+
 ## 📚 Documentação do sistema e manual de utilizador (2026-09-24)
 
 ADR-0023 §2–3 executado: `docs/README.md` é o ponto de entrada; `docs/sistema/` (8 capítulos, incl.
