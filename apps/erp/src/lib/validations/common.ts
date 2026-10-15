@@ -99,14 +99,26 @@ export const idEntidade = (mensagem = 'ID inválido') =>
 // Datas de documento
 // ---------------------------------------------------------------------------
 
-/** Intervalo de anos aceite numa data de documento (emissão, vencimento, validade). */
+/**
+ * Forma ÚNICA de um código de `Plano` (ADR-0049 §1, #526): SCREAMING_SNAKE, começa por letra,
+ * 2 a 31 caracteres. Partilhada pelo `codigoPlano()`, pelo registo público (`planoSeguro`) e pelo
+ * `plano-admin.service` (`PLANO_CODIGO_INVALIDO`) — não a repitas noutro sítio.
+ */
+export const RE_CODIGO_PLANO = /^[A-Z][A-Z0-9_]{1,30}$/;
+
 /**
  * Código de um `Plano` (ADR-0049 §1). O Zod não fixa a lista — os planos vivem na tabela e um
  * plano novo não pode exigir deploy; a existência e o estado (arquivado) verificam-se no serviço
- * contra a tabela (`PLANO_INDISPONIVEL`).
+ * contra a tabela (`PLANO_INDISPONIVEL`). Só a FORMA é fixa (`RE_CODIGO_PLANO`).
  */
-export const codigoPlano = () => z.string().trim().min(1, 'Plano obrigatório').max(64, 'Plano inválido');
+export const codigoPlano = () =>
+  z
+    .string()
+    .trim()
+    .min(1, 'Plano obrigatório')
+    .regex(RE_CODIGO_PLANO, 'Código de plano inválido: maiúsculas, algarismos e _, começando por letra (2 a 31 caracteres)');
 
+/** Intervalo de anos aceite numa data de documento (emissão, vencimento, validade). */
 export const ANO_DOCUMENTO_MIN = 2000;
 export const ANO_DOCUMENTO_MAX = 2100;
 

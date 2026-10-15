@@ -24,6 +24,12 @@ export default async function PlataformaLayout({ children }: { children: React.R
             >
               Início
             </Link>
+            <Link
+              href="/plataforma/planos"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Planos
+            </Link>
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden max-w-[220px] truncate text-sm text-muted-foreground sm:block">
