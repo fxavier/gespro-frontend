@@ -76,12 +76,35 @@ vi.mock('@/server/services/plataforma/plano.service', () => {
     plano('PROFISSIONAL', 'Profissional', 15, 5, 79, true),
     plano('EMPRESARIAL', 'Empresarial', -1, -1, 199),
   ];
+  // #527: linha com a forma do Prisma e as mesmas funções do serviço real (`listarPlanos`,
+  // `paraPublico`), para que a página possa ler o catálogo por qualquer uma delas.
+  const paraLinha = (p: (typeof planos)[number]) => ({
+    codigo: p.id,
+    nome: p.nome,
+    descricao: p.descricao,
+    limiteUtilizadores: p.limites.utilizadores,
+    limiteArmazens: p.limites.armazens,
+    suporte: p.limites.suporte,
+    precoMensalUsd: { toString: () => String(p.precoMensal.valor) },
+    precoAnualUsd: { toString: () => String(p.precoAnual.valor) },
+    destaque: p.destaque,
+    funcionalidades: p.funcionalidades,
+    arquivadoEm: null,
+  });
+  const paraPublico = (l: ReturnType<typeof paraLinha>) => planos.find((p) => p.id === l.codigo)!;
   const listarPlanosPublicos = vi.fn(async () => planos);
+  const listarPlanos = vi.fn(async () => planos.map(paraLinha));
   const obterPlano = vi.fn(async (codigo: string) => {
     const p = planos.find((x) => x.id === codigo);
-    return p ? { codigo: p.id, nome: p.nome, arquivadoEm: null } : null;
+    return p ? paraLinha(p) : null;
   });
-  return { listarPlanosPublicos, obterPlano, planoService: { listarPlanosPublicos, obterPlano } };
+  return {
+    listarPlanosPublicos,
+    listarPlanos,
+    obterPlano,
+    paraPublico,
+    planoService: { listarPlanosPublicos, listarPlanos, obterPlano },
+  };
 });
 
 vi.mock('@/server/actions/onboarding.actions', () => ({

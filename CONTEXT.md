@@ -83,8 +83,11 @@ o que varia entre Tenants é quem tem o quê, nunca o que existe.
 ## Subscrição e planos
 
 ### Plano
-Um dos três escalões nomeados que a GestPro vende — Básico, Profissional e
-Empresarial. Determina o preço e os Limites do Plano. O preço é do escalão, não
+Um escalão do catálogo que a GestPro vende (hoje Básico, Profissional e
+Empresarial). O catálogo vive na tabela `Plano` e é gerido pelo
+Administrador de plataforma (ADR-0049): pode ganhar planos novos e um plano pode
+ficar **Arquivado**. Determina o preço, os Limites do Plano e as funcionalidades
+anunciadas ao cliente. O preço é do escalão, não
 do número de pessoas: acrescentar um Utilizador dentro do Limite não muda o que
 se paga.
 
@@ -93,6 +96,14 @@ se paga.
 > credenciais — e é o autor de cada acção auditada que se perde. Ver [[Utilizador]].
 
 _Evitar_: escalão, tier, pacote, subscrição (a subscrição é a [[Assinatura]]).
+
+### Arquivado
+Um Plano retirado do catálogo: deixa de ser oferecido para novas subscrições (não
+aparece no site nem na escolha de plano), mas quem já o tem mantém-no — o cartão
+dele aparece marcado «Plano actual (já não disponível para novas subscrições)»,
+sem botão de subscrever. Nunca se apaga.
+
+_Evitar_: apagado, desactivado, descontinuado.
 
 ### Assinatura
 O vínculo comercial entre um Tenant e a GestPro: que Plano, em que ciclo, em que
