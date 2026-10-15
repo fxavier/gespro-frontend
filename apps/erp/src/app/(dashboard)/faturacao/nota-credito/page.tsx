@@ -5,10 +5,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { Plus } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
 import { TRANSICOES_NOTA_CREDITO } from '@/server/services/financas/faturacao.interface';
@@ -99,8 +98,7 @@ interface PageProps {
 }
 
 export default async function NotaCreditoPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const acesso: Acesso = {
     liquidar: permissions.includes('faturacao:nc:liquidar'),

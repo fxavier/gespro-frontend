@@ -5,8 +5,7 @@
  * é a activa de NOTA_CREDITO no ano da data de emissão.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { procurarFaturasCreditaveis } from '@/server/services/financas/faturacao.service';
 import { rotuloFaturaCreditavel } from '@/lib/documentos/rotulo-fatura';
@@ -15,8 +14,7 @@ import { NovaNotaCreditoForm } from './_components/nova-nota-credito-form';
 import { diaIsoMaputo } from '@/lib/format-date';
 
 export default async function NovaNotaCreditoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

@@ -7,9 +7,9 @@
  */
 
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { ArrowDownCircle, ArrowUpCircle, Lock, XCircle } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as caixaService from '@/server/services/financas/caixa.service';
 import { Button } from '@/components/ui/button';
@@ -25,8 +25,7 @@ export default async function SessaoCaixaDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const { id } = await params;
   const ctx = { tenantId, userId };

@@ -3,8 +3,7 @@
  * Carrega contas e diários do servidor para o formulário inline.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { PageHeader } from '@/components/patterns';
@@ -42,8 +41,7 @@ export default async function NovoLancamentoPage({
   searchParams: Promise<{ data?: string; historico?: string; p?: string | string[] }>;
 }) {
   const prefill = lerPrefill(await searchParams);
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
 
   // Opções iniciais para o ComboboxRemoto: primeira página (50 contas) + contas

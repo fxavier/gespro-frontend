@@ -1,7 +1,6 @@
 import 'server-only';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -28,8 +27,7 @@ export interface AcessoDocumento {
 
 /** Sem sessão, vai para o login. */
 export async function acessoDocumento(): Promise<AcessoDocumento> {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   return { ctx: { tenantId, userId }, tem: (p) => permissions.includes(p) };
 }

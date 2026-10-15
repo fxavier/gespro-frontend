@@ -8,10 +8,10 @@
  * é «um campo de texto é formulário, logo é rota».
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Ban, ExternalLink, Wallet } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { contaPagarService } from '@/server/services/compras/conta-pagar.service';
 import { formatarData } from '@/lib/format-date';
@@ -44,8 +44,7 @@ const rotuloForma = (v: string) => FORMAS[v] ?? v.replace(/_/g, ' ');
 export default async function ContaPagarDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 

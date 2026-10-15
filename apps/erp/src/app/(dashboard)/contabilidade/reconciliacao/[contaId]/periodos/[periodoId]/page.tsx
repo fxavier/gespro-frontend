@@ -4,9 +4,9 @@
  */
 
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Download } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { NotFoundError } from '@/lib/errors';
 import { formatarData, formatarDataHora } from '@/lib/format-date';
 import { formatMZN } from '@/lib/format-currency';
@@ -17,9 +17,8 @@ import { KpiCard, PageHeader, StatusBadge } from '@/components/patterns';
 import { FecharPeriodo } from './_components/fechar-periodo';
 
 export default async function PeriodoPage({ params }: { params: Promise<{ contaId: string; periodoId: string }> }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
   const { contaId, periodoId } = await params;
   const [conta, fecho] = await runWithTenantContext(ctx, () =>
     Promise.all([obterContaReconciliacao(contaId, ctx), obterFechoPeriodo(periodoId, ctx)]),

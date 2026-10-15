@@ -7,10 +7,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Wrench, Calendar, DollarSign, AlertTriangle } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { prismaBase } from '@/server/db/client';
 import { TipoManutencaoViatura } from '@prisma/client';
 import { Button } from '@/components/ui/button';
@@ -158,8 +157,7 @@ interface PageProps {
 }
 
 export default async function ManutencaoPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId } = session.user;
 

@@ -6,8 +6,7 @@
  * Formulário interactivo em NovaEncomendaForm (Client Component).
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { clienteService, vendedorService } from '@/server/services/comercial/index';
 import { listarProdutos } from '@/server/services/inventario/catalogo.service';
@@ -20,8 +19,7 @@ import {
 } from '../_components/nova-encomenda-form';
 
 export default async function NovaEncomendaPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 

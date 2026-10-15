@@ -6,10 +6,10 @@
  * (cancelar só com AlertDialog de confirmação); registar resposta e adjudicar são rotas próprias.
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Award, ClipboardEdit } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { Button } from '@/components/ui/button';
@@ -28,8 +28,7 @@ const ESTADOS_DE_RESPOSTA = ['ENVIADA', 'RESPONDIDA'];
 export default async function CotacaoDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
 

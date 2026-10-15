@@ -3,9 +3,8 @@
  */
 
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ticketService } from '@/server/services/operacoes/ticket.service';
 import { PageHeader, FilterBar } from '@/components/patterns';
@@ -91,8 +90,7 @@ interface PageProps {
 }
 
 export default async function TicketsResolvidosPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

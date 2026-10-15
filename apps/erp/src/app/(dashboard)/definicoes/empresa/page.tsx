@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { tenantAdminService } from '@/server/services/plataforma/tenant-admin.service';
 import { PageHeader } from '@/components/patterns';
 import { DadosEmpresaForm } from './_components/dados-empresa-form';
@@ -13,10 +12,9 @@ import { DadosEmpresaForm } from './_components/dados-empresa-form';
 export const metadata = { title: 'Dados da empresa — GestPro' };
 
 export default async function DadosEmpresaPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session, tenantId } = await exigirSessaoDeTenant();
 
-  const tenant = await tenantAdminService.obter(session.user.tenantId);
+  const tenant = await tenantAdminService.obter(tenantId);
   const cfg = tenant.configuracaoFiscal;
 
   return (

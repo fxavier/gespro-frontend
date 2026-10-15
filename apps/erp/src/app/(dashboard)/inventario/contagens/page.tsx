@@ -5,10 +5,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, ClipboardCheck, Clock, CheckCircle2 } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { contagemStockService } from '@/server/services/inventario/contagem-stock.service';
 import { FilterContagemSchema } from '@/lib/validations/inventario-contagem';
@@ -114,8 +113,7 @@ export default async function ContagensPage({
 }: {
   searchParams: Promise<Record<string, string>>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const params = await searchParams;

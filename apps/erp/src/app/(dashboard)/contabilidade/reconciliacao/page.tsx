@@ -5,9 +5,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Landmark, ListChecks } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarContasReconciliacao, VISTAS } from '@/server/services/reconciliacao/consulta.service';
 import { Button } from '@/components/ui/button';
@@ -38,8 +37,7 @@ async function Contas({ tenantId, userId }: { tenantId: string; userId: string }
 }
 
 export default async function ReconciliacaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
 
   return (

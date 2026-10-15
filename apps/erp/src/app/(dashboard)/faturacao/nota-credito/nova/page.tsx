@@ -3,8 +3,7 @@
  * A série não se escolhe (#93): é a activa do tipo no ano da data de emissão.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { PageHeader } from '@/components/patterns';
 import { NovaNotaCreditoForm } from './_components/nova-nota-credito-form';
 import { diaIsoMaputo } from '@/lib/format-date';
@@ -13,9 +12,8 @@ import { procurarFaturasCreditaveis } from '@/server/services/financas/faturacao
 import { rotuloFaturaCreditavel } from '@/lib/documentos/rotulo-fatura';
 
 export default async function NovaNotaCreditoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
 
   // As 20 mais recentes; a partir daí a combobox pesquisa no servidor.
   let faturas: { value: string; label: string }[] = [];

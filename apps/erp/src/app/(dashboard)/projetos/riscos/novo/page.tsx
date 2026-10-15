@@ -3,16 +3,14 @@
  * Carrega a lista de projectos para o selector e renderiza o formulário.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ProjetoService } from '@/server/services/pessoas-projetos/projetos.service';
 import { PageHeader } from '@/components/patterns';
 import { NovoRiscoForm } from './_components/novo-risco-form';
 
 export default async function NovoRiscoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

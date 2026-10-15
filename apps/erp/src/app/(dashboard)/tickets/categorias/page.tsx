@@ -4,9 +4,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Tag, Clock } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { categoriaTicketService } from '@/server/services/operacoes/ticket.service';
 import { Button } from '@/components/ui/button';
@@ -78,8 +77,7 @@ async function CategoriasList({ tenantId, userId }: { tenantId: string; userId: 
 }
 
 export default async function CategoriasTicketPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

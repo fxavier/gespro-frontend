@@ -3,9 +3,9 @@
  */
 
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { ArrowLeft, Edit } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { NotFoundError } from '@/lib/errors';
 import { formatarData } from '@/lib/format-date';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -15,8 +15,7 @@ import { DetailShell, PageHeader, StatusBadge } from '@/components/patterns';
 
 export default async function TarefaDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };
 

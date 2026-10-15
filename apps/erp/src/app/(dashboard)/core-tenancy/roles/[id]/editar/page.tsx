@@ -2,8 +2,8 @@
  * Editar Papel (Role) — Server Component.
  */
 
-import { redirect, notFound } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { userAdminService } from '@/server/services/plataforma/user-admin.service';
 import { PageHeader } from '@/components/patterns';
 import { EditarRoleForm } from './_components/editar-role-form';
@@ -14,8 +14,7 @@ interface PageProps {
 }
 
 export default async function EditarRolePage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

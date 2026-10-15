@@ -12,10 +12,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Calendar, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { servicoService } from '@/server/services/compras/servico.service';
 import { FilterAgendamentoServicoSchema } from '@/lib/validations/servicos';
@@ -172,8 +171,7 @@ interface PageProps {
 }
 
 export default async function AgendamentosPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

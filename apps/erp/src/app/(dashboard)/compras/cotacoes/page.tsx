@@ -3,11 +3,10 @@
  */
 
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { Plus, FileText, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { z } from 'zod';
 import Link from 'next/link';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { FilterCotacaoSchema } from '@/lib/validations/compras';
@@ -144,8 +143,7 @@ interface PageProps {
 }
 
 export default async function CotacoesPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

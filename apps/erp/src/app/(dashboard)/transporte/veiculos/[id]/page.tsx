@@ -2,10 +2,10 @@
  * Detalhe de Viatura — Server Component (NUNCA 'use client').
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Edit, FileText, Wrench, CheckSquare, AlertTriangle } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { viaturaService } from '@/server/services/operacoes/viatura.service';
 import { PageHeader, DetailShell, StatusBadge } from '@/components/patterns';
@@ -135,8 +135,7 @@ interface PageProps {
 }
 
 export default async function ViaturaDetalhePage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const { id } = await params;

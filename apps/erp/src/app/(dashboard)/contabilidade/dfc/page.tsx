@@ -23,9 +23,8 @@
  */
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Settings2, TriangleAlert } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { BusinessRuleError } from '@/lib/errors';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarPeriodos } from '@/server/services/financas/contabilidade.service';
@@ -121,8 +120,7 @@ interface PageProps {
 }
 
 export default async function DfcPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
 
   if (!permissions.includes(PERMISSAO)) {

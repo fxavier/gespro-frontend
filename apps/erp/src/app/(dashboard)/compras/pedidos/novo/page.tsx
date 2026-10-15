@@ -2,8 +2,7 @@
  * Novo Pedido de Compra — Server Component shell.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { fornecedorService } from '@/server/services/compras/fornecedor.service';
@@ -15,9 +14,8 @@ import { rotuloCotacao, rotuloFornecedor, rotuloRequisicao } from '../../_compon
 import { NovoPedidoForm } from './_components/novo-pedido-form';
 
 export default async function NovoPedidoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
 
   // #265: fornecedor, requisição e cotação são `ComboboxRemoto` (primeira página aqui, o resto pela
   // pesquisa no servidor); os centros de custo activos são poucos e filtram-se no cliente.

@@ -10,10 +10,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Truck, CheckCircle, Activity, Wrench } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { viaturaService } from '@/server/services/operacoes/viatura.service';
 import { FiltrarViaturasSchema } from '@/lib/validations/transporte';
@@ -136,8 +135,7 @@ interface PageProps {
 }
 
 export default async function ViaturasPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

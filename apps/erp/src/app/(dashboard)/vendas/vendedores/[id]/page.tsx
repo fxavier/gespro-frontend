@@ -9,9 +9,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { DollarSign, Clock, CheckCircle, TrendingUp, ArrowLeft, Pencil } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { vendedorService } from '@/server/services/comercial/index';
 import { NotFoundError } from '@/lib/errors';
@@ -143,8 +143,7 @@ function ListSkeleton() {
 export default async function VendedorDetalhePage({ params }: PageProps) {
   const { id: vendedorId } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };

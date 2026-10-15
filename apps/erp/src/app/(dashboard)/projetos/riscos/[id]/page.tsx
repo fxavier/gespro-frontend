@@ -2,9 +2,9 @@
  * Detalhe de Risco — Server Component.
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { RiscoService, classificarSeveridade } from '@/server/services/pessoas-projetos/risco.service';
 import { PageHeader, DetailShell } from '@/components/patterns';
@@ -28,8 +28,7 @@ interface PageProps {
 }
 
 export default async function RiscoDetailPage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const { id } = await params;

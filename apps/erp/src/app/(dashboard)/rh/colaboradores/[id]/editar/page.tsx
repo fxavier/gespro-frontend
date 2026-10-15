@@ -2,8 +2,8 @@
  * Editar Colaborador — Server Component.
  */
 
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ColaboradorService } from '@/server/services/pessoas-projetos/rh.service';
 import { PageHeader } from '@/components/patterns';
@@ -16,8 +16,7 @@ interface Props {
 export default async function EditarColaboradorPage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

@@ -4,9 +4,9 @@
  */
 
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { formatarData, formatarDataHora } from '@/lib/format-date';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
@@ -16,8 +16,7 @@ import { DecisaoTimesheet } from './_components/decisao-timesheet';
 
 export default async function TimesheetDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
 
   const ts = await runWithTenantContext({ tenantId, userId }, () =>

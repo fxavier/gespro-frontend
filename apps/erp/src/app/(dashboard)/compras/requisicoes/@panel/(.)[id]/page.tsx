@@ -16,8 +16,7 @@
  *    URL (`AbrirRotaReal`), que não é interceptada.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { RequisicaoPainel } from '../../_components/requisicao-panel';
@@ -34,8 +33,7 @@ export default async function RequisicaoPanelPage({ params }: Props) {
   const { id } = await params;
   if (SEGMENTOS_ESTATICOS.has(id)) return <AbrirRotaReal href={`/compras/requisicoes/${id}`} />;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

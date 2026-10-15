@@ -6,9 +6,9 @@
  * da mesma máquina de estados que o serviço usa — o ecrã não inventa regras.
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
 import { TRANSICOES_COTACAO_COMERCIAL } from '@/server/services/financas/faturacao.interface';
@@ -26,8 +26,7 @@ interface Props {
 export default async function CotacaoDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };
 

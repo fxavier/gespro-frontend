@@ -6,9 +6,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ticketService } from '@/server/services/operacoes/ticket.service';
 import { Button } from '@/components/ui/button';
@@ -54,8 +53,7 @@ async function CaixaEntradaTable({ tenantId, userId }: { tenantId: string; userI
 }
 
 export default async function CaixaEntradaPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

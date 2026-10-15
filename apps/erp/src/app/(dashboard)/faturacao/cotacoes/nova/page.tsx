@@ -3,17 +3,15 @@
  * A série não se escolhe (#93): é a activa do tipo no ano da data de emissão.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { PageHeader } from '@/components/patterns';
 import { NovaCotacaoForm } from './_components/nova-cotacao-form';
 import { diaIsoMaputo } from '@/lib/format-date';
 import { clientesIniciais } from '../../_components/clientes-iniciais';
 
 export default async function NovaCotacaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const clientes = await clientesIniciais({ tenantId: session.user.tenantId, userId: session.user.id });
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const clientes = await clientesIniciais({ tenantId, userId: session.user.id });
 
   return (
     <div className="p-6 space-y-6">

@@ -3,8 +3,7 @@
  * Spec 05: formulário de criação de contagem cíclica de existências.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ativosService } from '@/server/services/inventario/ativos.service';
 import { listarLocalizacoes } from '@/server/services/inventario/stock.service';
@@ -13,8 +12,7 @@ import { PageHeader } from '@/components/patterns';
 import { NovaContagemForm } from './_components/nova-contagem-form';
 
 export default async function NovaContagemPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { id: userId, tenantId } = session.user;
   const ctx = { tenantId, userId };

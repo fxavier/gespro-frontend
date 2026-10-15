@@ -8,9 +8,8 @@
  */
 
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Pencil, Plus } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { Button } from '@/components/ui/button';
@@ -21,8 +20,7 @@ import { ROTULO_TIPO_CIRCUITO, ROTULO_TIPO_APROVACAO } from '@/lib/compras-aprov
 import { DesactivarCircuito } from './_components/desactivar-circuito';
 
 export default async function CircuitosAprovacaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };
 

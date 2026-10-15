@@ -7,7 +7,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { fornecedorService } from '@/server/services/compras/fornecedor.service';
 import { listarContas } from '@/server/services/financas/contabilidade.service';
@@ -17,8 +17,7 @@ import { diaIsoMaputo } from '@/lib/format-date';
 import { NovaContaPagarForm } from './_components/nova-conta-pagar-form';
 
 export default async function NovaContaPagarPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
   if (!permissions.includes('compras:conta-pagar:criar')) redirect('/fornecedores/contas-pagar');

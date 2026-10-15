@@ -2,8 +2,8 @@
  * Editar Motorista — Server Component (NUNCA 'use client').
  */
 
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { motoristaService } from '@/server/services/operacoes/motorista.service';
 import type { MotoristaDetalhe } from '@/server/services/operacoes/motorista.service';
@@ -19,8 +19,7 @@ interface PageProps {
 }
 
 export default async function EditarMotoristaPage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const { id } = await params;

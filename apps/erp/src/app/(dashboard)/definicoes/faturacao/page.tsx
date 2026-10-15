@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { AlertTriangle, CalendarClock, CreditCard, Info } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { assinaturaService } from '@/server/services/plataforma/assinatura.service';
 import { PageHeader, StatusBadge, KpiCard, EmptyState } from '@/components/patterns';
@@ -197,8 +196,7 @@ async function Subscricao({ tenantId, userId }: { tenantId: string; userId: stri
 }
 
 export default async function FaturacaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session, tenantId } = await exigirSessaoDeTenant();
 
   return (
     <div className="space-y-6">
@@ -211,7 +209,7 @@ export default async function FaturacaoPage() {
         ]}
       />
       <Suspense fallback={<SubscricaoSkeleton />}>
-        <Subscricao tenantId={session.user.tenantId} userId={session.user.id} />
+        <Subscricao tenantId={tenantId} userId={session.user.id} />
       </Suspense>
     </div>
   );

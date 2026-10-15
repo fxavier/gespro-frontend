@@ -13,10 +13,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Building, CheckCircle, Users, TrendingUp, Archive, List } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { fornecedorService } from '@/server/services/compras/fornecedor.service';
 import { FilterFornecedorSchema } from '@/lib/validations/fornecedores';
@@ -180,8 +179,7 @@ interface PageProps {
 }
 
 export default async function FornecedoresListaPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

@@ -5,10 +5,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, MessageSquare } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ComunicacaoService } from '@/server/services/pessoas-projetos/comunicacao.service';
 import { FilterComunicacaoSchema } from '@/lib/validations/projetos';
@@ -82,8 +81,7 @@ interface PageProps {
 }
 
 export default async function ComunicacoesPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const rawParams = await searchParams;

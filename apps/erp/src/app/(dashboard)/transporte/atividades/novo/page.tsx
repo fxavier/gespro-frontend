@@ -2,8 +2,7 @@
  * Nova Atividade — Server Component (NUNCA 'use client').
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { viaturaService } from '@/server/services/operacoes/viatura.service';
 import { motoristaService } from '@/server/services/operacoes/motorista.service';
@@ -11,8 +10,7 @@ import { PageHeader } from '@/components/patterns';
 import { AtividadeForm } from '../_components/atividade-form';
 
 export default async function NovaAtividadePage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

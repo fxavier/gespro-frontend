@@ -4,9 +4,8 @@
  * passa a primeira página de colaboradores activos e o resto vem da pesquisa no servidor.
  */
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { Button } from '@/components/ui/button';
@@ -14,8 +13,7 @@ import { PageHeader } from '@/components/patterns';
 import { NovoPeriodoFeriasForm } from './_components/novo-periodo-ferias-form';
 
 export default async function NovoPeriodoFeriasPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
 
   const colaboradores = await runWithTenantContext({ tenantId, userId }, () =>

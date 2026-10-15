@@ -2,10 +2,10 @@
  * Detalhe de Projecto — Server Component (NUNCA 'use client').
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Edit, ArrowLeft, Kanban, Target, TrendingUp } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ProjetoService } from '@/server/services/pessoas-projetos/projetos.service';
 import { TRANSICOES_PROJETO } from '@/server/services/pessoas-projetos/projetos.interface';
@@ -34,8 +34,7 @@ interface Props {
 export default async function ProjetoDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };

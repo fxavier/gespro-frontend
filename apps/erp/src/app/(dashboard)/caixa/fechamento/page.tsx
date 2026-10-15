@@ -3,8 +3,7 @@
  * Obtém a sessão a fechar (?sessaoId= ou a do utilizador) e passa-a ao wizard client.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as caixaService from '@/server/services/financas/caixa.service';
 import { PageHeader } from '@/components/patterns';
@@ -16,8 +15,7 @@ export default async function FechamentoCaixaPage({
   searchParams: Promise<{ sessaoId?: string | string[] }>;
 }) {
   const { sessaoId } = await searchParams;
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
 
   let sessaoActual = null;

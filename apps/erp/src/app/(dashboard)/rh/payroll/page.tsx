@@ -6,9 +6,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Users, CheckCircle, Clock, Table2 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { PayrollService } from '@/server/services/pessoas-projetos/payroll.service';
 import { FilterPayrollSchema, type FilterPayrollInput } from '@/lib/validations/payroll';
@@ -130,8 +129,7 @@ export default async function PayrollPage({
 }: {
   searchParams: Promise<Record<string, string>>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

@@ -2,16 +2,14 @@
  * Novo Produto — Server Component.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { catalogoProdutoService } from '@/server/services/inventario/catalogo.service';
 import { PageHeader } from '@/components/patterns';
 import { NovoProdutoForm } from '../_components/novo-produto-form';
 
 export default async function NovoProdutoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

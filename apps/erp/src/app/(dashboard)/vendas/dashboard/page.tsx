@@ -5,9 +5,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { ShoppingCart, CheckCircle, Clock, TrendingUp, Plus, ArrowRight } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { vendaService } from '@/server/services/comercial/index';
 import {
@@ -130,8 +129,7 @@ function ListSkeleton() {
 }
 
 export default async function VendasDashboardPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

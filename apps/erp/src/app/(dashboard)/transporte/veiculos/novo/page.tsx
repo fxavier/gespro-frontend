@@ -3,16 +3,14 @@
  * Carrega motoristas activos para o select responsável.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { motoristaService } from '@/server/services/operacoes/motorista.service';
 import { PageHeader } from '@/components/patterns';
 import { ViaturaForm } from '../_components/viatura-form';
 
 export default async function NovaViaturaPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

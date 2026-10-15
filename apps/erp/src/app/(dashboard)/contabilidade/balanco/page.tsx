@@ -11,10 +11,9 @@
  */
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Download } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarExercicios } from '@/server/services/financas/contabilidade.service';
 import { gerarBalanco } from '@/server/services/financas/balanco.service';
@@ -123,9 +122,8 @@ interface PageProps {
 }
 
 export default async function BalancoPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
 
   const raw = await searchParams;
   const um = (k: string) => (Array.isArray(raw[k]) ? raw[k][0] : raw[k]);

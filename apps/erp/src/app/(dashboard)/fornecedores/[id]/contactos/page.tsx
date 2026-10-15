@@ -2,10 +2,10 @@
  * Gestão de contactos de um fornecedor — Server Component (NUNCA 'use client').
  * Lista + acções (novo / editar / remover) via sub-rotas dedicadas e actions.
  */
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, ArrowLeft, Edit, Mail, Phone } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { fornecedorService } from '@/server/services/compras/fornecedor.service';
 import { Button } from '@/components/ui/button';
@@ -27,8 +27,7 @@ interface Props {
 export default async function ContactosFornecedorPage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

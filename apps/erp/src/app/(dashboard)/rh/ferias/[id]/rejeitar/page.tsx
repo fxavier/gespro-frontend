@@ -3,8 +3,8 @@
  * própria (regra sem modais), não um diálogo. Molde: rejeitar ausência (#94).
  */
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { formatarData } from '@/lib/format-date';
@@ -13,8 +13,7 @@ import { PageHeader, StatusBadge } from '@/components/patterns';
 import { RejeitarFeriasForm } from './_components/rejeitar-ferias-form';
 
 export default async function RejeitarFeriasPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
   const { id } = await params;
 

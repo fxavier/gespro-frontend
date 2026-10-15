@@ -1,6 +1,5 @@
 import 'server-only';
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 
 export const PERM_RECONCILIACAO = 'financas:banca:reconciliacao';
 export const PERM_LEITURA = 'financas:leitura';
@@ -17,8 +16,7 @@ export interface AcessoRegras {
  * primeira. Sem sessão, vai para o login.
  */
 export async function acessoRegras(): Promise<AcessoRegras> {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const tem = (p: string) => permissions.includes(p);
   const podeEscrever = tem(PERM_RECONCILIACAO);

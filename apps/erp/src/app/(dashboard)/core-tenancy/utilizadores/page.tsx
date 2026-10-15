@@ -9,10 +9,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Users } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { userAdminService } from '@/server/services/plataforma/user-admin.service';
 import { FilterUserSchema } from '@/lib/validations/plataforma';
 import { Button } from '@/components/ui/button';
@@ -92,8 +91,7 @@ interface PageProps {
 }
 
 export default async function UtilizadoresPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

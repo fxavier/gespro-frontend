@@ -3,8 +3,7 @@
  * Carrega categorias e localizações para popular os selects do formulário.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ativosService } from '@/server/services/inventario/ativos.service';
 import { stockService } from '@/server/services/inventario/stock.service';
@@ -12,8 +11,7 @@ import { PageHeader } from '@/components/patterns';
 import { NovoAtivoForm } from '../_components/novo-ativo-form';
 
 export default async function NovoAtivoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

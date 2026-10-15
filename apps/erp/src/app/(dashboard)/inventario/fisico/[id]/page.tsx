@@ -3,9 +3,9 @@
  * Dados reais via inventarioFisicoService.obterInventario().
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { inventarioFisicoService } from '@/server/services/inventario/inventario-fisico.service';
 import { stockService } from '@/server/services/inventario/stock.service';
@@ -288,8 +288,7 @@ interface PageProps {
 }
 
 export default async function InventarioFisicoDetalhePage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const { id } = await params;

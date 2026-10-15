@@ -8,7 +8,7 @@
  */
 
 import { redirect, notFound } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { PageHeader } from '@/components/patterns';
@@ -19,8 +19,7 @@ export default async function ApurarIvaPage({
 }: {
   params: Promise<{ periodoId: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { periodoId } = await params;
   const { tenantId, id: userId } = session.user;

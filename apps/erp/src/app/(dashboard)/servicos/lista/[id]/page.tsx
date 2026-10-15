@@ -2,10 +2,10 @@
  * Detalhe de Serviço — Server Component (NUNCA 'use client').
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Edit, ArrowLeft } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { servicoService } from '@/server/services/compras/servico.service';
 import { Button } from '@/components/ui/button';
@@ -39,8 +39,7 @@ const tipoServicoLabels: Record<string, string> = {
 export default async function ServicoDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

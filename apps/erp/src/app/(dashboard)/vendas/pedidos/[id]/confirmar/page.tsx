@@ -6,7 +6,7 @@
  */
 
 import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { encomendaService } from '@/server/services/comercial/index';
 import { stockService } from '@/server/services/inventario/stock.service';
@@ -18,8 +18,7 @@ interface PageProps {
 }
 
 export default async function ConfirmarEncomendaPage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
   const { id } = await params;
