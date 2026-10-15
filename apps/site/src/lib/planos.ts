@@ -21,9 +21,6 @@ import { ENDPOINT_PLANOS } from "./env";
  * para a página avisar que os valores são indicativos.
  */
 
-export const IDS_PLANO = ["BASICO", "PROFISSIONAL", "EMPRESARIAL"] as const;
-export type IdPlano = (typeof IDS_PLANO)[number];
-
 /** Preço tolerante à serialização: `Decimal` chega como string, mas aceita número. */
 const precoSchema = z.object({
   valor: z.union([z.string(), z.number()]).transform((v) => String(v)),
@@ -175,16 +172,11 @@ export async function obterPlanos(): Promise<Catalogo> {
 }
 
 /**
- * Ordena pela progressão comercial dos planos conhecidos; os códigos que o site
- * não conhece vêm depois, pela ordem da API (que já ordena por `Plano.ordem`).
- * O `sort` é estável, logo os desconhecidos mantêm a ordem relativa.
+ * Preserva a ordem da API, que já ordena por `Plano.ordem` (editável em
+ * /plataforma/planos). Devolve uma cópia; não reordena por código.
  */
 export function ordenar(planos: Plano[]): Plano[] {
-  const posicao = (id: string) => {
-    const i = (IDS_PLANO as readonly string[]).indexOf(id);
-    return i === -1 ? IDS_PLANO.length : i;
-  };
-  return [...planos].sort((a, b) => posicao(a.id) - posicao(b.id));
+  return [...planos];
 }
 
 /**
