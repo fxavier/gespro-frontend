@@ -3,7 +3,7 @@
  *
  * Contrato de UI (decisão do orquestrador; ADR-0029 — o ecrã é nosso, quem autentica é o Keycloak):
  *   - o ecrã de login (`/auth/login`), sem sessão, tem uma ligação para `/auth/recuperar`;
- *   - `/auth/recuperar` abre sem sessão (middleware não redirige), com um campo de e-mail
+ *   - `/auth/recuperar` abre sem sessão (o proxy não redirige), com um campo de e-mail
  *     (rótulo com «e-mail») e um botão de submissão;
  *   - submeter mostra uma confirmação numa região `role="status"` (anunciada a leitores de ecrã)
  *     cujo texto é EXACTAMENTE o mesmo para um endereço que existe e para um que não existe;

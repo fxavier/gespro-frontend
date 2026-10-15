@@ -48,7 +48,6 @@ const BASE = 'http://localhost:3000';
 
 type Proxy = (req: NextRequest) => Promise<Response>;
 async function carregarProxy(): Promise<Proxy> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mod: any = await import('../../proxy');
   expect(typeof mod.proxy, 'src/proxy.ts tem de exportar a função `proxy`').toBe('function');
   return mod.proxy as Proxy;
@@ -323,7 +322,6 @@ describe('#533 — registerNode() mantém o comportamento (sondas sempre; OTel s
   });
 
   async function carregarRegisterNode(): Promise<() => Promise<void>> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mod: any = await import('../../../instrumentation-node');
     expect(typeof mod.registerNode).toBe('function');
     return mod.registerNode;

@@ -2,7 +2,8 @@ import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
 
 /**
- * Middleware do SITE — negociação de locale apenas.
+ * Proxy do SITE (convenção do Next 16, antes `middleware.ts`) — negociação de
+ * locale apenas.
  *
  * Deliberadamente separado do `src/proxy.ts` do ERP (`apps/erp`), que é dono da
  * autenticação, dos `PUBLIC_PATHS` e dos headers de segurança/CSP com nonce

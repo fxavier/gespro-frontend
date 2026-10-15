@@ -445,7 +445,6 @@ describe('#178 — ecrã /auth/recuperar e a porta no login', () => {
     vi.doMock('next-auth/jwt', () => ({ getToken: async () => null }));
     const { NextRequest } = await import('next/server');
     // #533: a implementação passou de apps/erp/middleware.ts para apps/erp/src/proxy.ts.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mod: any = await import('../../../../../proxy');
     expect(typeof mod.proxy, 'src/proxy.ts tem de exportar a função `proxy`').toBe('function');
     const res = await mod.proxy(new NextRequest('http://localhost:3000/auth/recuperar'));

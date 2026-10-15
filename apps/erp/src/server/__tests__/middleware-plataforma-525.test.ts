@@ -43,7 +43,6 @@ const BASE = 'http://localhost:3000';
  */
 type Proxy = (req: NextRequest) => Promise<Response>;
 async function carregarProxy(): Promise<Proxy> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mod: any = await import('../../proxy');
   expect(typeof mod.proxy, 'src/proxy.ts tem de exportar a função `proxy`').toBe('function');
   return mod.proxy as Proxy;
@@ -163,7 +162,6 @@ describe('ligação: o Next carrega mesmo este proxy', () => {
   });
 
   it('src/proxy.ts exporta o `config` com o matcher de sempre (e sem `runtime`)', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mod: any = await import('../../proxy');
     expect(mod.config).toBeDefined();
     expect(mod.config.matcher).toEqual(MATCHER);

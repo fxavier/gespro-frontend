@@ -156,7 +156,7 @@ Auditoria ao código revelou que **quase todo o backend já existia** — o trab
 | 14 observabilidade & operações | ✅ mergido | — (`pino`/OTel/`prom-client`) | APROVADO; envelopes sem quebra de contrato, ALS de requestId separado, health/ready/metrics; MAJOR wiring de métricas fechado |
 | 15 CI/CD & testes | ✅ mergido | — (`.github/**`, `testcontainers`) | REJEITADO (4 BLOCKERs de pipeline: cobertura 3× real, skip mascara falha em CI, NODE_ENV parte build, lockfile)→corrigido→APROVADO |
 | 16 infraestrutura & deploy | ✅ mergido | — (`Dockerfile`, `infra/**` Terraform) | APROVADO; App Runner + RDS + Secrets Manager; 4 MAJOR de IaC fechados (NAT, Performance Insights, secrets individuais, lock files); zero segredos no repo |
-| 17 segurança & hardening | ✅ mergido | — (`middleware.ts`, headers `next.config.ts`) | APROVADO; CORS wildcard removido, CSP(nonce)/HSTS/frame/nosniff, rate-limit alargado, revisão multi-tenant sem BLOCKERs; Aviso 1 (headers importáveis) fechado |
+| 17 segurança & hardening | ✅ mergido | — (`middleware.ts` (hoje `src/proxy.ts`), headers `next.config.ts`) | APROVADO; CORS wildcard removido, CSP(nonce)/HSTS/frame/nosniff, rate-limit alargado, revisão multi-tenant sem BLOCKERs; Aviso 1 (headers importáveis) fechado |
 
 Ordem de merge: 10 → 11 → 13 → 12 → 14 → 17 → 15 → 16. Conflitos aditivos resolvidos pelo orquestrador (`state-machines.ts`, `status-badge.tsx`, `pessoas-projetos.prisma`, `.gitignore`, `next.config.ts`); `health/route.ts` (14 vs 16) resolvido pela versão do 14 (withApi público) com `version`+`Cache-Control` do 16. Deps consolidadas num único `pnpm install`/lockfile por merge.
 
