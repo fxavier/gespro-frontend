@@ -30,12 +30,28 @@ const estado = vi.hoisted(() => ({ token: null as Record<string, unknown> | null
 vi.mock('next-auth/jwt', () => ({ getToken: async () => estado.token }));
 
 import { NextRequest } from 'next/server';
-import { middleware } from '../../../middleware';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const BASE = 'http://localhost:3000';
 
+/**
+ * Adaptação do verificador (#533, nó D:proxy-next16): a implementação passou
+ * de `apps/erp/middleware.ts` para `apps/erp/src/proxy.ts` (convenção do
+ * Next 16: função `proxy`). Import dinâmico para que a falta do ficheiro
+ * falhe cada caso, não o ficheiro inteiro.
+ */
+type Proxy = (req: NextRequest) => Promise<Response>;
+async function carregarProxy(): Promise<Proxy> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mod: any = await import('../../proxy');
+  expect(typeof mod.proxy, 'src/proxy.ts tem de exportar a função `proxy`').toBe('function');
+  return mod.proxy as Proxy;
+}
+
 async function pedir(caminho: string) {
-  return middleware(new NextRequest(`${BASE}${caminho}`));
+  const proxy = await carregarProxy();
+  return proxy(new NextRequest(`${BASE}${caminho}`));
 }
 
 function destino(res: Response): string | null {
@@ -125,34 +141,51 @@ describe('controlos', () => {
 });
 
 /**
- * Adaptação do verificador (iteração 2): com a app em `src/app`, o `next dev`
- * (setup-dev-bundler) só procura o middleware em `src/` — o da raiz de
- * `apps/erp` não era carregado em dev, e o dev, os E2E e os smokes corriam sem
- * middleware. O `next build` resolve-o na raiz, por isso a imagem de produção
- * corria-o. Os testes acima importam a raiz e ficavam verdes enquanto o dev
- * não corria regra nenhuma (o E2E 61 é que o revelou). Este bloco
- * tranca a ligação: `src/middleware.ts` existe, exporta o MESMO `middleware`
- * e o `config.matcher` é igual ao da raiz (o Next lê o `config` por análise
- * estática e não segue re-exportações — tem de estar literal em `src/`).
+ * Adaptação do verificador (iteração 2, revista em #533): com a app em
+ * `src/app`, o `next dev` só procura o middleware/proxy em `src/` — por isso
+ * houve dois ficheiros (`apps/erp/middleware.ts` com a lógica e
+ * `src/middleware.ts` a re-exportar). O Next 16 depreca a convenção
+ * `middleware` a favor de `proxy` (sempre em runtime Node). Este bloco tranca
+ * a ligação nova: UMA implementação em `src/proxy.ts`, com a função `proxy` e
+ * o `config` literal (o Next lê-o por análise estática e não segue
+ * re-exportações; um `runtime` no `config` do proxy rebenta o `next build`),
+ * e nenhum `middleware.ts` em lado nenhum.
  */
-describe('ligação: o Next carrega mesmo este middleware', () => {
-  it('src/middleware.ts exporta o middleware da raiz', async () => {
-    const ligado = await import('../../middleware');
-    expect(ligado.middleware).toBe(middleware);
+const ERP = resolve(__dirname, '../../..');
+const PROXY_TS = resolve(ERP, 'src/proxy.ts');
+const MATCHER = ['/((?!_next/static|_next/image|favicon\\.ico).*)'];
+
+describe('ligação: o Next carrega mesmo este proxy', () => {
+  it('src/proxy.ts existe e exporta a função `proxy`', async () => {
+    expect(existsSync(PROXY_TS), 'apps/erp/src/proxy.ts não existe').toBe(true);
+    const proxy = await carregarProxy();
+    expect(typeof proxy).toBe('function');
   });
 
-  it('src/middleware.ts declara o config literal igual ao da raiz', async () => {
-    const raiz = await import('../../../middleware');
-    const ligado = await import('../../middleware');
-    expect(ligado.config).toBeDefined();
-    expect(ligado.config.matcher).toEqual(raiz.config.matcher);
+  it('src/proxy.ts exporta o `config` com o matcher de sempre (e sem `runtime`)', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import('../../proxy');
+    expect(mod.config).toBeDefined();
+    expect(mod.config.matcher).toEqual(MATCHER);
+    expect(mod.config).not.toHaveProperty('runtime');
   });
 
-  it('o config de src/middleware.ts é literal (sem re-exportação)', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    const codigo = readFileSync(resolve(__dirname, '../../middleware.ts'), 'utf-8');
+  it('o `config` de src/proxy.ts é literal e nada é re-exportado de outro módulo', () => {
+    expect(existsSync(PROXY_TS), 'apps/erp/src/proxy.ts não existe').toBe(true);
+    const codigo = readFileSync(PROXY_TS, 'utf-8');
     expect(codigo).toMatch(/export\s+const\s+config\s*=\s*\{[\s\S]*matcher\s*:/);
-    expect(codigo).not.toMatch(/export\s*\{[^}]*\bconfig\b[^}]*\}\s*from/);
+    expect(codigo).not.toMatch(/export\s*\{[^}]*\}\s*from/);
+    expect(codigo).not.toMatch(/export\s*\*\s*(as\s+\w+\s+)?from/);
+    expect(codigo).toMatch(/export\s+(async\s+)?function\s+proxy\s*\(/);
+    expect(codigo, 'a convenção `middleware` saiu: o proxy não exporta `middleware`').not.toMatch(
+      /export\s+(async\s+)?function\s+middleware\b|export\s+const\s+middleware\b/,
+    );
   });
+
+  it.each(['middleware.ts', 'src/middleware.ts', 'middleware.js', 'src/middleware.js', 'proxy.ts'])(
+    'apps/erp/%s não existe (uma só implementação, em src/proxy.ts)',
+    (rel) => {
+      expect(existsSync(resolve(ERP, rel)), `apps/erp/${rel} ainda existe`).toBe(false);
+    },
+  );
 });

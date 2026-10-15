@@ -261,7 +261,7 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 
 ### Camadas transversais (envelopam, não alteram contratos)
 - **Observabilidade** (`src/server/observability/*`, `instrumentation.ts`) — logger estruturado com redacção de segredos/PII, `requestId` num `AsyncLocalStorage` **separado** do tenant, métricas RED. `withApi`/`createSafeAction` estão envelopados: erros inesperados devolvem `traceId` sem stack ao cliente. `/api/health` (liveness), `/api/ready` (SELECT 1), `/api/metrics` (protegido por `METRICS_SECRET`).
-- **Segurança** (`middleware.ts`, `src/lib/security/headers.ts`, `src/lib/api/cors.ts`) — CSP com nonce por pedido (report-only por omissão; `CSP_ENFORCE=true` em prod só após smoke), HSTS/X-Frame/nosniff/Referrer/Permissions; CORS por allowlist (`ALLOWED_ORIGINS`), **nunca wildcard**; rate-limit em reset/convite/exports. `middleware.ts` é o **único** dono dos headers de segurança e dos paths públicos.
+- **Segurança** (`src/proxy.ts`, `src/lib/security/headers.ts`, `src/lib/api/cors.ts`) — CSP com nonce por pedido (report-only por omissão; `CSP_ENFORCE=true` em prod só após smoke), HSTS/X-Frame/nosniff/Referrer/Permissions; CORS por allowlist (`ALLOWED_ORIGINS`), **nunca wildcard**; rate-limit em reset/convite/exports. `src/proxy.ts` (convenção `proxy` do Next 16, runtime Node — um só ficheiro, em `src/`, que o `next dev` e o `next build` encontram; o `config` não declara `runtime`) é o **único** dono dos headers de segurança e dos paths públicos.
 - **Documentos/exportação** (`src/lib/documents/*`, `src/lib/reporting/*`) — PDF fiscal via `@react-pdf/renderer` (**só runtime Node**, nunca no cliente) que **reflecte** o documento emitido (append-only, nunca recalcula); export CSV/XLSX com `Decimal`→string lossless. Servidos por Route Handlers (`withApi`), nunca Server Actions.
   O layout do `@react-pdf` é **CPU síncrona no pedido** (~3,7 ms por linha de tabela; 500 linhas ≈ 2 s com a instância
   parada para todos) — relatórios longos levam tecto de linhas (ex.: balancete, 422 acima de 3000). Paginação por N
@@ -314,7 +314,7 @@ a colidir no `@@unique([tenantId, numero])` — e o erro aparece ao utilizador, 
 
 **Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`.
 
-**Middleware e probes** — `middleware.ts` redirige pedidos não-autenticados para `/auth/login`. Endpoints que têm de responder sem sessão (`/api/health`, `/api/ready`, `/api/metrics` para o HEALTHCHECK do Docker/App Runner; `/api/auth/*`) **têm de estar em `PUBLIC_PATHS`** — senão os health checks recebem 307 em vez de 200.
+**Proxy e probes** — `src/proxy.ts` redirige pedidos não-autenticados para `/auth/login`. Endpoints que têm de responder sem sessão (`/api/health`, `/api/ready`, `/api/metrics` para o HEALTHCHECK do Docker/App Runner; `/api/auth/*`) **têm de estar em `PUBLIC_PATHS`** — senão os health checks recebem 307 em vez de 200.
 
 **Fronteira `'use client'` no servidor** — tudo o que um módulo `'use client'` exporta chega a um Server
 Component como *referência de cliente*, incluindo constantes: `cookies().get(COOKIE)` com `COOKIE` importado

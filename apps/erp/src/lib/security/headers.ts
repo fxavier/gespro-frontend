@@ -1,10 +1,10 @@
 /**
  * Construção dos cabeçalhos de segurança HTTP — módulo client-safe.
  *
- * Sem imports de globals Edge (crypto.getRandomValues, btoa) nem de server-only.
+ * Sem uso de crypto.getRandomValues/btoa (o nonce vem de fora) nem de server-only.
  * Recebe nonce e opções como parâmetros simples → testável em Vitest puro (Node).
  *
- * Importado TANTO no middleware.ts (edge) COMO nos testes, para garantir que
+ * Importado TANTO no src/proxy.ts COMO nos testes, para garantir que
  * os testes exercem exactamente a mesma lógica de produção.
  */
 

@@ -15,10 +15,10 @@
  * O `design.md` §3 punha a excepção no `next.config.ts`. **Não funciona**, e a
  * verificação é directa: com o cabeçalho declarado em `headers()` para
  * `source: '/registo'`, um `next build && next start` seguido de
- * `curl -D - /registo` devolve a política do `middleware.ts`, não esta — o
- * middleware escreve o mesmo nome de cabeçalho por último e um CSP
+ * `curl -D - /registo` devolve a política do `src/proxy.ts`, não esta — o
+ * proxy escreve o mesmo nome de cabeçalho por último e um CSP
  * substitui-se, não se acrescenta. O `X-Robots-Tag` da mesma entrada aparece,
- * porque esse nome o middleware não escreve; o CSP não.
+ * porque esse nome o proxy não escreve; o CSP não.
  *
  * Emitir na mesma um cabeçalho que nunca chega ao browser seria pior do que
  * não emitir nada: quem o lesse daqui a um ano acreditaria nele. Portanto o
@@ -26,10 +26,10 @@
  * guardada por teste (`src/server/security/__tests__/csp-registo.test.ts`), à
  * espera do único sítio que a pode aplicar.
  *
- * QUEM A APLICA: o `middleware.ts` — dono único dos cabeçalhos de segurança
+ * QUEM A APLICA: o `src/proxy.ts` — dono único dos cabeçalhos de segurança
  * (CLAUDE.md) e o único com o `pathname` E o nonce por pedido. Não é ficheiro
  * desta lane (ver `docs/handoff/execucao-paralela-21.md`). A alteração é de
- * três linhas, dentro de `middleware()`, depois de `buildSecurityHeaders`:
+ * três linhas, dentro de `proxy()`, depois de `buildSecurityHeaders`:
  *
  *     if (pathname === '/registo') {
  *       const nome = enforceCSP
@@ -55,7 +55,7 @@ export const TURNSTILE_ORIGEM = 'https://challenges.cloudflare.com';
 /**
  * Espelha `buildCspPolicy` (`src/lib/security/headers.ts`) com as duas
  * directivas acima alteradas. Os parâmetros são os mesmos por construção: o
- * dia em que o middleware a aplicar, aplica-a com o nonce do pedido, sem
+ * dia em que o proxy a aplicar, aplica-a com o nonce do pedido, sem
  * perder o que a política geral já dava.
  */
 export function cspRegisto(nonce: string, isDev: boolean): string {

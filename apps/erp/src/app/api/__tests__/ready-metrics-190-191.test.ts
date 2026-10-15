@@ -257,8 +257,9 @@ describe('#191 — /api/health público e mínimo', () => {
     expect(mocks.auth).not.toHaveBeenCalled();
   });
 
-  it('middleware mantém /api/health, /api/ready e /api/metrics em PUBLIC_PATHS', () => {
-    const codigo = readFileSync(resolve(__dirname, '../../../../middleware.ts'), 'utf-8');
+  it('proxy mantém /api/health, /api/ready e /api/metrics em PUBLIC_PATHS', () => {
+    // #533: a convenção `middleware` do Next 16 passou a `proxy` (apps/erp/src/proxy.ts).
+    const codigo = readFileSync(resolve(__dirname, '../../../proxy.ts'), 'utf-8');
     const bloco = codigo.match(/const PUBLIC_PATHS\s*=\s*\[([\s\S]*?)\];/);
     expect(bloco).not.toBeNull();
     const conteudo = bloco![1].replace(/\/\/.*$/gm, '');

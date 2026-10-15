@@ -2,7 +2,7 @@
 
 > **Para quem:** engenheiros que mantêm o ERP, integram com ele ou operam a plataforma.
 > **Código:** `apps/erp/src/app/api/**/route.ts` (24 ficheiros), `apps/erp/src/lib/api/with-api.ts`,
-> `apps/erp/src/server/safe-action.ts`, `apps/erp/middleware.ts`.
+> `apps/erp/src/server/safe-action.ts`, `apps/erp/src/proxy.ts`.
 
 Este capítulo descreve o que o ERP expõe por HTTP e o contrato das Server Actions. Tudo o que está
 aqui foi copiado do código deste ramo. Onde o código e os comentários (ou os runbooks) discordam,
@@ -187,9 +187,9 @@ limitação: `export/[modulo]`, `faturacao/[id]/pdf`, `financas/iva/mapas/[perio
   O registo anuncia `Content-Type, Idempotency-Key`.
 - As rotas autenticadas não emitem CORS: só respondem à mesma origem.
 
-### 1.8 Middleware e `PUBLIC_PATHS`
+### 1.8 Proxy e `PUBLIC_PATHS`
 
-`apps/erp/middleware.ts` corre em todos os pedidos excepto `_next/static`, `_next/image` e
+`apps/erp/src/proxy.ts` (convenção `proxy` do Next 16, runtime Node) corre em todos os pedidos excepto `_next/static`, `_next/image` e
 `favicon.ico`. É o **único** dono dos cabeçalhos de segurança (CSP com nonce, HSTS, X-Frame,
 nosniff, Referrer, Permissions) e dos caminhos públicos. Para qualquer caminho **fora** de
 `PUBLIC_PATHS` sem JWT válido do Auth.js, responde
@@ -1040,7 +1040,7 @@ documentada no próprio ficheiro (ambas correm sem sessão estabelecida):
    `parsed.error.flatten()`; ids com `idEntidade()`, nunca `.cuid()`.
 4. Permissão nova → `prisma/seed/rbac.ts` **e** `pnpm db:seed`.
 5. Exportação → `exportLimiter` com `${ctx.userId}::export`.
-6. Sem sessão → entrada em `PUBLIC_PATHS` do `middleware.ts` e credencial própria no handler.
+6. Sem sessão → entrada em `PUBLIC_PATHS` do `src/proxy.ts` e credencial própria no handler.
 7. `/api/cron/*` → `infra/local/cron/crontab` **e** [runbook do agendador](../runbooks/agendador.md).
 8. Método de escrita que tenha de passar em Leitura → `permiteEmLeitura: true`, justificado.
 
@@ -1060,13 +1060,13 @@ Encontradas ao escrever este capítulo; o código é o que vale, nada disto foi 
   e `publico/registo` acrescenta `data`/`error.traceId` ao seu contrato próprio.
 - **`/api/ready` e `/api/metrics` expõem a mensagem crua do erro** (`error`/`detail`) a um chamador sem
   autenticação.
-- **Sem sessão, as rotas autenticadas respondem 307** (middleware), não 401 — um consumidor
+- **Sem sessão, as rotas autenticadas respondem 307** (proxy), não 401 — um consumidor
   programático tem de tratar o redireccionamento.
 
 **Autenticação e `PUBLIC_PATHS`**
 
 - `docs/runbooks/agendador.md` diz que as rotas de cron «**não** estão em `PUBLIC_PATHS`»; o comentário
-  de `expirar-trials` diz o mesmo. Falso: `middleware.ts` tem `'/api/cron/'`. (O comentário de
+  de `expirar-trials` diz o mesmo. Falso: `src/proxy.ts` tem `'/api/cron/'`. (O comentário de
   `expirar-registos-nao-verificados` está certo.)
 
 **Permissões**

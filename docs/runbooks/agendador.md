@@ -34,7 +34,7 @@ configuração — é o caminho de recuperação de quem descobre em Janeiro que
 - **Método**: `GET`.
 - **Autenticação**: `Authorization: Bearer <CRON_SECRET>`, verificado em cada rota pelo
   `withCron` (401 sem ele). O prefixo `/api/cron/` **está** em `PUBLIC_PATHS`
-  (`apps/erp/middleware.ts`): o middleware não exige sessão — sem essa entrada o agendador
+  (`apps/erp/src/proxy.ts`): o proxy não exige sessão — sem essa entrada o agendador
   recebia 307 → `/auth/login` antes de a credencial ser lida. Entram com esta credencial,
   nunca com sessão.
 - **Idempotência**: todas. Repetir uma corrida tem o mesmo efeito que corrê-la uma vez — quem

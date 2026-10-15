@@ -23,10 +23,10 @@ const nextConfig: NextConfig = {
   },
 
   // Headers de segurança do SITE. Deliberadamente distintos do ERP:
-  // o `middleware.ts` do ERP (spec 17) é dono dos headers dessa app e não é
+  // o `src/proxy.ts` do ERP (spec 17) é dono dos headers dessa app e não é
   // partilhado — é exactamente o isolamento que justifica o monorepo (ADR-0006).
   //
-  // CSP do site (estática — sem nonce; o ERP tem nonce por pedido no middleware).
+  // CSP do site (estática — sem nonce; o ERP tem nonce por pedido no proxy).
   // A excepção para o Cloudflare Turnstile saiu com o ADR-0031 §4: o widget
   // acompanhou o formulário de registo para o ERP, e a excepção é da rota
   // `/registo` dessa app. Deixá-la aqui era alargar a política de um site que

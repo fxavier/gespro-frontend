@@ -17,11 +17,11 @@ const monorepoRoot = path.join(__dirname, "../../");
 // página.
 //
 // A excepção de CSP do Turnstile **não** pode viver aqui, ao contrário do que
-// o `design.md` §3 previa: o `middleware.ts` escreve o cabeçalho CSP por
+// o `design.md` §3 previa: o `src/proxy.ts` escreve o cabeçalho CSP por
 // último e um CSP substitui-se, não se acrescenta — verificado com
 // `next build && next start` + `curl -D -`. A política está escrita e
 // guardada por teste em `src/app/registo/csp.ts`, com o porquê e a alteração
-// exacta que o `middleware.ts` precisa; o gap está em
+// exacta que o `src/proxy.ts` aplica; o gap está em
 // `docs/handoff/s21-l3-ecra-registo.md`.
 
 const nextConfig: NextConfig = {
@@ -62,10 +62,10 @@ const nextConfig: NextConfig = {
   },
   // Sem cabeçalhos GLOBAIS aqui — os headers de segurança (CSP, HSTS, X-Frame-Options,
   // X-Content-Type-Options, Referrer-Policy, Permissions-Policy) são geridos em
-  // middleware.ts (edge), que tem acesso ao nonce CSP por pedido, e que os
+  // src/proxy.ts, que tem acesso ao nonce CSP por pedido, e que os
   // escreve DEPOIS destes: declarar aqui um nome que ele também escreve é
   // declarar um cabeçalho que nunca chega ao browser. A única entrada em
-  // `headers()` acima é de uma rota e de um nome que o middleware não usa.
+  // `headers()` acima é de uma rota e de um nome que o proxy não usa.
   // CORS wildcard removido (spec 17): CORS explícito apenas nos Route Handlers
   // que o exijam (webhooks/exports), via src/lib/api/cors.ts.
   //
