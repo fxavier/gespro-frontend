@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { AlertTriangle, ArrowLeft } from 'lucide-react';
 import { PageHeader, StatusBadge } from '@/components/patterns';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { origemPriceId } from '@/server/billing/stripe-client';
 import { exigirPlataformaAdmin } from '@/server/auth/plataforma-admin';
 import { obterPlanoAdmin } from '@/server/services/plataforma/plano-admin.service';
 import { formatarDataHora } from '@/lib/format-date';
@@ -19,6 +21,18 @@ function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode
   );
 }
 
+const CICLOS = [
+  { ciclo: 'MENSAL', rotulo: 'mensal' },
+  { ciclo: 'ANUAL', rotulo: 'anual' },
+] as const;
+
+/** O Price ID mostrado: o da tabela; da env, só a origem (nunca o valor). */
+function PriceId({ valor, origem }: { valor: string | null; origem: 'tabela' | 'env' | null }) {
+  if (valor) return <span className="font-mono break-all">{valor}</span>;
+  if (origem === 'env') return <span className="text-muted-foreground">Price da variável de ambiente</span>;
+  return <span>—</span>;
+}
+
 /** Detalhe de um plano (#526): valores, n.º de assinaturas e as acções. */
 export default async function PlanoDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   await exigirPlataformaAdmin();
@@ -26,6 +40,11 @@ export default async function PlanoDetalhePage({ params }: { params: Promise<{ i
   const encontrado = await obterPlanoAdmin(id);
   if (!encontrado) notFound();
   const p = serializarPlano(encontrado);
+  const [origemMensal, origemAnual] = await Promise.all(CICLOS.map(({ ciclo }) => origemPriceId(p.codigo, ciclo)));
+  // Arquivado já não vende: sem aviso (#534).
+  const semPrice = p.arquivadoEm
+    ? []
+    : CICLOS.filter((_, i) => (i === 0 ? origemMensal : origemAnual) === null).map((c) => c.rotulo);
 
   return (
     <div className="space-y-6">
@@ -45,6 +64,15 @@ export default async function PlanoDetalhePage({ params }: { params: Promise<{ i
         }
       />
 
+      {semPrice.map((rotulo) => (
+        <Alert key={rotulo} variant="destructive">
+          <AlertTriangle className="h-4 w-4" aria-hidden />
+          <AlertDescription>
+            {`Sem Price do Stripe para o ciclo ${rotulo}: o checkout deste ciclo vai falhar.`}
+          </AlertDescription>
+        </Alert>
+      ))}
+
       <section className="rounded-lg border border-border bg-card p-6">
         <dl className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <Campo rotulo="Código">
@@ -59,10 +87,10 @@ export default async function PlanoDetalhePage({ params }: { params: Promise<{ i
           <Campo rotulo="Preço anual">{formatarUsd(p.precoAnualUsd)}</Campo>
           <Campo rotulo="Suporte">{p.suporte}</Campo>
           <Campo rotulo="Price ID mensal">
-            <span className="font-mono break-all">{p.stripePriceIdMensal ?? '—'}</span>
+            <PriceId valor={p.stripePriceIdMensal} origem={origemMensal} />
           </Campo>
           <Campo rotulo="Price ID anual">
-            <span className="font-mono break-all">{p.stripePriceIdAnual ?? '—'}</span>
+            <PriceId valor={p.stripePriceIdAnual} origem={origemAnual} />
           </Campo>
           <Campo rotulo="Fora do catálogo desde">{p.arquivadoEm ? formatarDataHora(p.arquivadoEm) : '—'}</Campo>
           <Campo rotulo="Limite de utilizadores">{formatarLimite(p.limiteUtilizadores)}</Campo>

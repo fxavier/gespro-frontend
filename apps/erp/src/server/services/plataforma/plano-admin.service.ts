@@ -1,5 +1,5 @@
 import 'server-only';
-import { Prisma, type Plano } from '@prisma/client';
+import { Prisma, type AcaoAuditoriaPlataforma, type Plano } from '@prisma/client';
 import { prismaBase } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError, ValidationError } from '@/lib/errors';
 import { RE_CODIGO_PLANO } from '@/lib/validations/common';
@@ -21,7 +21,10 @@ export interface PlataformaCtx {
   requestId?: string;
 }
 
-export type AcaoAuditoriaPlataforma = 'CRIAR' | 'ACTUALIZAR' | 'ARQUIVAR' | 'DESARQUIVAR' | 'APAGAR';
+export type { AcaoAuditoriaPlataforma };
+
+/** O campo do pedido cujo Price colide (vai em `details.campo` do PRICE_ID_DUPLICADO). */
+export type CampoPriceId = 'stripePriceIdMensal' | 'stripePriceIdAnual';
 
 export type PlanoAdmin = Plano & { assinaturas: number };
 
@@ -62,10 +65,11 @@ function dadosDe(c: PlanoCampos) {
   };
 }
 
-function erroPriceDuplicado(): BusinessRuleError {
+function erroPriceDuplicado(campo: CampoPriceId): BusinessRuleError {
   return new BusinessRuleError(
     'PRICE_ID_DUPLICADO',
     'Este Price ID do Stripe já está noutro plano ou ciclo: cada Price pertence a um só plano e a um só ciclo.',
+    { campo },
   );
 }
 
@@ -78,24 +82,31 @@ function erroCodigoDuplicado(codigo: string): BusinessRuleError {
  * colunas do plano e em qualquer coluna de outro plano. O `@unique` por coluna fica de rede.
  */
 async function exigirPricesLivres(tx: Tx, c: PlanoCampos, idProprio?: string): Promise<void> {
-  const prices = [c.stripePriceIdMensal, c.stripePriceIdAnual].filter((p): p is string => !!p);
+  const mensal = c.stripePriceIdMensal || null;
+  const anual = c.stripePriceIdAnual || null;
+  // O mesmo Price nos dois ciclos do pedido: aponta o anual, o que repete.
+  if (mensal && anual && mensal === anual) throw erroPriceDuplicado('stripePriceIdAnual');
+  const prices = [mensal, anual].filter((p): p is string => !!p);
   if (prices.length === 0) return;
-  if (prices.length === 2 && prices[0] === prices[1]) throw erroPriceDuplicado();
-  const outro = await tx.plano.findFirst({
+  const outros = await tx.plano.findMany({
     where: {
       ...(idProprio ? { id: { not: idProprio } } : {}),
       OR: [{ stripePriceIdMensal: { in: prices } }, { stripePriceIdAnual: { in: prices } }],
     },
-    select: { id: true },
+    select: { stripePriceIdMensal: true, stripePriceIdAnual: true },
   });
-  if (outro) throw erroPriceDuplicado();
+  const ocupados = new Set(outros.flatMap((o) => [o.stripePriceIdMensal, o.stripePriceIdAnual]));
+  if (mensal && ocupados.has(mensal)) throw erroPriceDuplicado('stripePriceIdMensal');
+  if (anual && ocupados.has(anual)) throw erroPriceDuplicado('stripePriceIdAnual');
 }
 
 /** P2002 traduzido: o código ou um Price (corrida entre a verificação e a escrita). */
 function traduzirUnicidade(e: unknown, codigo: string): never {
   if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+    // O alvo da violação (meta.target, ou a constraint do driver adapter) diz a coluna.
     const meta = JSON.stringify(e.meta ?? {});
-    if (/stripePriceId/.test(meta)) throw erroPriceDuplicado();
+    if (/stripePriceIdAnual/.test(meta)) throw erroPriceDuplicado('stripePriceIdAnual');
+    if (/stripePriceIdMensal/.test(meta)) throw erroPriceDuplicado('stripePriceIdMensal');
     if (/\bcodigo\b/.test(meta)) throw erroCodigoDuplicado(codigo);
   }
   throw e;

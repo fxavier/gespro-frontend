@@ -28,6 +28,7 @@ import {
   type PlanoCriarInput,
 } from '@/lib/validations/planos';
 import type { PlanoSerializado } from './plano-serializado';
+import { campoDoErroPlano } from './plano-erros';
 
 /** Os valores do formulário: os de criar (o `id` só existe na edição). */
 type Valores = PlanoCriarInput & { id?: string };
@@ -66,13 +67,6 @@ function valoresDe(p: PlanoSerializado): Valores {
     destaque: p.destaque,
   };
 }
-
-/** Recusa de negócio → campo onde aparece. */
-const CAMPO_DO_CODIGO: Record<string, Path<Valores>> = {
-  PLANO_CODIGO_INVALIDO: 'codigo',
-  PLANO_CODIGO_DUPLICADO: 'codigo',
-  PRICE_ID_DUPLICADO: 'stripePriceIdMensal',
-};
 
 interface PlanoFormProps {
   /** Ausente = criar; presente = editar (o código fica só de leitura). */
@@ -126,7 +120,7 @@ export function PlanoForm({ plano }: PlanoFormProps) {
           form.setError(campo as Path<Valores>, { type: 'server', message: msgs[0] });
         }
       }
-      const campo = CAMPO_DO_CODIGO[r.error.code];
+      const campo = campoDoErroPlano(r.error);
       if (campo) form.setError(campo, { type: 'server', message: r.error.message });
       toast.error(r.error.message ?? 'Não foi possível guardar o plano.');
     });
@@ -164,8 +158,8 @@ export function PlanoForm({ plano }: PlanoFormProps) {
               {plano.assinaturas === 0
                 ? 'Nenhuma assinatura neste plano.'
                 : plano.assinaturas === 1
-                  ? '1 assinatura neste plano: as alterações valem também para ela.'
-                  : `${plano.assinaturas} assinaturas neste plano: as alterações valem também para elas.`}
+                  ? '1 assinatura neste plano: os limites alterados valem já para ela; o preço só para subscrições novas.'
+                  : `${plano.assinaturas} assinaturas neste plano: os limites alterados valem já para elas; o preço só para subscrições novas.`}
             </p>
           )}
 
@@ -226,6 +220,10 @@ export function PlanoForm({ plano }: PlanoFormProps) {
             title="Preços"
             description="Preços de exibição em USD. A cobrança usa o Price do Stripe de cada ciclo; sem Price, usa-se o da configuração do servidor."
           >
+            <p className="text-sm text-muted-foreground">
+              Alterar o preço ou o Price ID só afecta subscrições novas; quem já tem o plano continua no preço com que
+              subscreveu.
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
@@ -284,7 +282,10 @@ export function PlanoForm({ plano }: PlanoFormProps) {
             </div>
           </FormSection>
 
-          <FormSection title="Limites e suporte">
+          <FormSection
+            title="Limites e suporte"
+            description="Os limites valem já para todas as assinaturas do plano, incluindo as existentes."
+          >
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
@@ -352,6 +353,9 @@ export function PlanoForm({ plano }: PlanoFormProps) {
             title="Funcionalidades"
             description={`Aparecem no site pela ordem desta lista (no máximo ${MAX_FUNCIONALIDADES}).`}
           >
+            <p className="text-sm text-muted-foreground">
+              Texto mostrado ao cliente no site e na facturação; não liga nem desliga módulos.
+            </p>
             {funcionalidades.length === 0 && (
               <p className="text-sm text-muted-foreground">Sem funcionalidades.</p>
             )}

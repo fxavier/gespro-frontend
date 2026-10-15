@@ -322,6 +322,15 @@ model Plano {
   @@index([arquivadoEm, ordem])
 }
 
+/// Acção registada no trilho global da plataforma (ADR-0049 §5, #534).
+enum AcaoAuditoriaPlataforma {
+  CRIAR
+  ACTUALIZAR
+  ARQUIVAR
+  DESARQUIVAR
+  APAGAR
+}
+
 /// Trilho de auditoria GLOBAL da plataforma (ADR-0049 §5 «Auditoria», #526): quem, no papel
 /// `plataforma-admin`, mudou o catálogo. Sem `tenantId` — não pertence a tenant nenhum — e fora
 /// do `AUDIT_MODELS` (o trilho do tenant): escreve-o explicitamente o `plano-admin.service`, na
@@ -330,8 +339,7 @@ model AuditoriaPlataforma {
   id          String   @id @default(cuid())
   /// `sub` do Keycloak de quem agiu (a sessão só-plataforma não tem `User`).
   keycloakSub String
-  /// CRIAR | ACTUALIZAR | ARQUIVAR | DESARQUIVAR | APAGAR
-  acao        String
+  acao        AcaoAuditoriaPlataforma
   entidade    String
   /// Código da entidade (o `Plano.codigo`) — sobrevive ao apagar.
   codigo      String
