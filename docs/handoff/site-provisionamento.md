@@ -24,19 +24,18 @@ Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=600
     "trialDias": 14,
     "planos": [
       {
-        "id": "BASICO" | "PROFISSIONAL" | "EMPRESARIAL",
+        "id": "string",              // código do plano (Plano.codigo), não vazio
         "nome": "string",
         "descricao": "string",
         "limites": {
           "utilizadores": number,      // -1 = ilimitado
           "armazens": number,          // -1 = ilimitado
-          "documentosMes": number,     // -1 = ilimitado
-          "produtos": number,          // -1 = ilimitado
           "suporte": "string"
         },
         "precoMensal": { "valor": number, "moeda": "USD" },
         "precoAnual":  { "valor": number, "moeda": "USD" },
-        "destaque": boolean
+        "destaque": boolean,
+        "funcionalidades": ["string"]  // texto para o cliente, pela ordem do catálogo
       }
     ]
   }
@@ -45,8 +44,12 @@ Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=600
 
 ⚠ **nota de implementação**: a resposta vem dentro do envelope `{ data: … }` (convenção de
 Route Handlers do projecto — `docs/handoff/feat-19-onboarding.md`). Os campos `descricao`,
-`destaque` e `trialDias` são acréscimos compatíveis; `-1` em `limites` significa ilimitado.
-Fonte única: `apps/erp/src/lib/planos.ts`.
+`destaque`, `trialDias` e `funcionalidades` são acréscimos compatíveis; `-1` em `limites`
+significa ilimitado.
+Fonte única: a tabela `Plano` (ADR-0049, #529), gerida pelo Administrador de plataforma — o
+endpoint devolve só os planos não arquivados, por `ordem`. O conjunto de códigos **não é fixo**:
+o site aceita qualquer código não vazio (#527) e lista as `funcionalidades` de cada plano;
+`funcionalidades` ausente lê-se como `[]`.
 
 Regras: o site **nunca** hardcoda preços/limites — renderiza o que este endpoint devolve
 (`/precos`, JSON-LD `Product`, FAQ). A moeda é a servida pelo endpoint (ver ADR-0009: USD no
@@ -65,7 +68,7 @@ Body:
   "admin":   { "nome": "string", "email": "string" },
   "senha": "string",                        # mín. 10 caracteres (ADR-0031)
   "confirmacao": "string",                  # tem de coincidir com `senha`
-  "planoId": "BASICO" | "PROFISSIONAL" | "EMPRESARIAL",
+  "planoId": "string",                      # código de um plano não arquivado do §1
   "provincia": "string",                    # lista MZ validada server-side
   "captchaToken": "string"                  # hCaptcha/Turnstile
 }
