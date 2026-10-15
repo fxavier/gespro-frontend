@@ -64,7 +64,7 @@ model Plano {
   descricao  String
   ordem      Int     @default(0)
   destaque   Boolean @default(false)
-  arquivado  Boolean @default(false)
+  arquivadoEm DateTime?            // arquivado quando preenchido
 
   limiteUtilizadores Int            // -1 = ilimitado
   limiteArmazens     Int            // -1 = ilimitado
@@ -131,7 +131,7 @@ cria mais; nada é desactivado. O formulário mostra quantas Assinaturas estão 
 
 ### 3. Retirar um plano: arquivar; apagar só se ninguém o referir
 
-- **Arquivar** (`arquivado = true`) tira o plano do catálogo público, do `/registo`, da escolha de plano em
+- **Arquivar** (preencher `arquivadoEm`) tira o plano do catálogo público, do `/registo`, da escolha de plano em
   `/definicoes/faturacao` e de qualquer checkout novo. Quem já o tem **mantém-no**: a `Assinatura` não
   muda, a subscrição no Stripe continua a renovar, os limites continuam a valer. Desarquivar é possível.
   Um Tenant num plano arquivado pode mudar para um activo; não pode voltar ao arquivado.
@@ -218,7 +218,7 @@ O ADR-0009 mantém-se: **o Stripe é a fonte de verdade do valor cobrado**. O qu
 | Limites numa tabela chave-valor editável | O administrador acrescenta limites sem código | Limites que ninguém verifica — a promessa decorativa que o ADR-0027 §2 retirou |
 | Funcionalidades como tabela `PlanoFuncionalidade` | Identidade por linha; ordem explícita | Ninguém referencia uma funcionalidade por id; é texto ordenado, e `text[]` é texto ordenado |
 | Funcionalidades como interruptores de módulo | O plano controlaria o que se pode usar | Muda o modelo comercial (hoje todos os planos vêem todos os módulos) e mete autorização no catálogo; decisão de outro ADR, se algum dia |
-| Eliminação lógica (`deletedAt`) em vez de arquivar | Padrão da casa para soft delete | Arquivar já é o «retirar sem perder»; um `deletedAt` ao lado de `arquivado` seriam dois interruptores para a mesma pergunta |
+| Eliminação lógica (`deletedAt`) em vez de arquivar | Padrão da casa para soft delete | Arquivar já é o «retirar sem perder»; um `deletedAt` ao lado de `arquivadoEm` seriam dois interruptores para a mesma pergunta |
 | Apagar sempre, desligando as assinaturas | Catálogo limpo | Deixa Assinaturas apontadas para nada; a FK existe para o impedir |
 | O ERP cria `Product`/`Price` no Stripe pela API | Uma só acção para o administrador; preço sempre igual ao cobrado | Escrita num sistema externo dentro de uma acção de formulário (falhas parciais, idempotência, rollback); `Price` do Stripe é imutável e a edição viraria «criar e arquivar» — complexidade desproporcionada para um catálogo de três a cinco planos |
 | Price IDs continuam só em variáveis de ambiente | Nada muda no Stripe | Um plano criado no ecrã precisaria de um deploy para ser vendável — volta-se ao ponto de partida |
