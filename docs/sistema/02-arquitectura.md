@@ -70,7 +70,7 @@ Envelopam os pipelines sem mudar contratos:
 | Preocupação | Onde | Notas |
 |---|---|---|
 | Observabilidade | `src/server/observability/*`, `instrumentation.ts` | Logger estruturado com redacção de PII; `requestId` num ALS **separado** do tenant; métricas RED; `/api/health`, `/api/ready`, `/api/metrics` ([ADR-0005-c](../decisions/ADR-0005-observabilidade.md), [ADR-0019](../decisions/ADR-0019-telemetria-slo.md)) |
-| Segurança HTTP | `middleware.ts`, `src/lib/security/headers.ts`, `src/lib/api/cors.ts` | CSP com nonce (report-only até `CSP_ENFORCE=true`), HSTS, frame, nosniff; CORS por allowlist; `middleware.ts` é o único dono dos paths públicos |
+| Segurança HTTP | `src/proxy.ts`, `src/lib/security/headers.ts`, `src/lib/api/cors.ts` | CSP com nonce (report-only até `CSP_ENFORCE=true`), HSTS, frame, nosniff; CORS por allowlist; `src/proxy.ts` é o único dono dos paths públicos |
 | Documentos | `src/lib/documents/*`, `src/lib/reporting/*` | PDF fiscal **reflecte** o documento emitido, nunca recalcula ([ADR-0005-a](../decisions/0005-motor-pdf.md)) |
 | Armazenamento | `src/lib/storage/objeto/*` | URLs assinadas; prefixo de chave por tenant verificado na escrita e no delete ([ADR-0017](../decisions/ADR-0017-ciclo-vida-armazenamento.md)) |
 | Notificações | `plataforma/notificacao.service.ts`, `src/server/email/*` | Persistir dentro da tx, enviar **depois** do commit (`despacharNotificacoes`) |

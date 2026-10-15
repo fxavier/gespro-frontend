@@ -59,7 +59,7 @@ function isPublic(pathname: string): boolean {
  * de `public/` também, senão a própria página ficava sem imagens.
  *
  * Aqui e não no layout: um layout partilhado não volta a correr numa
- * navegação client-side, e o middleware corre em todos os pedidos.
+ * navegação client-side, e o proxy corre em todos os pedidos.
  */
 function permitidoEmPagamento(pathname: string): boolean {
   return (
@@ -92,7 +92,7 @@ function permitidoSemTenant(pathname: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Gerador de nonce CSP (edge-safe: crypto.getRandomValues + btoa)
+// Gerador de nonce CSP (Web Crypto + btoa: globais no runtime Node do proxy)
 // ---------------------------------------------------------------------------
 function generateNonce(): string {
   const bytes = new Uint8Array(16);
@@ -101,25 +101,29 @@ function generateNonce(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Middleware principal
+// Proxy principal
 // ---------------------------------------------------------------------------
 
 /**
- * Middleware edge-safe:
+ * Proxy do Next 16 (antiga convenção `middleware`, #533). Corre SEMPRE em
+ * runtime Node — o `config` abaixo não pode declarar `runtime` (o `next build`
+ * recusa). Vive em `src/` porque a app está em `src/app`: é o único sítio que o
+ * `next dev` e o `next build` procuram os dois.
+ *
  * 1. Aplica cabeçalhos de segurança HTTP em todas as respostas (via buildSecurityHeaders).
  * 2. Verifica JWT (via jose internamente no next-auth/jwt) para rotas privadas.
- *    Sem acesso à base de dados — edge-safe.
+ *    Sem acesso à base de dados.
  * 3. Gera nonce CSP por pedido e propaga via cabeçalho `x-nonce` para o layout RSC.
  *
  * A lógica de construção de headers vive em src/lib/security/headers.ts (client-safe,
  * testável em Vitest puro) e é importada aqui e nos testes — garantia de paridade.
  */
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isDev = process.env.NODE_ENV === 'development';
   const enforceCSP = process.env.CSP_ENFORCE === 'true';
 
-  // Gerar nonce por pedido (edge-safe: crypto é global no Edge Runtime)
+  // Gerar nonce por pedido (crypto é global no Node 18+)
   const nonce = generateNonce();
 
   // Construir todos os cabeçalhos de segurança (mesma lógica que nos testes)
@@ -129,7 +133,7 @@ export async function middleware(req: NextRequest) {
   // script e do <iframe> da Cloudflare que a política geral proíbe. A excepção
   // é DA ROTA: abrir `challenges.cloudflare.com` nas rotas autenticadas para
   // servir um ecrã anónimo seria pagar em toda a aplicação o preço de uma
-  // página. Tem de ser aqui e não no `next.config.ts` — o middleware escreve o
+  // página. Tem de ser aqui e não no `next.config.ts` — o proxy escreve o
   // mesmo nome de cabeçalho por último e um CSP substitui-se, não se acrescenta
   // (medido; ver o cabeçalho de `src/app/registo/csp.ts`).
   if (pathname === '/registo') {

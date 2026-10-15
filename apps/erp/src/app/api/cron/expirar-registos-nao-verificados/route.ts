@@ -17,7 +17,7 @@ import { expurgarRegistosNaoVerificados } from '@/server/services/plataforma/exp
  * existentes executam fora do pipeline e não aparecem no Grafana.
  *
  * Protecção: `Authorization: Bearer <CRON_SECRET>`, verificado pelo `withCron`.
- * O endpoint está em `/api/cron/` que o middleware.ts não intercepta (PUBLIC_PATHS).
+ * O endpoint está em `/api/cron/` que o src/proxy.ts não intercepta (PUBLIC_PATHS).
  * Agendamento: diário, 03:10 UTC (depois do expirar-trials) — ver infra/local/cron/crontab e o runbook.
  */
 export const runtime = 'nodejs';

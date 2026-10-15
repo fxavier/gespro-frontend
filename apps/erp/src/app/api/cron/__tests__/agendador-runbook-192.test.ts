@@ -32,7 +32,8 @@ const RAIZ = path.resolve(__dirname, '../../../../../../..');
 const DIR_CRON = path.resolve(__dirname, '..');
 const CRONTAB = path.join(RAIZ, 'infra/local/cron/crontab');
 const RUNBOOK = path.join(RAIZ, 'docs/runbooks/agendador.md');
-const MIDDLEWARE = path.join(RAIZ, 'apps/erp/middleware.ts');
+// #533: a convenção `middleware` do Next 16 passou a `proxy` — os PUBLIC_PATHS vivem em src/proxy.ts.
+const MIDDLEWARE = path.join(RAIZ, 'apps/erp/src/proxy.ts');
 const COMPOSE = path.join(RAIZ, 'docker-compose.yml');
 
 const ler = (f: string) => readFileSync(f, 'utf8');
@@ -76,7 +77,7 @@ function tabelaRunbook(): Array<{ rota: string; quando: string }> {
 function publicPathsDoMiddleware(): string[] {
   const src = ler(MIDDLEWARE);
   const bloco = src.match(/const PUBLIC_PATHS\s*=\s*\[([\s\S]*?)\];/);
-  expect(bloco, 'PUBLIC_PATHS não encontrado em middleware.ts').not.toBeNull();
+  expect(bloco, 'PUBLIC_PATHS não encontrado em src/proxy.ts').not.toBeNull();
   const semComentarios = bloco![1].replace(/\/\/[^\n]*/g, '');
   return [...semComentarios.matchAll(/'([^']+)'/g)].map((m) => m[1]);
 }

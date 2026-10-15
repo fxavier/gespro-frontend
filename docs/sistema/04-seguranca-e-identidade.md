@@ -78,8 +78,8 @@ nunca se travam.
 
 | Controlo | Implementação |
 |---|---|
-| Headers | `middleware.ts` é o dono único: CSP com nonce por pedido (report-only até `CSP_ENFORCE=true`), HSTS, `X-Frame-Options`, `nosniff`, Referrer-Policy, Permissions-Policy |
-| Rotas públicas | `PUBLIC_PATHS` em `middleware.ts`: `/auth/`, `/api/auth/`, probes, `/api/publico/*`, webhooks, `/api/cron/` (protegidos por segredo próprio) |
+| Headers | `src/proxy.ts` é o dono único: CSP com nonce por pedido (report-only até `CSP_ENFORCE=true`), HSTS, `X-Frame-Options`, `nosniff`, Referrer-Policy, Permissions-Policy |
+| Rotas públicas | `PUBLIC_PATHS` em `src/proxy.ts`: `/auth/`, `/api/auth/`, probes, `/api/publico/*`, webhooks, `/api/cron/` (protegidos por segredo próprio) |
 | CORS | Allowlist `ALLOWED_ORIGINS`; nunca wildcard |
 | Limitação de tráfego | Porta com adaptador em memória ou Valkey (`RATE_LIMIT_DRIVER`, `VALKEY_URL`); registo público, login, convites, exportações, presign ([ADR-0014](../decisions/ADR-0014-cache-e-rate-limit-distribuido.md)). Detalhe e desvios em [API §1](05-api.md) |
 | Anti-abuso no registo | Campo-armadilha + rate-limit; provedor de captcha por fixar ([ADR-0016](../decisions/ADR-0016-anti-abuso-registo.md)) |

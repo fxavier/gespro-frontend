@@ -33,7 +33,7 @@ Sem `--profile full` sobem só `db`, `db-init` e `keycloak` (desenvolvimento).
   para migrações que quebram compatibilidade ([ADR-0022 §6](../decisions/ADR-0022-provisionamento-ambientes.md)).
 - Probes: `/api/health` (liveness, sem BD), `/api/ready` (`SELECT 1`), `/api/metrics` (Prometheus,
   `METRICS_SECRET`). Todos em `PUBLIC_PATHS` — um probe a receber 307 é sinal de regressão no
-  `middleware.ts`.
+  `src/proxy.ts`.
 
 ## Configuração
 
