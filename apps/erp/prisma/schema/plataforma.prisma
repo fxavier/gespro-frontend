@@ -296,8 +296,10 @@ model Plano {
   precoMensalUsd Decimal @db.Decimal(12, 2)
   precoAnualUsd  Decimal @db.Decimal(12, 2)
 
-  stripePriceIdMensal String?
-  stripePriceIdAnual  String?
+  /// Um Price pertence a um plano e a um ciclo (ADR-0049 §4): único por coluna (nulos não
+  /// colidem); o serviço recusa também o mesmo Price nas duas colunas (PRICE_ID_DUPLICADO).
+  stripePriceIdMensal String? @unique
+  stripePriceIdAnual  String? @unique
 
   /// -1 = ilimitado. Verificado em `exigirLugarNoPlano` (ADR-0027 §3).
   limiteUtilizadores Int
@@ -318,6 +320,36 @@ model Plano {
   assinaturas Assinatura[]
 
   @@index([arquivadoEm, ordem])
+}
+
+/// Acção registada no trilho global da plataforma (ADR-0049 §5, #534).
+enum AcaoAuditoriaPlataforma {
+  CRIAR
+  ACTUALIZAR
+  ARQUIVAR
+  DESARQUIVAR
+  APAGAR
+}
+
+/// Trilho de auditoria GLOBAL da plataforma (ADR-0049 §5 «Auditoria», #526): quem, no papel
+/// `plataforma-admin`, mudou o catálogo. Sem `tenantId` — não pertence a tenant nenhum — e fora
+/// do `AUDIT_MODELS` (o trilho do tenant): escreve-o explicitamente o `plano-admin.service`, na
+/// MESMA transacção da escrita, para que uma escrita recusada não deixe linha.
+model AuditoriaPlataforma {
+  id          String   @id @default(cuid())
+  /// `sub` do Keycloak de quem agiu (a sessão só-plataforma não tem `User`).
+  keycloakSub String
+  acao        AcaoAuditoriaPlataforma
+  entidade    String
+  /// Código da entidade (o `Plano.codigo`) — sobrevive ao apagar.
+  codigo      String
+  antes       Json?
+  depois      Json?
+  requestId   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entidade, codigo, createdAt])
+  @@index([createdAt])
 }
 
 /// Livro de idempotência dos webhooks Stripe.

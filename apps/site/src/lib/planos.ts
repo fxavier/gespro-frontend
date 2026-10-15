@@ -12,17 +12,14 @@ import { ENDPOINT_PLANOS } from "./env";
  * Contrato congelado em `docs/handoff/execucao-paralela-18-19.md`:
  *
  *   GET /api/publico/planos
- *     → 200 { planos: [{ id, nome, limites,
+ *     → 200 { data: { trialDias, planos: [{ id, nome, limites, funcionalidades,
  *                        precoMensal: { valor, moeda },
- *                        precoAnual:  { valor, moeda } }] }
+ *                        precoAnual:  { valor, moeda } }] } }
  *
  * Enquanto o endpoint não existir, `obterPlanos()` degrada para o catálogo de
  * demonstração (`PLANOS_DEMONSTRACAO`) e assinala `origem: "demonstracao"`,
  * para a página avisar que os valores são indicativos.
  */
-
-export const IDS_PLANO = ["BASICO", "PROFISSIONAL", "EMPRESARIAL"] as const;
-export type IdPlano = (typeof IDS_PLANO)[number];
 
 /** Preço tolerante à serialização: `Decimal` chega como string, mas aceita número. */
 const precoSchema = z.object({
@@ -31,7 +28,9 @@ const precoSchema = z.object({
 });
 
 const planoSchema = z.object({
-  id: z.enum(IDS_PLANO),
+  // Desde o n.º 529 o catálogo vive na tabela `Plano` (gerida pelo Administrador de
+  // plataforma): qualquer código não vazio é um plano. Um 4.º plano não derruba o catálogo.
+  id: z.string().min(1),
   nome: z.string().min(1),
   descricao: z.string().optional(),
   limites: z
@@ -43,9 +42,18 @@ const planoSchema = z.object({
   precoAnual: precoSchema,
 });
 
-const respostaSchema = z.object({
+const listaSchema = z.object({
   planos: z.array(planoSchema).min(1),
 });
+
+/**
+ * O endpoint do ERP responde com o envelope dos Route Handlers
+ * (`{ data: { trialDias, planos } }`); a forma nua `{ planos }` continua aceite.
+ */
+const respostaSchema = z.union([
+  z.object({ data: listaSchema }).transform((r) => r.data),
+  listaSchema,
+]);
 
 export type Preco = z.infer<typeof precoSchema>;
 export type Plano = z.infer<typeof planoSchema>;
@@ -85,7 +93,7 @@ export const PLANOS_DEMONSTRACAO: Plano[] = [
       "Vendas e facturação",
       "Stock num armazém",
       "Caixa e contas correntes",
-      "Contabilidade PGC-NIRF",
+      "Contabilidade geral (PGC-NIRF)",
     ],
     destaque: false,
     precoMensal: { valor: "29", moeda: "USD" },
@@ -163,11 +171,12 @@ export async function obterPlanos(): Promise<Catalogo> {
   }
 }
 
-/** Ordena pela progressão comercial dos planos, independente da ordem da API. */
+/**
+ * Preserva a ordem da API, que já ordena por `Plano.ordem` (editável em
+ * /plataforma/planos). Devolve uma cópia; não reordena por código.
+ */
 export function ordenar(planos: Plano[]): Plano[] {
-  return [...planos].sort(
-    (a, b) => IDS_PLANO.indexOf(a.id) - IDS_PLANO.indexOf(b.id)
-  );
+  return [...planos];
 }
 
 /**

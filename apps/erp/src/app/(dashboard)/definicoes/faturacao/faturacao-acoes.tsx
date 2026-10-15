@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { CreditCard, ExternalLink, Loader2 } from 'lucide-react';
+import { Check, CreditCard, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +34,7 @@ import { LEITURA_DIAS } from '@/lib/state-machines';
  */
 export function FaturacaoAcoes({
   planos,
+  planoActualArquivado = null,
   planoActual,
   cicloActual,
   temSubscricaoStripe,
@@ -41,6 +42,8 @@ export function FaturacaoAcoes({
 }: {
   /** Catálogo (não arquivados), lido pelo Server Component — nunca importado aqui. */
   planos: PlanoPublico[];
+  /** O plano actual, quando arquivado: mostrado marcado e sem botão (ADR-0049 §3, #527). */
+  planoActualArquivado?: PlanoPublico | null;
   planoActual: PlanoId;
   cicloActual: CicloId | null;
   temSubscricaoStripe: boolean;
@@ -111,10 +114,26 @@ export function FaturacaoAcoes({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {planoActualArquivado && (
+          <Card className="border-primary">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base">{planoActualArquivado.nome}</CardTitle>
+              </div>
+              <StatusBadge
+                status="ATIVA"
+                label="Plano actual (já não disponível para novas subscrições)"
+              />
+              <p className="text-sm text-muted-foreground">{planoActualArquivado.descricao}</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <DetalhePlano plano={planoActualArquivado} ciclo={ciclo} />
+            </CardContent>
+          </Card>
+        )}
         {planos.map((plano) => {
           const id = plano.id;
-          const preco = ciclo === 'ANUAL' ? plano.precoAnual : plano.precoMensal;
           const actual = id === planoActual;
           return (
             <Card key={id} className={actual ? 'border-primary' : undefined}>
@@ -126,22 +145,7 @@ export function FaturacaoAcoes({
                 <p className="text-sm text-muted-foreground">{plano.descricao}</p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-2xl font-semibold tabular-nums">
-                  {preco.valor} {preco.moeda}
-                  <span className="ml-1 text-sm font-normal text-muted-foreground">
-                    /{ciclo === 'ANUAL' ? 'ano' : 'mês'}
-                  </span>
-                </p>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>
-                    Utilizadores:{' '}
-                    {plano.limites.utilizadores === -1 ? 'ilimitados' : plano.limites.utilizadores}
-                  </li>
-                  <li>
-                    Armazéns: {plano.limites.armazens === -1 ? 'ilimitados' : plano.limites.armazens}
-                  </li>
-                  <li>Suporte: {plano.limites.suporte}</li>
-                </ul>
+                <DetalhePlano plano={plano} ciclo={ciclo} />
                 <Button
                   className="w-full"
                   disabled={pendente}
@@ -198,5 +202,49 @@ export function FaturacaoAcoes({
         )}
       </div>
     </div>
+  );
+}
+
+/** -1 é «sem limite» no catálogo (`LimitesPlano`); nunca se mostra «-1». */
+function limite(valor: number): string {
+  return valor === -1 ? 'Ilimitado' : String(valor);
+}
+
+/** Preço, limites, suporte e funcionalidades de um plano — tudo vindo da tabela `Plano`. */
+function DetalhePlano({ plano, ciclo }: { plano: PlanoPublico; ciclo: CicloId }) {
+  const preco = ciclo === 'ANUAL' ? plano.precoAnual : plano.precoMensal;
+  return (
+    <>
+      <p className="text-2xl font-semibold tabular-nums">
+        {preco.valor} {preco.moeda}
+        <span className="ml-1 text-sm font-normal text-muted-foreground">
+          /{ciclo === 'ANUAL' ? 'ano' : 'mês'}
+        </span>
+      </p>
+      <dl className="space-y-1 text-sm">
+        <div className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">Utilizadores:</dt>
+          <dd className="font-medium tabular-nums">{limite(plano.limites.utilizadores)}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">Armazéns:</dt>
+          <dd className="font-medium tabular-nums">{limite(plano.limites.armazens)}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">Suporte:</dt>
+          <dd className="font-medium">{plano.limites.suporte}</dd>
+        </div>
+      </dl>
+      {plano.funcionalidades.length > 0 && (
+        <ul className="space-y-1.5 text-sm" aria-label={`Funcionalidades do plano ${plano.nome}`}>
+          {plano.funcionalidades.map((f) => (
+            <li key={f} className="flex items-start gap-2">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              {f}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }

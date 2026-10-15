@@ -22,6 +22,10 @@
  * Keycloak): o valor não muda nada em execução, e é essa a intenção. Serve de
  * declaração, não de interruptor.
  *
+ * As actions de PLATAFORMA (`plataforma: true`, ADR-0049 §5, #526) também contam como
+ * declaradas: não actuam sobre tenant nenhum, e o pipeline não as trava pela Leitura de um
+ * tenant. `plataforma: false` não é declaração.
+ *
  * Exit code 0 = OK; 1 = violações encontradas.
  */
 
@@ -43,6 +47,7 @@ for (const nomeFicheiro of readdirSync(DIR_ACTIONS)) {
   for (const m of conteudo.matchAll(BLOCO)) {
     const [bloco, nome, corpo] = m;
     if (corpo.includes('revalidate:') || corpo.includes('permiteEmLeitura')) continue;
+    if (/\bplataforma:\s*true\b/.test(corpo)) continue;
     const linha = conteudo.slice(0, m.index + bloco.indexOf(nome)).split('\n').length;
     violacoes.push({ ficheiro: relative(ROOT, caminho), linha, nome });
   }
