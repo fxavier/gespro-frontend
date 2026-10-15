@@ -6,9 +6,8 @@
  */
 
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { auditService } from '@/server/services/plataforma/audit.service';
 import { FilterAuditLogSchema } from '@/lib/validations/plataforma';
 import { PageHeader, FilterBar } from '@/components/patterns';
@@ -114,8 +113,7 @@ interface PageProps {
 }
 
 export default async function AuditoriaPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

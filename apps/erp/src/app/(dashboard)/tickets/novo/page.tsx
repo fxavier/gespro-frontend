@@ -3,16 +3,14 @@
  * Carrega categorias no servidor e passa ao formulário cliente.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { categoriaTicketService } from '@/server/services/operacoes/ticket.service';
 import { PageHeader } from '@/components/patterns';
 import { NovoTicketForm } from './_components/novo-ticket-form';
 
 export default async function NovoTicketPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

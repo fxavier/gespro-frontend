@@ -1,6 +1,5 @@
 import 'server-only';
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { voltarSeguro } from '@/lib/validations/fluxo-caixa';
 
 export const PERM_LEITURA = 'financas:fluxo-caixa:leitura';
@@ -16,8 +15,7 @@ export interface AcessoDFC {
 
 /** Sessão + as três permissões da DFC. Sem sessão, vai para o login. */
 export async function acessoDFC(): Promise<AcessoDFC> {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const tem = (p: string) => permissions.includes(p);
   return {

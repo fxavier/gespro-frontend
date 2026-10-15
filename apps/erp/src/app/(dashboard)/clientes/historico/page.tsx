@@ -6,10 +6,10 @@
  * Handler (`/api/export/cliente-historico`). Leitura dentro de
  * `runWithTenantContext` (o serviço usa o cliente Prisma scoped).
  */
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { History, Download } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import { PageHeader, StatusBadge, EmptyState } from '@/components/patterns';
@@ -23,8 +23,7 @@ interface PageProps {
 const mt = (v: string) => `MT ${parseFloat(v).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}`;
 
 export default async function HistoricoClientesPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 

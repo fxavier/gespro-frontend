@@ -1,6 +1,5 @@
 import 'server-only';
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarSeries } from '@/server/services/financas/faturacao.service';
 import type { SerieDocumento } from '@/server/services/financas/faturacao.interface';
@@ -18,8 +17,7 @@ export interface AcessoSeries {
 
 /** Sessão + as duas permissões das séries (#149). Sem sessão, vai para o login. */
 export async function acessoSeries(): Promise<AcessoSeries> {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const tem = (p: string) => permissions.includes(p);
   return {

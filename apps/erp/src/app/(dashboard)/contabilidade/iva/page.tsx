@@ -9,9 +9,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { PercentCircle, AlertTriangle } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { obterApuramento } from '@/server/services/financas/apuramento-iva.service';
@@ -227,8 +226,7 @@ async function IvaSection({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default async function IvaPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

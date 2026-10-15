@@ -5,10 +5,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { BarChart3, Clock, FolderKanban, TrendingUp } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { RelatorioService } from '@/server/services/pessoas-projetos/projetos.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
@@ -177,8 +176,7 @@ interface PageProps {
 }
 
 export default async function RelatoriosProjetosPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const params = await searchParams;

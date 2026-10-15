@@ -3,8 +3,8 @@
  * Dados reais via prisma.movimentoStock.findFirst (stockService não expõe obterMovimento).
  */
 
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { DetailShell, PageHeader, StatusBadge } from '@/components/patterns';
@@ -38,8 +38,7 @@ interface PageProps {
 }
 
 export default async function MovimentacaoDetalhePage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const { id } = await params;

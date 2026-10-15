@@ -2,10 +2,10 @@
  * Detalhe de Candidatura — Server Component (NUNCA 'use client').
  * Mostra entrevistas, histórico e botão de Admitir (em rota separada).
  */
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, User } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { CandidaturaService } from '@/server/services/pessoas-projetos/recrutamento.service';
 import { PageHeader, StatusBadge, DetailShell, Timeline } from '@/components/patterns';
@@ -23,8 +23,7 @@ interface Props {
 export default async function CandidaturaDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

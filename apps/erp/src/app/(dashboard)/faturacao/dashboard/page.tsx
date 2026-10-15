@@ -4,7 +4,6 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import {
   Receipt,
   FileText,
@@ -16,7 +15,7 @@ import {
   AlertTriangle,
   Plus,
 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
 import { clienteService } from '@/server/services/comercial/cliente.service';
@@ -146,8 +145,7 @@ function DashboardSkeleton() {
 }
 
 export default async function FaturacaoDashboardPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
 
   return (

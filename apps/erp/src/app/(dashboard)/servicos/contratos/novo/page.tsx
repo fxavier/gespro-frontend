@@ -1,8 +1,7 @@
 /**
  * Novo Contrato de Serviço — Server Component (carrega serviços, delega o form).
  */
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { servicoService } from '@/server/services/compras/servico.service';
 import { clienteService } from '@/server/services/comercial/cliente.service';
@@ -10,8 +9,7 @@ import { PageHeader } from '@/components/patterns';
 import { NovoContratoForm } from './_components/novo-contrato-form';
 
 export default async function NovoContratoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };
 

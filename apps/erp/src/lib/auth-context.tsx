@@ -47,11 +47,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const carregando = status === 'loading';
   const isAuthenticated = status === 'authenticated' && !!session?.user;
 
+  // Uma sessão de plataforma (#537) não tem tenant: o shim não fabrica um
+  // utilizador nem um tenant para ela.
+  const tenantId = session?.user?.tenantId;
+
   // Construir um objecto Usuario a partir da sessão next-auth
-  const usuario: Usuario | null = session?.user
+  const usuario: Usuario | null = session?.user && tenantId
     ? {
         id: session.user.id,
-        tenantId: session.user.tenantId,
+        tenantId,
         nome: session.user.name ?? 'Utilizador',
         email: session.user.email ?? '',
         funcao: 'TENANT_ADMIN', // permissões reais estão em session.user.permissions
@@ -61,9 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     : null;
 
   // Stub de Tenant — os dados reais do tenant precisam de chamada ao servidor
-  const tenant: Tenant | null = session?.user
+  const tenant: Tenant | null = session?.user && tenantId
     ? {
-        id: session.user.tenantId,
+        id: tenantId,
         nomeEmpresa: 'GestPro',
         nuit: '',
         email: session.user.email ?? '',

@@ -2,8 +2,8 @@
  * Editar Conta Bancária — Server Component. saldoAtual não é editável.
  */
 
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { listarContasMeioPagamentoPOS } from '@/server/services/financas/meio-pagamento.service';
@@ -17,8 +17,7 @@ export default async function EditarContaBancariaPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
   const { id } = await params;
   const ctx = { tenantId, userId };

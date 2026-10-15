@@ -4,9 +4,8 @@
  */
 
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { BarChart3, Ticket, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ticketService } from '@/server/services/operacoes/ticket.service';
 import { KpiCard, PageHeader } from '@/components/patterns';
@@ -92,8 +91,7 @@ async function RelatorioKpis({ tenantId, userId }: { tenantId: string; userId: s
 }
 
 export default async function RelatoriosTicketsPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

@@ -11,10 +11,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Users, UserCheck, UserX, Clock } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ColaboradorService } from '@/server/services/pessoas-projetos/rh.service';
 import { FilterColaboradorSchema } from '@/lib/validations/rh';
@@ -147,8 +146,7 @@ interface PageProps {
 }
 
 export default async function ColaboradoresPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

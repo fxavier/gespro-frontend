@@ -4,8 +4,8 @@
  */
 
 import { Suspense } from 'react';
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { contagemStockService } from '@/server/services/inventario/contagem-stock.service';
 import { PageHeader, StatusBadge, KpiCard } from '@/components/patterns';
@@ -18,8 +18,7 @@ interface ContagemPageProps {
 }
 
 export default async function ContagemDetalhePage({ params }: ContagemPageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const { id } = await params;

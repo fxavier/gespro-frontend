@@ -7,11 +7,12 @@ declare module 'next-auth' {
       id: string;
       /**
        * Ausente SÓ na sessão do administrador de plataforma sem `User` de
-       * tenant (#525). Essa sessão nunca chega a uma rota de tenant (o
-       * middleware leva-a a `/plataforma`) nem a um pipeline de tenant
-       * (`createSafeAction`/`withApi` recusam-na antes do contexto).
+       * tenant (#525). Páginas e layouts do tenant obtêm-no por
+       * `exigirSessaoDeTenant()` (`@/server/auth/sessao-tenant`, #537), que
+       * leva essa sessão a `/plataforma`; `createSafeAction`/`withApi`
+       * recusam-na antes do contexto. Nunca o afirmes com um cast.
        */
-      tenantId: string;
+      tenantId?: string;
       permissions: string[];
       /**
        * Papel de realm `plataforma-admin` do Keycloak (ADR-0011 §5, #525):

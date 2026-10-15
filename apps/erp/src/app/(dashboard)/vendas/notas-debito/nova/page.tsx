@@ -6,8 +6,7 @@
  * passa a omissão do tenant e a primeira página da classe admitida, fundidas por id.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { clienteService } from '@/server/services/comercial/cliente.service';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
@@ -18,8 +17,7 @@ import { NovaNotaDebitoForm } from './_components/nova-nota-debito-form';
 import { diaIsoMaputo } from '@/lib/format-date';
 
 export default async function NovaNotaDebitoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

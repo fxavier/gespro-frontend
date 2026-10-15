@@ -13,7 +13,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { sessaoPOSService } from '@/server/services/comercial/index';
 import { obterSessaoAtual as obterSessaoCaixaAtual } from '@/server/services/financas/caixa.service';
@@ -22,8 +22,7 @@ import { POSTerminal } from './_components/pos-terminal';
 import { POSIniciar } from './_components/pos-iniciar';
 
 export default async function POSPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

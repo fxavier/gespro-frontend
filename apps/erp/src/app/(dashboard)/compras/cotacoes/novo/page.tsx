@@ -2,8 +2,7 @@
  * Nova Cotação (RFQ) — Server Component shell.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { fornecedorService } from '@/server/services/compras/fornecedor.service';
@@ -14,9 +13,8 @@ import { rotuloFornecedor, rotuloRequisicao } from '../../_components/opcoes-com
 import { NovaCotacaoForm } from './_components/nova-cotacao-form';
 
 export default async function NovaCotacaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
 
   // Primeira página de cada `ComboboxRemoto` (#265); o resto chega pela pesquisa no servidor.
   const [requisicoes, fornecedores] = await runWithTenantContext(ctx, () =>

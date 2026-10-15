@@ -5,9 +5,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { stockService } from '@/server/services/inventario/stock.service';
 import { PageHeader } from '@/components/patterns';
@@ -24,8 +23,7 @@ async function ReposicaoTableSection({ tenantId, userId }: { tenantId: string; u
 }
 
 export default async function ReposicaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

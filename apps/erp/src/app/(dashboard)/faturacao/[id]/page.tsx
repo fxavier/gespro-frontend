@@ -3,10 +3,10 @@
  * Documento append-only: sem edição. Pagamentos/notas de crédito são fluxos próprios.
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Banknote, Download } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
 import { ESTADOS_FATURA_PAGAVEL } from '@/server/services/financas/faturacao.interface';
@@ -36,8 +36,7 @@ const fmtData = (d: Date | string) =>
 export default async function FaturaDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };

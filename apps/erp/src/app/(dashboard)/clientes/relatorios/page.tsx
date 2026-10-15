@@ -5,9 +5,8 @@
  * exportação da carteira por Route Handler (`/api/export/clientes`).
  */
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { Users, UserCheck, Wallet, CreditCard, Download } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { relatoriosService } from '@/server/services/plataforma/relatorios.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
@@ -72,8 +71,7 @@ async function ConteudoClientes({ tenantId, userId }: { tenantId: string; userId
 }
 
 export default async function RelatoriosClientesPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
 
   return (

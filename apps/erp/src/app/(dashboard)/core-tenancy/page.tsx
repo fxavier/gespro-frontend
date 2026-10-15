@@ -11,9 +11,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Users, ShieldCheck, ClipboardList, Building2 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { userAdminService } from '@/server/services/plataforma/user-admin.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -122,8 +121,7 @@ const MODULOS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default async function CoreTenancyPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

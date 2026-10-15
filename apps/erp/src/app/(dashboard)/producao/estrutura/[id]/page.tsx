@@ -5,10 +5,10 @@
  * «Activar» quando o mapa permite ATIVO, «Desactivar» em ATIVO; SUBSTITUIDO é terminal.
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { TRANSICOES_BOM } from '@/server/services/pessoas-projetos/producao.interface';
@@ -35,8 +35,7 @@ function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode
 export default async function EstruturaDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };

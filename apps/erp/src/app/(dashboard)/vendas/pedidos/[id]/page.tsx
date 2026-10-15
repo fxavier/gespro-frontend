@@ -2,9 +2,9 @@
  * Detalhe de Encomenda de Venda — Server Component.
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { encomendaService } from '@/server/services/comercial/index';
 import { PageHeader, StatusBadge } from '@/components/patterns';
@@ -18,8 +18,7 @@ interface PageProps {
 }
 
 export default async function EncomendaDetalhePage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const { id } = await params;

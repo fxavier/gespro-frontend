@@ -3,8 +3,7 @@
  * Formulário interactivo em NovaDevolucaoForm (Client Component).
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarProdutos } from '@/server/services/inventario/catalogo.service';
 import { clientesIniciais } from '../../../faturacao/_components/clientes-iniciais';
@@ -12,9 +11,8 @@ import { PageHeader } from '@/components/patterns';
 import { NovaDevolucaoForm } from '../_components/nova-devolucao-form';
 
 export default async function NovaDevolucaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
 
   // #265: cliente e produtos escolhem-se num `ComboboxRemoto` — primeira página aqui, o resto
   // pela pesquisa no servidor. A venda depende do cliente e procura-se pelo número.

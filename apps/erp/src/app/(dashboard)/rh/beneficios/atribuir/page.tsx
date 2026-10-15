@@ -3,8 +3,7 @@
  * Pode ser chamada com ?beneficioId=<id> a partir do detalhe do benefício.
  */
 
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { BeneficioService } from '@/server/services/pessoas-projetos/beneficios.service';
 import { ColaboradorService } from '@/server/services/pessoas-projetos/rh.service';
@@ -16,8 +15,7 @@ interface PageProps {
 }
 
 export default async function AtribuirBeneficioPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

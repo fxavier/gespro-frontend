@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { NotFoundError } from '@/lib/errors';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { listarPeriodos, obterContaReconciliacao } from '@/server/services/reconciliacao/consulta.service';
@@ -10,9 +10,8 @@ import { PageHeader } from '@/components/patterns';
 import { PeriodosTable, type PeriodoRow } from './_components/periodos-table';
 
 export default async function PeriodosPage({ params }: { params: Promise<{ contaId: string }> }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
   const { contaId } = await params;
   const [conta, periodos] = await runWithTenantContext(ctx, () =>
     Promise.all([obterContaReconciliacao(contaId, ctx), listarPeriodos(contaId, ctx)]),

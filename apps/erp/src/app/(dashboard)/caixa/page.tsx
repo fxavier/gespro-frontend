@@ -11,10 +11,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { Plus, DollarSign, CheckCircle, Clock } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as caixaService from '@/server/services/financas/caixa.service';
 import { FiltroSessaoCaixaSchema } from '@/lib/validations/caixa';
@@ -147,8 +146,7 @@ interface PageProps {
 }
 
 export default async function CaixaPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
 
   const rawParams = await searchParams;

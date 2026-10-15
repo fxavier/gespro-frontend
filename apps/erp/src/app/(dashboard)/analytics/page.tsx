@@ -7,7 +7,6 @@
  */
 
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import {
   TrendingUp,
   Package,
@@ -16,7 +15,7 @@ import {
   Users,
   Ticket,
 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { dashboardService } from '@/server/services/plataforma/analytics.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -288,8 +287,7 @@ interface PageProps {
 }
 
 export default async function AnalyticsPage(_props: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

@@ -5,9 +5,9 @@
  * edição aqui — há transições, e a conversão numa rota própria.
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as faturacaoService from '@/server/services/financas/faturacao.service';
 import { TRANSICOES_PROFORMA } from '@/server/services/financas/faturacao.interface';
@@ -25,8 +25,7 @@ interface Props {
 export default async function ProformaDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };
 

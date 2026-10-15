@@ -6,10 +6,10 @@
  * componente-folha `PedidoAcoes`; cancelar é rota própria (recolhe o motivo).
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PackageCheck, XCircle } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { Button } from '@/components/ui/button';
@@ -30,8 +30,7 @@ const ESTADOS_RECEBIVEIS = ['EM_TRANSITO', 'RECEBIDO_PARCIAL'];
 export default async function PedidoCompraDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
 

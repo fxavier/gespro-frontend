@@ -5,13 +5,13 @@
  * Acções de mutação delegadas a TicketAcoes (client component).
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import {
   Clock, User, Mail, Phone, Tag, Star,
   AlertTriangle, Edit, MessageSquare,
 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ticketService } from '@/server/services/operacoes/ticket.service';
 import { PageHeader, DetailShell, StatusBadge } from '@/components/patterns';
@@ -119,8 +119,7 @@ interface PageProps {
 }
 
 export default async function TicketDetalhePage({ params }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const { id } = await params;

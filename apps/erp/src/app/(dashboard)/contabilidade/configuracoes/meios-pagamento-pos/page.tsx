@@ -7,8 +7,7 @@
  */
 
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import * as contabilidadeService from '@/server/services/financas/contabilidade.service';
 import { listarContasMeioPagamentoPOS } from '@/server/services/financas/meio-pagamento.service';
@@ -24,8 +23,7 @@ const BREADCRUMBS = [
 ];
 
 export default async function MeiosPagamentoPOSPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId, permissions } = session.user;
 
   if (!permissions.includes('financas:configurar')) {

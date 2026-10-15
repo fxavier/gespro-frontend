@@ -1,17 +1,15 @@
 /**
  * Nova Regra de Comissão — Server Component shell.
  */
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { vendedorService } from '@/server/services/comercial/index';
 import { PageHeader } from '@/components/patterns';
 import { NovaRegraComissaoForm } from './_components/nova-regra-comissao-form';
 
 export default async function NovaRegraComissaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
 
   // Primeira página do `ComboboxRemoto` de vendedor (#265); o resto vem de `procurarVendedores`.
   const vendedores = await runWithTenantContext(ctx, () =>

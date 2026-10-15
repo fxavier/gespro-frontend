@@ -4,9 +4,8 @@
  */
 
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { listarProdutos } from '@/server/services/inventario/catalogo.service';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
@@ -15,8 +14,7 @@ import { PageHeader } from '@/components/patterns';
 import NovaOrdemForm from './_components/nova-ordem-form';
 
 export default async function NovaOrdemPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

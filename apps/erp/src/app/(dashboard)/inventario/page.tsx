@@ -4,7 +4,6 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import {
   Package,
   Wrench,
@@ -12,7 +11,7 @@ import {
   Tag,
   ArrowRight,
 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ativosService } from '@/server/services/inventario/ativos.service';
 import { manutencaoService } from '@/server/services/inventario/manutencao.service';
@@ -78,8 +77,7 @@ const SHORTCUTS = [
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default async function InventarioDashboardPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

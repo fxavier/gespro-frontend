@@ -5,7 +5,6 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import {
   Users,
   UserCheck,
@@ -14,7 +13,7 @@ import {
   Award,
   Clock,
 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { PageHeader, KpiCard } from '@/components/patterns';
@@ -113,8 +112,7 @@ async function ColaboradoresRecentes({ tenantId, userId }: { tenantId: string; u
 }
 
 export default async function DashboardRHPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

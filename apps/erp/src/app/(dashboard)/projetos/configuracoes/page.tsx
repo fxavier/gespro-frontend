@@ -5,10 +5,9 @@
  */
 
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Settings, FolderKanban } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ConfiguracaoProjetoService } from '@/server/services/pessoas-projetos/configuracao-projeto.service';
 import { PageHeader } from '@/components/patterns';
@@ -93,8 +92,7 @@ interface PageProps {
 }
 
 export default async function ConfiguracoesProjetosPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const params = await searchParams;

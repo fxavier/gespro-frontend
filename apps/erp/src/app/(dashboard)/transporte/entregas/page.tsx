@@ -4,10 +4,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, Package, Truck, CheckCircle, AlertTriangle } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { entregaService } from '@/server/services/operacoes/entrega.service';
 import { FiltrarEntregasSchema } from '@/lib/validations/transporte';
@@ -118,8 +117,7 @@ interface PageProps {
 }
 
 export default async function EntregasPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

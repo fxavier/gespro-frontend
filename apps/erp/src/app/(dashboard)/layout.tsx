@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { COOKIE_BARRA_LATERAL, VALOR_RECOLHIDA } from '@/lib/barra-lateral';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -19,18 +18,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect('/auth/login');
-  }
-  // Defesa em profundidade (#525): o middleware já desvia a sessão sem tenant
-  // (administrador da plataforma) para /plataforma; aqui não se confia só nele.
-  if (!session.user.tenantId) {
-    redirect('/plataforma');
-  }
-
-  const { tenantId, id: userId } = session.user;
+  // Defesa em profundidade (#525, #537): o proxy já desvia a sessão sem tenant
+  // (administrador da plataforma) para /plataforma; a guarda fá-lo também.
+  const { session, tenantId, userId } = await exigirSessaoDeTenant();
   // Estado da barra lateral, escrito pelo próprio componente ao recolher/expandir.
   const barraRecolhida =
     (await cookies()).get(COOKIE_BARRA_LATERAL)?.value === VALOR_RECOLHIDA;

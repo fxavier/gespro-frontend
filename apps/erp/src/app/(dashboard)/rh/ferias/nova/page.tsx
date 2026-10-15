@@ -4,9 +4,8 @@
  */
 
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { prisma } from '@/server/db/client';
 import { formatarData } from '@/lib/format-date';
@@ -15,8 +14,7 @@ import { PageHeader, EmptyState } from '@/components/patterns';
 import NovaSolicitacaoFeriasForm from './_components/nova-solicitacao-ferias-form';
 
 export default async function NovaSolicitacaoFeriasPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const ctx = { tenantId, userId };

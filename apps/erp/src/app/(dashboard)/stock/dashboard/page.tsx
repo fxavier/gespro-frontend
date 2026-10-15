@@ -4,7 +4,6 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import {
   Package,
   PackageOpen,
@@ -12,7 +11,7 @@ import {
   AlertTriangle,
   ArrowRight,
 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { catalogoProdutoService } from '@/server/services/inventario/catalogo.service';
 import { stockService } from '@/server/services/inventario/stock.service';
@@ -63,8 +62,7 @@ const SHORTCUTS = [
 ];
 
 export default async function StockDashboardPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

@@ -8,8 +8,8 @@
  */
 
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { contaPagarService } from '@/server/services/compras/conta-pagar.service';
 import { Button } from '@/components/ui/button';
@@ -22,8 +22,7 @@ export default async function CancelarContaPagarPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
   const { id } = await params;
   const ctx = { tenantId, userId };

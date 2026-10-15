@@ -7,7 +7,6 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import {
   TrendingUp,
   Package,
@@ -17,7 +16,7 @@ import {
   Ticket,
   AlertCircle,
 } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { dashboardService } from '@/server/services/plataforma/analytics.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
 import { ChecklistOnboarding } from '@/components/onboarding/checklist-onboarding';
@@ -157,8 +156,7 @@ export default async function DashboardPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, emailVerificado } = session.user;
   // Spec 19/ADR-0013 — o regresso do e-mail de acções do Keycloak traz ?onboarding=1.

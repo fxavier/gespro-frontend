@@ -6,9 +6,8 @@
  * (`/api/export/producao-ordens`) — download nativo, sem fetch manual.
  */
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { Factory, CircleCheck, Coins, Gauge, Download } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { relatoriosService } from '@/server/services/plataforma/relatorios.service';
 import { PageHeader, KpiCard } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
@@ -73,8 +72,7 @@ async function ConteudoProducao({ tenantId, userId }: { tenantId: string; userId
 }
 
 export default async function RelatoriosProducaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
   const { tenantId, id: userId } = session.user;
 
   return (

@@ -419,9 +419,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       session.user.id = token.uid;
       // Ausente só na sessão do administrador de plataforma sem tenant (#525):
-      // o middleware leva-a a `/plataforma` e os dois pipelines recusam-na
-      // antes de qualquer contexto de tenant.
-      session.user.tenantId = token.tenantId as string;
+      // o tipo é opcional (#537) — as páginas pedem-no a `exigirSessaoDeTenant`
+      // e os dois pipelines recusam a sessão sem ele.
+      session.user.tenantId = token.tenantId;
       session.user.permissions = token.permissions ?? [];
       // #525 — ausente (token anterior) conta como false.
       session.user.plataformaAdmin = token.plataformaAdmin === true;

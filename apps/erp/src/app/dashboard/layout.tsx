@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { COOKIE_BARRA_LATERAL, VALOR_RECOLHIDA } from '@/lib/barra-lateral';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -19,10 +18,8 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  // Defesa em profundidade (#525): sessão sem tenant vai para /plataforma.
-  if (!session.user.tenantId) redirect('/plataforma');
+  // Defesa em profundidade (#525, #537): sessão sem tenant vai para /plataforma.
+  const { session, tenantId, userId } = await exigirSessaoDeTenant();
   const barraRecolhida =
     (await cookies()).get(COOKIE_BARRA_LATERAL)?.value === VALOR_RECOLHIDA;
 
@@ -30,7 +27,7 @@ export default async function DashboardLayout({
   // já diz que o tenant está em Leitura.
   let diasDeLeitura = 0;
   if (session.user.acesso === 'leitura') {
-    const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+    const ctx = { tenantId, userId };
     const assinatura = await runWithTenantContext(ctx, () =>
       assinaturaService.obterOuNulo(ctx),
     );
@@ -46,7 +43,7 @@ export default async function DashboardLayout({
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         <AppHeader
           notificationSlot={
-            <SinoNotificacoes tenantId={session.user.tenantId} userId={session.user.id} />
+            <SinoNotificacoes tenantId={tenantId} userId={userId} />
           }
         />
         {session.user.acesso === 'leitura' && <FaixaLeitura diasRestantes={diasDeLeitura} />}

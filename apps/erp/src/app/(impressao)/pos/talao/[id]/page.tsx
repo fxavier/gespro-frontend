@@ -3,8 +3,8 @@
  * reflecte a venda gravada e avisa que não serve de factura.
  */
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { NotFoundError } from '@/lib/errors';
 import { formatarDataHora } from '@/lib/format-date';
 import { formatMZN } from '@/lib/format-currency';
@@ -20,9 +20,8 @@ interface Props {
 export default async function TalaoPage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
 
   let talao;
   try {

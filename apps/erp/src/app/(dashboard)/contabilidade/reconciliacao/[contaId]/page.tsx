@@ -5,9 +5,9 @@
  */
 
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { AlertTriangle, CalendarRange, FileUp } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { NotFoundError } from '@/lib/errors';
 import { cn } from '@/lib/utils';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
@@ -46,9 +46,8 @@ export default async function ContaReconciliacaoPage({
   params: Promise<{ contaId: string }>;
   searchParams: Promise<SP>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
   const { contaId } = await params;
   const sp = await searchParams;
   const vista: Vista = sp.vista && sp.vista in ROTULOS ? (sp.vista as Vista) : 'excecoes';

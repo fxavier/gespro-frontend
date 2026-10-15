@@ -4,8 +4,7 @@
  */
 
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { ativosService } from '@/server/services/inventario/ativos.service';
 import { PageHeader } from '@/components/patterns';
@@ -24,8 +23,7 @@ async function AmortizacaoTableSection({ tenantId, userId }: { tenantId: string;
 }
 
 export default async function AmortizacaoPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
   const podeProcessar = session.user.permissions?.includes('ativos:admin') ?? false;

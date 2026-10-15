@@ -6,10 +6,9 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus, User, UserCheck, UserX } from 'lucide-react';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { motoristaService } from '@/server/services/operacoes/motorista.service';
 import { FiltrarMotoristasSchema } from '@/lib/validations/transporte';
@@ -116,8 +115,7 @@ interface PageProps {
 }
 
 export default async function MotoristasPage({ searchParams }: PageProps) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

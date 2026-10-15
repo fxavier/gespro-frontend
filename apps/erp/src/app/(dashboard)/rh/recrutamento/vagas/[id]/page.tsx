@@ -1,10 +1,10 @@
 /**
  * Detalhe da Vaga + Kanban de Candidaturas — Server Component (NUNCA 'use client').
  */
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { VagaService } from '@/server/services/pessoas-projetos/recrutamento.service';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
@@ -41,8 +41,7 @@ function contratoLabel(tipo: string): string {
 export default async function VagaDetalhePage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

@@ -7,7 +7,7 @@
  */
 
 import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
 import { PageHeader, StatusBadge } from '@/components/patterns';
@@ -23,8 +23,7 @@ export default async function RegistarRespostaCotacaoPage({ params, searchParams
   const { fornecedorId: bruto } = await searchParams;
   const fornecedorId = Array.isArray(bruto) ? bruto[0] : bruto;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
 

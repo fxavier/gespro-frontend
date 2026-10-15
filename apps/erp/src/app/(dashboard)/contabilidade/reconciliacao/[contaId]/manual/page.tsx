@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Prisma } from '@prisma/client';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { NotFoundError } from '@/lib/errors';
 import { formatarData } from '@/lib/format-date';
 import { formatMZN } from '@/lib/format-currency';
@@ -47,9 +47,8 @@ export default async function ReconciliacaoManualPage({
   params: Promise<{ contaId: string }>;
   searchParams: Promise<{ b?: string; c?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
-  const ctx = { tenantId: session.user.tenantId, userId: session.user.id };
+  const { session, tenantId } = await exigirSessaoDeTenant();
+  const ctx = { tenantId, userId: session.user.id };
   const { contaId } = await params;
   const sp = await searchParams;
   const base = `/contabilidade/reconciliacao/${contaId}`;

@@ -8,8 +8,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { notificacaoService } from '@/server/services/plataforma/notificacao.service';
 import { Button } from '@/components/ui/button';
@@ -58,8 +57,7 @@ function PreferenciasSkeleton() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default async function PreferenciasNotificacoesPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 

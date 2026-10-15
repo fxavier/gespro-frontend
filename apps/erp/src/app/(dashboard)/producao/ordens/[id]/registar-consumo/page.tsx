@@ -7,7 +7,7 @@
  */
 
 import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { OrdemProducaoService } from '@/server/services/pessoas-projetos/producao.service';
 import { listarProdutos } from '@/server/services/inventario/catalogo.service';
@@ -21,8 +21,7 @@ interface Props {
 export default async function RegistarConsumoPage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId, permissions } = session.user;
   const ctx = { tenantId, userId };

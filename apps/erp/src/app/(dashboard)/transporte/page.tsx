@@ -11,9 +11,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Truck, User, Activity, AlertTriangle, Wrench, Fuel, MapPin, Plus, Package } from 'lucide-react';
-import { auth } from '@/lib/auth';
+import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { viaturaService } from '@/server/services/operacoes/viatura.service';
 import { atividadeService } from '@/server/services/operacoes/atividade.service';
@@ -247,8 +246,7 @@ async function TransporteKpis({ tenantId, userId }: { tenantId: string; userId: 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default async function TransporteDashboardPage() {
-  const session = await auth();
-  if (!session?.user) redirect('/auth/login');
+  const { session } = await exigirSessaoDeTenant();
 
   const { tenantId, id: userId } = session.user;
 
