@@ -8,10 +8,9 @@
  *
  * A. Aceita qualquer código NÃO VAZIO (um código vazio continua fora do contrato → demonstração).
  * B. `funcionalidades` vem da API tal e qual; ausente → `[]` (compatibilidade).
- * C. Ordem (decisão conservadora do verificador — o contrato não a fixa): os três códigos
- *    conhecidos mantêm a progressão comercial de sempre; um código desconhecido NÃO salta para a
- *    frente — fica depois dos conhecidos, pela ordem em que a API o enviou (a API já ordena por
- *    `Plano.ordem`).
+ * C. Ordem — revista pelo n.º 535: o site preserva EXACTAMENTE a ordem da API (que já ordena por
+ *    `Plano.ordem`, editável em `/plataforma/planos`); nenhum código, conhecido ou não, é reordenado
+ *    por uma constante do site. (Antes do n.º 535 os três códigos de origem eram puxados para a frente.)
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as mod from "../planos";
@@ -157,23 +156,27 @@ describe("n.º 527 — a forma real do endpoint do ERP", () => {
   });
 });
 
-describe("n.º 527 — ordem com códigos desconhecidos", () => {
-  it("os conhecidos mantêm a progressão; os desconhecidos vêm depois, pela ordem da API", () => {
+describe("n.º 527 (revisto no n.º 535) — ordem com códigos desconhecidos", () => {
+  it("a ordem da API é preservada, misturando conhecidos e desconhecidos", () => {
     const p = (id: string) => ({ ...cru(id), funcionalidades: [], destaque: false });
-    const ordenado = m.ordenar([
+    const entrada = [
       p("ZETA"),
       p("EMPRESARIAL"),
       p("ALFA"),
       p("BASICO"),
       p("PROFISSIONAL"),
-    ]);
+    ];
+    const ordenado = m.ordenar(entrada);
 
     expect(ordenado.map((x: any) => x.id)).toEqual([
+      "ZETA",
+      "EMPRESARIAL",
+      "ALFA",
       "BASICO",
       "PROFISSIONAL",
-      "EMPRESARIAL",
-      "ZETA",
-      "ALFA",
     ]);
+    // Não muta a entrada (devolve uma cópia).
+    expect(ordenado).not.toBe(entrada);
+    expect(entrada.map((x) => x.id)).toEqual(["ZETA", "EMPRESARIAL", "ALFA", "BASICO", "PROFISSIONAL"]);
   });
 });

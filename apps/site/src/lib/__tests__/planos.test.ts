@@ -95,18 +95,22 @@ describe("obterPlanos", () => {
 });
 
 describe("ordenar", () => {
-  it("aplica a progressão comercial independentemente da ordem da API", () => {
-    const desordenado = [
+  // Revisto no n.º 535: a API já ordena por `Plano.ordem` (editável em /plataforma/planos);
+  // o site preserva essa ordem em vez de impor uma progressão própria.
+  it("preserva a ordem da API (Plano.ordem), sem reordenar os códigos de origem", () => {
+    const daApi = [
       plano({ id: "EMPRESARIAL" }),
       plano({ id: "BASICO" }),
       plano({ id: "PROFISSIONAL" }),
     ];
 
-    expect(ordenar(desordenado).map((p) => p.id)).toEqual([
+    const ordenado = ordenar(daApi);
+    expect(ordenado.map((p) => p.id)).toEqual([
+      "EMPRESARIAL",
       "BASICO",
       "PROFISSIONAL",
-      "EMPRESARIAL",
     ]);
+    expect(ordenado).not.toBe(daApi);
   });
 });
 
