@@ -860,6 +860,7 @@ describe.skipIf(skip)('#524 — catálogo de planos na base (ADR-0049) — DB ef
       return {
         empresa: { nome: `TCB524 Prov ${rotulo} ${s6} ${seq}`, nuit: `9${`${sufixo + seq}`.slice(-8)}` },
         admin: { nome: 'Ana Prov', email: `prov-${rotulo}-${sufixo}-${seq}@tcb524.mz` },
+        keycloakSub: `kc-prov-${rotulo}-${sufixo}-${seq}`,
         planoId,
         provincia: 'Maputo Cidade',
       };
@@ -868,7 +869,7 @@ describe.skipIf(skip)('#524 — catálogo de planos na base (ADR-0049) — DB ef
     it.each([
       ['inexistente', () => Promise.resolve(`TCB_NAO_HA_${s6}`)],
       ['arquivado', () => novoPlano('PROVARQ', { arquivadoEm: new Date() })],
-    ])('plano %s → PLANO_INDISPONIVEL, antes do Keycloak, sem tenant', async (_r, fazPlano) => {
+    ])('plano %s → PLANO_INDISPONIVEL, sem tenant', async (_r, fazPlano) => {
       const planoId = await fazPlano();
       const input = entrada(`rec-${_r}`, planoId);
 
@@ -877,7 +878,6 @@ describe.skipIf(skip)('#524 — catálogo de planos na base (ADR-0049) — DB ef
       expect(e, `registo num plano ${_r} passou`).not.toBeNull();
       expect(e.name).toBe('BusinessRuleError');
       expect(e.code).toBe('PLANO_INDISPONIVEL');
-      expect(kc.garantirUtilizador).not.toHaveBeenCalled();
       expect(await db.tenant.count({ where: { nuit: input.empresa.nuit } })).toBe(0);
     });
 

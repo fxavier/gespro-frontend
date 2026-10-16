@@ -10,7 +10,6 @@ import {
   bootstrapContabilidade,
   garantirCatalogoPermissoes,
 } from '@/server/provisioning/tenant-bootstrap';
-import { garantirUtilizador } from '@/server/auth/keycloak';
 import { exigirPlanoDisponivel } from '@/server/services/plataforma/plano.service';
 
 /**
@@ -24,8 +23,7 @@ import { exigirPlanoDisponivel } from '@/server/services/plataforma/plano.servic
  * Criar um tenant deixou de ser UMA transacção: são dois sistemas com estado.
  * A ordem é deliberada (ADR-0013 §2) — **Keycloak primeiro, Postgres depois**,
  * porque o lado sem transacção vai à frente:
- *   1. Identidade no Keycloak, SEM palavra-passe, com VERIFY_EMAIL +
- *      UPDATE_PASSWORD pendentes (idempotente por e-mail).
+ *   1. Identidade no Keycloak — criada por quem chama, que passa o `sub`.
  *   2. Tenant/User/RBAC/PGC numa `$transaction` — falha reverte tudo.
  *   3. `execute-actions-email` (no route handler, fora da tx): é este e-mail
  *      — e só ele — que dá entrada no produto.
@@ -43,6 +41,8 @@ export interface ProvisionarTenantInput {
   empresa: { nome: string; nuit: string };
   /** SEM senha (ADR-0013 §5): a palavra-passe é definida no Keycloak. */
   admin: { nome: string; email: string };
+  /** `sub` da identidade que QUEM CHAMA acabou de criar no Keycloak (#549). */
+  keycloakSub: string;
   planoId: PlanoId;
   provincia: string;
 }
@@ -57,6 +57,9 @@ export interface ResultadoProvisionamento {
   adminNome: string;
   notificacaoBoasVindasId: string;
 }
+
+export const MENSAGEM_EMAIL_JA_REGISTADO =
+  'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos.';
 
 const MAX_TENTATIVAS_SLUG = 5;
 const TIMEOUT_TX_MS = 60_000;
@@ -115,8 +118,8 @@ function isUniqueViolation(e: unknown, campo?: string): boolean {
 }
 
 /**
- * Provisiona o tenant: identidade no Keycloak primeiro (fora de qualquer
- * transacção — ADR-0013 §2), depois a `$transaction` Postgres com
+ * Provisiona o tenant sobre a identidade Keycloak que quem chama já criou
+ * (`keycloakSub`, ADR-0013 §2), numa `$transaction` Postgres com
  * Tenant → ConfiguracaoFiscal → Assinatura (TRIAL) → RBAC → User admin
  * (com `keycloakSub`) + role ADMIN → plano de contas PGC-NIRF + diários +
  * séries → Notificacao de boas-vindas (in-app). Nada do lado Postgres é
@@ -147,14 +150,10 @@ export async function provisionarTenant(
     select: { id: true },
   });
   if (emailExistente) {
-    throw new BusinessRuleError(
-      'EMAIL_JA_REGISTADO',
-      'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos.',
-    );
+    throw new BusinessRuleError('EMAIL_JA_REGISTADO', MENSAGEM_EMAIL_JA_REGISTADO);
   }
 
-  // O plano tem de existir e estar activo na tabela `Plano` (ADR-0049 §3) — antes do Keycloak,
-  // para uma recusa não deixar identidade nenhuma para trás.
+  // O plano tem de existir e estar activo na tabela `Plano` (ADR-0049 §3).
   await exigirPlanoDisponivel(input.planoId);
 
   // Catálogo global de permissões fora da tx: é partilhado por todos os
@@ -162,28 +161,11 @@ export async function provisionarTenant(
   // disputar o mesmo índice único (deadlock possível num endpoint público).
   await garantirCatalogoPermissoes(prismaBase);
 
-  // KEYCLOAK PRIMEIRO (ADR-0013 §2). Idempotente por e-mail — repetir o pedido
-  // reutiliza o `sub`, e no caminho normal a identidade já vem criada de
-  // `registarTenant`, com credencial escrita.
-  //
-  // `accoes: []` explícito (ADR-0031 §2): esta função só serve o registo
-  // público, onde o Direct Access Grant tem de abrir a sessão na submissão
-  // seguinte. Se a omissão valesse, a identidade que esta chamada criasse —
-  // caso a anterior tenha sido apagada a meio — nascia com `VERIFY_EMAIL`
-  // pendente, e com ela o direct grant recusa: o defeito que o ADR-0031
-  // existe para corrigir, de volta pela porta das traseiras.
-  const { sub: keycloakSub } = await garantirUtilizador({
-    email,
-    nome: input.admin.nome,
-    accoes: [],
-    emailVerificado: false,
-  });
-
   let ultimoErro: unknown;
   for (let tentativa = 0; tentativa < MAX_TENTATIVAS_SLUG; tentativa++) {
     const slug = await sugerirSlug(input.empresa.nome);
     try {
-      return await executarProvisionamento({ ...input, admin: { ...input.admin, email } }, slug, keycloakSub);
+      return await executarProvisionamento({ ...input, admin: { ...input.admin, email } }, slug);
     } catch (e) {
       // Corrida no slug: outro registo apanhou-o entre a sugestão e o commit.
       if (isUniqueViolation(e, 'slug')) {
@@ -210,8 +192,8 @@ export async function provisionarTenant(
 async function executarProvisionamento(
   input: ProvisionarTenantInput,
   slug: string,
-  keycloakSub: string,
 ): Promise<ResultadoProvisionamento> {
+  const { keycloakSub } = input;
   const agora = new Date();
   const trialFim = new Date(agora.getTime() + TRIAL_DIAS * 24 * 60 * 60 * 1000);
 

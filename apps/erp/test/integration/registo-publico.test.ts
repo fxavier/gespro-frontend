@@ -10,6 +10,7 @@
  *      fica identidade meio-criada, e o pedido repete-se e conclui.
  *   2. Idempotência — a mesma `Idempotency-Key` não produz um segundo tenant
  *      nem uma segunda identidade.
+ *   3. Identidade preexistente (#549) — recusa sem lhe escrever credencial.
  *
  * Requer Docker. Com `SKIP_INTEGRATION=true` (degradação graciosa do setup)
  * todos os testes saltam.
@@ -26,31 +27,12 @@ if (process.env.INTEGRATION_DB_URL) {
   process.env.DIRECT_URL = process.env.INTEGRATION_DB_URL;
 }
 
-/**
- * `ErroKeycloak` real — replicada aqui porque o `vi.hoisted` corre antes de
- * qualquer import, e o `instanceof` da auto-cura tem de ver esta mesma classe.
- */
-const ErroKeycloakReal = vi.hoisted(
-  () =>
-    class ErroKeycloak extends Error {
-      constructor(
-        readonly status: number,
-        mensagem: string,
-      ) {
-        super(mensagem);
-        this.name = 'ErroKeycloak';
-      }
-    },
-);
-
 /** Keycloak em memória: guarda identidades por e-mail e a credencial escrita. */
 const kc = vi.hoisted(() => {
   const identidades = new Map<string, { sub: string; senha?: string; accoes?: string[] }>();
   return {
     identidades,
     falharPalavraPasse: { valor: false },
-    /** Nº de escritas de credencial a recusar com 404 (identidade apagada). */
-    recusar404: { restantes: 0 },
     procurarPorEmail: vi.fn(async (email: string) => {
       const u = identidades.get(email);
       return u ? { id: u.sub, email } : null;
@@ -66,12 +48,6 @@ const kc = vi.hoisted(() => {
     ),
     definirPalavraPasse: vi.fn(async (sub: string, senha: string) => {
       if (kc.falharPalavraPasse.valor) throw new Error('[keycloak] reset-password falhou (HTTP 503)');
-      if (kc.recusar404.restantes > 0) {
-        kc.recusar404.restantes -= 1;
-        // Identidade apagada por outro pedido entre a criação e esta escrita.
-        for (const [email, u] of identidades) if (u.sub === sub) identidades.delete(email);
-        throw new ErroKeycloakReal(404, '[keycloak] não existe');
-      }
       for (const [, u] of identidades) if (u.sub === sub) u.senha = senha;
     }),
     eliminarUtilizador: vi.fn(async (sub: string) => {
@@ -81,7 +57,6 @@ const kc = vi.hoisted(() => {
 });
 
 vi.mock('@/server/auth/keycloak', () => ({
-  ErroKeycloak: ErroKeycloakReal,
   procurarPorEmail: kc.procurarPorEmail,
   garantirUtilizador: kc.garantirUtilizador,
   definirPalavraPasse: kc.definirPalavraPasse,
@@ -130,7 +105,6 @@ describe.skipIf(skip)('Registo público com palavra-passe — Postgres real', ()
 
   beforeEach(() => {
     kc.falharPalavraPasse.valor = false;
-    kc.recusar404.restantes = 0;
     kc.identidades.clear();
     vi.clearAllMocks();
   });
@@ -178,57 +152,27 @@ describe.skipIf(skip)('Registo público com palavra-passe — Postgres real', ()
     expect(kc.identidades.get(email)?.accoes).toEqual([]);
   });
 
-  it('órfã comprovada: identidade sem User local recebe a credencial de quem completa o registo', async () => {
+  it('identidade preexistente sem User local (#549): recusa com EMAIL_JA_REGISTADO e não lhe toca', async () => {
     const nuit = nuitNovo();
-    const email = `ana+${nuit}@padaria.mz`;
+    const email = `plataforma+${nuit}@gespro.mz`;
 
-    // Órfã de uma tentativa anterior: existe no realm, com a credencial de
-    // quem a semeou, e nenhum `User` local a referencia.
-    kc.identidades.set(email, { sub: `kc-orfa-${nuit}`, senha: 'credencial-de-outrem', accoes: [] });
+    // A do administrador de plataforma: existe no realm e, por desenho, não
+    // tem `User` local — o caso em que «sem User» não prova orfandade.
+    kc.identidades.set(email, { sub: 'kc-plataforma-admin', accoes: [] });
 
     const r = await registarTenant(corpo(nuit, email), {
-      ip: `41.2.0.${(contador % 200) + 1}`,
-      idempotencyKey: `chave-orfa-${nuit}`,
+      ip: `41.4.0.${(contador % 200) + 1}`,
+      idempotencyKey: `chave-preexistente-${nuit}`,
     });
 
-    expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error('esperava sucesso');
-    // O tenant nasce com a credencial de quem se registou, não com a de quem
-    // semeou a órfã — e a prova de que a identidade não tinha dono é o commit.
-    expect(await db.tenant.count({ where: { nuit } })).toBe(1);
-    expect(kc.identidades.get(email)?.senha).toBe(SENHA);
-    expect(kc.garantirUtilizador.mock.results.length).toBeGreaterThan(0);
-  });
-
-  it('auto-cura: identidade apagada a meio é recriada e o User cometido passa a apontar-lhe', async () => {
-    const nuit = nuitNovo();
-    const email = `ana+${nuit}@padaria.mz`;
-
-    // Órfã (para a escrita da credencial cair depois do commit) e apagamento
-    // na primeira escrita — é o que o pedido concorrente com NUIT duplicado faz.
-    kc.identidades.set(email, { sub: `kc-vitima-${nuit}`, accoes: [] });
-    kc.recusar404.restantes = 1;
-
-    const r = await registarTenant(corpo(nuit, email), {
-      ip: `41.3.0.${(contador % 200) + 1}`,
-      idempotencyKey: `chave-autocura-${nuit}`,
-    });
-
-    expect(r.ok).toBe(true);
-    if (!r.ok) throw new Error('esperava sucesso');
-
-    // Identidade renascida, com a credencial de quem se registou.
-    const renascida = kc.identidades.get(email);
-    expect(renascida).toBeTruthy();
-    expect(renascida?.sub).not.toBe(`kc-vitima-${nuit}`);
-    expect(renascida?.senha).toBe(SENHA);
-    expect(renascida?.accoes).toEqual([]);
-
-    // E o `User` cometido em Postgres aponta-lhe — senão o tenant ficava
-    // ligado a um `sub` que já não existe.
-    const user = await db.user.findFirst({ where: { email }, select: { keycloakSub: true } });
-    expect(user?.keycloakSub).toBe(renascida?.sub);
-    expect(r.sub).toBe(renascida?.sub);
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error('esperava recusa');
+    expect(r.code).toBe('EMAIL_JA_REGISTADO');
+    expect(r.estado).toBe(409);
+    expect(kc.definirPalavraPasse.mock.calls.some(([sub]) => sub === 'kc-plataforma-admin')).toBe(false);
+    expect(kc.identidades.get(email)?.senha).toBeUndefined();
+    expect(kc.identidades.get(email)?.sub).toBe('kc-plataforma-admin');
+    expect(await db.tenant.count({ where: { nuit } })).toBe(0);
   });
 
   it('idempotência: a mesma chave não cria segundo tenant nem segunda identidade', async () => {

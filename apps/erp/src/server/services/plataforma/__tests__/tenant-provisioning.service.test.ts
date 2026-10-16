@@ -22,8 +22,6 @@ const mocks = vi.hoisted(() => {
     bootstrapRbac: vi.fn(),
     bootstrapContabilidade: vi.fn(),
     garantirCatalogoPermissoes: vi.fn(),
-    garantirUtilizador: vi.fn(),
-    dispararEmailAccoes: vi.fn(),
   };
 });
 
@@ -41,13 +39,6 @@ vi.mock('@/server/provisioning/tenant-bootstrap', () => ({
   bootstrapRbac: mocks.bootstrapRbac,
   bootstrapContabilidade: mocks.bootstrapContabilidade,
   garantirCatalogoPermissoes: mocks.garantirCatalogoPermissoes,
-}));
-
-// Keycloak dublado — os unitários não tocam em rede (ADR-0013 §6); o caminho
-// real contra um Keycloak vivo é da suite E2E.
-vi.mock('@/server/auth/keycloak', () => ({
-  garantirUtilizador: mocks.garantirUtilizador,
-  dispararEmailAccoes: mocks.dispararEmailAccoes,
 }));
 
 import {
@@ -70,6 +61,7 @@ function violacaoUnica(campo: string) {
 const INPUT = {
   empresa: { nome: 'Padaria Ana, Lda', nuit: '400123456' },
   admin: { nome: 'Ana Sitoe', email: 'ana@padaria.mz' },
+  keycloakSub: 'kc-sub-ana',
   planoId: 'PROFISSIONAL' as const,
   provincia: 'Maputo Cidade',
 };
@@ -119,8 +111,6 @@ beforeEach(() => {
   ]);
   mocks.bootstrapContabilidade.mockResolvedValue({ contas: 502, diarios: 9, series: 18 });
   mocks.garantirCatalogoPermissoes.mockResolvedValue(undefined);
-  mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-ana', criado: true });
-  mocks.dispararEmailAccoes.mockResolvedValue(true);
 });
 
 describe('slug derivado do nome (nunca vem do cliente)', () => {
@@ -193,19 +183,8 @@ describe('provisionamento atómico', () => {
     expect(data).not.toHaveProperty('planoAssinatura');
   });
 
-  it('ADR-0013 §2: Keycloak PRIMEIRO, Postgres depois — e o sub fica no User', async () => {
+  it('#549: o User fica com o sub que quem chama criou — o serviço não procura identidades', async () => {
     await provisionarTenant(INPUT);
-    // `accoes: []` — nunca `VERIFY_EMAIL` neste caminho (ADR-0031 §2).
-    expect(mocks.garantirUtilizador).toHaveBeenCalledWith({
-      email: 'ana@padaria.mz',
-      nome: 'Ana Sitoe',
-      accoes: [],
-      emailVerificado: false,
-    });
-    // A ordem inversa deixaria «um cliente pago sem forma de entrar».
-    expect(mocks.garantirUtilizador.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.$transaction.mock.invocationCallOrder[0],
-    );
     const data = mocks.tx.user.create.mock.calls[0][0].data;
     expect(data.keycloakSub).toBe('kc-sub-ana');
     // O ERP nunca vê nem persiste credenciais.
@@ -218,7 +197,6 @@ describe('provisionamento atómico', () => {
       code: 'EMAIL_JA_REGISTADO',
       message: expect.stringContaining('dois endereços de e-mail distintos'),
     });
-    expect(mocks.garantirUtilizador).not.toHaveBeenCalled();
     expect(mocks.$transaction).not.toHaveBeenCalled();
   });
 
@@ -247,10 +225,9 @@ describe('provisionamento atómico', () => {
     await expect(provisionarTenant(INPUT)).rejects.toMatchObject({ code: 'RBAC_INCOMPLETO' });
   });
 
-  it('recusa NUIT já registado antes de tocar no Keycloak', async () => {
+  it('recusa NUIT já registado antes da transacção', async () => {
     mocks.tenantFindFirst.mockResolvedValue({ id: 'outro' });
     await expect(provisionarTenant(INPUT)).rejects.toMatchObject({ code: 'NUIT_JA_REGISTADO' });
-    expect(mocks.garantirUtilizador).not.toHaveBeenCalled();
     expect(mocks.$transaction).not.toHaveBeenCalled();
   });
 

@@ -7,27 +7,13 @@
  *
  * Prova o que os testes com mocks não conseguem provar: que a `$transaction`
  * é mesmo atómica no Postgres e que uma falha a meio não deixa tenant parcial.
- * O lado Keycloak é DUBLADO aqui de propósito — este teste é sobre o Postgres;
- * o caminho real contra um Keycloak vivo é provado pela suite E2E (gate da
+ * O `sub` do Keycloak entra feito (quem chama criou a identidade, #549); o
+ * caminho real contra um Keycloak vivo é provado pela suite E2E (gate da
  * fase 2) e pelo smoke do registo público.
  */
 import 'dotenv/config';
 
-import { describe, it, expect, afterAll, vi } from 'vitest';
-
-const kc = vi.hoisted(() => ({
-  subs: new Map<string, string>(),
-  garantirUtilizador: vi.fn(async ({ email }: { email: string }) => {
-    const existente = kc.subs.get(email);
-    if (existente) return { sub: existente, criado: false };
-    const sub = `kc-integ-${kc.subs.size}-${Date.now()}`;
-    kc.subs.set(email, sub);
-    return { sub, criado: true };
-  }),
-  dispararEmailAccoes: vi.fn(async () => true),
-  definirActivo: vi.fn(async () => undefined),
-}));
-vi.mock('@/server/auth/keycloak', () => kc);
+import { describe, it, expect, afterAll } from 'vitest';
 
 import { Prisma } from '@prisma/client';
 import { prismaBase } from '@/server/db/client';
@@ -119,10 +105,11 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
 
   // O bootstrap do PGC (503 contas + diários + séries) demora mais do que os
   // 5 s por omissão numa DB partilhada — timeout explícito, não sintoma.
-  it('cria o tenant completo numa única transacção, Keycloak primeiro', { timeout: 90_000 }, async () => {
+  it('cria o tenant completo numa única transacção', { timeout: 90_000 }, async () => {
     const r = await provisionarTenant({
       empresa: { nome: NOME_EMPRESA, nuit: NUIT },
       admin: { nome: 'Ana Teste', email: EMAIL },
+      keycloakSub: `kc-integ-${SUFIXO}`,
       planoId: 'PROFISSIONAL',
       provincia: 'Maputo Cidade',
     });
@@ -130,12 +117,6 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
     expect(await prismaBase.tenant.count({ where: DESTE_TESTE })).toBe(tenantsAntes + 1);
 
     expect(r.tenantSlug).toMatch(/^teste-spec19-/);
-    expect(kc.garantirUtilizador).toHaveBeenCalledWith({
-      email: EMAIL,
-      nome: 'Ana Teste',
-      accoes: [],
-      emailVerificado: false,
-    });
 
     const [cfg, assinatura, user, contas, series, diarios, notif] = await Promise.all([
       prismaBase.configuracaoFiscal.findUnique({ where: { tenantId: r.tenantId } }),
@@ -153,7 +134,7 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
     expect(assinatura?.estado).toBe('TRIAL');
     // Espelho da identidade: o sub do Keycloak fica gravado; «por activar»
     // é primeiroAcessoEm null até ao primeiro login (ADR-0013 §5-bis).
-    expect(user?.keycloakSub).toBe(r.keycloakSub);
+    expect(user?.keycloakSub).toBe(`kc-integ-${SUFIXO}`);
     expect(user?.primeiroAcessoEm).toBeNull();
     expect(contas).toBe(503); // 505 entradas no JSON, 2 duplicadas
     expect(series).toBeGreaterThan(15);
@@ -175,6 +156,7 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
       provisionarTenant({
         empresa: { nome: 'Outra Empresa', nuit: NUIT },
         admin: { nome: 'X', email: `x+${Date.now()}@teste-spec19.mz` },
+        keycloakSub: 'kc-integ-nuit-duplicado',
         planoId: 'BASICO',
         provincia: 'Sofala',
       }),
@@ -187,6 +169,7 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
       provisionarTenant({
         empresa: { nome: 'Empresa Nova', nuit: `4${String(Date.now() + 7).slice(-8)}` },
         admin: { nome: 'Ana Outra Vez', email: EMAIL },
+        keycloakSub: 'kc-integ-email-duplicado',
         planoId: 'BASICO',
         provincia: 'Sofala',
       }),
@@ -194,8 +177,6 @@ describe.skipIf(!temDB)('provisionamento — integração com Postgres', () => {
       code: 'EMAIL_JA_REGISTADO',
       message: expect.stringContaining('dois endereços de e-mail distintos'),
     });
-    // (A garantia «recusa antes de tocar no Keycloak» é provada nos testes
-    // unitários do serviço — aqui interessa a unicidade global no Postgres.)
   });
 
   // #330 — corre por último (os casos de um ficheiro são sequenciais). Prova que
