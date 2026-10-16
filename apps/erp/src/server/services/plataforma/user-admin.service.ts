@@ -368,7 +368,7 @@ export const userAdminService: IUserAdminService = {
     if (existing) {
       throw new BusinessRuleError(
         'EMAIL_JA_REGISTADO',
-        'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem trabalha com duas empresas precisa de dois endereços de e-mail distintos.',
+        'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos.',
       );
     }
 
@@ -415,14 +415,14 @@ export const userAdminService: IUserAdminService = {
     // primeiro acesso. Fica em memória até ser mostrada — nunca em Postgres,
     // nunca num log.
     const palavraPasseInicial = porPalavraPasse ? gerarPalavraPasseInicial() : null;
-    let user;
+    let userId: string;
     try {
       if (palavraPasseInicial) {
         await definirPalavraPasse(keycloakSub, palavraPasseInicial, { temporaria: true });
       }
 
       // 2. Postgres numa transacção.
-      user = await prismaBase.$transaction(async (tx) => {
+      userId = await prismaBase.$transaction(async (tx) => {
         const u = await tx.user.create({
           data: {
             tenantId: ctx.tenantId,
@@ -435,14 +435,22 @@ export const userAdminService: IUserAdminService = {
         await tx.userRole.createMany({
           data: input.roleIds.map((roleId) => ({ userId: u.id, roleId })),
         });
-        return u;
+        return u.id;
       });
     } catch (erro) {
       // A identidade foi criada por esta chamada: sem ela apagada, a repetição
-      // bateria para sempre na recusa acima.
-      await eliminarUtilizador(keycloakSub).catch((e) =>
-        logger.error({ err: e, keycloakSub }, '[utilizadores] identidade órfã por apagar no Keycloak'),
-      );
+      // bateria para sempre na recusa acima. Se um `User` já a referencia
+      // (corrida), tem dono — não se toca.
+      try {
+        const dono = await prismaBase.user.findFirst({ where: { keycloakSub }, select: { id: true } });
+        if (dono) logger.warn({ keycloakSub }, '[utilizadores] identidade já tem User local — não se apaga');
+        else await eliminarUtilizador(keycloakSub);
+      } catch (e) {
+        logger.error(
+          { err: (e as Error)?.message, status: (e as { status?: number })?.status, keycloakSub },
+          '[utilizadores] identidade órfã por apagar no Keycloak',
+        );
+      }
       throw erro;
     }
 
@@ -454,7 +462,7 @@ export const userAdminService: IUserAdminService = {
     // A palavra-passe sai daqui UMA vez, ao lado do utilizador e fora dele:
     // não faz parte do modelo, não volta em nenhuma leitura (ADR-0030 §2).
     return {
-      utilizador: mapUser(await findUser(user.id, ctx)),
+      utilizador: mapUser(await findUser(userId, ctx)),
       palavraPasseInicial,
     };
   },

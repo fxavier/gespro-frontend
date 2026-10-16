@@ -277,7 +277,8 @@ describe('userAdminService.criarUtilizador', () => {
   );
 
   it('falha da tx depois de criar a identidade → apaga-a e relança o erro original', async () => {
-    mocks.userFindFirst.mockResolvedValueOnce(null);
+    mocks.userFindFirst.mockResolvedValueOnce(null); // sem duplicado email
+    mocks.userFindFirst.mockResolvedValueOnce(null); // ninguém referencia o sub
     mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
     const erro = new Error('tx caiu');
     mocks.$transaction.mockRejectedValueOnce(erro);
@@ -290,6 +291,55 @@ describe('userAdminService.criarUtilizador', () => {
     ).rejects.toBe(erro);
     expect(kc.eliminarUtilizador).toHaveBeenCalledWith('kc-sub-novo');
     expect(kc.dispararEmailAccoes).not.toHaveBeenCalled();
+  });
+
+  it('falha ao definir a palavra-passe → apaga a identidade, sem tx, e relança o erro original', async () => {
+    mocks.userFindFirst.mockResolvedValueOnce(null);
+    mocks.userFindFirst.mockResolvedValueOnce(null);
+    mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
+    const erro = new Error('keycloak caiu');
+    kc.definirPalavraPasse.mockRejectedValueOnce(erro);
+
+    await expect(
+      userAdminService.criarUtilizador(
+        { nome: 'Alice', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true, metodoAcesso: 'palavra-passe' },
+        CTX,
+      ),
+    ).rejects.toBe(erro);
+    expect(kc.eliminarUtilizador).toHaveBeenCalledWith('kc-sub-novo');
+    expect(mocks.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('a remoção da identidade também falha → continua a relançar o erro original', async () => {
+    mocks.userFindFirst.mockResolvedValueOnce(null);
+    mocks.userFindFirst.mockResolvedValueOnce(null);
+    mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
+    const erro = new Error('tx caiu');
+    mocks.$transaction.mockRejectedValueOnce(erro);
+    kc.eliminarUtilizador.mockRejectedValueOnce(new Error('keycloak caiu'));
+
+    await expect(
+      userAdminService.criarUtilizador(
+        { nome: 'Alice', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true, metodoAcesso: 'convite' },
+        CTX,
+      ),
+    ).rejects.toBe(erro);
+  });
+
+  it('não apaga a identidade se um User já referencia o sub (corrida)', async () => {
+    mocks.userFindFirst.mockResolvedValueOnce(null); // sem duplicado email
+    mocks.userFindFirst.mockResolvedValueOnce({ id: 'user-outro' }); // o sub já tem dono
+    mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
+    const erro = new Error('tx caiu');
+    mocks.$transaction.mockRejectedValueOnce(erro);
+
+    await expect(
+      userAdminService.criarUtilizador(
+        { nome: 'Alice', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true, metodoAcesso: 'convite' },
+        CTX,
+      ),
+    ).rejects.toBe(erro);
+    expect(kc.eliminarUtilizador).not.toHaveBeenCalled();
   });
 });
 
