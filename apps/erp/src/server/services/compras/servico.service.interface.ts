@@ -7,6 +7,7 @@
  * Implementação em Wave 2: servico.service.ts
  */
 import 'server-only';
+import { TRANSICOES_AGENDAMENTO as TRANSICOES_AGENDAMENTO_CLIENTE } from '@/lib/state-machines';
 
 import type {
   CreateServicoInput,
@@ -47,14 +48,10 @@ export type StatusAgendamento =
  * NAO_COMPARECEU: cliente não compareceu — estado terminal para registo histórico.
  * CONCLUIDO: serviço executado com sucesso — pode gerar avaliação.
  */
-export const TRANSICOES_AGENDAMENTO: Record<StatusAgendamento, StatusAgendamento[]> = {
-  PENDENTE: ['CONFIRMADO', 'CANCELADO'],
-  CONFIRMADO: ['EM_ANDAMENTO', 'CANCELADO', 'NAO_COMPARECEU'],
-  EM_ANDAMENTO: ['CONCLUIDO', 'CANCELADO'],
-  CONCLUIDO: [],
-  CANCELADO: [],
-  NAO_COMPARECEU: [],
-};
+export const TRANSICOES_AGENDAMENTO = TRANSICOES_AGENDAMENTO_CLIENTE as Record<
+  StatusAgendamento,
+  StatusAgendamento[]
+>;
 
 // =====================================================================
 // TIPOS DE DOMÍNIO

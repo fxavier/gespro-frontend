@@ -123,6 +123,19 @@ export const TRANSICOES_ENCOMENDA: Record<string, string[]> = {
 export const ESTADOS_ENCOMENDA_CONVERTIVEIS: readonly string[] = ['CONFIRMADA', 'PARCIALMENTE_ENTREGUE'];
 
 /**
+ * Ciclo de vida de AgendamentoServico (o serviço reexporta-o tipado).
+ * CONCLUIDO, CANCELADO e NAO_COMPARECEU são terminais.
+ */
+export const TRANSICOES_AGENDAMENTO: Record<string, string[]> = {
+  PENDENTE:       ['CONFIRMADO', 'CANCELADO'],
+  CONFIRMADO:     ['EM_ANDAMENTO', 'CANCELADO', 'NAO_COMPARECEU'],
+  EM_ANDAMENTO:   ['CONCLUIDO', 'CANCELADO'],
+  CONCLUIDO:      [],
+  CANCELADO:      [],
+  NAO_COMPARECEU: [],
+};
+
+/**
  * Ciclo de vida de Devolução:
  * PENDENTE → APROVADA | REJEITADA
  * APROVADA → PROCESSADA

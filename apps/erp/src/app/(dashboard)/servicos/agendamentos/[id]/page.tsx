@@ -13,6 +13,7 @@ import { formatarData } from '@/lib/format-date';
 import { formatMZN } from '@/lib/format-currency';
 import { Button } from '@/components/ui/button';
 import { PageHeader, StatusBadge, DetailShell } from '@/components/patterns';
+import { AgendamentoAcoes } from './_components/agendamento-acoes';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -93,12 +94,15 @@ export default async function AgendamentoDetalhePage({ params }: Props) {
             ]}
             badge={<StatusBadge status={agendamento.status} />}
             actions={
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/servicos/agendamentos">
-                  <ArrowLeft className="h-4 w-4 mr-1.5" />
-                  Voltar
-                </Link>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <AgendamentoAcoes id={agendamento.id} status={agendamento.status} />
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/servicos/agendamentos">
+                    <ArrowLeft className="h-4 w-4 mr-1.5" />
+                    Voltar
+                  </Link>
+                </Button>
+              </div>
             }
           />
         }
