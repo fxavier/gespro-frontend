@@ -71,7 +71,8 @@ descartável no `afterAll` (o `ContaPGC` apaga-se nível a nível, do mais fundo
 Os E2E do ERP (`e2e`, `a11y`) correm um projecto `setup` que **reescreve `apps/erp/playwright/.auth/admin.json`**
 com uma sessão fresca; depois de qualquer corrida, `git checkout -- apps/erp/playwright/.auth/admin.json`.
 O ficheiro versionado tem uma sessão expirada — um script ad-hoc com esse `storageState` cai no login;
-corre `npx playwright test --project=setup` primeiro.
+corre `npx playwright test --project=setup` primeiro, **numa invocação à parte** — juntar ficheiros a um
+comando com `--project=setup` corre só o setup («No tests found»).
 Para correr os E2E contra outro servidor (ex.: worktree na 3109): `BASE_URL=http://localhost:3109 npx playwright test …`
 — o `playwright.config.ts` lê `BASE_URL` e reutiliza um servidor que já esteja a responder. Relatório HTML com trace
 de cada passo: `npx playwright show-report` (em `apps/erp/playwright-report/`). Os E2E que concluem vendas
@@ -157,8 +158,14 @@ failed» nos logs. Ver `du -sh $PGDATA/pg_wal` e `pg_stat_archiver`. Recuperaç�
 desde o bloqueio, que já estava partido): no contentor, `archive_status/*.ready` → `*.done`, apagar o ficheiro de
 0 bytes do arquivo, `CHECKPOINT`, confirmar que `pg_switch_wal()` arquiva, e nova cópia base com
 `infra/local/scripts/backup-base.sh`. Os runbooks (`docs/runbooks/restauro-bd.md`) só cobrem o restauro.
+Outro modo: o **daemon** do Docker Desktop pendura (`docker info` sem resposta) com as portas 5432/8081 ainda a
+responder — o `next dev` funciona, mas os Testcontainers ficam presos em «RUN» para sempre. O `quit` do Docker
+Desktop não chega; termina o `com.docker.backend`, reabre o Docker e faz `docker compose up -d` — o `gespro-db` e
+o Keycloak não voltam sozinhos. Confirma depois o `pg_stat_archiver` (acima).
 
 ### Migrations — só o orquestrador, e **não-interativas**
+Todo o `npx prisma …` corre a partir de `apps/erp/` (é lá que estão `prisma.config.ts` e o schema); na raiz
+falha com «Could not find Prisma Schema». Da raiz: `pnpm --filter erp exec prisma generate`.
 `pnpm db:migrate:dev` (`prisma migrate dev`) exige TTY e **rebenta em ambiente não-interactivo**. Para gerar uma migration a partir do delta schema↔DB sem prompts:
 ```bash
 mig="prisma/migrations/$(date +%Y%m%d%H%M%S)_<nome>"; mkdir -p "$mig"
@@ -315,11 +322,9 @@ a colidir no `@@unique([tenantId, numero])` — e o erro aparece ao utilizador, 
 **Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`.
 
 **Proxy e probes** — `src/proxy.ts` redirige pedidos não-autenticados para `/auth/login`. Endpoints que têm de responder sem sessão (`/api/health`, `/api/ready`, `/api/metrics` para o HEALTHCHECK do Docker/App Runner; `/api/auth/*`) **têm de estar em `PUBLIC_PATHS`** — senão os health checks recebem 307 em vez de 200.
-**Middleware e probes** — `middleware.ts` redirige pedidos não-autenticados para `/auth/login`. Endpoints que têm de responder sem sessão (`/api/health`, `/api/ready`, `/api/metrics` para o HEALTHCHECK do Docker/App Runner; `/api/auth/*`) **têm de estar em `PUBLIC_PATHS`** — senão os health checks recebem 307 em vez de 200.
-O `next dev` só carrega o middleware a partir de `apps/erp/src/` (hoje `src/middleware.ts`, que reexporta o
-da raiz de `apps/erp`; com o #533 passa a um só `src/proxy.ts`, convenção do Next 16); o `next build` resolve a raiz.
-Sem o ficheiro em `src/`, dev, E2E e smokes correm sem cabeçalhos de segurança nem redireccionamentos, e a imagem
-de produção corre-os — o defeito só aparece num dos lados.
+O proxy vive **em `apps/erp/src/`** e só aí: com a app em `src/app`, o `next dev` só procura `src/proxy.ts`,
+enquanto o `next build` também o encontrava na raiz de `apps/erp`. Um proxy fora de `src/` dá dev, E2E e smokes sem
+cabeçalhos nem redireccionamentos e produção com eles — foi assim até ao #530/#540.
 
 **Fronteira `'use client'` no servidor** — tudo o que um módulo `'use client'` exporta chega a um Server
 Component como *referência de cliente*, incluindo constantes: `cookies().get(COOKIE)` com `COOKIE` importado
@@ -448,8 +453,10 @@ dá `PLANO_INDISPONIVEL`. O Price ID do Stripe vem da coluna da tabela e, se vaz
 `STRIPE_PRICE_<CODIGO>_<CICLO>` (`resolverPriceId`); sem nenhum, `PRICE_NAO_CONFIGURADO`.
 
 **Administrador de plataforma (ADR-0049 §5)** — é o papel de realm Keycloak `plataforma-admin` (local:
-`plataforma@gespro.mz` / `demo1234`), não um papel de tenant: a sessão é **sem `tenantId`** e o middleware leva-a
-para `/plataforma`. As suas actions usam `createSafeAction({ plataforma: true, … })` — correm sem contexto de
+`plataforma@gespro.mz` / `demo1234`), não um papel de tenant: a sessão é **sem `tenantId`** (`Session.user.tenantId` é
+opcional) e o proxy leva-a para `/plataforma`. Páginas e layouts do tenant obtêm o tenant por
+`exigirSessaoDeTenant()` (`src/server/auth/sessao-tenant.ts`), nunca por `session.user.tenantId as string`.
+As actions de plataforma usam `createSafeAction({ plataforma: true, … })` — correm sem contexto de
 tenant e o `gate-leitura` reconhece-as. As escritas de plataforma ficam no trilho global `AuditoriaPlataforma`,
 **não** no `AuditLog` do tenant (que exige `tenantId`): quem escreve uma acção de plataforma nova grava lá à mão.
 
