@@ -39,7 +39,10 @@ interface KcUser {
 }
 
 export interface RelatorioReconciliacao {
-  /** Utilizadores no realm sem `User` local (órfãos > 1 h). Inofensivos por construção (ADR-0011). */
+  /**
+   * Utilizadores no realm sem `User` local (órfãos > 1 h). NÃO são inofensivos
+   * (#549): o registo e o `criarUtilizador` recusam-nos; aqui só se contam.
+   */
   keycloakSemLocal: number;
   /** `User` locais cujo sub não existe no realm — quem NÃO CONSEGUE entrar. */
   localSemKeycloak: number;
@@ -135,7 +138,7 @@ export async function reconciliarIdentidades(): Promise<RelatorioReconciliacao> 
   } else if (orfaosKc.length > 0) {
     logger.warn(
       { contagem: orfaosKc.length },
-      '[reconciliacao] identidades Keycloak sem User local (inofensivas; reparação manual)',
+      '[reconciliacao] identidades Keycloak sem User local (registo e criarUtilizador recusam-nas; reparação manual)',
     );
   }
 

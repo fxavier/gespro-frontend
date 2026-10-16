@@ -224,11 +224,18 @@ describe.skipIf(skip)('#525 — sessão do administrador de plataforma (DB efém
     expect(erro.code).toBe('nao-provisionado');
   });
 
-  it('com o papel E com User de tenant → entra no tenant, com plataformaAdmin', async () => {
-    const { sessao: s } = await entrar(EMAIL_DUPLO);
+  // #549: o papel só vale na sessão SEM tenant (ADR-0049 §5).
+  it('com o papel E com User de tenant → entra no tenant, SEM plataformaAdmin (#549)', async () => {
+    const { token, sessao: s } = await entrar(EMAIL_DUPLO);
     expect(s.user.tenantId).toBe(tenantId);
     expect(s.user.permissions).toContain('vendas:criar');
-    expect(s.user.plataformaAdmin).toBe(true);
+    expect(token.plataformaAdmin).toBe(false);
+    expect(s.user.plataformaAdmin).toBe(false);
+  });
+
+  it('token antigo com tenant E plataformaAdmin → a sessão não o expõe (#549)', async () => {
+    const s = await sessao({ uid: 'u-x', tenantId, permissions: [], plataformaAdmin: true });
+    expect(s.user.plataformaAdmin).toBe(false);
   });
 
   it('controlo: utilizador de tenant sem o papel → plataformaAdmin false (presente)', async () => {
@@ -276,12 +283,12 @@ describe.skipIf(skip)('#525 — sessão do administrador de plataforma (DB efém
     expect(t2.tenantId).toBe(tenantId);
   });
 
-  it('papel dado no Keycloak a um utilizador de tenant → aparece na renovação', async () => {
+  it('papel dado no Keycloak a um utilizador de tenant → NÃO aparece na renovação (#549)', async () => {
     const { token } = await entrar(EMAIL_TENANT);
     expect(token.plataformaAdmin).toBe(false);
     kc.renovacoes.set(`refresh-${SUB_TENANT}`, { sub: SUB_TENANT, papeis: [PAPEL] });
     const t2 = await jwt({ ...token, resolverEm: 0 });
-    expect(t2?.plataformaAdmin).toBe(true);
+    expect(t2?.plataformaAdmin).toBe(false);
     expect(t2?.tenantId).toBe(tenantId);
   });
 

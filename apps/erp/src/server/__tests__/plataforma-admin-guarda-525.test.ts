@@ -199,14 +199,15 @@ describe('createSafeAction({ plataforma: true })', () => {
     expect(ctx?.tenantId).toBeFalsy();
   });
 
-  it('com o papel E com tenant → continua a NÃO estabelecer contexto de tenant', async () => {
+  // #549: o papel só vale na sessão SEM tenant (ADR-0049 §5). Uma sessão de
+  // tenant com o papel é recusada como se não o tivesse.
+  it('com o papel E com tenant → NAO_ENCONTRADO, handler não corre (#549)', async () => {
     mocks.auth.mockResolvedValue(sessaoDupla());
     const r = await accaoPlataforma({ nome: 'x' });
 
-    expect(r.ok, JSON.stringify(r)).toBe(true);
+    expect(r).toMatchObject({ ok: false, error: { code: 'NAO_ENCONTRADO' } });
+    expect(handlerPlat).not.toHaveBeenCalled();
     expect(mocks.runWithTenantContext).not.toHaveBeenCalled();
-    const ctx = handlerPlat.mock.calls[0]?.[1] as Record<string, unknown> | undefined;
-    expect(ctx?.tenantId).toBeFalsy();
   });
 
   it('um `tenantId` vindo do cliente nunca chega ao handler (ignorado ou recusado)', async () => {
@@ -232,9 +233,9 @@ describe('createSafeAction({ plataforma: true })', () => {
   });
 
   it.each(['leitura', 'pagamento'] as const)(
-    'não é travada pelo modo `%s` do tenant de quem a chama',
+    'não é travada pelo modo `%s` da sessão',
     async (acesso) => {
-      mocks.auth.mockResolvedValue(sessaoDupla(acesso));
+      mocks.auth.mockResolvedValue({ user: { ...sessaoSoPlataforma().user, acesso } });
       const r = await accaoPlataforma({ nome: 'x' });
       expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
       expect(handlerPlat).toHaveBeenCalledTimes(1);
@@ -303,11 +304,10 @@ describe('exigirPlataformaAdmin()', () => {
     expect(mocks.notFound).not.toHaveBeenCalled();
   });
 
-  it('com o papel e com tenant → resolve', async () => {
+  it('com o papel e com tenant → notFound() (#549)', async () => {
     const exigir = await guarda();
     mocks.auth.mockResolvedValue(sessaoDupla());
-    await exigir();
-    expect(mocks.notFound).not.toHaveBeenCalled();
+    await expect(exigir()).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
   it('administrador de tenant sem o papel → notFound() (404, não 403)', async () => {
