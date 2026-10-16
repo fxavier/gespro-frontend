@@ -124,13 +124,13 @@ saída do armazém activo principal (ver [Inventário](03-inventario.md)).
 | Menu | Endereço | Para que serve |
 |---|---|---|
 | Projectos › Dashboard | `/projetos` | Abre directamente a lista de projectos. |
-| Projectos › Projectos | `/projetos/lista` | Lista de projectos, com filtros por **Estado** e **Prioridade**. Botão **Novo Projecto**. |
+| Projectos › Projectos | `/projetos/lista` | Lista de projectos, com pesquisa e filtros por **Estado** e **Prioridade**. Botão **Novo Projecto**. |
 | (a partir da lista) | `/projetos/lista/novo` | Formulário **Novo Projecto**. |
 | (clicar num projecto) | `/projetos/lista/<projecto>` | Ficha do projecto: dados, separadores **Marcos** e **Equipas**, botões de estado (**Iniciar**, **Pausar**, **Concluir**…), **Kanban** e **Editar**. |
 | (na ficha) | `/projetos/lista/<projecto>/kanban` | Quadro Kanban das tarefas do projecto. |
 | Projectos › Tarefas | `/projetos/tarefas` | Todas as tarefas de todos os projectos, com filtros por **Estado** e **Prioridade**. Botão **Nova Tarefa**. |
 | (clicar numa tarefa) | `/projetos/tarefas/<tarefa>` | Detalhe da tarefa, com **Editar**. |
-| Projectos › Timesheet | `/projetos/timesheet` | Registos de horas, com filtro por **Tipo** e a coluna **Estado**. Botão **Registar Tempo**. |
+| Projectos › Timesheet | `/projetos/timesheet` | Registos de horas, com pesquisa (projecto, colaborador ou descrição), filtro por **Tipo** e a coluna **Estado**. Botão **Registar Tempo**. |
 | (clicar num registo) | `/projetos/timesheet/<registo>` | **Registo de Tempo**: detalhe e, se estiver por aprovar, **Aprovar** ou **Rejeitar**. |
 | — | `/projetos/cronograma` | **Cronograma**: vista de Gantt dos projectos activos. |
 | — | `/projetos/marcos` | **Marcos** de todos os projectos. Botão **Novo Marco**. |
@@ -140,7 +140,7 @@ saída do armazém activo principal (ver [Inventário](03-inventario.md)).
 | — | `/projetos/qualidade` | **Qualidade**: registos de não-conformidade, inspecção e auditoria. Botão **Novo Registo**. |
 | — | `/projetos/comunicacoes` | **Comunicações**: reuniões, atas, decisões e anúncios. Botão **Nova Comunicação**. |
 | — | `/projetos/relatorios` | **Relatórios**: indicadores globais e relatório por projecto. |
-| — | `/projetos/configuracoes` | **Configurações** por projecto. |
+| — | `/projetos/configuracoes` | **Configurações** por projecto: política de aprovação de timesheet e tipos de tarefa activos. |
 
 > **Atenção:** os ecrãs marcados com «—» ainda não têm entrada no menu lateral. Abra-os escrevendo o endereço na barra do navegador (por exemplo, `/projetos/riscos`).
 
@@ -154,10 +154,10 @@ saída do armazém activo principal (ver [Inventário](03-inventario.md)).
 | Menu | Endereço | Para que serve |
 |---|---|---|
 | Projectos › Produção | `/producao` | Página de entrada com atalhos para as dez áreas de produção. |
-| (atalho) Estrutura de Produto (BOM) | `/producao/estrutura` | Lista de estruturas de produto. Botão **Nova Estrutura**. Clicar numa linha abre a ficha (`/producao/estrutura/<estrutura>`), com **Activar** / **Desactivar**. |
-| (atalho) Roteiros de Produção | `/producao/roteiros` | Lista de roteiros. Botão **Novo Roteiro**. Clicar numa linha abre a ficha (`/producao/roteiros/<roteiro>`), com **Activar** / **Desactivar**. |
+| (atalho) Estrutura de Produto (BOM) | `/producao/estrutura` | Lista de estruturas de produto, com pesquisa e filtro por **Estado**. Botão **Nova Estrutura**. Clicar numa linha abre a ficha (`/producao/estrutura/<estrutura>`), com **Activar** / **Desactivar**. |
+| (atalho) Roteiros de Produção | `/producao/roteiros` | Lista de roteiros, com pesquisa e filtro por **Estado**. Botão **Novo Roteiro**. Clicar numa linha abre a ficha (`/producao/roteiros/<roteiro>`), com **Activar** / **Desactivar**. |
 | (atalho) Centros de Trabalho | `/producao/centros-trabalho` | Lista de centros de trabalho, com filtros por **Tipo** e **Estado**. Botão **Novo centro**. |
-| (atalho) Ordens de Produção | `/producao/ordens` | Lista de ordens, com filtro por **Estado**. Botão **Nova Ordem**. |
+| (atalho) Ordens de Produção | `/producao/ordens` | Lista de ordens, com pesquisa (número ou produto) e filtros por **Estado** e **Prioridade**. Botão **Nova Ordem**. |
 | (clicar numa ordem) | `/producao/ordens/<ordem>` | Ficha da ordem: dados, **Consumo de materiais**, **Controlo de qualidade** e os botões de acção. |
 | (na ficha da ordem) | `/producao/ordens/<ordem>/registar-consumo` | **Registar consumo** de material. |
 | (na ficha da ordem) | `/producao/ordens/<ordem>/reprovar-qualidade` | **Reprovar qualidade**, com o motivo. |
@@ -185,6 +185,8 @@ saída do armazém activo principal (ver [Inventário](03-inventario.md)).
 6. Clique em **Criar Projecto**.
 
 **Resultado:** aparece a mensagem «Projecto criado com sucesso.» e abre a ficha do projecto, no estado **Planeamento**.
+
+O código tem de ser único na empresa. Se já existir um projecto com o mesmo código, o projecto não é criado e o campo **Código** mostra «Já existe um projecto com o código «…».»: escolha outro código.
 
 <!-- captura: 08-projetos-e-producao/projeto-novo.png | /projetos/lista/novo -->
 ![Formulário Novo Projecto](img/08-projetos-e-producao/projeto-novo.png)
@@ -232,6 +234,8 @@ Para alterar, clique na tarefa na lista (abre o detalhe, com **Código**, **Proj
 
 O código da tarefa tem de ser único na empresa: um código repetido é recusado com «Erro interno».
 
+As tarefas criadas neste ecrã são do tipo **Tarefa**. Se, nas configurações do projecto, o tipo **Tarefa** estiver desmarcado em **Tipos de Tarefa Activos**, a criação é recusada com «Este tipo de tarefa está desactivado nas configurações do projecto» ([Como configurar um projecto](#como-configurar-um-projecto)).
+
 ### Como mover tarefas no Kanban
 
 **Antes de começar:** precisa do perfil Administrador, Gestor ou Operador. O projecto tem de ter tarefas ([Como criar e editar uma tarefa](#como-criar-e-editar-uma-tarefa)).
@@ -266,9 +270,10 @@ O código da tarefa tem de ser único na empresa: um código repetido é recusad
 5. Opcionalmente escreva uma **Descrição** e marque **Horas facturáveis**.
 6. Clique em **Guardar Registo**.
 
-**Resultado:** mensagem «Registo de tempo guardado.» O sistema calcula a duração. O registo aparece na lista com o estado **Pendente**, à espera de aprovação ([Como aprovar ou rejeitar horas](#como-aprovar-ou-rejeitar-horas)).
+**Resultado:** mensagem «Registo de tempo guardado.» O sistema calcula a duração. O estado do registo depende da **Política de Aprovação de Timesheet** do projecto ([Como configurar um projecto](#como-configurar-um-projecto)):
 
-> **Atenção:** a opção **Política de Aprovação de Timesheet** em Configurações é guardada, mas ainda não altera este comportamento: os registos ficam sempre **Pendentes** até alguém os aprovar.
+- **Manual** (a política por omissão): o registo aparece na lista com o estado **Pendente**, à espera de aprovação ([Como aprovar ou rejeitar horas](#como-aprovar-ou-rejeitar-horas));
+- **Automática**: o registo fica logo **Aprovado**, sem passar por ninguém.
 
 <!-- captura: 08-projetos-e-producao/timesheet-novo.png | /projetos/timesheet/novo -->
 ![Formulário Registar Tempo](img/08-projetos-e-producao/timesheet-novo.png)
@@ -362,10 +367,16 @@ O cronograma só mostra projectos em Planeamento, Em Andamento ou Pausado.
 **Antes de começar:** precisa do perfil Administrador ou Gestor.
 
 1. Abra `/projetos/configuracoes` e escolha o projecto.
-2. Defina a **Política de Aprovação de Timesheet** (Manual ou Automática), os **Tipos de Tarefa Activos** e os **Papéis de Equipa Activos**. Pode acrescentar **Observações**.
-3. Clique em **Guardar Configurações**.
+2. Defina a **Política de Aprovação de Timesheet**: «Manual — o gestor aprova cada registo» ou «Automática — aprovação sem intervenção».
+3. Em **Tipos de Tarefa Activos**, marque os tipos que o projecto aceita (Tarefa, Bug, Melhoria, Documentação, Teste). Tem de ficar pelo menos um marcado («Seleccione pelo menos um tipo de tarefa»). Pode acrescentar **Observações**.
+4. Clique em **Guardar Configurações**.
 
-**Resultado:** mensagem «Configurações guardadas com sucesso». Estas opções ficam guardadas, mas ainda não alteram o funcionamento das tarefas nem das horas.
+**Resultado:** mensagem «Configurações guardadas com sucesso». A partir daí:
+
+- com a política **Automática**, as horas registadas nesse projecto ficam logo **Aprovadas**; com **Manual**, ficam **Pendentes** até um Administrador ou Gestor as aprovar ([Como registar horas](#como-registar-horas-timesheet));
+- criar uma tarefa de um tipo desmarcado é recusado. Como as tarefas novas são do tipo **Tarefa**, mantenha este tipo marcado ([Como criar e editar uma tarefa](#como-criar-e-editar-uma-tarefa)).
+
+Um projecto que nunca foi configurado funciona com a política **Manual** e todos os tipos activos. A configuração não muda registos de horas já feitos.
 
 ### Como criar uma estrutura de produto (BOM)
 
@@ -495,8 +506,8 @@ Para anular, clique em **Cancelar ordem** (em Planeada, Liberada, Em Produção 
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Pendente | Horas registadas, por aprovar. | Aprovado (**Aprovar**), Rejeitado (**Rejeitar**, com motivo) | Administrador, Gestor |
-| Aprovado | Horas aprovadas. | — | — |
+| Pendente | Horas registadas, por aprovar (política **Manual**). | Aprovado (**Aprovar**), Rejeitado (**Rejeitar**, com motivo) | Administrador, Gestor |
+| Aprovado | Horas aprovadas. Com a política **Automática**, o registo nasce já neste estado. | — | — |
 | Rejeitado | Horas recusadas; o motivo fica no registo. | — | — |
 
 ### Risco
@@ -529,8 +540,6 @@ As mudanças de estado do risco ainda não têm botão no ecrã.
 | Pausada | Fabrico interrompido (sem botão para pausar). | Cancelada | Administrador, Gestor, Operador |
 | Concluída | Materiais baixados e produto acabado em stock no armazém PA. | — | — |
 | Cancelada | Anulada; reservas libertadas. | — | — |
-
-Na ficha da ordem, o estado **Em Produção** aparece escrito como «EM PRODUCAO».
 
 ### Estrutura de produto (BOM) e roteiro
 
@@ -565,15 +574,17 @@ Os botões **Activar** e **Desactivar** estão na ficha da estrutura e na ficha 
 | Stock insuficiente. Disponível: X, solicitado: Y. | Ao registar consumo, o armazém MP não tem a quantidade disponível (o que está reservado para ordens não conta). | Reduza a quantidade ou reponha o material no MP. |
 | Qualidade não foi aprovada para esta ordem | Tentou concluir a ordem sem a qualidade aprovada. | Clique em **Aprovar qualidade** e conclua depois. |
 | Indique o motivo da reprovação | Tentou reprovar a qualidade sem motivo. | Escreva o motivo. |
-| Erro interno | Erro inesperado. Acontece por exemplo se o **Código** de um projecto ou de uma tarefa já estiver a ser usado. | Use um código diferente. Se persistir, contacte o suporte. |
+| Já existe um projecto com o código «…». | Ao criar um projecto, o **Código** já está a ser usado por outro projecto da empresa. | Use um código diferente. |
+| Este tipo de tarefa está desactivado nas configurações do projecto | O tipo **Tarefa** está desmarcado nas configurações do projecto. | Em `/projetos/configuracoes`, marque **Tarefa** em **Tipos de Tarefa Activos**. |
+| Erro interno | Erro inesperado. Acontece por exemplo se o **Código** de uma tarefa já estiver a ser usado. | Use um código diferente. Se persistir, contacte o suporte. |
 
 ## Perguntas frequentes
 
 **Onde encontro Riscos, Qualidade, Cronograma, Marcos e os outros ecrãs de projecto?**
 Ainda não estão no menu. Escreva o endereço na barra do navegador (ver a tabela [Ecrãs](#ecrãs)).
 
-**A pesquisa na lista de projectos não filtra nada.**
-Use os filtros **Estado** e **Prioridade**. A caixa de pesquisa desta lista (e das listas de marcos, equipas, orçamentos, timesheet, ordens, estruturas e roteiros) ainda não tem efeito.
+**A pesquisa na lista de tarefas não filtra nada.**
+Use os filtros **Estado** e **Prioridade**. A caixa de pesquisa de **Tarefas** ainda não tem efeito. Nas listas de projectos, marcos, equipas, orçamentos, timesheet, ordens, estruturas e roteiros, a pesquisa funciona.
 
 **O Operador pode criar projectos?**
 Não. O Operador pode consultar projectos, criar e editar tarefas, movê-las no Kanban, registar horas e trabalhar na produção. Criar, editar e mudar o estado de projectos, aprovar ou rejeitar horas e criar marcos, riscos, registos de qualidade, comunicações, equipas, orçamentos e configurações é para Administrador e Gestor.

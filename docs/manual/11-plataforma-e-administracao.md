@@ -1,6 +1,6 @@
 # 11. Plataforma e Administração
 
-> **Para quem:** ADMIN e GESTOR (gestão; os dados da empresa só o ADMIN); consulta conforme o perfil · **Onde:** Plataforma & Analytics › Analytics, Core Tenancy, Subscrição; sino de notificações no cabeçalho
+> **Para quem:** ADMIN e GESTOR (gestão; os dados da empresa só o ADMIN); consulta conforme o perfil; a gestão do catálogo de planos é só da equipa GestPro (administrador de plataforma) · **Onde:** Plataforma & Analytics › Analytics, Core Tenancy, Subscrição; sino de notificações no cabeçalho; área `/plataforma` (equipa GestPro)
 
 ## Objectivo do módulo
 
@@ -9,6 +9,10 @@ Este capítulo reúne o que é da empresa como um todo: os indicadores de todos 
 dados da empresa, utilizadores, papéis e auditoria), a **Subscrição** do GestPro (plano, período de teste, pagamento, Modo de
 Leitura) e as **Notificações**. Para a entrada no produto, a interface e os perfis de sistema, veja
 [Primeiros passos](00-primeiros-passos.md).
+
+No fim das Tarefas há uma secção só para a **equipa GestPro**: a área **Plataforma**, onde o
+administrador de plataforma gere o catálogo de planos que o site, o registo e o ecrã Subscrição
+mostram. Os utilizadores das empresas clientes não têm acesso a essa área.
 
 O objectivo é **governar a conta**: cada pessoa com o acesso de que precisa e nada mais, tudo o que se faz
 fica registado, a gerência vê os números de todos os módulos num só ecrã, e a subscrição nunca apanha a
@@ -65,7 +69,9 @@ permissão»); o Sérgio tem os indicadores do mês e a resposta de quem fez o q
 | Convite por e-mail | Forma de primeiro acesso: a pessoa recebe uma mensagem onde confirma o endereço e escolhe a palavra-passe. |
 | Palavra-passe provisória | Forma de primeiro acesso sem e-mail: o sistema gera uma palavra-passe, mostra-a uma única vez a quem cria o utilizador, e a pessoa é obrigada a trocá-la ao entrar. Não fica guardada em lado nenhum. |
 | Registo de Auditoria | Histórico das alterações e acções feitas no sistema, com data/hora, acção, entidade e utilizador. |
-| Plano | Básico, Profissional ou Empresarial. Define o preço (em USD, mensal ou anual) e o número de utilizadores, armazéns e o suporte anunciados. |
+| Plano | Uma oferta do catálogo do GestPro (hoje: Básico, Profissional e Empresarial). Define o preço (em USD, mensal ou anual), os limites de utilizadores e de armazéns, o suporte e a lista de funcionalidades. O catálogo é gerido pela equipa GestPro e pode mudar sem nova versão do produto. |
+| Plano arquivado | Plano retirado do catálogo: deixa de aparecer no site, no registo e na escolha de planos, mas as empresas que já o têm mantêm-no, com os mesmos limites. |
+| Administrador de plataforma | Pessoa da equipa GestPro que gere a plataforma (não uma empresa cliente). Não pertence a nenhuma empresa e não vê os dados de nenhuma; entra directamente na área **Plataforma**. |
 | Subscrição | O vínculo entre a empresa e o GestPro: plano, periodicidade e estado. O pagamento é feito por cartão através do Stripe. |
 | Período de Teste | Os primeiros 14 dias, sem cartão, com o plano escolhido no registo. |
 | Modo de Leitura | 30 dias em que a empresa entra, consulta e exporta tudo o que é seu, mas não grava. É por aqui que passa qualquer fim de subscrição: fim do teste, cancelamento ou falta de pagamento. |
@@ -84,11 +90,16 @@ permissão»); o Sérgio tem os indicadores do mês e a resposta de quem fez o q
 | Utilizadores › Editar | `/core-tenancy/utilizadores/[id]/editar` | Alterar o nome, o estado activo e os papéis. |
 | Core Tenancy › Gerir Papéis | `/core-tenancy/roles` | Lista de papéis («Papéis e Permissões»). |
 | Papéis › Novo Papel | `/core-tenancy/roles/novo` | Criar um papel e escolher as permissões. |
-| — (sem ligação na lista) | `/core-tenancy/roles/[id]` | Ficha do papel, com as permissões; só se abre pelo endereço. |
+| Papéis › (linha) | `/core-tenancy/roles/[id]` | Ficha do papel, com as permissões. |
 | Papéis › ⋯ › Editar | `/core-tenancy/roles/[id]/editar` | Alterar nome, descrição e permissões. |
 | Core Tenancy › Ver Auditoria | `/core-tenancy/auditoria` | Registo de Auditoria. |
 | Plataforma & Analytics › Subscrição | `/definicoes/faturacao` | Estado da subscrição, planos, pagamento e cancelamento. |
 | (sino no cabeçalho) | `/notificacoes` | Centro de notificações. |
+| Plataforma › Início *(equipa GestPro)* | `/plataforma` | «Administração da plataforma»: entrada da área do administrador de plataforma. |
+| Plataforma › Planos *(equipa GestPro)* | `/plataforma/planos` | Catálogo de planos, arquivados incluídos, com o número de assinaturas de cada um. |
+| Planos › Novo plano | `/plataforma/planos/novo` | Criar um plano. |
+| Planos › (linha) | `/plataforma/planos/[id]` | Detalhe do plano; **Editar**, **Arquivar** / **Desarquivar**, **Apagar**. |
+| Planos › Editar | `/plataforma/planos/[id]/editar` | Alterar um plano (o código não muda). |
 | Notificações › Preferências | `/notificacoes/preferencias` | Canais de entrega por tipo de notificação. |
 
 A barra lateral só mostra as entradas que o seu perfil pode consultar: **Analytics** exige
@@ -100,6 +111,10 @@ ecrãs sem a permissão vê o aviso **Sem permissão**.
 
 O ecrã **Dados da empresa** não tem entrada própria na barra lateral: abre-se pelo cartão **Dados
 da Empresa** de Core Tenancy (botão **Editar Dados da Empresa**).
+
+A área **Plataforma** (`/plataforma`) tem cabeçalho e menu próprios (**Início** e **Planos**), sem a
+barra lateral das empresas. Só abre a quem tem o papel de administrador de plataforma; para os
+restantes o endereço responde como se não existisse («página não encontrada»).
 
 ## Tarefas
 
@@ -121,8 +136,6 @@ da Empresa** de Core Tenancy (botão **Editar Dados da Empresa**).
 **Resultado:** os valores são calculados na hora a partir dos dados de cada módulo. Os montantes
 aparecem em MT.
 
-> **Atenção:** o botão **Exportar Relatório** ainda não está ligado — não descarrega nada.
-
 ### Como ver o resumo da administração
 
 1. Abra **Plataforma & Analytics › Core Tenancy**.
@@ -133,10 +146,11 @@ aparecem em MT.
 <!-- captura: 11-plataforma-e-administracao/core-tenancy.png | /core-tenancy -->
 ![Administração da Plataforma](img/11-plataforma-e-administracao/core-tenancy.png)
 
-> **Atenção:** o cartão **Utilizadores** deste resumo não mostra o total real de utilizadores
-> (mostra no máximo 1). Para contar, use a lista em **Gerir Utilizadores**. O cartão
-> **Configuração Fiscal** mostra sempre «Activa» e não é uma ligação; para ver e alterar a
-> configuração fiscal, use **Editar Dados da Empresa**.
+O cartão **Utilizadores** conta todos os utilizadores da empresa, activos e inactivos; o cartão
+**Papéis (Roles)** indica quantos são de sistema.
+
+> **Atenção:** o cartão **Configuração Fiscal** mostra sempre «Activa» e não é uma ligação; para ver
+> e alterar a configuração fiscal, use **Editar Dados da Empresa**.
 
 ### Como alterar os dados da empresa e a configuração fiscal
 
@@ -185,7 +199,7 @@ para mais um utilizador activo (ver [os limites de cada plano](#como-consultar-a
 4. Deixe marcado **Utilizador activo** (ou desmarque para criar já inactivo).
 5. Em **Papéis e Permissões**, marque pelo menos um papel. Cada papel mostra a descrição e o
    número de permissões. Só pode atribuir papéis cujas permissões também tem (o ADMIN pode
-   atribuir qualquer um; um GESTOR, dos papéis de sistema, só GESTOR e LEITURA — ver
+   atribuir qualquer um; um GESTOR, dos papéis de sistema, só GESTOR, OPERADOR e LEITURA — ver
    [Como mudar os papéis de um utilizador](#como-mudar-os-papéis-de-um-utilizador)).
 6. Clique em **Criar Utilizador**.
 
@@ -222,6 +236,10 @@ A reposição pelo administrador é a alternativa que não depende de e-mail.
 **Resultado:** a palavra-passe antiga deixa de funcionar imediatamente. A nova é provisória: a
 pessoa tem de a trocar no próximo acesso. Não volta a ser mostrada.
 
+Repor não conclui um convite por e-mail: se a pessoa foi criada por convite e ainda não seguiu a
+ligação até ao fim, ao entrar vê «O seu convite ainda não foi concluído…» e tem de concluir o
+convite pela mensagem que recebeu.
+
 ### Como alterar o nome de um utilizador ou colocá-lo inactivo/activo
 
 1. Na ficha do utilizador, clique em **Editar**.
@@ -253,12 +271,11 @@ mudança chega em 15 minutos, no máximo.
 - Só pode atribuir papéis cujas permissões também tem. Um GESTOR, por exemplo, não pode dar o
   papel ADMIN: o GestPro recusa com «Não pode conceder permissões que não tem: …», seguido da
   lista das permissões em falta. O ADMIN pode atribuir qualquer papel.
-- Com os papéis de sistema como vêm de origem, um GESTOR só consegue atribuir **GESTOR** e
-  **LEITURA**: o FINANCEIRO inclui permissões que o GESTOR não tem (por exemplo fechar períodos,
-  declarar o IVA, estornar lançamentos, configurar séries de faturação) e o OPERADOR inclui a
-  administração total do inventário. Como a verificação abrange todos os papéis que ficam marcados,
-  um GESTOR também não consegue mudar os papéis de quem já tem ADMIN, FINANCEIRO ou OPERADOR —
-  isso fica para o ADMIN.
+- Com os papéis de sistema como vêm de origem, um GESTOR só consegue atribuir **GESTOR**,
+  **OPERADOR** e **LEITURA**: o FINANCEIRO inclui permissões que o GESTOR não tem (por exemplo
+  fechar períodos, abrir o exercício, declarar o IVA, estornar lançamentos, configurar séries de
+  faturação). Como a verificação abrange todos os papéis que ficam marcados, um GESTOR também não
+  consegue mudar os papéis de quem já tem ADMIN ou FINANCEIRO — isso fica para o ADMIN.
 - Não pode retirar o papel ADMIN ao último administrador activo da empresa (nem a si próprio,
   se for o último).
 - Se a recusa vier dos papéis, nada fica gravado — nem o nome nem o estado.
@@ -291,8 +308,11 @@ papéis que tinha. Também pode reactivar em **Editar**, marcando **Utilizador a
 
 1. Abra **Core Tenancy › Gerir Papéis**.
 2. A lista mostra Nome (com a etiqueta **Sistema** nos papéis de sistema), Descrição, Permissões e
-   Criado em. As linhas não abrem ao clicar: para ver ou alterar as permissões de um papel, use o
-   menu **⋯** da linha › **Editar**.
+   Criado em.
+3. Clique numa linha para abrir a ficha do papel: o resumo (Nome, Descrição, número de Permissões e,
+   nos papéis de sistema, «Papel de sistema (não editável)») e o separador **Permissões**, com os
+   códigos agrupados por módulo. Para alterar, use **Editar** na ficha ou o menu **⋯** da linha ›
+   **Editar**.
 
 <!-- captura: 11-plataforma-e-administracao/papeis.png | /core-tenancy/roles -->
 ![Papéis e Permissões](img/11-plataforma-e-administracao/papeis.png)
@@ -350,23 +370,35 @@ perdem as permissões associadas.
 2. No topo vê o **Estado**, o **Plano** e, em Período de Teste, os **Dias de teste restantes**
    (nos outros estados, a data de **Fim do teste**).
 3. Por baixo aparece um aviso conforme o estado (por exemplo «Está a usar o teste gratuito de 14
-   dias», que fica a vermelho nos últimos 3 dias) e os três planos com preço, utilizadores,
-   armazéns e suporte. O plano actual tem a etiqueta **Plano actual**.
+   dias», que fica a vermelho nos últimos 3 dias) e um cartão por plano do catálogo, pela ordem
+   definida pela GestPro, com o preço (mensal ou anual, conforme a **Periodicidade** escolhida),
+   **Utilizadores**, **Armazéns**, **Suporte** e a lista de funcionalidades. Onde não há limite
+   aparece **Ilimitado**. O plano actual tem a etiqueta **Plano actual**.
+4. Se o seu plano actual foi retirado do catálogo, o cartão dele continua a aparecer, marcado
+   **Plano actual (já não disponível para novas subscrições)** e sem botão: mantém o plano e os
+   limites, mas para renovar ou mudar de ciclo tem de escolher um dos planos disponíveis.
+
+As empresas criadas antes de existir a subscrição no GestPro aparecem como **Activa**, no plano
+**Empresarial**, sem pagamento registado no Stripe.
 
 <!-- captura: 11-plataforma-e-administracao/subscricao.png | /definicoes/faturacao -->
 ![Subscrição](img/11-plataforma-e-administracao/subscricao.png)
 
-| Plano | Mensal | Anual | Utilizadores | Armazéns | Suporte |
-|---|---|---|---|---|---|
-| Básico | 29 USD | 290 USD | 3 | 1 | Email (48h) |
-| Profissional | 79 USD | 790 USD | 15 | 5 | Email + telefone (24h) |
-| Empresarial | 199 USD | 1990 USD | ilimitados | ilimitados | Gestor de conta dedicado (4h) |
+O catálogo em vigor a 15 de Outubro de 2026 (os valores podem mudar — o ecrã **Subscrição** mostra
+sempre os actuais):
+
+| Plano | Mensal | Anual | Utilizadores | Armazéns | Suporte | Funcionalidades |
+|---|---|---|---|---|---|---|
+| Básico | 29 USD | 290 USD | 3 | 1 | Email (48h) | Facturação; Gestão de stock |
+| Profissional | 79 USD | 790 USD | 15 | 5 | Email + telefone (24h) | Contabilidade PGC-NIRF completa; Compras; Recursos humanos |
+| Empresarial | 199 USD | 1990 USD | Ilimitado | Ilimitado | Gestor de conta dedicado (4h) | Multi-armazém; Produção; Projectos; Apoio dedicado |
 
 O preço é do plano. Os limites de **utilizadores** e de **armazéns** são verificados: com o limite
 atingido, o GestPro recusa criar ou reactivar um utilizador e criar ou activar um armazém (uma
 localização do tipo Armazém), com a mensagem «O plano … permite até … e esse limite já foi
 atingido. …». Contam só os activos; durante o Período de Teste valem os limites do plano escolhido.
-Desactivar e mudar para um plano mais pequeno nunca são travados. A subscrição do GestPro é cobrada em USD pelo
+Os limites são os que o plano tem **hoje**: se a GestPro os alterar, a mudança vale também para as
+subscrições existentes. Desactivar e mudar para um plano mais pequeno nunca são travados. A subscrição do GestPro é cobrada em USD pelo
 Stripe e **não** é registada na contabilidade da sua empresa.
 
 ### Como subscrever um plano (ou mudar de ciclo)
@@ -378,6 +410,10 @@ e em Acesso Fechado.
 2. No plano pretendido, clique em **Subscrever** (no plano actual, **Renovar / mudar ciclo**).
 3. É encaminhado para a página de pagamento do Stripe. Introduza o cartão e confirme.
 4. No fim, volta ao ecrã **Subscrição**.
+
+Se o plano escolhido deixou de estar disponível entretanto, aparece «O plano escolhido não está
+disponível. Escolha outro plano.» e não é encaminhado para o Stripe: actualize a página e escolha
+outro.
 
 **Resultado:** quando o Stripe confirma o pagamento, a subscrição passa a **Activa** (se não mudar
 logo, actualize a página daí a instantes). Se a empresa estava em Modo de Leitura, a escrita volta
@@ -391,22 +427,22 @@ a funcionar — nas sessões abertas, em 15 minutos, no máximo.
 
 ### Como cancelar a subscrição
 
-**Antes de começar:** permissão `assinatura:gerir` (ADMIN, GESTOR).
+**Antes de começar:** permissão `assinatura:gerir` (ADMIN, GESTOR). O botão **Cancelar subscrição**
+só aparece em **Período de Teste** e em **Activa**: em Modo de Leitura ou com o acesso fechado já não
+há nada a cancelar.
 
 1. Em **Subscrição**, clique em **Cancelar subscrição**.
-2. Na janela **Cancelar a subscrição do GestPro?**, clique em **Cancelar subscrição** (ou em
-   **Manter subscrição** para desistir).
+2. A janela **Cancelar a subscrição do GestPro?** explica o que acontece: o acesso completo
+   mantém-se até ao fim do período já pago (num teste sem pagamento, termina já), segue-se o Modo de
+   Leitura durante 30 dias e nada se apaga. Clique em **Cancelar subscrição** (ou em **Manter
+   subscrição** para desistir).
 
 **Resultado:**
 
 - Com subscrição paga: aparece «A subscrição será cancelada no fim do período já pago.» Até lá
   tudo funciona; depois, a empresa entra em **Modo de Leitura** por 30 dias.
-- Em Período de Teste sem pagamento: aparece «Subscrição cancelada.» e a empresa entra de imediato
-  em **Modo de Leitura** por 30 dias.
-
-> **Atenção:** o texto da janela de confirmação diz que, depois do período pago, «os utilizadores
-> deixam de conseguir iniciar sessão». Na realidade a empresa passa primeiro 30 dias em Modo de
-> Leitura (entra, consulta e exporta) e só depois o acesso fecha.
+- Sem pagamento registado no Stripe (por exemplo, em Período de Teste): aparece «Subscrição
+  cancelada.» e a empresa entra de imediato em **Modo de Leitura** por 30 dias.
 
 ### O que pode e não pode fazer em cada estado da subscrição
 
@@ -415,7 +451,8 @@ a funcionar — nas sessões abertas, em 15 minutos, no máximo.
 | Entrar no GestPro | Sim | Sim | **Só ADMIN e GESTOR**, e apenas no ecrã **Subscrição**; os restantes vêem «A subscrição da sua empresa está fechada. Só um administrador pode entrar para regularizar o pagamento.» |
 | Consultar listas, fichas, relatórios, Analytics | Sim | Sim | Não |
 | Exportar (CSV/XLSX) | Sim | **Sim** | Não |
-| Gravar (criar, editar, emitir, anular, aprovar, gerir utilizadores, marcar notificações…) | Sim | **Não** — recusado com «A sua subscrição terminou e a conta está em modo de leitura…» | Não |
+| Gravar (criar, editar, emitir, anular, aprovar, gerir utilizadores…) | Sim | **Não** — recusado com «A sua subscrição terminou e a conta está em modo de leitura…» | Não |
+| Marcar notificações como lidas e mudar as preferências de notificação | Sim | **Sim** | Não |
 | Subscrever / pagar / gerir o cartão / cancelar | Sim | **Sim** | **Sim** (ADMIN, GESTOR, no ecrã **Subscrição**) |
 | Reenviar a ligação de confirmação de e-mail | Sim | Sim | Não |
 | Os dados | Guardados | Guardados | **Guardados** — não se apagam; pagar reabre tudo como estava |
@@ -435,8 +472,12 @@ entrada diz «O acesso da sua empresa está suspenso pela GestPro. Contacte o su
 
 1. Clique no sino no cabeçalho (o número vermelho indica as não lidas).
 2. Em **Notificações**, filtre por **Estado** (**Apenas não lidas**) ou **Tipo** (Documento
-   Expirado, Documento a Expirar, Manutenção Pendente, Alerta do Sistema).
-3. Clique no visto de uma notificação para **Marcar como lida**, ou em **Marcar todas como lidas**.
+   Expirado, Documento a Expirar, Manutenção Pendente, Alerta do Sistema), ou escreva em
+   **Pesquisar notificações…** — procura no título e no texto das notificações.
+3. A lista mostra 20 notificações de cada vez, das mais recentes para as mais antigas. Use **Mais
+   antigas** para avançar e **Voltar às mais recentes** para regressar ao início.
+4. Clique no visto de uma notificação para **Marcar como lida**, ou em **Marcar todas como lidas**.
+   Também funciona em Modo de Leitura.
 
 <!-- captura: 11-plataforma-e-administracao/notificacoes.png | /notificacoes -->
 ![Notificações](img/11-plataforma-e-administracao/notificacoes.png)
@@ -444,19 +485,90 @@ entrada diz «O acesso da sua empresa está suspenso pela GestPro. Contacte o su
 Quem gere a subscrição (ADMIN e GESTOR) recebe aqui, entre outros, os avisos da subscrição: «O período de teste termina
 em breve», «Pagamento da subscrição falhou» e «Subscrição em modo de leitura por falta de pagamento».
 
-> **Atenção:** a caixa **Pesquisar notificações…** ainda não filtra a lista, e a lista mostra as
-> 20 notificações mais recentes, sem página seguinte.
-
 ### Como escolher como recebe cada tipo de notificação
 
 1. Em **Notificações**, clique em **Preferências** (ou em **Gerir preferências de notificação**, no fundo da lista).
 2. Para cada tipo — Documento Expirado, Documento Próximo a Expirar, Manutenção Pendente,
    Recuperação de Palavra-passe, Convite de Utilizador, Alertas do Sistema — ligue ou desligue
    **In-App** (no sino) e **Email**.
-3. Cada mudança grava logo e mostra «Preferência actualizada».
+3. Cada mudança grava logo e mostra «Preferência actualizada». Também pode mudar as preferências
+   em Modo de Leitura.
 
 <!-- captura: 11-plataforma-e-administracao/notificacoes-preferencias.png | /notificacoes/preferencias -->
 ![Preferências de Notificação](img/11-plataforma-e-administracao/notificacoes-preferencias.png)
+
+### Administração da plataforma (só equipa GestPro)
+
+As tarefas seguintes são do **administrador de plataforma** — a equipa GestPro —, não dos
+utilizadores das empresas clientes. Um ADMIN de empresa não as vê nem as pode fazer.
+
+#### Como entrar como administrador de plataforma
+
+**Antes de começar:** a sua conta tem de ter o papel de administrador de plataforma, atribuído pela
+equipa técnica no serviço de identidade. Não se pede nem se atribui dentro do GestPro.
+
+1. Entre pelo ecrã de entrada normal, com o seu e-mail e palavra-passe.
+2. É levado directamente para **Administração da plataforma** (`/plataforma`), com o menu
+   **Início** e **Planos** e o botão **Sair** no cabeçalho.
+
+**Resultado:** está na área da plataforma, que não mostra dados de nenhuma empresa. Se abrir um
+endereço de uma empresa (por exemplo `/dashboard`), é reenviado para `/plataforma`.
+
+#### Como consultar o catálogo de planos
+
+1. Em **Plataforma**, clique em **Planos**.
+2. A tabela mostra todos os planos, arquivados incluídos, por ordem de apresentação: **Código**,
+   **Nome**, **Mensal**, **Anual**, **Utilizadores / armazéns**, **Assinaturas** (quantas empresas
+   têm o plano) e **Estado** (Activo ou Arquivado).
+3. Clique numa linha para abrir o detalhe: preços, limites, suporte, ordem e destaque, os **Price
+   ID** do Stripe de cada ciclo, a data em que saiu do catálogo e as **Funcionalidades**.
+
+No detalhe, um Price ID que vem da configuração do servidor (e não do plano) aparece como «Price da
+variável de ambiente». Um plano activo sem Price para um ciclo mostra o aviso «Sem Price do Stripe
+para o ciclo mensal: o checkout deste ciclo vai falhar.» (ou anual) — corrija-o antes de o divulgar.
+
+#### Como criar um plano
+
+1. Em **Planos**, clique em **Novo plano**.
+2. Em **Identificação**, preencha **Código** (maiúsculas, algarismos e `_`, a começar por letra, 2 a
+   31 caracteres — por exemplo `PROFISSIONAL`; **não pode ser alterado depois**), **Nome** e
+   **Descrição**.
+3. Em **Preços**, preencha **Preço mensal (USD)** e **Preço anual (USD)** e, se já existirem no
+   Stripe, o **Price ID mensal** e o **Price ID anual** (`price_…`). Cada Price pertence a um só
+   plano e a um só ciclo.
+4. Em **Limites e suporte**, preencha **Limite de utilizadores** e **Limite de armazéns** (`-1` =
+   ilimitado) e **Suporte** (por exemplo «Email (48h)»).
+5. Em **Funcionalidades**, use **Acrescentar funcionalidade** para cada linha (até 30); as setas
+   mudam a ordem e o caixote remove a linha.
+6. Em **Apresentação**, indique a **Ordem** (os planos aparecem da ordem menor para a maior) e, se
+   quiser, ligue **Destaque** (assinalado como recomendado no site).
+7. Clique em **Criar plano**.
+
+**Resultado:** aparece «Plano criado.» e o plano fica de imediato disponível no site, no registo e
+no ecrã **Subscrição** das empresas.
+
+#### Como editar um plano
+
+1. Abra o plano e clique em **Editar**.
+2. Altere o que precisar (o **Código** fica bloqueado) e clique em **Guardar alterações**.
+
+**Resultado:** aparece «Plano guardado.». **Atenção:** os novos limites valem logo para todas as
+empresas com esse plano, incluindo as que já o têm. O preço cobrado depende do Price do Stripe: mudar
+o preço de exibição não muda o que o Stripe cobra.
+
+#### Como arquivar, desarquivar ou apagar um plano
+
+- **Arquivar** (plano activo): na janela **Arquivar o plano …?**, confirme com **Arquivar**. O plano
+  sai do site e de checkouts novos; as empresas que já o têm mantêm o plano e os limites. Aparece
+  «Plano … arquivado.»
+- **Desarquivar** (plano arquivado): volta ao catálogo de imediato. Aparece «Plano … desarquivado.»
+- **Apagar**: só é possível se nenhuma empresa tiver o plano. Na janela **Apagar o plano …?**,
+  confirme com **Apagar** — não pode ser desfeito. Se o plano tiver assinaturas, a janela diz que
+  não pode ser apagado e oferece **Arquivar em vez disso**.
+
+O catálogo nunca pode ficar sem planos activos: não é possível arquivar nem apagar o último.
+Cada criação, alteração, arquivo e remoção fica registada num trilho de auditoria próprio da
+plataforma, separado do Registo de Auditoria das empresas.
 
 ## Estados
 
@@ -471,6 +583,13 @@ em breve», «Pagamento da subscrição falhou» e «Subscrição em modo de lei
 
 Contas antigas podem ainda mostrar **Suspensa**, **Expirado** ou **Cancelada**; nesses casos o
 ecrã explica a situação e a saída é sempre subscrever um plano.
+
+**Plano** (área Plataforma — equipa GestPro)
+
+| Estado | Significado | Pode passar a | Quem |
+|---|---|---|---|
+| Activo | No catálogo: aparece no site, no registo e no ecrã **Subscrição**. | Arquivado (excepto o último activo); apagado (só sem assinaturas) | Administrador de plataforma |
+| Arquivado | Fora do catálogo; quem já o tem mantém-no. | Activo (**Desarquivar**); apagado (só sem assinaturas) | Administrador de plataforma |
 
 **Utilizador**
 
@@ -489,7 +608,7 @@ ecrã explica a situação e a saída é sempre subscrever um plano.
 | Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — … | O e-mail já é usado noutra conta (desta ou de outra empresa). | Use outro endereço. |
 | Atribua pelo menos um papel ao utilizador | Nenhum papel marcado. | Marque pelo menos um papel. |
 | Não pode conceder permissões que não tem: … | O papel escolhido (ou as permissões marcadas no papel) inclui permissões que o seu perfil não tem. | Escolha outro papel ou retire essas permissões; ou peça a um ADMIN. |
-| Não é possível retirar o papel ADMIN ao último administrador do tenant | Ao editar, desmarcou ADMIN no único administrador activo. | Dê primeiro o papel ADMIN a outra pessoa. |
+| Não é possível retirar o papel ADMIN ao último administrador da empresa | Ao editar, desmarcou ADMIN no único administrador activo. | Dê primeiro o papel ADMIN a outra pessoa. |
 | O plano … permite até … utilizadores activos, e esse limite já foi atingido. Para acrescentar mais, mude de plano em Definições › Subscrição (/definicoes/faturacao) ou desactive um utilizador. | Criar ou reactivar ultrapassaria o limite de utilizadores do plano. | Mude de plano em **Subscrição** ou desactive um utilizador. |
 | O plano … permite até … armazéns activos, e esse limite já foi atingido. … | Criar ou activar um armazém ultrapassaria o limite do plano. | Mude de plano ou desactive um armazém. |
 | Este NUIT já está registado noutra empresa | Em **Dados da empresa**, o NUIT pertence a outra empresa GestPro. | Confirme o NUIT. |
@@ -500,7 +619,7 @@ ecrã explica a situação e a saída é sempre subscrever um plano.
 | Demasiadas reposições seguidas. Tente novamente dentro de N minutos. | Muitas reposições de palavra-passe seguidas. | Espere o tempo indicado. |
 | O navegador não deixou copiar. Anote a palavra-passe antes de sair. | O navegador bloqueou a cópia. | Anote a palavra-passe à mão. |
 | Não pode desactivar o próprio utilizador | Tentou desactivar-se a si próprio. | Peça a outro administrador. |
-| Não é possível desactivar o último administrador do tenant | É o único ADMIN activo. | Crie ou mantenha outro utilizador ADMIN primeiro. |
+| Não é possível desactivar o último administrador da empresa | É o único ADMIN activo. | Crie ou mantenha outro utilizador ADMIN primeiro. |
 | A subscrição da sua empresa está fechada. Só um administrador pode entrar para regularizar o pagamento. | Acesso Fechado e o seu perfil não gere a subscrição. | Peça ao ADMIN ou GESTOR que entre e pague em **Subscrição**. |
 | O acesso da sua empresa está suspenso pela GestPro. Contacte o suporte GestPro. | Acesso fechado pela GestPro. | Contacte o suporte GestPro. |
 | Papel com este nome já existe | Já há um papel com esse nome. | Escolha outro nome. |
@@ -509,7 +628,19 @@ ecrã explica a situação e a saída é sempre subscrever um plano.
 | Ainda não existe uma subscrição paga. Subscreva um plano primeiro. | Abriu o portal de pagamento sem subscrição no Stripe. | Use **Subscrever**. |
 | Não foi possível iniciar o pagamento. | O Stripe não devolveu a página de pagamento. | Tente de novo; se persistir, contacte o suporte. |
 | A sua subscrição terminou e a conta está em modo de leitura. Pode consultar e exportar tudo o que é seu; para voltar a gravar, subscreva um plano. | Tentou gravar em Modo de Leitura. | Subscreva um plano em **Subscrição**. |
-| Sem subscrição registada | Empresa criada antes da subscrição self-service. | Contacte o suporte para associar um plano. |
+| O plano escolhido não está disponível. Escolha outro plano. | O plano foi retirado do catálogo (arquivado) ou já não existe. | Actualize a página e escolha um dos planos apresentados. |
+
+**Área Plataforma (equipa GestPro)**
+
+| Mensagem mostrada | Porquê | O que fazer |
+|---|---|---|
+| Código de plano inválido: use maiúsculas, algarismos e _, começando por uma letra (2 a 31 caracteres). | O **Código** não tem o formato exigido. | Corrija o código (por exemplo `PREMIUM_2026`). |
+| Já existe um plano com o código «…». | O código já é usado por outro plano, activo ou arquivado. | Escolha outro código. |
+| Este Price ID do Stripe já está noutro plano ou ciclo: cada Price pertence a um só plano e a um só ciclo. | O Price ID indicado (assinalado no campo mensal ou anual) já está noutro plano ou no outro ciclo. | Crie um Price próprio no Stripe para este plano e ciclo. |
+| Não é possível arquivar o último plano activo: o catálogo ficaria vazio. Crie ou desarquive outro plano primeiro. | É o único plano activo (a mensagem diz «apagar» se tentou apagar). | Crie ou desarquive outro plano primeiro. |
+| O plano … tem N assinaturas e não pode ser apagado. Arquive-o: … | Há empresas com esse plano. | Arquive-o em vez de o apagar. |
+| Este plano já está arquivado. / Este plano não está arquivado. | Outra pessoa mudou o plano entretanto. | Actualize a página. |
+| Funcionalidade vazia: preencha ou remova a linha / Funcionalidade repetida: «…» | Linha de funcionalidade em branco ou duplicada. | Preencha ou remova a linha. |
 
 ## Perguntas frequentes
 
@@ -524,6 +655,15 @@ use **⋯** › **Reactivar**.
 **Se a subscrição acabar, perco os dados?** Não. Passa 30 dias em Modo de Leitura (pode exportar
 tudo) e depois o acesso fecha, mas os dados ficam guardados. O administrador continua a poder entrar
 para subscrever, e subscrever reabre tudo como estava.
+
+**O plano que tenho deixou de aparecer na lista. Perdi-o?** Não. A GestPro retirou-o do catálogo
+(arquivou-o), mas quem já o tem mantém-no, com os mesmos limites; o cartão aparece marcado **Plano
+actual (já não disponível para novas subscrições)**. Para renovar ou mudar de ciclo, escolha um dos
+planos disponíveis.
+
+**Os preços e as funcionalidades dos planos deste manual estão sempre certos?** São os de 15 de
+Outubro de 2026. O catálogo é gerido pela GestPro e pode mudar sem nova versão do produto; os
+valores em vigor são os do ecrã **Subscrição**.
 
 **Quem pode pagar a subscrição?** Quem tem a permissão `assinatura:gerir`: os perfis ADMIN e GESTOR.
 Os restantes perfis vêem o ecrã **Subscrição** mas não conseguem subscrever nem cancelar.

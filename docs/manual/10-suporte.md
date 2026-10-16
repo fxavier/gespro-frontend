@@ -70,17 +70,19 @@ mesmo sem impressora, a venda e a Factura-Recibo ficam registadas e o PDF fiscal
 
 | Menu | Endereço | Para que serve |
 |---|---|---|
-| Suporte & Tickets › Dashboard | `/tickets` | **Tickets de Suporte**: indicadores e atalhos para as vistas de tickets, categorias, base de conhecimento e relatórios. |
-| Suporte & Tickets › Tickets | `/tickets/lista` | Todos os tickets, com indicadores e filtros por **Estado**, **Prioridade** e **Tipo**. Botão **Novo Ticket**. |
+| Suporte & Tickets › Dashboard | `/tickets` | **Tickets de Suporte**: indicadores (**Tickets Abertos**, **SLA em Atraso**, **Em Progresso**, **Urgentes** ainda no estado Aberto) e atalhos para as vistas de tickets, categorias, base de conhecimento e relatórios. |
+| Suporte & Tickets › Tickets | `/tickets/lista` | Todos os tickets, com indicadores (**Total de Tickets**, **Em Progresso**, **SLA em Atraso**, **Resolvidos**), pesquisa por número ou título e filtros por **Estado**, **Prioridade** e **Tipo**. Botão **Novo Ticket**. |
 | (a partir da lista) | `/tickets/novo` | Formulário **Novo Ticket**. |
 | (clicar num ticket) | `/tickets/<ticket>` | Ficha do ticket: dados, SLA, separadores **Descrição** (com a avaliação, quando o ticket fechado é seu) e **Actividades** (com o campo **Comentário**), e **Avaliação** depois de avaliado; em **Atribuído a**, a escolha do agente com **Atribuir**; botões **Editar**, **Mudar Estado** e **Cancelar Ticket**. |
 | (atalho) Caixa de Entrada | `/tickets/caixa-entrada` | Tickets no estado Aberto, ordenados pelo prazo de SLA mais próximo. |
-| (atalho) Os Meus Tickets | `/tickets/meus` | Tickets atribuídos a si. |
+| (atalho) Os Meus Tickets | `/tickets/meus` | Tickets atribuídos a si, com pesquisa e filtro por **Estado**. |
 | (atalho) Urgentes | `/tickets/urgentes` | Tickets de prioridade Urgente, ordenados por SLA. |
-| (atalho) Resolvidos | `/tickets/resolvidos` | Tickets Resolvidos ou Fechados. |
+| (atalho) Resolvidos | `/tickets/resolvidos` | Tickets Resolvidos ou Fechados, com pesquisa e **Ordenar por**. |
 | (atalho) Categorias | `/tickets/categorias` | **Categorias de Tickets** e respectivos SLA. Botão **Nova Categoria**. |
 | Suporte & Tickets › Base de Conhecimento | `/tickets/base-conhecimento` | Artigos, com pesquisa e ordenação (**Mais visualizados**, **Mais úteis**, **Mais recentes**). Botão **Novo Artigo**. |
 | (atalho) Relatórios | `/tickets/relatorios` | **Relatórios de Tickets**: **Total de Tickets**, **Taxa de Resolução**, **SLA em Atraso**, **Urgentes**. |
+
+No Dashboard e na lista de tickets, os indicadores contam todos os tickets da empresa, não só os que aparecem na página. O **SLA em Atraso** conta os tickets por resolver (fora de Resolvido, Fechado e Cancelado) cujo **Limite SLA** já passou, no momento em que abre o ecrã.
 
 Se o seu perfil não tiver permissão para consultar os tickets, o grupo **Suporte & Tickets** não aparece no menu lateral e, se abrir um endereço do módulo, vê o aviso **Sem permissão**.
 
@@ -109,7 +111,7 @@ Se o seu perfil não tiver permissão para consultar os tickets, o grupo **Supor
 ### Como acompanhar e mudar o estado de um ticket
 
 1. Abra o ticket a partir da lista (ou da **Caixa de Entrada**, **Urgentes**, etc.).
-2. Consulte os dados: **Estado**, **Prioridade**, **SLA**, **Tipo**, **Solicitante**, **Atribuído a**, **Abertura** e **Limite SLA**. O campo **SLA** mostra o tempo restante (por exemplo, «5h restantes» ou «2d restantes») ou **SLA em Atraso**.
+2. Consulte os dados: **Estado**, **Prioridade**, **SLA**, **Tipo**, **Solicitante**, **Atribuído a**, **Abertura** e **Limite SLA**. O campo **SLA** mostra o tempo restante (por exemplo, «5h restantes» ou «2d restantes») ou **SLA em Atraso**, assim que o **Limite SLA** passa, sem esperar por uma mudança de estado. Um ticket Resolvido, Fechado ou Cancelado nunca aparece em atraso.
 3. Clique em **Mudar Estado** e escolha o novo estado na lista. Só aparecem os estados permitidos a partir do estado actual.
 
 **Resultado:** mensagem «Ticket movido para "…".». A mudança fica registada em **Actividades**. Ao passar a **Resolvido** fica registada a data de resolução; ao passar a **Fechado**, a data de fecho.
@@ -157,13 +159,13 @@ Para um ticket passar de **Aberto** a **Em Progresso**, tem de ter um agente atr
 
 ### Como cancelar um ticket
 
-1. Na ficha, clique em **Cancelar Ticket**.
+1. Na ficha, clique em **Cancelar Ticket**. O botão só aparece nos tickets **Aberto**, **Em Progresso**, **A Aguardar Cliente** ou **A Aguardar Terceiro**.
 2. Na janela **Cancelar ticket?**, escreva o **Motivo do cancelamento** (obrigatório, até 500 caracteres).
 3. Clique em **Confirmar Cancelamento** (ou **Voltar** para desistir).
 
 **Resultado:** mensagem «Ticket cancelado.» O ticket fica **Cancelado** e já não pode mudar de estado.
 
-O cancelamento só é aceite a partir de **Aberto**, **Em Progresso**, **A Aguardar Cliente** ou **A Aguardar Terceiro**. Um ticket **Resolvido** não pode ser cancelado (ver [Erros frequentes](#erros-frequentes)).
+Um ticket **Resolvido** ou **Fechado** não pode ser cancelado: para o anular, reabra-o primeiro com **Mudar Estado** › **Em Progresso** e cancele-o a seguir.
 
 ### Como criar uma categoria de tickets
 
@@ -220,7 +222,7 @@ O cancelamento só é aceite a partir de **Aberto**, **Em Progresso**, **A Aguar
 | Só é possível avaliar tickets FECHADOS. | O ticket ainda não está Fechado. | Aguarde o fecho do ticket. |
 | Só o solicitante pode avaliar o ticket. | Quem avalia não é quem abriu o ticket. | Peça ao solicitante que avalie. |
 | Este ticket já foi avaliado. | O ticket só se avalia uma vez. | — |
-| Transição de RESOLVIDO para CANCELADO não é permitida. | Tentou cancelar um ticket Resolvido. | Feche o ticket, ou reabra-o (Em Progresso) e cancele a seguir. |
+| Transição de … para … não é permitida. | O estado mudou entretanto noutra sessão (por exemplo, outra pessoa resolveu o ticket antes de o cancelar). | Actualize a página e escolha um estado permitido (ver [Estados](#estados)). |
 | Indique o motivo do cancelamento. | Motivo de cancelamento vazio. | Escreva o motivo. |
 | Cor deve ser hex válido (ex: #3b82f6) | Cor da categoria em formato errado. | Use o formato # seguido de 6 caracteres. |
 | Série activa para tipo "TICKET" no ano … não encontrada. Crie a série … primeiro. | Não existe série de numeração TKT activa para o ano. | As séries são criadas automaticamente; se faltar, contacte o suporte do GestPro. |
@@ -230,8 +232,5 @@ O cancelamento só é aceite a partir de **Aberto**, **Em Progresso**, **A Aguar
 **Porque é que «Os Meus Tickets» está vazio?**
 Mostra só os tickets atribuídos a si. Se ninguém lhe atribuiu ainda um ticket (em **Atribuído a** › **Atribuir**, na ficha do ticket), a vista fica vazia.
 
-**O ticket passou o prazo mas não aparece «SLA em Atraso».**
-A marca de atraso é actualizada quando o ticket muda de estado. Até lá, compare o **Limite SLA** com a data actual.
-
-**A pesquisa na lista de tickets não filtra.**
-Use os filtros **Estado**, **Prioridade** e **Tipo**. Na lista de tickets, em **Os Meus Tickets** e em **Resolvidos**, a caixa de pesquisa ainda não tem efeito. Na **Base de Conhecimento** a pesquisa funciona.
+**Como encontro um ticket pelo número?**
+Escreva parte do número (por exemplo, `TKT`) ou do título na caixa de pesquisa da lista de tickets, de **Os Meus Tickets** ou de **Resolvidos**. A pesquisa não distingue maiúsculas e combina-se com os filtros.

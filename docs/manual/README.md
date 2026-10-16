@@ -8,7 +8,7 @@ produto.
 
 **Autor:** Xavier Francisco Nhagumbe — Engenheiro de Software
 
-> **Versão:** corresponde ao GestPro de 9 de Outubro de 2026. Onde uma função existe mas ainda não
+> **Versão:** corresponde ao GestPro de 15 de Outubro de 2026. Onde uma função existe mas ainda não
 > está completa, o capítulo diz-o numa caixa **Atenção** — preferimos avisar a deixar descobrir.
 
 ## Por onde começar
@@ -33,7 +33,7 @@ produto.
 | 8 | [Projectos e produção](08-projetos-e-producao.md) | Controlar projectos e o que se fabrica | Nova loja; fabrico de blocos | Gestores de projecto, produção |
 | 9 | [Transporte e logística](09-transporte.md) | Entregar com a frota em condições e custo conhecido | Entrega na obra da Machava | Frota, logística |
 | 10 | [Suporte e tickets](10-suporte.md) | Nenhum pedido perdido, cada um com prazo | A impressora do POS | Equipa de suporte |
-| 11 | [Plataforma e administração](11-plataforma-e-administracao.md) | Governar acessos, auditoria, indicadores e subscrição | Uma nova caixeira e a revisão do mês | Administradores |
+| 11 | [Plataforma e administração](11-plataforma-e-administracao.md) | Governar acessos, auditoria, indicadores e subscrição; gerir o catálogo de planos (equipa GestPro) | Uma nova caixeira e a revisão do mês | Administradores |
 | 12 | [Casos práticos — um mês na vida de uma empresa](12-casos-praticos.md) | Ver os módulos encadeados de ponta a ponta | O primeiro mês completo | Todos — formação e implementação |
 
 ## A empresa dos exemplos

@@ -465,7 +465,7 @@ Cada fornecedor convidado tem também um estado próprio, no separador **Fornece
 | A requisição já não está em aprovação; a decisão já não conta. | Outro aprovador já decidiu (por exemplo, com quórum Qualquer um) ou a requisição mudou de estado | Actualize a página e veja o separador **Aprovações** |
 | Aprovação não encontrada ou já decidida | A sua decisão já foi registada, ou não é aprovador deste nível | Actualize a página |
 | Apenas requisições em rascunho podem ser actualizadas | A requisição já foi submetida | Não é possível editar; crie uma nova requisição, se necessário |
-| Transição inválida de RequisicaoCompra: … | A acção não é permitida no estado actual (por exemplo, cancelar uma requisição Em Aprovação) | Verifique o estado da requisição e actualize a página |
+| Transição inválida de requisição de compra: … | A acção não é permitida no estado actual (por exemplo, cancelar uma requisição Em Aprovação) | Verifique o estado da requisição e actualize a página |
 | Já existe um circuito activo para este tipo de documento ("…"). Desactive-o antes de activar outro. | Tentou activar um segundo circuito do mesmo tipo | Desactive o circuito existente ou guarde o novo como inactivo |
 | Workflow "…" já existe | Já há um circuito com esse nome | Escolha outro nome |
 | Pelo menos um aprovador | Um nível do circuito não tem aprovadores | Adicione pelo menos um aprovador a cada nível |
@@ -493,8 +493,8 @@ Sim, se a empresa não tiver um circuito activo para requisições. Para exigir 
 **Sou aprovador, mas não vejo os botões Aprovar… e Rejeitar…. Porquê?**
 Os botões só aparecem com a requisição **Em Aprovação**, no nível em curso, e se a sua decisão ainda estiver pendente. Se o circuito tem vários níveis, o seu só abre quando o anterior estiver aprovado.
 
-**Porque é que o Solicitante aparece como «Utilizador» seguido de quatro caracteres?**
-Nesta versão o sistema guarda um nome abreviado do utilizador que criou a requisição, em vez do nome completo.
+**Porque é que algumas requisições mostram o Solicitante como «Utilizador» seguido de quatro caracteres?**
+São requisições criadas antes de o sistema passar a gravar o nome do utilizador. As requisições novas mostram o nome de quem as criou.
 
 **Recebi a mercadoria mas o stock não mudou. Porquê?**
 Os itens criados em Compras não estão ligados a produtos do catálogo, por isso a recepção não mexe no stock. Dê entrada em [Inventário › Movimentações](03-inventario.md#como-dar-entrada-de-stock).

@@ -69,7 +69,8 @@ resultado quando os sócios aprovarem as contas: ver o exemplo numérico em
 [Como encerrar o exercício](#como-encerrar-o-exercício-fim-do-ano).
 
 **Resultado esperado:** `2026-10` **Fechado**; qualquer tentativa de lançar com data de Outubro é recusada com
-«Período 2026-10 está fechado»; o IVA está **Apurado** (ou **Declarado à AT**) e o BCI reconciliado.
+«O período 2026-10 está fechado e não aceita lançamentos. Para lançar nele, reabra-o em Contabilidade › Exercícios
+(período 2026-10 → Reabrir), indicando o motivo.»; o IVA está **Apurado** (ou **Declarado à AT**) e o BCI reconciliado.
 
 ## Conceitos
 
@@ -101,7 +102,7 @@ Exercício 2026
 
 - **Cada lançamento pertence a um só período**, determinado pela sua data. O mesmo vale para os lançamentos automáticos: uma factura emitida a 3 de Abril gera um lançamento no período `2026-04`.
 - **Enquanto o período está Aberto**, aceita lançamentos novos (manuais e automáticos) e estornos com data nesse mês.
-- **Quando o período é Fechado**, qualquer escrita com data nesse mês é recusada com a mensagem «Período 2026-03 está fechado» — incluindo a emissão de uma factura, nota de crédito ou nota de débito com data nesse mês, ou um estorno datado nesse mês. Para corrigir um mês fechado, estorne com uma data de um período aberto, ou peça a reabertura.
+- **Quando o período é Fechado**, qualquer escrita com data nesse mês é recusada com a mensagem «O período 2026-03 está fechado e não aceita lançamentos. Para lançar nele, reabra-o em Contabilidade › Exercícios (período 2026-03 → Reabrir), indicando o motivo.» — incluindo a emissão de uma factura, nota de crédito ou nota de débito com data nesse mês, ou um estorno datado nesse mês. Para corrigir um mês fechado, estorne com uma data de um período aberto, ou peça a reabertura.
 - **Os meses fecham por ordem**: não se fecha Março com Fevereiro ainda aberto.
 - **O exercício seguinte abre sozinho**: por omissão a 1 de Dezembro é criado o exercício do ano seguinte, com os 13 períodos e as séries de numeração dos documentos (ver [Configurações](#como-configurar-a-abertura-automática-do-exercício)). Se, por qualquer razão, alguém registar um documento num ano ainda sem exercício, o sistema cria-o nesse momento. Quando o exercício anterior já está encerrado, o novo exercício recebe também, automaticamente, o **lançamento de abertura** (diário AB) com os saldos de fecho.
 
@@ -112,7 +113,7 @@ Exercício 2026
 | Menu | Endereço | Para que serve |
 |---|---|---|
 | Dashboard | `/contabilidade` | Indicadores (lançamentos pendentes e efectuados, contas, diários) e atalhos para os ecrãs do módulo. |
-| Plano de Contas | `/contabilidade/plano-contas` | Lista, cria, edita e desactiva contas PGC-NIRF. |
+| Plano de Contas | `/contabilidade/plano-contas` | Lista, cria, edita, desactiva e reactiva contas PGC-NIRF. |
 | Diários | `/contabilidade/diarios` | Lista, cria e edita diários. |
 | Lançamentos | `/contabilidade/lancamentos` | Lista de lançamentos; criar, editar e anular rascunhos, confirmar e estornar. |
 | Razão Geral | `/contabilidade/razao-geral` | Movimentos de uma conta num intervalo de datas, com saldo acumulado. |
@@ -145,8 +146,8 @@ Cada entrada do menu só aparece a quem tem permissão para a consultar, e o end
 1. Abra **Finanças & Contabilidade › Plano de Contas**. A lista mostra Código, Nome, Classe, Tipo, Natureza, Lançamentos (Sim/Não) e Estado. Pode filtrar por **Classe** e **Tipo**.
 2. Clique numa conta para ver o detalhe: identificação, **Movimento do exercício** (Débitos, Créditos, Saldo devedor/credor, Movimentos) e **Hierarquia** (conta mãe e sub-contas). Numa conta de movimento, **Ver razão** abre o Razão Geral dessa conta no exercício corrente.
 3. Para criar uma conta, clique **Nova Conta** e preencha:
-   - **Identificação:** Código, Nível (1 a 4), Nome.
-   - **Classificação:** Classe, Tipo, Natureza (Devedora/Credora), Conta Mãe (opcional) e **Aceita Lançamentos** (só as contas de movimento, as «folhas», devem ter este interruptor ligado).
+   - **Identificação:** Código (sem pontos, como no resto do plano — ex.: `111`, `44331`), Nível (1 a 4), Nome.
+   - **Classificação:** Classe (com os nomes do PGC-NIRF, de «Classe 1 — Meios financeiros» a «Classe 8 — Resultados»; escolha-a pelo primeiro algarismo do código), Tipo, Natureza (Devedora/Credora), Conta Mãe (opcional) e **Aceita Lançamentos** (só as contas de movimento, as «folhas», devem ter este interruptor ligado).
    - **Conta Mãe** pesquisa no servidor por código ou nome; **Nenhuma (conta raiz)** deixa a conta sem mãe. Ao editar uma conta, a lista não oferece a própria conta nem as suas sub-contas (a qualquer nível), porque isso criaria um ciclo na hierarquia.
    - Descrição (opcional).
 4. Clique **Guardar Conta**.
@@ -155,14 +156,13 @@ Cada entrada do menu só aparece a quem tem permissão para a consultar, e o end
 
 **Regras que o sistema impõe:**
 - Numa conta que já tem lançamentos, o **código, a classe, o tipo, a natureza, o nível e a conta mãe ficam bloqueados** — alterá-los mudaria o significado de documentos já emitidos. Só o nome e a descrição mudam. Para reclassificar, crie uma conta nova e desactive a antiga.
-- **Desactivar** (no detalhe da conta) só é possível numa conta **sem** lançamentos. Uma conta com histórico fica; o que se faz é deixar de lançar nela.
+- **Desactivar** (no detalhe da conta) só é possível numa conta **sem** lançamentos. Uma conta com histórico fica; o que se faz é deixar de lançar nela. Confirme em **Desactivar conta**; aparece «Conta ‹código› desactivada.»
+- Uma conta desactivada mostra, no detalhe, o botão **Reactivar**: confirme em **Reactivar conta** e aparece «Conta ‹código› reactivada.» A conta volta a aparecer para novos lançamentos; nada do que está registado muda.
 
 **Natureza das contas do plano entregue:** a classe 6 (gastos) é devedora e a classe 7 (rendimentos) credora. Na
 classe 4 a natureza é definida conta a conta: são **credoras**, por exemplo, 421 Fornecedores c/c, 44331 IVA
 liquidado e as contas 42x (excepto 429), 43x, 46x, 47x e 48x; as restantes, como 411 Clientes c/c,
 são **devedoras**. É a natureza que decide de que lado aparece o saldo no balancete.
-
-> **Atenção:** os códigos do plano entregue não levam pontos (ex.: `111`, `44331`), apesar de o formulário sugerir o formato «1.1.1». Use o formato sem pontos, como no resto do plano. As designações de classe no formulário também diferem das do plano (no plano, a classe 2 é «Inventários e activos biológicos», a 3 «Investimentos de capital» e a 4 «Contas a receber, contas a pagar, acréscimos e diferimentos»); escolha a classe pelo primeiro algarismo do código.
 
 <!-- captura: 05-contabilidade/plano-contas.png | /contabilidade/plano-contas -->
 ![Plano de Contas PGC-NIRF](img/05-contabilidade/plano-contas.png)
@@ -256,10 +256,10 @@ Um lançamento **Lançado** nunca se edita. Para o anular, estorna-se.
 ### Como consultar o Razão Geral de uma conta
 
 1. Abra **Razão Geral**.
-2. Escolha a **Conta** (só aparecem contas de movimento).
+2. Escolha a **Conta** (só aparecem contas de movimento; pode pesquisar por código ou nome).
 3. Escolha o modo de filtragem:
-   - **Por datas**: preencha **De** e **Até** com datas no formato `aaaa-mm-dd`.
-   - **Por períodos**: escolha o **Exercício** (código do ano, ex.: «2026»), o **Do período** e o **Ao período** (1–12; marque **Incluir período 13** para incluir o período de encerramento).
+   - **Por datas**: preencha as datas **De** e **Até**.
+   - **Por períodos**: escolha o **Exercício** na lista (ex.: «2026») e, como no Balancete, o **Do período** e o **Ao período** («01 — Janeiro» a «12 — Dezembro»). Marque **Incluir período 13** para acrescentar a opção «13 — Encerramento»; ao desmarcá-la, um intervalo que terminava no 13 passa a terminar no 12. Se o período inicial ficar depois do final, é acertado ao final.
 4. Clique **Consultar**.
 
 **Resultado:** a tabela com Data, Histórico, Débito, Crédito e **Saldo Acum.**, enquadrada pela linha **Saldo anterior** (saldo da conta antes do intervalo) e pela linha **Saldo final** (soma do saldo anterior com o movimento do intervalo). Os totais de Débito e Crédito do período também aparecem na linha do Saldo final.
@@ -285,7 +285,9 @@ Só contam lançamentos **Lançados** e **Estornados** (os rascunhos ficam de fo
 
 Só contam lançamentos **Lançados** e **Estornados**. Por omissão, contas sem movimento nem acumulado não aparecem.
 
-As contas aparecem em hierarquia: cada conta-mãe soma as suas sub-contas, com um subtotal por classe. Os restantes
+As contas aparecem em hierarquia: cada conta-mãe soma as suas sub-contas, com um subtotal por classe. Uma conta cuja cadeia
+de contas-mãe está interrompida (sem ligação a uma conta de nível 1) aparece sempre, como topo da sua própria
+hierarquia, qualquer que seja o **Grau máximo** — o seu saldo nunca fica de fora dos totais. Os restantes
 campos do formulário afinam o que se vê e são aplicados com **Aplicar**:
 
 | Campo | O que faz |
@@ -319,7 +321,7 @@ Por baixo do quadro, o indicador **Balancete equilibrado** verifica três iguald
 
 Normalmente não é preciso: o exercício do ano seguinte abre sozinho (ver Configurações).
 
-**Antes de começar:** permissão de abrir exercício (só o Administrador).
+**Antes de começar:** permissão de abrir exercício (Administrador e Financeiro).
 
 1. Abra **Exercícios** e clique **Abrir exercício**.
 2. Indique o **Ano** e clique **Abrir exercício**.
@@ -379,7 +381,7 @@ Reabrir é possível, mas é uma operação excepcional, com motivo e registo.
 **Antes de começar:**
 - Permissão de apurar IVA (Administrador, Financeiro, Gestor).
 - O período tem de estar **Aberto**, sem rascunhos, e todos os documentos fiscais do mês com lançamento.
-- A partir de Janeiro de 2026, o produto **recusa apurar** um mês em que alguma factura, nota de débito ou nota de crédito emitida tenha linhas a uma taxa diferente de 16 % — **incluindo linhas isentas, a 0 %** — porque nesses casos a dedução do IVA depende do pro rata, cujo cálculo não está implementado. As compras sem IVA não contam para esta regra.
+- A partir de Janeiro de 2026, o produto **recusa apurar** um mês em que alguma factura, nota de débito ou nota de crédito emitida tenha linhas a uma taxa diferente de 16 % — **incluindo linhas isentas, a 0 %** — porque nesses casos a dedução do IVA depende do pro rata, cujo cálculo não está implementado. As compras sem IVA não contam para esta regra. Um mês nesta situação apura-se com o seu contabilista, fora do produto.
 
 1. Abra **Apuramento de IVA**. Para cada exercício aparece a lista de períodos com Período, Intervalo, Estado período, Apuramento IVA (**Não apurado**, **Apurado**, **Declarado à AT**) e Acção.
 2. Na linha do mês, clique **Apurar**.
@@ -405,7 +407,13 @@ Se o apuramento for recusado, o ecrã mostra o motivo (ver [Erros frequentes](#e
    - **Mapa de Fornecedores** — por documento, NUIT e imposto dedutível;
    - **Antiguidade do Crédito** — crédito em 4438 por período de origem.
 
-**Resultado:** é descarregado um ficheiro CSV. Os mapas saem das linhas gravadas no apuramento, não de um recálculo: um mapa pedido anos depois devolve os mesmos números. Todos os perfis, incluindo Leitura, podem descarregá-los.
+**Resultado:** é descarregado um ficheiro CSV com o código do período no nome (ex.: `mapa-iva-declaracao-2026-03-v1.csv`). Todos os perfis, incluindo Leitura, podem descarregá-los.
+
+| Mapa | De onde saem os números |
+|---|---|
+| **Suporte Declaração Periódica** | Das linhas gravadas no apuramento, não de um recálculo: pedido anos depois, devolve os mesmos números. No topo do ficheiro vêm o período, a versão, o estado, a data e a referência de entrega e o resumo (IVA liquidado, dedutível, regularizações, crédito reportado, saldo, a pagar, a recuperar); depois as linhas e os totais; no fim, em **Avisos**, cada linha em que base × taxa difere do imposto do razão. |
+| **Mapa de Clientes** · **Mapa de Fornecedores** | Das facturas e das contas a pagar com data nesse mês. |
+| **Antiguidade do Crédito** | De todos os apuramentos, de qualquer mês, que deram IVA a recuperar — não depende do apuramento do mês aberto. |
 
 ### Como corrigir um apuramento de IVA (estornar)
 
@@ -659,7 +667,7 @@ Estes lançamentos são criados automaticamente, já no estado **Lançado**, com
 | Aplicar o resultado | Diário de Operações, na data da deliberação: 88 ↔ 59 Resultados transitados. |
 | Apurar o IVA | Diário de Operações, no último dia do mês (ver acima). |
 
-Se o período da data do documento estiver fechado, a operação no outro módulo é recusada com «Período … está fechado».
+Se o período da data do documento estiver fechado, a operação no outro módulo é recusada com «O período … está fechado e não aceita lançamentos. …» (a venda no POS tem mensagem própria: «O período contabilístico … está fechado — não é possível vender nele. …»).
 
 **O que ainda não lança:** o **custo das vendas**
 (a saída de stock de uma venda não debita 61 nem credita 32) e as vendas POS feitas antes de as vendas POS emitirem
@@ -726,10 +734,10 @@ documento fiscal. O balancete e a DRE não mostram a margem.
 
 | Mensagem mostrada | Porquê | O que fazer |
 |---|---|---|
-| Período 2026-03 está fechado | A data do lançamento, estorno ou documento cai num período fechado. | Use uma data num período aberto, ou peça ao Administrador para reabrir o período. |
+| O período 2026-03 está fechado e não aceita lançamentos. Para lançar nele, reabra-o em Contabilidade › Exercícios (período 2026-03 → Reabrir), indicando o motivo. | A data do lançamento, estorno ou documento cai num período fechado. | Use uma data num período aberto, ou peça ao Administrador para reabrir o período (só ele o pode reabrir). |
 | Débitos (…) devem ser iguais a créditos (…) | O lançamento não está equilibrado. | Corrija os valores até ver «Lançamento equilibrado». |
 | Mínimo de 2 partidas por lançamento | Só foi indicada uma partida. | Adicione pelo menos uma partida do lado oposto. |
-| Conta … não aceita lançamentos | A conta escolhida é de agregação. | Escolha uma conta de movimento (subconta). |
+| Conta "…" não aceita lançamentos directos | A conta escolhida é de agregação. | Escolha uma conta de movimento (subconta). |
 | Conta "…" já existe | Já há uma conta com esse código. | Use outro código. |
 | Esta conta já tem N movimento(s): … não pode(m) ser alterado(s). Crie uma conta nova e desactive esta. | Tentou mudar código, classe, tipo, natureza, nível ou conta mãe de uma conta com lançamentos. | Altere só o nome/descrição, ou crie conta nova. |
 | Conta tem lançamentos — não pode ser desativada | A conta tem histórico. | Deixe de lançar nela; não é possível desactivá-la. |
@@ -742,8 +750,8 @@ documento fiscal. O balancete e a DRE não mostram a margem.
 | Motivo deve ter pelo menos 10 caracteres | Motivo de reabertura demasiado curto. | Escreva um motivo mais completo. |
 | O período … já tem um apuramento activo (versão N). Para corrigir, estorne-o e execute de novo. | Já existe apuramento Apurado ou Declarado. | Estorne o apuramento (se não estiver declarado) e apure de novo. |
 | O período … tem N lançamento(s) em rascunho. Confirme ou elimine antes de apurar. | Há rascunhos no mês. | Confirme-os ou anule-os em **Lançamentos**. |
-| O período … tem N documento(s) fiscal(is) sem lançamento: … | Documentos emitidos sem lançamento. | Contacte o suporte, indicando os números listados. |
-| Pro rata não suportado — apuramento recusado («Este período tem operações isentas (a 0 %), à taxa reduzida de 5 % ou fora do campo do imposto. …») | Desde Janeiro de 2026, há no mês facturas, notas de débito ou notas de crédito com linhas a taxa diferente de 16 %, incluindo isentas a 0 %. | Trate o apuramento desse mês com o seu contabilista: o ecrã indica as regularizações manuais (contas 44341/44342/44343) a lançar antes de tentar de novo. |
+| O período … tem N documento(s) fiscal(is) sem lançamento: … Contacte o suporte do GestPro com estes números. | Documentos emitidos sem lançamento. Um lançamento manual não fica ligado ao documento e não levanta a recusa. | Contacte o suporte, indicando os números listados. |
+| Pro rata não suportado — apuramento recusado («Este período tem operações isentas (a 0 %), à taxa reduzida de 5 % ou fora do campo do imposto. … consulte o seu contabilista para apurar este período fora do produto.») | Desde Janeiro de 2026, há no mês facturas, notas de débito ou notas de crédito com linhas a taxa diferente de 16 %, incluindo isentas a 0 %. | Apure esse mês com o seu contabilista, fora do produto. Lançar regularizações ou tentar de novo não levanta a recusa: enquanto o mês tiver essas operações, o apuramento no GestPro continua recusado. |
 | O apuramento já não está apurado (foi estornado ou declarado entretanto). | Outra pessoa estornou ou declarou o mesmo apuramento ao mesmo tempo. | Actualize a página e veja o estado actual do apuramento. |
 | Formato de extracto não suportado: … Use CSV ou XLSX. | Ficheiro com outra extensão. | Exporte o extracto em CSV ou XLSX. |
 | O extracto excede o tamanho máximo de 5 MB. | Ficheiro demasiado grande. | Divida o extracto por períodos mais curtos. |

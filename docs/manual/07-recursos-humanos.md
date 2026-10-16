@@ -102,7 +102,7 @@ escolher o candidato, use **Admitir como Colaborador** → [Como admitir um cand
 |---|---|---|
 | Recursos Humanos › Dashboard | /rh | Indicadores (colaboradores, férias e avaliações pendentes, ausências de hoje), colaboradores recentes e acesso rápido. |
 | Recursos Humanos › Colaboradores | /rh/colaboradores | Lista, pesquisa e filtro por estado. **Novo Colaborador** em /rh/colaboradores/novo. |
-| — | /rh/colaboradores/[id] | Ficha do colaborador. **Editar**, **Activar**, **Desactivar**, **Arquivar Colaborador**. |
+| — | /rh/colaboradores/[id] | Ficha do colaborador. **Editar**, **Activar**, **Desactivar**, **Arquivar Colaborador**. Separadores **Formação** e **Documentos** (carregar e descarregar documentos). |
 | Recursos Humanos › Assiduidade | /rh/assiduidade | Registos de presença do mês e filtro por tipo. **Registar** em /rh/assiduidade/novo. |
 | Recursos Humanos › Ausências | /rh/ausencias | Lista de ausências, com filtro por estado. **Registar Ausência** em /rh/ausencias/nova. Quem pode aprovar vê, nas ausências Pendentes, **Aprovar** e **Rejeitar**. |
 | — | /rh/ausencias/[id]/rejeitar | **Rejeitar Ausência**, com o motivo. |
@@ -117,8 +117,8 @@ escolher o candidato, use **Admitir como Colaborador** → [Como admitir um cand
 | — | /rh/ferias/[id]/rejeitar | **Rejeitar Pedido de Férias**, com o motivo. |
 | Recursos Humanos › Formações | /rh/formacoes | Acções de formação. **Nova Formação** em /rh/formacoes/nova. |
 | (sem menu) | /rh/recrutamento | Vagas e processos de selecção. **Nova Vaga** em /rh/recrutamento/vagas/nova. |
-| (sem menu) | /rh/beneficios | Catálogo de benefícios. **Novo Benefício** em /rh/beneficios/novo, **Atribuir** em /rh/beneficios/atribuir. |
-| (sem menu) | /rh/documentos | Lista (só de consulta) dos documentos dos colaboradores. |
+| (sem menu) | /rh/beneficios | Catálogo de benefícios. **Novo Benefício** em /rh/beneficios/novo, **Atribuir** em /rh/beneficios/atribuir. Na ficha do benefício, **Editar** em /rh/beneficios/[id]/editar e, em cada atribuição, **Suspender**, **Reactivar** e **Terminar**. |
+| (sem menu) | /rh/documentos | Lista (só de consulta) dos documentos de todos os colaboradores, com filtro por tipo. Para carregar ou descarregar, use o separador **Documentos** da ficha do colaborador. |
 
 <!-- captura: 07-recursos-humanos/dashboard.png | /rh -->
 ![Dashboard de Recursos Humanos](img/07-recursos-humanos/dashboard.png)
@@ -140,6 +140,8 @@ escolher o candidato, use **Admitir como Colaborador** → [Como admitir um cand
 
 **Resultado:** aparece a mensagem "Colaborador criado com sucesso!" e volta à lista.
 
+O Código, o NUIT, o BI e o Email não se podem repetir entre colaboradores da empresa, incluindo os arquivados. Se repetir um deles, o formulário não grava e mostra, junto ao campo, «Já existe um colaborador com este NUIT.» (ou «… com este BI.», «… com este email.», «… com este código.»).
+
 **Efeitos noutros módulos:** os subsídios entram nos **Proventos** de cada folha de salários processada a partir daí.
 
 <!-- captura: 07-recursos-humanos/colaboradores.png | /rh/colaboradores -->
@@ -152,7 +154,7 @@ escolher o candidato, use **Admitir como Colaborador** → [Como admitir um cand
 
 1. Na lista, clique na linha do colaborador, ou use o menu **⋯** › **Ver detalhe**.
 2. Na ficha pode:
-   - clicar em **Editar** para alterar o Nome Completo, o Email, o Telefone, o Tipo de Contrato, o Regime de Trabalho, o Salário Base (MZN), o Departamento, o Cargo e os subsídios (o formulário vem preenchido com os valores actuais), e depois clicar em **Guardar Alterações** — aparece «Colaborador actualizado com sucesso!». O Código, os documentos de identificação (BI/DIRE, NUIT, NISS) e a Data de Admissão não se alteram na edição;
+   - clicar em **Editar** para alterar o Nome Completo, o Email (que não pode ser o de outro colaborador), o Telefone, o Tipo de Contrato, o Regime de Trabalho, o Salário Base (MZN), o Departamento, o Cargo e os subsídios (o formulário vem preenchido com os valores actuais), e depois clicar em **Guardar Alterações** — aparece «Colaborador actualizado com sucesso!». O Código, os documentos de identificação (BI/DIRE, NUIT, NISS) e a Data de Admissão não se alteram na edição;
    - clicar em **Activar**, que aparece quando o colaborador está em Período Experimental, Férias ou Afastado;
    - clicar em **Desactivar**, que aparece quando o colaborador está Activo ou em Período Experimental.
 3. Um colaborador Inactivo já não pode ser editado. Só pode ser arquivado com **Arquivar Colaborador** › **Confirmar Arquivamento**. O arquivamento não se pode desfazer neste ecrã e só o Administrador o pode fazer.
@@ -161,6 +163,18 @@ escolher o candidato, use **Admitir como Colaborador** → [Como admitir um cand
 
 <!-- captura: 07-recursos-humanos/colaborador-detalhe.png | /rh/colaboradores >primeiro -->
 ![Ficha do colaborador](img/07-recursos-humanos/colaborador-detalhe.png)
+
+### Como anexar e descarregar documentos de um colaborador
+
+**Antes de começar:** para carregar documentos precisa da permissão para editar colaboradores (perfis Administrador e Gestor). Sem ela, o separador mostra só a lista e o botão de descarregar.
+
+1. Abra a ficha do colaborador e clique no separador **Documentos**.
+2. Em **Tipo de documento**, escolha o tipo (por exemplo, Bilhete de Identidade (frente), Declaração NUIT, Contrato de Trabalho, Carta de Condução ou Outro).
+3. Clique em **Carregar documento do colaborador** e escolha o ficheiro: PDF, imagem ou Office, até 10 MB.
+
+**Resultado:** "Documento carregado com sucesso." O documento aparece em **Documentos anexados**, com o nome, o tipo e a data. Para juntar mais um, clique em **Carregar outro**.
+
+Para abrir um documento, clique em **Descarregar** na linha dele. Qualquer perfil que consulte os colaboradores o pode descarregar. Os documentos de todos os colaboradores aparecem também em /rh/documentos, só para consulta.
 
 ### Como registar a assiduidade de um dia
 
@@ -384,6 +398,8 @@ O período contabilístico da data de hoje tem de estar aberto.
 2. O **Recibo de Vencimento** mostra os dados do colaborador (NUIT, NISS, cargo, departamento, NIB), os **Proventos**, os **Descontos**, o **Salário líquido**, o **INSS entidade (encargo patronal)** e o **Custo total da entidade**.
 3. Clique em **Descarregar PDF**. O ficheiro chama-se `recibo-<código>-<ano>-<mês>.pdf`.
 
+Num recibo já pago, o PDF indica também «Pago em» com a data do pagamento, sempre na hora de Moçambique. O recibo tem dados pessoais (salário, NUIT, NIB): por isso não fica guardado na cache do navegador e cada descarga é gerada de novo.
+
 <!-- captura: 07-recursos-humanos/recibo.png | /rh/payroll >primeiro -->
 ![Recibo de vencimento](img/07-recursos-humanos/recibo.png)
 
@@ -440,6 +456,8 @@ Se, na etapa Proposta, usou **Mover Etapa › Marcar como Contratado**, a etapa 
 
 **Resultado:** "Benefício atribuído com sucesso". A atribuição aparece em **Colaboradores Atribuídos**.
 
+Para alterar o benefício, clique em **Editar** na ficha dele, mude os campos e clique em **Guardar** — aparece "Benefício actualizado com sucesso". As atribuições já feitas mantêm os seus valores.
+
 **Efeitos noutros módulos:** as atribuições activas de benefícios com periodicidade **Mensal** entram em cada folha de salários dos meses em que estão em vigor (entre a Data de Início e a Data de Fim):
 - a **Comparticipação Empresa** de um benefício **Tributável (IRPS)** soma-se aos proventos, numa linha «Benefício: ‹nome›», e conta para o INSS e o IRPS;
 - a Comparticipação Empresa de um benefício **não tributável** não entra no recibo (é um custo que a empresa paga a terceiros, como a seguradora);
@@ -447,7 +465,19 @@ Se, na etapa Proposta, usou **Mover Etapa › Marcar como Contratado**, a etapa 
 
 Os benefícios Trimestrais, Anuais ou Pontuais não entram na folha. Uma folha já processada não muda: atribuições feitas depois só contam se a folha for processada (ou recalculada) de novo.
 
-> **Atenção:** o botão **Editar** da ficha do benefício abre uma página que ainda não existe. Também não há botões para suspender ou terminar atribuições.
+### Como suspender, reactivar ou terminar a atribuição de um benefício
+
+**Antes de começar:** precisa da permissão para atribuir benefícios (perfis Administrador e Gestor).
+
+1. Abra a ficha do benefício. Em **Colaboradores Atribuídos** aparecem as atribuições **Activas** e **Suspensas**.
+2. Na linha da atribuição, clique em:
+   - **Suspender** (atribuição Activa) e confirme na janela «Suspender esta atribuição?» — aparece «Atribuição suspensa.»;
+   - **Reactivar** (atribuição Suspensa) e confirme na janela «Reactivar esta atribuição?» — aparece «Atribuição reactivada.»;
+   - **Terminar** (atribuição Activa ou Suspensa) e confirme na janela «Terminar esta atribuição?» — aparece «Atribuição terminada.». A atribuição fica com a Data de Fim de hoje (ou a Data de Início, se ainda não tiver começado) e deixa de aparecer na lista.
+
+Em qualquer janela, **Cancelar** desiste.
+
+**Efeitos noutros módulos:** uma atribuição suspensa ou terminada deixa de entrar nas folhas de salários processadas (ou recalculadas) a partir daí; ao reactivar, volta a entrar no próximo processamento. Terminar é definitivo: para voltar a dar o benefício, faça uma atribuição nova.
 
 <!-- captura: 07-recursos-humanos/beneficios.png | /rh/beneficios -->
 ![Catálogo de benefícios](img/07-recursos-humanos/beneficios.png)
@@ -500,6 +530,14 @@ Os benefícios Trimestrais, Anuais ou Pontuais não entram na folha. Uma folha j
 | Pago | Pagamento lançado | — | — |
 | Cancelado | Anulada. O mês pode ser processado de novo | — | — |
 
+### Atribuição de benefício
+
+| Estado | Significado | Pode passar a | Quem |
+|---|---|---|---|
+| Activo | Em vigor. Entra na folha nos meses entre a Data de Início e a Data de Fim (benefícios mensais) | Suspenso, Terminado | Administrador, Gestor |
+| Suspenso | Interrompida. Não entra na folha | Activo, Terminado | Administrador, Gestor |
+| Terminado | Encerrada, com Data de Fim. Deixa de aparecer na ficha do benefício | — | — |
+
 ### Vaga
 
 | Estado | Significado | Pode passar a | Quem |
@@ -525,8 +563,8 @@ Os benefícios Trimestrais, Anuais ou Pontuais não entram na folha. Uma folha j
 
 | Acção | Administrador | Gestor | Financeiro | Operador | Leitura |
 |---|---|---|---|---|---|
-| Consultar colaboradores, assiduidade, recrutamento, benefícios | ✔ | ✔ | ✔ | ✔ | ✔ |
-| Criar e editar colaboradores | ✔ | ✔ | | | |
+| Consultar colaboradores (e descarregar os documentos deles), assiduidade, recrutamento, benefícios | ✔ | ✔ | ✔ | ✔ | ✔ |
+| Criar e editar colaboradores, carregar documentos | ✔ | ✔ | | | |
 | Arquivar colaborador | ✔ | | | | |
 | Registar assiduidade e ausências, pedir férias | ✔ | ✔ | | ✔ | |
 | Aprovar ou rejeitar ausências e pedidos de férias | ✔ | ✔ | | | |
@@ -536,7 +574,7 @@ Os benefícios Trimestrais, Anuais ou Pontuais não entram na folha. Uma folha j
 | Gerir tabelas INSS/IRPS | ✔ | ✔ | ✔ | | |
 | Ver recibos e mapas INSS/IRPS | ✔ | ✔ | ✔ | ✔ | ✔ |
 | Vagas, candidaturas, entrevistas, admissões | ✔ | ✔ | | | |
-| Criar e atribuir benefícios | ✔ | ✔ | | | |
+| Criar, editar e atribuir benefícios; suspender, reactivar e terminar atribuições | ✔ | ✔ | | | |
 
 Para pagar uma folha, além da permissão de pagar salários, é preciso a permissão do meio: operar o caixa (numerário) ou movimentar contas bancárias (as outras formas). Administrador, Gestor e Financeiro têm as duas.
 
@@ -581,9 +619,12 @@ Para pagar uma folha, além da permissão de pagar salários, é preciso a permi
 | Este candidato já se candidatou a esta vaga | Candidatura repetida | Abra a candidatura existente no Pipeline. |
 | Já existe um candidato com o email '…' | O email já pertence a outro candidato | Use outro email. |
 | Esta candidatura já foi convertida em colaborador | A candidatura já tem um colaborador criado | Consulte o colaborador em Colaboradores. |
-| Já existe um colaborador com o NUIT / BI / email / código '…' | Os dados repetem os de outro colaborador | Verifique se o colaborador já existe. |
+| Já existe um colaborador com este NUIT. (ou BI, email, código) | Ao criar ou editar um colaborador, o valor já pertence a outro colaborador, mesmo arquivado | Verifique se o colaborador já existe; corrija o campo assinalado. |
+| Já existe um colaborador com o NUIT / BI / email / código '…' | Na admissão de um candidato, os dados repetem os de um colaborador | Verifique se o colaborador já existe. |
 | O colaborador já possui este benefício activo ou suspenso no período indicado | Atribuição repetida | Mude as datas ou mantenha a atribuição existente. |
+| Só é possível suspender atribuições activas / Só é possível reactivar atribuições suspensas / Esta atribuição já está terminada | Outra pessoa já mudou a atribuição | Actualize a página. |
 | O colaborador não pertence a um departamento elegível para este benefício | O benefício está limitado a certos departamentos ou cargos | Escolha outro benefício. |
+| Ficheiro demasiado grande (máx. 10 MB). / Tipo de ficheiro não permitido. | Ao carregar um documento, o ficheiro passa de 10 MB ou não é PDF, imagem ou Office | Reduza o ficheiro ou converta-o para PDF. |
 | NUIT deve ter exactamente 9 dígitos numéricos | NUIT mal escrito | Corrija o NUIT. |
 | NISS deve ter exactamente 11 dígitos | NISS mal escrito | Corrija o NISS ou deixe o campo vazio. |
 | Sem permissão para esta operação | O seu perfil não tem a permissão | Peça a um administrador. |

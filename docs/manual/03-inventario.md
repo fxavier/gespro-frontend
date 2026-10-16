@@ -12,7 +12,7 @@ está, o que está reservado e o que tem de ser reposto — e conhecer o estado 
 | | |
 |---|---|
 | **Que problema resolve** | Rupturas de stock descobertas ao balcão, diferenças entre o sistema e o armazém sem explicação, equipamentos sem dono, sem manutenção e sem valor conhecido. |
-| **Quem usa** | Operador (movimentos, contagens); Gestor (produtos, categorias, activos). |
+| **Quem usa** | Operador (movimentos, contagens, activos e manutenções); Gestor (catálogo, activos e aprovação de diferenças de contagem); Administrador (amortização). |
 | **O que entra** | Categorias de produto, produtos (SKU, preços, IVA, stock mínimo), localizações, entradas, saídas, transferências, contagens; activos, as suas movimentações e manutenções; inventários físicos dos activos. |
 | **O que sai** | Saldo por produto e localização (no detalhe do produto), lista de reposição, ajustes de contagem; ficha de cada activo com movimentações, amortização mensal e histórico de manutenção; resultado da contagem física dos activos. |
 | **Liga-se a** | [Compras](01-compras.md) (entradas), [Vendas & POS](04-vendas-e-pos.md) (saídas e reservas), [Produção](08-projetos-e-producao.md) (consumo e produto acabado). |
@@ -114,7 +114,7 @@ em si — motoristas, rotas, combustível — gere-se em [Transporte](09-transpo
 | Manutenção | /inventario/manutencao | Manutenções preventivas e correctivas dos activos |
 | *(atalho no Dashboard)* | /inventario/localizacoes | Localizações (armazéns, lojas, salas). Precisa delas para registar stock e activos |
 | *(sem entrada no menu)* | /inventario/contagens | Contagens de stock de produtos e reconciliação |
-| *(sem entrada no menu)* | /inventario/transferencias | Lista de transferências de stock (ver a nota em [Como transferir stock](#como-transferir-stock-entre-localizações)) |
+| *(sem entrada no menu)* | /inventario/transferencias | **Transferências de Stock**: lista das transferências entre localizações (ver [Como transferir stock](#como-transferir-stock-entre-localizações)) |
 | *(sem entrada no menu)* | /stock/dashboard | Dashboard de Stock: produtos no catálogo, alertas de stock mínimo, movimentações |
 | *(sem entrada no menu)* | /stock/reposicao | Reposição de Stock: produtos abaixo do stock mínimo |
 | *(sem entrada no menu)* | /inventario/relatorios | Relatórios de Inventário, com ligações para Amortização (/inventario/amortizacao), Abate (/inventario/abate) e Reconciliação (/inventario/reconciliacao). Abate e Reconciliação são listas só de consulta |
@@ -125,9 +125,7 @@ em si — motoristas, rotas, combustível — gere-se em [Transporte](09-transpo
 <!-- captura: 03-inventario/dashboard.png | /inventario -->
 ![Dashboard de Inventário](img/03-inventario/dashboard.png)
 
-O **Dashboard de Inventário** mostra quatro indicadores (Total de Ativos, Em Uso, Em Manutenção, Manutenções Pendentes) e atalhos para Ativos, Manutenção, Categorias (de activos), Localizações, Inventário Físico e Movimentações. O botão **Novo Ativo** abre o formulário de um activo novo.
-
-> **Atenção:** hoje os indicadores do Dashboard não mostram o total real. «Total de Ativos» e «Em Uso» mostram 0, 1 ou «25+», e «Em Manutenção» mostra no máximo 1. Para saber quantos activos tem em cada estado, use o filtro **Estado** em **Activos**.
+O **Dashboard de Inventário** mostra quatro indicadores (Total de Ativos, Em Uso, Em Manutenção, Manutenções Pendentes), com o total real de activos em cada caso, e atalhos para Ativos, Manutenção, Categorias (de activos), Localizações, Inventário Físico e Movimentações. O botão **Novo Ativo** abre o formulário de um activo novo.
 
 ## Tarefas
 
@@ -142,14 +140,14 @@ O **Dashboard de Inventário** mostra quatro indicadores (Total de Ativos, Em Us
 
 **Resultado:** aparece a mensagem «Localização criada com sucesso!». A localização passa a estar disponível nos formulários de movimentos de stock, de activos e de inventário físico.
 
-Para deixar de usar uma localização, abra o menu **⋯** da linha e escolha **Desactivar**. Uma localização desactivada deixa de aparecer para novos activos e novo stock.
+Para deixar de usar uma localização, abra o menu **⋯** da linha, escolha **Desactivar** e confirme em **Desactivar**. Aparece «Localização "…" desactivada.». Uma localização desactivada deixa de aparecer para novos activos e novo stock.
 
 O plano de subscrição limita o número de localizações do tipo **Armazém** activas: 1 no plano Básico, 5 no
 Profissional, sem limite no Empresarial. As localizações de outros tipos (Prateleira, Sala, Filial…) não
 contam. No limite, criar mais um armazém é recusado com a mensagem «O plano … permite até … e esse limite já
 foi atingido…»: mude de plano em **Definições › Subscrição** ou desactive um armazém que já não use.
 
-> **Atenção:** a opção **Editar** no menu **⋯** das localizações ainda abre uma página inexistente. Por enquanto não é possível alterar uma localização depois de criada.
+> **Nota:** não é possível alterar uma localização depois de criada. O menu **⋯** só aparece nas localizações activas e tem apenas **Desactivar**.
 
 ### Como criar uma categoria de produto
 
@@ -170,7 +168,7 @@ Para alterar, clique na linha (ou em **⋯ › Editar**), mude os campos e cliqu
 
 1. Vá a **Inventário & Activos › Produtos** e clique em **Novo Produto**.
 2. Em **Identificação**, preencha **SKU \*** (ex.: PROD-001), **Nome \***, **Categoria \*** e **Unidade de Medida \*** (Unidade, Quilograma, Litro, Metro, Caixa ou Pacote). **Marca** e **Descrição** são opcionais.
-3. Em **Preços e Stock**, indique **Preço de Compra (MT) \***, **Preço de Venda (MT) \***, **Taxa de IVA** (Isento (0%) ou 16%) e **Stock Mínimo**.
+3. Em **Preços e Stock**, indique **Preço de Compra (MT) \***, **Preço de Venda (MT) \***, **Taxa de IVA** (**16%**, já escolhida, ou **0% (isento)**; não há outras taxas) e **Stock Mínimo**.
 4. Clique em **Criar Produto**.
 
 **Resultado:** aparece «Produto criado com sucesso!» e volta à lista **Catálogo de Produtos**. O produto fica no estado **Activo**.
@@ -192,7 +190,7 @@ Para alterar, clique na linha (ou em **⋯ › Editar**), mude os campos e cliqu
 
 **Resultado:** aparece «Produto actualizado com sucesso.» ou «Produto "…" arquivado.».
 
-> **Atenção:** no formulário de edição, a **Taxa de IVA** escolhe-se entre **16%** e **0% (isento)**. O separador **Variantes** é só de consulta: ainda não é possível criar variantes neste ecrã.
+> **Atenção:** o separador **Variantes** é só de consulta: ainda não é possível criar variantes neste ecrã.
 
 ### Como dar entrada de stock
 
@@ -239,15 +237,18 @@ Se não houver stock suficiente, a saída não é registada. Aparece o aviso «S
 4. Indique a **Quantidade** e o **Motivo** (obrigatório). **Observações** é opcional.
 5. Clique em **Registar Transferência**.
 
-**Resultado:** aparece o painel **Transferência concluída** com os dois movimentos criados: **Movimento de saída** na origem e **Movimento de entrada** no destino. O saldo total do produto não muda. Clique em **Registar outra** para fazer uma nova transferência.
+**Resultado:** aparece o painel **Transferência concluída** com os dois movimentos criados: **Movimento de saída** na origem e **Movimento de entrada** no destino. O saldo total do produto não muda. Clique em **Registar outra** para fazer uma nova transferência, ou em **Ver transferências** para abrir a lista **Transferências de Stock** (/inventario/transferencias).
 
-> **Atenção:** hoje a página **Transferências de Stock** (botão **Ver transferências**) aparece sempre vazia. As transferências registadas aparecem em **Movimentações**.
+A lista **Transferências de Stock** mostra as transferências mais recentes, com **Produto**, **Qtd**, **Origem**, **Destino** e **Data**. Cada transferência aparece em duas linhas: a saída na origem e a entrada no destino. Os botões **Nova Transferência** e **Ver Todas as Movimentações** levam ao formulário e a **Movimentações**.
+
+> **Atenção:** nesta lista, as colunas **Produto**, **Origem** e **Destino** mostram ainda códigos internos, e não os nomes. Para ver as transferências com o nome do produto, use **Movimentações** com o filtro **Tipo** em «Transferência (saída)» ou «Transferência (entrada)».
 
 ### Como consultar as movimentações
 
-Em **Movimentações** vê os movimentos mais recentes, com as colunas **Tipo**, **Produto**, **Qtd**, **Motivo** e **Data**. Aparecem os movimentos registados neste ecrã e também os que vêm de compras, vendas, produção e contagens.
+Em **Movimentações** vê os movimentos mais recentes, com as colunas **Tipo**, **Produto** (nome e SKU), **Qtd**, **Motivo** e **Data**. Aparecem os movimentos registados neste ecrã e também os que vêm de compras, vendas, produção e contagens.
 
-> **Atenção:** hoje o filtro **Tipo** e a caixa de pesquisa não filtram esta lista. Nas transferências, a coluna **Tipo** mostra o código interno (TRANSFERENCIA_ENTRADA / TRANSFERENCIA_SAIDA).
+- **Tipo** filtra por Entrada, Saída, Ajuste, Transferência (entrada) ou Transferência (saída). Numa transferência, a coluna **Tipo** mostra «Transferência (saída)» na origem e «Transferência (entrada)» no destino.
+- A caixa **Pesquisar movimentações…** procura pelo nome ou SKU do produto e pelo motivo.
 
 <!-- captura: 03-inventario/movimentacoes-lista.png | /inventario/movimentacoes -->
 ![Movimentações de Stock](img/03-inventario/movimentacoes-lista.png)
@@ -255,9 +256,7 @@ Em **Movimentações** vê os movimentos mais recentes, com as colunas **Tipo**,
 ### Como ver os produtos que precisam de reposição
 
 1. Abra o endereço /stock/reposicao, ou o atalho **Reposição** no Dashboard de Stock (/stock/dashboard).
-2. A lista mostra os produtos com saldo abaixo do **Stock Mínimo**: **Saldo Actual**, **Reservado**, **Disponível** e o alerta **Stock Baixo**.
-
-> **Atenção:** nesta lista, as colunas **Produto** e **Localização** mostram ainda um código interno abreviado, e não o nome.
+2. A lista mostra uma linha por produto cujo saldo total (somando todas as localizações) está abaixo do **Stock Mínimo**: **Produto** (nome e SKU), **Localização**, **Saldo Actual**, **Reservado**, **Disponível** e o alerta **Stock Baixo**. Em **Localização** aparece o nome da localização onde está o stock, «Várias localizações» se estiver em mais de uma, ou «Sem stock».
 
 ### Como fazer uma contagem de stock (e acertar o stock)
 
@@ -290,7 +289,7 @@ Para cancelar, clique em **Cancelar Contagem** › **Confirmar Cancelamento**. N
 
 ### Como criar uma categoria de activo
 
-**Antes de começar:** perfil Administrador ou Gestor.
+**Antes de começar:** perfil Administrador, Gestor ou Operador.
 
 1. Vá a **Inventário & Activos › Categorias de activos** (página **Categorias de Ativos**) e clique em **Nova Categoria**.
 2. Em **Identificação**, preencha **Código \*** (ex.: EQ-TI), **Nome \*** e, se quiser, **Descrição**.
@@ -306,7 +305,7 @@ Para alterar, use **⋯ › Editar** na linha. O **Código** não se pode altera
 
 ### Como registar um activo
 
-**Antes de começar:** perfil Administrador ou Gestor. Tem de existir pelo menos uma categoria de activo e uma localização activa.
+**Antes de começar:** perfil Administrador, Gestor ou Operador. Tem de existir pelo menos uma categoria de activo e uma localização activa.
 
 1. Vá a **Inventário & Activos › Activos** (página **Gestão de Ativos**) e clique em **Novo Ativo**.
 2. **Informações Básicas:** **Código Interno \*** (ex.: INF-001), **Categoria \***, **Nome do Ativo \***. Opcionais: **Descrição**, **Marca**, **Modelo**, **Número de Série**.
@@ -333,7 +332,7 @@ Para alterar os dados (categoria, nome, descrição, marca, modelo, valor de com
 
 ### Como anexar documentos a um activo
 
-**Antes de começar:** perfil Administrador ou Gestor.
+**Antes de começar:** perfil Administrador, Gestor ou Operador.
 
 1. Abra o activo e vá ao separador **Documentos**.
 2. Em **Tipo de documento**, escolha Manual, Certificado, Garantia, Factura / Nota Fiscal ou Outro.
@@ -349,7 +348,7 @@ O detalhe do activo tem também os separadores **Informações** (identificaçã
 
 ### Como movimentar um activo (mudar de localização ou de responsável)
 
-**Antes de começar:** perfil Administrador ou Gestor. O activo não pode estar **Baixado**.
+**Antes de começar:** perfil Administrador, Gestor ou Operador. O activo não pode estar **Baixado**.
 
 1. Abra o activo e clique em **Movimentar**.
 2. Na secção **Transferência** vê a origem (localização e responsável actuais). Indique o destino: a **Localização de destino**, o **Responsável de destino**, ou os dois. A localização pesquisa-se pelo nome ou código (só localizações activas); o responsável, pelo nome ou e-mail do utilizador.
@@ -378,21 +377,22 @@ A lista **Amortização de Ativos** mostra, para os activos em uso, o **Valor Or
 
 ### Como agendar e acompanhar uma manutenção
 
-**Antes de começar:** perfil Administrador ou Gestor.
+**Antes de começar:** perfil Administrador, Gestor ou Operador.
 
 1. Vá a **Inventário & Activos › Manutenção** e clique em **Nova Manutenção**.
 2. Em **Informações Básicas**, escolha o **Ativo \*** e o **Tipo \*** (Preventiva, Corretiva, Inspecção, Calibração) e preencha **Título \*** e **Descrição \***.
 3. Em **Agendamento e Prioridade**, indique a **Prioridade** (Baixa, Média, Alta, Crítica) e a **Data Agendada \***. **Custo Estimado (MT)** e **Observações** são opcionais.
 4. Clique em **Criar Manutenção**. A manutenção fica **Agendada**.
 5. Quando o trabalho começar, clique em **Iniciar**. A manutenção passa a **Em Andamento**.
-6. Quando o trabalho terminar, clique no botão que conclui a manutenção (ver a nota abaixo). A manutenção passa a **Concluída**.
-7. Se a manutenção não se fizer, clique em **Cancelar**, escreva o motivo (opcional) e clique em **Confirmar Cancelamento**.
+6. Se o trabalho ficar parado à espera de um orçamento, clique em **Aguardar orçamento**: a manutenção passa a **Orçamento**. Para continuar, clique em **Retomar** e volta a **Em Andamento**.
+7. Quando o trabalho terminar, clique em **Concluir**. A manutenção passa a **Concluída**.
+8. Se a manutenção não se fizer, clique em **Cancelar**, escreva o motivo (opcional) e clique em **Confirmar Cancelamento**.
 
-**Resultado:** ao **Iniciar**, um activo que esteja **Em Uso** passa automaticamente a **Em Manutenção**. Ao concluir, volta a **Em Uso**. Se cancelar, o estado do activo não muda.
+**Resultado:** cada mudança mostra «Manutenção transitada para …» (ou «Manutenção cancelada.»). Ao **Iniciar**, um activo que esteja **Em Uso** passa automaticamente a **Em Manutenção**. Ao concluir, volta a **Em Uso**. Se cancelar, o estado do activo não muda.
 
 O detalhe da manutenção tem os separadores **Detalhes**, **Custos** e **Relatório**. As manutenções agendadas cuja data já passou contam no indicador «Manutenções Pendentes» do Dashboard.
 
-> **Atenção:** no estado **Em Andamento** aparecem dois botões com o mesmo nome, **Concluir**. O primeiro passa a manutenção para **Orçamento** e o segundo para **Concluída**. De **Orçamento**, o botão **Retomar** volta a **Em Andamento**. Ainda não é possível registar o **Custo Real** nos ecrãs. A edição permite alterar título, prioridade, data agendada, descrição, custo estimado e observações.
+> **Atenção:** ainda não é possível registar o **Custo Real** nos ecrãs. A edição permite alterar título, prioridade, data agendada, descrição, custo estimado e observações.
 
 <!-- captura: 03-inventario/manutencao-lista.png | /inventario/manutencao -->
 ![Manutenção de Ativos](img/03-inventario/manutencao-lista.png)
@@ -428,7 +428,7 @@ O detalhe da manutenção tem os separadores **Detalhes**, **Custos** e **Relat�
 
 > **Atenção:**
 > - A lista de contagem inclui **todos** os activos da empresa, qualquer que seja a **Localização Principal** escolhida no inventário.
-> - O botão **Editar** do detalhe abre ainda uma página inexistente, e o separador **Equipa** não tem forma de acrescentar membros.
+> - Depois de criado, o inventário não se edita (o detalhe não tem botão **Editar**), e o separador **Equipa** não tem forma de acrescentar membros.
 > - Para contar **produtos** e acertar o stock, use as **Contagens de Stock** (ver [acima](#como-fazer-uma-contagem-de-stock-e-acertar-o-stock)).
 
 <!-- captura: 03-inventario/fisico-lista.png | /inventario/fisico -->
@@ -459,20 +459,20 @@ Todos estes movimentos aparecem em **Movimentações**. Se não houver stock suf
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Novo | Registado, ainda não em utilização | Em Uso, Baixado | Administrador, Gestor |
-| Em Uso | Em utilização normal | Em Manutenção, Em Transferência, Obsoleto, Baixado | Administrador, Gestor |
-| Em Manutenção | Em reparação ou revisão (também muda automaticamente ao **Iniciar** uma manutenção) | Em Uso, Obsoleto, Baixado | Administrador, Gestor |
-| Em Transferência | A ser mudado de sítio | Em Uso, Baixado | Administrador, Gestor |
-| Obsoleto | Já não serve, mas ainda não saiu da empresa | Baixado | Administrador, Gestor |
-| Baixado | Saiu do património. Não se pode reverter | Pode ser **Arquivado** | Administrador, Gestor |
+| Novo | Registado, ainda não em utilização | Em Uso, Baixado | Administrador, Gestor, Operador |
+| Em Uso | Em utilização normal | Em Manutenção, Em Transferência, Obsoleto, Baixado | Administrador, Gestor, Operador |
+| Em Manutenção | Em reparação ou revisão (também muda automaticamente ao **Iniciar** uma manutenção) | Em Uso, Obsoleto, Baixado | Administrador, Gestor, Operador |
+| Em Transferência | A ser mudado de sítio | Em Uso, Baixado | Administrador, Gestor, Operador |
+| Obsoleto | Já não serve, mas ainda não saiu da empresa | Baixado | Administrador, Gestor, Operador |
+| Baixado | Saiu do património. Não se pode reverter | Pode ser **Arquivado** | Administrador, Gestor, Operador |
 
 ### Manutenção
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Agendada | Marcada para uma data | Em Andamento (**Iniciar**), Cancelada | Administrador, Gestor |
-| Em Andamento | Trabalho a decorrer | Orçamento, Concluída, Cancelada | Administrador, Gestor |
-| Orçamento | À espera de orçamento | Em Andamento (**Retomar**), Cancelada | Administrador, Gestor |
+| Agendada | Marcada para uma data | Em Andamento (**Iniciar**), Cancelada | Administrador, Gestor, Operador |
+| Em Andamento | Trabalho a decorrer | Orçamento (**Aguardar orçamento**), Concluída (**Concluir**), Cancelada | Administrador, Gestor, Operador |
+| Orçamento | À espera de orçamento | Em Andamento (**Retomar**), Cancelada | Administrador, Gestor, Operador |
 | Concluída | Terminada | — | — |
 | Cancelada | Não realizada | — | — |
 
@@ -509,7 +509,7 @@ Cada **item** da contagem pode estar **Pendente** (por contar), **Contado**, **J
 | Motivo é obrigatório | Numa transferência de stock ou na movimentação de um activo, o **Motivo** é obrigatório | Preencha o motivo |
 | Quantidade deve ser positiva | A quantidade é zero ou negativa | Indique uma quantidade maior que zero |
 | Já existe um produto com o SKU "…". | O SKU já está a ser usado | Use outro SKU |
-| Taxa de IVA deve ser 0 (isento) ou 0.16 (16%) | Na edição do produto escreveu outra taxa | Escreva `0` ou `0.16` |
+| Taxa de IVA deve ser 0 (isento) ou 0.16 (16%) | Na edição do produto, a **Taxa de IVA** ficou por escolher (acontece num produto antigo gravado com outra taxa) | Escolha **16%** ou **0% (isento)** |
 | Já existe uma contagem em aberto (…) para esta localização. | Há outra contagem **Em Contagem** para a mesma localização | Termine ou cancele a contagem existente |
 | Série activa para tipo "CONTAGEM_STOCK" no ano … não encontrada. Crie a série … primeiro. | Falta a série de numeração das contagens para o ano | Peça a quem gere as séries (Administrador ou Financeiro) que a crie ([Faturação, Caixa e Tesouraria](06-faturacao-caixa-tesouraria.md)) |
 | Existem N item(s) PENDENTE(s) sem justificativa. Registe contagem ou justifique antes de reconciliar. | Há itens por contar | Registe a quantidade ou justifique cada item pendente |
@@ -518,7 +518,7 @@ Cada **item** da contagem pode estar **Pendente** (por contar), **Contado**, **J
 | Indique a quantidade contada | Clicou no ✓ sem escrever a quantidade | Escreva a quantidade antes de confirmar |
 | Contagem "…" não está em estado EM_CONTAGEM. | A contagem já foi reconciliada, concluída ou cancelada | Abra uma nova contagem, se for preciso |
 | Este item já foi ajustado na reconciliação. | O item já foi acertado | Nada a fazer |
-| Transição inválida de "…" para "…" em Ativo. | Essa mudança de estado não é permitida (ver [Estados](#activo)) | Use um dos botões que aparecem no detalhe |
+| Transição inválida (activo): de "…" para "…". | Essa mudança de estado não é permitida (ver [Estados](#activo)) | Use um dos botões que aparecem no detalhe |
 | Já existe uma categoria com o nome "…". | Já há uma categoria de produto com esse nome | Use outro nome, ou edite a categoria existente |
 | O plano … permite até … armazém(ns) activo(s), e esse limite já foi atingido. Para acrescentar mais, mude de plano em Definições › Subscrição (/definicoes/faturacao) ou desactive um armazém. | Criou uma localização do tipo **Armazém** acima do limite do plano | Mude de plano ou desactive um armazém que já não use |
 | A transferência não muda a localização nem o responsável do ativo | Na movimentação de um activo, o destino é igual à situação actual | Escolha outra localização ou outro responsável |

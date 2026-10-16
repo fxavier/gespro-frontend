@@ -198,6 +198,7 @@ Aparece a mensagem «Fatura emitida com sucesso.» e volta à lista. A fatura fi
 **Efeitos noutros módulos**
 - **Contabilidade:** ao emitir, o sistema cria automaticamente o lançamento no diário de vendas: débito em Clientes c/c (411), crédito em Vendas (711) e, se houver IVA, crédito em IVA liquidado (44331). Veja [Contabilidade](05-contabilidade.md).
 - **Tesouraria:** o valor por receber entra na projecção na data de vencimento.
+- **Clientes:** a fatura fica registada no histórico de transacções do cliente (ver [Vendas e POS](04-vendas-e-pos.md#como-ver-e-exportar-o-histórico-de-um-cliente)).
 - **Apuramento do IVA:** a partir de Janeiro de 2026, um mês com linhas de fatura a 0 % é recusado no apuramento do IVA, por depender do pro rata (ver [Como apurar o IVA](05-contabilidade.md#como-apurar-o-iva-de-um-período)).
 
 ### Como consultar uma fatura
@@ -239,6 +240,7 @@ Na lista, o menu **⋯** de cada fatura também tem **Descarregar PDF**.
 - **Contabilidade:** lançamento «Recebimento da factura ‹número›», com a data do pagamento: débito **111 Caixa** (numerário, diário de Caixa) ou da conta contabilística da conta bancária (diário de Banco); crédito **411 Clientes c/c**.
 - **Caixa:** em numerário, um movimento **Recebimento** na sua sessão — conta para o saldo esperado no fecho.
 - **Tesouraria:** o valor recebido sai das entradas previstas e passa a saldo.
+- **Clientes:** cada recebimento fica como uma entrada nova no histórico de transacções do cliente.
 
 > **Nota:** o pagamento regista-se no detalhe da fatura em **Faturação**; o ecrã de faturas de **Vendas & POS** só tem o PDF.
 
@@ -270,6 +272,18 @@ A partir do **dia seguinte** ao vencimento, uma fatura **Emitida** ou **Parcialm
 
 **Resultado**
 A cotação nasce em **Rascunho**. Depois de **Enviar**, fica **Enviada**, e aparece a mensagem «<número> enviada ao cliente.»
+
+Nas listas de **Cotações** e de **Proformas**, o menu **⋯** de cada linha só mostra as acções que o estado do documento permite (e que o seu perfil pode fazer), além de **Ver detalhe**:
+
+| Lista | Acção no menu ⋯ | Aparece quando o documento está |
+|---|---|---|
+| Cotações | **Converter em Proforma** | Aceite |
+| Cotações | **Rejeitar** | Enviada |
+| Cotações | **Cancelar** | Rascunho |
+| Proformas | **Converter em Fatura** | Aceite |
+| Proformas | **Cancelar** | Rascunho, Enviada ou Aceite |
+
+**Enviar** e **Aceitar** fazem-se no detalhe do documento.
 
 ### Como registar a resposta do cliente a uma cotação
 
@@ -320,9 +334,9 @@ A nota de crédito fica **Emitida**, com número da série `NC`, e aparece a men
 2. Escolha a **Forma**:
    - **Compensação na factura** (seguida do número da factura original) — abate o valor da nota ao que o cliente ainda deve nessa fatura. Só aparece se a fatura estiver por pagar (Emitida, Parcialmente paga ou Vencida) e o saldo em aberto for pelo menos o total da nota; o saldo é mostrado.
    - **Devolução ao cliente** — o dinheiro sai para o cliente. Escolha a **Forma de pagamento** e, se não for numerário, a **Conta bancária**. Em numerário é preciso ter o caixa aberto. Só aparece a quem tem permissão de operar o caixa (numerário) ou de registar movimentos bancários (restantes formas).
-3. Indique a **Data da liquidação** (não pode ser anterior à data de emissão da nota) e confirme.
+3. Indique a **Data da liquidação** (não pode ser anterior à data de emissão da nota) e clique **Liquidar ‹valor da nota›**.
 
-**Resultado:** a nota fica **Liquidada**, com a forma e a data visíveis no detalhe.
+**Resultado:** «‹número› liquidada.» A nota fica **Liquidada**, com a forma e a data visíveis no detalhe.
 - **Compensação:** o valor pago da fatura original sobe o total da nota (fica Paga ou Parcialmente paga). Não há lançamento novo: a nota já tinha abatido o crédito ao cliente quando foi emitida.
 - **Devolução:** é criado o lançamento Clientes c/c (411) a débito contra a conta do meio (Caixa ou a conta bancária) a crédito; em numerário, fica também registada a saída na sessão de caixa.
 
@@ -400,7 +414,7 @@ Numa sessão **aberta**, o topo do detalhe tem os botões **Registar reforço**,
 
 **Antes de começar**
 - Precisa da permissão de fechar caixa (Administrador, Gestor, Financeiro, Operador).
-- Só pode fechar a **sua** sessão aberta. Mesmo que clique em **Fechar caixa** na sessão de outra pessoa, o ecrã de fecho mostra a sua própria sessão (ou «Sem Sessão Activa»).
+- Só pode fechar a **sua** sessão aberta. **Fechar caixa** (na lista ou no detalhe) abre o fecho da sessão em que clicou, se ainda estiver aberta; se não estiver, ou se abrir **Fechar caixa** directamente, o ecrã mostra a sua própria sessão aberta (ou «Sem Sessão Activa»). Uma sessão aberta de outra pessoa chega a aparecer no fecho, mas a confirmação é recusada com «Esta sessão de caixa pertence a outro utilizador».
 
 **Passos**
 1. Em **Caixa**, clique em **⋯ › Fechar caixa** na sua sessão aberta, ou em **Fechar caixa** no detalhe dela.
