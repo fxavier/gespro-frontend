@@ -10,13 +10,14 @@ import { auth } from '@/lib/auth';
  * Server Component ou Route Handler da área; as Server Actions usam
  * `createSafeAction({ plataforma: true })`, que aplica a mesma regra.
  *
- * Decide só pelo papel de realm `plataforma-admin` na sessão — ausente conta
- * como não. Quem não o tem recebe `notFound()` (404), nunca 403: a área não
- * se revela. Não estabelece contexto de tenant e não lê `tenantId` nenhum.
+ * Decide pelo papel de realm `plataforma-admin` na sessão — ausente conta
+ * como não — e só numa sessão SEM `tenantId` (#549, adenda ao ADR-0049 §5). Quem falha
+ * recebe `notFound()` (404), nunca 403: a área não se revela. Não estabelece
+ * contexto de tenant.
  */
 export async function exigirPlataformaAdmin(): Promise<Session> {
   const session = await auth();
   if (!session?.user) redirect('/auth/login');
-  if (session.user.plataformaAdmin !== true) notFound();
+  if (session.user.plataformaAdmin !== true || session.user.tenantId) notFound();
   return session;
 }

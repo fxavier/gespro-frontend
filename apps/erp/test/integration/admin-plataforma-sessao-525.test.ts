@@ -11,7 +11,9 @@
  *   - com o papel e SEM `User` de tenant → entra, sessão sem `tenantId` e sem
  *     permissões de tenant;
  *   - sem o papel e sem `User` → continua recusado (`nao-provisionado`);
- *   - com o papel e com `User` → entra no tenant normalmente, e com o papel;
+ *   - com o papel e com `User` → entra no tenant normalmente, SEM o papel:
+ *     `plataformaAdmin` só vale em sessões sem `tenantId` (#549, adenda ao
+ *     ADR-0049 §5);
  *   - re-resolvido no MESMO intervalo do resto (ADR-0011): dentro do intervalo
  *     não há chamada nenhuma; na renovação, o papel lê-se do access token
  *     renovado — retirado no Keycloak, cai; a quem só tinha o papel (sem
@@ -224,11 +226,18 @@ describe.skipIf(skip)('#525 — sessão do administrador de plataforma (DB efém
     expect(erro.code).toBe('nao-provisionado');
   });
 
-  it('com o papel E com User de tenant → entra no tenant, com plataformaAdmin', async () => {
-    const { sessao: s } = await entrar(EMAIL_DUPLO);
+  // #549 (adenda ao ADR-0049 §5): o papel só vale na sessão SEM tenant.
+  it('com o papel E com User de tenant → entra no tenant, SEM plataformaAdmin (#549)', async () => {
+    const { token, sessao: s } = await entrar(EMAIL_DUPLO);
     expect(s.user.tenantId).toBe(tenantId);
     expect(s.user.permissions).toContain('vendas:criar');
-    expect(s.user.plataformaAdmin).toBe(true);
+    expect(token.plataformaAdmin).toBe(false);
+    expect(s.user.plataformaAdmin).toBe(false);
+  });
+
+  it('token antigo com tenant E plataformaAdmin → a sessão não o expõe (#549)', async () => {
+    const s = await sessao({ uid: 'u-x', tenantId, permissions: [], plataformaAdmin: true });
+    expect(s.user.plataformaAdmin).toBe(false);
   });
 
   it('controlo: utilizador de tenant sem o papel → plataformaAdmin false (presente)', async () => {
@@ -276,13 +285,30 @@ describe.skipIf(skip)('#525 — sessão do administrador de plataforma (DB efém
     expect(t2.tenantId).toBe(tenantId);
   });
 
-  it('papel dado no Keycloak a um utilizador de tenant → aparece na renovação', async () => {
+  it('papel dado no Keycloak a um utilizador de tenant → NÃO aparece na renovação (#549)', async () => {
     const { token } = await entrar(EMAIL_TENANT);
     expect(token.plataformaAdmin).toBe(false);
     kc.renovacoes.set(`refresh-${SUB_TENANT}`, { sub: SUB_TENANT, papeis: [PAPEL] });
     const t2 = await jwt({ ...token, resolverEm: 0 });
-    expect(t2?.plataformaAdmin).toBe(true);
+    expect(t2?.plataformaAdmin).toBe(false);
     expect(t2?.tenantId).toBe(tenantId);
+  });
+
+  it('token antigo com tenant E plataformaAdmin, Keycloak indisponível, User apagado → cai (#549)', async () => {
+    // Sem User local (SUB_PLAT → nao-provisionado) e sem access token novo: só
+    // a bandeira antiga decidiria, e ela não vale numa sessão com tenant.
+    fetchMock.mockImplementationOnce(async () => resposta(503));
+    const t2 = await jwt({
+      uid: `u-${SUB_PLAT}`,
+      tenantId,
+      permissions: ['vendas:criar'],
+      acesso: 'aberto',
+      plataformaAdmin: true,
+      keycloakSub: SUB_PLAT,
+      kcRefreshToken: `refresh-${SUB_PLAT}`,
+      resolverEm: 0,
+    });
+    expect(t2).toBeNull();
   });
 
   it('sessão terminada no Keycloak (refresh recusado) → cai, também para o administrador', async () => {

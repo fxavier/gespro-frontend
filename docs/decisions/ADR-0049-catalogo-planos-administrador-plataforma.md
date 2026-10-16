@@ -188,7 +188,19 @@ O ADR-0009 mantém-se: **o Stripe é a fonte de verdade do valor cobrado**. O qu
   excepção à recusa `nao-provisionado` do ADR-0011, e é estreita: a sessão sai sem `tenantId`, sem
   permissões e sem `acesso`, e só serve a área de plataforma. Sem o papel, a recusa mantém-se como está.
   Uma Identidade que tenha o papel **e** um `User` num tenant tem as duas coisas, separadas: o tenant dela
-  pelas permissões dela, a plataforma pelo papel.
+  pelas permissões dela, a plataforma pelo papel. *(Emendado pela adenda #549.)*
+- **Adenda (#549, 2026-10-16) — proposta, a aceitar por humano.**
+  - O papel só vale em sessões **sem** `tenantId`. Uma Identidade com o papel e um `User` de tenant entra
+    no tenant, com `plataformaAdmin: false`; as actions de plataforma recusam-na com `NAO_ENCONTRADO` e
+    `/plataforma/*` com 404.
+  - Porquê: o vector de tomada de conta da #549 — o registo público (e o `criarUtilizador`) escrevia a
+    palavra-passe de quem se registava numa identidade preexistente sem `User` local, como a do
+    administrador de plataforma, e associava-lhe um `User` de tenant; a sessão saía com `tenantId` **e**
+    `plataformaAdmin: true`. Fechado o registo, esta regra impede que outra ponte entre um `User` de tenant
+    e o papel volte a abrir `/plataforma`.
+  - Consequência: quem precisar das duas coisas usa uma **segunda Identidade** por sub-endereçamento
+    (`nome+plataforma@…`), como o ADR-0011 §5 já faz para o suporte.
+  - A frase «tem as duas coisas, separadas» do ponto anterior fica emendada por esta adenda.
 - **A área é `/plataforma/*`**, com layout próprio (sem a barra lateral de módulos do tenant). O
   `middleware.ts` recusa `/plataforma/*` a quem não tenha `plataformaAdmin`; os layouts do `(dashboard)`
   mandam para `/plataforma` uma sessão sem `tenantId`.
