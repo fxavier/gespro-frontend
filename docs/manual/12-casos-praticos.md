@@ -89,7 +89,9 @@ precisa da conta, dos dados da empresa, dos colegas, do banco, do armazém e do 
    | Carlos Nhantumbo | carlos@boaobra.co.mz | Definir palavra-passe agora | FINANCEIRO |
 
    Para o Carlos, anote a **palavra-passe provisória** antes de clicar **Já anotei — concluir** — não
-   volta a ser mostrada. Se mais tarde a função de alguém mudar, os papéis mudam-se na ficha, em
+   volta a ser mostrada. A Ana entra pela ligação do convite: se tentar entrar antes de o concluir, o
+   ecrã de entrada mostra «O seu convite ainda não foi concluído. …»
+   ([Como entrar pela primeira vez por convite](00-primeiros-passos.md#como-entrar-pela-primeira-vez-por-convite)). Se mais tarde a função de alguém mudar, os papéis mudam-se na ficha, em
    **Editar** › **Papéis** › **Guardar Alterações**.
    → [Como criar um utilizador](11-plataforma-e-administracao.md#como-criar-um-utilizador-convite-ou-palavra-passe-atribuída) ·
    [Como mudar os papéis de um utilizador](11-plataforma-e-administracao.md#como-mudar-os-papéis-de-um-utilizador)
@@ -127,8 +129,8 @@ precisa da conta, dos dados da empresa, dos colegas, do banco, do armazém e do 
    formulário de produto não grava. → [Como criar uma categoria de produto](03-inventario.md#como-criar-uma-categoria-de-produto)
 
 10. **Criar os três produtos** do catálogo em **Inventário & Activos › Produtos › Novo Produto** (SKU,
-    Nome, Categoria «Materiais de construção», Unidade de Medida, preços, Taxa de IVA 16 %, Stock
-    Mínimo) → **Criar Produto**. → [Como criar um produto](03-inventario.md#como-criar-um-produto)
+    Nome, Categoria «Materiais de construção», Unidade de Medida, preços, **Taxa de IVA** 16 % — já vem
+    escolhida —, Stock Mínimo) → **Criar Produto**. → [Como criar um produto](03-inventario.md#como-criar-um-produto)
 
     ![Novo produto](img/03-inventario/produto-novo.png)
 
@@ -136,15 +138,16 @@ precisa da conta, dos dados da empresa, dos colegas, do banco, do armazém e do 
     **Pessoa Jurídica**, «Construções Machava, Lda», NUIT `400300400`, **Dias de Pagamento** 30,
     **Limite de Crédito (MT)** 500 000 → **Guardar Cliente**. → [Como criar um cliente](04-vendas-e-pos.md#como-criar-um-cliente)
 
-12. **Criar o fornecedor** em **Fornecedores › Lista de Fornecedores › Novo Fornecedor**: «Cimentos do
-    Índico, SA», NUIT `400100200`, **Dias para Pagamento** 30. → [Como registar um fornecedor](02-fornecedores-e-servicos.md#como-registar-um-fornecedor)
+12. **Criar o fornecedor** em **Fornecedores › Lista de Fornecedores › Novo Fornecedor**: **Código**
+    `FOR-0001` (escreve-o quem regista; fica gravado tal como está e não se altera depois), «Cimentos do
+    Índico, SA», NUIT `400100200`, o Email do fornecedor, **Dias para Pagamento** 30 → **Guardar
+    Fornecedor**. → [Como registar um fornecedor](02-fornecedores-e-servicos.md#como-registar-um-fornecedor)
 
 ### O que o sistema faz sozinho
 
 - Cria o exercício 2026 com os 13 períodos **Abertos**, o plano de contas PGC-NIRF, os nove diários e
   as séries de numeração do ano.
 - Cria os cinco papéis de sistema e o cliente técnico **Consumidor Final** (`CF-000000`).
-- Atribui códigos automáticos ao fornecedor (`FOR-0001`).
 
 ### Como confirmar que correu bem
 
@@ -412,7 +415,8 @@ o perfil Financeiro não movimenta stock.
    ![Nova nota de crédito](img/04-vendas-e-pos/nota-credito-nova.png)
 
 7. **Liquidar a nota por compensação**: abra a nota → **Liquidar** → Forma **Compensação na factura** →
-   Data → confirmar. O cliente passa a dever **182 990,00** nesta factura.
+   **Data da liquidação** → **Liquidar** (o botão mostra o valor da nota, 3 770,00). A factura passa a
+   **Parcialmente Paga** e o cliente passa a dever **182 990,00** nela.
    → [Como liquidar uma nota de crédito](06-faturacao-caixa-tesouraria.md#como-liquidar-uma-nota-de-crédito)
 
 ### O que o sistema faz sozinho
@@ -427,7 +431,7 @@ Cotação e proforma **não são documentos fiscais** e não lançam nada.
 
 ### Como confirmar que correu bem
 
-- [ ] Cotação **Convertida**, proforma **Convertida**, factura **Emitida** (Total Pago 3 770,00, Pendente 182 990,00).
+- [ ] Cotação **Convertida**, proforma **Convertida**, factura **Parcialmente Paga** (Total Pago 3 770,00, Pendente 182 990,00).
 - [ ] Nota de crédito **Liquidada**.
 - [ ] Stock: CIM-50 140 → **40** · VAR-12 280 → **80**. Os 5 sacos rasgados **não** voltam ao stock
   (não são vendáveis) — a nota de crédito não mexe no stock.
@@ -440,10 +444,15 @@ Na data de vencimento a Construções Machava transfere os **182 990,00** para o
 (em **Faturação**), **Registar pagamento** → Valor 182 990,00 (vem preenchido com o pendente) → Data do
 pagamento → Forma **Transferência bancária** → Conta bancária **BCI** → **Registar pagamento**. A factura
 passa a **Paga** e é lançado **débito conta do BCI / crédito 411 Clientes c/c 182 990,00**. Se pagasse só uma
-parte, ficaria **Parcialmente Paga**; se passasse do prazo sem pagar, a partir do dia seguinte ao vencimento
+parte, continuaria **Parcialmente Paga**; se passasse do prazo sem pagar, a partir do dia seguinte ao vencimento
 usar-se-ia **Marcar como vencida**. Este passo é do Carlos (ou de um Gestor): o perfil Operador não regista
 recebimentos de facturas.
 → [Como registar o pagamento de uma fatura](06-faturacao-caixa-tesouraria.md#como-registar-o-pagamento-de-uma-fatura)
+
+Em `/clientes/historico`, a Construções Machava mostra então uma linha **VENDA** por cada factura — a do POS
+(Caso 3, 37 700,00) e esta (186 760,00), ambas **Pendente** — e uma linha **PAGAMENTO** «Recebimento da factura …»
+de 182 990,00. A nota de crédito não entra no histórico.
+→ [Como ver o histórico de um cliente](04-vendas-e-pos.md#como-ver-e-exportar-o-histórico-de-um-cliente)
 
 ---
 
@@ -453,7 +462,7 @@ recebimentos de facturas.
 
 **Quem faz:** Ana (OPERADOR). Viatura e motorista já registados ([capítulo 9](09-transporte.md)).
 
-1. Em `/transporte/entregas` → **Nova Entrega**: Código do Cliente `400300400`, Nome, Telefone,
+1. Em **Transporte & Logística › Entregas** → **Nova Entrega**: Código do Cliente `400300400`, Nome, Telefone,
    Endereço da obra, Cidade «Matola»; Data Agendada amanhã; Prioridade **Alta**; Itens: CIM-50 · 100
    · 5 000 kg e VAR-12 · 200. **Criar Entrega**.
 2. Na ficha, separador **Ações**: escolha **Viatura** e **Motorista** → **Guardar Recursos**.
@@ -583,7 +592,7 @@ endereço da página (os filtros vão nele) ao gestor.
 Sem lançamento contabilístico.
 
 **E a seguir — reposição:** abra `/stock/reposicao`. Aparecem **CIM-50 (39 < 40)** e **VAR-12 (80 <
-100)** com **Stock Baixo**. É o ponto de partida de uma nova requisição — o ciclo do **Caso 2** recomeça.
+100)**, cada um com o nome e o SKU, a localização «Armazém Central» e o alerta **Stock Baixo**. É o ponto de partida de uma nova requisição — o ciclo do **Caso 2** recomeça.
 
 ---
 
@@ -673,7 +682,7 @@ pode reabrir, se for preciso.
 
    ![Reconciliação de uma conta](img/05-contabilidade/reconciliacao-conta.png)
 
-5. **Apurar o IVA.** **Apuramento de IVA** → linha `2026-10` → **Apurar** → confirmar. Se no mês só
+5. **Apurar o IVA.** **Apuramento de IVA** → linha `2026-10` → **Apurar** → **Apurar IVA do período 2026-10**. Se no mês só
    houvesse as operações deste capítulo:
 
    | | MT |
@@ -686,7 +695,8 @@ pode reabrir, se for preciso.
    O IVA dedutível é zero porque a conta a pagar criada pela recepção do Caso 2 não regista o IVA da
    compra (34 880,00): a factura do fornecedor costuma chegar depois, e ainda não há forma de a juntar a
    essa conta. Todos os documentos do mês estão a 16 %, por isso o apuramento não é recusado por pro
-   rata. Descarregue os **Mapas de suporte** (Modelo A, Clientes, Fornecedores).
+   rata. Em **Mapas de suporte**, descarregue o **Suporte Declaração Periódica**, o **Mapa de Clientes** e o
+   **Mapa de Fornecedores** (CSV).
    → [Como apurar o IVA](05-contabilidade.md#como-apurar-o-iva-de-um-período)
 
 6. **Ver o Balancete.** Exercício 2026, Período inicial e Período final 10 → **Aplicar**. Tem de aparecer
@@ -712,8 +722,9 @@ pode reabrir, se for preciso.
 - [ ] Em **Exercícios**, `2026-10` está **Fechado** e `2026-11` **Aberto**.
 - [ ] Em **Apuramento de IVA**, `2026-10` está **Apurado** (ou **Declarado à AT**).
 - [ ] Em **Reconciliação**, o período do BCI está fechado com diferença residual zero.
-- [ ] Tentar emitir uma factura com data de Outubro é recusado com «Período 2026-10 está fechado» —
-  prova de que o mês está trancado.
+- [ ] Tentar emitir uma factura com data de Outubro é recusado com «O período 2026-10 está fechado e não
+  aceita lançamentos. Para lançar nele, reabra-o em Contabilidade › Exercícios (período 2026-10 → Reabrir),
+  indicando o motivo.» — prova de que o mês está trancado (e só o Sérgio o pode reabrir).
 
 > **E no fim do ano?** Fechado Dezembro, o Administrador encerra o exercício (o resultado é apurado no
 > Período 13 e o ano seguinte recebe a abertura), aplica o resultado quando os sócios aprovarem as contas e,

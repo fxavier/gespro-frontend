@@ -32,7 +32,8 @@ A Ana organiza a entrega com o camião da loja e o motorista Jorge Mabote.
 3. **Inspecção de rotina** → [Checklist](#como-mudar-o-estado-de-uma-viatura-registar-manutenção-ou-inspecção):
    pneus, travões e luzes **OK**. (Um item em **Avaria** impediria iniciar a rota.)
 4. **Rota** → [Como planear e executar uma rota](#como-planear-e-executar-uma-rota): «Armazém → Obra Machava»,
-   viatura e motorista acima, 18 km, 45 min. Fica **Planeada**; no dia, **Activa**.
+   viatura e motorista acima, 18 km, 45 min. Fica **Planeada**; no dia, **Activa** — e o camião passa a
+   **Em Actividade**.
 5. **Entrega** → [Como criar e acompanhar uma entrega](#como-criar-e-acompanhar-uma-entrega): Código do Cliente
    `400300400`, morada da obra, Prioridade **Alta**, itens CIM-50 × 100 (5 000 kg) e VAR-12 × 200. **Agendada** →
    **Em Trânsito** → **Entregue**, com Recebedor «Eng.º Tembe» e prova **Assinatura**.
@@ -40,7 +41,8 @@ A Ana organiza a entrega com o camião da loja e o motorista Jorge Mabote.
    **60** litros a **87,00** MT/L (valor de exemplo) → **Valor Total 5 220,00**; 480 km desde o último
    abastecimento → consumo médio **8 km/L**.
 
-**Resultado esperado:** a entrega **Entregue** com o separador **Prova de Entrega**; a rota **Concluída**; o
+**Resultado esperado:** a entrega **Entregue** com o separador **Prova de Entrega**; a rota **Concluída** e o
+camião de novo **Disponível**; o
 Dashboard com o custo de combustível do mês; e, 30 dias antes de o seguro caducar, o alerta **A Expirar** no
 Dashboard e no sino de notificações.
 
@@ -54,7 +56,7 @@ Dashboard e no sino de notificações.
 | Viatura | Veículo da frota, identificado pela **Matrícula**. Tem tipo, capacidade, estado e documentos. |
 | Motorista | Pessoa habilitada a conduzir, com carta de condução, contacto e disponibilidade. |
 | Documento | Livrete, inspecção, seguro, licença, manifesto, taxa de rádio (viatura) ou carta de condução, BI (motorista), com data de validade e ficheiro anexo. |
-| Estado do documento | **Válido**, **A Expirar** (dentro do prazo de alerta, 30 dias por omissão) ou **Expirado**. É recalculado automaticamente pelo sistema; não se escolhe à mão. |
+| Estado do documento | **Válido**, **A Expirar** (dentro do prazo de alerta, 30 dias por omissão) ou **Expirado**. É calculado pela validade quando o documento é carregado e recalculado todos os dias pelo sistema; não se escolhe à mão. |
 | Actividade | Serviço de transporte (deslocação, missão de serviço, transporte de mercadorias ou de pessoal, manutenção em campo). Recebe um código automático da série **ATI**. |
 | Rota | Percurso planeado entre uma **Origem** e um **Destino**, com viatura e motorista. Recebe um código **RT/ano/número**. |
 | Entrega | Compromisso de levar mercadoria a um cliente numa data. Recebe um número automático da série **ENT**. |
@@ -75,13 +77,16 @@ Dashboard e no sino de notificações.
 | (clicar numa rota) | `/transporte/rotas/<rota>` | Ficha da rota: separadores **Ações**, **Pontos de Entrega** e **Descrição**. |
 | Transporte & Logística › Combustível | `/transporte/combustivel` | Abastecimentos, indicadores e filtro por **Combustível**. Botão **Registar Abastecimento**. |
 | (atalho no Dashboard) Atividades | `/transporte/atividades` | **Atividades de Transporte**: lista com filtros por **Estado**, **Prioridade** e **Tipo**. Botão **Nova Atividade**. |
-| (atalho no Dashboard) Manutenção | `/transporte/manutencao` | **Manutenção de Viaturas**: todas as intervenções registadas e o custo total. |
-| — | `/transporte/entregas` | **Entregas**: lista, indicadores e filtros por **Estado** e **Prioridade**. Botão **Nova Entrega**. |
+| (atalho no Dashboard) Manutenção | `/transporte/manutencao` | **Manutenção de Viaturas**: todas as intervenções registadas e o custo total, com filtro por **Tipo** e pesquisa por viatura ou descrição. |
+| (clicar numa manutenção) | `/transporte/manutencao/<manutenção>` | Detalhe da intervenção (data, quilometragem, responsável, oficina, descrição, peças e próxima manutenção). Botão **Ver Viatura**. |
+| Transporte & Logística › Entregas | `/transporte/entregas` | **Entregas**: lista, indicadores e filtros por **Estado** e **Prioridade**. Botão **Nova Entrega**. |
 | (clicar numa entrega) | `/transporte/entregas/<entrega>` | Ficha da entrega: separadores **Ações**, **Itens** e **Prova de Entrega**. |
-| — | `/transporte/veiculos/documentos` | Vista de consulta de todos os documentos de viaturas. |
-| — | `/transporte/motoristas/documentos` | **Documentos de Motoristas**: todos os documentos, com contagem de expirados e a expirar. |
+| Transporte & Logística › Documentos das viaturas | `/transporte/veiculos/documentos` | Vista de consulta de todos os documentos de viaturas. |
+| Transporte & Logística › Documentos dos motoristas | `/transporte/motoristas/documentos` | **Documentos de Motoristas**: todos os documentos, com contagem de expirados e a expirar. |
 
-> **Atenção:** os ecrãs marcados com «—» ainda não têm entrada no menu nem atalho. Abra-os escrevendo o endereço na barra do navegador (por exemplo, `/transporte/entregas`). Os documentos só se carregam na ficha da viatura ou do motorista.
+Os documentos só se carregam na ficha da viatura ou do motorista; as duas vistas de documentos são só de consulta.
+
+Nas listas, a caixa de pesquisa procura por partes do texto, sem distinguir maiúsculas: matrícula, marca ou modelo (Viaturas), nome ou número de carta (Motoristas), nome ou código (Rotas), viatura ou posto (Combustível), título ou código (Atividades), número ou cliente (Entregas), viatura ou descrição (Manutenção).
 
 Se o seu perfil não tiver permissão para consultar o Transporte, o grupo **Transporte & Logística** não aparece no menu lateral e, se abrir um endereço do módulo, vê o aviso **Sem permissão**.
 
@@ -139,7 +144,7 @@ Para alterar os dados, use **Editar** na ficha (ou no menu de acções da linha 
 
 > **Atenção:** preencha todos os campos **antes** de escolher o ficheiro. O documento é gravado no momento em que o ficheiro é carregado.
 
-Um documento novo aparece como **Válido**. O estado passa a **A Expirar** ou **Expirado** quando o sistema faz o recálculo automático diário. Uma viatura com documentos **Expirados** não pode passar a **Em Actividade** nem ser usada para iniciar uma rota ou actividade.
+Um documento novo fica logo com o estado que a validade lhe dá: **Válido**, **A Expirar** (se a validade termina nos próximos 30 dias) ou **Expirado** (se a validade já passou). Depois, o sistema recalcula o estado todos os dias. Uma viatura com documentos **Expirados** não pode passar a **Em Actividade** nem ser usada para iniciar uma rota ou actividade.
 
 ### Como mudar o estado de uma viatura, registar manutenção ou inspecção
 
@@ -154,7 +159,7 @@ Um documento novo aparece como **Válido**. O estado passa a **A Expirar** ou **
 
 Se uma manutenção **Preventiva** tiver **Próxima Manutenção** já ultrapassada, surge um alerta no Dashboard. Se a última inspecção tiver itens em **Avaria** ou **Falta**, a viatura não pode ser usada para iniciar rotas ou actividades.
 
-> **Atenção:** iniciar ou concluir rotas e actividades não muda o estado da viatura. Mude-o à mão no separador **Ações** se precisar.
+O estado da viatura acompanha as rotas e as actividades: ao iniciar uma rota (**Activa**) ou uma actividade (**Em Curso**), a viatura passa a **Em Actividade**; ao concluí-la ou cancelá-la, volta a **Disponível**. Pausar a rota ou suspender a actividade mantém a viatura **Em Actividade**. Se trocar a viatura de uma rota ou actividade já iniciada, a antiga volta a **Disponível** e a nova passa a **Em Actividade**. Só uma viatura **Disponível** pode ser usada para iniciar: em manutenção, inactiva ou já ocupada noutra rota ou actividade, o início é recusado.
 
 ### Como registar um motorista e gerir a disponibilidade
 
@@ -166,6 +171,8 @@ Se uma manutenção **Preventiva** tiver **Próxima Manutenção** já ultrapass
 4. Clique em **Registar Motorista**.
 
 **Resultado:** mensagem «Motorista registado.» e abre a ficha, com o estado **Activo**.
+
+Para alterar os dados ou o estado, use **Editar** na ficha: o campo **Estado** permite escolher **Activo** ou **Inactivo**. Clique em **Guardar Alterações** — aparece «Motorista atualizado.». Nos formulários de nova rota, nova actividade, entrega e abastecimento só aparecem os motoristas **Activos**.
 
 Para marcar o motorista como indisponível:
 
@@ -189,7 +196,7 @@ Para marcar o motorista como indisponível:
 5. Na ficha da rota, separador **Ações**, use **Atribuir Viatura e Motorista** › **Guardar Recursos** se ainda não os definiu. Só é possível enquanto a rota estiver Planeada ou Pausada.
 6. Em **Mudar Estado**, clique em **Activa** para iniciar. Depois pode clicar em **Pausada**, **Concluída** ou **Cancelada**. Para cancelar, escreva o **Motivo do Cancelamento** (opcional) e clique em **Confirmar Cancelamento**.
 
-**Resultado:** mensagem «Rota em estado …». Ao iniciar, o sistema confirma que a viatura e o motorista estão atribuídos e aptos (documentos válidos, inspecção sem avarias, motorista disponível e sem conflito de agenda). Ao concluir ou cancelar, fica registada a data de fim.
+**Resultado:** mensagem «Rota em estado …». Ao iniciar, o sistema confirma que a viatura e o motorista estão atribuídos e aptos (viatura **Disponível**, documentos válidos, inspecção sem avarias, motorista disponível e sem conflito de agenda) e a viatura passa a **Em Actividade**. Ao concluir ou cancelar, fica registada a data de fim e a viatura volta a **Disponível**.
 
 <!-- captura: 09-transporte/rota-nova.png | /transporte/rotas/novo -->
 ![Formulário Nova Rota](img/09-transporte/rota-nova.png)
@@ -200,7 +207,7 @@ Para marcar o motorista como indisponível:
 
 **1. Criar**
 
-1. Abra `/transporte/entregas` e clique em **Nova Entrega**.
+1. Abra **Transporte & Logística › Entregas** e clique em **Nova Entrega**.
 2. Em **Dados do Cliente**, preencha **Código do Cliente**, **Nome** e **Telefone**.
 3. Em **Morada de Entrega**, preencha **Endereço** e **Cidade**.
 4. Em **Agendamento**, indique a **Data Agendada**, a **Prioridade** (Baixa, Normal, Alta, Urgente) e, se aplicável, a **Taxa de Entrega (MZN)**.
@@ -242,7 +249,7 @@ Para marcar o motorista como indisponível:
 4. Opcionalmente, **Descrição** e **Observações**. Clique em **Criar Atividade**.
 5. Na ficha, separador **Ações** › **Mudar Estado**, clique no estado pretendido (por exemplo, **Em Curso**). Escreva a **Descrição da transição** (obrigatória) e clique em **Confirmar Transição**.
 
-**Resultado:** mensagem «Atividade em estado …». Cada mudança fica registada no separador **Histórico**, com o utilizador e a descrição. Para passar a **Em Curso**, a actividade tem de ter viatura e motorista, e ambos têm de estar aptos. A actividade só pode ser editada enquanto estiver Planeada ou Suspensa.
+**Resultado:** mensagem «Atividade em estado …». Cada mudança fica registada no separador **Histórico**, com o utilizador e a descrição. Para passar a **Em Curso**, a actividade tem de ter viatura e motorista, e ambos têm de estar aptos; a viatura passa então a **Em Actividade** e volta a **Disponível** quando a actividade é concluída ou cancelada. A actividade só pode ser editada enquanto estiver Planeada ou Suspensa.
 
 ### Como registar um abastecimento
 
@@ -265,8 +272,8 @@ Para marcar o motorista como indisponível:
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Disponível | Pronta a ser usada. | Em Actividade, Em Manutenção, Inactiva, Abatida | Administrador, Gestor, Operador |
-| Em Actividade | Em serviço. Exige que não haja documentos expirados. | Disponível | Administrador, Gestor, Operador |
+| Disponível | Pronta a ser usada. Só uma viatura Disponível pode iniciar uma rota ou actividade. | Em Actividade, Em Manutenção, Inactiva, Abatida | Administrador, Gestor, Operador (também automaticamente, ao iniciar uma rota ou actividade) |
+| Em Actividade | Em serviço. Exige que não haja documentos expirados. | Disponível | Administrador, Gestor, Operador (também automaticamente, ao concluir ou cancelar a rota ou actividade) |
 | Em Manutenção | Na oficina. | Disponível, Inactiva | Administrador, Gestor, Operador |
 | Inactiva | Parada. | Disponível, Abatida | Administrador, Gestor, Operador |
 | Abatida | Saiu da frota. Já não se edita. | — | — |
@@ -304,7 +311,7 @@ Para marcar o motorista como indisponível:
 
 ### Motorista
 
-O **Estado Operacional** (Activo, Inactivo, Suspenso) é mostrado na lista e na ficha. Um motorista novo fica **Activo**; ainda não há opção no ecrã para o alterar. Um motorista **Suspenso** não pode ser editado. A **Disponibilidade** (Disponível / Indisponível) gere-se no separador próprio, como descrito acima.
+O **Estado Operacional** (Activo, Inactivo, Suspenso) é mostrado na lista e na ficha. Um motorista novo fica **Activo**; em **Editar**, o campo **Estado** passa-o a **Inactivo** ou de volta a **Activo** (Administrador, Gestor, Operador). Não há opção no ecrã para o pôr **Suspenso**, e um motorista **Suspenso** não pode ser editado. Só os motoristas Activos aparecem para escolha nos formulários. A **Disponibilidade** (Disponível / Indisponível) gere-se no separador próprio, como descrito acima.
 
 ## Erros frequentes
 
@@ -315,6 +322,7 @@ O **Estado Operacional** (Activo, Inactivo, Suspenso) é mostrado na lista e na 
 | Ficheiro demasiado grande (máx. 10 MB). | O ficheiro excede o limite. | Reduza ou comprima o ficheiro. |
 | Data de validade deve ser posterior à data de emissão | Datas do documento trocadas. | Corrija as datas. |
 | A viatura tem N documento(s) expirado(s). Renove antes de alocar. | Tentou pôr a viatura Em Actividade com documentos expirados. | Carregue o documento renovado. |
+| A viatura não está disponível (em manutenção, inactiva ou já em actividade). | Ao iniciar uma rota ou actividade (ou ao trocar a viatura de uma já iniciada), a viatura não está **Disponível**. | Termine a rota ou actividade que a ocupa, ponha a viatura **Disponível** ou escolha outra. |
 | A rota requer viatura e motorista atribuídos antes de ser iniciada. | Rota sem viatura ou sem motorista. | Use **Guardar Recursos** antes de iniciar. |
 | A atividade requer viatura e motorista alocados antes de ser iniciada. | Actividade sem viatura ou sem motorista. | Edite a actividade e escolha-os. |
 | Viatura …: documento (id: …) está expirado desde … | A viatura escolhida tem documentos expirados. | Renove o documento ou escolha outra viatura. |
@@ -334,11 +342,11 @@ O **Estado Operacional** (Activo, Inactivo, Suspenso) é mostrado na lista e na 
 
 ## Perguntas frequentes
 
-**Carreguei um seguro já vencido e aparece como Válido. Porquê?**
-O estado dos documentos é recalculado por um processo automático diário. Até lá, um documento novo aparece como Válido; no recálculo seguinte passa a **Expirado** e o alerta aparece no Dashboard e no sino de notificações.
+**Carreguei um seguro já vencido. Como aparece?**
+Logo como **Expirado**: o estado de um documento novo é calculado pela validade no momento em que é carregado, e o alerta aparece de imediato em **Alertas Operacionais** no Dashboard. O aviso no sino de notificações chega com o processo automático diário.
 
-**A pesquisa nas listas de rotas, motoristas, entregas ou combustível não filtra.**
-Use os filtros (Estado, Prioridade, Tipo, Combustível). Nestas listas a caixa de pesquisa ainda não tem efeito.
+**A viatura ficou Em Actividade sem eu mudar o estado. Porquê?**
+Foi iniciada uma rota ou actividade com essa viatura. Volta a **Disponível** quando a rota ou actividade for concluída ou cancelada.
 
 **Posso otimizar rotas ou atribuir viaturas automaticamente?**
 Não. A atribuição de viatura e motorista é sempre manual.

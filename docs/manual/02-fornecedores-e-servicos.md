@@ -28,13 +28,14 @@ vencida a outro fornecedor e quer cobrar as entregas em obra como serviço.
 
 | Campo | Valor |
 |---|---|
+| Código | FOR-0001 |
 | Tipo | Pessoa Jurídica |
 | Nome / Razão Social | Cimentos do Índico, SA |
 | NUIT | 400100200 |
 | Classificação · Dias para Pagamento | Preferencial · 30 |
 | Contacto | Rui Langa, Comercial, tipo Principal |
 
-O sistema atribui o código `FOR-0001`. Na ficha, em **Documentos**, carregue a certidão de NUIT (tipo
+O fornecedor fica gravado com o código `FOR-0001`, tal como o escreveu. Na ficha, em **Documentos**, carregue a certidão de NUIT (tipo
 **NUIT**) → [Como carregar documentos](#como-carregar-documentos-de-um-fornecedor).
 
 **2. Pagar uma conta vencida** → [Como registar um pagamento a um fornecedor](#como-registar-um-pagamento-a-um-fornecedor)
@@ -56,6 +57,7 @@ da transferência.
 
 | Campo | Valor |
 |---|---|
+| Código | SRV-0001 |
 | Tipo de serviço | Transporte |
 | Nome do serviço | Entrega e descarga em obra (até 10 km) |
 | Preço (MT) · Taxa IVA | 1 500,00 · 16 % (total 1 740,00) |
@@ -63,34 +65,38 @@ da transferência.
 | Requer agendamento | Sim |
 
 Depois, **Novo Agendamento** para a Construções Machava, amanhã das 08:00 às 10:00, «Obra da Machava»
-→ [Como agendar um serviço](#como-agendar-um-serviço-para-um-cliente). O agendamento fica **Pendente**, com
-código `AGD-00001`.
+→ [Como agendar um serviço](#como-agendar-um-serviço-para-um-cliente). O Preço vem do serviço (1 500,00) e a
+Taxa IVA fica em 16 %. O agendamento fica **Pendente**, com código automático `AGD-00001` e total 1 740,00.
 
 Como a Construções Machava recebe material todas as semanas, a Marta regista ainda um **contrato** mensal
-de **6 000,00 MT** com o serviço de entrega, renovação automática → [Como criar um contrato de serviço](#como-criar-um-contrato-de-serviço).
+de **6 000,00 MT** com o serviço de entrega, código `CTRT-0001`, renovação automática → [Como criar um contrato de serviço](#como-criar-um-contrato-de-serviço).
 
 **Resultado esperado:** a conta a pagar sai dos indicadores **Vencidas**; o pagamento tem **Ver lançamento**;
-o serviço aparece no catálogo como `SRV-0001` e o contrato como `CTRT-0001`, **Activo**.
+o serviço aparece no catálogo como `SRV-0001`; o agendamento `AGD-00001` abre-se na lista de agendamentos; e o
+contrato aparece como `CTRT-0001`, **Activo**.
 
 ## Conceitos
 
 | Termo | O que é |
 |---|---|
-| Fornecedor | Empresa ou pessoa a quem a empresa compra. Identificado por NUIT (único na empresa) e por um código automático (FOR-0001, FOR-0002…). |
+| Fornecedor | Empresa ou pessoa a quem a empresa compra. Identificado por NUIT e por um código que escreve ao registá-lo (por exemplo FOR-0001), ambos únicos na empresa. |
 | Classificação | Preferencial, Regular ou Novo. Serve para filtrar e destacar fornecedores. |
 | Contacto | Pessoa de contacto do fornecedor (Principal, Secundário, Técnico ou Financeiro). |
 | Documento | Ficheiro guardado na ficha do fornecedor (Contrato, NUIT, Certificação ou Outro), com validade opcional. |
 | Conta a pagar | Valor em dívida a um fornecedor, com data de vencimento. Mostra o valor original, o valor pago e o valor restante. |
 | Pagamento | Liquidação, total ou parcial, de uma conta a pagar. Cada pagamento gera um lançamento contabilístico. |
-| Serviço | Item do catálogo de serviços (instalação, manutenção, reparação…), com preço, IVA e duração. |
+| Serviço | Item do catálogo de serviços (instalação, manutenção, reparação…), com código, preço, IVA, duração e, opcionalmente, uma categoria. O código escreve-o quem cria o serviço e é único na empresa. |
+| Categoria de serviço | Agrupamento do catálogo (por exemplo «Manutenção»), escolhido no campo **Categoria** do serviço. |
 | Agendamento | Marcação de um serviço para um cliente, com data, horas e local. Código automático AGD-00001… |
-| Contrato de serviço | Acordo recorrente com um cliente (mensal, trimestral, semestral ou anual) para um ou mais serviços. Código automático CTRT-0001… |
+| Contrato de serviço | Acordo recorrente com um cliente (mensal, trimestral, semestral ou anual) para um ou mais serviços. O código escreve-o quem cria o contrato e é único na empresa. |
+| Arquivo (de fornecedor) | Retira o fornecedor da lista principal e passa-o a Inactivo. É reversível: o fornecedor fica na vista **Arquivados** e pode ser reactivado. |
 
 ## Ecrãs
 
 | Menu | Endereço (/rota) | Para que serve |
 |---|---|---|
 | Lista de Fornecedores | /fornecedores/lista | Lista de fornecedores, com indicadores e filtros (`/fornecedores` leva aqui) |
+| Lista de Fornecedores › Arquivados | /fornecedores/lista?arquivados=1 | Fornecedores arquivados (botão **Activos** para voltar) |
 | Lista de Fornecedores › Novo Fornecedor | /fornecedores/novo | Registar um fornecedor |
 | Lista de Fornecedores › (linha) | /fornecedores/‹id› | Ficha do fornecedor (Informações, Contactos, Documentos) |
 | Ficha › Editar | /fornecedores/‹id›/editar | Alterar os dados do fornecedor |
@@ -104,11 +110,16 @@ o serviço aparece no catálogo como `SRV-0001` e o contrato como `CTRT-0001`, *
 | Serviços | /servicos/lista | Catálogo de serviços (`/servicos` leva aqui) |
 | Serviços › Novo Serviço | /servicos/novo | Criar um serviço |
 | Serviços › (linha) | /servicos/lista/‹id› | Detalhe do serviço (Informações, Avaliações) |
+| Serviço › Editar | /servicos/lista/‹id›/editar | Alterar o serviço |
 | Agendamentos | /servicos/agendamentos | Lista de agendamentos |
 | Agendamentos › Novo Agendamento | /servicos/agendamentos/novo | Agendar um serviço |
+| Agendamentos › (linha) | /servicos/agendamentos/‹id› | Detalhe do agendamento (só consulta) |
 | Contratos | /servicos/contratos | Lista de contratos de serviço |
 | Contratos › Novo Contrato | /servicos/contratos/novo | Criar um contrato |
-| (sem entrada no menu) | /servicos/categorias | Categorias de serviço (lista e **Nova Categoria**) |
+| Contratos › (linha) | /servicos/contratos/‹id› | Detalhe do contrato (Informações, Serviços; só consulta) |
+| (sem entrada no menu) | /servicos/categorias | Categorias de serviço (lista, **Nova Categoria** e **Editar**) |
+| Categorias › Nova Categoria | /servicos/categorias/novo | Criar uma categoria |
+| Categorias › Editar | /servicos/categorias/‹id›/editar | Alterar uma categoria |
 
 ## Tarefas
 
@@ -120,6 +131,8 @@ o serviço aparece no catálogo como `SRV-0001` e o contrato como `CTRT-0001`, *
 
 A tabela mostra Código, Nome, Email, Classificação, Estado, Total Compras e Última Compra. O botão **⋯** dá acesso a **Ver detalhe**, **Editar** e **Arquivar**.
 
+Os fornecedores arquivados não aparecem nesta lista. Para os ver, clique em **Arquivados** (no topo); para voltar, clique em **Activos**. Ver [Como arquivar um fornecedor](#como-arquivar-um-fornecedor).
+
 <!-- captura: 02-fornecedores-e-servicos/fornecedores-lista.png | /fornecedores/lista -->
 ![Lista de fornecedores](img/02-fornecedores-e-servicos/fornecedores-lista.png)
 
@@ -129,7 +142,7 @@ A tabela mostra Código, Nome, Email, Classificação, Estado, Total Compras e �
 
 1. Na lista, clique em **Novo Fornecedor**.
 2. Em **Identificação**, preencha:
-   - **Código**: o sistema atribui sempre um código automático FOR-0001…, independentemente do que escrever aqui;
+   - **Código** (obrigatório, por exemplo «FOR-0001»): fica gravado tal como o escreve e não pode repetir o de outro fornecedor. Depois de criado, já não se altera;
    - **Tipo**: Pessoa Física ou Pessoa Jurídica;
    - **Nome / Razão Social** (obrigatório);
    - **NUIT** (obrigatório, 9 dígitos);
@@ -139,7 +152,7 @@ A tabela mostra Código, Nome, Email, Classificação, Estado, Total Compras e �
 4. Em **Contactos** (opcional), use **Adicionar contacto** e preencha Nome, Cargo, Tipo, Email e Telefone. Pode também acrescentar contactos mais tarde.
 5. Clique em **Guardar Fornecedor**.
 
-**Resultado:** aparece a mensagem «Fornecedor criado com sucesso!». O fornecedor fica no estado **Activo**.
+**Resultado:** aparece a mensagem «Fornecedor criado com sucesso!». O fornecedor fica no estado **Activo**, com o código que escreveu.
 
 <!-- captura: 02-fornecedores-e-servicos/fornecedor-novo.png | /fornecedores/novo -->
 ![Formulário de novo fornecedor](img/02-fornecedores-e-servicos/fornecedor-novo.png)
@@ -178,14 +191,19 @@ A tabela mostra Código, Nome, Email, Classificação, Estado, Total Compras e �
 
 ### Como arquivar um fornecedor
 
-**Antes de começar:** precisa do perfil Administrador ou Gestor.
+**Antes de começar:** precisa do perfil Administrador ou Gestor. Um fornecedor já **Inactivo** não mostra o botão de arquivar.
 
 1. Na ficha, clique em **Arquivar Fornecedor**. Na lista, use **⋯ › Arquivar**.
-2. Confirme com **Confirmar Arquivo**.
+2. Confirme com **Confirmar Arquivo**. Se mudar de ideias, use **Cancelar**.
 
-**Resultado:** aparece a mensagem «Fornecedor arquivado com sucesso.». O fornecedor passa a **Inactivo** e desaparece da lista.
+**Resultado:** aparece a mensagem «Fornecedor arquivado com sucesso.». O fornecedor passa a **Inactivo**, sai da lista principal e passa a aparecer em **Arquivados**.
 
-> **Atenção:** a janela de confirmação diz que a acção pode ser revertida editando o fornecedor. Nesta versão, porém, o fornecedor arquivado deixa de aparecer na lista, mesmo que depois lhe mude o estado. Arquive apenas fornecedores de que já não precisa. Se quiser só suspender temporariamente, use **Editar** e mude o **Estado** para Suspenso ou Inactivo.
+**Para reactivar um fornecedor arquivado:**
+
+1. Na lista, clique em **Arquivados** e abra o fornecedor.
+2. Na ficha, clique em **Reactivar** e confirme com **Confirmar reactivação**.
+
+**Resultado:** aparece a mensagem «Fornecedor reactivado.». O fornecedor volta à lista principal no estado **Activo**, mesmo que antes do arquivo estivesse Suspenso. Se quiser só suspender temporariamente um fornecedor, sem o arquivar, use **Editar** e mude o **Estado** para Suspenso ou Inactivo.
 
 ### Como consultar as contas a pagar
 
@@ -265,17 +283,22 @@ A tabela também assinala, por baixo do vencimento, os dias de atraso («‹N›
 
 1. Abra **Fornecedores › Serviços** e clique em **Novo Serviço**.
 2. Em **Informações básicas**, preencha:
-   - **Código \***: o sistema atribui sempre um código automático SRV-0001…;
+   - **Código \*** (por exemplo «SRV-0001»): fica gravado tal como o escreve e não pode repetir o de outro serviço;
    - **Tipo de serviço \***: Instalação, Manutenção, Reparação, Consultoria, Limpeza, Transporte ou Outro;
+   - **Categoria** (opcional): escolha uma das categorias activas (ver [Como criar uma categoria de serviço](#como-criar-uma-categoria-de-serviço)); sem escolha, fica «Sem categoria»;
    - **Nome do serviço \***;
    - **Descrição**.
-3. Em **Preços e duração**, preencha o **Preço (MT) \***, a **Taxa IVA** (0%, 5%, 16% ou 17%), a **Duração (minutos) \*** e a **Unidade de medida** (Unidade, Hora, Dia, Mês ou Projecto).
+3. Em **Preços e duração**, preencha o **Preço (MT) \***, a **Taxa IVA** (16% ou 0% (isento); por omissão, 16%), a **Duração (minutos) \*** e a **Unidade de medida** (Unidade, Hora, Dia, Mês ou Projecto).
 4. Em **Configurações**, escolha se o serviço está **Disponível**, se **Requer agendamento** e se **Requer técnico**. Acrescente **Observações**, se quiser.
 5. Clique em **Guardar Serviço**.
 
-**Resultado:** aparece a mensagem «Serviço criado com sucesso!». O serviço aparece na lista, que tem os indicadores **Total de Serviços**, **Serviços Activos**, **Disponíveis** e **Total de Vendas**, a pesquisa por nome, código ou descrição e o filtro **Tipo**.
+**Resultado:** aparece a mensagem «Serviço criado com sucesso!». O serviço aparece na lista, que tem os indicadores **Total de Serviços**, **Serviços Activos**, **Disponíveis** e **Total de Vendas**. O detalhe do serviço mostra, ao lado, a **Categoria**.
 
-> **Atenção:** nesta versão ainda não se pode alterar um serviço depois de criado. O botão **Editar** abre uma página inexistente. Para retirar um serviço do catálogo, use **Arquivar Serviço** no detalhe ou **⋯ › Arquivar** na lista. O serviço passa a inactivo e deixa de estar disponível para novos agendamentos.
+> **Atenção:** nesta versão, a caixa de pesquisa (*Pesquisar por nome, código ou descrição…*) e o filtro **Tipo** da lista de serviços ainda não filtram a lista.
+
+**Para alterar um serviço:** no detalhe, clique em **Editar** (ou use **⋯ › Editar** na lista). O formulário é o mesmo da criação, com o **Código** só de leitura. Clique em **Guardar Serviço**; aparece a mensagem «Serviço actualizado com sucesso!». Precisa do perfil Administrador, Gestor ou Operador.
+
+**Para retirar um serviço do catálogo:** use **Arquivar Serviço** no detalhe ou **⋯ › Arquivar** na lista e confirme com **Confirmar Arquivo**. Aparece a mensagem «Serviço arquivado com sucesso.»; o serviço passa a inactivo e deixa de estar disponível para novos agendamentos.
 
 <!-- captura: 02-fornecedores-e-servicos/servicos-lista.png | /servicos/lista -->
 ![Catálogo de serviços](img/02-fornecedores-e-servicos/servicos-lista.png)
@@ -293,14 +316,14 @@ A tabela também assinala, por baixo do vencimento, os dias de atraso («‹N›
    - escolha o **Cliente \***, pesquisando por código, nome ou NUIT;
    - o **E-mail de contacto** e o **Telefone de contacto** são preenchidos a partir da ficha do cliente e podem ser corrigidos.
 3. Em **Data e local**, preencha a **Data**, a **Hora início**, a **Hora fim**, a **Duração (min)**, o **Local** (por exemplo «Instalações do cliente»), o **Endereço**, a **Cidade** e a **Província**. Todos estes campos são necessários.
-4. Em **Preço**, confira o **Preço (MZN)**, que vem do serviço escolhido. Se houver desconto, indique-o em **Desconto (MZN)**.
+4. Em **Preço**, confira o **Preço (MZN)**, que vem do serviço escolhido e pode ser alterado. Se houver desconto, indique-o em **Desconto (MZN)**. Escolha a **Taxa IVA** (16% ou 0% (isento)); vem sempre com 16%, mesmo que o serviço seja isento.
 5. Clique em **Criar agendamento**.
 
-**Resultado:** aparece a mensagem «Agendamento criado com sucesso.». O agendamento fica **Pendente**, com código automático AGD-00001…. O total é calculado com o preço e a taxa de IVA do serviço no catálogo, menos o desconto. Os campos Preço e Taxa IVA do formulário não alteram esse cálculo.
+**Resultado:** aparece a mensagem «Agendamento criado com sucesso.». O agendamento fica **Pendente**, com código automático AGD-00001…. O total é calculado com os valores do formulário: (Preço − Desconto) × (1 + Taxa IVA).
 
-A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendentes**, **Confirmados** e **Concluídos**, a pesquisa por serviço, cliente ou código e o filtro **Estado**. As colunas são Código, Serviço, Cliente, Técnico, Data, Estado e Total.
+A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendentes**, **Confirmados** e **Concluídos** e o filtro **Estado**. As colunas são Código, Serviço, Cliente, Técnico, Data, Estado e Total. Clique numa linha (ou use **⋯ › Ver detalhe**) para abrir o agendamento: o separador **Informações** mostra o serviço, o cliente e os contactos, o técnico, a data, o horário, a duração, o local e as observações; ao lado estão o Código, o Estado, o Preço do serviço, o Desconto, a Taxa IVA e o Total.
 
-> **Atenção:** nesta versão não há ecrã para confirmar, iniciar, concluir ou cancelar um agendamento, nem para lhe atribuir um técnico. **⋯ › Ver detalhe** abre uma página inexistente.
+> **Atenção:** nesta versão o detalhe do agendamento é só de consulta: não há ecrã para confirmar, iniciar, concluir ou cancelar um agendamento, nem para lhe atribuir um técnico. A caixa de pesquisa da lista (*Pesquisar por serviço, cliente ou código…*) ainda não filtra a lista.
 
 <!-- captura: 02-fornecedores-e-servicos/agendamentos-lista.png | /servicos/agendamentos -->
 ![Lista de agendamentos](img/02-fornecedores-e-servicos/agendamentos-lista.png)
@@ -313,14 +336,14 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 **Antes de começar:** precisa do perfil Administrador ou Gestor. O cliente tem de existir na ficha de clientes (ver [Vendas e POS](04-vendas-e-pos.md)).
 
 1. Abra **Fornecedores › Contratos** e clique em **Novo Contrato**.
-2. Em **Identificação**, preencha o **Código** (o sistema atribui sempre um código automático CTRT-0001…) e escolha o **Cliente**, pesquisando por código, nome ou NUIT. O **Nome do cliente** é preenchido a partir da ficha e pode ser corrigido.
+2. Em **Identificação**, preencha o **Código** (obrigatório, por exemplo «CTRT-0001»; fica gravado tal como o escreve e não pode repetir o de outro contrato) e escolha o **Cliente**, pesquisando por código, nome ou NUIT. O **Nome do cliente** é preenchido a partir da ficha e pode ser corrigido.
 3. Em **Serviços incluídos**, marque um ou mais serviços.
 4. Em **Vigência e valor**, preencha o **Início**, o **Fim**, a **Periodicidade** (Mensal, Trimestral, Semestral ou Anual) e o **Valor mensal (MZN)**. Marque **Renovação automática**, se for o caso, e acrescente **Observações**.
 5. Clique em **Criar contrato**.
 
-**Resultado:** aparece a mensagem «Contrato criado com sucesso.». O contrato fica **Activo**. A lista de contratos tem os indicadores **Total de contratos**, **Activos**, **Pausados** e **A expirar (30 dias)**, a pesquisa por código ou cliente e o filtro **Estado**.
+**Resultado:** aparece a mensagem «Contrato criado com sucesso.». O contrato fica **Activo**. A lista de contratos tem os indicadores **Total de contratos**, **Activos**, **Pausados** e **A expirar (30 dias)** e o filtro **Estado**. Clique numa linha (ou use **⋯ › Ver detalhe**) para abrir o contrato: o separador **Informações** mostra o Cliente, a Periodicidade, o Início, o Fim, a Renovação automática e os Dias para expirar; o separador **Serviços** lista os serviços incluídos, com ligação para cada um. Ao lado estão o Código, o Estado e o Valor mensal.
 
-> **Atenção:** nesta versão não há ecrã para pausar, renovar, encerrar ou abrir o detalhe de um contrato.
+> **Atenção:** nesta versão não há ecrã para pausar, renovar ou encerrar um contrato. A caixa de pesquisa da lista (*Pesquisar por código ou cliente…*) ainda não filtra a lista, e o indicador **A expirar (30 dias)** conta todos os contratos, e não só os que terminam nos próximos 30 dias.
 
 <!-- captura: 02-fornecedores-e-servicos/contratos-lista.png | /servicos/contratos -->
 ![Lista de contratos de serviço](img/02-fornecedores-e-servicos/contratos-lista.png)
@@ -336,7 +359,9 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 2. Preencha **Nome \*** (por exemplo «Manutenção»), **Descrição**, **Ordem** e **Ativa**.
 3. Clique em **Criar Categoria**.
 
-**Resultado:** aparece a mensagem «Categoria criada com sucesso.». Nesta versão o formulário de serviço ainda não permite escolher a categoria.
+**Resultado:** aparece a mensagem «Categoria criada com sucesso.». A categoria passa a poder ser escolhida no campo **Categoria** do serviço (só as categorias activas aparecem).
+
+**Para alterar uma categoria:** na lista de categorias, clique em **Editar** na linha, altere os campos e clique em **Guardar Categoria**. Aparece a mensagem «Categoria actualizada com sucesso.». Para deixar de a oferecer nos serviços, desligue **Ativa**.
 
 ## Estados
 
@@ -345,7 +370,7 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
 | Activo | Fornecedor em uso (estado inicial) | Inactivo, Suspenso | Administrador, Gestor (Editar ou Arquivar) |
-| Inactivo | Fora de uso; se foi arquivado, deixa de aparecer na lista | Activo, Suspenso (por Editar, se não foi arquivado) | Administrador, Gestor |
+| Inactivo | Fora de uso. Se foi arquivado, aparece só em **Arquivados** | Activo, Suspenso (por Editar); Activo (por **Reactivar**, se foi arquivado) | Administrador, Gestor |
 | Suspenso | Temporariamente suspenso | Activo, Inactivo | Administrador, Gestor |
 
 ### Conta a pagar
@@ -384,18 +409,21 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 |---|---|---|
 | NUIT deve ter exactamente 9 dígitos | O NUIT tem mais ou menos de 9 caracteres | Corrija o NUIT |
 | NUIT inválido — deve ter 9 dígitos não repetidos | O NUIT não é válido (por exemplo, 111111111) | Confirme o NUIT junto do fornecedor |
-| NUIT ‹n.º› já registado neste tenant | Já existe um fornecedor com este NUIT na empresa | Procure o fornecedor existente na lista |
+| Já existe um fornecedor com o NUIT ‹n.º›. | Já existe um fornecedor com este NUIT na empresa | Procure o fornecedor existente na lista |
+| Erro interno (ao registar um fornecedor) | O NUIT pertence a um fornecedor arquivado | Procure-o em **Arquivados** e use **Reactivar** em vez de o registar de novo |
+| Já existe um fornecedor com o código «‹código›». | O código escolhido já está a ser usado por outro fornecedor | Escolha outro código |
 | Nome obrigatório · Email inválido | Nome com menos de 2 caracteres, ou email mal escrito | Corrija os campos assinalados |
 | Ficheiro demasiado grande (máx. 10 MB). | O documento excede o limite | Reduza o ficheiro ou divida-o |
 | Tipo de ficheiro não permitido. | O ficheiro não é PDF, imagem ou Office | Converta-o para PDF |
 | Valor do pagamento (X) excede o valor restante (Y) | Tentou pagar mais do que está em dívida | Indique um valor igual ou inferior ao restante |
 | Conta a pagar já liquidada ou cancelada | A conta já está Paga ou Cancelada | Nada a pagar; confirme o estado da conta |
-| Forma de pagamento obrigatória | Não escolheu a forma de pagamento | Escolha uma das opções |
+| A conta bancária é obrigatória para esta forma de pagamento. | Escolheu Transferência bancária, Cheque, M-Pesa ou e-Mola sem conta bancária | Escolha a **Conta bancária** |
 | Escolha o fornecedor. | Nova conta a pagar sem fornecedor | Escolha o fornecedor |
 | Escolha a conta contabilística a debitar. | Nova conta a pagar sem conta contabilística | Escolha a conta de gasto ou existências |
 | Data de vencimento deve ser igual ou posterior à data de emissão | Na nova conta a pagar, o vencimento é anterior à emissão | Corrija as datas |
 | Indique o motivo | Tentou cancelar a conta sem motivo | Escreva o motivo |
-| Código obrigatório | Deixou o campo Código vazio (serviço ou contrato) | Escreva qualquer código; o sistema substitui-o pelo automático |
+| Código obrigatório | Deixou o campo Código vazio (fornecedor, serviço ou contrato) | Escreva o código |
+| Já existe um serviço com o código «‹código›». · Já existe um contrato com o código «‹código›». | O código escolhido já está a ser usado por outro serviço ou contrato | Escolha outro código |
 | Valor deve ser positivo | Preço do serviço ou valor mensal do contrato igual a zero | Indique um valor maior que zero |
 | ID de serviço inválido | Não escolheu o serviço no agendamento | Escolha um serviço |
 | ID de cliente obrigatório | Não escolheu o cliente (agendamento ou contrato) | Escolha o cliente no campo **Cliente** |
@@ -405,8 +433,11 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 
 ## Perguntas frequentes
 
-**Porque é que o código que escrevi não ficou gravado?**
-Fornecedores, serviços, agendamentos e contratos recebem sempre um código automático e sequencial. O que escrever no campo Código não é usado.
+**Quem escolhe o código dos fornecedores, serviços e contratos?**
+Quem os regista: o código que escrever no campo **Código** é gravado tal como está e tem de ser único na empresa. Só os agendamentos recebem um código automático (AGD-00001…). Depois de criado, o código já não se altera.
+
+**Arquivei um fornecedor por engano. Como o recupero?**
+Na lista de fornecedores, clique em **Arquivados**, abra o fornecedor e use **Reactivar**. Veja [Como arquivar um fornecedor](#como-arquivar-um-fornecedor).
 
 **O perfil Financeiro pode registar pagamentos a fornecedores?**
 Sim. O Financeiro regista pagamentos, cria contas a pagar à mão e cancela contas a pagar, tal como o Administrador e o Gestor. Não aprova compras, não emite pedidos de compra, não regista recepções nem edita fornecedores.

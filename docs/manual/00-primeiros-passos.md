@@ -91,9 +91,9 @@ pode criar outros papéis à medida (ver [Plataforma e Administração](11-plata
 | Perfil | Descrição no produto | O que pode, em resumo |
 |---|---|---|
 | **ADMIN** | Administrador — acesso total ao tenant | Tudo, incluindo configurações sensíveis (dados da empresa e configuração fiscal, séries de faturação, plano de contas, fecho e reabertura de períodos, declarar o IVA, estornar lançamentos). É quem cria a conta no registo. |
-| **GESTOR** | Gestor — operações e aprovações, sem configuração de sistema | Quase tudo: operar e aprovar em todos os módulos, gerir utilizadores e papéis (só pode dar a outros as permissões que ele próprio tem — por isso, dos papéis de sistema, só atribui GESTOR e LEITURA), gerir a subscrição. **Não pode:** configurar a empresa, atribuir permissões a papéis, configurar integrações, alterar o plano de contas, configurar séries de faturação, fechar/reabrir períodos, abrir, encerrar ou reabrir exercícios, declarar o IVA, configurar a Demonstração de Fluxos de Caixa, estornar lançamentos, remover colaboradores, administração total de inventário e activos. |
-| **FINANCEIRO** | Financeiro — contabilidade, caixa e faturação | Contabilidade, faturação, caixa, tesouraria, IVA (apurar e declarar), processamento salarial (payroll) e analytics; nas contas a pagar, regista pagamentos a fornecedores e cria e cancela contas a pagar; consulta e exportação de tudo o resto. **Não pode** reabrir períodos nem abrir, encerrar ou reabrir exercícios, nem criar clientes ou produtos, nem operar o POS; em Compras não cria pedidos, não aprova e não regista recepções. |
-| **OPERADOR** | Operador — operações de armazém, produção e suporte | Inventário, produção, transporte, tickets, serviços, operar o POS e a caixa (abertura, fecho, reforço, sangria), criar e submeter requisições de compra, registar recepções, criar e editar vendas, criar e editar produtos, tarefas e timesheets de projectos, registar assiduidade e ausências, pedir férias; consulta e exportação do resto. **Não aprova** compras nem emite facturas. **Não vê** os utilizadores, o Registo de Auditoria nem a Demonstração de Fluxos de Caixa, e **não exporta** os mapas contabilísticos (balancete, balanço, DRE, DFC e documentos do encerramento). |
+| **GESTOR** | Gestor — operações e aprovações, sem configuração de sistema | Quase tudo: operar e aprovar em todos os módulos, gerir utilizadores e papéis (só pode dar a outros as permissões que ele próprio tem — por isso, dos papéis de sistema, só atribui GESTOR, OPERADOR e LEITURA), gerir a subscrição, administração total do inventário. **Não pode:** configurar a empresa, atribuir permissões a papéis, configurar integrações, alterar o plano de contas, configurar séries de faturação, fechar/reabrir períodos, abrir, encerrar ou reabrir exercícios, declarar o IVA, configurar a Demonstração de Fluxos de Caixa, estornar lançamentos, remover colaboradores, administração total dos activos fixos. |
+| **FINANCEIRO** | Financeiro — contabilidade, caixa e faturação | Contabilidade (incluindo abrir o exercício e fechar períodos), faturação, caixa, tesouraria, IVA (apurar e declarar), processamento salarial (payroll) e analytics; nas contas a pagar, regista pagamentos a fornecedores e cria e cancela contas a pagar; consulta e exportação de tudo o resto. **Não pode** reabrir períodos nem encerrar ou reabrir exercícios, nem criar clientes ou produtos, nem operar o POS; em Compras não cria pedidos, não aprova e não regista recepções. |
+| **OPERADOR** | Operador — operações de armazém, produção e suporte | Inventário (sem a administração total do inventário nem a aprovação de discrepâncias de contagem), produção, transporte, tickets, serviços, operar o POS e a caixa (abertura, fecho, reforço, sangria), criar e submeter requisições de compra, registar recepções, criar e editar vendas, criar e editar produtos, registar e editar activos fixos, tarefas e timesheets de projectos, registar assiduidade e ausências, pedir férias; consulta e exportação do resto. **Não aprova** compras nem emite facturas. **Não vê** os utilizadores, o Registo de Auditoria nem a Demonstração de Fluxos de Caixa, e **não exporta** os mapas contabilísticos (balancete, balanço, DRE, DFC e documentos do encerramento). |
 | **LEITURA** | Leitura — apenas consulta e exportação | Consultar, listar e exportar em todos os módulos. Não grava nada, nem abre o terminal POS. |
 
 > **Nota:** a barra lateral só mostra os módulos e ecrãs que o seu perfil pode consultar; um
@@ -128,8 +128,9 @@ não esteja associado a nenhuma conta GestPro.
 2. Preencha **Nome da empresa**, **NUIT** (9 dígitos) e **Província**.
 3. Preencha **O seu nome** e **E-mail**. Este e-mail passa a ser o seu identificador de entrada.
 4. Escolha a **Palavra-passe** (pelo menos 10 caracteres) e repita-a em **Confirmar palavra-passe**.
-5. Em **Plano**, escolha Básico, Profissional ou Empresarial. O preço mostrado é mensal, em USD;
-   durante os 14 dias de teste não paga nada.
+5. Em **Plano**, escolha um dos planos do catálogo (hoje: Básico, Profissional e Empresarial, por
+   esta ordem; vem escolhido o Profissional, ou o plano indicado na ligação do site). O preço
+   mostrado é mensal, em USD; durante os 14 dias de teste não paga nada.
 6. Complete a **Verificação anti-robô**, se aparecer.
 7. Clique em **Criar conta e entrar**.
 
@@ -190,6 +191,12 @@ GestPro leva-o de volta a essa página.
 
 **Resultado:** entra no GestPro com os papéis que o administrador lhe atribuiu. O seu e-mail já
 fica confirmado.
+
+Se tentar entrar antes de concluir o convite, o ecrã de entrada mostra «O seu convite ainda não foi
+concluído. Abra a ligação do convite que recebeu por e-mail ou peça ao administrador que o reenvie.»
+Abra a mensagem de convite e siga a ligação até ao fim (passo 2). Uma palavra-passe provisória dada
+pelo administrador não substitui o convite: enquanto ele não for concluído, a entrada continua a ser
+recusada.
 
 ### Como entrar pela primeira vez com uma palavra-passe provisória
 
@@ -277,7 +284,8 @@ barra começa recolhida e abre por cima do conteúdo.
 
 ### Como procurar um ecrã (paleta de comandos)
 
-1. Prima **⌘K** (Mac) ou **Ctrl+K** (Windows) em qualquer página.
+1. Prima **⌘K** (Mac) ou **Ctrl+K** (Windows) em qualquer página, ou clique na caixa **Procurar
+   módulos, documentos…** no cabeçalho (em ecrãs estreitos a caixa não aparece; use o atalho).
 2. Escreva parte do nome do ecrã (por exemplo «IVA» ou «Payroll»). A lista está agrupada por
    Início, Compras, Inventário, Vendas, Finanças, Recursos Humanos, Projectos, Operações e Analytics.
 3. Use as setas e **Enter**, ou clique no resultado.
@@ -285,21 +293,16 @@ barra começa recolhida e abre por cima do conteúdo.
 **Resultado:** o ecrã abre. Se nada corresponder, aparece «Nenhum resultado encontrado.» A paleta
 procura ecrãs, não documentos nem registos.
 
-> **Atenção:** a caixa «Procurar módulos, documentos…» no cabeçalho ainda não abre a paleta com
-> um clique. Use o atalho de teclado.
-
 ### Como usar o cabeçalho
 
 No topo de cada página encontra, da esquerda para a direita:
 
 - o **caminho** da página (por exemplo *Administração › Utilizadores*) — cada parte é uma ligação;
-- a caixa **Procurar módulos, documentos…** com o atalho **⌘K**;
+- a caixa **Procurar módulos, documentos…**, que abre a paleta de comandos (o mesmo que **⌘K**);
 - o **sino de notificações** — um número vermelho indica quantas notificações tem por ler
   (mostra «99+» acima de 99); clique para abrir `/notificacoes`;
 - o botão **Alterar tema**;
 - o **menu do utilizador** (o seu nome e e-mail, e **Terminar sessão**).
-
-> **Atenção:** o item **Configurações** do menu do utilizador ainda não leva a nenhum ecrã.
 
 ### Como ver as notificações
 
@@ -390,19 +393,21 @@ As regras seguintes valem em todos os módulos.
 | Período de Teste | Acesso completo durante 14 dias. |
 | Activa | Acesso completo. |
 | Modo de Leitura | Entra, consulta e exporta; não grava. Uma faixa no topo de todas as páginas mostra quantos dias faltam. |
-| Acesso Fechado | Só o administrador (ADMIN ou GESTOR) entra, e apenas no ecrã **Subscrição**, para pagar; os restantes não entram. Os dados continuam guardados. |
+| Fechada (acesso fechado) | Só o administrador (ADMIN ou GESTOR) entra, e apenas no ecrã **Subscrição**, para pagar; os restantes não entram. Os dados continuam guardados. |
 
 ## Erros frequentes
 
 | Mensagem mostrada | Porquê | O que fazer |
 |---|---|---|
 | E-mail ou palavra-passe incorrectos. | Dados errados — ou demasiadas tentativas falhadas seguidas. | Verifique o e-mail e a palavra-passe. Se persistir, espere uns minutos, use **Esqueceu-se da palavra-passe?** ou peça ao administrador que reponha a palavra-passe. |
+| O seu convite ainda não foi concluído. Abra a ligação do convite que recebeu por e-mail ou peça ao administrador que o reenvie. | Foi criado por convite e ainda não seguiu a ligação até ao fim. | Abra a mensagem de convite e conclua-o. Se já não a tiver, fale com o administrador da empresa. |
 | Esta conta está desactivada. Contacte o administrador da sua empresa. | A sua identidade foi desactivada. | Fale com o administrador da empresa. |
 | Este utilizador foi desactivado. Contacte o administrador da sua empresa. | O seu utilizador está Inactivo. | Fale com o administrador da empresa. |
 | A sua identidade foi reconhecida, mas ainda não existe um utilizador associado numa empresa GestPro. Contacte o administrador da sua empresa. | A palavra-passe está certa, mas não há utilizador seu em nenhuma empresa. | Peça ao administrador que o crie. |
 | A subscrição da sua empresa está fechada. Só um administrador pode entrar para regularizar o pagamento. | A subscrição terminou e o acesso da empresa está fechado; o seu perfil não gere a subscrição. | Fale com o administrador da empresa: ele entra e paga em **Subscrição**. |
 | O acesso da sua empresa está suspenso pela GestPro. Contacte o suporte GestPro. | O acesso foi fechado pela GestPro (não por falta de pagamento). | Contacte o suporte GestPro. |
 | O serviço de identidade não respondeu. Tente de novo dentro de momentos — não é problema das suas credenciais. | Falha temporária do serviço. | Tente de novo daí a pouco. |
+| O plano escolhido não está disponível. Escolha outro plano. | O plano deixou de estar à venda (foi retirado do catálogo) enquanto preenchia o registo. | Actualize a página e escolha um dos planos da lista. |
 | Já existe uma conta registada com este NUIT. Inicie sessão ou recupere a palavra-passe. | O NUIT já tem conta no GestPro. | Entre com a conta existente ou peça acesso ao administrador dela. |
 | Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos. | O e-mail já pertence a outra conta. | Use outro endereço. |
 | NUIT inválido (9 dígitos não repetidos) | O NUIT não tem formato válido. | Corrija o NUIT. |
@@ -413,6 +418,7 @@ As regras seguintes valem em todos os módulos.
 | A palavra-passe actual está incorrecta. | No ecrã de troca, a palavra-passe provisória está errada. | Escreva exactamente a que o administrador lhe deu. |
 | A nova palavra-passe tem de ser diferente da actual | Repetiu a provisória. | Escolha outra. |
 | Demasiadas tentativas. Tente novamente dentro de N minutos. | Muitas tentativas de troca falhadas. | Espere o tempo indicado. |
+| O seu convite ainda não foi concluído. Abra a ligação do convite que recebeu por e-mail. | No ecrã **Defina a sua palavra-passe**, a conta é de um convite por concluir. | Conclua o convite pela ligação recebida por e-mail. |
 | A ligação de confirmação expirou (é válida 24 horas). Inicie sessão e peça uma nova a partir do aviso no painel. | Abriu a ligação passadas 24 horas. | Entre e clique em **Reenviar ligação** no Dashboard. |
 | Já foram enviadas demasiadas mensagens. Tente novamente dentro de N minutos. | Pediu o reenvio muitas vezes. | Espere o tempo indicado. |
 | Para emitir documentos fiscais é preciso confirmar o endereço de e-mail da conta — … | Tentou emitir com o e-mail por confirmar. | Confirme o e-mail (ver acima). Se já confirmou, termine a sessão e entre de novo. |

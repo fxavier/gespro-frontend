@@ -126,6 +126,7 @@ encomenda está **Confirmada**, com o stock reservado. A cobrança da factura de
 | Vendedor | Pessoa que vende, com meta mensal. |
 | Comissão | Valor a pagar ao vendedor por uma venda, calculado pelas **regras de comissão**. Passa de Pendente a Aprovada e a Paga. |
 | NUIT | Número Único de Identificação Tributária do cliente — 9 dígitos, obrigatório na ficha do cliente. |
+| Taxa de IVA | Só há duas: **16 %** (a normal) e **0 %** (isento). Vale para produtos, vendas, encomendas, devoluções, faturas e notas; outra taxa é recusada. |
 
 ## Ecrãs
 
@@ -143,6 +144,7 @@ encomenda está **Confirmada**, com o stock reservado. A cobrança da factura de
 | Vendas & POS › Notas de Crédito | `/vendas/notas-credito` | Lista de notas de crédito e botão **Nova Nota de Crédito**. |
 | Vendas & POS › Notas de Débito | `/vendas/notas-debito` | Lista de notas de débito e botão **Nova Nota de Débito**. |
 | Vendas & POS › Clientes | `/clientes` | Lista de clientes, botão **Novo Cliente**, ficha de cada cliente. |
+| — (botão **Desactivar Cliente**) | `/clientes/<cliente>/desactivar` | Desactivação do cliente, com o motivo. |
 | — (sem entrada no menu) | `/clientes/historico` | **Histórico de Transacções** por cliente, com exportação CSV/XLSX. |
 | — (sem entrada no menu) | `/clientes/dashboard`, `/clientes/relatorios` | **Dashboard de Clientes** e **Relatórios de Clientes** (com exportação CSV/XLSX da carteira). |
 | — (sem entrada no menu) | `/vendas/devolucoes` | **Devoluções**: lista e botão **Nova Devolução**. |
@@ -280,7 +282,8 @@ encerrar o caixa.».
 1. Abra **Vendas & POS › Dashboard** e clique **Ver todas** (ou escreva `/vendas`).
 2. Use **Pesquisar por número ou nome do cliente…** e os filtros **Estado** e **Origem**.
 3. Clique no número da venda para abrir o detalhe: separadores **Itens**, **Pagamentos** (método, valor, troco) e
-   **Histórico** (cada mudança de estado com data e motivo).
+   **Histórico** (cada mudança de estado com data e motivo; a primeira linha mostra só o estado com que a venda
+   nasceu — por exemplo **Concluída** numa venda POS paga).
 4. Numa venda com documento fiscal (todas as do POS), o campo **Documento fiscal** mostra o número da
    Factura-Recibo ou da Factura e abre-o em Facturação, onde o botão **Descarregar PDF** (no topo) descarrega o
    PDF fiscal. O talão também indica o documento.
@@ -585,6 +588,8 @@ débito** ([Contabilidade](05-contabilidade.md#como-configurar-a-conta-de-cada-n
   têm as três).
 - Se a devolução tem **Reembolso ao cliente**, quem a processa tem de ter uma **sessão de caixa aberta** em seu nome:
   o dinheiro sai dessa gaveta.
+- Se a devolução está ligada a uma factura, processá-la emite uma nota de crédito: quem processa tem de ter o
+  **e-mail confirmado**.
 
 **Passos**
 1. Em `/vendas/devolucoes`, clique no número da devolução.
@@ -731,17 +736,25 @@ abrir o detalhe.
 2. Clique no nome para abrir a ficha: separadores **Informações** (contactos, **Crédito** com **Limite** e
    **Utilizado**, observações), **Endereços** e **Contactos**.
 3. Para alterar dados, clique **Editar**, faça as alterações e clique **Guardar Alterações**.
-4. Para desactivar, clique **Desactivar Cliente** e depois **Confirmar Desactivação**. Aparece «Cliente desactivado
-   com sucesso.».
+4. Para desactivar, clique **Desactivar Cliente** na ficha (ou **Desactivar** na linha da lista; só aparece num
+   cliente **Activo** ou **Suspenso**). Abre a página **Desactivar Cliente**.
+5. Escreva, se quiser, o **Motivo (opcional)** — até 500 caracteres; fica registado no histórico do cliente.
+6. Clique **Confirmar Desactivação** (ou **Voltar** para desistir). Aparece «Cliente desactivado com sucesso.» e volta
+   à lista.
 
 **Resultado**
-- O cliente desactivado passa a **Inactivo**. Só os clientes **Activos** aparecem para escolha em novas faturas,
-  notas de débito, encomendas e vendas a crédito no POS.
+- O cliente desactivado passa a **Inactivo** e sai da lista de clientes e de todas as escolhas de cliente. As
+  faturas e vendas antigas continuam a mostrar o nome dele.
+- **Desactivar não se desfaz pelos ecrãs:** o cliente deixa de ter ficha, por isso também não se pode abrir
+  **Editar** para o voltar a activar. Para pôr um cliente de lado só por algum tempo, não use **Desactivar
+  Cliente**: abra **Editar** e mude o **Estado** para **Suspenso** ou **Inactivo** — esse cliente continua na lista
+  (filtro **Estado**) e volta a **Activo** pelo mesmo **Editar**.
+- Só os clientes **Activos** aparecem para escolha em novas faturas, notas de débito, encomendas e vendas a crédito
+  no POS.
 - Um cliente **Inactivo** ou **Suspenso** não pode comprar a crédito (nem no POS, nem por factura, nem pela
   conversão de uma encomenda); pode continuar a comprar a pronto.
 - Um cliente com facturas por pagar não pode ser desactivado. O valor em dívida conta-se pelas facturas em aberto
   (total menos o já pago e menos as notas de crédito emitidas).
-- Para voltar a activar, abra **Editar** e mude o **Estado** para **Activo**.
 
 > **Atenção:** o valor **Utilizado** do quadro **Crédito**, na ficha do cliente, não acompanha as facturas e os
 > pagamentos. Para saber quanto o cliente deve, veja as facturas dele em **Faturas**, ou a **Dívida Total** e os
@@ -754,13 +767,25 @@ abrir o detalhe.
 
 **Passos**
 1. Abra `/clientes/historico`.
-2. Na coluna **Clientes**, à esquerda, clique no cliente.
-3. A tabela mostra **Data**, **Tipo**, **Referência**, **Descrição**, **Valor** e **Estado** das transacções.
-4. Para exportar, clique **CSV** ou **XLSX** no topo.
+2. Na coluna **Clientes**, à esquerda, clique no cliente (a coluna mostra os primeiros 100 clientes, por ordem
+   alfabética).
+3. A tabela mostra **Data**, **Tipo**, **Referência**, **Descrição**, **Valor** e **Estado** das transacções, da mais
+   recente para a mais antiga (até 100).
+4. Para exportar, clique **CSV** ou **XLSX** no topo. A exportação leva todas as transacções do cliente, não só as
+   100 mostradas.
 
-> **Atenção:** o histórico mostra as transacções carregadas com os dados de demonstração; as vendas e faturas novas
-> ainda **não** são acrescentadas a esta lista. Para ver as faturas de um cliente, use **Faturas**; para as vendas,
-> pesquise o nome do cliente em `/vendas`.
+**O que entra no histórico** — o sistema acrescenta uma linha, no mesmo momento, sempre que:
+- é emitida uma **Factura-Recibo** ou uma **Factura** para o cliente (no POS, em **Faturas**, numa troca): Tipo
+  **VENDA**, Descrição «Factura-Recibo …» ou «Factura …», Estado **Concluído** (Factura-Recibo, já paga) ou
+  **Pendente** (Factura por pagar);
+- é registado um pagamento de uma factura em Faturação: Tipo **PAGAMENTO**, Descrição «Recebimento da factura …»,
+  Estado **Concluído** — a linha da factura não muda, cada recebimento é uma linha nova;
+- o cliente é desactivado com motivo: Tipo **Ajuste**, Descrição «Cliente desactivado. Motivo: …». Como o cliente
+  desactivado deixa de aparecer na coluna **Clientes**, esta linha fica gravada mas não se consegue abrir neste ecrã.
+
+As linhas nunca se alteram nem se apagam. Não entram no histórico as notas de crédito e de débito, as anulações e
+devoluções, nem a venda criada ao converter uma encomenda (que não emite factura); os documentos emitidos antes desta
+versão também não foram acrescentados.
 
 <!-- captura: 04-vendas-e-pos/clientes-historico.png | /clientes/historico -->
 ![Histórico de Transacções](img/04-vendas-e-pos/clientes-historico.png)
@@ -842,9 +867,9 @@ Concluídas ou Faturadas, e a conversão de uma encomenda cria-a já Faturada).
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Activo | Cliente em uso. | Inactivo (**Desactivar Cliente**), Suspenso (em **Editar**) | Administrador, Gestor |
-| Suspenso | Cliente temporariamente suspenso. | Inactivo, Activo (em **Editar**) | Administrador, Gestor |
-| Inactivo | Cliente desactivado. | Activo (em **Editar**) | Administrador, Gestor |
+| Activo | Cliente em uso. | Inactivo (**Desactivar Cliente**, ou em **Editar**), Suspenso (em **Editar**) | Administrador, Gestor |
+| Suspenso | Cliente temporariamente suspenso. | Inactivo (**Desactivar Cliente**, ou em **Editar**), Activo (em **Editar**) | Administrador, Gestor |
+| Inactivo | Cliente posto de lado. | Activo (em **Editar**) — só se ficou Inactivo por **Editar**; desactivado com **Desactivar Cliente**, sai da lista e não volta pelos ecrãs | Administrador, Gestor |
 
 ## Erros frequentes
 
@@ -875,7 +900,7 @@ Concluídas ou Faturadas, e a conversão de uma encomenda cria-a já Faturada).
 | A factura … (…) já tem … creditados: uma nota de crédito de … excede o total. | A nota de crédito, somada às já emitidas, passa do total da fatura. | Reduza as linhas a creditar ao saldo mostrado na lista **Factura a creditar**. |
 | Indique o motivo de isenção (IVA a 0%). / A linha N tem IVA a 0%: indique o motivo de isenção ou de não sujeição. | Uma linha a 0 % numa fatura, nota de crédito ou nota de débito sem motivo de isenção. | Preencha o **Motivo de isenção** dessa linha. |
 | Stock disponível insuficiente. Disponível: …, solicitado: …. | Ao confirmar uma encomenda, a localização escolhida não tem stock livre para reservar. | Escolha outra localização ou dê entrada de stock em [Inventário](03-inventario.md). |
-| Transição inválida de Venda: FATURADA → CANCELADA. Permitidas: CONCLUIDA, DEVOLVIDA | Clicou **Cancelar Venda** numa venda **Faturada** sem documento fiscal (por exemplo, a criada ao converter uma encomenda). | Uma venda Faturada já não se cancela pelos ecrãs; fale com o Financeiro para a correcção. |
+| A venda VND/… no estado FATURADA não se cancela directamente: só uma nota de crédito a desfaz. | Clicou **Cancelar Venda** numa venda **Faturada** sem documento fiscal (por exemplo, a criada ao converter uma encomenda). | Uma venda Faturada já não se cancela pelos ecrãs; fale com o Financeiro para a correcção. |
 | Só é possível converter encomendas confirmadas em venda. | A encomenda já não está Confirmada (por exemplo, foi convertida ou cancelada entretanto). | Actualize a página e veja o estado da encomenda. |
 | Esta devolução reembolsa o cliente em dinheiro: abra uma sessão de caixa antes de a processar. | Devolução com **Reembolso ao cliente** e sem caixa aberto em seu nome. | Abra o seu caixa e volte a **Processar**. |
 | Esta troca movimenta dinheiro na gaveta: abra uma sessão de caixa … | A diferença da troca paga-se ou devolve-se em dinheiro e não tem caixa aberto. | Abra o seu caixa ou, se o cliente paga, escolha outro meio. |
