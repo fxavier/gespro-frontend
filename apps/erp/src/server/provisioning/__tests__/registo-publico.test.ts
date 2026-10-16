@@ -23,11 +23,11 @@ const mocks = vi.hoisted(() => ({
   definirPalavraPasse: vi.fn(),
   eliminarUtilizador: vi.fn(),
   userFindFirst: vi.fn(),
-  userUpdateMany: vi.fn(),
 }));
 
 vi.mock('@/server/services/plataforma/tenant-provisioning.service', () => ({
   provisionarTenant: mocks.provisionarTenant,
+  MENSAGEM_EMAIL_JA_REGISTADO: 'mensagem-email-ja-registado',
 }));
 vi.mock('@/server/services/plataforma/assinatura.service', () => ({
   criarSubscricaoTrial: mocks.criarSubscricaoTrial,
@@ -51,25 +51,17 @@ vi.mock('@/server/provisioning/idempotencia', async () => {
 // caminho feliz) — daí o dublê mínimo.
 vi.mock('@/server/db/client', () => ({
   prismaBase: {
-    user: { findFirst: mocks.userFindFirst, updateMany: mocks.userUpdateMany },
+    user: { findFirst: mocks.userFindFirst },
   },
 }));
-vi.mock('@/server/auth/keycloak', async () => {
-  const real = await vi.importActual<typeof import('@/server/auth/keycloak')>(
-    '@/server/auth/keycloak',
-  );
-  return {
-    // `ErroKeycloak` é a classe real: o `instanceof` do módulo sob teste e o do
-    // teste têm de olhar para o mesmo objecto.
-    ErroKeycloak: real.ErroKeycloak,
-    garantirUtilizador: mocks.garantirUtilizador,
-    definirPalavraPasse: mocks.definirPalavraPasse,
-    eliminarUtilizador: mocks.eliminarUtilizador,
-  };
-});
+vi.mock('@/server/auth/keycloak', () => ({
+  garantirUtilizador: mocks.garantirUtilizador,
+  definirPalavraPasse: mocks.definirPalavraPasse,
+  eliminarUtilizador: mocks.eliminarUtilizador,
+}));
 
 import { BusinessRuleError } from '@/lib/errors';
-import { ErroKeycloak } from '@/server/auth/keycloak';
+import { logger } from '@/server/observability/logger';
 import { CORPO_ILEGIVEL, registarTenant } from '../registo-publico';
 
 const SENHA = 'padaria-ana-2026';
@@ -93,7 +85,6 @@ beforeEach(() => {
   mocks.verificarCaptcha.mockResolvedValue({ valido: true });
   mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-ana', criado: true });
   mocks.userFindFirst.mockResolvedValue(null);
-  mocks.userUpdateMany.mockResolvedValue({ count: 1 });
   mocks.definirPalavraPasse.mockResolvedValue(undefined);
   mocks.eliminarUtilizador.mockResolvedValue(undefined);
   mocks.provisionarTenant.mockResolvedValue({
@@ -231,128 +222,37 @@ describe('identidade — regressão do defeito que o ADR-0031 corrige', () => {
     expect(JSON.stringify(mocks.provisionarTenant.mock.calls[0][0])).not.toContain(SENHA);
   });
 
-  it('não reescreve a credencial de uma identidade que já existia — seria tomada de conta', async () => {
-    mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-ana', criado: false });
-    mocks.provisionarTenant.mockRejectedValue(
-      new BusinessRuleError('EMAIL_JA_REGISTADO', 'Este e-mail já está associado a uma conta.'),
-    );
-    const r = await registarTenant(CORPO_VALIDO, CONTEXTO);
-    expect(r).toMatchObject({ ok: false, code: 'EMAIL_JA_REGISTADO' });
-    expect(mocks.definirPalavraPasse).not.toHaveBeenCalled();
-    // E não se apaga a identidade de outrem.
-    expect(mocks.eliminarUtilizador).not.toHaveBeenCalled();
-  });
-
-  /**
-   * O 409 do Keycloak diz a quem perde a corrida que não foi ele a criar. Sem
-   * isso, os dois pedidos liam `null` antes de criar, partilhavam o `sub`
-   * deduplicado e julgavam-se ambos criadores — e o perdedor escrevia a sua
-   * credencial por cima da do vencedor (ADR-0031 §2-bis).
-   */
-  it('quem perde a corrida (criado: false) não escreve credencial antes da transacção', async () => {
-    mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-ana', criado: false });
+  it('o provisionamento recebe o sub que ESTE pedido criou', async () => {
     await registarTenant(CORPO_VALIDO, CONTEXTO);
-    // A única escrita é a de depois do commit — nunca antes dele.
-    expect(mocks.definirPalavraPasse.mock.invocationCallOrder[0]).toBeGreaterThan(
-      mocks.provisionarTenant.mock.invocationCallOrder[0],
-    );
-    expect(mocks.definirPalavraPasse).toHaveBeenCalledTimes(1);
-  });
-
-  it('órfã comprovada pelo commit: a credencial do pedido corrente sobrepõe-se, depois da transacção', async () => {
-    mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-orfa', criado: false });
-    // O serviço reencontra a MESMA identidade (idempotente por e-mail).
-    mocks.provisionarTenant.mockResolvedValue({
-      tenantId: 'tenant-1',
-      tenantSlug: 'padaria-ana-lda',
-      userId: 'user-1',
-      keycloakSub: 'kc-sub-orfa',
-      adminEmail: 'ana@padaria.mz',
-      adminNome: 'Ana Sitoe',
-      notificacaoBoasVindasId: 'notif-1',
-    });
-    const r = await registarTenant(CORPO_VALIDO, CONTEXTO);
-    expect(r).toMatchObject({ ok: true });
-    expect(mocks.definirPalavraPasse).toHaveBeenCalledWith('kc-sub-orfa', SENHA, {
-      temporaria: false,
-    });
+    expect(mocks.provisionarTenant.mock.calls[0][0]).toMatchObject({ keycloakSub: 'kc-sub-ana' });
   });
 
   /**
-   * O entrelaçamento do re-parecer: outro pedido com o mesmo e-mail e um NUIT
-   * duplicado é recusado em dezenas de milissegundos, não vê `User` nenhum
-   * (esta transacção ainda não cometeu) e apaga o `sub` partilhado. Sem a
-   * auto-cura, o tenant fica cometido a apontar para uma identidade que já
-   * não existe — cliente real sem forma de entrar.
+   * Identidade que já existia (órfã, administrador de plataforma sem `User`
+   * local, ou quem perdeu a corrida no 409 do Keycloak): escrever-lhe a
+   * credencial seria tomada de conta (#549). Recusa-se antes de Postgres.
    */
-  it('404 na escrita pós-commit: recria a identidade com a credencial de quem se registou', async () => {
-    mocks.garantirUtilizador
-      .mockResolvedValueOnce({ sub: 'kc-sub-apagado', criado: false })
-      .mockResolvedValueOnce({ sub: 'kc-sub-renascido', criado: true });
-    mocks.provisionarTenant.mockResolvedValue({
-      tenantId: 'tenant-1',
-      tenantSlug: 'padaria-ana-lda',
-      userId: 'user-1',
-      keycloakSub: 'kc-sub-apagado',
-      adminEmail: 'ana@padaria.mz',
-      adminNome: 'Ana Sitoe',
-      notificacaoBoasVindasId: 'notif-1',
-    });
-    mocks.definirPalavraPasse
-      .mockRejectedValueOnce(new ErroKeycloak(404, '[keycloak] não existe'))
-      .mockResolvedValueOnce(undefined);
-
-    const r = await registarTenant(CORPO_VALIDO, CONTEXTO);
-
-    expect(r).toMatchObject({ ok: true, sub: 'kc-sub-renascido' });
-    // A identidade renasce com a palavra-passe do registante, nunca com a de
-    // quem a apagou.
-    expect(mocks.definirPalavraPasse).toHaveBeenLastCalledWith('kc-sub-renascido', SENHA, {
-      temporaria: false,
-    });
-    // E o `User` cometido passa a apontar-lhe, com o tenant explícito.
-    expect(mocks.userUpdateMany).toHaveBeenCalledWith({
-      where: { id: 'user-1', tenantId: 'tenant-1' },
-      data: { keycloakSub: 'kc-sub-renascido' },
-    });
-  });
-
-  it('a auto-cura só existe depois do commit — um 404 antes da transacção não recria nada', async () => {
-    mocks.definirPalavraPasse.mockRejectedValue(new ErroKeycloak(404, '[keycloak] não existe'));
-    const r = await registarTenant(CORPO_VALIDO, CONTEXTO);
-    expect(r).toMatchObject({ ok: false, code: 'ERRO_INTERNO' });
-    expect(mocks.provisionarTenant).not.toHaveBeenCalled();
-    expect(mocks.userUpdateMany).not.toHaveBeenCalled();
-    // Uma única tentativa de identidade: sem commit não há prova de posse.
-    expect(mocks.garantirUtilizador).toHaveBeenCalledTimes(1);
-  });
-
-  it('identidade substituída a meio: a credencial vai para o sub que o tenant cometeu', async () => {
-    // A identidade criada aqui foi apagada entre a escrita da credencial e a
-    // transacção; o `provisionarTenant` criou outra ao reencontrá-la em falta.
-    mocks.provisionarTenant.mockResolvedValue({
-      tenantId: 'tenant-1',
-      tenantSlug: 'padaria-ana-lda',
-      userId: 'user-1',
-      keycloakSub: 'kc-sub-outro',
-      adminEmail: 'ana@padaria.mz',
-      adminNome: 'Ana Sitoe',
-      notificacaoBoasVindasId: 'notif-1',
-    });
-    const r = await registarTenant(CORPO_VALIDO, CONTEXTO);
-    expect(r).toMatchObject({ ok: true, sub: 'kc-sub-outro' });
-    expect(mocks.definirPalavraPasse).toHaveBeenLastCalledWith('kc-sub-outro', SENHA, {
-      temporaria: false,
-    });
-  });
-
-  it('se a credencial da órfã não se deixar escrever, o tenant continua criado', async () => {
+  it('identidade preexistente (criado: false): EMAIL_JA_REGISTADO sem credencial, sem Postgres, sem apagar', async () => {
     mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-ana', criado: false });
-    mocks.definirPalavraPasse.mockRejectedValue(new Error('HTTP 503'));
+    const warn = vi.spyOn(logger, 'warn');
     const r = await registarTenant(CORPO_VALIDO, CONTEXTO);
-    // O tenant existe: não se desfaz nem se mente a dizer que falhou.
-    expect(r).toMatchObject({ ok: true, tenantSlug: 'padaria-ana-lda' });
+    // O sinal de tentativa de tomada de conta: com o `sub`, nunca com o e-mail.
+    expect(warn).toHaveBeenCalledWith(
+      { sub: 'kc-sub-ana', evento: 'registo.identidade_preexistente' },
+      expect.any(String),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('ana@padaria.mz');
+    warn.mockRestore();
+    expect(r).toMatchObject({
+      ok: false,
+      code: 'EMAIL_JA_REGISTADO',
+      estado: 409,
+      mensagem: 'mensagem-email-ja-registado',
+    });
+    expect(mocks.definirPalavraPasse).not.toHaveBeenCalled();
+    expect(mocks.provisionarTenant).not.toHaveBeenCalled();
     expect(mocks.eliminarUtilizador).not.toHaveBeenCalled();
+    expect(mocks.falharChave).toHaveBeenCalled();
   });
 });
 

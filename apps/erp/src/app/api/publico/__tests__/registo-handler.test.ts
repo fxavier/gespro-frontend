@@ -29,6 +29,7 @@ vi.mock('@/lib/auth', () => ({ auth: vi.fn(async () => null) }));
 
 vi.mock('@/server/services/plataforma/tenant-provisioning.service', () => ({
   provisionarTenant: mocks.provisionarTenant,
+  MENSAGEM_EMAIL_JA_REGISTADO: 'mensagem-email-ja-registado',
 }));
 vi.mock('@/server/services/plataforma/assinatura.service', () => ({
   criarSubscricaoTrial: mocks.criarSubscricaoTrial,
@@ -54,21 +55,14 @@ vi.mock('@/server/security/rate-limiter', () => ({
 // `prismaBase` só é tocado pelo guarda-costas que impede o apagamento de uma
 // identidade já referenciada por um `User` (ADR-0031 §2-bis).
 vi.mock('@/server/db/client', () => ({
-  prismaBase: { user: { findFirst: mocks.userFindFirst, updateMany: vi.fn() } },
+  prismaBase: { user: { findFirst: mocks.userFindFirst } },
 }));
-vi.mock('@/server/auth/keycloak', async () => {
-  const real = await vi.importActual<typeof import('@/server/auth/keycloak')>(
-    '@/server/auth/keycloak',
-  );
-  return {
-    // Classe real: o `instanceof` da auto-cura tem de olhar para o mesmo objecto.
-    ErroKeycloak: real.ErroKeycloak,
-    garantirUtilizador: mocks.garantirUtilizador,
-    definirPalavraPasse: mocks.definirPalavraPasse,
-    eliminarUtilizador: mocks.eliminarUtilizador,
-    enviarEmailVerificacao: mocks.enviarEmailVerificacao,
-  };
-});
+vi.mock('@/server/auth/keycloak', () => ({
+  garantirUtilizador: mocks.garantirUtilizador,
+  definirPalavraPasse: mocks.definirPalavraPasse,
+  eliminarUtilizador: mocks.eliminarUtilizador,
+  enviarEmailVerificacao: mocks.enviarEmailVerificacao,
+}));
 
 import { NextRequest } from 'next/server';
 import { POST, OPTIONS } from '../registo/route';
