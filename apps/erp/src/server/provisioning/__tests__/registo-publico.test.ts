@@ -61,6 +61,7 @@ vi.mock('@/server/auth/keycloak', () => ({
 }));
 
 import { BusinessRuleError } from '@/lib/errors';
+import { logger } from '@/server/observability/logger';
 import { CORPO_ILEGIVEL, registarTenant } from '../registo-publico';
 
 const SENHA = 'padaria-ana-2026';
@@ -233,7 +234,15 @@ describe('identidade — regressão do defeito que o ADR-0031 corrige', () => {
    */
   it('identidade preexistente (criado: false): EMAIL_JA_REGISTADO sem credencial, sem Postgres, sem apagar', async () => {
     mocks.garantirUtilizador.mockResolvedValue({ sub: 'kc-sub-ana', criado: false });
+    const warn = vi.spyOn(logger, 'warn');
     const r = await registarTenant(CORPO_VALIDO, CONTEXTO);
+    // O sinal de tentativa de tomada de conta: com o `sub`, nunca com o e-mail.
+    expect(warn).toHaveBeenCalledWith(
+      { sub: 'kc-sub-ana', evento: 'registo.identidade_preexistente' },
+      expect.any(String),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('ana@padaria.mz');
+    warn.mockRestore();
     expect(r).toMatchObject({
       ok: false,
       code: 'EMAIL_JA_REGISTADO',

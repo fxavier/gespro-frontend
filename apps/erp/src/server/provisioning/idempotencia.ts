@@ -26,7 +26,9 @@ export type EstadoChave = 'EM_CURSO' | 'CONCLUIDA' | 'FALHADA';
  * (deploy a meio, OOM, timeout) deixava a chave presa em `EM_CURSO` para
  * sempre — e o cliente recebia 409 permanente, sem forma de se registar com
  * aquela chave. A transacção de provisionamento é atómica, portanto uma
- * tentativa interrompida não deixou tenant nenhum: repetir é seguro.
+ * tentativa interrompida não deixou tenant nenhum: repetir é seguro. Se a
+ * identidade no Keycloak já tinha sido criada, a repetição responde
+ * `EMAIL_JA_REGISTADO` (#549).
  *
  * O valor é folgado face ao tempo real do provisionamento (~2 s) para nunca
  * apanhar um pedido ainda a decorrer.
@@ -84,7 +86,8 @@ export async function reservarChave(
 
   if (existente.estado === 'FALHADA') {
     // Reabre para nova tentativa: a anterior não deixou tenant nenhum (a
-    // transacção de provisionamento é atómica).
+    // transacção de provisionamento é atómica). Depois de um 5xx que já criou
+    // a identidade, a repetição responde `EMAIL_JA_REGISTADO` (#549).
     return reabrir(chave, 'FALHADA');
   }
 

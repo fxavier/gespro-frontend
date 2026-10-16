@@ -111,12 +111,10 @@ function falha(
  * Apaga a identidade **que este pedido criou**, e só essa.
  *
  * `criouAqui` vem do 201 do Keycloak, logo já exclui a corrida em que dois
- * pedidos partilham o `sub`. O guarda-costas em Postgres cobre o que sobra
- * dela: o pedido que PERDEU a corrida pode cometer o tenant primeiro, e o que
- * a ganhou apanhar `EMAIL_JA_REGISTADO` a seguir — apagar aí deixava um
- * cliente real com tenant cometido e sem identidade, que o ADR-0031 §2-bis
- * declara pior do que o problema original. Se alguém já referencia o `sub`, a
- * identidade tem dono: não se toca.
+ * pedidos partilham o `sub`: o que a perde sai no passo 7 com
+ * `EMAIL_JA_REGISTADO` (#549) e nunca chega aqui. O guarda-costas em Postgres
+ * é defesa em profundidade — se alguém já referencia o `sub`, a identidade
+ * tem dono: não se toca.
  */
 async function apagarIdentidadeSeForNossa(sub: string, criouAqui: boolean): Promise<void> {
   if (!criouAqui || !sub) return;
@@ -299,6 +297,12 @@ export async function registarTenant(
     return falha(500, 'ERRO_INTERNO', 'Não foi possível concluir o registo.');
   }
   if (!identidadeCriadaAqui) {
+    // Só o `sub`, nunca o e-mail: é o sinal que distingue a tentativa de tomada
+    // de conta de um duplicado inocente no caminho da API.
+    logger.warn(
+      { sub, evento: 'registo.identidade_preexistente' },
+      '[registo] identidade preexistente — recusado sem tocar (#549)',
+    );
     await falharChave(chave);
     return falha(409, 'EMAIL_JA_REGISTADO', MENSAGEM_EMAIL_JA_REGISTADO);
   }
