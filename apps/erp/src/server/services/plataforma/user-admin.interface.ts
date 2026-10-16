@@ -105,7 +105,9 @@ export interface IUserAdminService {
    * pendentes), User local com papéis, e-mail de acções (ADR-0013 §5-bis).
    * Operação atómica do lado Postgres: User + UserRole em `$transaction`.
    * Lança `BusinessRuleError('EMAIL_JA_REGISTADO')` se o email já existir em
-   * QUALQUER tenant — o email é único em todo o sistema (CONTEXT.md).
+   * QUALQUER tenant — o email é único em todo o sistema (CONTEXT.md) — e
+   * também se o realm já tiver uma identidade com esse e-mail (#549): não se
+   * toma conta de identidades alheias (p.ex. a do administrador de plataforma).
    */
   /**
    * Devolve o utilizador e, no modo `palavra-passe`, a temporária gerada —

@@ -5,7 +5,9 @@ import {
   dispararEmailAccoes,
   definirActivo,
   definirPalavraPasse,
+  eliminarUtilizador,
 } from '@/server/auth/keycloak';
+import { logger } from '@/server/observability/logger';
 import { gerarPalavraPasseInicial } from '@/server/auth/palavra-passe';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
 import { inviteLimiter } from '@/server/security/rate-limiter';
@@ -317,9 +319,10 @@ export const userAdminService: IUserAdminService = {
    * Convidar um colaborador — o mesmo mecanismo do registo público (ADR-0013
    * §5-bis): Keycloak PRIMEIRO (identidade sem palavra-passe, com
    * VERIFY_EMAIL + UPDATE_PASSWORD pendentes), Postgres depois, e por fim o
-   * e-mail de acções. A idempotência é por e-mail: `garantirUtilizador`
-   * procura no realm antes de criar, portanto o segundo clique depois de uma
-   * falha a meio reutiliza o `sub` em vez de criar uma segunda identidade.
+   * e-mail de acções. Só se convida quem o realm ainda não conhece (#549): uma
+   * identidade preexistente sem `User` local (a do administrador de plataforma,
+   * p.ex.) é recusada; se algo falhar depois de a criarmos, apaga-se, para que
+   * o segundo clique não bata nessa recusa.
    * O papel é atribuído à partida — nada viaja dentro de um convite.
    */
   async criarUtilizador(input: CreateUserInput, ctx: Ctx) {
@@ -365,7 +368,7 @@ export const userAdminService: IUserAdminService = {
     if (existing) {
       throw new BusinessRuleError(
         'EMAIL_JA_REGISTADO',
-        'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem trabalha com duas empresas precisa de dois endereços de e-mail distintos.',
+        'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos.',
       );
     }
 
@@ -391,7 +394,7 @@ export const userAdminService: IUserAdminService = {
     // e-mail que prova o endereço; a palavra-passe atribuída não a pode
     // querer, porque com `VERIFY_EMAIL` pendente o direct grant recusa e quem
     // recebeu a palavra-passe não entrava com ela.
-    const { sub: keycloakSub } = await garantirUtilizador({
+    const { sub: keycloakSub, criado } = await garantirUtilizador({
       email,
       nome: input.nome,
       accoes: porPalavraPasse ? ['UPDATE_PASSWORD'] : ['VERIFY_EMAIL', 'UPDATE_PASSWORD'],
@@ -399,41 +402,67 @@ export const userAdminService: IUserAdminService = {
       // convite é o clique no e-mail que o prova.
       emailVerificado: porPalavraPasse,
     });
+    // #549: identidade que já existia não é deste tenant — sem palavra-passe,
+    // sem `User`, sem e-mail de acções. Nada é escrito.
+    if (!criado) {
+      throw new BusinessRuleError(
+        'EMAIL_JA_REGISTADO',
+        'Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos.',
+      );
+    }
 
     // Temporária: o Keycloak acrescenta `UPDATE_PASSWORD` e obriga a mudar ao
     // primeiro acesso. Fica em memória até ser mostrada — nunca em Postgres,
     // nunca num log.
     const palavraPasseInicial = porPalavraPasse ? gerarPalavraPasseInicial() : null;
-    if (palavraPasseInicial) {
-      await definirPalavraPasse(keycloakSub, palavraPasseInicial, { temporaria: true });
+    let userId: string;
+    try {
+      if (palavraPasseInicial) {
+        await definirPalavraPasse(keycloakSub, palavraPasseInicial, { temporaria: true });
+      }
+
+      // 2. Postgres numa transacção.
+      userId = await prismaBase.$transaction(async (tx) => {
+        const u = await tx.user.create({
+          data: {
+            tenantId: ctx.tenantId,
+            keycloakSub,
+            nome: input.nome,
+            email,
+            ativo: input.ativo ?? true,
+          },
+        });
+        await tx.userRole.createMany({
+          data: input.roleIds.map((roleId) => ({ userId: u.id, roleId })),
+        });
+        return u.id;
+      });
+    } catch (erro) {
+      // A identidade foi criada por esta chamada: sem ela apagada, a repetição
+      // bateria para sempre na recusa acima. Se um `User` já a referencia
+      // (corrida), tem dono — não se toca.
+      try {
+        const dono = await prismaBase.user.findFirst({ where: { keycloakSub }, select: { id: true } });
+        if (dono) logger.warn({ keycloakSub }, '[utilizadores] identidade já tem User local — não se apaga');
+        else await eliminarUtilizador(keycloakSub);
+      } catch (e) {
+        logger.error(
+          { err: (e as Error)?.message, status: (e as { status?: number })?.status, keycloakSub },
+          '[utilizadores] identidade órfã por apagar no Keycloak',
+        );
+      }
+      throw erro;
     }
 
-    // 2. Postgres numa transacção.
-    const user = await prismaBase.$transaction(async (tx) => {
-      const u = await tx.user.create({
-        data: {
-          tenantId: ctx.tenantId,
-          keycloakSub,
-          nome: input.nome,
-          email,
-          ativo: input.ativo ?? true,
-        },
-      });
-      await tx.userRole.createMany({
-        data: input.roleIds.map((roleId) => ({ userId: u.id, roleId })),
-      });
-      return u;
-    });
-
     // 3. No modo convite, o e-mail de acções é o que dá entrada no produto.
-    //    Falha não é fatal: reenvia-se voltando a submeter (idempotente por
-    //    e-mail). No modo palavra-passe não há e-mail nenhum a depender.
+    //    Falha não é fatal, mas voltar a submeter já é recusado (#549): o
+    //    utilizador existe. No modo palavra-passe não há e-mail nenhum a depender.
     if (!porPalavraPasse) await dispararEmailAccoes(keycloakSub);
 
     // A palavra-passe sai daqui UMA vez, ao lado do utilizador e fora dele:
     // não faz parte do modelo, não volta em nenhuma leitura (ADR-0030 §2).
     return {
-      utilizador: mapUser(await findUser(user.id, ctx)),
+      utilizador: mapUser(await findUser(userId, ctx)),
       palavraPasseInicial,
     };
   },
