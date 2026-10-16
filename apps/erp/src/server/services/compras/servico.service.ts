@@ -199,18 +199,30 @@ export const servicoService: IServicoService = {
   },
 
   async listarServicos(filtros: FilterServicoInput, ctx: Ctx) {
-    const { ativo, disponivel, categoriaServicoId, cursor, take = 25 } = filtros as any;
+    const {
+      ativo, disponivel, categoriaServicoId, tipoServico, termo,
+      orderBy = 'nome', orderDir = 'asc', cursor, take = 25,
+    } = filtros as any;
     const where: any = {
       tenantId: ctx.tenantId,
       ...(typeof ativo === 'boolean' ? { ativo } : {}),
       ...(typeof disponivel === 'boolean' ? { disponivel } : {}),
       ...(categoriaServicoId ? { categoriaServicoId } : {}),
+      ...(tipoServico ? { tipoServico } : {}),
+      ...(termo ? {
+        OR: [
+          { nome: { contains: termo, mode: 'insensitive' } },
+          { codigo: { contains: termo, mode: 'insensitive' } },
+          { descricao: { contains: termo, mode: 'insensitive' } },
+        ],
+      } : {}),
     };
     return paginate(
       (a) => db.servico.findMany({
         ...a, where,
         include: { categoriaServico: { select: { nome: true } } },
-        orderBy: { nome: 'asc' },
+        // `id` desempata: o cursor precisa de uma ordem estável.
+        orderBy: [{ [orderBy]: orderDir }, { id: 'asc' }],
       }),
       { cursor, take },
     ).then((p: any) => ({ items: p.items.map(toServicoResumo), nextCursor: p.nextCursor }));
