@@ -11,7 +11,7 @@ import { auth } from '@/lib/auth';
  * `createSafeAction({ plataforma: true })`, que aplica a mesma regra.
  *
  * Decide pelo papel de realm `plataforma-admin` na sessão — ausente conta
- * como não — e só numa sessão SEM `tenantId` (#549, ADR-0049 §5). Quem falha
+ * como não — e só numa sessão SEM `tenantId` (#549, adenda ao ADR-0049 §5). Quem falha
  * recebe `notFound()` (404), nunca 403: a área não se revela. Não estabelece
  * contexto de tenant.
  */

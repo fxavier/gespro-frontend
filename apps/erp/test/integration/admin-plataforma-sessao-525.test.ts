@@ -11,7 +11,9 @@
  *   - com o papel e SEM `User` de tenant → entra, sessão sem `tenantId` e sem
  *     permissões de tenant;
  *   - sem o papel e sem `User` → continua recusado (`nao-provisionado`);
- *   - com o papel e com `User` → entra no tenant normalmente, e com o papel;
+ *   - com o papel e com `User` → entra no tenant normalmente, SEM o papel:
+ *     `plataformaAdmin` só vale em sessões sem `tenantId` (#549, adenda ao
+ *     ADR-0049 §5);
  *   - re-resolvido no MESMO intervalo do resto (ADR-0011): dentro do intervalo
  *     não há chamada nenhuma; na renovação, o papel lê-se do access token
  *     renovado — retirado no Keycloak, cai; a quem só tinha o papel (sem
@@ -224,7 +226,7 @@ describe.skipIf(skip)('#525 — sessão do administrador de plataforma (DB efém
     expect(erro.code).toBe('nao-provisionado');
   });
 
-  // #549: o papel só vale na sessão SEM tenant (ADR-0049 §5).
+  // #549 (adenda ao ADR-0049 §5): o papel só vale na sessão SEM tenant.
   it('com o papel E com User de tenant → entra no tenant, SEM plataformaAdmin (#549)', async () => {
     const { token, sessao: s } = await entrar(EMAIL_DUPLO);
     expect(s.user.tenantId).toBe(tenantId);
@@ -290,6 +292,23 @@ describe.skipIf(skip)('#525 — sessão do administrador de plataforma (DB efém
     const t2 = await jwt({ ...token, resolverEm: 0 });
     expect(t2?.plataformaAdmin).toBe(false);
     expect(t2?.tenantId).toBe(tenantId);
+  });
+
+  it('token antigo com tenant E plataformaAdmin, Keycloak indisponível, User apagado → cai (#549)', async () => {
+    // Sem User local (SUB_PLAT → nao-provisionado) e sem access token novo: só
+    // a bandeira antiga decidiria, e ela não vale numa sessão com tenant.
+    fetchMock.mockImplementationOnce(async () => resposta(503));
+    const t2 = await jwt({
+      uid: `u-${SUB_PLAT}`,
+      tenantId,
+      permissions: ['vendas:criar'],
+      acesso: 'aberto',
+      plataformaAdmin: true,
+      keycloakSub: SUB_PLAT,
+      kcRefreshToken: `refresh-${SUB_PLAT}`,
+      resolverEm: 0,
+    });
+    expect(t2).toBeNull();
   });
 
   it('sessão terminada no Keycloak (refresh recusado) → cai, também para o administrador', async () => {

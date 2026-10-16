@@ -186,7 +186,7 @@ function criarAccaoPlataforma<S extends z.ZodType | undefined, T>(
     try {
       const session = await auth();
       if (!session?.user) throw new UnauthorizedError();
-      // #549: o papel só vale na sessão SEM tenant (ADR-0049 §5).
+      // #549 (adenda ao ADR-0049 §5): o papel só vale na sessão SEM tenant.
       if (session.user.plataformaAdmin !== true || session.user.tenantId) throw new NotFoundError();
       const userId = session.user.id;
 

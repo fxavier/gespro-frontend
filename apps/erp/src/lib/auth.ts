@@ -347,7 +347,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.tenantId = res.tenantId;
           token.permissions = res.permissions;
           token.acesso = res.acesso;
-          // #549: o papel só vale na sessão SEM tenant (ADR-0049 §5).
+          // #549 (adenda ao ADR-0049 §5): o papel só vale na sessão SEM tenant.
+          if (plataformaAdmin) {
+            logger.info(
+              { keycloakSub: sub },
+              '[auth] papel plataforma-admin ignorado em sessão de tenant (#549)',
+            );
+          }
           token.plataformaAdmin = false;
         }
         token.keycloakSub = sub;
@@ -396,7 +402,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // a re-resolução em Postgres — é ela que impõe a revogação (ADR-0011).
 
       const res = await resolverUtilizadorLocal(token.keycloakSub);
-      if (soPlataforma(res, token.plataformaAdmin === true)) {
+      // #549: sem renovação, a bandeira é a do token — e numa sessão de tenant não vale.
+      if (soPlataforma(res, token.plataformaAdmin === true && !token.tenantId)) {
         aplicarSessaoSoPlataforma(token, token.keycloakSub);
         token.resolverEm = agora + intervaloResolucaoSegundos();
         return token;
@@ -413,7 +420,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       token.tenantId = res.tenantId;
       token.permissions = res.permissions;
       token.acesso = res.acesso;
-      token.plataformaAdmin = false; // #549, como na emissão
+      if (token.plataformaAdmin === true) {
+        logger.info(
+          { keycloakSub: token.keycloakSub },
+          '[auth] papel plataforma-admin ignorado em sessão de tenant (#549)',
+        );
+      }
+      token.plataformaAdmin = false; // #549 (adenda ao ADR-0049 §5), como na emissão
       token.resolverEm = agora + intervaloResolucaoSegundos();
       return token;
     },
@@ -425,8 +438,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // e os dois pipelines recusam a sessão sem ele.
       session.user.tenantId = token.tenantId;
       session.user.permissions = token.permissions ?? [];
-      // #525 — ausente (token anterior) conta como false. #549 — e só vale sem
-      // tenant: um token emitido antes da correcção pode trazer os dois.
+      // #525 — ausente (token anterior) conta como false. #549 (adenda ao
+      // ADR-0049 §5) — e só vale sem tenant: um token emitido antes da
+      // correcção pode trazer os dois.
       session.user.plataformaAdmin = token.plataformaAdmin === true && !token.tenantId;
       // Ausente conta como NÃO verificado (fail-closed): um token emitido
       // antes do ADR-0031 não tem o campo, e os travões do §5 recusam até à

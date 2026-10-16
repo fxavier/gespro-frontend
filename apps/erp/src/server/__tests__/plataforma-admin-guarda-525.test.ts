@@ -10,13 +10,15 @@
  *     `plataforma-admin`); um administrador de plataforma SEM `User` de tenant
  *     tem sessão sem `tenantId`;
  *   - `src/server/auth/plataforma-admin.ts` ('server-only') exporta
- *     `exigirPlataformaAdmin()`: com o papel na sessão resolve; sem ele chama
- *     `notFound()` de `next/navigation` (404 — nunca revelar que a área existe);
- *   - `createSafeAction({ plataforma: true, … })`: só corre com o papel; NÃO
- *     estabelece contexto de tenant (nem quando a sessão também tem tenant);
- *     o `tenantId` vindo do cliente não chega ao handler; não é travada pelo
- *     modo de Leitura/pagamento do tenant de quem a chama; o utilizador fica
- *     no log;
+ *     `exigirPlataformaAdmin()`: com o papel numa sessão SEM `tenantId`
+ *     resolve; sem o papel, ou com `tenantId`, chama `notFound()` de
+ *     `next/navigation` (404 — nunca revelar que a área existe) — #549, adenda
+ *     ao ADR-0049 §5;
+ *   - `createSafeAction({ plataforma: true, … })`: só corre com o papel numa
+ *     sessão SEM `tenantId` (com tenant → `NAO_ENCONTRADO`, #549); NÃO
+ *     estabelece contexto de tenant; o `tenantId` vindo do cliente não chega
+ *     ao handler; não é travada pelo modo de Leitura/pagamento; o utilizador
+ *     fica no log;
  *   - uma action NORMAL (sem `plataforma`) chamada por uma sessão sem tenant é
  *     recusada antes do handler — o papel não abre dados de tenant;
  *   - o layout `src/app/(plataforma)/plataforma/layout.tsx` usa a guarda: sem o
@@ -199,7 +201,7 @@ describe('createSafeAction({ plataforma: true })', () => {
     expect(ctx?.tenantId).toBeFalsy();
   });
 
-  // #549: o papel só vale na sessão SEM tenant (ADR-0049 §5). Uma sessão de
+  // #549 (adenda ao ADR-0049 §5): o papel só vale na sessão SEM tenant. Uma sessão de
   // tenant com o papel é recusada como se não o tivesse.
   it('com o papel E com tenant → NAO_ENCONTRADO, handler não corre (#549)', async () => {
     mocks.auth.mockResolvedValue(sessaoDupla());
@@ -230,6 +232,13 @@ describe('createSafeAction({ plataforma: true })', () => {
     mocks.auth.mockResolvedValue(sessaoTenantAdmin(false));
     const recusa = await accaoPlataforma({ nome: 'x', tenantId: 'tenant-alheio' });
     expect(recusa.ok).toBe(false);
+  });
+
+  it('sessão dupla em Leitura → NAO_ENCONTRADO, nunca ACESSO_LEITURA (#549)', async () => {
+    mocks.auth.mockResolvedValue(sessaoDupla('leitura'));
+    const r = await accaoPlataforma({ nome: 'x' });
+    expect(r).toMatchObject({ ok: false, error: { code: 'NAO_ENCONTRADO' } });
+    expect(handlerPlat).not.toHaveBeenCalled();
   });
 
   it.each(['leitura', 'pagamento'] as const)(
