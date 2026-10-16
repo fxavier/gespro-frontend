@@ -35,6 +35,7 @@ const kc = vi.hoisted(() => ({
   dispararEmailAccoes: vi.fn(async () => true),
   definirActivo: vi.fn(async () => undefined),
   definirPalavraPasse: vi.fn(async () => undefined),
+  eliminarUtilizador: vi.fn(async () => undefined),
 }));
 vi.mock('@/server/auth/keycloak', () => kc);
 
@@ -248,6 +249,47 @@ describe('userAdminService.criarUtilizador', () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
     expect(kc.garantirUtilizador).not.toHaveBeenCalled();
+  });
+
+  // #549: uma identidade que já existia no realm sem `User` local (p.ex. a do
+  // administrador de plataforma) não é do ADMIN do tenant — nem para lhe pôr
+  // palavra-passe, nem para a ligar a um `User` dele e mandar-lhe e-mail.
+  it.each(['palavra-passe', 'convite'] as const)(
+    'recusa identidade Keycloak preexistente (modo %s) sem escrever nada',
+    async (metodoAcesso) => {
+      mocks.userFindFirst.mockResolvedValueOnce(null); // sem User local com o e-mail
+      mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
+      kc.garantirUtilizador.mockResolvedValueOnce({ sub: 'kc-plataforma-admin', criado: false });
+
+      await expect(
+        userAdminService.criarUtilizador(
+          { nome: 'X', email: 'plataforma@gespro.mz', roleIds: ['role-1'], ativo: true, metodoAcesso },
+          CTX,
+        ),
+      ).rejects.toMatchObject({ code: 'EMAIL_JA_REGISTADO' });
+      expect(kc.definirPalavraPasse).not.toHaveBeenCalled();
+      expect(mocks.$transaction).not.toHaveBeenCalled();
+      expect(mocks.mockTx.user.create).not.toHaveBeenCalled();
+      expect(kc.dispararEmailAccoes).not.toHaveBeenCalled();
+      // Não é nossa: não se apaga.
+      expect(kc.eliminarUtilizador).not.toHaveBeenCalled();
+    },
+  );
+
+  it('falha da tx depois de criar a identidade → apaga-a e relança o erro original', async () => {
+    mocks.userFindFirst.mockResolvedValueOnce(null);
+    mocks.roleFindMany.mockResolvedValue([DEMO_ROLE]);
+    const erro = new Error('tx caiu');
+    mocks.$transaction.mockRejectedValueOnce(erro);
+
+    await expect(
+      userAdminService.criarUtilizador(
+        { nome: 'Alice', email: 'alice@demo.mz', roleIds: ['role-1'], ativo: true, metodoAcesso: 'convite' },
+        CTX,
+      ),
+    ).rejects.toBe(erro);
+    expect(kc.eliminarUtilizador).toHaveBeenCalledWith('kc-sub-novo');
+    expect(kc.dispararEmailAccoes).not.toHaveBeenCalled();
   });
 });
 
