@@ -309,11 +309,20 @@ export const servicoService: IServicoService = {
   },
 
   async listarAgendamentos(filtros: FilterAgendamentoServicoInput, ctx: Ctx) {
-    const { status, servicoId, cursor, take = 25 } = filtros as any;
+    const { status, servicoId, termo, cursor, take = 25 } = filtros as any;
     const where: any = {
       tenantId: ctx.tenantId,
       ...(status ? { status } : {}),
       ...(servicoId ? { servicoId } : {}),
+      ...(termo
+        ? {
+            OR: [
+              { codigo: { contains: termo, mode: 'insensitive' } },
+              { clienteNome: { contains: termo, mode: 'insensitive' } },
+              { servico: { nome: { contains: termo, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
     };
     return paginate(
       (a) => db.agendamentoServico.findMany({
