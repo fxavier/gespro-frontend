@@ -250,6 +250,7 @@ export const FilterAgendamentoServicoSchema = z.object({
   servicoId: z.string().optional(),
   tecnicoId: z.string().optional(),
   clienteId: z.string().optional(),
+  termo: z.string().max(200).optional(),
   dataInicio: inicioDoDia().optional(),
   dataFim: fimDoDia().optional(),
   cursor: z.string().cuid().optional(),
