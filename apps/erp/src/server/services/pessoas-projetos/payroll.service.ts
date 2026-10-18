@@ -20,7 +20,7 @@ import { paginate } from '@/server/db/paginate';
 import type { Ctx } from '@/server/services/types';
 import {
   registarLancamentoContabilistico,
-  estornarLancamento,
+  estornarLancamentoEmTx,
   obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
@@ -892,6 +892,10 @@ export const PayrollService = {
   async marcarProcessada(folhaId: string, ctx: Ctx): Promise<{ lancamentoId: string }> {
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
+      // #555: tranca a folha antes de a ler — um «Processar» concorrente espera e vê PROCESSADO
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM "FolhaPagamento" WHERE id = ${folhaId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`,
+      );
       const folha = await tx.folhaPagamento.findFirst({
         where: { id: folhaId, tenantId: ctx.tenantId },
       });
@@ -951,6 +955,10 @@ export const PayrollService = {
 
     await prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
+      // #555: tranca a folha antes de a ler — um «Pagar» ou «Cancelar» concorrente espera
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM "FolhaPagamento" WHERE id = ${input.folhaId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`,
+      );
       const folha = await tx.folhaPagamento.findFirst({
         where: { id: input.folhaId, tenantId: ctx.tenantId },
       });
@@ -1011,30 +1019,33 @@ export const PayrollService = {
    * Cancela a folha (PENDENTE ou PROCESSADO). Se já processada, estorna o
    * lançamento da massa salarial (append-only — nunca apagar).
    *
-   * Recuperável/idempotente: o estorno corre fora da transacção de estados
-   * (o contrato gere as suas próprias escritas). Se a mudança de estados
-   * falhar depois do estorno, o retry verifica o estado do lançamento e
-   * salta o estorno já efectuado, completando apenas os estados.
+   * #555: tranca, leitura, estorno e estados numa só transacção — um «Pagar»
+   * concorrente espera pela tranca e vê CANCELADO. Um lançamento já estornado
+   * (à mão, na contabilidade) não é estornado de novo.
    */
   async cancelar(folhaId: string, motivo: string, ctx: Ctx): Promise<void> {
-    const folha = await prisma.folhaPagamento.findFirst({
-      where: { id: folhaId, tenantId: ctx.tenantId },
-    });
-    if (!folha) throw new NotFoundError('Folha de pagamento não encontrada');
-    transitar(TRANSICOES_PAYROLL, folha.status, 'CANCELADO');
-
-    if (folha.status === 'PROCESSADO' && folha.lancamentoId) {
-      const lancamento = await obterLancamento(folha.lancamentoId, ctx);
-      if (lancamento && lancamento.status !== 'ESTORNADO') {
-        await estornarLancamento(
-          { lancamentoId: folha.lancamentoId, motivo: `Cancelamento da folha: ${motivo}` },
-          ctx,
-        );
-      }
-    }
-
     await prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM "FolhaPagamento" WHERE id = ${folhaId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`,
+      );
+      const folha = await tx.folhaPagamento.findFirst({
+        where: { id: folhaId, tenantId: ctx.tenantId },
+      });
+      if (!folha) throw new NotFoundError('Folha de pagamento não encontrada');
+      transitar(TRANSICOES_PAYROLL, folha.status, 'CANCELADO');
+
+      if (folha.status === 'PROCESSADO' && folha.lancamentoId) {
+        const lancamento = await obterLancamento(folha.lancamentoId, ctx);
+        if (lancamento && lancamento.status !== 'ESTORNADO') {
+          await estornarLancamentoEmTx(
+            tx,
+            { lancamentoId: folha.lancamentoId, motivo: `Cancelamento da folha: ${motivo}` },
+            ctx,
+          );
+        }
+      }
+
       await tx.payroll.updateMany({
         where: { tenantId: ctx.tenantId, folhaId, status: { in: ['PENDENTE', 'PROCESSADO'] } },
         data: { status: 'CANCELADO' },

@@ -12,7 +12,7 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 // ── Mocks dos contratos WS D (antes de importar o serviço) ───────────────────
 vi.mock('@/server/services/financas/contabilidade.service', () => ({
   registarLancamentoContabilistico: vi.fn().mockResolvedValue({ id: 'lan-001' }),
-  estornarLancamento: vi.fn().mockResolvedValue({ id: 'lan-estorno-001' }),
+  estornarLancamentoEmTx: vi.fn().mockResolvedValue({ id: 'lan-estorno-001' }),
   obterLancamento: vi.fn().mockResolvedValue({ id: 'lan-001', status: 'LANCADO' }),
 }));
 vi.mock('@/server/services/financas/caixa.service', () => ({
@@ -25,6 +25,8 @@ vi.mock('@/server/services/financas/meio-pagamento.service', () => ({
 
 // ── Mock do Prisma (transacção devolve o próprio mock) ───────────────────────
 const txMock = vi.hoisted(() => ({
+  // #555: a tranca FOR UPDATE da folha
+  $queryRaw: vi.fn().mockResolvedValue([]),
   folhaPagamento: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn() },
   payroll: {
     findFirst: vi.fn(),
@@ -69,7 +71,7 @@ import { TRANSICOES_PAYROLL } from '../payroll.interface';
 import { transitar } from '../rh.service';
 import {
   registarLancamentoContabilistico,
-  estornarLancamento,
+  estornarLancamentoEmTx,
   obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
@@ -588,7 +590,7 @@ describe('PayrollService.cancelar', () => {
     txMock.folhaPagamento.update.mockResolvedValue({});
 
     await PayrollService.cancelar('f1', 'erro de processamento', ctx);
-    expect(estornarLancamento).not.toHaveBeenCalled();
+    expect(estornarLancamentoEmTx).not.toHaveBeenCalled();
     expect(txMock.folhaPagamento.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELADO' }) }),
     );
@@ -604,15 +606,15 @@ describe('PayrollService.cancelar', () => {
     txMock.folhaPagamento.update.mockResolvedValue({});
 
     await PayrollService.cancelar('f1', 'valores errados', ctx);
-    expect(estornarLancamento).toHaveBeenCalledWith(
+    // #555: o estorno corre na mesma transacção dos estados
+    expect(estornarLancamentoEmTx).toHaveBeenCalledWith(
+      txMock,
       expect.objectContaining({ lancamentoId: 'lan-001' }),
       ctx,
     );
   });
 
-  it('retry após falha parcial é idempotente: lançamento já ESTORNADO não é estornado de novo', async () => {
-    // 1.ª tentativa estornou o lançamento mas a mudança de estados falhou;
-    // no retry a folha ainda está PROCESSADO e o lançamento já está ESTORNADO.
+  it('lançamento já ESTORNADO (à mão, na contabilidade) não é estornado de novo', async () => {
     txMock.folhaPagamento.findFirst.mockResolvedValue({
       ...FOLHA_PENDENTE,
       status: 'PROCESSADO',
@@ -623,8 +625,7 @@ describe('PayrollService.cancelar', () => {
     txMock.folhaPagamento.update.mockResolvedValue({});
 
     await PayrollService.cancelar('f1', 'retry', ctx);
-    expect(estornarLancamento).not.toHaveBeenCalled();
-    // O retry completa a mudança de estados
+    expect(estornarLancamentoEmTx).not.toHaveBeenCalled();
     expect(txMock.folhaPagamento.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELADO' }) }),
     );
