@@ -123,11 +123,11 @@ async function AgendamentosTableSection({
   userId: string;
 }) {
   const ctx = { tenantId, userId };
-  const { status, cursor, take, orderBy, orderDir } = filtros;
+  const { status, termo, cursor, take, orderBy, orderDir } = filtros;
 
   const result = await runWithTenantContext(ctx, () =>
     servicoService.listarAgendamentos(
-      { status, cursor, take, orderBy, orderDir },
+      { status, termo, cursor, take, orderBy, orderDir },
       ctx,
     )
   );
