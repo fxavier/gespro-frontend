@@ -67,6 +67,7 @@ const contaBancariaMock = {
 };
 function meioBancario() {
   return {
+    $queryRaw: vi.fn(async () => []), // #554: tranca FOR UPDATE da ContaPagar
     contaBancaria: {
       findFirst: vi.fn(async () => contaBancariaMock),
       findUnique: vi.fn(async () => contaBancariaMock),
@@ -190,6 +191,13 @@ describe('transitarPagamento()', () => {
 // =====================================================================
 
 describe('contaPagarService.cancelar()', () => {
+  // #554: cancelar corre numa tx com tranca FOR UPDATE; o duplo da tx é o próprio prisma.
+  beforeEach(async () => {
+    const { prisma } = await import('@/server/db/client');
+    const db = prisma as any;
+    db.$transaction.mockImplementationOnce(async (fn: any) => fn({ ...db, $queryRaw: vi.fn(async () => []) }));
+  });
+
   it('ABERTA pode ser cancelada', async () => {
     const { prisma } = await import('@/server/db/client');
     const db = prisma as any;
@@ -411,11 +419,11 @@ describe('registarPagamento() — conta VENCIDA', () => {
       ),
     ).resolves.toBeDefined();
 
-    expect(mockContaPagarUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ status: 'VENCIDA', valorPago: 200, valorRestante: 300 }),
-      }),
-    );
+    // #554: valorPago/valorRestante gravados como Decimal, não number.
+    const { data } = mockContaPagarUpdate.mock.calls[0][0];
+    expect(data.status).toBe('VENCIDA');
+    expect(String(data.valorPago)).toBe('200');
+    expect(String(data.valorRestante)).toBe('300');
   });
 
   it('liquidação total de uma VENCIDA passa a PAGA', async () => {

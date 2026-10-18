@@ -82,6 +82,7 @@ const contaBancariaMock = {
 };
 function meioBancario() {
   return {
+    $queryRaw: vi.fn(async () => []), // #554: tranca FOR UPDATE da ContaPagar
     contaBancaria: {
       findFirst: vi.fn(async () => contaBancariaMock),
       findUnique: vi.fn(async () => contaBancariaMock),
