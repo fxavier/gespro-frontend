@@ -1,11 +1,21 @@
 /**
- * Oráculo E2E devolucoes-ecras-130 — aprovar, rejeitar e processar devoluções e criar trocas a
- * partir da UI (#130).
+ * Oráculo E2E devolucoes-ecras-130 — criar (pelo ecrã), aprovar, rejeitar e processar devoluções
+ * e criar trocas a partir da UI (#130, revisto pela #562).
  *
  * As actions `aprovarDevolucao`, `rejeitarDevolucao`, `processarDevolucao` (NC + liquidação +
  * stock) e `criarTroca` (NC + Factura-Recibo) existiam sem ecrã: o detalhe de
  * `/vendas/devolucoes/[id]` só mostrava o estado, e uma devolução criada pela UI ficava PENDENTE
  * para sempre. `/vendas/trocas` mandava «Nova Troca» para a listagem de devoluções.
+ *
+ * #562: as devoluções eram escritas aqui por SQL já com `faturaId`, o que escondia que o ecrã
+ * nunca a enviava (reembolso sem NC, preço do catálogo). Agora nascem em `/vendas/devolucoes/nova`:
+ *   - sem venda escolhida, «Reembolso ao cliente» está desactivado (sem factura não há NC);
+ *   - ao escolher a venda, os itens vêm da sua factura («Factura de origem: <número>»), com preço e
+ *     taxa só de leitura (não há campo «Valor Unit. (MT)»); o operador tira as linhas que não
+ *     devolve («Não devolver …») e escolhe a quantidade;
+ *   - a devolução gravada tem o `faturaId` da venda e o preço da linha da factura;
+ *   - a processada com reembolso emite a NC com o preço da linha da factura e o reembolso sai pela
+ *     NC: `MovimentoCaixa` DEVOLUCAO = total da NC, NC LIQUIDADA.
  *
  * Contrato da UI (sem modais — AlertDialog só para confirmar; recolher dados é rota):
  *   - PENDENTE: botões «Aprovar» e «Rejeitar» no detalhe. Cada um abre um AlertDialog
@@ -28,21 +38,21 @@
  *     Uma REJEITADA nunca diz «Aprovada em» (o histórico não pode chamar aprovação a uma rejeição).
  *   - O estado aparece pelo StatusBadge: Pendente / Aprovada / Processada / Rejeitada.
  *
- * Dados (prefixo único `devolucoes-ecras-130`): no tenant `demo`, três devoluções de 1 unidade de
- * uma linha de uma factura do seed (preço da linha = preço de venda do produto, sem desconto,
- * com crédito por abater), escritas por SQL com o número tirado da série NOTA_DEVOLUCAO activa
- * (que fica avançada — nunca inventado) e `observacoes` = a marca. Cada corrida deixa no `demo`:
- * duas NC (append-only, não se apagam), uma troca com a sua venda e Factura-Recibo, uma devolução
- * REJEITADA e uma entrada de stock por cada processamento/troca no Armazém Principal (LOC-001).
- *
- * ESTADO ESPERADO antes da implementação: RED — os botões e as rotas não existem.
+ * Dados (prefixo único `devolucoes-ecras-130`): no tenant `demo`, uma venda do seed com cliente
+ * identificado e factura, e nela uma linha (produto único na factura, preço = preço de venda, sem
+ * desconto, ≥ 3 unidades por creditar). Cada teste cria pelo ecrã uma devolução de 1 unidade
+ * dessa linha, com `observacoes` = marca + corrida. Cada corrida deixa no `demo` (append-only, não
+ * se apaga): três devoluções (PROCESSADA, REJEITADA, PROCESSADA pela troca), duas NC (uma LIQUIDADA
+ * pelo reembolso, com o seu lançamento e um `MovimentoCaixa` DEVOLUCAO na sessão de caixa aberta
+ * do admin — aberta pelo ecrã se não houver, e deixada aberta), uma troca com a sua venda e
+ * Factura-Recibo e uma entrada de stock por cada processamento/troca no Armazém Principal (LOC-001).
  *
  * Correr (não corre no nó do verificador):
  *   BASE_URL=http://localhost:3000 npx playwright test e2e/48-devolucoes-ecras-130.spec.ts --project=e2e
  * Depois: git checkout -- apps/erp/playwright/.auth/admin.json
  *
- * Escrito pelo verificador do nó B:devolucoes-ecras-130; um agente de implementação que o
- * altere é BLOCKER.
+ * Escrito pelo verificador do nó B:devolucoes-ecras-130; revisto na #562 por ordem do orquestrador
+ * (criação pelo ecrã em vez de SQL).
  */
 
 import path from 'node:path';
@@ -51,10 +61,9 @@ import { test, expect, type Page } from '@playwright/test';
 import { Client } from 'pg';
 
 const MARCA = 'devolucoes-ecras-130';
+const CORRIDA = randomBytes(4).toString('hex');
 const ESTADO_EM_BRUTO = /\b(PENDENTE|APROVADA|PROCESSADA|REJEITADA)\b/;
-
-/** Id no formato cuid (as actions validam `z.string().cuid()`). */
-const novoId = () => `c${randomBytes(12).toString('hex')}`;
+const ADMIN = 'admin@demo.mz';
 
 function dbUrl(): string {
   try {
@@ -77,19 +86,16 @@ async function withPg<T>(fn: (c: Client) => Promise<T>): Promise<T> {
   }
 }
 
-function formatarNumero(template: string, prefixo: string, ano: number, numero: number): string {
-  return template
-    .replace('{prefixo}', prefixo)
-    .replace('{ano}', String(ano))
-    .replace(/\{numero(?::(\d+))?\}/, (_, w) => String(numero).padStart(w ? parseInt(w, 10) : 1, '0'));
-}
+const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 type Linha = {
   tenantId: string;
+  vendaNumero: string;
   faturaId: string;
-  clienteId: string;
+  faturaNumero: string;
+  cliente: string;
   produtoId: string;
-  nome: string;
+  descricao: string;
   sku: string;
   preco: string;
   taxa: string;
@@ -97,70 +103,48 @@ type Linha = {
 
 type Devolucao = { id: string; numero: string; caminho: string };
 
-const dados: { linha?: Linha; aProcessar?: Devolucao; aRejeitar?: Devolucao; aTrocar?: Devolucao } = {};
+const dados: { linha?: Linha } = {};
 
 async function escolherLinha(c: Client): Promise<Linha> {
   const t = await c.query<{ id: string }>(`SELECT id FROM "Tenant" WHERE slug = 'demo' LIMIT 1`);
   if (!t.rows[0]) throw new Error('STOP: tenant demo não encontrado');
   const tenantId = t.rows[0].id;
-  // Linha de factura do seed com preço = preço de venda (o substituto de igual valor sai do preço
-  // de venda) e com crédito por abater para três unidades (NC de 1 unidade × 2 corridas e folga).
+  // Venda facturada de um cliente identificado (procura-se no ecrã pelo cliente e pelo número);
+  // linha com preço = preço de venda (o substituto de igual valor sai do preço de venda), produto
+  // único na factura e ≥ 3 unidades por creditar (três devoluções de 1 unidade por corrida). Sem
+  // devoluções pendentes na factura, que gastariam o crédito antes destas.
+  const creditado = `COALESCE((SELECT SUM(nc.total) FROM "NotaCredito" nc
+                                WHERE nc."faturaOriginalId" = f.id AND nc.status <> 'CANCELADA'), 0)`;
   const r = await c.query<Linha>(
-    `SELECT f.id AS "faturaId", f."clienteId", l."produtoId", p.nome, p.sku,
-            l."precoUnitario"::text AS preco, l."taxaIva"::text AS taxa, f."tenantId"
-       FROM "LinhaFatura" l
-       JOIN "Fatura" f ON f.id = l."faturaId"
+    `SELECT f."tenantId", v.numero AS "vendaNumero", f.id AS "faturaId", f.numero AS "faturaNumero",
+            cl.nome AS cliente, l."produtoId", l.descricao, p.sku,
+            l."precoUnitario"::text AS preco, l."taxaIva"::text AS taxa
+       FROM "Venda" v
+       JOIN "Fatura" f ON f.id = v."faturaId" AND f."tenantId" = v."tenantId"
+       JOIN "Cliente" cl ON cl.id = v."clienteId" AND cl.id = f."clienteId"
+       JOIN "LinhaFatura" l ON l."faturaId" = f.id
        JOIN "Produto" p ON p.id = l."produtoId" AND p."tenantId" = f."tenantId"
-      WHERE f."tenantId" = $1
+      WHERE v."tenantId" = $1
+        AND v.status IN ('CONCLUIDA', 'FATURADA')
+        AND cl.codigo <> 'CF-000000' AND cl."deletedAt" IS NULL AND cl.status = 'ATIVO'
         AND f.status IN ('EMITIDA', 'PAGA', 'PARCIALMENTE_PAGA', 'VENCIDA')
-        AND l.desconto = 0 AND l.quantidade >= 1
+        AND l.desconto = 0
         AND l."precoUnitario" = p."precoVenda" AND l."taxaIva" = p."taxaIva"
         AND p."deletedAt" IS NULL AND p.ativo = true
-        AND f.total - COALESCE((SELECT SUM(nc.total) FROM "NotaCredito" nc
-                                 WHERE nc."faturaOriginalId" = f.id AND nc.status <> 'CANCELADA'), 0)
-            >= 3 * l."precoUnitario" * (1 + l."taxaIva")
-      ORDER BY f."createdAt" DESC
+        AND (SELECT COUNT(*) FROM "LinhaFatura" o WHERE o."faturaId" = f.id AND o."produtoId" = l."produtoId") = 1
+        AND l.quantidade - COALESCE((SELECT SUM(ln.quantidade) FROM "LinhaNotaCredito" ln
+                                       JOIN "NotaCredito" nc ON nc.id = ln."notaCreditoId"
+                                      WHERE nc."faturaOriginalId" = f.id AND nc.status <> 'CANCELADA'
+                                        AND ln."produtoId" = l."produtoId"), 0) >= 3
+        AND f.total - ${creditado} >= 3 * l."precoUnitario" * (1 + l."taxaIva")
+        AND NOT EXISTS (SELECT 1 FROM "Devolucao" d
+                         WHERE d."faturaId" = f.id AND d.status IN ('PENDENTE', 'APROVADA'))
+      ORDER BY v."dataVenda" DESC
       LIMIT 1`,
     [tenantId],
   );
-  if (!r.rows[0]) throw new Error('STOP: nenhuma linha de factura do demo serve (pnpm db:seed)');
+  if (!r.rows[0]) throw new Error('STOP: nenhuma venda facturada do demo serve (pnpm db:seed)');
   return r.rows[0];
-}
-
-/** Devolução PENDENTE de 1 unidade da linha, numerada pela série NOTA_DEVOLUCAO activa. */
-async function inserirDevolucao(c: Client, l: Linha): Promise<Devolucao> {
-  const serie = await c.query<{ numero: number; prefixo: string; ano: number; formatoNumero: string }>(
-    `UPDATE "SerieDocumento" SET "proximoNumero" = "proximoNumero" + 1
-      WHERE id = (SELECT id FROM "SerieDocumento"
-                   WHERE "tenantId" = $1 AND tipo::text = 'NOTA_DEVOLUCAO' AND ativo = true
-                     AND ano = EXTRACT(YEAR FROM (now() AT TIME ZONE 'Africa/Maputo'))::int
-                   ORDER BY "createdAt" DESC LIMIT 1 FOR UPDATE)
-      RETURNING "proximoNumero" - 1 AS numero, prefixo, ano, "formatoNumero"`,
-    [l.tenantId],
-  );
-  if (!serie.rows[0]) throw new Error('STOP: série NOTA_DEVOLUCAO activa do ano não encontrada no demo');
-  const s = serie.rows[0];
-  const numero = formatarNumero(s.formatoNumero, s.prefixo, s.ano, Number(s.numero));
-  const id = novoId();
-  const preco = Number(l.preco);
-  const taxa = Number(l.taxa);
-  const subtotal = preco.toFixed(2);
-  const iva = (preco * taxa).toFixed(2);
-  const total = (Number(subtotal) + Number(iva)).toFixed(2);
-
-  await c.query(
-    `INSERT INTO "Devolucao" (id, "tenantId", numero, "clienteId", "faturaId", motivo, status,
-       "valorTotal", reembolso, observacoes, "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, 'DEFEITO', 'PENDENTE', $6, false, $7, now(), now())`,
-    [id, l.tenantId, numero, l.clienteId, l.faturaId, total, MARCA],
-  );
-  await c.query(
-    `INSERT INTO "ItemDevolucao" (id, "tenantId", "devolucaoId", "produtoId", "nomeProduto", sku,
-       quantidade, "valorUnitario", "taxaIva", subtotal, "ivaItem", total, "createdAt")
-     VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8, $9, $10, $11, now())`,
-    [novoId(), l.tenantId, id, l.produtoId, l.nome, l.sku, l.preco, l.taxa, subtotal, iva, total],
-  );
-  return { id, numero, caminho: `/vendas/devolucoes/${id}` };
 }
 
 async function estado(id: string) {
@@ -197,29 +181,116 @@ async function aprovar(page: Page) {
 async function escolherNoCombobox(page: Page, rotulo: string, texto: RegExp, pesquisa?: string) {
   await page.getByRole('combobox', { name: rotulo }).click();
   const popover = page.locator('[data-radix-popper-content-wrapper]').last();
-  if (pesquisa) await popover.getByPlaceholder(/Pesquisar/).fill(pesquisa);
+  if (pesquisa) await popover.locator('input').first().fill(pesquisa);
   const opcao = popover.getByRole('option', { name: texto });
   await expect(opcao).toBeVisible({ timeout: 15_000 });
   await opcao.click();
   await expect(page.getByRole('combobox', { name: rotulo })).toHaveText(texto);
 }
 
-test.describe(`/vendas/devolucoes e /vendas/trocas — ciclo de vida pela UI (#130, ${MARCA})`, () => {
+/** A sessão de caixa ABERTA do admin (para o reembolso); abre-a pelo ecrã se não houver. */
+async function garantirCaixaAberta(page: Page): Promise<string> {
+  const aberta = () =>
+    withPg(async (c) => {
+      const r = await c.query<{ id: string }>(
+        `SELECT s.id FROM "SessaoCaixa" s
+           JOIN "User" u ON u.id = s."responsavelId" AND u."tenantId" = s."tenantId"
+          WHERE u.email = $1 AND s.status = 'ABERTA'`,
+        [ADMIN],
+      );
+      return r.rows[0]?.id ?? null;
+    });
+  let id = await aberta();
+  if (!id) {
+    await page.goto('/caixa/abertura');
+    await expect(page.getByRole('heading', { name: 'Abertura de Caixa' })).toBeVisible({ timeout: 30_000 });
+    await page.waitForLoadState('networkidle');
+    const caixas = page.locator('[role="checkbox"]');
+    const n = await caixas.count();
+    for (let i = 0; i < n; i++) await caixas.nth(i).click();
+    await page.getByRole('button', { name: 'Prosseguir' }).click();
+    await expect(page.getByText('Dados da Abertura')).toBeVisible({ timeout: 10_000 });
+    await page.getByLabel(/Fundo Inicial/i).fill('1000');
+    await page.getByRole('button', { name: 'Confirmar Abertura' }).click();
+    await page.waitForURL((u) => u.pathname.startsWith('/caixa') && !u.pathname.includes('/abertura'), {
+      timeout: 30_000,
+    });
+    id = await aberta();
+  }
+  expect(id, `a sessão de caixa de ${ADMIN} tem de estar ABERTA`).toBeTruthy();
+  return id!;
+}
+
+/**
+ * Nova devolução pelo ecrã (#562): cliente → venda → itens da factura; fica só a linha escolhida,
+ * com 1 unidade. Devolve a devolução gravada (lida pela marca da corrida).
+ */
+async function criarPeloEcra(page: Page, l: Linha, tag: string, reembolso: boolean): Promise<Devolucao> {
+  const marca = `${MARCA} ${CORRIDA} ${tag}`;
+  await page.goto('/vendas/devolucoes/nova');
+  await expect(page.getByRole('heading', { name: 'Nova Devolução' })).toBeVisible({ timeout: 30_000 });
+  await page.waitForLoadState('networkidle');
+
+  // Sem venda (logo sem factura) não há reembolso.
+  await expect(page.getByLabel('Reembolso ao cliente')).toBeDisabled();
+
+  await escolherNoCombobox(page, 'Cliente *', new RegExp(escapar(l.cliente)), l.cliente);
+  await escolherNoCombobox(page, 'Venda (opcional)', new RegExp(escapar(l.vendaNumero)), l.vendaNumero);
+  await expect(page.getByText(`Factura de origem: ${l.faturaNumero}`)).toBeVisible({ timeout: 15_000 });
+  // Preço e taxa vêm da factura: não há campo de preço para editar.
+  await expect(page.getByLabel('Valor Unit. (MT)')).toHaveCount(0);
+
+  // Fica só a linha escolhida.
+  for (;;) {
+    const tirar = page.getByRole('button', { name: /^Não devolver / });
+    const n = await tirar.count();
+    let tirou = false;
+    for (let i = 0; i < n; i++) {
+      if ((await tirar.nth(i).getAttribute('aria-label')) !== `Não devolver ${l.descricao}`) {
+        await tirar.nth(i).click();
+        tirou = true;
+        break;
+      }
+    }
+    if (!tirou) break;
+  }
+  await expect(page.getByText(l.descricao, { exact: true })).toHaveCount(1);
+  await page.locator('#itens-0-quantidade').fill('1');
+  if (reembolso) await page.getByLabel('Reembolso ao cliente').check();
+  await page.locator('#observacoes').fill(marca);
+
+  await page.getByRole('button', { name: 'Registar Devolução' }).click();
+  await page.waitForURL((u) => u.pathname === '/vendas/devolucoes', { timeout: 60_000 });
+
+  const r = await withPg((c) =>
+    c.query<{ id: string; numero: string; faturaId: string | null; reembolso: boolean; valorUnitario: string; taxaIva: string }>(
+      `SELECT d.id, d.numero, d."faturaId", d.reembolso, i."valorUnitario"::text AS "valorUnitario", i."taxaIva"::text AS "taxaIva"
+         FROM "Devolucao" d JOIN "ItemDevolucao" i ON i."devolucaoId" = d.id
+        WHERE d."tenantId" = $1 AND d.observacoes = $2`,
+      [l.tenantId, marca],
+    ),
+  );
+  expect(r.rows, 'uma devolução com um item, criada pelo ecrã').toHaveLength(1);
+  const d = r.rows[0];
+  expect(d.faturaId, 'a devolução fica ligada à factura da venda').toBe(l.faturaId);
+  expect(Number(d.valorUnitario), 'preço da linha da factura').toBe(Number(l.preco));
+  expect(Number(d.taxaIva), 'taxa da linha da factura').toBe(Number(l.taxa));
+  expect(d.reembolso).toBe(reembolso);
+  return { id: d.id, numero: d.numero, caminho: `/vendas/devolucoes/${d.id}` };
+}
+
+test.describe(`/vendas/devolucoes e /vendas/trocas — ciclo de vida pela UI (#130, #562, ${MARCA})`, () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeAll(async () => {
-    await withPg(async (c) => {
-      const linha = await escolherLinha(c);
-      dados.linha = linha;
-      dados.aProcessar = await inserirDevolucao(c, linha);
-      dados.aRejeitar = await inserirDevolucao(c, linha);
-      dados.aTrocar = await inserirDevolucao(c, linha);
-    });
+    dados.linha = await withPg(escolherLinha);
   });
 
-  test('devolucoes-ecras-130: pendente → aprovar (AlertDialog) → processar (rota, localização obrigatória)', async ({ page }) => {
-    test.setTimeout(180_000);
-    const d = dados.aProcessar!;
+  test('devolucoes-ecras-130: criar pelo ecrã com reembolso → aprovar (AlertDialog) → processar (rota, localização obrigatória) → NC com o preço da factura paga o reembolso', async ({ page }) => {
+    test.setTimeout(240_000);
+    const l = dados.linha!;
+    await garantirCaixaAberta(page);
+    const d = await criarPeloEcra(page, l, 'processar', true);
     await abrirDetalhe(page, d);
 
     // PENDENTE: aprova-se ou rejeita-se; não se processa nem se troca.
@@ -285,11 +356,35 @@ test.describe(`/vendas/devolucoes e /vendas/trocas — ciclo de vida pela UI (#1
     await expect(page.getByText('Processada', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(ESTADO_EM_BRUTO)).toHaveCount(0);
     await semAccoes(page);
+
+    // #562: a NC tem o preço da linha da factura e o reembolso sai por ela (total da NC, NC liquidada).
+    const doc = await withPg((c) =>
+      c.query(
+        `SELECT nc."faturaOriginalId", nc.status::text AS status, nc.total::text AS total,
+                ln."precoUnitario"::text AS preco, ln."produtoId"
+           FROM "NotaCredito" nc JOIN "LinhaNotaCredito" ln ON ln."notaCreditoId" = nc.id
+          WHERE nc.id = $1`,
+        [depois.notaCreditoId],
+      ),
+    );
+    expect(doc.rows, 'NC de uma linha').toHaveLength(1);
+    expect(doc.rows[0].faturaOriginalId).toBe(l.faturaId);
+    expect(doc.rows[0].produtoId).toBe(l.produtoId);
+    expect(Number(doc.rows[0].preco), 'NC com o preço da linha da factura').toBe(Number(l.preco));
+    expect(doc.rows[0].status, 'o reembolso liquida a NC').toBe('LIQUIDADA');
+    const reembolso = await withPg((c) =>
+      c.query(
+        `SELECT valor::text AS valor FROM "MovimentoCaixa" WHERE tipo = 'DEVOLUCAO' AND "documentoOrigemId" = $1`,
+        [d.id],
+      ),
+    );
+    expect(reembolso.rows, 'um reembolso na caixa').toHaveLength(1);
+    expect(Number(reembolso.rows[0].valor), 'o reembolso é o total da NC').toBe(Number(doc.rows[0].total));
   });
 
   test('devolucoes-ecras-130: pendente → rejeitar (AlertDialog) → sem acções e sem «Aprovada em»', async ({ page }) => {
-    test.setTimeout(120_000);
-    const d = dados.aRejeitar!;
+    test.setTimeout(180_000);
+    const d = await criarPeloEcra(page, dados.linha!, 'rejeitar', false);
     await abrirDetalhe(page, d);
 
     await page.getByRole('button', { name: 'Rejeitar', exact: true }).click();
@@ -310,9 +405,9 @@ test.describe(`/vendas/devolucoes e /vendas/trocas — ciclo de vida pela UI (#1
   });
 
   test('devolucoes-ecras-130: aprovada com factura → «Criar Troca» → rota de nova troca → troca criada', async ({ page }) => {
-    test.setTimeout(180_000);
-    const d = dados.aTrocar!;
+    test.setTimeout(240_000);
     const l = dados.linha!;
+    const d = await criarPeloEcra(page, l, 'trocar', false);
 
     // A listagem de trocas leva à rota de nova troca.
     await page.goto('/vendas/trocas');

@@ -381,8 +381,10 @@ describe.skipIf(skip)('Devolução/troca → NC, iteração 2 (compensação, ex
   it('factura creditada por inteiro → segunda devolução processada recusa NC_EXCEDE_FATURA; série NC intacta, devolução continua APROVADA sem NC, stock intacto', async () => {
     const { venda, fatura } = await venderA(1);
     const dev1 = await devolucaoAprovada(venda, fatura, 1, false);
-    await processar(dev1.id, {});
+    // Ambas criadas antes da primeira NC: depois dela, criar a segunda já é recusado
+    // (QUANTIDADE_ACIMA_DO_FACTURADO, #562) — o que se prova aqui é a guarda do processamento.
     const dev2 = await devolucaoAprovada(venda, fatura, 1, false);
+    await processar(dev1.id, {});
     const antes = await contagens();
     const dev2Antes = await estadoDevolucao(dev2.id);
 
