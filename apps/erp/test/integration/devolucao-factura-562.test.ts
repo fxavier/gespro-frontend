@@ -65,8 +65,9 @@ describe.skipIf(skip)('Devolução ligada à factura, preço da factura e reembo
   }
 
   /** Venda POS com uma linha por par [produto, quantidade], cada uma a 1000 − 10% + 16%. */
-  async function vender(linhas: Array<[string, number]>) {
-    const total = 1044 * linhas.reduce((a, [, q]) => a + q, 0);
+  async function vender(linhas: Array<[string, number] | [string, number, number]>) {
+    // 1000 − desconto% (10% por omissão) + 16%, por unidade.
+    const total = linhas.reduce((a, [, q, d = 10]) => a + (q * (100 - d) * 1160) / 100, 0);
     const input = validacoes.CreateVendaSchema.parse({
       origem: 'POS',
       clienteId,
@@ -74,8 +75,8 @@ describe.skipIf(skip)('Devolução ligada à factura, preço da factura e reembo
       sessaoPOSId,
       sessaoCaixaId,
       localizacaoOrigemId: localizacaoId,
-      itens: linhas.map(([produtoId, quantidade]) => ({
-        produtoId, nomeProduto: 'Artigo', quantidade, precoUnitario: 1000, desconto: 10, taxaIva: 0.16,
+      itens: linhas.map(([produtoId, quantidade, desconto = 10]) => ({
+        produtoId, nomeProduto: 'Artigo', quantidade, precoUnitario: 1000, desconto, taxaIva: 0.16,
       })),
       pagamentos: [{ tipo: 'DINHEIRO', valor: total }],
     });
@@ -280,5 +281,46 @@ describe.skipIf(skip)('Devolução ligada à factura, preço da factura e reembo
     await aprovarEProcessar(soma.id, false);
     const nc = await db.notaCredito.findFirst({ where: { tenantId: TENANT, faturaOriginalId: venda.faturaId } });
     expect(dec(nc.total).toFixed(2)).toBe('2088.00');
+  });
+
+  it('(g) factura A@900 + A@1000 + B@1000: creditar A@1000 deixa A@900 devolvível e recusa uma segunda A@1000', async () => {
+    const { venda } = await vender([[produtoA, 1, 10], [produtoA, 1, 0], [produtoB, 1, 0]]);
+    const primeira: any = await criar({ vendaId: venda.id, itens: [item(1, 1000)] });
+    await aprovarEProcessar(primeira.id, false);
+
+    const devolviveis: any = await runCtx(ctx, () => comercial.devolucaoService.linhasDevolviveis(venda.id, ctx));
+    const deA = Object.fromEntries(
+      devolviveis.linhas.filter((l: any) => l.produtoId === produtoA).map((l: any) => [dec(l.valorUnitario).toFixed(2), l.quantidadeDevolvivel]),
+    );
+    expect(deA).toEqual({ '900.00': '1', '1000.00': '0' });
+
+    const segunda = await capturarErro(() => criar({ vendaId: venda.id, itens: [item(1, 1000)] }));
+    expect(segunda?.code).toBe('QUANTIDADE_ACIMA_DO_FACTURADO');
+
+    const a900: any = await criar({ vendaId: venda.id, itens: [item(1, 900)] });
+    expect(a900.faturaId).toBe(venda.faturaId);
+  });
+
+  it('(h) NC manual sem produto a consumir o valor da factura → processar recusa NC_EXCEDE_FATURA, sem segunda NC', async () => {
+    const faturacao = await import('@/server/services/financas/faturacao.service');
+    const { venda } = await venderA(1);
+    const dev: any = await criar({ vendaId: venda.id, itens: [item(1, 900)] });
+    await runCtx(ctx, () =>
+      faturacao.emitirNotaCredito(
+        {
+          faturaOriginalId: venda.faturaId,
+          motivo: 'Acerto em Facturação',
+          moeda: 'MZN',
+          dataEmissao: new Date(),
+          linhas: [{ descricao: 'Acerto', quantidade: 1, precoUnitario: 900, desconto: 0, taxaIva: 0.16, subtotal: 900, ivaItem: 144, total: 1044, ordemLinha: 1 }],
+        } as any,
+        ctx,
+      ),
+    );
+
+    const erro = await capturarErro(() => aprovarEProcessar(dev.id, false));
+    expect(erro?.code).toBe('NC_EXCEDE_FATURA');
+    expect(await db.notaCredito.count({ where: { tenantId: TENANT, faturaOriginalId: venda.faturaId } })).toBe(1);
+    expect((await db.devolucao.findFirst({ where: { id: dev.id } })).status).toBe('APROVADA');
   });
 });

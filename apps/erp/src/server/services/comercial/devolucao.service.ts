@@ -173,8 +173,8 @@ interface LinhaFacturada {
 
 /**
  * Linhas da factura agregadas por (produto, preço líquido) — duas linhas iguais são uma só, senão a
- * segunda ficava inalcançável —, com o que já foi creditado por NC não canceladas: o creditado de
- * cada produto abate-se aos seus grupos pela ordem da factura.
+ * segunda ficava inalcançável —, com o que já foi creditado por NC não canceladas abatido ao grupo
+ * da mesma chave (o resto, aos grupos do produto pela ordem da factura).
  */
 async function lerLinhasFacturadas(
   db: Pick<Prisma.TransactionClient, 'linhaFatura' | 'linhaNotaCredito'>,
@@ -185,18 +185,6 @@ async function lerLinhasFacturadas(
     where: { tenantId: ctx.tenantId, faturaId, produtoId: { not: null } },
     orderBy: [{ ordemLinha: 'asc' }, { createdAt: 'asc' }],
   });
-  const creditadas = await db.linhaNotaCredito.findMany({
-    where: {
-      tenantId: ctx.tenantId,
-      produtoId: { not: null },
-      notaCredito: { faturaOriginalId: faturaId, status: { not: 'CANCELADA' } },
-    },
-    select: { produtoId: true, quantidade: true },
-  });
-  const porAbater = new Map<string, Prisma.Decimal>();
-  for (const c of creditadas) {
-    porAbater.set(c.produtoId!, (porAbater.get(c.produtoId!) ?? new Prisma.Decimal(0)).plus(c.quantidade));
-  }
   const grupos = new Map<string, LinhaFacturada>();
   for (const l of linhas) {
     const valorUnitario = r2(l.subtotal.div(l.quantidade));
@@ -204,6 +192,7 @@ async function lerLinhasFacturadas(
     const g = grupos.get(chave);
     if (g) {
       g.quantidade = g.quantidade.plus(l.quantidade);
+      g.devolvivel = g.devolvivel.plus(l.quantidade);
       g.subtotal = g.subtotal.plus(l.subtotal);
     } else {
       grupos.set(chave, {
@@ -217,11 +206,35 @@ async function lerLinhasFacturadas(
       });
     }
   }
+  const creditadas = await db.linhaNotaCredito.findMany({
+    where: {
+      tenantId: ctx.tenantId,
+      produtoId: { not: null },
+      notaCredito: { faturaOriginalId: faturaId, status: { not: 'CANCELADA' } },
+    },
+    select: { produtoId: true, quantidade: true, subtotal: true },
+  });
+  // O creditado abate-se ao grupo com a mesma chave (produto, preço líquido = subtotal ÷ quantidade:
+  // serve as NC de devolução e as de anulação POS). O que não cair em grupo nenhum (NC manual com
+  // outro preço) abate-se, pela ordem da factura, aos grupos do produto.
+  const porAbater = new Map<string, Prisma.Decimal>();
+  for (const c of creditadas) {
+    let resto = c.quantidade;
+    const g = c.quantidade.isZero() ? undefined : grupos.get(`${c.produtoId}|${r2(c.subtotal.div(c.quantidade)).toFixed(2)}`);
+    if (g) {
+      const abatido = Prisma.Decimal.min(resto, g.devolvivel);
+      g.devolvivel = g.devolvivel.minus(abatido);
+      resto = resto.minus(abatido);
+    }
+    if (resto.greaterThan(0)) {
+      porAbater.set(c.produtoId!, (porAbater.get(c.produtoId!) ?? new Prisma.Decimal(0)).plus(resto));
+    }
+  }
   return [...grupos.values()].map((g) => {
     const resto = porAbater.get(g.produtoId) ?? new Prisma.Decimal(0);
-    const abatido = Prisma.Decimal.min(resto, g.quantidade);
+    const abatido = Prisma.Decimal.min(resto, g.devolvivel);
     porAbater.set(g.produtoId, resto.minus(abatido));
-    return { ...g, devolvivel: g.quantidade.minus(abatido) };
+    return { ...g, devolvivel: g.devolvivel.minus(abatido) };
   });
 }
 
