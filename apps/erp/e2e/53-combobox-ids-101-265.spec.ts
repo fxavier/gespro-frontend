@@ -129,7 +129,8 @@ async function escolher(
 test.describe(`Formulários escolhem entidades por combobox, não por id colado (#101/#265, ${MARCA})`, () => {
   test.describe.configure({ mode: 'serial' });
 
-  // Uma venda do demo com cliente (não o Consumidor Final), para a nova devolução.
+  // Uma venda do demo com cliente (não o Consumidor Final) e SEM factura, para a nova devolução:
+  // com factura os itens vêm dela, sem combobox de produto (#562).
   let vendaDemo: { numero: string; cliente: string } | null = null;
 
   test.beforeAll(async () => {
@@ -148,6 +149,7 @@ test.describe(`Formulários escolhem entidades por combobox, não por id colado 
            FROM "Venda" v JOIN "Cliente" cl ON cl.id = v."clienteId"
           WHERE v."tenantId" = $1 AND cl."deletedAt" IS NULL AND cl.status = 'ATIVO'
             AND cl.codigo <> 'CF-000000' AND v.status IN ('CONCLUIDA', 'FATURADA')
+            AND v."faturaId" IS NULL
           ORDER BY v."dataVenda" DESC LIMIT 1`,
         [tenantId],
       );

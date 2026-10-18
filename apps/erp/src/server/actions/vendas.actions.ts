@@ -262,6 +262,17 @@ export const procurarVendas = createSafeAction({
   },
 });
 
+/**
+ * Linhas da factura de uma venda ainda por devolver (#562): a nova devolução pré-preenche-se
+ * daqui — preço e taxa da factura, quantidade até facturado − já creditado. Leitura.
+ */
+export const obterLinhasDevolviveis = createSafeAction({
+  schema: z.object({ vendaId: idEntidade('Seleccione a venda') }),
+  permission: 'vendas:ver',
+  permiteEmLeitura: true,
+  handler: async ({ vendaId }, ctx) => devolucaoService.linhasDevolviveis(vendaId, ctx),
+});
+
 export const criarEncomenda = createSafeAction({
   schema: CreateEncomendaSchema,
   permission: 'vendas:encomendas:criar',

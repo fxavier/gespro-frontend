@@ -378,18 +378,20 @@ describe.skipIf(skip)('Devolução/troca → NC, iteração 2 (compensação, ex
     expect(await contagens()).toEqual(antes);
   });
 
-  it('factura creditada por inteiro → segunda devolução processada recusa NC_EXCEDE_FATURA; série NC intacta, devolução continua APROVADA sem NC, stock intacto', async () => {
+  it('factura creditada por inteiro → segunda devolução processada recusa (QUANTIDADE_ACIMA_DO_FACTURADO, #562 — antes do total, por item); série NC intacta, devolução continua APROVADA sem NC, stock intacto', async () => {
     const { venda, fatura } = await venderA(1);
     const dev1 = await devolucaoAprovada(venda, fatura, 1, false);
-    await processar(dev1.id, {});
+    // Ambas criadas antes da primeira NC (depois dela, criar a segunda já é recusado): o processamento
+    // revalida por item com a factura trancada. O NC_EXCEDE_FATURA do núcleo fica provado nos casos acima e abaixo.
     const dev2 = await devolucaoAprovada(venda, fatura, 1, false);
+    await processar(dev1.id, {});
     const antes = await contagens();
     const dev2Antes = await estadoDevolucao(dev2.id);
 
     const erro = await capturarErro(() => processar(dev2.id, {}));
 
     expect(erro).toBeInstanceOf(BusinessRuleError);
-    expect(erro.code).toBe('NC_EXCEDE_FATURA');
+    expect(erro.code).toBe('QUANTIDADE_ACIMA_DO_FACTURADO');
     expect(await contagens()).toEqual(antes);
     expect(await estadoDevolucao(dev2.id)).toEqual(dev2Antes);
     expect(await db.notaCredito.count({ where: { tenantId: TENANT, faturaOriginalId: fatura.id } })).toBe(1);
