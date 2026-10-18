@@ -61,7 +61,12 @@ describe.skipIf(skip)('Devolução ligada à factura, preço da factura e reembo
 
   /** Venda POS de `quantidade` × A a 1000 com 10% de desconto + 16% (900 + 144 por unidade), a dinheiro. */
   async function venderA(quantidade: number) {
-    const total = 1044 * quantidade;
+    return vender([[produtoA, quantidade]]);
+  }
+
+  /** Venda POS com uma linha por par [produto, quantidade], cada uma a 1000 − 10% + 16%. */
+  async function vender(linhas: Array<[string, number]>) {
+    const total = 1044 * linhas.reduce((a, [, q]) => a + q, 0);
     const input = validacoes.CreateVendaSchema.parse({
       origem: 'POS',
       clienteId,
@@ -69,7 +74,9 @@ describe.skipIf(skip)('Devolução ligada à factura, preço da factura e reembo
       sessaoPOSId,
       sessaoCaixaId,
       localizacaoOrigemId: localizacaoId,
-      itens: [{ produtoId: produtoA, nomeProduto: 'Artigo A', quantidade, precoUnitario: 1000, desconto: 10, taxaIva: 0.16 }],
+      itens: linhas.map(([produtoId, quantidade]) => ({
+        produtoId, nomeProduto: 'Artigo', quantidade, precoUnitario: 1000, desconto: 10, taxaIva: 0.16,
+      })),
       pagamentos: [{ tipo: 'DINHEIRO', valor: total }],
     });
     const row: any = await runCtx(ctx, () => comercial.vendaService.criar(input, ctx));
@@ -241,5 +248,37 @@ describe.skipIf(skip)('Devolução ligada à factura, preço da factura e reembo
 
     const resto: any = await criar({ vendaId: venda.id, itens: [item(1, 900)] });
     expect(resto.faturaId).toBe(venda.faturaId);
+  });
+
+  it('(e) duas devoluções de A×1 criadas antes de qualquer NC (factura A×1 + B×1): a segunda a processar → QUANTIDADE_ACIMA_DO_FACTURADO, sem segunda NC nem stock', async () => {
+    const { venda } = await vender([[produtoA, 1], [produtoB, 1]]);
+    const d1: any = await criar({ vendaId: venda.id, itens: [item(1, 900)] });
+    const d2: any = await criar({ vendaId: venda.id, itens: [item(1, 900)] });
+    await aprovarEProcessar(d1.id, false);
+    await runCtx(ctx, () => comercial.devolucaoService.aprovar(d2.id, ctx));
+    const stockAntes = await db.movimentoStock.count({ where: { tenantId: TENANT, documentoReferenciaId: d2.id } });
+
+    const erro = await capturarErro(() => runCtx(ctx, () => comercial.devolucaoService.processar(d2.id, ctx, { localizacaoId })));
+    expect(erro?.code).toBe('QUANTIDADE_ACIMA_DO_FACTURADO');
+    expect(await db.notaCredito.count({ where: { tenantId: TENANT, faturaOriginalId: venda.faturaId } })).toBe(1);
+    expect(await db.movimentoStock.count({ where: { tenantId: TENANT, documentoReferenciaId: d2.id } })).toBe(stockAntes);
+    expect((await db.devolucao.findFirst({ where: { id: d2.id } })).status).toBe('APROVADA');
+  });
+
+  it('(f) factura com duas linhas do mesmo produto ao mesmo preço: devolver a soma passa; acima dela é recusado', async () => {
+    const { venda } = await vender([[produtoA, 1], [produtoA, 1]]);
+
+    const devolviveis: any = await runCtx(ctx, () => comercial.devolucaoService.linhasDevolviveis(venda.id, ctx));
+    expect(devolviveis.linhas).toHaveLength(1);
+    expect(devolviveis.linhas[0].quantidadeDevolvivel).toBe('2');
+
+    const acima = await capturarErro(() => criar({ vendaId: venda.id, itens: [item(3, 900)] }));
+    expect(acima?.code).toBe('QUANTIDADE_ACIMA_DO_FACTURADO');
+
+    const soma: any = await criar({ vendaId: venda.id, itens: [item(2, 900)] });
+    expect(dec(soma.valorTotal).toFixed(2)).toBe('2088.00');
+    await aprovarEProcessar(soma.id, false);
+    const nc = await db.notaCredito.findFirst({ where: { tenantId: TENANT, faturaOriginalId: venda.faturaId } });
+    expect(dec(nc.total).toFixed(2)).toBe('2088.00');
   });
 });

@@ -172,8 +172,9 @@ interface LinhaFacturada {
 }
 
 /**
- * Linhas da factura com o que já foi creditado por NC não canceladas: o creditado de cada produto
- * abate-se às suas linhas pela ordem da factura.
+ * Linhas da factura agregadas por (produto, preço líquido) — duas linhas iguais são uma só, senão a
+ * segunda ficava inalcançável —, com o que já foi creditado por NC não canceladas: o creditado de
+ * cada produto abate-se aos seus grupos pela ordem da factura.
  */
 async function lerLinhasFacturadas(
   db: Pick<Prisma.TransactionClient, 'linhaFatura' | 'linhaNotaCredito'>,
@@ -196,19 +197,70 @@ async function lerLinhasFacturadas(
   for (const c of creditadas) {
     porAbater.set(c.produtoId!, (porAbater.get(c.produtoId!) ?? new Prisma.Decimal(0)).plus(c.quantidade));
   }
-  return linhas.map((l) => {
-    const resto = porAbater.get(l.produtoId!) ?? new Prisma.Decimal(0);
-    const abatido = Prisma.Decimal.min(resto, l.quantidade);
-    porAbater.set(l.produtoId!, resto.minus(abatido));
-    return {
-      produtoId: l.produtoId!,
-      descricao: l.descricao,
-      quantidade: l.quantidade,
-      devolvivel: l.quantidade.minus(abatido),
-      valorUnitario: r2(l.subtotal.div(l.quantidade)),
-      taxaIva: l.taxaIva,
-      subtotal: l.subtotal,
-    };
+  const grupos = new Map<string, LinhaFacturada>();
+  for (const l of linhas) {
+    const valorUnitario = r2(l.subtotal.div(l.quantidade));
+    const chave = `${l.produtoId}|${valorUnitario.toFixed(2)}`;
+    const g = grupos.get(chave);
+    if (g) {
+      g.quantidade = g.quantidade.plus(l.quantidade);
+      g.subtotal = g.subtotal.plus(l.subtotal);
+    } else {
+      grupos.set(chave, {
+        produtoId: l.produtoId!,
+        descricao: l.descricao,
+        quantidade: l.quantidade,
+        devolvivel: l.quantidade,
+        valorUnitario,
+        taxaIva: l.taxaIva,
+        subtotal: l.subtotal,
+      });
+    }
+  }
+  return [...grupos.values()].map((g) => {
+    const resto = porAbater.get(g.produtoId) ?? new Prisma.Decimal(0);
+    const abatido = Prisma.Decimal.min(resto, g.quantidade);
+    porAbater.set(g.produtoId, resto.minus(abatido));
+    return { ...g, devolvivel: g.quantidade.minus(abatido) };
+  });
+}
+
+/**
+ * Casa cada item com o seu grupo facturado e recusa produto fora da factura, preço diferente do
+ * facturado e quantidade (acumulada por grupo) acima de facturado − já creditado. Usado ao criar e,
+ * com a factura trancada, ao emitir a NC (duas devoluções criadas antes da primeira NC).
+ */
+function casarComFactura(
+  linhas: LinhaFacturada[],
+  itens: ReadonlyArray<{ produtoId: string; nomeProduto: string; quantidade: Prisma.Decimal.Value; valorUnitario: Prisma.Decimal.Value }>,
+  faturaNumero: string,
+) {
+  const pedido = new Map<LinhaFacturada, Prisma.Decimal>();
+  return itens.map((item) => {
+    const doProduto = linhas.filter((l) => l.produtoId === item.produtoId);
+    if (doProduto.length === 0) {
+      throw new BusinessRuleError('PRODUTO_NAO_FACTURADO', `${item.nomeProduto} não consta da factura ${faturaNumero}.`);
+    }
+    const valorUnitario = r2(new Prisma.Decimal(item.valorUnitario));
+    const linha = doProduto.find((l) => l.valorUnitario.equals(valorUnitario));
+    if (!linha) {
+      throw new BusinessRuleError(
+        'PRECO_DIFERENTE_DO_FACTURADO',
+        `${item.nomeProduto}: o preço ${valorUnitario.toFixed(2)} não é o facturado na ${faturaNumero} ` +
+          `(${doProduto.map((l) => l.valorUnitario.toFixed(2)).join(', ')}).`,
+      );
+    }
+    const quantidade = new Prisma.Decimal(item.quantidade);
+    const acumulado = (pedido.get(linha) ?? new Prisma.Decimal(0)).plus(quantidade);
+    if (acumulado.greaterThan(linha.devolvivel)) {
+      throw new BusinessRuleError(
+        'QUANTIDADE_ACIMA_DO_FACTURADO',
+        `${item.nomeProduto}: só ${linha.devolvivel.toString()} de ${linha.quantidade.toString()} facturados ` +
+          `na ${faturaNumero} ainda não foram creditados.`,
+      );
+    }
+    pedido.set(linha, acumulado);
+    return { linha, quantidade, valorUnitario };
   });
 }
 
@@ -254,6 +306,16 @@ export async function notaCreditoDaDevolucaoEmTx(
     return existente;
   }
   if (!devolucao.faturaId) return null;
+
+  // Tranca a factura ANTES de a ler e revalida por item (#562): duas devoluções criadas antes da
+  // primeira NC passavam ambas — o NC_EXCEDE_FATURA do núcleo só compara o valor total.
+  await tx.$queryRaw`SELECT id FROM "Fatura" WHERE id = ${devolucao.faturaId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
+  const fatura = await tx.fatura.findFirst({
+    where: { id: devolucao.faturaId, tenantId: ctx.tenantId },
+    select: { numero: true },
+  });
+  if (!fatura) throw new NotFoundError('Factura de origem não encontrada');
+  casarComFactura(await lerLinhasFacturadas(tx, devolucao.faturaId, ctx), devolucao.itens, fatura.numero);
 
   const motivoIsencao = await faturacao.motivoIsencaoAutomaticoEmTx(tx, ctx);
   const nc = await faturacao.emitirNotaCreditoEmTx(
@@ -360,46 +422,18 @@ export class DevolucaoService {
         if (!fatura) throw new NotFoundError('Factura de origem não encontrada');
         clienteId = fatura.clienteId;
         const linhas = await lerLinhasFacturadas(tx, faturaId, ctx);
-        const pedido = new Map<LinhaFacturada, Prisma.Decimal>();
-        itens = input.itens.map((item) => {
-          const doProduto = linhas.filter((l) => l.produtoId === item.produtoId);
-          if (doProduto.length === 0) {
-            throw new BusinessRuleError(
-              'PRODUTO_NAO_FACTURADO',
-              `${item.nomeProduto} não consta da factura ${fatura.numero}.`,
-            );
-          }
-          const valorUnitario = r2(new Prisma.Decimal(item.valorUnitario));
-          const linha = doProduto.find((l) => l.valorUnitario.equals(valorUnitario));
-          if (!linha) {
-            throw new BusinessRuleError(
-              'PRECO_DIFERENTE_DO_FACTURADO',
-              `${item.nomeProduto}: o preço ${valorUnitario.toFixed(2)} não é o facturado na ${fatura.numero} ` +
-                `(${doProduto.map((l) => l.valorUnitario.toFixed(2)).join(', ')}).`,
-            );
-          }
-          const quantidade = new Prisma.Decimal(item.quantidade);
-          const acumulado = (pedido.get(linha) ?? new Prisma.Decimal(0)).plus(quantidade);
-          if (acumulado.greaterThan(linha.devolvivel)) {
-            throw new BusinessRuleError(
-              'QUANTIDADE_ACIMA_DO_FACTURADO',
-              `${item.nomeProduto}: só ${linha.devolvivel.toString()} de ${linha.quantidade.toString()} facturados ` +
-                `na ${fatura.numero} ainda não foram creditados.`,
-            );
-          }
-          pedido.set(linha, acumulado);
-          return {
-            produtoId: item.produtoId,
-            varianteId: item.varianteId ?? null,
-            nomeProduto: item.nomeProduto,
-            sku: item.sku ?? null,
-            quantidade,
-            valorUnitario,
-            taxaIva: linha.taxaIva,
-            // Proporcional à linha: devolver tudo credita exactamente o facturado, sem cêntimos a mais.
-            subtotal: r2(linha.subtotal.mul(quantidade).div(linha.quantidade)),
-          };
-        });
+        itens = casarComFactura(linhas, input.itens, fatura.numero).map(({ linha, quantidade, valorUnitario }, i) => ({
+          produtoId: linha.produtoId,
+          varianteId: input.itens[i].varianteId ?? null,
+          // A descrição fiscal é a da factura, não a que o cliente envia.
+          nomeProduto: linha.descricao,
+          sku: input.itens[i].sku ?? null,
+          quantidade,
+          valorUnitario,
+          taxaIva: linha.taxaIva,
+          // Proporcional ao grupo: devolver tudo credita exactamente o facturado, sem cêntimos a mais.
+          subtotal: r2(linha.subtotal.mul(quantidade).div(linha.quantidade)),
+        }));
       } else {
         itens = input.itens.map((item) => {
           const quantidade = new Prisma.Decimal(item.quantidade);
