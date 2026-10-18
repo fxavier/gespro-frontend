@@ -324,10 +324,18 @@ export const contaPagarService: IContaPagarService = {
   },
 
   async cancelar(id: string, motivo: string, ctx: Ctx): Promise<void> {
-    const conta = await db.contaPagar.findUnique({ where: { id } });
-    if (!conta || conta.tenantId !== ctx.tenantId) throw new NotFoundError('Conta a pagar não encontrada');
-    transitarContaPagar(conta.status as StatusContaPagar, 'CANCELADA');
-    await db.contaPagar.update({ where: { id }, data: { status: 'CANCELADA', observacoes: motivo } });
+    // Mesma tranca do registarPagamento (#554): um pagamento em curso não pode
+    // ser seguido de um CANCELADA decidido sobre o estado de antes dele.
+    await prisma.$transaction(async (rawTx) => {
+      const tx = rawTx as unknown as PrismaClient;
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM "ContaPagar" WHERE id = ${id} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`,
+      );
+      const conta = await tx.contaPagar.findUnique({ where: { id } });
+      if (!conta || conta.tenantId !== ctx.tenantId) throw new NotFoundError('Conta a pagar não encontrada');
+      transitarContaPagar(conta.status as StatusContaPagar, 'CANCELADA');
+      await tx.contaPagar.update({ where: { id }, data: { status: 'CANCELADA', observacoes: motivo } });
+    });
   },
 
   async actualizarVencidas(ctx: Ctx): Promise<number> {
@@ -346,6 +354,13 @@ export const contaPagarService: IContaPagarService = {
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as PrismaClient;
       const txClient = rawTx as unknown as Prisma.TransactionClient;
+
+      // 0. Trancar a conta ANTES de tudo (#554): sem isto dois pagamentos
+      //    concorrentes leem o mesmo valorRestante, só se serializam na série
+      //    e o segundo paga de novo sobre a leitura antiga.
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM "ContaPagar" WHERE id = ${input.contaPagarId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`,
+      );
 
       // 1. Resolver o meio de pagamento ANTES de qualquer escrita: se a
       //    validação falhar (sessão fechada, conta inactiva, etc.) não fica
@@ -456,8 +471,8 @@ export const contaPagarService: IContaPagarService = {
       await tx.contaPagar.update({
         where: { id: conta.id },
         data: {
-          valorPago: novoValorPago.toNumber(),
-          valorRestante: novoValorRestante.lessThan(0) ? 0 : novoValorRestante.toNumber(),
+          valorPago: novoValorPago,
+          valorRestante: novoValorRestante.lessThan(0) ? new Prisma.Decimal(0) : novoValorRestante,
           status: novoStatus,
         },
       });
