@@ -287,6 +287,12 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
   `Combobox` local não é correcção — é o mesmo tecto, escondido.
 - `TableSkeleton` (patterns) é uma **tabela completa**, para `<Suspense fallback>`; dentro de um `<tbody>` usa-se `LinhasSkeleton`. Linhas `<tr>` soltas dentro de uma `<div>` são HTML inválido e dão erro de hidratação.
 - `Select` com valor inicial: passa o rótulo como filho — `<SelectValue placeholder="…">{opcaoEscolhida?.label}</SelectValue>`. O Radix só resolve o texto do item **depois** de a lista abrir; sem isto o campo aparece vazio apesar de haver valor escolhido.
+- Filtros de listagem: a `FilterBar` escreve no URL (`searchKey="termo"`, `filters[].key`), a página faz `safeParse`
+  com um schema `Filtro*UrlSchema` que estende o `Filter*Schema` de `lib/validations` — e o Zod **descarta em silêncio**
+  as chaves que o schema não declara. Um filtro novo tem de entrar nos três elos (schema, chamada da página, `where` do
+  serviço), senão a caixa escreve no URL e a lista não muda, sem erro nenhum (aconteceu a serviços, #545, e a
+  agendamentos, #585). Pesquisa de texto = `OR` de `contains` com `mode: 'insensitive'`; prova-se com teste de
+  integração que lista com e sem o termo.
 - `SelectItem` (ui) **descarta** items com `value=""` — a opção nunca aparece. Para «Todos/Nenhum» usa uma sentinela (`'todos'`) e traduz ao construir o URL.
 - Client Component que inicializa estado com `useState(prop)` (ex.: selectores de filtros) **não é remontado** quando um `router.push` muda só os search params — nem com `key` diferente. O estado fica com o valor antigo enquanto a página mostra o novo. Sincroniza durante o render (padrão React «ajustar estado quando uma prop muda»: guarda a chave anterior em estado e repõe quando difere), não com `useEffect`+`setState` (o lint recusa).
 - Formulários: `react-hook-form` + `zodResolver` com o **mesmo** schema de `src/lib/validations/<modulo>.ts`, submit via Server Action com `useActionState`.
@@ -398,9 +404,12 @@ migração `*_natureza_classe_4`; o `scripts/extract-pgc.mjs` só reproduz o JSO
 **Datas de `<input type="date">`** — `new Date('aaaa-mm-dd')` lê como UTC e, a leste de Greenwich, cai no dia
 anterior — muda o período fiscal. Parte a string e constrói `new Date(ano, mes - 1, dia, 12)`.
 
-**Máquinas de estado (`transitar*` em `*.service.interface.ts`)** — lançam `Error` cru, não `BusinessRuleError`:
-uma transição inválida chega ao utilizador como «Erro interno» (500). Antes de chamar `transitar*`, garante que o
-estado-alvo é mesmo diferente e permitido (ex.: pagamento parcial numa `VENCIDA` mantém `VENCIDA`).
+**Máquinas de estado (`transitar*` em `*.service.interface.ts`)** — lançam `BusinessRuleError('TRANSICAO_INVALIDA')`
+(409), trancado por `services/__tests__/mensagens-jargao-107.test.ts`; uma máquina nova segue o mesmo contrato, nunca
+`Error` cru (chega ao utilizador como «Erro interno», 500). Mesmo assim, quem chama garante que o estado-alvo é
+diferente e permitido antes de chamar (ex.: pagamento parcial numa `VENCIDA` mantém `VENCIDA`): a recusa é para o
+utilizador, não um ramo de fluxo normal. A tabela de transições vive em `src/lib/state-machines.ts` (client-safe)
+quando a UI precisa dela para decidir que botões mostra.
 
 **Campos numéricos** — o `ui/Input` base, quando `type="number"`, selecciona o conteúdo ao focar, apaga zeros à
 esquerda enquanto se escreve e repõe `0` se ficar vazio ao sair. Não reimplementar isto nos formulários.
@@ -457,8 +466,19 @@ dá `PLANO_INDISPONIVEL`. O Price ID do Stripe vem da coluna da tabela e, se vaz
 opcional) e o proxy leva-a para `/plataforma`. Páginas e layouts do tenant obtêm o tenant por
 `exigirSessaoDeTenant()` (`src/server/auth/sessao-tenant.ts`), nunca por `session.user.tenantId as string`.
 As actions de plataforma usam `createSafeAction({ plataforma: true, … })` — correm sem contexto de
-tenant e o `gate-leitura` reconhece-as. As escritas de plataforma ficam no trilho global `AuditoriaPlataforma`,
+tenant e o `gate-leitura` reconhece-as. Uma sessão **com** `tenantId` nunca tem `plataformaAdmin`, mesmo que a
+identidade tenha o papel (#549, adenda ao ADR-0049 §5): o `auth.ts` descarta-o na emissão, na renovação e no
+callback `session`, e `criarAccaoPlataforma`/`exigirPlataformaAdmin` recusam com 404 se houver tenant. Quem precisa
+das duas coisas usa uma segunda identidade (sub-endereçamento, ADR-0011 §5). As escritas de plataforma ficam no trilho global `AuditoriaPlataforma`,
 **não** no `AuditLog` do tenant (que exige `tenantId`): quem escreve uma acção de plataforma nova grava lá à mão.
+
+**Identidade preexistente nunca se reaproveita (#549)** — `garantirUtilizador` devolve `criado: false` quando o
+e-mail já tem identidade no realm (incluindo a do administrador de plataforma, que não tem `User` local, e as órfãs).
+Quem recebe `criado: false` **recusa** com `EMAIL_JA_REGISTADO` antes de escrever o que quer que seja: nada de
+`definirPalavraPasse`, e-mail de acções ou `User` a apontar para esse `sub`. «Não há `User` local com o e-mail» **não**
+é prova de posse — foi assim que o registo público escrevia a palavra-passe de um anónimo na conta do administrador.
+O `provisionarTenant` recebe o `keycloakSub` de quem o chama, e a compensação que apaga uma identidade criada a
+meio verifica antes que nenhum `User` a referencia. Consequência aceite: uma órfã bloqueia o e-mail (#581).
 
 **Notificações fora do `notificacao.service.criar()`** — quem escreve notificações dentro de uma
 `$transaction` não pode fazer I/O externo lá dentro: persiste com `createManyAndReturn`, guarda os
