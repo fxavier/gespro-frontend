@@ -13,7 +13,6 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 vi.mock('@/server/services/financas/contabilidade.service', () => ({
   registarLancamentoContabilistico: vi.fn().mockResolvedValue({ id: 'lan-001' }),
   estornarLancamentoEmTx: vi.fn().mockResolvedValue({ id: 'lan-estorno-001' }),
-  obterLancamento: vi.fn().mockResolvedValue({ id: 'lan-001', status: 'LANCADO' }),
 }));
 vi.mock('@/server/services/financas/caixa.service', () => ({
   registarMovimentoCaixa: vi.fn().mockResolvedValue({ id: 'mov-001' }),
@@ -27,6 +26,7 @@ vi.mock('@/server/services/financas/meio-pagamento.service', () => ({
 const txMock = vi.hoisted(() => ({
   // #555: a tranca FOR UPDATE da folha
   $queryRaw: vi.fn().mockResolvedValue([]),
+  lancamento: { findFirst: vi.fn() },
   folhaPagamento: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn() },
   payroll: {
     findFirst: vi.fn(),
@@ -72,7 +72,6 @@ import { transitar } from '../rh.service';
 import {
   registarLancamentoContabilistico,
   estornarLancamentoEmTx,
-  obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
 import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
@@ -101,6 +100,8 @@ beforeEach(() => {
   txMock.beneficioColaborador.findMany.mockResolvedValue([]);
   txMock.beneficioColaborador.groupBy.mockResolvedValue([]);
   txMock.beneficio.findMany.mockResolvedValue([]);
+  // o lançamento da massa salarial, lido na tx pelo cancelar (#555)
+  txMock.lancamento.findFirst.mockResolvedValue({ status: 'LANCADO' });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -606,6 +607,10 @@ describe('PayrollService.cancelar', () => {
     txMock.folhaPagamento.update.mockResolvedValue({});
 
     await PayrollService.cancelar('f1', 'valores errados', ctx);
+    // #555: o estado do lançamento lê-se na tx, scoped ao tenant
+    expect(txMock.lancamento.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'lan-001', tenantId: ctx.tenantId } }),
+    );
     // #555: o estorno corre na mesma transacção dos estados
     expect(estornarLancamentoEmTx).toHaveBeenCalledWith(
       txMock,
@@ -620,7 +625,7 @@ describe('PayrollService.cancelar', () => {
       status: 'PROCESSADO',
       lancamentoId: 'lan-001',
     });
-    vi.mocked(obterLancamento).mockResolvedValueOnce({ id: 'lan-001', status: 'ESTORNADO' } as never);
+    txMock.lancamento.findFirst.mockResolvedValueOnce({ status: 'ESTORNADO' });
     txMock.payroll.updateMany.mockResolvedValue({ count: 3 });
     txMock.folhaPagamento.update.mockResolvedValue({});
 

@@ -21,7 +21,6 @@ import type { Ctx } from '@/server/services/types';
 import {
   registarLancamentoContabilistico,
   estornarLancamentoEmTx,
-  obterLancamento,
 } from '@/server/services/financas/contabilidade.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
 import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
@@ -1036,7 +1035,11 @@ export const PayrollService = {
       transitar(TRANSICOES_PAYROLL, folha.status, 'CANCELADO');
 
       if (folha.status === 'PROCESSADO' && folha.lancamentoId) {
-        const lancamento = await obterLancamento(folha.lancamentoId, ctx);
+        // Lido na tx: uma 2.ª ligação ao pool com a folha trancada pode esgotá-lo (P2024)
+        const lancamento = await tx.lancamento.findFirst({
+          where: { id: folha.lancamentoId, tenantId: ctx.tenantId },
+          select: { status: true },
+        });
         if (lancamento && lancamento.status !== 'ESTORNADO') {
           await estornarLancamentoEmTx(
             tx,
