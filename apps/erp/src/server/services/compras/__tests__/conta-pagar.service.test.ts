@@ -3,6 +3,7 @@
  * Mock completo do Prisma para testar lógica de negócio sem BD.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Prisma } from '@prisma/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { calcularDiasAtraso, bucketAging } from '../conta-pagar.service';
 import {
@@ -424,6 +425,8 @@ describe('registarPagamento() — conta VENCIDA', () => {
     expect(data.status).toBe('VENCIDA');
     expect(String(data.valorPago)).toBe('200');
     expect(String(data.valorRestante)).toBe('300');
+    expect(Prisma.Decimal.isDecimal(data.valorPago)).toBe(true);
+    expect(Prisma.Decimal.isDecimal(data.valorRestante)).toBe(true);
   });
 
   it('liquidação total de uma VENCIDA passa a PAGA', async () => {
