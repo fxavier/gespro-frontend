@@ -50,7 +50,7 @@ jobs:
       CI: 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Postgres + Keycloak (perfil por omissão do compose) sobem JÁ, em
       # paralelo com o install; a espera vem antes das migrations.
