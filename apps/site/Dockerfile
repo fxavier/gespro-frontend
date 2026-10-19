@@ -7,7 +7,7 @@
 #   docker build -f apps/site/Dockerfile -t gespro-site .
 
 # ─── deps: instala o workspace inteiro a partir dos manifestos ────────────────
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
@@ -18,7 +18,7 @@ COPY packages/eslint-config/package.json packages/eslint-config/
 RUN pnpm install --frozen-lockfile --filter site...
 
 # ─── build: gera o output standalone do site ─────────────────────────────────
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 RUN corepack enable
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -36,7 +36,7 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
 RUN pnpm --filter site build
 
 # ─── runner: imagem mínima não-root ──────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
