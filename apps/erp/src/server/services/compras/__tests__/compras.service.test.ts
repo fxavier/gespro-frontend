@@ -454,6 +454,8 @@ describe('registarRecebimento() — RECEBIDO_TOTAL cria ContaPagar com bloco fis
       },
       contaPagar: {
         create: vi.fn().mockResolvedValue(contaCriadaMock ?? contaPagarCriada),
+        // #566: a recepção grava o lancamentoId do reconhecimento na conta criada.
+        update: vi.fn().mockResolvedValue({}),
       },
       // #116: a recepção grava o nome do responsável lido do `User` (ctx.userId).
       user: { findFirst: vi.fn().mockResolvedValue({ nome: 'Utilizador Teste' }) },
