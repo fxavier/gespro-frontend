@@ -4,7 +4,7 @@
 # Todos os jobs têm de ser verdes para que o merge seja permitido (branch protection).
 #
 # Branch protection requerida (configurar em Settings → Branches → main):
-#   Required status checks: lint-type, gates, test, integration, e2e, a11y, site, build
+#   Required status checks: lint-type, gates, sca, test, integration, e2e, a11y, site, build
 #   Require branches to be up to date before merging: ✓
 #   Restrict who can push to matching branches: maintainers
 #
@@ -108,6 +108,38 @@ jobs:
 
       - name: Run all architecture gates
         run: pnpm gates
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2b. SCA — AUDITORIA DE DEPENDÊNCIAS (#553)
+  #    `pnpm audit` lê o pnpm-lock.yaml; não precisa de install nem de DB.
+  #    Bloqueia o merge com qualquer vulnerabilidade CRÍTICA em dependências
+  #    de produção. Altas e moderadas ficam ao cuidado do Dependabot.
+  #
+  #    Excepção (crítico transitivo sem versão corrigida que possamos puxar):
+  #    acrescentar o GHSA a `pnpm.auditConfig.ignoreGhsas` no package.json da
+  #    raiz, no mesmo PR que regista a justificação (porque não nos afecta ou
+  #    porque não há correcção) e o prazo de revisão. Retira-se a entrada logo
+  #    que haja versão corrigida. Nunca se baixa o --audit-level para passar.
+  # ────────────────────────────────────────────────────────────────────────────
+  sca:
+    name: SCA (pnpm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          # Sem cache: este job não faz install.
+
+      - name: Audit production dependencies (critical)
+        run: pnpm audit --prod --audit-level=critical
 
   # ────────────────────────────────────────────────────────────────────────────
   # 3. TESTES UNITÁRIOS + COBERTURA

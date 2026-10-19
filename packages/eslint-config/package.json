@@ -6,7 +6,7 @@
   "main": "index.js",
   "files": ["index.js"],
   "dependencies": {
-    "eslint-config-next": "16.0.10"
+    "eslint-config-next": "16.3.8"
   },
   "peerDependencies": {
     "eslint": "^9"
