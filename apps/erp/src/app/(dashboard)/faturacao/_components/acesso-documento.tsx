@@ -14,6 +14,8 @@ export const PERM = {
   faturaGerir: 'faturacao:fatura:gerir',
   ncLiquidar: 'faturacao:nc:liquidar',
   ncCancelar: 'faturacao:nc:cancelar',
+  ndLiquidar: 'faturacao:nd:liquidar',
+  ndCancelar: 'faturacao:nd:cancelar',
   proformaCancelar: 'faturacao:proforma:cancelar',
   cotacaoGerir: 'faturacao:cotacao:gerir',
   caixaOperar: 'caixa:operar',

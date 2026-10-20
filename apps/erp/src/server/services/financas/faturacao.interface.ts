@@ -13,6 +13,7 @@ import type {
   FiltroNotaCreditoInput,
   EmitirNotaDebitoInput,
   FiltroNotaDebitoInput,
+  LiquidarNotaDebitoInput,
   CriarProformaInput,
   FiltroProformaInput,
   CriarCotacaoComercialInput,
@@ -675,7 +676,16 @@ export interface IFaturacaoService {
     filtro: FiltroNotaDebitoInput,
     ctx: Ctx,
   ): Promise<PaginacaoFaturacao<NotaDebitoCompleta>>;
-  liquidarNotaDebito(id: string, ctx: Ctx): Promise<NotaDebito>;
+  /**
+   * #565 — recebimento do total da ND: D conta do meio / C 411, origem PAGAMENTO,
+   * `documentoOrigemTipo 'NotaDebito'`; em numerário também RECEBIMENTO na caixa.
+   * Recusa: MEIO_PAGAMENTO_SEM_PERMISSAO, PAGAMENTO_DATA_ANTERIOR_EMISSAO, transição inválida.
+   */
+  liquidarNotaDebito(
+    input: LiquidarNotaDebitoInput,
+    ctx: Ctx & { permissions?: ReadonlySet<string> },
+  ): Promise<NotaDebito>;
+  /** ADR-0039 §3 — cancela (só EMITIDA) e estorna o lançamento; recusa ND_PERIODO_IVA_APURADO. */
   cancelarNotaDebito(id: string, motivo: string, ctx: Ctx): Promise<NotaDebito>;
 
   // --- Proformas ---
