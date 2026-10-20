@@ -22,6 +22,7 @@ import { exigirClienteParaCredito } from '@/lib/cliente-credito';
 import type { Ctx } from '@/server/services/types';
 import type { IStockService } from '@/server/services/inventario/stock.interface';
 import type { ICaixaService, IFaturacaoService, RegistarMovimentoCaixaInput } from '@/server/services/financas';
+import { exigirEmailConfirmadoParaEmitir } from '@/server/services/financas';
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
 import { linhaDocumentoFiscal } from './venda.service';
 import { ESTADOS_ENCOMENDA_CONVERTIVEIS, TRANSICOES_ENCOMENDA } from '@/lib/state-machines';
@@ -500,7 +501,9 @@ export class EncomendaService {
     ctx: Ctx,
     opts?: { sessaoCaixaId?: string; localizacaoId?: string },
   ): Promise<{ vendaId: string; encomendaNumero: string }> {
-    // Núcleo em tx: o travão `exigirEmailConfirmadoParaEmitir` fica com a action (chamador com sessão).
+    // Emitir um documento fiscal exige e-mail confirmado — travão do chamador com sessão, fora da tx.
+    await exigirEmailConfirmadoParaEmitir();
+
     return prismaBase.$transaction(async (tx) => {
       const lida = await tx.encomenda.findFirst({
         where: { id: encomendaId, tenantId: ctx.tenantId, deletedAt: null },

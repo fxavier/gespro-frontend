@@ -9,18 +9,24 @@
  *   2. Converter pago por inteiro (meio que não é CREDITO) emite Factura-Recibo, PAGA.
  *   3. Pagamentos cuja soma não dá o total → `PAGAMENTOS_NAO_BATEM_TOTAL`, e nada é escrito:
  *      a encomenda continua CONFIRMADA com as reservas ATIVAS, sem venda nem factura.
+ *   4. E-mail por confirmar → `EMAIL_POR_CONFIRMAR_EMISSAO`, e nada é escrito.
+ *   5. A crédito contra o Consumidor Final → `CLIENTE_OBRIGATORIO_CREDITO`, e nada é escrito.
+ *
+ * `auth()` é fronteira: duplo mutável (vi.hoisted), e-mail confirmado por omissão.
  *
  * Requer: Docker em execução + @testcontainers/postgresql
  * Degrada graciosamente: SKIP_INTEGRATION=true → saltado.
  */
 
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 
 const skip = process.env.SKIP_INTEGRATION === 'true' || !process.env.INTEGRATION_DB_URL;
 
-vi.mock('@/lib/auth', () => ({
-  auth: vi.fn(async () => ({ user: { emailVerificado: true } })),
+const h = vi.hoisted(() => ({
+  sessao: { user: { emailVerificado: true } } as unknown,
 }));
+
+vi.mock('@/lib/auth', () => ({ auth: async () => h.sessao }));
 
 const QTD = 2;
 
@@ -52,9 +58,9 @@ describe.skipIf(skip)('encomenda: converter em venda emite o documento fiscal (#
   }
 
   /** Encomenda CONFIRMADA pelo caminho real: QTD × 1000, IVA 16% → total 2320,00. */
-  async function encomendaConfirmada() {
+  async function encomendaConfirmada(cli = clienteId) {
     const input = CreateEncomendaSchema.parse({
-      clienteId,
+      clienteId: cli,
       itens: [{ produtoId, nomeProduto: 'Artigo', quantidade: QTD, precoUnitario: 1000, desconto: 0, taxaIva: 0.16 }],
     });
     const row: any = await runCtx(ctx, () => encomendaService.criar(input, ctx));
@@ -207,5 +213,49 @@ describe.skipIf(skip)('encomenda: converter em venda emite o documento fiscal (#
     expect(await db.venda.count({ where: { tenantId: TENANT } })).toBe(vendasAntes);
     expect(await db.fatura.count({ where: { tenantId: TENANT } })).toBe(faturasAntes);
     expect(await db.lancamento.count({ where: { tenantId: TENANT } })).toBe(lancsAntes);
+  });
+
+  async function contagens() {
+    return {
+      vendas: await db.venda.count({ where: { tenantId: TENANT } }),
+      faturas: await db.fatura.count({ where: { tenantId: TENANT } }),
+      lancamentos: await db.lancamento.count({ where: { tenantId: TENANT } }),
+    };
+  }
+
+  async function esperarNadaEscrito(encId: string, antes: Awaited<ReturnType<typeof contagens>>) {
+    const depois = await db.encomenda.findFirst({ where: { id: encId, tenantId: TENANT } });
+    expect(depois.status).toBe('CONFIRMADA');
+    expect(depois.vendaId).toBeNull();
+    const reservas = await db.reservaStock.findMany({ where: { tenantId: TENANT, documentoReferenciaId: encId } });
+    expect(reservas.map((x: any) => x.status)).toEqual(['ATIVA']);
+    expect(await contagens()).toEqual(antes);
+  }
+
+  afterEach(() => {
+    h.sessao = { user: { emailVerificado: true } };
+  });
+
+  it('4: e-mail por confirmar → EMAIL_POR_CONFIRMAR_EMISSAO e nada é escrito', async () => {
+    const enc = await encomendaConfirmada();
+    const antes = await contagens();
+    h.sessao = { user: { emailVerificado: false } };
+
+    const erro = await capturarErro(() => converter(enc.id, [{ tipo: 'CREDITO', valor: 2320 }]));
+    expect(erro).toMatchObject({ code: 'EMAIL_POR_CONFIRMAR_EMISSAO' });
+
+    await esperarNadaEscrito(enc.id, antes);
+  });
+
+  it('5: a crédito contra o Consumidor Final → CLIENTE_OBRIGATORIO_CREDITO e nada é escrito', async () => {
+    const cf = await db.cliente.findFirst({ where: { tenantId: TENANT, codigo: 'CF-000000' } });
+    expect(cf, 'fixture: Consumidor Final do bootstrap').toBeTruthy();
+    const enc = await encomendaConfirmada(cf.id);
+    const antes = await contagens();
+
+    const erro = await capturarErro(() => converter(enc.id, [{ tipo: 'CREDITO', valor: 2320 }]));
+    expect(erro).toMatchObject({ name: 'BusinessRuleError', code: 'CLIENTE_OBRIGATORIO_CREDITO' });
+
+    await esperarNadaEscrito(enc.id, antes);
   });
 });

@@ -42,6 +42,15 @@ vi.mock('@/lib/auth', () => ({
   auth: vi.fn(async () => ({ user: { emailVerificado: true } })),
 }));
 
+// O travão do e-mail (#563) faz `await import('@/lib/auth')`. No vitest 4.1.10, dois `import()`
+// concorrentes de um módulo com `vi.mock` devolvem o mock ao primeiro e o módulo REAL ao segundo
+// (o next-auth real não carrega aqui: ERR_MODULE_NOT_FOUND) — o 2d corre duas conversões ao mesmo
+// tempo. O travão não é o que este ficheiro prova (o 563 prova-o); dobra-se com e-mail confirmado.
+vi.mock('@/server/services/financas', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/server/services/financas')>()),
+  exigirEmailConfirmadoParaEmitir: async () => {},
+}));
+
 const RONDAS = 5;
 const QTD = 2;
 
@@ -192,14 +201,23 @@ describe.skipIf(skip)('encomenda: confirmar / converter / cancelar com compare-a
     return db.venda.count({ where: { tenantId, origem: 'ENCOMENDA' } });
   }
 
+  // #563: a conversão emite uma factura; o lançamento é o da emissão (origem 'Fatura').
+  async function faturasDeVendas(tenantId = TENANT) {
+    const vendas = await db.venda.findMany({ where: { tenantId, origem: 'ENCOMENDA' }, select: { id: true } });
+    if (vendas.length === 0) return 0;
+    return db.fatura.count({ where: { tenantId, vendaId: { in: vendas.map((v: any) => v.id) } } });
+  }
+
   async function lancamentosDeVendas(tenantId = TENANT) {
-    // #563: o lançamento da conversão é o da emissão da factura (Fatura.lancamentoId).
-    const vendas = await db.venda.findMany({ where: { tenantId, origem: 'ENCOMENDA' }, select: { faturaId: true } });
-    const faturaIds = vendas.map((v: any) => v.faturaId).filter(Boolean);
-    if (faturaIds.length === 0) return 0;
-    const faturas = await db.fatura.findMany({ where: { tenantId, id: { in: faturaIds } }, select: { lancamentoId: true } });
+    const vendas = await db.venda.findMany({ where: { tenantId, origem: 'ENCOMENDA' }, select: { id: true } });
+    if (vendas.length === 0) return 0;
+    const faturas = await db.fatura.findMany({
+      where: { tenantId, vendaId: { in: vendas.map((v: any) => v.id) } },
+      select: { id: true },
+    });
+    if (faturas.length === 0) return 0;
     return db.lancamento.count({
-      where: { tenantId, id: { in: faturas.map((f: any) => f.lancamentoId).filter(Boolean) } },
+      where: { tenantId, documentoOrigemTipo: 'Fatura', documentoOrigemId: { in: faturas.map((f: any) => f.id) } },
     });
   }
 
@@ -436,6 +454,7 @@ describe.skipIf(skip)('encomenda: confirmar / converter / cancelar com compare-a
         const enc = await encomendaConfirmada();
         const antes = await saldo();
         const vendasAntes = await vendasDaOrigemEncomenda();
+        const faturasAntes = await faturasDeVendas();
         const lancsAntes = await lancamentosDeVendas();
 
         const resultados = await Promise.allSettled([converter(enc.id), converter(enc.id)]);
@@ -443,6 +462,7 @@ describe.skipIf(skip)('encomenda: confirmar / converter / cancelar com compare-a
         const rejeitados = resultados.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
 
         expect(await vendasDaOrigemEncomenda(), `ronda ${ronda}: vendas criadas`).toBe(vendasAntes + 1);
+        expect(await faturasDeVendas(), `ronda ${ronda}: facturas emitidas`).toBe(faturasAntes + 1);
         expect(await lancamentosDeVendas(), `ronda ${ronda}: lançamentos criados`).toBe(lancsAntes + 1);
         expect(cumpridos, `ronda ${ronda}: pedidos que passaram`).toHaveLength(1);
         expect(rejeitados, `ronda ${ronda}: pedidos recusados`).toHaveLength(1);
