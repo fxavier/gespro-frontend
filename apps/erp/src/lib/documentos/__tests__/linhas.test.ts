@@ -8,11 +8,19 @@
  */
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
+import { Prisma } from '@prisma/client';
 import { calcularLinha, calcularTotais, type LinhaCalculo } from '@/lib/documentos/linhas';
 import { TAXAS_IVA } from '@/lib/iva';
 import { LinhaDocumentoSchema } from '@/lib/validations/faturacao';
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
+/** Oráculo independente (#570): q·p − d exacto em Decimal, a 2 casas, meio para cima. */
+const baseDecimal = (l: LinhaCalculo) =>
+  new Prisma.Decimal(String(l.quantidade))
+    .mul(String(l.precoUnitario))
+    .minus(String(l.desconto))
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+    .toNumber();
 const NUM_RUNS = 1000;
 
 /** quantidade e preço com 2 casas; desconto com 2 casas e ≤ q·p. */
@@ -54,11 +62,11 @@ describe('calcularLinha — propriedades', () => {
     );
   });
 
-  it('base = round2(q·p − d) e total = base + iva (a 2 casas)', () => {
+  it('base = q·p − d em Decimal (meio para cima) e total = base + iva (a 2 casas)', () => {
     fc.assert(
       fc.property(linhaArb, (l) => {
         const r = calcularLinha(l);
-        expect(r.base).toBe(round2(l.quantidade * l.precoUnitario - l.desconto));
+        expect(r.base).toBe(baseDecimal(l));
         expect(Math.abs(r.total - (r.base + r.iva))).toBeLessThan(0.005);
       }),
       { numRuns: NUM_RUNS },

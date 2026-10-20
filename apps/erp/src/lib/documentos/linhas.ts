@@ -1,4 +1,6 @@
+import { Prisma } from '@prisma/client';
 import type { TaxaIva } from '@/lib/iva';
+import { arredondarLinha } from '@/lib/vendas-totais';
 
 export interface LinhaCalculo {
   quantidade: number;
@@ -6,8 +8,6 @@ export interface LinhaCalculo {
   desconto: number;
   taxaIva: TaxaIva;
 }
-
-const round2 = (x: number) => Math.round(x * 100) / 100;
 
 /**
  * Calcula os valores de uma linha de documento.
@@ -20,10 +20,11 @@ const round2 = (x: number) => Math.round(x * 100) / 100;
  * LinhaDocumentoSchema em validations/faturacao.ts (mostrado = gravado).
  */
 export function calcularLinha(l: LinhaCalculo): { base: number; iva: number; total: number } {
-  const base = round2(l.quantidade * l.precoUnitario - l.desconto);
-  const iva = round2(base * l.taxaIva);
-  const total = round2(base + iva);
-  return { base, iva, total };
+  const r = arredondarLinha(
+    new Prisma.Decimal(String(l.quantidade)).mul(String(l.precoUnitario)).minus(String(l.desconto)),
+    l.taxaIva,
+  );
+  return { base: r.subtotal.toNumber(), iva: r.ivaItem.toNumber(), total: r.total.toNumber() };
 }
 
 /**
