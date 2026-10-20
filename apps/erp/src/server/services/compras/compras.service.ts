@@ -1380,7 +1380,7 @@ export const comprasService: IComprasService = {
           },
           ctx,
         );
-        await tx.contaPagar.update({ where: { id: contaCriada.id }, data: { lancamentoId } });
+        await tx.contaPagar.update({ where: { id: contaCriada.id, tenantId: ctx.tenantId }, data: { lancamentoId } });
       }
 
       return toRecebimentoDto(recebimento);

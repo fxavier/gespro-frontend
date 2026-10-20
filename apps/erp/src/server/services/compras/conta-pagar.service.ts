@@ -87,6 +87,7 @@ function toContaPagarDetalhe(c: any): ContaPagarDetalhe {
     centroCustoId: c.centroCustoId ?? null,
     contaContabilId: c.contaContabilId ?? null,
     observacoes: c.observacoes ?? null,
+    motivoCancelamento: c.motivoCancelamento ?? null,
     pagamentos: (c.pagamentos ?? []).map(toPagamentoDto),
   };
 }
@@ -284,7 +285,7 @@ export const contaPagarService: IContaPagarService = {
         },
         ctx,
       );
-      await tx.contaPagar.update({ where: { id: contaCriada.id }, data: { lancamentoId } });
+      await tx.contaPagar.update({ where: { id: contaCriada.id, tenantId: ctx.tenantId }, data: { lancamentoId } });
 
       return contaCriada;
     });
@@ -346,15 +347,22 @@ export const contaPagarService: IContaPagarService = {
       transitarContaPagar(conta.status as StatusContaPagar, 'CANCELADA');
       // #566: o cancelamento estorna o reconhecimento (D gasto [+ D 4432x] / C 421).
       // Conta histórica sem `lancamentoId` (nenhum reconhecimento achado pela migração):
-      // não há nada no razão para desfazer, cancela sem estorno.
-      if (conta.lancamentoId) {
+      // não há nada no razão para desfazer, cancela sem estorno. Idem se o reconhecimento
+      // já foi estornado à mão — estornar de novo daria TRANSICAO_INVALIDA.
+      const reconhecimento = conta.lancamentoId
+        ? await tx.lancamento.findFirst({
+            where: { id: conta.lancamentoId, tenantId: ctx.tenantId },
+            select: { status: true },
+          })
+        : null;
+      if (conta.lancamentoId && reconhecimento?.status !== 'ESTORNADO') {
         await estornarLancamentoEmTx(
           rawTx as unknown as Prisma.TransactionClient,
           { lancamentoId: conta.lancamentoId, motivo: `Cancelamento ${conta.numero}: ${motivo}`.slice(0, 500) },
           ctx,
         );
       }
-      await tx.contaPagar.update({ where: { id }, data: { status: 'CANCELADA', motivoCancelamento: motivo } });
+      await tx.contaPagar.update({ where: { id, tenantId: ctx.tenantId }, data: { status: 'CANCELADA', motivoCancelamento: motivo } });
     });
   },
 

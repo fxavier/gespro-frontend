@@ -228,4 +228,21 @@ describe.skipIf(skip)('#566 — cancelar conta a pagar estorna o reconhecimento'
     const cp = await db.contaPagar.findFirst({ where: { id: conta.id, tenantId: TENANT } });
     expect(cp.motivoCancelamento).toBe('Duplicada da FRN-1');
   }, 60_000);
+
+  it('(e) reconhecimento já estornado à mão: cancelar passa sem segundo estorno e a soma fica a zero', async () => {
+    const { estornarLancamento } = await import('@/server/services/financas/contabilidade.service');
+    const conta = await criarConta1160();
+    const cp0 = await db.contaPagar.findFirst({ where: { id: conta.id, tenantId: TENANT } });
+    await runCtx(CTX, () => estornarLancamento({ lancamentoId: cp0.lancamentoId, motivo: 'Estorno manual' }, CTX));
+
+    await runCtx(CTX, () => svc.cancelar(conta.id, 'Já estornada', CTX));
+
+    const cp = await db.contaPagar.findFirst({ where: { id: conta.id, tenantId: TENANT } });
+    expect(cp.status).toBe('CANCELADA');
+    expect(await db.lancamento.count({ where: { tenantId: TENANT, lancamentoEstornoId: cp0.lancamentoId } })).toBe(1);
+    const soma = await somaPorConta(conta.id);
+    expect(soma['421'], '421').toBeCloseTo(0, 2);
+    expect(soma['44323'], '44323').toBeCloseTo(0, 2);
+    expect(soma[contaGasto.codigo], 'gasto').toBeCloseTo(0, 2);
+  }, 60_000);
 });

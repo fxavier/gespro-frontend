@@ -151,6 +151,9 @@ export default async function ContaPagarDetalhePage({ params }: Props) {
       value: <span className="font-semibold tabular-nums">{formatMZN(conta.valorRestante)}</span>,
     },
     conta.observacoes ? { label: 'Observações', value: conta.observacoes } : null,
+    conta.status === 'CANCELADA' && conta.motivoCancelamento
+      ? { label: 'Motivo do cancelamento', value: conta.motivoCancelamento }
+      : null,
   ].filter(Boolean) as Array<{ label: string; value: React.ReactNode }>;
 
   return (
@@ -176,12 +179,15 @@ export default async function ContaPagarDetalhePage({ params }: Props) {
                 </Button>
                 {emAberto && (
                   <>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/fornecedores/contas-pagar/${conta.id}/cancelar`}>
-                        <Ban className="mr-1.5 h-4 w-4" />
-                        Cancelar conta
-                      </Link>
-                    </Button>
+                    {/* #566: só se cancela uma conta sem nada pago. */}
+                    {conta.valorPago === 0 && (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/fornecedores/contas-pagar/${conta.id}/cancelar`}>
+                          <Ban className="mr-1.5 h-4 w-4" />
+                          Cancelar conta
+                        </Link>
+                      </Button>
+                    )}
                     <Button size="sm" asChild>
                       <Link href={`/fornecedores/contas-pagar/${conta.id}/pagar`}>
                         <Wallet className="mr-1.5 h-4 w-4" />
