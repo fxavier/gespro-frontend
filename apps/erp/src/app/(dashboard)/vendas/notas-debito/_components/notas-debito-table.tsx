@@ -6,6 +6,8 @@
 
 import { DataTable, StatusBadge } from '@/components/patterns';
 import type { TableColumn } from '@/components/patterns';
+import { formatarData } from '@/lib/format-date';
+import { formatMZN } from '@/lib/format-currency';
 
 export interface NotaDebitoRow {
   id: string;
@@ -48,7 +50,7 @@ const columns: TableColumn<NotaDebitoRow>[] = [
     mobileHidden: true,
     render: (row) => (
       <span className="text-sm tabular-nums text-muted-foreground">
-        {new Date(row.dataEmissao).toLocaleDateString('pt-MZ')}
+        {formatarData(row.dataEmissao)}
       </span>
     ),
   },
@@ -57,7 +59,7 @@ const columns: TableColumn<NotaDebitoRow>[] = [
     label: 'Total',
     render: (row) => (
       <span className="font-medium tabular-nums">
-        MT {parseFloat(row.total).toLocaleString('pt-MZ', { minimumFractionDigits: 2 })}
+        {formatMZN(row.total)}
       </span>
     ),
   },
@@ -79,6 +81,7 @@ export function NotasDebitoTable({ data, nextCursor }: NotasDebitoTableProps) {
       data={data}
       columns={columns}
       nextCursor={nextCursor}
+      rowHref={(row) => `/vendas/notas-debito/${row.id}`}
     />
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Cancelar um documento de faturação — NC, proforma ou cotação (#148).
+ * Cancelar um documento de faturação — NC, ND (#565), proforma ou cotação (#148).
  *
  * Recolhe o motivo, por isso é rota e não modal. O schema é o MESMO da action
  * (`CancelarDocumentoSchema`: motivo de 3 a 500 caracteres); o motivo vai para
@@ -34,19 +34,22 @@ import { CancelarDocumentoSchema, type CancelarDocumentoInput } from '@/lib/vali
 import {
   cancelarCotacaoComercial,
   cancelarNotaCredito,
+  cancelarNotaDebito,
   cancelarProforma,
 } from '@/server/actions/faturacao.actions';
 
-export type TipoDocumentoCancelavel = 'nota-credito' | 'proforma' | 'cotacao';
+export type TipoDocumentoCancelavel = 'nota-credito' | 'nota-debito' | 'proforma' | 'cotacao';
 
 const ACCAO = {
   'nota-credito': cancelarNotaCredito,
+  'nota-debito': cancelarNotaDebito,
   proforma: cancelarProforma,
   cotacao: cancelarCotacaoComercial,
 } as const;
 
 const NOME: Record<TipoDocumentoCancelavel, string> = {
   'nota-credito': 'nota de crédito',
+  'nota-debito': 'nota de débito',
   proforma: 'proforma',
   cotacao: 'cotação',
 };
