@@ -9,7 +9,6 @@
  *      faturacaoService (injectado): proximoNumeroSerie, emitirDocumentoEmTx (conta a débito por meio, ADR-0041 §4),
  *        emitirNotaCreditoEmTx, liquidarNotaCreditoEmTx, devolverNotaCreditoPelosMeiosOriginaisEmTx
  *        — núcleos que correm na tx do chamador (ADR-0041)
- *      contabilidadeService: registarLancamentoContabilistico (encomendas)
  *      importados directamente: proximoNumeroSerie (devolução, encomenda), exigirEmailConfirmadoParaEmitir,
  *        exigirPeriodoAbertoEm, exigirSessaoCaixaAbertaDoUtilizador (travões do chamador com sessão, fora da tx)
  */
@@ -18,7 +17,6 @@ import 'server-only';
 import { stockService } from '@/server/services/inventario/stock.service';
 import { caixaService } from '@/server/services/financas/caixa.service';
 import { faturacaoService } from '@/server/services/financas/faturacao.service';
-import { contabilidadeService } from '@/server/services/financas/contabilidade.service';
 import { VendaService, SessaoPOSService } from './venda.service';
 import { ComissaoService } from './comissao.service';
 import { EncomendaService } from './encomenda.service';
@@ -41,11 +39,11 @@ export const vendaService = new VendaService(
 export const sessaoPOSService = new SessaoPOSService();
 
 // WS-10: Encomendas, Devoluções, Trocas
-// EncomendaService agora recebe caixaService + contabilidadeService (BLOCKER 1)
+// EncomendaService: documento fiscal da conversão pelo núcleo em tx, como o POS (ADR-0041, #563)
 export const encomendaService = new EncomendaService(
   stockService,
   caixaService,
-  contabilidadeService,
+  faturacaoService,
 );
 
 export const devolucaoService = new DevolucaoService(

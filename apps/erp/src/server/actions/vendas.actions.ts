@@ -12,6 +12,7 @@ import {
   trocaService,
   vendedorService,
 } from '@/server/services/comercial/index';
+import { exigirEmailConfirmadoParaEmitir } from '@/server/services/financas';
 import { listarProdutos } from '@/server/services/inventario/catalogo.service';
 import {
   CreateVendaSchema,
@@ -326,7 +327,7 @@ export const confirmarEncomenda = createSafeAction({
 
 /**
  * Converter a partir do detalhe (#129): um pagamento a CRÉDITO pelo total da encomenda, sem
- * sessão de caixa — bate com o D 411 que o serviço lança sempre. O total lê-se no servidor.
+ * sessão de caixa — o serviço emite uma Factura (D 411, #563). O total lê-se no servidor.
  */
 export const converterEncomendaEmVendaACredito = createSafeAction({
   schema: z.object({ encomendaId: z.string().cuid('ID de encomenda inválido') }),
@@ -336,6 +337,8 @@ export const converterEncomendaEmVendaACredito = createSafeAction({
     tags: ['encomendas', 'vendas'],
   },
   handler: async ({ encomendaId }, ctx) => {
+    // Converter emite um documento fiscal (#563): travão do chamador com sessão, antes da tx.
+    await exigirEmailConfirmadoParaEmitir();
     const encomenda = await encomendaService.obter(encomendaId, ctx);
     return encomendaService.converterEmVenda(
       encomendaId,
@@ -353,6 +356,7 @@ export const converterEncomendaEmVenda = createSafeAction({
     tags: ['encomendas', 'vendas'],
   },
   handler: async ({ encomendaId, pagamentos, sessaoCaixaId, localizacaoId }, ctx) => {
+    await exigirEmailConfirmadoParaEmitir();
     return encomendaService.converterEmVenda(
       encomendaId,
       pagamentos,

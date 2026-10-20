@@ -193,10 +193,13 @@ describe.skipIf(skip)('encomenda: confirmar / converter / cancelar com compare-a
   }
 
   async function lancamentosDeVendas(tenantId = TENANT) {
-    const vendas = await db.venda.findMany({ where: { tenantId, origem: 'ENCOMENDA' }, select: { id: true } });
-    if (vendas.length === 0) return 0;
+    // #563: o lançamento da conversão é o da emissão da factura (Fatura.lancamentoId).
+    const vendas = await db.venda.findMany({ where: { tenantId, origem: 'ENCOMENDA' }, select: { faturaId: true } });
+    const faturaIds = vendas.map((v: any) => v.faturaId).filter(Boolean);
+    if (faturaIds.length === 0) return 0;
+    const faturas = await db.fatura.findMany({ where: { tenantId, id: { in: faturaIds } }, select: { lancamentoId: true } });
     return db.lancamento.count({
-      where: { tenantId, documentoOrigemId: { in: vendas.map((v: any) => v.id) } },
+      where: { tenantId, id: { in: faturas.map((f: any) => f.lancamentoId).filter(Boolean) } },
     });
   }
 
@@ -383,8 +386,10 @@ describe.skipIf(skip)('encomenda: confirmar / converter / cancelar com compare-a
     expect(Number(antes.saldo) - Number(s.saldo), 'saldo físico desce a quantidade').toBe(QTD);
     expect(Number(antes.reservado) - Number(s.reservado), 'reservado desce a quantidade').toBe(QTD);
 
+    // #563: o lançamento lê-se pela factura emitida (Fatura.lancamentoId), não pela venda.
+    const fatura = await db.fatura.findFirst({ where: { tenantId: TENANT, id: venda.faturaId } });
     const lancs = await db.lancamento.findMany({
-      where: { tenantId: TENANT, documentoOrigemId: r.vendaId },
+      where: { tenantId: TENANT, id: fatura?.lancamentoId ?? '' },
       include: { partidas: true },
     });
     expect(lancs, 'um lançamento pela venda').toHaveLength(1);
