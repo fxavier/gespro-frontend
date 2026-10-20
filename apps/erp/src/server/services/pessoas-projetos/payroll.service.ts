@@ -25,6 +25,7 @@ import {
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
 import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
 import { diaIsoMaputo } from '@/lib/format-date';
+import { inicioDoDiaMaputo } from '@/lib/periodo-fiscal';
 import type { RegistarLancamentoContabilisticoInput } from '@/server/services/financas';
 import {
   calcularPayroll,
@@ -223,6 +224,17 @@ export function montarLancamentoPagamentoFolha(
 // ---------------------------------------------------------------------------
 
 type Tx = Prisma.TransactionClient;
+
+/**
+ * Data do lançamento da massa salarial (#569): meio-dia de Maputo do último dia civil do
+ * mês de referência — a folha pertence ao mês que remunera, não ao dia em que é processada.
+ * Período fechado recusa no `registarLancamentoContabilistico` (`PERIODO_FECHADO`).
+ */
+export function dataLancamentoFolha(ano: number, mes: number): Date {
+  const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  const dia = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+  return new Date(new Date(inicioDoDiaMaputo(dia) as string).getTime() + 12 * 3_600_000);
+}
 
 /** Data de referência do mês (dia 1, UTC) para resolver a vigência. */
 export function dataReferencia(ano: number, mes: number): Date {
@@ -922,7 +934,7 @@ export const PayrollService = {
       const agora = new Date();
       const lancamento = await registarLancamentoContabilistico(
         tx,
-        montarLancamentoFolha(folha, folha, agora),
+        montarLancamentoFolha(folha, folha, dataLancamentoFolha(folha.anoReferencia, folha.mesReferencia)),
         ctx,
       );
 

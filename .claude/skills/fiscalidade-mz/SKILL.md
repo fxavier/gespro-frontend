@@ -63,6 +63,15 @@ Ao processar a folha, gerar o lançamento (diário `SALARIOS`) via
 
 Pagamento (`PAGO`) gera movimento de caixa/banco via `registarMovimentoCaixa`.
 
+**Data do lançamento da massa salarial (#569)**: o lançamento é datado no **último
+dia civil de Maputo do mês de referência** (meio-dia, `dataLancamentoFolha`), nunca
+no dia em que se processa — a folha de Dezembro processada em Janeiro pertence a
+Dezembro (período 12, nunca o 13 do encerramento) e à DRE desse ano. Se esse
+período estiver fechado, o processamento é recusado com `PERIODO_FECHADO` (a recusa
+do `registarLancamentoContabilistico`) e nada muda: reabre-se o período ou não se
+processa. `dataProcessamento` continua a ser o instante real; o pagamento e o
+estorno do cancelamento mantêm as suas datas próprias.
+
 ## Imutabilidade
 
 Após `PROCESSADO`, os valores da folha são append-only; correcção por cancelar +
