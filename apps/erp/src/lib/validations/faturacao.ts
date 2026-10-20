@@ -388,3 +388,18 @@ export const LiquidarNotaCreditoSchema = z
   });
 
 export type LiquidarNotaCreditoInput = z.infer<typeof LiquidarNotaCreditoSchema>;
+
+/**
+ * #565 — liquidar a ND é receber o total dela (D conta do meio / C 411), como o
+ * `RegistarPagamentoFaturaSchema`. O recebimento parcial fica para depois.
+ */
+export const LiquidarNotaDebitoSchema = z
+  .object({
+    id: idEntidade('ID de nota de débito inválido'),
+    dataPagamento: dataDocumento('Data do recebimento'),
+    formaPagamento: FormaPagamentoEnum,
+    contaBancariaId: idEntidade().optional(),
+  })
+  .superRefine(exigirContaBancariaForaDoNumerario);
+
+export type LiquidarNotaDebitoInput = z.infer<typeof LiquidarNotaDebitoSchema>;

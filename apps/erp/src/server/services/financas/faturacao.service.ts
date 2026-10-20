@@ -36,6 +36,7 @@ import type {
   FiltroNotaCreditoInput,
   EmitirNotaDebitoInput,
   FiltroNotaDebitoInput,
+  LiquidarNotaDebitoInput,
   CriarProformaInput,
   FiltroProformaInput,
   CriarCotacaoComercialInput,
@@ -87,7 +88,7 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-type TabelaTrancavel = 'Fatura' | 'NotaCredito' | 'Proforma' | 'CotacaoComercial';
+type TabelaTrancavel = 'Fatura' | 'NotaCredito' | 'NotaDebito' | 'Proforma' | 'CotacaoComercial';
 
 /**
  * Tranca a linha (`FOR UPDATE`, id + tenant) ANTES de a ler: o estado que decide vem
@@ -1852,17 +1853,17 @@ export async function liquidarNotaCreditoEmTx(
 }
 
 /**
- * O IVA é apurado pelos documentos: cancelar uma NC cujo período de emissão (dia de
- * Maputo) já tem apuramento activo, ou está fechado, mudaria para trás a base de um
- * mês encerrado. O período fica trancado `FOR SHARE` até ao commit.
+ * O IVA é apurado pelos documentos: mexer num documento cujo período (dia de Maputo da
+ * `data`) já tem apuramento activo, ou está fechado, mudaria para trás a base de um mês
+ * encerrado. O período fica trancado `FOR SHARE` até ao commit. Cada chamador dá o seu erro.
  */
-async function exigirPeriodoDaNCSemIvaApurado(
+export async function exigirPeriodoSemIvaApurado(
   tx: Prisma.TransactionClient,
-  dataEmissao: Date,
-  numero: string,
+  data: Date,
   tenantId: string,
+  erro: { codigo: string; mensagem: string },
 ): Promise<void> {
-  const codigo = periodoFiscalDe(dataEmissao);
+  const codigo = periodoFiscalDe(data);
   const [periodo] = await tx.$queryRaw<Array<{ id: string; estado: string }>>`
     SELECT id, estado FROM "PeriodoContabil"
     WHERE "tenantId" = ${tenantId} AND codigo = ${codigo}
@@ -1876,13 +1877,7 @@ async function exigirPeriodoDaNCSemIvaApurado(
       where: { tenantId, periodoId: periodo.id, estado: { in: ['APURADO', 'DECLARADO'] } },
       select: { id: true },
     })) !== null;
-  if (apurado) {
-    throw new BusinessRuleError(
-      'NC_PERIODO_IVA_APURADO',
-      `A nota de crédito ${numero} pertence ao período ${codigo}, que já tem o IVA apurado ou está fechado. ` +
-        'Não pode ser cancelada: corrija-a emitindo uma nota de débito.',
-    );
-  }
+  if (apurado) throw new BusinessRuleError(erro.codigo, erro.mensagem);
 }
 
 /**
@@ -1902,7 +1897,12 @@ export async function cancelarNotaCredito(id: string, motivo: string, ctx: Ctx):
     // Sem lançamento, o período da NC nunca pôde ser apurado nem fechado
     // (DOCUMENTO_SEM_LANCAMENTO): só há verificação e estorno quando ele existe.
     if (nc.lancamentoId) {
-      await exigirPeriodoDaNCSemIvaApurado(tx, nc.dataEmissao, nc.numero, ctx.tenantId);
+      await exigirPeriodoSemIvaApurado(tx, nc.dataEmissao, ctx.tenantId, {
+        codigo: 'NC_PERIODO_IVA_APURADO',
+        mensagem:
+          `A nota de crédito ${nc.numero} pertence ao período ${periodoFiscalDe(nc.dataEmissao)}, que já tem o IVA apurado ou está fechado. ` +
+          'Não pode ser cancelada: corrija-a emitindo uma nota de débito.',
+      });
 
       const lancamento = await tx.lancamento.findFirst({
         where: { id: nc.lancamentoId, tenantId: ctx.tenantId },
@@ -2107,18 +2107,116 @@ export async function listarNotasDebito(filtro: FiltroNotaDebitoInput, ctx: Ctx)
   ) as unknown as Promise<PaginacaoFaturacao<NotaDebitoCompleta>>;
 }
 
-export async function liquidarNotaDebito(id: string, ctx: Ctx): Promise<NotaDebito> {
-  const nd = await prisma.notaDebito.findFirst({ where: { id, tenantId: ctx.tenantId } });
-  if (!nd) throw new NotFoundError('Nota de débito não encontrada');
-  transitarND(nd.status as StatusNotaDebito, 'LIQUIDADA');
-  return prisma.notaDebito.update({ where: { id }, data: { status: 'LIQUIDADA' } }) as unknown as NotaDebito;
+/**
+ * #565 — liquidar a ND é receber o total dela, como o `registarPagamento` da factura:
+ * D conta do meio / C 411, origem PAGAMENTO, ligado à ND; em numerário também entra na
+ * sessão de caixa aberta do utilizador. Qualquer recusa desfaz tudo.
+ */
+export async function liquidarNotaDebito(
+  input: LiquidarNotaDebitoInput,
+  ctx: Ctx & { permissions?: ReadonlySet<string> },
+): Promise<NotaDebito> {
+  exigirPermissaoDoMeio(input.formaPagamento, ctx.permissions, 'o recebimento');
+
+  return prisma.$transaction(async (rawTx) => {
+    const tx = rawTx as unknown as Prisma.TransactionClient;
+    await trancarLinha(tx, 'NotaDebito', input.id, ctx.tenantId);
+    const nd = await tx.notaDebito.findFirst({ where: { id: input.id, tenantId: ctx.tenantId } });
+    if (!nd) throw new NotFoundError('Nota de débito não encontrada');
+    transitarND(nd.status as StatusNotaDebito, 'LIQUIDADA');
+    if (diaMaputo(input.dataPagamento) < diaMaputo(nd.dataEmissao)) {
+      throw new BusinessRuleError(
+        'PAGAMENTO_DATA_ANTERIOR_EMISSAO',
+        `A data do recebimento não pode ser anterior à data de emissão da nota de débito ${nd.numero}.`,
+      );
+    }
+
+    const meio = await resolverContaMeioPagamento(
+      tx,
+      { forma: input.formaPagamento, contaBancariaId: input.contaBancariaId },
+      ctx,
+    );
+    const valor = new Prisma.Decimal(String(nd.total)).toFixed(2);
+    const descricao = `Recebimento da nota de débito ${nd.numero}`;
+
+    await registarLancamentoContabilistico(
+      tx,
+      {
+        data: input.dataPagamento,
+        diarioTipo: meio.diarioTipo,
+        origem: 'PAGAMENTO',
+        documentoOrigemId: nd.id,
+        documentoOrigemTipo: 'NotaDebito',
+        historico: descricao,
+        partidas: [
+          { contaCodigo: meio.contaCodigo, tipo: 'DEBITO', valor },
+          { contaCodigo: PGC_FATURACAO.CLIENTES_CC, tipo: 'CREDITO', valor },
+        ],
+      },
+      ctx,
+    );
+
+    if (meio.sessaoCaixaId) {
+      await registarMovimentoCaixa(
+        tx,
+        {
+          sessaoCaixaId: meio.sessaoCaixaId,
+          tipo: 'RECEBIMENTO',
+          valor,
+          descricao,
+          documentoOrigemId: nd.id,
+          documentoOrigemTipo: 'NotaDebito',
+        },
+        ctx,
+      );
+    }
+
+    return tx.notaDebito.update({ where: { id: nd.id }, data: { status: 'LIQUIDADA' } }) as unknown as NotaDebito;
+  });
 }
 
+/**
+ * ADR-0039 §3 — cancela a ND (só EMITIDA) e estorna o lançamento dela na MESMA transacção,
+ * com a data do cancelamento. Período com IVA apurado ⇒ ND_PERIODO_IVA_APURADO; período
+ * fechado ⇒ PERIODO_FECHADO. Em qualquer recusa nada fica escrito.
+ */
 export async function cancelarNotaDebito(id: string, motivo: string, ctx: Ctx): Promise<NotaDebito> {
-  const nd = await prisma.notaDebito.findFirst({ where: { id, tenantId: ctx.tenantId } });
-  if (!nd) throw new NotFoundError('Nota de débito não encontrada');
-  transitarND(nd.status as StatusNotaDebito, 'CANCELADA');
-  return prisma.notaDebito.update({ where: { id }, data: { status: 'CANCELADA', motivoCancelamento: motivo } }) as unknown as NotaDebito;
+  return prisma.$transaction(async (rawTx) => {
+    const tx = rawTx as unknown as Prisma.TransactionClient;
+
+    await trancarLinha(tx, 'NotaDebito', id, ctx.tenantId);
+    const nd = await tx.notaDebito.findFirst({ where: { id, tenantId: ctx.tenantId } });
+    if (!nd) throw new NotFoundError('Nota de débito não encontrada');
+    transitarND(nd.status as StatusNotaDebito, 'CANCELADA');
+
+    // ND anterior ao lançamento (legada): nada a estornar, e o período nunca pôde ser apurado.
+    if (nd.lancamentoId) {
+      await exigirPeriodoSemIvaApurado(tx, nd.dataEmissao, ctx.tenantId, {
+        codigo: 'ND_PERIODO_IVA_APURADO',
+        mensagem:
+          `A nota de débito ${nd.numero} pertence ao período ${periodoFiscalDe(nd.dataEmissao)}, que já tem o IVA apurado ou está fechado. ` +
+          'Não pode ser cancelada: corrija-a emitindo uma nota de crédito.',
+      });
+
+      const lancamento = await tx.lancamento.findFirst({
+        where: { id: nd.lancamentoId, tenantId: ctx.tenantId },
+        select: { status: true },
+      });
+      // Já estornado à mão na contabilidade: não se estorna outra vez.
+      if (lancamento?.status !== 'ESTORNADO') {
+        await estornarLancamentoEmTx(
+          tx,
+          { lancamentoId: nd.lancamentoId, motivo: `Cancelamento da nota de débito ${nd.numero}: ${motivo}`, data: new Date() },
+          ctx,
+        );
+      }
+    }
+
+    return tx.notaDebito.update({
+      where: { id: nd.id },
+      data: { status: 'CANCELADA', motivoCancelamento: motivo },
+    }) as unknown as NotaDebito;
+  });
 }
 
 // ---------------------------------------------------------------------------
