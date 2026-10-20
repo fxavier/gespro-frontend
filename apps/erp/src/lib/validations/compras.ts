@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
-import { idEntidade, inicioDoDia, fimDoDia } from './common';
+import { dinheiro, idEntidade, inicioDoDia, fimDoDia } from './common';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 
 // ---- Enums ----
@@ -393,7 +393,7 @@ export const CreateContaPagarSchema = z.object({
   fornecedorId: z.string().cuid(),
   pedidoCompraId: z.string().cuid().optional(),
   descricao: z.string().min(1).max(500),
-  valorOriginal: positivoDecimal,
+  valorOriginal: dinheiro().positive('Valor deve ser positivo'),
   dataEmissao: z.coerce.date(),
   dataVencimento: z.coerce.date(),
   centroCustoId: z.string().optional(),
@@ -405,9 +405,9 @@ export const CreateContaPagarSchema = z.object({
   // numeroDocumento obrigatório quando tipoAquisicao presente (serviço lança DOCUMENTO_FORNECEDOR_INCOMPLETO)
   numeroDocumento: z.string().max(100).optional(),
   dataDocumento: z.coerce.date().optional(),
-  baseIva: naoNegativoDecimal.optional(),
+  baseIva: dinheiro().min(0, 'Valor não pode ser negativo').optional(),
   taxaIva: naoNegativoDecimal.optional(),
-  valorIva: naoNegativoDecimal.optional(),
+  valorIva: dinheiro().min(0, 'Valor não pode ser negativo').optional(),
   tipoAquisicao: TipoAquisicaoIvaEnum.optional(),
 }).refine(
   (d) => d.dataVencimento >= d.dataEmissao,
@@ -449,7 +449,7 @@ export const CreatePagamentoSchema = z
   .object({
     contaPagarId: idEntidade(),
     dataPagamento: z.coerce.date(),
-    valor: positivoDecimal,
+    valor: dinheiro().positive('Valor deve ser positivo'),
     formaPagamento: FormaPagamentoEnum,
     contaBancariaId: idEntidade().optional(),
     referencia: z.string().max(200).optional(),

@@ -2424,11 +2424,16 @@ export async function registarLancamentoContabilistico(
 
   const numero = await proximoNumeroLancamento(tx, diario.id, periodoLocked.codigo, ctx.tenantId);
 
-  // Invariante débito=crédito (Decimal exacto)
+  // Invariante débito=crédito sobre o valor que a coluna Decimal(18,2) vai gravar (#568):
+  // arredondar primeiro (ROUND_HALF_UP), verificar depois, gravar exactamente o arredondado.
+  const partidas = input.partidas.map((p) => ({
+    ...p,
+    valor: new Prisma.Decimal(String(p.valor)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
+  }));
   let totalDebito = new Prisma.Decimal(0);
   let totalCredito = new Prisma.Decimal(0);
-  for (const p of input.partidas) {
-    const v = new Prisma.Decimal(String(p.valor));
+  for (const p of partidas) {
+    const v = p.valor;
     if (p.tipo === 'DEBITO') totalDebito = totalDebito.plus(v);
     else totalCredito = totalCredito.plus(v);
   }
@@ -2458,7 +2463,7 @@ export async function registarLancamentoContabilistico(
     },
   });
 
-  for (const p of input.partidas) {
+  for (const p of partidas) {
     const conta = await resolverContaPorCodigo(tx, p.contaCodigo, ctx.tenantId);
     const ccId = p.centroCustoCodigo
       ? await resolverCentroCustoPorCodigo(tx, p.centroCustoCodigo, ctx.tenantId)
@@ -2470,10 +2475,24 @@ export async function registarLancamentoContabilistico(
         contaId: conta.id,
         centroCustoId: ccId,
         tipo: p.tipo,
-        valor: new Prisma.Decimal(String(p.valor)),
+        valor: p.valor,
         historico: p.historico ?? null,
       },
     });
+  }
+
+  // Invariante depois de gravar: o que ficou na base equilibra (senão a tx reverte).
+  const gravado = await tx.partidaLancamento.groupBy({
+    by: ['tipo'],
+    where: { tenantId: ctx.tenantId, lancamentoId: lancamento.id },
+    _sum: { valor: true },
+  });
+  const somaGravada = (tipo: string) =>
+    new Prisma.Decimal(gravado.find((g) => g.tipo === tipo)?._sum.valor ?? 0);
+  if (!somaGravada('DEBITO').equals(somaGravada('CREDITO'))) {
+    throw new Error(
+      `Lançamento ${lancamento.id} gravado desequilibrado: D ${somaGravada('DEBITO')} ≠ C ${somaGravada('CREDITO')}`,
+    );
   }
 
   return lancamento as unknown as Lancamento;
