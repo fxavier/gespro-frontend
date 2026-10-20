@@ -15,10 +15,12 @@
  *       recusada, como no oráculo #110 — recusar > número errado);
  *     - cada item aceite com produto entra em stock na localização escolhida (saldo + movimento
  *       com referência ao recebimento); o rejeitado não entra; item sem produto não mexe em stock;
- *     - parcial → RECEBIDO_PARCIAL, sem conta a pagar; o que completa o pedido → RECEBIDO_TOTAL e
- *       EXACTAMENTE UMA conta a pagar ABERTA ligada ao pedido, pelo valor total do pedido, com
- *       número da série CONTA_PAGAR (avançada uma vez) e o lançamento de reconhecimento
- *       (documentoOrigemId = conta) com C 421 pelo total;
+ *     - parcial → RECEBIDO_PARCIAL; o que completa o pedido → RECEBIDO_TOTAL. (#567) CADA recepção
+ *       com quantidade aceite > 0 cria EXACTAMENTE UMA conta a pagar ABERTA ligada ao pedido e à
+ *       recepção, pelo valor com IVA das quantidades aceites nessa recepção, com número da série
+ *       CONTA_PAGAR (avançada uma vez por recepção) e o lançamento de reconhecimento
+ *       (documentoOrigemId = conta) com C 421 pelo valor dessa conta; Σ das contas do pedido
+ *       recebido por inteiro = valor total do pedido;
  *     - quantidade acima do pedido → regra de negócio, nada muda;
  *     - (OBRIGAÇÃO NOVA) o mesmo item repetido no pedido de recepção conta pela SOMA: duas linhas
  *       que juntas excedem o pedido são recusadas e nada muda;
@@ -27,7 +29,7 @@
  *       inactiva → regra de negócio; em todos os casos nada muda (nem no outro tenant). Item sem
  *       produto não lê a localização (o oráculo #110 recebe-os com um id fictício);
  *     - (OBRIGAÇÃO NOVA) duas recepções CONCORRENTES do mesmo resto (duplo clique no formulário)
- *       dão exactamente um recebimento, uma entrada de stock e UMA conta a pagar; a perdedora é
+ *       dão exactamente um recebimento, uma entrada de stock e UMA conta a pagar a mais; a perdedora é
  *       recusada como regra (nunca ERRO_INTERNO) e não queima número da série CONTA_PAGAR;
  *     - sem a permissão → SEM_PERMISSAO; pedido de outro tenant → NAO_ENCONTRADO; nada muda.
  *
@@ -301,10 +303,32 @@ describe.skipIf(skip)('Recepção de mercadoria e conta a pagar manual (#111) �
   // Recepção
   // ===========================================================================
 
-  it('ciclo: parcial entra em stock sem conta a pagar; o que completa dá RECEBIDO_TOTAL e UMA conta a pagar lançada', async () => {
+  it('ciclo: cada recepção (parcial ou a que completa) cria UMA conta a pagar lançada pelo aceite; Σ = total do pedido (#567)', async () => {
     const p = await pedidoEmTransito();
     const pedido = await db.pedidoCompra.findUnique({ where: { id: p.id } });
     const serieAntes = await serie('CONTA_PAGAR');
+
+    /** A conta a pagar de uma recepção, com o C 421 do seu lançamento de reconhecimento. */
+    async function contaDaRecepcao(recebimentoId: string) {
+      const cps = await db.contaPagar.findMany({ where: { pedidoCompraId: p.id, recebimentoCompraId: recebimentoId } });
+      expect(cps, 'a recepção não tem exactamente uma conta a pagar').toHaveLength(1);
+      const cp = cps[0];
+      expect(cp.tenantId).toBe(TENANT);
+      expect(cp.fornecedorId).toBe(fornecedorId);
+      expect(cp.status).toBe('ABERTA');
+      expect(cp.valorRestante.toString()).toBe(cp.valorOriginal.toString());
+      expect(cp.numero).toBeTruthy();
+      const lanc = await db.lancamento.findMany({ where: { tenantId: TENANT, documentoOrigemId: cp.id } });
+      expect(lanc, 'a conta a pagar da recepção não tem lançamento de reconhecimento').toHaveLength(1);
+      const partidas = await db.partidaLancamento.findMany({ where: { lancamentoId: lanc[0].id }, include: { conta: true } });
+      const deb = partidas.filter((x: any) => x.tipo === 'DEBITO').reduce((a: number, x: any) => a + Number(x.valor), 0);
+      const cred = partidas.filter((x: any) => x.tipo === 'CREDITO').reduce((a: number, x: any) => a + Number(x.valor), 0);
+      expect(deb).toBeCloseTo(cred, 2);
+      const c421 = partidas.find((x: any) => x.tipo === 'CREDITO' && x.conta.codigo === '421');
+      expect(c421, 'o reconhecimento não credita a 421').toBeTruthy();
+      expect(Number(c421.valor)).toBeCloseTo(Number(cp.valorOriginal), 2);
+      return { cp, c421: Number(c421.valor) };
+    }
 
     // Parcial: 4 de A.
     const r1 = await recepcao(p.id, [linha(p.itemA, 4)]);
@@ -314,13 +338,16 @@ describe.skipIf(skip)('Recepção de mercadoria e conta a pagar manual (#111) �
     expect(s.recebido).toEqual([4, 0]);
     expect(s.recebimentos).toBe(1);
     expect(s.saldoLoc, 'o recebido não entrou em stock na localização escolhida').toBe(4);
-    expect(s.contasPagar, 'uma recepção parcial criou conta a pagar').toBe(0);
-    expect(s.serieCP).toBe(serieAntes);
+    expect(s.contasPagar, 'a recepção parcial com aceite > 0 não criou exactamente uma conta a pagar').toBe(1);
+    expect(s.serieCP, 'a série CONTA_PAGAR não avançou exactamente uma vez na parcial').toBe(serieAntes + 1);
     const rec1 = await db.recebimentoCompra.findFirst({ where: { pedidoCompraId: p.id } });
     const mov = await db.movimentoStock.findMany({ where: { documentoReferenciaId: rec1.id } });
     expect(mov.map((m: any) => [m.tipo, Number(m.quantidade), m.localizacaoDestinoId, m.produtoId])).toEqual([
       ['ENTRADA', 4, loc, produtoId],
     ]);
+    // 4 × 300 = 1200 de base + 16% = 1392 com IVA.
+    const cp1 = await contaDaRecepcao(rec1.id);
+    expect(cp1.cp.valorOriginal.toString(), 'a conta da parcial não vale as quantidades aceites com IVA').toBe('1392');
 
     // Completa: 6 de A + 2 de B (B sem produto não mexe em stock).
     const r2 = await recepcao(p.id, [linha(p.itemA, 6), linha(p.itemB, 2)]);
@@ -330,26 +357,18 @@ describe.skipIf(skip)('Recepção de mercadoria e conta a pagar manual (#111) �
     expect(s.recebido).toEqual([10, 2]);
     expect(s.recebimentos).toBe(2);
     expect(s.saldoLoc).toBe(10);
-    expect(s.contasPagar, 'RECEBIDO_TOTAL tem de criar exactamente uma conta a pagar').toBe(1);
-    expect(s.serieCP, 'a série CONTA_PAGAR não avançou exactamente uma vez').toBe(serieAntes + 1);
+    expect(s.contasPagar, 'cada recepção tem de criar exactamente uma conta a pagar').toBe(2);
+    expect(s.serieCP, 'a série CONTA_PAGAR não avançou exactamente uma vez por recepção').toBe(serieAntes + 2);
 
-    const cp = await db.contaPagar.findFirst({ where: { pedidoCompraId: p.id } });
-    expect(cp.tenantId).toBe(TENANT);
-    expect(cp.fornecedorId).toBe(fornecedorId);
-    expect(cp.status).toBe('ABERTA');
-    expect(cp.valorOriginal.toString()).toBe(pedido.valorTotal.toString());
-    expect(cp.valorRestante.toString()).toBe(pedido.valorTotal.toString());
-    expect(cp.numero).toBeTruthy();
-
-    const lanc = await db.lancamento.findMany({ where: { tenantId: TENANT, documentoOrigemId: cp.id } });
-    expect(lanc, 'a conta a pagar da recepção não tem lançamento de reconhecimento').toHaveLength(1);
-    const partidas = await db.partidaLancamento.findMany({ where: { lancamentoId: lanc[0].id }, include: { conta: true } });
-    const deb = partidas.filter((x: any) => x.tipo === 'DEBITO').reduce((a: number, x: any) => a + Number(x.valor), 0);
-    const cred = partidas.filter((x: any) => x.tipo === 'CREDITO').reduce((a: number, x: any) => a + Number(x.valor), 0);
-    expect(deb).toBeCloseTo(cred, 2);
-    const c421 = partidas.find((x: any) => x.tipo === 'CREDITO' && x.conta.codigo === '421');
-    expect(c421, 'o reconhecimento não credita a 421').toBeTruthy();
-    expect(Number(c421.valor)).toBeCloseTo(Number(pedido.valorTotal), 2);
+    const rec2 = await db.recebimentoCompra.findFirst({ where: { pedidoCompraId: p.id, id: { not: rec1.id } } });
+    const cp2 = await contaDaRecepcao(rec2.id);
+    // (6 × 300 + 2 × 2500) = 6800 de base + 16% = 7888 com IVA.
+    expect(cp2.cp.valorOriginal.toString(), 'a conta da recepção que completa não vale as quantidades aceites com IVA').toBe('7888');
+    expect(
+      cp1.cp.valorOriginal.add(cp2.cp.valorOriginal).toString(),
+      'Σ das contas a pagar do pedido recebido por inteiro ≠ valor total do pedido',
+    ).toBe(pedido.valorTotal.toString());
+    expect(cp1.c421 + cp2.c421, 'Σ C 421 do pedido ≠ valor total do pedido').toBeCloseTo(Number(pedido.valorTotal), 2);
 
     // RECEBIDO_TOTAL é terminal para a recepção.
     const antes = await retrato(p.id);
@@ -366,7 +385,10 @@ describe.skipIf(skip)('Recepção de mercadoria e conta a pagar manual (#111) �
     expect(depois.status).toBe('RECEBIDO_PARCIAL');
     expect(depois.recebido).toEqual([2, 0]);
     expect(depois.saldoLoc - antes.saldoLoc, 'o rejeitado entrou em stock').toBe(2);
-    expect(depois.contasPagar).toBe(0);
+    // #567: a recepção com aceite > 0 reconhece a dívida — só pelo aceite (2 × 300 × 1,16 = 696).
+    expect(depois.contasPagar - antes.contasPagar).toBe(1);
+    const cp = await db.contaPagar.findFirst({ where: { pedidoCompraId: p.id } });
+    expect(cp.valorOriginal.toString(), 'o rejeitado entrou na dívida ao fornecedor').toBe('696');
   });
 
   it('quantidade acima do pedido é recusada como regra e nada muda', async () => {
@@ -418,7 +440,7 @@ describe.skipIf(skip)('Recepção de mercadoria e conta a pagar manual (#111) �
     expect(s.recebido).toEqual([0, 2]);
   });
 
-  it('duas recepções concorrentes do mesmo resto (duplo clique): um recebimento, uma entrada, UMA conta a pagar', async () => {
+  it('duas recepções concorrentes do mesmo resto (duplo clique): um recebimento, uma entrada, UMA conta a pagar a mais', async () => {
     const p = await pedidoEmTransito();
     expect((await recepcao(p.id, [linha(p.itemA, 4)])).ok).toBe(true);
     const antes = await retrato(p.id);
@@ -434,7 +456,7 @@ describe.skipIf(skip)('Recepção de mercadoria e conta a pagar manual (#111) �
     expect(depois.recebido, 'o duplo clique recebeu duas vezes').toEqual([10, 2]);
     expect(depois.recebimentos).toBe(antes.recebimentos + 1);
     expect(depois.saldoLoc - antes.saldoLoc, 'o duplo clique deu entrada em stock duas vezes').toBe(6);
-    expect(depois.contasPagar, 'o duplo clique criou mais de uma conta a pagar').toBe(1);
+    expect(depois.contasPagar, 'o duplo clique criou mais de uma conta a pagar').toBe(antes.contasPagar + 1);
     expect(depois.serieCP, 'a recepção perdedora queimou um número CONTA_PAGAR').toBe(antes.serieCP + 1);
   });
 
