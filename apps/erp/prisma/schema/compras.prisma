@@ -774,6 +774,10 @@ model ContaPagar {
   tipoDocumento      TipoDocumentoContaPagar @default(FACTURA)
   contaPagarOrigemId String?                 // FK escalar para a ContaPagar original
   motivo             String?                 // obrigatório quando não é FACTURA
+  // #566 — lançamento de reconhecimento (D gasto [+ D 4432x] / C 421), FK escalar → WS D.
+  // Nulo só nas contas anteriores a esta coluna sem reconhecimento lançado.
+  lancamentoId       String?
+  motivoCancelamento String?
   observacoes    String?
   currency       String           @default("MZN")
   createdAt      DateTime         @default(now())
@@ -792,6 +796,7 @@ model ContaPagar {
   @@index([contaContabilId])
   @@index([tenantId, tipoDocumento])
   @@index([contaPagarOrigemId])
+  @@index([lancamentoId])
 }
 
 /// Liquidação de uma conta a pagar. Gera lançamento contabilístico em WS D (lancamentoId).

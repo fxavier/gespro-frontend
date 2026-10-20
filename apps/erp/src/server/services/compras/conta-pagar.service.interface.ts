@@ -42,11 +42,11 @@ export const ESTADOS_CONTA_PAGAR_EM_DIVIDA = ['ABERTA', 'PARCIALMENTE_PAGA', 'VE
  * ABERTA → PARCIALMENTE_PAGA: primeiro pagamento parcial.
  * ABERTA | PARCIALMENTE_PAGA → PAGA: liquidação total.
  * ABERTA | PARCIALMENTE_PAGA → VENCIDA: marcação automática por job diário.
- * ABERTA | PARCIALMENTE_PAGA | VENCIDA → CANCELADA: cancelamento manual.
+ * ABERTA | VENCIDA → CANCELADA: cancelamento manual — CANCELADA só com `valorPago = 0` (#566).
  */
 export const TRANSICOES_CONTA_PAGAR: Record<StatusContaPagar, StatusContaPagar[]> = {
   ABERTA: ['PARCIALMENTE_PAGA', 'PAGA', 'VENCIDA', 'CANCELADA'],
-  PARCIALMENTE_PAGA: ['PAGA', 'VENCIDA', 'CANCELADA'],
+  PARCIALMENTE_PAGA: ['PAGA', 'VENCIDA'],
   PAGA: [],
   VENCIDA: ['PAGA', 'CANCELADA'],
   CANCELADA: [],
@@ -121,6 +121,7 @@ export interface ContaPagarDetalhe extends ContaPagarResumo {
   centroCustoId: string | null;
   contaContabilId: string | null;
   observacoes: string | null;
+  motivoCancelamento: string | null;
   pagamentos: PagamentoDto[];
 }
 

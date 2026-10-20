@@ -211,7 +211,7 @@ describe('contaPagarService.cancelar()', () => {
     const { contaPagarService } = await import('../conta-pagar.service');
     await expect(contaPagarService.cancelar('cp-1', 'Motivo', ctx)).resolves.toBeUndefined();
     expect(db.contaPagar.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: 'CANCELADA', observacoes: 'Motivo' } }),
+      expect.objectContaining({ data: { status: 'CANCELADA', motivoCancelamento: 'Motivo' } }), // #566: motivo em coluna própria
     );
   });
 

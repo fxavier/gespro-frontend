@@ -29,6 +29,18 @@ export const inicioDoDia = () => z.preprocess(inicioDoDiaMaputo, z.coerce.date()
 export const fimDoDia = () => z.preprocess(fimDoDiaMaputo, z.coerce.date());
 
 // ---------------------------------------------------------------------------
+// Dinheiro (#568)
+// ---------------------------------------------------------------------------
+
+/**
+ * Valor monetário: número com no máximo duas casas decimais, como a coluna `Decimal(18,2)`.
+ * O `multipleOf` do Zod 3 compara em inteiros (escala pelas casas de `toString`), por isso
+ * aceita 0.07/1.15/86.21 e recusa 86.205 sem erro de vírgula flutuante.
+ */
+export const dinheiro = (msg = 'O valor tem no máximo duas casas decimais') =>
+  z.number().multipleOf(0.01, msg);
+
+// ---------------------------------------------------------------------------
 // NUIT
 // ---------------------------------------------------------------------------
 

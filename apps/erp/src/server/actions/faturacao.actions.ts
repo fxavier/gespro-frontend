@@ -13,6 +13,7 @@ import {
   FiltroNotaCreditoSchema,
   EmitirNotaDebitoSchema,
   FiltroNotaDebitoSchema,
+  LiquidarNotaDebitoSchema,
   CriarProformaSchema,
   FiltroProformaSchema,
   CriarCotacaoComercialSchema,
@@ -224,16 +225,18 @@ export const obterNotaDebito = createSafeAction({
 });
 
 export const liquidarNotaDebito = createSafeAction({
-  schema: z.object({ id: z.string().cuid() }),
+  schema: LiquidarNotaDebitoSchema,
   permission: 'faturacao:nd:liquidar',
-  revalidate: { tags: ['faturacao', 'notas-debito'] },
-  handler: (input, ctx) => faturacao.liquidarNotaDebito(input.id, ctx),
+  // #565 — recebimento (D meio / C 411) e, em numerário, entrada na caixa; a permissão do
+  // meio vem no ctx (`ctx.permissions`) e o serviço confere-a, como no pagamento da factura.
+  revalidate: { tags: ['faturacao', 'notas-debito', 'contabilidade', 'caixa'] },
+  handler: (input, ctx) => faturacao.liquidarNotaDebito(input, ctx),
 });
 
 export const cancelarNotaDebito = createSafeAction({
-  schema: z.object({ id: z.string().cuid(), motivo: z.string().min(1).max(500) }),
+  schema: CancelarDocumentoSchema,
   permission: 'faturacao:nd:cancelar',
-  revalidate: { tags: ['faturacao', 'notas-debito'] },
+  revalidate: { tags: ['faturacao', 'notas-debito', 'contabilidade'] },
   handler: (input, ctx) => faturacao.cancelarNotaDebito(input.id, input.motivo, ctx),
 });
 
