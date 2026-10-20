@@ -469,9 +469,10 @@ async function _upsertSaldo(
 // garantindo que apenas uma tx ganha quando o saldo é insuficiente.
 
 /**
- * Decrementa `saldo` de forma atómica apenas se `saldo >= quantidade`.
- * Garante invariante "saldo nunca negativo" mesmo com transações concorrentes.
- * Lança STOCK_INSUFICIENTE se a condição não se verificar.
+ * Decrementa `saldo` de forma atómica apenas se `saldo - saldoReservado >= quantidade`:
+ * o reservado não está disponível para baixas directas (#556). Garante o invariante
+ * "saldo nunca negativo" mesmo com transações concorrentes (o CHECK
+ * `saldo_stock_nao_negativo` tranca-o na base). Lança STOCK_INSUFICIENTE se falhar.
  */
 async function _baixarSaldoAtomico(
   tx: TxClient,
@@ -482,21 +483,20 @@ async function _baixarSaldoAtomico(
   quantidade: Prisma.Decimal,
 ): Promise<void> {
   const vid = varianteProdutoId ?? VARIANTE_SEM;
-  // updateMany com WHERE saldo >= quantidade é reavaliado NO MOMENTO DO UPDATE.
-  // Se duas baixas concorrentes chegarem com saldo=10, qtd=10:
+  // O WHERE é reavaliado NO MOMENTO DO UPDATE (row lock). $executeRaw porque o Prisma
+  // não compara duas colunas. Duas baixas concorrentes com disponível=10, qtd=10:
   //   TX A: WHERE 10>=10 → true, saldo→0 (count=1)
   //   TX B: WHERE 0>=10  → false (count=0) → lança STOCK_INSUFICIENTE ✓
-  const result = await tx.saldoStock.updateMany({
-    where: {
-      tenantId: ctx.tenantId,
-      produtoId,
-      varianteProdutoId: vid,
-      localizacaoId,
-      saldo: { gte: quantidade },
-    },
-    data: { saldo: { decrement: quantidade } },
-  });
-  if (result.count === 0) {
+  const count = await tx.$executeRaw`
+    UPDATE "SaldoStock"
+    SET "saldo" = "saldo" - ${quantidade}, "updatedAt" = now()
+    WHERE "tenantId" = ${ctx.tenantId}
+      AND "produtoId" = ${produtoId}
+      AND "varianteProdutoId" = ${vid}
+      AND "localizacaoId" = ${localizacaoId}
+      AND "saldo" - "saldoReservado" >= ${quantidade}
+  `;
+  if (count === 0) {
     const row = await tx.saldoStock.findUnique({
       where: {
         tenantId_produtoId_varianteProdutoId_localizacaoId: {
@@ -582,6 +582,7 @@ async function _confirmarConsumoAtomico(
       AND "varianteProdutoId" = ${vid}
       AND "localizacaoId" = ${localizacaoId}
       AND "saldoReservado" >= ${quantidade}
+      AND "saldo" >= ${quantidade}
   `;
   if (count === 0) {
     throw new BusinessRuleError(
@@ -762,7 +763,7 @@ export async function confirmarConsumoStock(
     select: MOV_SELECT,
   });
 
-  // 3. Decrementa saldo E saldoReservado — atómico (condição: saldoReservado >= qtd)
+  // 3. Decrementa saldo E saldoReservado — atómico (condição: saldoReservado >= qtd e saldo >= qtd)
   await _confirmarConsumoAtomico(tx, ctx, reserva.produtoId, reserva.varianteProdutoId, reserva.localizacaoId, qtd);
 
   return mapMov(mov);

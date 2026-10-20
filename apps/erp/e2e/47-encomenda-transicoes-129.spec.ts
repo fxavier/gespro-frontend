@@ -17,7 +17,7 @@
  *
  * Dados: cada corrida cria duas encomendas no tenant `demo` (1 × ELE-006, armazém LOC-001
  * «Armazém Principal»); a primeira é convertida em venda (consome 1 unidade de ELE-006 e deixa
- * uma venda + lançamento D 411), a segunda é cancelada (liberta a reserva).
+ * uma venda + Factura (D 411)), a segunda é cancelada (liberta a reserva).
  */
 
 import { test, expect, type Page } from '@playwright/test';

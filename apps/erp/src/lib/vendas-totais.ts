@@ -37,15 +37,28 @@ export interface TotaisVendaPOS {
 const D = (v: Valor) => new Prisma.Decimal(String(v));
 const r2 = (d: Prisma.Decimal) => d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
+/**
+ * Arredondamento de UMA linha a partir da base já descontada (#570): subtotal e IVA a 2 casas,
+ * meio para cima; total = subtotal + IVA. Partilhado com as linhas de Factura/NC/ND/Proforma/
+ * Cotação (`LinhaDocumentoSchema`), cujo desconto é um valor e não uma percentagem.
+ */
+export function arredondarLinha(base: Valor, taxaIva: Valor): LinhaTotaisVendaPOS {
+  const sub = r2(D(base));
+  const iva = r2(sub.mul(D(taxaIva)));
+  return { subtotal: sub, ivaItem: iva, total: sub.plus(iva) };
+}
+
 export function calcularTotaisVendaPOS(itens: readonly ItemTotaisVendaPOS[]): TotaisVendaPOS {
   let subtotal = new Prisma.Decimal(0);
   let ivaTotal = new Prisma.Decimal(0);
   const linhas = itens.map((i) => {
-    const sub = r2(D(i.quantidade).mul(D(i.precoUnitario)).mul(D(100).minus(D(i.desconto ?? 0))).div(100));
-    const iva = r2(sub.mul(D(i.taxaIva)));
-    subtotal = subtotal.plus(sub);
-    ivaTotal = ivaTotal.plus(iva);
-    return { subtotal: sub, ivaItem: iva, total: sub.plus(iva) };
+    const linha = arredondarLinha(
+      D(i.quantidade).mul(D(i.precoUnitario)).mul(D(100).minus(D(i.desconto ?? 0))).div(100),
+      i.taxaIva,
+    );
+    subtotal = subtotal.plus(linha.subtotal);
+    ivaTotal = ivaTotal.plus(linha.ivaItem);
+    return linha;
   });
   return { linhas, subtotal, ivaTotal, total: subtotal.plus(ivaTotal) };
 }

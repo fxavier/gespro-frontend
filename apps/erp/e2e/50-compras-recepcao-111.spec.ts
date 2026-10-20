@@ -15,8 +15,9 @@
  *       itens a 0 não são enviados;
  *     - o botão «Registar recepção» grava e volta ao detalhe do pedido; uma quantidade acima do
  *       que falta não grava nada e não sai da rota;
- *     - parcial → RECEBIDO_PARCIAL, stock na localização escolhida, sem conta a pagar; o que
- *       completa → RECEBIDO_TOTAL e exactamente uma conta a pagar do pedido.
+ *     - parcial → RECEBIDO_PARCIAL, stock na localização escolhida e exactamente uma conta a pagar
+ *       do pedido (#567: uma por recepção com aceite > 0); o que completa → RECEBIDO_TOTAL e
+ *       exactamente mais uma conta a pagar do pedido.
  *
  *   Conta a pagar manual — rota própria `/fornecedores/contas-pagar/nova`:
  *     - a lista `/fornecedores/contas-pagar` tem a ligação «Nova conta a pagar» para ela;
@@ -35,7 +36,7 @@
  * produto, uma localização activa, um pedido EM_TRANSITO (A: produto, 10 un.; B: sem produto,
  * 2 un.) e um pedido CONFIRMADO. Os números dos pedidos saem da série PEDIDO_COMPRA do demo, que
  * fica avançada (nunca se inventa). Ficam no demo, como os dados do `47-…`, `48-…` e `49-…`; a
- * conta a pagar manual e a da recepção também (com o seu lançamento).
+ * conta a pagar manual e as das duas recepções também (com os seus lançamentos).
  *
  * ESTADO ESPERADO antes da implementação: RED — `/compras/pedidos/<id>/receber` e
  * `/fornecedores/contas-pagar/nova` não existem e não há «Registar recepção» nem «Nova conta a
@@ -309,7 +310,7 @@ test.describe(`Recepção de mercadoria e conta a pagar manual (#111, ${MARCA})`
     await expect(ligacao).toHaveText(/registar recep/i);
   });
 
-  test('recepção parcial e depois a que completa: stock na localização escolhida e uma conta a pagar no fim', async ({
+  test('recepção parcial e depois a que completa: stock na localização escolhida e uma conta a pagar por recepção', async ({
     page,
   }) => {
     await abrir(page, detalhePedido(ID_PC_TRANSITO));
@@ -339,7 +340,7 @@ test.describe(`Recepção de mercadoria e conta a pagar manual (#111, ${MARCA})`
       status: 'RECEBIDO_PARCIAL',
       recebido: { [DESC_A]: 4, [DESC_B]: 0 },
       recebimentos: 1,
-      contasPagar: 0,
+      contasPagar: 1,
       saldo: 4,
     });
 
@@ -362,7 +363,7 @@ test.describe(`Recepção de mercadoria e conta a pagar manual (#111, ${MARCA})`
       status: 'RECEBIDO_TOTAL',
       recebido: { [DESC_A]: 10, [DESC_B]: 2 },
       recebimentos: 2,
-      contasPagar: 1,
+      contasPagar: 2,
       saldo: 10,
     });
 

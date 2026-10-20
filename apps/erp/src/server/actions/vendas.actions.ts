@@ -326,7 +326,7 @@ export const confirmarEncomenda = createSafeAction({
 
 /**
  * Converter a partir do detalhe (#129): um pagamento a CRÉDITO pelo total da encomenda, sem
- * sessão de caixa — bate com o D 411 que o serviço lança sempre. O total lê-se no servidor.
+ * sessão de caixa — o serviço emite uma Factura (D 411, #563). O total lê-se no servidor.
  */
 export const converterEncomendaEmVendaACredito = createSafeAction({
   schema: z.object({ encomendaId: z.string().cuid('ID de encomenda inválido') }),

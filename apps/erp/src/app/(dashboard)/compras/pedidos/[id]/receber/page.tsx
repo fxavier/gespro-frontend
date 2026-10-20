@@ -4,7 +4,7 @@
  * Rota própria porque recolhe dados (quantidades por item e localização): é formulário, logo é
  * rota, não modal. Só um pedido EM_TRANSITO ou RECEBIDO_PARCIAL se recebe, com a permissão
  * `compras:recebimento:registar`; os outros voltam ao detalhe. Grava pela
- * `registarRecebimentoAction` (entrada de stock + conta a pagar no RECEBIDO_TOTAL).
+ * `registarRecebimentoAction` (entrada de stock + conta a pagar e lançamento por recepção, #567).
  */
 
 import { notFound, redirect } from 'next/navigation';

@@ -130,6 +130,8 @@ enum StatusPedidoCompra {
   EM_TRANSITO
   RECEBIDO_PARCIAL
   RECEBIDO_TOTAL
+  /// #567: recebido em parte e fechado sem esperar o resto (terminal; motivo em `motivoFecho`).
+  FECHADO_EM_FALTA
   CANCELADO
 }
 
@@ -643,6 +645,8 @@ model PedidoCompra {
   dataEntregaPrevista DateTime
   dataEntregaReal     DateTime?
   enderecoEntrega     String
+  /// #567: motivo do fecho em falta (RECEBIDO_PARCIAL → FECHADO_EM_FALTA).
+  motivoFecho         String?
   // FK escalar cross-domínio (CentroCusto → WS D)
   centroCustoId       String?
   observacoes         String?
@@ -709,6 +713,8 @@ model RecebimentoCompra {
 
   pedidoCompra PedidoCompra     @relation(fields: [pedidoCompraId], references: [id])
   itens        ItemRecebimento[]
+  /// #567: a dívida desta recepção (uma e só uma).
+  contaPagar   ContaPagar?
 
   @@index([tenantId, pedidoCompraId])
   @@index([tenantId, createdAt])
@@ -778,6 +784,8 @@ model ContaPagar {
   // Nulo só nas contas anteriores a esta coluna sem reconhecimento lançado.
   lancamentoId       String?
   motivoCancelamento String?
+  // #567 — a recepção que gerou esta dívida (uma CP por recepção; nulo nas manuais e nas históricas).
+  recebimentoCompraId String?                @unique
   observacoes    String?
   currency       String           @default("MZN")
   createdAt      DateTime         @default(now())
@@ -785,6 +793,7 @@ model ContaPagar {
 
   fornecedor   Fornecedor    @relation(fields: [fornecedorId], references: [id])
   pedidoCompra PedidoCompra? @relation(fields: [pedidoCompraId], references: [id])
+  recebimentoCompra RecebimentoCompra? @relation(fields: [recebimentoCompraId], references: [id])
   pagamentos   Pagamento[]
 
   @@unique([tenantId, numero])

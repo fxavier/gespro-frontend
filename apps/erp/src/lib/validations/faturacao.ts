@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { taxaIvaSchema } from '@/lib/iva';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 import { NATUREZAS_NOTA_DEBITO, motivoIsencaoEmFalta } from '@/lib/nota-debito';
+import { arredondarLinha } from '@/lib/vendas-totais';
 import { dataDocumento, idEntidade, inicioDoDia, fimDoDia } from './common';
 
 // ---------------------------------------------------------------------------
@@ -83,11 +85,10 @@ export const LinhaDocumentoSchema = z
     ordemLinha: z.number().int().nonnegative().default(0),
   })
   .transform((l) => {
-    const base = l.quantidade * l.precoUnitario - l.desconto;
-    const subtotal = Math.round(base * 100) / 100;
-    const ivaItem = Math.round(subtotal * l.taxaIva * 100) / 100;
-    const total = Math.round((subtotal + ivaItem) * 100) / 100;
-    return { ...l, subtotal, ivaItem, total };
+    // #570: Decimal, meio para cima — a mesma função da linha do POS (`vendas-totais.ts`).
+    const base = new Prisma.Decimal(String(l.quantidade)).mul(String(l.precoUnitario)).minus(String(l.desconto));
+    const { subtotal, ivaItem, total } = arredondarLinha(base, l.taxaIva);
+    return { ...l, subtotal: subtotal.toNumber(), ivaItem: ivaItem.toNumber(), total: total.toNumber() };
   });
 
 export type LinhaDocumentoInput = z.infer<typeof LinhaDocumentoSchema>;
