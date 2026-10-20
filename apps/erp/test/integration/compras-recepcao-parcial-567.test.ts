@@ -431,4 +431,65 @@ describe.skipIf(skip)('Recepção parcial: dívida, lançamento e fecho em falta
       ['44311', 'DEBITO', '64.00'],
     ]);
   });
+
+  it('(j) aceite a valor zero (desconto a 100 %): o stock entra, sem CP nem número; IVA a 0 omite só a 44311', async () => {
+    const p = await pedidoEmTransito([
+      { produto: true, descricao: 'A — Brinde', quantidade: 2, preco: 100, desconto: 200, taxa: 0.16 },
+      { descricao: 'B — Livro isento', quantidade: 1, preco: 500, taxa: 0 },
+    ]);
+    const serieAntes = await serieCP();
+    const saldoAntes = await db.saldoStock.findFirst({ where: { produtoId, localizacaoId: loc } });
+
+    const r1 = await recepcao(p.id, [linha(p.itens[0], 2)]);
+    expect(r1.ok, `aceite a zero deitou a recepção abaixo: ${JSON.stringify(r1)}`).toBe(true);
+    expect(await db.contaPagar.count({ where: { pedidoCompraId: p.id } })).toBe(0);
+    expect(await serieCP()).toBe(serieAntes);
+    const saldoDepois = await db.saldoStock.findFirst({ where: { produtoId, localizacaoId: loc } });
+    expect(Number(saldoDepois?.saldo ?? 0) - Number(saldoAntes?.saldo ?? 0)).toBe(2);
+    expect(await db.recebimentoCompra.count({ where: { pedidoCompraId: p.id } })).toBe(1);
+
+    const r2 = await recepcao(p.id, [linha(p.itens[1], 1)]);
+    expect(r2.ok, JSON.stringify(r2)).toBe(true);
+    const cps = await db.contaPagar.findMany({ where: { pedidoCompraId: p.id } });
+    expect(cps).toHaveLength(1);
+    expect(cps[0].valorOriginal.toFixed(2)).toBe('500.00');
+    expect(cps[0].valorIva.toFixed(2)).toBe('0.00');
+    expect(await partidasDe(cps[0].lancamentoId)).toEqual([
+      ['211', 'DEBITO', '500.00'],
+      ['421', 'CREDITO', '500.00'],
+    ]);
+    expect((await db.pedidoCompra.findUnique({ where: { id: p.id } })).status).toBe('RECEBIDO_TOTAL');
+  });
+
+  it('(k) recepção datada num período fechado → PERIODO_FECHADO; stock, recebimento e série intactos', async () => {
+    const p = await pedidoEmTransito(PADRAO);
+    // 15 de Janeiro do ano corrente, ao meio-dia de Maputo.
+    const dataFechada = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 15, 10));
+    const periodo = await db.periodoContabil.findFirst({
+      where: { tenantId: TENANT, dataInicio: { lte: dataFechada }, dataFim: { gte: dataFechada } },
+    });
+    expect(periodo, 'o bootstrap não criou o período de Janeiro').toBeTruthy();
+    await db.periodoContabil.update({
+      where: { id: periodo.id },
+      data: { estado: 'FECHADO', fechadoEm: new Date(), fechadoPorId: USER },
+    });
+
+    const serieAntes = await serieCP();
+    const saldoAntes = await db.saldoStock.findFirst({ where: { produtoId, localizacaoId: loc } });
+    const movAntes = await db.movimentoStock.count({ where: { tenantId: TENANT } });
+
+    sessao();
+    const r = await receber({ pedidoCompraId: p.id, data: dataFechada, itens: [linha(p.itens[0], 8)] });
+    recusadaComoRegra(r, 'recepção num período fechado', 'PERIODO_FECHADO');
+
+    const saldoDepois = await db.saldoStock.findFirst({ where: { produtoId, localizacaoId: loc } });
+    expect(Number(saldoDepois?.saldo ?? 0)).toBe(Number(saldoAntes?.saldo ?? 0));
+    expect(await db.movimentoStock.count({ where: { tenantId: TENANT } })).toBe(movAntes);
+    expect(await db.recebimentoCompra.count({ where: { pedidoCompraId: p.id } })).toBe(0);
+    expect(await db.contaPagar.count({ where: { pedidoCompraId: p.id } })).toBe(0);
+    expect(await serieCP()).toBe(serieAntes);
+    const depois = await db.pedidoCompra.findUnique({ where: { id: p.id }, include: { itens: true } });
+    expect(depois.status).toBe('EM_TRANSITO');
+    expect(Number(depois.itens[0].quantidadeRecebida)).toBe(0);
+  });
 });

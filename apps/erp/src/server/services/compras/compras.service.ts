@@ -100,6 +100,22 @@ export function valorDasQuantidadesAceites<
   return { base: base.toDecimalPlaces(2), iva: iva.toDecimalPlaces(2) };
 }
 
+/**
+ * #567: valor de UMA recepção pelo telescópio — acumulado depois (quantidadeRecebida + aceite)
+ * menos acumulado antes (quantidadeRecebida, que soma o aceite das recepções anteriores).
+ */
+function valorDaRecepcao<
+  I extends { id: string; quantidadeRecebida: unknown; quantidade: unknown; precoUnitario: unknown; desconto: unknown; taxaIva: unknown },
+>(itens: I[], aceitePorItem: Map<string, Prisma.Decimal>) {
+  const antes = valorDasQuantidadesAceites(itens, (i) => new Prisma.Decimal(String(i.quantidadeRecebida ?? 0)));
+  const depois = valorDasQuantidadesAceites(itens, (i) =>
+    new Prisma.Decimal(String(i.quantidadeRecebida ?? 0)).add(aceitePorItem.get(i.id) ?? 0),
+  );
+  const baseIva = depois.base.sub(antes.base);
+  const valorIva = depois.iva.sub(antes.iva);
+  return { baseIva, valorIva, valorOriginal: baseIva.add(valorIva) };
+}
+
 /** Valida transição de estado; lança BusinessRuleError se inválida. */
 export function transitar<S extends string>(
   mapa: Record<S, S[]>,
@@ -1366,14 +1382,11 @@ export const comprasService: IComprasService = {
         aceitePorItem.set(i.itemPedidoCompraId, (aceitePorItem.get(i.itemPedidoCompraId) ?? new Prisma.Decimal(0)).add(q));
       }
       const itensComAceite = pedido.itens.filter((i: any) => aceitePorItem.get(i.id)?.greaterThan(0));
-      if (itensComAceite.length > 0) {
-        const antes = valorDasQuantidadesAceites(pedido.itens, (i) => new Prisma.Decimal(String(i.quantidadeRecebida ?? 0)));
-        const depois = valorDasQuantidadesAceites(pedido.itens, (i) =>
-          new Prisma.Decimal(String(i.quantidadeRecebida ?? 0)).add(aceitePorItem.get(i.id) ?? 0),
-        );
-        const baseIva = depois.base.sub(antes.base);
-        const valorIva = depois.iva.sub(antes.iva);
-        const valorOriginal = baseIva.add(valorIva);
+      const valor = itensComAceite.length === 0 ? null : valorDaRecepcao(pedido.itens, aceitePorItem);
+      // Aceite a valor zero (preço 0, desconto a 100 %, delta que arredonda a 0,00): o stock entrou
+      // acima, mas não há dívida — sem CP, sem lançamento, sem número consumido.
+      if (valor && !valor.valorOriginal.isZero()) {
+        const { baseIva, valorIva, valorOriginal } = valor;
         // Taxa comum dos itens aceites nesta recepção; mistas → null (o valorIva é a soma das linhas).
         const taxas = [...new Set(itensComAceite.map((i: any) => new Prisma.Decimal(String(i.taxaIva)).toFixed(6)))];
         const taxaIva = taxas.length === 1 ? new Prisma.Decimal(taxas[0]) : null;

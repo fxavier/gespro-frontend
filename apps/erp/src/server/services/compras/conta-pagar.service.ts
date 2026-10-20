@@ -84,6 +84,7 @@ function toContaPagarDetalhe(c: any): ContaPagarDetalhe {
   return {
     ...toContaPagarResumo(c),
     pedidoCompraId: c.pedidoCompraId ?? null,
+    recebimentoCompraId: c.recebimentoCompraId ?? null,
     centroCustoId: c.centroCustoId ?? null,
     contaContabilId: c.contaContabilId ?? null,
     observacoes: c.observacoes ?? null,
@@ -167,9 +168,12 @@ export async function lancarReconhecimentoDivida(
       { contaCodigo: '421',                                 tipo: 'CREDITO', valor: valorOrig },
     ];
   } else if (params.contaIvaSuportado && params.baseIva != null && params.valorIva != null) {
-    // #567: D gasto(baseIva) + D 4431x(valorIva) / C 421(valorOriginal). Partida a zero não se lança.
+    // #567: D gasto(baseIva) + D 4431x(valorIva) / C 421(valorOriginal). Partida a zero não se lança
+    // (o núcleo recusa-a com PARTIDA_VALOR_INVALIDO); o chamador não chama com as duas a zero.
     partidas = [
-      { contaCodigo: params.contaCodigo, tipo: 'DEBITO', valor: String(params.baseIva) },
+      ...(new Prisma.Decimal(String(params.baseIva)).greaterThan(0)
+        ? [{ contaCodigo: params.contaCodigo, tipo: 'DEBITO' as const, valor: String(params.baseIva) }]
+        : []),
       ...(new Prisma.Decimal(String(params.valorIva)).greaterThan(0)
         ? [{ contaCodigo: params.contaIvaSuportado, tipo: 'DEBITO' as const, valor: String(params.valorIva) }]
         : []),

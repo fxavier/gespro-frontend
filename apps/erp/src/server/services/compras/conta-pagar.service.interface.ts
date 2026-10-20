@@ -118,6 +118,8 @@ export interface ContaPagarResumo {
 
 export interface ContaPagarDetalhe extends ContaPagarResumo {
   pedidoCompraId: string | null;
+  /** #567: recepção que gerou a dívida; não nulo ⇒ a conta não se cancela (CONTA_PAGAR_DE_RECEPCAO). */
+  recebimentoCompraId: string | null;
   centroCustoId: string | null;
   contaContabilId: string | null;
   observacoes: string | null;

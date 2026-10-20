@@ -150,6 +150,21 @@ export default async function ContaPagarDetalhePage({ params }: Props) {
       label: 'Valor restante',
       value: <span className="font-semibold tabular-nums">{formatMZN(conta.valorRestante)}</span>,
     },
+    conta.recebimentoCompraId
+      ? {
+          label: 'Origem',
+          value: (
+            <span>
+              {'Esta conta nasceu da recepção de mercadoria de um pedido de compra e não se cancela. Para corrigir, registe uma nota de crédito do fornecedor.'}{' '}
+              {conta.pedidoCompraId && (
+                <Link href={`/compras/pedidos/${conta.pedidoCompraId}`} className="text-primary hover:underline">
+                  Ver pedido
+                </Link>
+              )}
+            </span>
+          ),
+        }
+      : null,
     conta.observacoes ? { label: 'Observações', value: conta.observacoes } : null,
     conta.status === 'CANCELADA' && conta.motivoCancelamento
       ? { label: 'Motivo do cancelamento', value: conta.motivoCancelamento }
@@ -179,8 +194,8 @@ export default async function ContaPagarDetalhePage({ params }: Props) {
                 </Button>
                 {emAberto && (
                   <>
-                    {/* #566: só se cancela uma conta sem nada pago. */}
-                    {conta.valorPago === 0 && (
+                    {/* #566: só se cancela uma conta sem nada pago; #567: nem uma conta de recepção. */}
+                    {conta.valorPago === 0 && !conta.recebimentoCompraId && (
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/fornecedores/contas-pagar/${conta.id}/cancelar`}>
                           <Ban className="mr-1.5 h-4 w-4" />
