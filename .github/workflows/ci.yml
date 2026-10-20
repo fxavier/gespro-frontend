@@ -315,7 +315,7 @@ jobs:
         run: pnpm db:seed
 
       - name: Cache .next/cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/erp/.next/cache
           key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/erp/src/**/*.ts', 'apps/erp/src/**/*.tsx') }}
@@ -395,7 +395,7 @@ jobs:
         run: pnpm db:seed
 
       - name: Cache .next/cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/erp/.next/cache
           key: ${{ runner.os }}-nextjs-a11y-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/erp/src/**/*.ts', 'apps/erp/src/**/*.tsx') }}
@@ -461,7 +461,7 @@ jobs:
         run: pnpm --filter site gate:cores
 
       - name: Cache .next/cache (site)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/site/.next/cache
           key: ${{ runner.os }}-nextjs-site-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/site/src/**', 'apps/site/content/**', 'apps/site/messages/**') }}
@@ -528,7 +528,7 @@ jobs:
         run: npx prisma generate
 
       - name: Cache .next/cache (Turbopack/webpack)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/erp/.next/cache
           key: ${{ runner.os }}-nextjs-build-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/erp/src/**/*.ts', 'apps/erp/src/**/*.tsx') }}
