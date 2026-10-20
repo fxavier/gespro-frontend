@@ -139,4 +139,31 @@ describe.skipIf(skip)('Folha de pagamento — lançamento no mês de referência
     expect(ps.length).toBeGreaterThan(0);
     expect(ps.every((x: any) => x.status === 'PENDENTE')).toBe(true);
   }, 60_000);
+
+  it('(d) cancelar a folha → o estorno fica no período do lançamento original, não no de hoje', async () => {
+    const folhaId = await folhaPendente(6);
+    await run(() => svc.marcarProcessada(folhaId, ctx));
+    const { lancamento } = await lancamentoDaFolha(folhaId);
+
+    await run(() => svc.cancelar(folhaId, 'erro de digitação', ctx));
+
+    const estorno = await db.lancamento.findFirst({
+      where: { tenantId: TENANT, lancamentoEstornoId: lancamento.id },
+    });
+    expect(estorno, 'estorno do lançamento da folha').toBeTruthy();
+    expect(estorno.periodoId).toBe(lancamento.periodoId);
+    expect(diaCivilMaputo(estorno.data)).toBe(`${ANO_REF}-06-30`);
+  }, 60_000);
+});
+
+describe.skipIf(skip)('dataLancamentoFolha — último dia do mês (#569)', () => {
+  it.each([
+    [2024, 2, '2024-02-29'],
+    [2025, 2, '2025-02-28'],
+    [2100, 2, '2100-02-28'],
+    [2025, 12, '2025-12-31'],
+  ])('%i-%i → %s', async (ano, mes, dia) => {
+    const { dataLancamentoFolha } = await import('@/server/services/pessoas-projetos/payroll.service');
+    expect(diaCivilMaputo(dataLancamentoFolha(ano, mes))).toBe(dia);
+  });
 });

@@ -1055,7 +1055,13 @@ export const PayrollService = {
         if (lancamento && lancamento.status !== 'ESTORNADO') {
           await estornarLancamentoEmTx(
             tx,
-            { lancamentoId: folha.lancamentoId, motivo: `Cancelamento da folha: ${motivo}` },
+            {
+              lancamentoId: folha.lancamentoId,
+              motivo: `Cancelamento da folha: ${motivo}`,
+              // #569: no dia do lançamento — estornar «hoje» deixava o mês de referência em
+              // duplicado ao reprocessar. Período fechado → PERIODO_FECHADO.
+              data: dataLancamentoFolha(folha.anoReferencia, folha.mesReferencia),
+            },
             ctx,
           );
         }

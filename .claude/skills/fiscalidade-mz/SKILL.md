@@ -69,8 +69,10 @@ no dia em que se processa — a folha de Dezembro processada em Janeiro pertence
 Dezembro (período 12, nunca o 13 do encerramento) e à DRE desse ano. Se esse
 período estiver fechado, o processamento é recusado com `PERIODO_FECHADO` (a recusa
 do `registarLancamentoContabilistico`) e nada muda: reabre-se o período ou não se
-processa. `dataProcessamento` continua a ser o instante real; o pagamento e o
-estorno do cancelamento mantêm as suas datas próprias.
+processa. O cancelamento estorna no **mesmo dia** do lançamento (mesmo período),
+senão cancelar e reprocessar deixava o mês de referência em duplicado e o mês do
+cancelamento negativo; com o período fechado, recusa com `PERIODO_FECHADO`.
+`dataProcessamento` continua a ser o instante real; o pagamento mantém a sua data.
 
 ## Imutabilidade
 
