@@ -28,10 +28,11 @@
  *   (3) Apuramento do IVA do período corre (sem DOCUMENTO_SEM_LANCAMENTO nem outro impedimento);
  *       IVA liquidado (44331) = Σ ivaTotal dos documentos emitidos; base 44331 = Σ subtotal das
  *       linhas a 16% → sem divergência de base.
- *   (4) Anular a venda A (vendaService.anular): no balancete, o efeito líquido da venda A nas suas
- *       contas desaparece (111, 711, 44331 voltam ao valor sem A; 411 líquido inalterado); o novo
- *       apuramento (o primeiro é estornado pelo serviço, caminho legítimo) reflecte a NC no 44331
- *       e na base, sem divergência.
+ *   (4) Com o apuramento activo, anular a venda A é RECUSADO (#564: a NC creditaria o 44331 num
+ *       período apurado) e nada fica escrito. Caminho legal: estornar o apuramento pelo serviço,
+ *       anular a venda A (vendaService.anular) — no balancete, o efeito líquido da venda A nas suas
+ *       contas desaparece (111, 711, 44331 voltam ao valor sem A; 411 líquido inalterado) — e apurar
+ *       de novo (versão 2), que reflecte a NC no 44331 e na base, sem divergência.
  *   (5) Uma venda POS com uma linha a 0% no período faz o apuramento recusar com
  *       PRORATA_NAO_SUPORTADO e não criar apuramento nenhum (contrato do #208).
  *
@@ -362,9 +363,42 @@ describe.skipIf(skip)('POS ponta-a-ponta: apuramento do IVA, balancete e DFC —
   // (4) Anulação
   // -------------------------------------------------------------------------
 
-  it('anular a venda a dinheiro A: no balancete o efeito dela desaparece (111/711/44331), 411 líquido inalterado; novo apuramento reflecte a NC no 44331 e na base', async () => {
+  it('anular a venda a dinheiro A: recusada com o IVA apurado (#564) e nada escrito; estornado o apuramento, o efeito dela desaparece (111/711/44331), 411 líquido inalterado; novo apuramento (v2) reflecte a NC no 44331 e na base', async () => {
     expect(periodo, 'pré-condição: vendas feitas').toBeDefined();
     expect(resultadoApuramento, 'pré-condição: primeiro apuramento').toBeDefined();
+
+    // #564: com o apuramento activo, a NC da anulação (C 44331 no período apurado) é recusada.
+    const contar = async () => ({
+      ncs: await db.notaCredito.count({ where: { tenantId: TENANT } }),
+      lancamentos: await db.lancamento.count({ where: { tenantId: TENANT } }),
+      movimentosCaixa: await db.movimentoCaixa.count({ where: { tenantId: TENANT } }),
+      movimentosStock: await db.movimentoStock.count({ where: { tenantId: TENANT } }),
+      vendaA: (await db.venda.findFirst({ where: { id: vendas.A.id, tenantId: TENANT } })).status,
+    });
+    const antesRecusa = await contar();
+    const balanceteAntesRecusa = await balancete();
+    const recusa = await capturarErro(() =>
+      noCtx(() => (vendaService as any).anular(vendas.A.id, { motivo: 'Cliente desistiu (S9)' }, ctx)),
+    );
+    expect(recusa?.code, `esperava PERIODO_IVA_APURADO, veio: ${recusa?.code ?? 'nada'} ${recusa?.message ?? ''}`).toBe(
+      'PERIODO_IVA_APURADO',
+    );
+    expect(await contar(), 'anulação recusada não escreve nada').toEqual(antesRecusa);
+    expect(antesRecusa.vendaA).not.toBe('CANCELADA');
+    const balanceteDepoisRecusa = await balancete();
+    for (const c of ['111', '121', '411', '711', '44331']) {
+      expect(balanceteDepoisRecusa.liquido(c).toFixed(2), `${c} intacto após a recusa`).toBe(
+        balanceteAntesRecusa.liquido(c).toFixed(2),
+      );
+    }
+
+    // Novo apuramento: o activo tem de ser estornado primeiro (PERIODO_JA_APURADO); caminho legítimo.
+    const reapurarSemEstorno = await capturarErro(() => noCtx(() => apuramento.apurarIva({ periodoId: periodo.id }, ctx)));
+    expect(reapurarSemEstorno?.code).toBe('PERIODO_JA_APURADO');
+    await noCtx(() =>
+      apuramento.estornarApuramentoIva({ apuramentoId: resultadoApuramento.id, motivo: 'Venda POS a anular depois do apuramento' }, ctx),
+    );
+
     const antes = await balancete();
 
     await noCtx(() => (vendaService as any).anular(vendas.A.id, { motivo: 'Cliente desistiu (S9)' }, ctx));
@@ -383,21 +417,12 @@ describe.skipIf(skip)('POS ponta-a-ponta: apuramento do IVA, balancete e DFC —
     expect(delta('44331'), 'Δ 44331').toBe(A.iva.toFixed(2));
     expect(delta('411'), 'Δ 411 (NC C 411 e liquidação D 411 anulam-se)').toBe('0.00');
     expect(delta('121'), 'Δ 121').toBe('0.00');
-    // Valores absolutos, sem a venda A: 111 = 2179,28 − 139,28; 711 = −(4620,08 − 120,08); 44331 = −(739,20 − 19,20).
-    // (O apuramento e o seu estorno, se já houvesse, anulam-se no 44331; aqui ainda está activo — ver abaixo.)
 
-    // Novo apuramento: o activo tem de ser estornado primeiro (PERIODO_JA_APURADO); caminho legítimo.
-    const reapurarSemEstorno = await capturarErro(() => noCtx(() => apuramento.apurarIva({ periodoId: periodo.id }, ctx)));
-    expect(reapurarSemEstorno?.code).toBe('PERIODO_JA_APURADO');
-    await noCtx(() =>
-      apuramento.estornarApuramentoIva({ apuramentoId: resultadoApuramento.id, motivo: 'Venda POS anulada depois do apuramento' }, ctx),
-    );
-
-    // Com o apuramento estornado, o 44331 do período volta a ser só documentos: −(Σ IVA − IVA de A).
-    const semApuramento = await balancete();
-    expect(semApuramento.liquido('44331').toFixed(2), '44331 líquido sem A').toBe(ESP.iva.minus(A.iva).negated().toFixed(2));
-    expect(semApuramento.liquido('711').toFixed(2), '711 líquido sem A').toBe(ESP.subtotal.minus(A.subtotal).negated().toFixed(2));
-    expect(semApuramento.liquido('111').toFixed(2), '111 líquido sem A').toBe(ESP.dinheiro.minus(A.total).toFixed(2));
+    // Com o apuramento estornado (o apuramento e o seu estorno anulam-se no 44331), o 44331 do
+    // período é só documentos: −(Σ IVA − IVA de A). Valores absolutos, sem a venda A.
+    expect(depois.liquido('44331').toFixed(2), '44331 líquido sem A').toBe(ESP.iva.minus(A.iva).negated().toFixed(2));
+    expect(depois.liquido('711').toFixed(2), '711 líquido sem A').toBe(ESP.subtotal.minus(A.subtotal).negated().toFixed(2));
+    expect(depois.liquido('111').toFixed(2), '111 líquido sem A').toBe(ESP.dinheiro.minus(A.total).toFixed(2));
 
     const docs = await documentosEmitidos();
     expect(docs.ncs).toHaveLength(1);
