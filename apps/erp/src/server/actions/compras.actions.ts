@@ -19,6 +19,7 @@ import {
   UpdatePedidoCompraSchema,
   ConverterRequisicaoEmPedidoSchema,
   CancelarPedidoCompraSchema,
+  FecharPedidoCompraEmFaltaSchema,
   CreateRecebimentoCompraSchema,
   CreateConfiguracaoWorkflowSchema,
   FilterRequisicaoCompraSchema,
@@ -246,6 +247,14 @@ export const cancelarPedidoCompraAction = createSafeAction({
   permission: 'compras:pedido:cancelar',
   revalidate: { paths: ['/compras/pedidos'], tags: ['compras:pedidos'] },
   handler: async ({ id, motivo }, ctx) => comprasService.cancelarPedido(id, motivo, ctx),
+});
+
+/** #567: fechar em falta (RECEBIDO_PARCIAL → FECHADO_EM_FALTA); reutiliza a permissão de cancelar. */
+export const fecharPedidoCompraEmFaltaAction = createSafeAction({
+  schema: FecharPedidoCompraEmFaltaSchema,
+  permission: 'compras:pedido:cancelar',
+  revalidate: { paths: ['/compras/pedidos'], tags: ['compras:pedidos'] },
+  handler: async ({ id, motivo }, ctx) => comprasService.fecharPedidoEmFalta(id, motivo, ctx),
 });
 
 // =====================================================================

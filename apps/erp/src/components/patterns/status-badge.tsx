@@ -36,6 +36,7 @@ const STATUS_MAP: Record<string, StatusVariant> = {
   EM_TRANSITO: 'warning',
   RECEBIDO_PARCIAL: 'warning',
   RECEBIDO_TOTAL: 'success',
+  FECHADO_EM_FALTA: 'secondary', // #567: terminal, recebido em parte
   CANCELADO: 'destructive',
 
   // Venda — WS C Comercial
@@ -390,6 +391,7 @@ export const STATUS_LABELS: Record<string, string> = {
   EM_TRANSITO: 'Em Trânsito',
   RECEBIDO_PARCIAL: 'Parcialmente Recebido',
   RECEBIDO_TOTAL: 'Recebido',
+  FECHADO_EM_FALTA: 'Fechado em falta',
   CANCELADO: 'Cancelado',
   ATIVO: 'Activo',
   INATIVO: 'Inactivo',

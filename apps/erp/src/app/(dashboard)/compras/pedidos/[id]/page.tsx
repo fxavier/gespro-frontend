@@ -4,11 +4,12 @@
  * #110: a lista liga aqui. Mostra o fornecedor (pelo nome), os itens e as ligações à requisição
  * e à cotação, e as acções do ciclo de vida: enviar, confirmar e marcar em trânsito no
  * componente-folha `PedidoAcoes`; cancelar é rota própria (recolhe o motivo).
+ * #567: um pedido RECEBIDO_PARCIAL fecha-se em falta, também em rota própria (recolhe o motivo).
  */
 
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PackageCheck, XCircle } from 'lucide-react';
+import { ArrowLeft, PackageCheck, PackageX, XCircle } from 'lucide-react';
 import { exigirSessaoDeTenant } from '@/server/auth/sessao-tenant';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { comprasService } from '@/server/services/compras/compras.service';
@@ -49,6 +50,9 @@ export default async function PedidoCompraDetalhePage({ params }: Props) {
     ESTADOS_RECEBIVEIS.includes(pedido.status) && permissions.includes('compras:recebimento:registar');
   const podeCancelar =
     ESTADOS_CANCELAVEIS.includes(pedido.status) && permissions.includes('compras:pedido:cancelar');
+  /** #567: fechar em falta reutiliza a permissão de cancelar. */
+  const podeFecharEmFalta =
+    pedido.status === 'RECEBIDO_PARCIAL' && permissions.includes('compras:pedido:cancelar');
 
   const tabItens = (
     <div className="rounded-lg border overflow-hidden">
@@ -127,6 +131,9 @@ export default async function PedidoCompraDetalhePage({ params }: Props) {
           },
         ]
       : []),
+    ...(pedido.motivoFecho
+      ? [{ label: 'Motivo do fecho em falta', value: <span className="whitespace-pre-line">{pedido.motivoFecho}</span> }]
+      : []),
     ...(pedido.observacoes
       ? [{ label: 'Observações', value: <span className="whitespace-pre-line">{pedido.observacoes}</span> }]
       : []),
@@ -159,6 +166,14 @@ export default async function PedidoCompraDetalhePage({ params }: Props) {
                     <Link href={`/compras/pedidos/${pedido.id}/receber`}>
                       <PackageCheck className="h-4 w-4 mr-1.5" aria-hidden="true" />
                       Registar recepção
+                    </Link>
+                  </Button>
+                )}
+                {podeFecharEmFalta && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/compras/pedidos/${pedido.id}/fechar`}>
+                      <PackageX className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      Fechar em falta
                     </Link>
                   </Button>
                 )}
