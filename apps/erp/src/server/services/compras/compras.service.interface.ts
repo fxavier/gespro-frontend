@@ -93,20 +93,24 @@ export type StatusPedidoCompra =
   | 'EM_TRANSITO'
   | 'RECEBIDO_PARCIAL'
   | 'RECEBIDO_TOTAL'
+  | 'FECHADO_EM_FALTA'
   | 'CANCELADO';
 
 /**
  * Transições válidas para PedidoCompra.
  * RECEBIDO_PARCIAL: alguns itens recebidos mas não a totalidade.
- * RECEBIDO_TOTAL: estado terminal funcional — trigga entrada em stock (WS A) e conta a pagar.
+ * RECEBIDO_TOTAL: estado terminal funcional.
+ * FECHADO_EM_FALTA (#567): recebido em parte e fechado sem esperar o resto — terminal; não lança
+ * nada, porque cada recepção já reconheceu a sua dívida (entrada em stock + conta a pagar).
  */
 export const TRANSICOES_PEDIDO_COMPRA: Record<StatusPedidoCompra, StatusPedidoCompra[]> = {
   RASCUNHO: ['ENVIADO', 'CANCELADO'],
   ENVIADO: ['CONFIRMADO', 'CANCELADO'],
   CONFIRMADO: ['EM_TRANSITO', 'CANCELADO'],
   EM_TRANSITO: ['RECEBIDO_PARCIAL', 'RECEBIDO_TOTAL'],
-  RECEBIDO_PARCIAL: ['RECEBIDO_TOTAL'],
+  RECEBIDO_PARCIAL: ['RECEBIDO_TOTAL', 'FECHADO_EM_FALTA'],
   RECEBIDO_TOTAL: [],
+  FECHADO_EM_FALTA: [],
   CANCELADO: [],
 };
 
@@ -260,6 +264,8 @@ export interface PedidoCompraDetalhe extends PedidoCompraResumo {
   enderecoEntrega: string;
   centroCustoId: string | null;
   observacoes: string | null;
+  /** #567: motivo do fecho em falta (só em FECHADO_EM_FALTA). */
+  motivoFecho: string | null;
   itens: ItemPedidoCompraDto[];
   aprovacoes: AprovacaoCompraDto[];
   recebimentos: RecebimentoCompraDto[];
@@ -412,6 +418,8 @@ export interface IComprasService {
   confirmarPedido(id: string, ctx: Ctx): Promise<void>;
   marcarPedidoEmTransito(id: string, ctx: Ctx): Promise<void>;
   cancelarPedido(id: string, motivo: string, ctx: Ctx): Promise<void>;
+  /** #567: RECEBIDO_PARCIAL → FECHADO_EM_FALTA, com motivo; não lança nada. */
+  fecharPedidoEmFalta(id: string, motivo: string, ctx: Ctx): Promise<void>;
   obterPedido(id: string, ctx: Ctx): Promise<PedidoCompraDetalhe>;
   listarPedidos(
     filtros: FilterPedidoCompraInput,

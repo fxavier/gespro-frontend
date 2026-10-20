@@ -382,8 +382,8 @@ describe('TRANSICOES_PEDIDO_COMPRA — invariantes críticos', () => {
     expect(TRANSICOES_PEDIDO_COMPRA.EM_TRANSITO).toContain('RECEBIDO_TOTAL');
   });
 
-  it('RECEBIDO_PARCIAL só pode progredir para RECEBIDO_TOTAL (não volta a EM_TRANSITO)', () => {
-    expect(TRANSICOES_PEDIDO_COMPRA.RECEBIDO_PARCIAL).toEqual(['RECEBIDO_TOTAL']);
+  it('RECEBIDO_PARCIAL só pode progredir para RECEBIDO_TOTAL ou fechar em falta (não volta a EM_TRANSITO) (#567)', () => {
+    expect(TRANSICOES_PEDIDO_COMPRA.RECEBIDO_PARCIAL).toEqual(['RECEBIDO_TOTAL', 'FECHADO_EM_FALTA']);
   });
 });
 
@@ -404,6 +404,8 @@ describe('registarRecebimento() — RECEBIDO_TOTAL cria ContaPagar com bloco fis
       id: 'ip-1', tenantId: 'tenant-test', pedidoCompraId: 'pc-1',
       produtoId: 'prod-1', descricao: 'Produto A',
       quantidade: 10, quantidadeRecebida: 0,
+      // Coerente com o pedido abaixo: 10 × 100 = 1000 de base, 16% = 160 de IVA.
+      precoUnitario: 100, desconto: 0, taxaIva: 0.16,
     };
     const pedido = {
       id: 'pc-1', tenantId: 'tenant-test', numero: 'PED-2026-001',
@@ -494,7 +496,7 @@ describe('registarRecebimento() — RECEBIDO_TOTAL cria ContaPagar com bloco fis
     expect(data.numeroDocumento).toBeNull();  // factura não chegou ainda
   });
 
-  it('produz lançamento D 211 Mercadorias / C 421 equilibrado ao cêntimo, sem 4432x', async () => {
+  it('produz lançamento D 211 base / D 44311 IVA / C 421 total equilibrado ao cêntimo, sem 4432x (#567)', async () => {
     const { prisma } = await import('@/server/db/client');
     const db = prisma as any;
     db.$transaction.mockImplementation(async (fn: any) => fn(buildTxMock()));
@@ -527,8 +529,15 @@ describe('registarRecebimento() — RECEBIDO_TOTAL cria ContaPagar com bloco fis
     const totalCredito = chamada.partidas.filter((p: any) => p.tipo === 'CREDITO').reduce((s: number, p: any) => s + Number(p.valor), 0);
     expect(totalDebito).toBeCloseTo(totalCredito, 5);
 
-    // Apenas 2 partidas — sem 4432x (sem factura do fornecedor)
-    expect(chamada.partidas).toHaveLength(2);
+    // #567: D 211 pela base sem IVA; o IVA vai para a 44311 (suportado, não dedutível sem factura)
+    const debito44311 = chamada.partidas.find((p: any) => p.tipo === 'DEBITO' && p.contaCodigo === '44311');
+    expect(debito44311).toBeDefined();
+    expect(Number(debito211.valor)).toBeCloseTo(1000, 5);
+    expect(Number(debito44311.valor)).toBeCloseTo(160, 5);
+    expect(Number(credito421.valor)).toBeCloseTo(1160, 5);
+
+    // Exactamente 3 partidas — sem 4432x (sem factura do fornecedor)
+    expect(chamada.partidas).toHaveLength(3);
     expect(chamada.partidas.find((p: any) => p.contaCodigo.startsWith('4432'))).toBeUndefined();
   });
 

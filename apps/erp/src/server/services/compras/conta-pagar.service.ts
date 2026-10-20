@@ -84,6 +84,7 @@ function toContaPagarDetalhe(c: any): ContaPagarDetalhe {
   return {
     ...toContaPagarResumo(c),
     pedidoCompraId: c.pedidoCompraId ?? null,
+    recebimentoCompraId: c.recebimentoCompraId ?? null,
     centroCustoId: c.centroCustoId ?? null,
     contaContabilId: c.contaContabilId ?? null,
     observacoes: c.observacoes ?? null,
@@ -125,7 +126,11 @@ export const MAPA_4432X: Record<TipoAquisicaoIva, string> = {
  * Lançamento:
  * - Com IVA dedutível (tipoAquisicao + baseIva + valorIva definidos):
  *     D contaCodigo(baseIva) + D 4432x(valorIva) / C 421(valorOriginal)
- * - Sem IVA dedutível:
+ * - Com IVA suportado ainda não dedutível (`contaIvaSuportado` + baseIva + valorIva, #567):
+ *     D contaCodigo(baseIva) + D contaIvaSuportado(valorIva) / C 421(valorOriginal)
+ *   — a recepção sem documento do fornecedor: o IVA é devido mas o direito à dedução
+ *   só nasce com o documento (ADR-0034 §1); fica em 4431x, que o apuramento não lê.
+ * - Sem IVA:
  *     D contaCodigo(valorOriginal) / C 421(valorOriginal)
  *
  * A invariante débitos=créditos é verificada por registarLancamentoContabilistico
@@ -147,6 +152,8 @@ export async function lancarReconhecimentoDivida(
     baseIva: number | Prisma.Decimal | null;
     valorIva: number | Prisma.Decimal | null;
     dataLancamento: Date;
+    /** #567: conta de IVA suportado não dedutível (ex.: '44311'); exclusiva com `tipoAquisicao`. */
+    contaIvaSuportado?: string;
   },
   ctx: Ctx,
 ): Promise<string> {
@@ -159,6 +166,18 @@ export async function lancarReconhecimentoDivida(
       { contaCodigo: params.contaCodigo,                    tipo: 'DEBITO',  valor: String(params.baseIva) },
       { contaCodigo: MAPA_4432X[params.tipoAquisicao],      tipo: 'DEBITO',  valor: String(params.valorIva) },
       { contaCodigo: '421',                                 tipo: 'CREDITO', valor: valorOrig },
+    ];
+  } else if (params.contaIvaSuportado && params.baseIva != null && params.valorIva != null) {
+    // #567: D gasto(baseIva) + D 4431x(valorIva) / C 421(valorOriginal). Partida a zero não se lança
+    // (o núcleo recusa-a com PARTIDA_VALOR_INVALIDO); o chamador não chama com as duas a zero.
+    partidas = [
+      ...(new Prisma.Decimal(String(params.baseIva)).greaterThan(0)
+        ? [{ contaCodigo: params.contaCodigo, tipo: 'DEBITO' as const, valor: String(params.baseIva) }]
+        : []),
+      ...(new Prisma.Decimal(String(params.valorIva)).greaterThan(0)
+        ? [{ contaCodigo: params.contaIvaSuportado, tipo: 'DEBITO' as const, valor: String(params.valorIva) }]
+        : []),
+      { contaCodigo: '421', tipo: 'CREDITO', valor: valorOrig },
     ];
   } else {
     // Sem IVA dedutível: D gasto(total) / C 421(total)
@@ -211,6 +230,15 @@ export const contaPagarService: IContaPagarService = {
       throw new BusinessRuleError(
         'CONTA_CONTABIL_OBRIGATORIA',
         'A conta contabilística de gasto/existências (contaContabilId) é obrigatória para registar o reconhecimento da dívida.',
+      );
+    }
+
+    // #567: a dívida de um pedido nasce de cada recepção (uma CP por recepção). Uma CP manual
+    // ligada ao pedido duplicaria essa dívida — recusa antes de consumir número.
+    if (input.pedidoCompraId) {
+      throw new BusinessRuleError(
+        'CONTA_PAGAR_PEDIDO_E_DA_RECEPCAO',
+        'A dívida de um pedido de compra é registada pela recepção da mercadoria; não se cria conta a pagar manual para um pedido.',
       );
     }
 
@@ -337,6 +365,14 @@ export const contaPagarService: IContaPagarService = {
       );
       const conta = await tx.contaPagar.findUnique({ where: { id } });
       if (!conta || conta.tenantId !== ctx.tenantId) throw new NotFoundError('Conta a pagar não encontrada');
+      // #567: a dívida de uma recepção não se cancela — a mercadoria está em stock e a
+      // recepção não tem reversão. Corrige-se com nota de crédito do fornecedor (ADR-0039 §2).
+      if (conta.recebimentoCompraId) {
+        throw new BusinessRuleError(
+          'CONTA_PAGAR_DE_RECEPCAO',
+          'Esta conta a pagar nasceu de uma recepção de mercadoria e não pode ser cancelada. Registe uma nota de crédito do fornecedor.',
+        );
+      }
       // #566: pagamentos reais não podem ficar sem dívida — desfazem-se primeiro.
       if (new Prisma.Decimal(String(conta.valorPago ?? 0)).greaterThan(0)) {
         throw new BusinessRuleError(

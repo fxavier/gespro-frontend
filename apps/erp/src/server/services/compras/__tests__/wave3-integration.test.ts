@@ -30,7 +30,9 @@ vi.mock('@/server/services/financas/faturacao.service', () => ({
 
 // ─── Mock Prisma ─────────────────────────────────────────────────────────────
 
-// Recebimento mock: pedido com 2 itens; um item aceite, outro rejeitado
+// Recebimento mock: pedido com 2 itens; um item aceite, outro rejeitado.
+// #567: a recepção valoriza o aceite pelos preços do item — coerentes com o valorTotal
+// (10 × 300 + 5 × 400 = 5000, sem IVA).
 const pedidoMock = {
   id: 'pc-001', tenantId: 'tenant-test', numero: 'PC-2026-00001',
   fornecedorId: 'for-001', status: 'EM_TRANSITO',
@@ -40,11 +42,13 @@ const pedidoMock = {
       id: 'item-1', produtoId: 'prod-001', descricao: 'Produto A',
       quantidade: new Prisma.Decimal('10'), unidadeMedida: 'UN',
       quantidadeRecebida: new Prisma.Decimal('0'),
+      precoUnitario: new Prisma.Decimal('300'), desconto: new Prisma.Decimal('0'), taxaIva: new Prisma.Decimal('0'),
     },
     {
       id: 'item-2', produtoId: null, descricao: 'Produto B sem código',
       quantidade: new Prisma.Decimal('5'), unidadeMedida: 'UN',
       quantidadeRecebida: new Prisma.Decimal('0'),
+      precoUnitario: new Prisma.Decimal('400'), desconto: new Prisma.Decimal('0'), taxaIva: new Prisma.Decimal('0'),
     },
   ],
 };
@@ -144,8 +148,10 @@ vi.mock('@/server/db/client', () => ({
         update: vi.fn(),
         findMany: vi.fn().mockResolvedValue(itensActualizados),
       },
+      // #567: cada recepção com aceite > 0 cria a sua conta a pagar (NUIT copiado do fornecedor).
+      fornecedor: { findUnique: vi.fn().mockResolvedValue({ nuit: '123456789' }) },
       contaPagar: {
-        create: vi.fn(),
+        create: vi.fn().mockResolvedValue({ id: 'cp-rec-001' }),
         findUnique: vi.fn().mockResolvedValue(contaMock),
         update: vi.fn(),
       },

@@ -67,11 +67,54 @@ export const PGC_COMPRAS = {
   FORNECEDORES_CC: '421',
   /** 121 — Depósitos à ordem (activo; crédito na liquidação) */
   BANCO_DEPOSITOS_ORDEM: '121',
+  /** 44311 — IVA suportado, inventários (#567: IVA da recepção ainda sem documento do fornecedor) */
+  IVA_SUPORTADO_INVENTARIOS: '44311',
 } as const;
 
 // =====================================================================
 // Funções puras — exportadas para testes (state machines + quórum)
 // =====================================================================
+
+/**
+ * #567: base (líquida de desconto) e IVA de uma quantidade por item do pedido, arredondados ao
+ * cêntimo ao nível do PEDIDO (não por linha). Com a quantidade pedida de cada item devolve
+ * exactamente `valorSubtotal − valorDesconto` e `valorIva` de `calcularTotaisPedido`; a recepção
+ * lança a diferença entre o acumulado depois e o acumulado antes (telescópico).
+ * O `desconto` do item é um valor absoluto da linha, repartido pela quantidade.
+ */
+export function valorDasQuantidadesAceites<
+  I extends { quantidade: unknown; precoUnitario: unknown; desconto: unknown; taxaIva: unknown },
+>(itens: I[], quantidadeDe: (item: I) => Prisma.Decimal): { base: Prisma.Decimal; iva: Prisma.Decimal } {
+  let base = new Prisma.Decimal(0);
+  let iva = new Prisma.Decimal(0);
+  for (const item of itens) {
+    const q = quantidadeDe(item);
+    if (q.isZero()) continue;
+    const qtd = new Prisma.Decimal(String(item.quantidade));
+    const liquidoLinha = qtd.mul(String(item.precoUnitario)).sub(String(item.desconto ?? 0));
+    // Multiplicar antes de dividir: com q = qtd o resultado é exacto.
+    const liquido = q.mul(liquidoLinha).div(qtd);
+    base = base.add(liquido);
+    iva = iva.add(liquido.mul(String(item.taxaIva ?? 0)));
+  }
+  return { base: base.toDecimalPlaces(2), iva: iva.toDecimalPlaces(2) };
+}
+
+/**
+ * #567: valor de UMA recepção pelo telescópio — acumulado depois (quantidadeRecebida + aceite)
+ * menos acumulado antes (quantidadeRecebida, que soma o aceite das recepções anteriores).
+ */
+function valorDaRecepcao<
+  I extends { id: string; quantidadeRecebida: unknown; quantidade: unknown; precoUnitario: unknown; desconto: unknown; taxaIva: unknown },
+>(itens: I[], aceitePorItem: Map<string, Prisma.Decimal>) {
+  const antes = valorDasQuantidadesAceites(itens, (i) => new Prisma.Decimal(String(i.quantidadeRecebida ?? 0)));
+  const depois = valorDasQuantidadesAceites(itens, (i) =>
+    new Prisma.Decimal(String(i.quantidadeRecebida ?? 0)).add(aceitePorItem.get(i.id) ?? 0),
+  );
+  const baseIva = depois.base.sub(antes.base);
+  const valorIva = depois.iva.sub(antes.iva);
+  return { baseIva, valorIva, valorOriginal: baseIva.add(valorIva) };
+}
 
 /** Valida transição de estado; lança BusinessRuleError se inválida. */
 export function transitar<S extends string>(
@@ -197,6 +240,7 @@ function toPedidoDetalhe(p: any): PedidoCompraDetalhe {
     enderecoEntrega: p.enderecoEntrega,
     centroCustoId: p.centroCustoId ?? null,
     observacoes: p.observacoes ?? null,
+    motivoFecho: p.motivoFecho ?? null,
     itens: (p.itens ?? []).map((i: any) => ({
       id: i.id, produtoId: i.produtoId ?? null, descricao: i.descricao,
       quantidade: Number(i.quantidade), quantidadeRecebida: Number(i.quantidadeRecebida ?? 0),
@@ -1144,6 +1188,25 @@ export const comprasService: IComprasService = {
     await db.pedidoCompra.update({ where: { id }, data: { status: 'CANCELADO', observacoes } });
   },
 
+  /**
+   * #567: o fornecedor não vai entregar o resto — RECEBIDO_PARCIAL → FECHADO_EM_FALTA (terminal).
+   * Não lança nada: cada recepção já reconheceu a sua dívida. Tranca o pedido como a recepção,
+   * para um fecho não se cruzar com uma recepção em curso.
+   */
+  async fecharPedidoEmFalta(id: string, motivo: string, ctx: Ctx) {
+    await prisma.$transaction(async (rawTx) => {
+      const tx = rawTx as unknown as PrismaClient;
+      await tx.$queryRaw`SELECT id FROM "PedidoCompra" WHERE id = ${id} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
+      const p = await tx.pedidoCompra.findUnique({ where: { id } });
+      if (!p || p.tenantId !== ctx.tenantId) throw new NotFoundError('Pedido não encontrado');
+      transitar(TRANSICOES_PEDIDO_COMPRA, 'pedido de compra', p.status as StatusPedidoCompra, 'FECHADO_EM_FALTA');
+      await tx.pedidoCompra.update({
+        where: { id, tenantId: ctx.tenantId },
+        data: { status: 'FECHADO_EM_FALTA', motivoFecho: motivo },
+      });
+    });
+  },
+
   async obterPedido(id: string, ctx: Ctx) {
     const p = await db.pedidoCompra.findUnique({
       where: { id },
@@ -1174,7 +1237,8 @@ export const comprasService: IComprasService = {
 
   /**
    * ADR-0003 A8: entradaStock chamado para cada recebimento (parcial OU total).
-   * Wave 3: integração real com WS A (entradaStock).
+   * #567: cada recebimento com aceite > 0 cria também a sua ContaPagar e o lançamento de
+   * reconhecimento (D 211 / D 44311 / C 421), na data da recepção.
    */
   async registarRecebimento(input: CreateRecebimentoCompraInput, ctx: Ctx) {
     return prisma.$transaction(async (rawTx) => {
@@ -1307,76 +1371,77 @@ export const comprasService: IComprasService = {
 
       await tx.pedidoCompra.update({ where: { id: input.pedidoCompraId }, data: { status: novoStatus } });
 
-      // Se RECEBIDO_TOTAL → criar ContaPagar + lançamento de reconhecimento (ADR-0034 §1)
-      if (novoStatus === 'RECEBIDO_TOTAL') {
-        const dataEmissaoCP = new Date();
-        const numCP = await proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx, dataEmissaoCP);
-        const descricaoCP = `Compra via pedido ${pedido.numero}`;
+      // #567: CADA recepção com aceite > 0 reconhece a sua dívida — uma ContaPagar por recepção
+      // (FK única `recebimentoCompraId`) e o lançamento D 211 base / D 44311 IVA / C 421 total.
+      // Valor pelo arredondamento telescópico ao nível do pedido: acumulado depois − acumulado
+      // antes, ambos a partir de `quantidadeRecebida` (que soma o ACEITE, ver acima) — a recepção
+      // que completa o pedido fecha exactamente em `valorSubtotal − valorDesconto` e `valorIva`.
+      const aceitePorItem = new Map<string, Prisma.Decimal>();
+      for (const i of input.itens) {
+        const q = new Prisma.Decimal(String(i.quantidadeAceita));
+        aceitePorItem.set(i.itemPedidoCompraId, (aceitePorItem.get(i.itemPedidoCompraId) ?? new Prisma.Decimal(0)).add(q));
+      }
+      const itensComAceite = pedido.itens.filter((i: any) => aceitePorItem.get(i.id)?.greaterThan(0));
+      const valor = itensComAceite.length === 0 ? null : valorDaRecepcao(pedido.itens, aceitePorItem);
+      // Aceite a valor zero (preço 0, desconto a 100 %, delta que arredonda a 0,00): o stock entrou
+      // acima, mas não há dívida — sem CP, sem lançamento, sem número consumido.
+      if (valor && !valor.valorOriginal.isZero()) {
+        const { baseIva, valorIva, valorOriginal } = valor;
+        // Taxa comum dos itens aceites nesta recepção; mistas → null (o valorIva é a soma das linhas).
+        const taxas = [...new Set(itensComAceite.map((i: any) => new Prisma.Decimal(String(i.taxaIva)).toFixed(6)))];
+        const taxaIva = taxas.length === 1 ? new Prisma.Decimal(taxas[0]) : null;
 
-        // Carregar fornecedor para copiar o NUIT no momento do registo (ADR-0034 §1)
+        const dataRecepcao = recebimento.data;
+        const numCP = await proximoNumeroSerie(tx as unknown as Prisma.TransactionClient, 'CONTA_PAGAR', ctx, dataRecepcao);
+        const descricaoCP = `Recepção de mercadoria do pedido ${pedido.numero}`;
         const fornecedorCP = await tx.fornecedor.findUnique({
           where: { id: pedido.fornecedorId },
           select: { nuit: true },
         });
 
-        // O PedidoCompra tem valorSubtotal, valorIva e taxaIva — preenchemos o bloco fiscal
-        // para que fique disponível ao apuramento. tipoAquisicao fica null: sem o número da
-        // factura do fornecedor (que costuma chegar depois da mercadoria) a dedução não pode
-        // ser registada (ver ADR-0034 §1 e a guarda DOCUMENTO_FORNECEDOR_INCOMPLETO).
-        //
-        // LACUNA DECLARADA: não existe hoje um caminho para completar o bloco fiscal
-        // (preencher tipoAquisicao, numeroDocumento) quando a factura chega e registar
-        // retroactivamente o D 4432x. O ADR-0034 §1 antecipa que um modelo FaturaFornecedor
-        // separado "seria o desenho de domínio correcto" e foi adiado por proporção.
-        // Até esse caminho existir, as compras via recebimento não geram IVA dedutível.
+        // Bloco fiscal de dedução a null: sem o documento do fornecedor (que costuma chegar depois
+        // da mercadoria) não há direito à dedução (ADR-0034 §1, DOCUMENTO_FORNECEDOR_INCOMPLETO).
+        // A guia da recepção (`input.numeroDocumento`) não é a factura e não vai para aqui.
         const contaCriada = await tx.contaPagar.create({
           data: {
             tenantId: ctx.tenantId,
             numero: numCP,
             fornecedorId: pedido.fornecedorId,
             pedidoCompraId: input.pedidoCompraId,
+            recebimentoCompraId: recebimento.id,
             descricao: descricaoCP,
-            valorOriginal: pedido.valorTotal,
+            valorOriginal,
             valorPago: 0,
-            valorRestante: pedido.valorTotal,
-            dataEmissao: dataEmissaoCP,
-            dataVencimento: new Date(Date.now() + pedido.prazoEntregaDias * 86_400_000),
+            valorRestante: valorOriginal,
+            dataEmissao: dataRecepcao,
+            dataVencimento: new Date(dataRecepcao.getTime() + pedido.prazoEntregaDias * 86_400_000),
             status: 'ABERTA',
             nuitFornecedor: fornecedorCP?.nuit ?? null,
-            baseIva:   pedido.valorSubtotal,
-            taxaIva:   pedido.taxaIva,
-            valorIva:  pedido.valorIva,
-            tipoAquisicao: null,  // sem factura do fornecedor não há dedução
+            baseIva,
+            taxaIva,
+            valorIva,
+            tipoAquisicao: null,
             numeroDocumento: null,
-            dataDocumento:   null,
+            dataDocumento: null,
           },
         });
 
-        // Lançamento de reconhecimento: D 211 Mercadorias / C 421 Fornecedores c/c
-        // Conta de débito: PGC_COMPRAS.MERCADORIAS ('211') — padrão do produto
-        // para recepção de mercadoria, sem configuração de tenant (ver PGC_PAYROLL).
-        //
-        // Sem IVA dedutível: a factura do fornecedor costuma chegar depois da
-        // mercadoria; sem `numeroDocumento` não há direito à dedução (ADR-0034 §1).
-        //
-        // LACUNA DECLARADA: não existe um caminho para completar o bloco fiscal
-        // (preencher tipoAquisicao, numeroDocumento e reclassificar o IVA para 4432x)
-        // quando a factura chegar. O ADR-0034 §1 antecipa que um modelo FaturaFornecedor
-        // separado seria o desenho correcto e foi adiado por proporção. Até lá,
-        // o bloco fiscal (nuitFornecedor, baseIva, valorIva, taxaIva) está gravado
-        // na ContaPagar, mas o direito à dedução não é registado neste fluxo.
+        // D 211 (compras — mercadorias) pela base sem IVA; o IVA fica em 44311 (IVA suportado —
+        // inventários), que o apuramento não lê: só passa a 4432x dedutível quando o documento do
+        // fornecedor for registado (follow-up do bloco fiscal / FaturaFornecedor, ADR-0034 §1).
         const lancamentoId = await lancarReconhecimentoDivida(
           tx as unknown as Prisma.TransactionClient,
           {
-            contaPagarId:    contaCriada.id,
-            numero:          numCP,
-            descricao:       descricaoCP,
-            contaCodigo:     PGC_COMPRAS.MERCADORIAS,
-            valorOriginal:   pedido.valorTotal,
-            tipoAquisicao:   null,
-            baseIva:         null,
-            valorIva:        null,
-            dataLancamento:  dataEmissaoCP,
+            contaPagarId: contaCriada.id,
+            numero: numCP,
+            descricao: descricaoCP,
+            contaCodigo: PGC_COMPRAS.MERCADORIAS,
+            valorOriginal,
+            tipoAquisicao: null,
+            baseIva,
+            valorIva,
+            contaIvaSuportado: PGC_COMPRAS.IVA_SUPORTADO_INVENTARIOS,
+            dataLancamento: dataRecepcao,
           },
           ctx,
         );

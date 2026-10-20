@@ -143,6 +143,7 @@ const FILTER_CONFIGS: FilterConfig[] = [
       { label: 'Em Trânsito', value: 'EM_TRANSITO' },
       { label: 'Recebido Parcial', value: 'RECEBIDO_PARCIAL' },
       { label: 'Recebido Total', value: 'RECEBIDO_TOTAL' },
+      { label: 'Fechado em Falta', value: 'FECHADO_EM_FALTA' },
       { label: 'Cancelado', value: 'CANCELADO' },
     ],
   },

@@ -39,6 +39,7 @@ export const StatusPedidoCompraEnum = z.enum([
   'EM_TRANSITO',
   'RECEBIDO_PARCIAL',
   'RECEBIDO_TOTAL',
+  'FECHADO_EM_FALTA',
   'CANCELADO',
 ]);
 export const StatusRecebimentoEnum = z.enum(['COMPLETO', 'PARCIAL', 'COM_DIVERGENCIA']);
@@ -347,6 +348,14 @@ export const CancelarPedidoCompraSchema = z.object({
 });
 
 export type CancelarPedidoCompraInput = z.infer<typeof CancelarPedidoCompraSchema>;
+
+/** #567: fechar em falta um pedido recebido em parte — o motivo é obrigatório. */
+export const FecharPedidoCompraEmFaltaSchema = z.object({
+  id: z.string().cuid(),
+  motivo: z.string().trim().min(1, 'Indique o motivo do fecho em falta.').max(500),
+});
+
+export type FecharPedidoCompraEmFaltaInput = z.infer<typeof FecharPedidoCompraEmFaltaSchema>;
 
 // =====================================================================
 // RECEBIMENTO DE MERCADORIA
