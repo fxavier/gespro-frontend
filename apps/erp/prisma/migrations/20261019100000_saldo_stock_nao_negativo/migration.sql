@@ -16,7 +16,11 @@ BEGIN
 
   IF invalidas > 0 THEN
     RAISE EXCEPTION 'Migração saldo_stock_nao_negativo (#556): % linha(s) de "SaldoStock" com saldo negativo, reservado negativo ou reservado acima do saldo.', invalidas
-      USING HINT = 'Lista-as com: SELECT "tenantId", "produtoId", "varianteProdutoId", "localizacaoId", "saldo", "saldoReservado" FROM "SaldoStock" WHERE "saldo" < 0 OR "saldoReservado" < 0 OR "saldoReservado" > "saldo"; corrige-as por contagem de inventário (ajuste de stock) e volta a correr prisma migrate deploy.';
+      USING HINT = 'Esta migração fica registada como falhada e o migrate deploy recusa (P3009) até ser resolvida. Por esta ordem: '
+        || '(1) lista as linhas: SELECT "tenantId", "produtoId", "varianteProdutoId", "localizacaoId", "saldo", "saldoReservado" FROM "SaldoStock" WHERE "saldo" < 0 OR "saldoReservado" < 0 OR "saldoReservado" > "saldo"; '
+        || '(2) corrige-as: com "saldoReservado" > "saldo" e o físico abaixo do reservado, liberta primeiro as reservas (cancela as encomendas ou ordens de produção que as seguram); depois acerta o saldo por contagem de inventário (ajuste de stock); '
+        || '(3) prisma migrate resolve --rolled-back 20261019100000_saldo_stock_nao_negativo; '
+        || '(4) prisma migrate deploy.';
   END IF;
 END $$;
 
