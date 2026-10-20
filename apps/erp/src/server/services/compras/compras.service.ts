@@ -1365,7 +1365,7 @@ export const comprasService: IComprasService = {
         // separado seria o desenho correcto e foi adiado por proporção. Até lá,
         // o bloco fiscal (nuitFornecedor, baseIva, valorIva, taxaIva) está gravado
         // na ContaPagar, mas o direito à dedução não é registado neste fluxo.
-        await lancarReconhecimentoDivida(
+        const lancamentoId = await lancarReconhecimentoDivida(
           tx as unknown as Prisma.TransactionClient,
           {
             contaPagarId:    contaCriada.id,
@@ -1380,6 +1380,7 @@ export const comprasService: IComprasService = {
           },
           ctx,
         );
+        await tx.contaPagar.update({ where: { id: contaCriada.id, tenantId: ctx.tenantId }, data: { lancamentoId } });
       }
 
       return toRecebimentoDto(recebimento);

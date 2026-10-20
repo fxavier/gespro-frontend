@@ -2,9 +2,9 @@
  * Cancelar uma conta a pagar — Server Component (shell).
  *
  * Rota e não AlertDialog porque recolhe um motivo (um campo de texto é
- * formulário, logo é rota). Só contas com valor por pagar se cancelam: a
- * máquina de estados do serviço recusa PAGA e CANCELADA; aqui evita-se que
- * o formulário sequer apareça.
+ * formulário, logo é rota). Só contas em aberto e sem nada pago se cancelam
+ * (#566): o serviço recusa PAGA, CANCELADA e `valorPago > 0`
+ * (CONTA_COM_PAGAMENTOS); aqui evita-se que o formulário sequer apareça.
  */
 
 import Link from 'next/link';
@@ -37,6 +37,7 @@ export default async function CancelarContaPagarPage({
 
   const detalhe = `/fornecedores/contas-pagar/${conta.id}`;
   const emAberto = conta.status === 'ABERTA' || conta.status === 'PARCIALMENTE_PAGA' || conta.status === 'VENCIDA';
+  const cancelavel = emAberto && conta.valorPago === 0;
 
   const cabecalho = (
     <PageHeader
@@ -52,7 +53,7 @@ export default async function CancelarContaPagarPage({
     />
   );
 
-  if (!emAberto) {
+  if (!cancelavel) {
     return (
       <div className="p-6 space-y-6">
         {cabecalho}
@@ -60,7 +61,9 @@ export default async function CancelarContaPagarPage({
           <p>
             {conta.status === 'PAGA'
               ? 'Esta conta já está liquidada e não se cancela — um pagamento feito corrige-se por estorno do lançamento, não por cancelamento da conta.'
-              : 'Esta conta já está cancelada.'}
+              : conta.status === 'CANCELADA'
+                ? 'Esta conta já está cancelada.'
+                : `Esta conta já tem pagamentos registados (${formatMZN(conta.valorPago)}) e não pode ser cancelada.`}
           </p>
           <Button asChild size="sm" variant="outline" className="mt-4">
             <Link href={detalhe}>Voltar à conta</Link>
@@ -79,9 +82,9 @@ export default async function CancelarContaPagarPage({
           {conta.fornecedorNome} · restante {formatMZN(conta.valorRestante)}
         </p>
         <p className="mt-1 text-muted-foreground">
-          A conta deixa de contar como obrigação e sai dos vencimentos. O que já foi pago (
-          {formatMZN(conta.valorPago)}) fica registado com os seus lançamentos; esta acção não o
-          reverte. O motivo fica nas observações da conta.
+          A conta deixa de contar como obrigação e sai dos vencimentos. O lançamento de
+          reconhecimento da dívida é estornado na data de hoje. O motivo fica registado no
+          cancelamento.
         </p>
       </div>
 

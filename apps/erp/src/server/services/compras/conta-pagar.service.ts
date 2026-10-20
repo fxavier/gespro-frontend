@@ -8,7 +8,7 @@ import { Prisma, PrismaClient, type TipoAquisicaoIva } from '@prisma/client';
 import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
-import { registarLancamentoContabilistico } from '@/server/services/financas/contabilidade.service';
+import { estornarLancamentoEmTx, registarLancamentoContabilistico } from '@/server/services/financas/contabilidade.service';
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
 import { resolverContaMeioPagamento } from '@/server/services/financas/meio-pagamento.service';
 import { registarMovimentoCaixa } from '@/server/services/financas/caixa.service';
@@ -87,6 +87,7 @@ function toContaPagarDetalhe(c: any): ContaPagarDetalhe {
     centroCustoId: c.centroCustoId ?? null,
     contaContabilId: c.contaContabilId ?? null,
     observacoes: c.observacoes ?? null,
+    motivoCancelamento: c.motivoCancelamento ?? null,
     pagamentos: (c.pagamentos ?? []).map(toPagamentoDto),
   };
 }
@@ -131,6 +132,7 @@ export const MAPA_4432X: Record<TipoAquisicaoIva, string> = {
  * e faz a criação falhar se os valores não fecharem — nunca silencia desequilíbrio.
  *
  * Exportada para ser partilhada por `compras.service.ts` sem duplicar a lógica.
+ * Devolve o id do lançamento: o chamador grava-o em `ContaPagar.lancamentoId` (#566).
  */
 export async function lancarReconhecimentoDivida(
   tx: Prisma.TransactionClient,
@@ -147,7 +149,7 @@ export async function lancarReconhecimentoDivida(
     dataLancamento: Date;
   },
   ctx: Ctx,
-): Promise<void> {
+): Promise<string> {
   const valorOrig = String(params.valorOriginal);
   let partidas: Array<{ contaCodigo: string; tipo: 'DEBITO' | 'CREDITO'; valor: string }>;
 
@@ -166,7 +168,7 @@ export async function lancarReconhecimentoDivida(
     ];
   }
 
-  await registarLancamentoContabilistico(
+  const lancamento = await registarLancamentoContabilistico(
     tx,
     {
       data: params.dataLancamento,
@@ -179,6 +181,7 @@ export async function lancarReconhecimentoDivida(
     },
     ctx,
   );
+  return lancamento.id;
 }
 
 export const contaPagarService: IContaPagarService = {
@@ -267,7 +270,7 @@ export const contaPagarService: IContaPagarService = {
 
       // 5. Lançamento de reconhecimento da dívida (ADR-0034 §1)
       //    Data = dataDocumento (define o período de dedução) ou dataEmissao se ausente
-      await lancarReconhecimentoDivida(
+      const lancamentoId = await lancarReconhecimentoDivida(
         txClient,
         {
           contaPagarId:  contaCriada.id,
@@ -282,6 +285,7 @@ export const contaPagarService: IContaPagarService = {
         },
         ctx,
       );
+      await tx.contaPagar.update({ where: { id: contaCriada.id, tenantId: ctx.tenantId }, data: { lancamentoId } });
 
       return contaCriada;
     });
@@ -333,8 +337,32 @@ export const contaPagarService: IContaPagarService = {
       );
       const conta = await tx.contaPagar.findUnique({ where: { id } });
       if (!conta || conta.tenantId !== ctx.tenantId) throw new NotFoundError('Conta a pagar não encontrada');
+      // #566: pagamentos reais não podem ficar sem dívida — desfazem-se primeiro.
+      if (new Prisma.Decimal(String(conta.valorPago ?? 0)).greaterThan(0)) {
+        throw new BusinessRuleError(
+          'CONTA_COM_PAGAMENTOS',
+          'A conta a pagar já tem pagamentos registados e não pode ser cancelada.',
+        );
+      }
       transitarContaPagar(conta.status as StatusContaPagar, 'CANCELADA');
-      await tx.contaPagar.update({ where: { id }, data: { status: 'CANCELADA', observacoes: motivo } });
+      // #566: o cancelamento estorna o reconhecimento (D gasto [+ D 4432x] / C 421).
+      // Conta histórica sem `lancamentoId` (nenhum reconhecimento achado pela migração):
+      // não há nada no razão para desfazer, cancela sem estorno. Idem se o reconhecimento
+      // já foi estornado à mão — estornar de novo daria TRANSICAO_INVALIDA.
+      const reconhecimento = conta.lancamentoId
+        ? await tx.lancamento.findFirst({
+            where: { id: conta.lancamentoId, tenantId: ctx.tenantId },
+            select: { status: true },
+          })
+        : null;
+      if (conta.lancamentoId && reconhecimento?.status !== 'ESTORNADO') {
+        await estornarLancamentoEmTx(
+          rawTx as unknown as Prisma.TransactionClient,
+          { lancamentoId: conta.lancamentoId, motivo: `Cancelamento ${conta.numero}: ${motivo}`.slice(0, 500) },
+          ctx,
+        );
+      }
+      await tx.contaPagar.update({ where: { id, tenantId: ctx.tenantId }, data: { status: 'CANCELADA', motivoCancelamento: motivo } });
     });
   },
 
