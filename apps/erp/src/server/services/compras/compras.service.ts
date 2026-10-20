@@ -1426,6 +1426,19 @@ export const comprasService: IComprasService = {
           },
         });
 
+        // Lançamento de reconhecimento: D 211 Mercadorias / C 421 Fornecedores c/c
+        // Conta de débito: PGC_COMPRAS.MERCADORIAS ('211') — padrão do produto
+        // para recepção de mercadoria, sem configuração de tenant (ver PGC_PAYROLL).
+        //
+        // Sem IVA dedutível: a factura do fornecedor costuma chegar depois da
+        // mercadoria; sem `numeroDocumento` não há direito à dedução (ADR-0034 §1).
+        //
+        // LACUNA DECLARADA: não existe um caminho para completar o bloco fiscal
+        // (preencher tipoAquisicao, numeroDocumento e reclassificar o IVA para 4432x)
+        // quando a factura chegar. O ADR-0034 §1 antecipa que um modelo FaturaFornecedor
+        // separado seria o desenho correcto e foi adiado por proporção. Até lá,
+        // o bloco fiscal (nuitFornecedor, baseIva, valorIva, taxaIva) está gravado
+        // na ContaPagar, mas o direito à dedução não é registado neste fluxo.
         // D 211 (compras — mercadorias) pela base sem IVA; o IVA fica em 44311 (IVA suportado —
         // inventários), que o apuramento não lê: só passa a 4432x dedutível quando o documento do
         // fornecedor for registado (follow-up do bloco fiscal / FaturaFornecedor, ADR-0034 §1).

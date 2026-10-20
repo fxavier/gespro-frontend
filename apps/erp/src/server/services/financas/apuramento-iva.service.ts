@@ -20,6 +20,7 @@ import {
   registarLancamentoContabilistico,
   estornarLancamentoEmTx,
   FILTRO_LANCAMENTO_MAPA,
+  CONTAS_IVA_FILTRO,
 } from './contabilidade.service';
 import { SEM_ABERTURA_REAFIRMADA } from './fora-de-fecho-e-abertura';
 import type {
@@ -48,14 +49,6 @@ const TAXA_NORMAL = new Prisma.Decimal('0.160000');
 
 // Período a partir do qual regimeIva deixa de ser lido (ADR-0034 §5)
 const PERIODO_LEI_10_2025 = '2026-01';
-
-// Contas IVA que participam no apuramento
-const CONTAS_IVA_FILTRO = [
-  '44331', '44332', '44333',
-  '44321', '44322', '44323',
-  '44341', '44342', '44343',
-  '4435',  '4437',  '4438',
-];
 
 // ---------------------------------------------------------------------------
 // Tipos auxiliares

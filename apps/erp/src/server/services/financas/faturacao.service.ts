@@ -15,6 +15,7 @@ import type { IFaturacaoService } from './faturacao.interface';
 import {
   diaCivilEmMaputo,
   estornarLancamentoEmTx,
+  exigirPeriodoSemIvaApurado,
   periodoFiscalDe,
   registarLancamentoContabilistico,
 } from './contabilidade.service';

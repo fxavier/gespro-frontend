@@ -585,6 +585,55 @@ async function trancarPeriodoAberto(
   return periodo;
 }
 
+/** Contas de IVA que o apuramento agrega (ADR-0034). Fonte única: o apuramento lê-as daqui. */
+export const CONTAS_IVA_FILTRO = [
+  '44331', '44332', '44333',
+  '44321', '44322', '44323',
+  '44341', '44342', '44343',
+  '4435',  '4437',  '4438',
+];
+
+/**
+ * O IVA é apurado pelo razão do período (#564): um movimento nas contas de IVA, ou um documento,
+ * num período (dia de Maputo da `data`) com apuramento activo — ou fechado — ficaria fora de
+ * todas as declarações. O período fica trancado `FOR SHARE` até ao commit. Quem chama pode dar
+ * o seu erro; por omissão, `PERIODO_IVA_APURADO`.
+ */
+export async function exigirPeriodoSemIvaApurado(
+  tx: Prisma.TransactionClient,
+  data: Date,
+  tenantId: string,
+  erro?: { codigo: string; mensagem: string },
+): Promise<void> {
+  const codigo = periodoFiscalDe(data);
+  const [periodo] = await tx.$queryRaw<Array<{ id: string; estado: string }>>`
+    SELECT id, estado FROM "PeriodoContabil"
+    WHERE "tenantId" = ${tenantId} AND codigo = ${codigo}
+    FOR SHARE
+  `;
+  if (!periodo) return;
+
+  const apurado =
+    periodo.estado !== 'ABERTO' ||
+    (await tx.apuramentoIva.findFirst({
+      where: { tenantId, periodoId: periodo.id, estado: { in: ['APURADO', 'DECLARADO'] } },
+      select: { id: true },
+    })) !== null;
+  if (!apurado) return;
+  throw new BusinessRuleError(
+    erro?.codigo ?? 'PERIODO_IVA_APURADO',
+    erro?.mensagem ??
+      `O período ${codigo} já tem o IVA apurado ou declarado: não aceita documentos nem movimentos nas contas de IVA. ` +
+        'Use uma data de um período por apurar, ou estorne o apuramento desse período.',
+  );
+}
+
+/** Alguma das contas (por id) é de IVA? */
+async function tocaContasIva(tx: Prisma.TransactionClient, contaIds: string[], tenantId: string): Promise<boolean> {
+  const contas = await tx.contaPGC.findMany({ where: { tenantId, id: { in: contaIds } }, select: { codigo: true } });
+  return contas.some((c) => CONTAS_IVA_FILTRO.includes(c.codigo));
+}
+
 // ---------------------------------------------------------------------------
 // Plano de contas
 // ---------------------------------------------------------------------------
@@ -921,6 +970,9 @@ export async function criarLancamento(input: CriarLancamentoInput, ctx: Ctx): Pr
     }
     // Na mesma tx: se `resolverPeriodo` criou um exercício, a recusa desfá-lo.
     await exigirDiarioDeLancamentoManual(tx, diario.tipo, periodoLocked.id, ctx.tenantId);
+    if (await tocaContasIva(tx, input.partidas.map((p) => p.contaId), ctx.tenantId)) {
+      await exigirPeriodoSemIvaApurado(tx, input.data, ctx.tenantId);
+    }
 
     const numero = await proximoNumeroLancamento(tx, diario.id, periodoLocked.codigo, ctx.tenantId);
 
@@ -1099,6 +1151,17 @@ export async function estornarLancamentoEmTx(
   if (periodoLocked.estado !== 'ABERTO') {
     throw recusaPeriodoFechado(periodoLocked.codigo);
   }
+  // #564: o lançamento de um apuramento estorna-se no período que ele apurou — é o apuramento a
+  // desfazer-se, não um movimento novo no IVA. Reconhece-se pela ligação `ApuramentoIva.lancamentoId`.
+  if (
+    (await tocaContasIva(tx, lancamento.partidas.map((p) => p.contaId), ctx.tenantId)) &&
+    !(await tx.apuramentoIva.findFirst({
+      where: { tenantId: ctx.tenantId, lancamentoId: lancamento.id },
+      select: { id: true },
+    }))
+  ) {
+    await exigirPeriodoSemIvaApurado(tx, dataEstorno, ctx.tenantId);
+  }
 
   return gravarEstornoEmTx(tx, lancamento, periodoLocked, dataEstorno, input.motivo, ctx);
 }
@@ -1195,6 +1258,10 @@ export async function editarLancamentoRascunho(
       );
     }
     await trancarPeriodoAberto(tx, atual.periodoId, ctx.tenantId);
+    // #564: o apuramento recusa períodos com rascunhos, logo um rascunho só chega à 443x por aqui.
+    if (await tocaContasIva(tx, input.partidas.map((p) => p.contaId), ctx.tenantId)) {
+      await exigirPeriodoSemIvaApurado(tx, input.data, ctx.tenantId);
+    }
 
     // Validar tudo antes da primeira escrita.
     const valorTotal = totalDasPartidasEquilibradas(input.partidas);
@@ -2420,6 +2487,10 @@ export async function registarLancamentoContabilistico(
   if (!periodoLocked) throw new NotFoundError('Período contabilístico não encontrado');
   if (periodoLocked.estado !== 'ABERTO') {
     throw recusaPeriodoFechado(periodoLocked.codigo);
+  }
+  // #564: o lançamento do próprio apuramento passa — é gravado antes do `ApuramentoIva` existir.
+  if (input.partidas.some((p) => CONTAS_IVA_FILTRO.includes(p.contaCodigo))) {
+    await exigirPeriodoSemIvaApurado(tx, input.data, ctx.tenantId);
   }
 
   const numero = await proximoNumeroLancamento(tx, diario.id, periodoLocked.codigo, ctx.tenantId);
