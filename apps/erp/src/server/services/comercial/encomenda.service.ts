@@ -6,7 +6,8 @@
  *  confirmar              → CONFIRMADA + reservarStock por item (contrato A)
  *                           localizacaoId OBRIGATÓRIO — falha com BusinessRuleError se ausente
  *  converterEmVenda       → CONCLUIDA + confirmarConsumoStock (ou baixarStock fallback)
- *                           + registarMovimentoCaixa + registarLancamentoContabilistico
+ *                           + documento fiscal pela via do POS (emitirDocumentoEmTx, #563)
+ *                           + registarMovimentoCaixa só pela parte em DINHEIRO
  *  cancelar               → CANCELADA + libertarStock das reservas activas (contrato A)
  *
  * Toda a mutação com stock/caixa/contabilidade corre dentro de prismaBase.$transaction.
@@ -20,18 +21,17 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { exigirClienteParaCredito } from '@/lib/cliente-credito';
 import type { Ctx } from '@/server/services/types';
 import type { IStockService } from '@/server/services/inventario/stock.interface';
-import type { ICaixaService, RegistarMovimentoCaixaInput } from '@/server/services/financas';
-import type {
-  IContabilidadeService,
-  RegistarLancamentoContabilisticoInput,
-} from '@/server/services/financas';
+import type { ICaixaService, IFaturacaoService, RegistarMovimentoCaixaInput } from '@/server/services/financas';
+import { exigirEmailConfirmadoParaEmitir } from '@/server/services/financas';
 import { proximoNumeroSerie } from '@/server/services/financas/faturacao.service';
+import { linhaDocumentoFiscal } from './venda.service';
 import { ESTADOS_ENCOMENDA_CONVERTIVEIS, TRANSICOES_ENCOMENDA } from '@/lib/state-machines';
 import type {
   CreateEncomendaInput,
   UpdateEncomendaInput,
   FilterEncomendaInput,
   TransitarEncomendaInput,
+  CreatePagamentoVendaInput,
 } from '@/lib/validations/vendas';
 
 // ---------------------------------------------------------------------------
@@ -220,59 +220,7 @@ function calcularTotaisItens(itens: CreateEncomendaInput['itens']): {
   return { subtotal: subtotal.toDP(2), iva: iva.toDP(2), total: subtotal.toDP(2).plus(iva.toDP(2)) };
 }
 
-// ---------------------------------------------------------------------------
-// Lançamento contabilístico PGC (Decreto 70/2009)
-// Separado aqui para evitar import de internals de financas.
-// ---------------------------------------------------------------------------
-
-/** Códigos PGC padrão (espelho local de faturacao.service.PGC_FATURACAO) */
-const PGC_VENDA = {
-  CLIENTES_CC: '411',       // 4.1.1 — Clientes c/c (devedora)
-  RECEITA_VENDAS: '711',    // 7.1.1 — Vendas - Mercadorias
-  IVA_LIQUIDADO: '44331',   // 4.4.3.3.1 — IVA liquidado
-} as const;
-
-function construirLancamentoVenda(venda: {
-  id: string;
-  numero: string;
-  total: Prisma.Decimal;
-  subtotal: Prisma.Decimal;
-  iva: Prisma.Decimal;
-}): RegistarLancamentoContabilisticoInput {
-  const partidas: RegistarLancamentoContabilisticoInput['partidas'] = [
-    {
-      contaCodigo: PGC_VENDA.CLIENTES_CC,
-      tipo: 'DEBITO',
-      valor: venda.total.toFixed(2),
-      historico: `Encomenda → Venda ${venda.numero}`,
-    },
-    {
-      contaCodigo: PGC_VENDA.RECEITA_VENDAS,
-      tipo: 'CREDITO',
-      valor: venda.subtotal.toFixed(2),
-      historico: `Venda ${venda.numero} — receita`,
-    },
-  ];
-
-  if (venda.iva.greaterThan(0)) {
-    partidas.push({
-      contaCodigo: PGC_VENDA.IVA_LIQUIDADO,
-      tipo: 'CREDITO',
-      valor: venda.iva.toFixed(2),
-      historico: `Venda ${venda.numero} — IVA liquidado`,
-    });
-  }
-
-  return {
-    data: new Date(),
-    diarioTipo: 'VENDAS',
-    origem: 'VENDA',
-    documentoOrigemId: venda.id,
-    documentoOrigemTipo: 'Venda',
-    historico: `Conversão de encomenda — Venda ${venda.numero}`,
-    partidas,
-  };
-}
+const DIA_MS = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Serviço
@@ -312,7 +260,7 @@ export class EncomendaService {
   constructor(
     private readonly stockService: IStockService,
     private readonly caixaService: Pick<ICaixaService, 'registarMovimentoCaixa'>,
-    private readonly contabilidadeService: Pick<IContabilidadeService, 'registarLancamentoContabilistico'>,
+    private readonly faturacaoService: Pick<IFaturacaoService, 'emitirDocumentoEmTx' | 'motivoIsencaoAutomaticoEmTx'>,
   ) {}
 
   async criar(input: CreateEncomendaInput, ctx: Ctx): Promise<EncomendaRow> {
@@ -541,20 +489,25 @@ export class EncomendaService {
    *  1. confirmarConsumoStock para cada reserva activa (contrato A)
    *     Fallback: baixarStock se não existirem reservas (edge case; requer localizacaoId)
    *  2. Criar Venda com origem=ENCOMENDA e status=FATURADA
-   *  3. registarMovimentoCaixa (contrato D) — se sessaoCaixaId fornecido
-   *  4. registarLancamentoContabilistico (contrato D) — partida dobrada VENDAS
+   *  3. Documento fiscal pela via do POS (ADR-0041, #563) — emitirDocumentoEmTx com lançamento
+   *     D meio de pagamento / C 711 / C 44331, Venda.faturaId ↔ Fatura.vendaId:
+   *     paga → Factura-Recibo; com parte a CREDITO → Factura
+   *  4. registarMovimentoCaixa (contrato D) — só a parte em DINHEIRO, se sessaoCaixaId fornecido
    *  5. Marcar encomenda CONCLUIDA e rastrear vendaId
    */
   async converterEmVenda(
     encomendaId: string,
-    pagamentos: Array<{ tipo: string; valor: number; referencia?: string; troco?: number }>,
+    pagamentos: Array<{ tipo: CreatePagamentoVendaInput['tipo']; valor: number; referencia?: string; troco?: number }>,
     ctx: Ctx,
     opts?: { sessaoCaixaId?: string; localizacaoId?: string },
   ): Promise<{ vendaId: string; encomendaNumero: string }> {
+    // Emitir um documento fiscal exige e-mail confirmado — travão do chamador com sessão, fora da tx.
+    await exigirEmailConfirmadoParaEmitir();
+
     return prismaBase.$transaction(async (tx) => {
       const lida = await tx.encomenda.findFirst({
         where: { id: encomendaId, tenantId: ctx.tenantId, deletedAt: null },
-        select: { id: true, status: true, clienteId: true },
+        select: { id: true, status: true, clienteId: true, total: true },
       });
       if (!lida) throw new NotFoundError('Encomenda não encontrada');
 
@@ -565,14 +518,25 @@ export class EncomendaService {
         );
       if (!ESTADOS_ENCOMENDA_CONVERTIVEIS.includes(lida.status)) throw naoConfirmada();
 
+      // Σ pagamentos = total, ao cêntimo (ADR-0041 §4) — antes de mexer no stock.
+      const pago = pagamentos.reduce((a, p) => a.plus(String(p.valor)), new Prisma.Decimal(0));
+      if (!pago.equals(lida.total)) {
+        throw new BusinessRuleError(
+          'PAGAMENTOS_NAO_BATEM_TOTAL',
+          `A soma dos pagamentos (${pago.toFixed(2)}) não coincide com o total da encomenda (${lida.total.toFixed(2)}).`,
+        );
+      }
+
       // Venda a crédito (ADR-0041 §4, #317): nem o Consumidor Final nem um cliente
       // inactivo/apagado abrem conta corrente — mesma regra da venda POS.
+      let clienteCredito: { diasPagamento: number } | null = null;
       if (pagamentos.some((p) => p.tipo === 'CREDITO')) {
         const cliente = await tx.cliente.findFirst({
           where: { id: lida.clienteId, tenantId: ctx.tenantId },
-          select: { codigo: true, status: true, deletedAt: true },
+          select: { codigo: true, status: true, deletedAt: true, diasPagamento: true },
         });
         exigirClienteParaCredito(cliente);
+        clienteCredito = cliente;
       }
 
       // Compare-and-set: dois «Converter» simultâneos — só um passa daqui.
@@ -618,7 +582,8 @@ export class EncomendaService {
       }
 
       // 2. Numeração e totais
-      const numeroVenda = await proximoNumeroSerie(tx, 'VENDA', ctx, new Date());
+      const dataVenda = new Date();
+      const numeroVenda = await proximoNumeroSerie(tx, 'VENDA', ctx, dataVenda);
       const subtotal = encomenda.subtotal as Prisma.Decimal;
       const ivaTotal = encomenda.iva as Prisma.Decimal;
       const total = encomenda.total as Prisma.Decimal;
@@ -659,7 +624,7 @@ export class EncomendaService {
           pagamentos: {
             create: pagamentos.map((p) => ({
               tenantId: ctx.tenantId,
-              tipo: p.tipo as 'DINHEIRO' | 'CARTAO' | 'TRANSFERENCIA' | 'MPESA' | 'EMOLA' | 'CREDITO',
+              tipo: p.tipo,
               valor: new Prisma.Decimal(p.valor),
               referencia: p.referencia ?? null,
               troco: p.troco != null ? new Prisma.Decimal(p.troco) : null,
@@ -668,28 +633,54 @@ export class EncomendaService {
         },
       });
 
-      // 4. Registar movimento de caixa (contrato D) — BLOCKER 1
-      if (opts?.sessaoCaixaId) {
+      // 4. Documento fiscal + lançamento na MESMA transacção, pela via do POS (ADR-0041, #563).
+      const motivoIsencao = await this.faturacaoService.motivoIsencaoAutomaticoEmTx(tx, ctx);
+      const fatura = await this.faturacaoService.emitirDocumentoEmTx(
+        tx,
+        {
+          clienteId: encomenda.clienteId,
+          vendaId: venda.id,
+          moeda: 'MZN',
+          dataEmissao: dataVenda,
+          dataVencimento: clienteCredito
+            ? new Date(dataVenda.getTime() + clienteCredito.diasPagamento * DIA_MS)
+            : dataVenda,
+          linhas: encomenda.itens.map((item, i) =>
+            linhaDocumentoFiscal(
+              {
+                ...item,
+                quantidade: Number(item.quantidade),
+                precoUnitario: Number(item.precoUnitario),
+                taxaIva: Number(item.taxaIva),
+              },
+              i,
+              motivoIsencao,
+            ),
+          ),
+        },
+        ctx,
+        {
+          tipoSerie: clienteCredito ? 'FATURA' : 'FATURA_RECIBO',
+          pagamentos: pagamentos.map((p) => ({ tipo: p.tipo, valor: new Prisma.Decimal(String(p.valor)) })),
+        },
+      );
+      await tx.venda.updateMany({ where: { id: venda.id, tenantId: ctx.tenantId }, data: { faturaId: fatura.id } });
+
+      // 5. Só o dinheiro entra na gaveta (ADR-0041 §4).
+      const dinheiro = pagamentos
+        .filter((p) => p.tipo === 'DINHEIRO')
+        .reduce((a, p) => a.plus(String(p.valor)), new Prisma.Decimal(0));
+      if (opts?.sessaoCaixaId && dinheiro.greaterThan(0)) {
         const movInput: RegistarMovimentoCaixaInput = {
           sessaoCaixaId: opts.sessaoCaixaId,
           tipo: 'VENDA',
-          valor: total,
+          valor: dinheiro,
           descricao: `Venda ${numeroVenda} (encomenda ${encomenda.numero})`,
           documentoOrigemId: venda.id,
           documentoOrigemTipo: 'Venda',
         };
         await this.caixaService.registarMovimentoCaixa(tx, movInput, ctx);
       }
-
-      // 5. Lançamento contabilístico — partida dobrada (contrato D) — BLOCKER 1
-      const lancamentoInput = construirLancamentoVenda({
-        id: venda.id,
-        numero: numeroVenda,
-        total,
-        subtotal,
-        iva: ivaTotal,
-      });
-      await this.contabilidadeService.registarLancamentoContabilistico(tx, lancamentoInput, ctx);
 
       // 6. Rastrear a venda (o estado CONCLUIDA já foi escrito pelo compare-and-set)
       await tx.encomenda.update({

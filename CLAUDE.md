@@ -239,8 +239,9 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 - **D/finanças expõe**: `registarLancamentoContabilistico` (partida dobrada), `registarMovimentoCaixa`, `proximoNumeroSerie` (numeração atómica `UPDATE...RETURNING FOR UPDATE`, sem lacunas).
 - **D/finanças expõe também (ADR-0041)**: `emitirDocumentoEmTx` (núcleo da emissão, na tx do chamador; `FATURA_RECIBO` nasce `PAGA`) e `construirLancamentoVendaPOS` (D meio de pagamento / C 711 / C 44331) — chamados pelo `faturacaoService` injectado, nunca por import do módulo.
 - Fluxos ligados: venda/POS→stock+caixa+documento+contabilidade · recepção→stock+conta a pagar · factura→contabilidade · produção→consumo/entrada de stock.
-- **O que (não) lança na contabilidade, do lado das vendas**: factura, nota de crédito e encomenda
-  lançam D 411 / C 711 / C 44331 (diário de vendas). A **nota de débito** credita a conta da sua **natureza**
+- **O que (não) lança na contabilidade, do lado das vendas**: factura e nota de crédito
+  lançam D 411 / C 711 / C 44331 (diário de vendas); a **encomenda convertida em venda** emite documento como o POS
+  (`emitirDocumentoEmTx`, Factura-Recibo ou Factura, #563). A **nota de débito** credita a conta da sua **natureza**
   (ADR-0039 §1): `contaCreditoId` escolhida no acto ?? omissão do tenant (`ContaNaturezaNotaDebito`, ecrã
   `/contabilidade/configuracoes/naturezas-nota-debito`: 711 acerto de preço, 781 juros, 769 penalização; despesas
   repercutidas — classe 6 — e outro não têm omissão → `CONTA_CREDITO_OBRIGATORIA`). A validação da conta é
