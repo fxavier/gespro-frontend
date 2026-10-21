@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idEntidade, inicioDoDia, fimDoDia, erroDeTipo, parcial } from '@/lib/validations/common';
+import { idEntidade, inicioDoDia, fimDoDia, erroDeTipo, parcial, duasCasas } from '@/lib/validations/common';
 import { METODOS_POS_CONFIGURAVEIS } from '@/lib/meios-pagamento';
 import { NATUREZAS_NOTA_DEBITO } from '@/lib/nota-debito';
 
@@ -155,7 +155,7 @@ export const CriarCentroCustoSchema = z.object({
   descricao: z.string().max(500).optional(),
   tipo: TipoCentroCustoEnum,
   responsavelId: z.string().cuid().optional(),
-  orcamento: z.number().nonnegative().multipleOf(0.01).optional(),
+  orcamento: z.number().nonnegative().superRefine(duasCasas()).optional(),
 });
 
 export type CriarCentroCustoInput = z.infer<typeof CriarCentroCustoSchema>;
@@ -189,7 +189,7 @@ export const PartidaSchema = z
     valor: z
       .number(erroDeTipo('Valor obrigatório'))
       .positive('Valor deve ser positivo')
-      .multipleOf(0.01, 'Máximo 2 casas decimais'),
+      .superRefine(duasCasas('Máximo 2 casas decimais')),
     historico: z.string().max(255).optional(),
   });
 

@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { idEntidade, inicioDoDia, fimDoDia, erroDeTipo, parcial } from '@/lib/validations/common';
+import { idEntidade, inicioDoDia, fimDoDia, erroDeTipo, parcial, duasCasas } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums (espelham prisma/schema/financas.prisma e o ADR-0036 §5-6)
@@ -114,7 +114,7 @@ const CompromissoCamposSchema = z.object({
   valor: z
     .number(erroDeTipo('Valor obrigatório'))
     .positive('Valor deve ser positivo')
-    .multipleOf(0.01, 'Máximo 2 casas decimais'),
+    .superRefine(duasCasas('Máximo 2 casas decimais')),
   dataPrevista: z.coerce.date(erroDeTipo('Data prevista obrigatória', 'Data prevista inválida')),
   recorrencia: RecorrenciaCompromissoEnum.default('UNICA'),
   dataFimRecorrencia: z.coerce

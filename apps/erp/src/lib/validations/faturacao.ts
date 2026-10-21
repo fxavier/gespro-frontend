@@ -4,7 +4,7 @@ import { taxaIvaSchema } from '@/lib/iva';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 import { NATUREZAS_NOTA_DEBITO, motivoIsencaoEmFalta } from '@/lib/nota-debito';
 import { arredondarLinha } from '@/lib/vendas-totais';
-import { dataDocumento, idEntidade, inicioDoDia, fimDoDia, erroDeTipo } from './common';
+import { dataDocumento, idEntidade, inicioDoDia, fimDoDia, erroDeTipo, duasCasas } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -76,8 +76,8 @@ export const LinhaDocumentoSchema = z
     precoUnitario: z
       .number(erroDeTipo('Preço unitário obrigatório'))
       .nonnegative('Preço não pode ser negativo')
-      .multipleOf(0.01),
-    desconto: z.number().nonnegative().multipleOf(0.01).default(0),
+      .superRefine(duasCasas()),
+    desconto: z.number().nonnegative().superRefine(duasCasas()).default(0),
     taxaIva: taxaIvaSchema(),
     // #329 (ADR-0039 §4): obrigatório a 0% em Factura/NC/ND — exigido no núcleo de emissão,
     // não aqui: Proforma e Cotação partilham este schema e aceitam 0% sem motivo.
@@ -209,7 +209,7 @@ export const RegistarPagamentoFaturaSchema = z
     valor: z
       .number(erroDeTipo('Valor de pagamento obrigatório', 'Valor inválido'))
       .positive('Valor deve ser positivo')
-      .multipleOf(0.01),
+      .superRefine(duasCasas()),
     dataPagamento: dataDocumento('Data do pagamento'),
     formaPagamento: FormaPagamentoEnum,
     contaBancariaId: idEntidade().optional(),

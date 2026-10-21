@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dataDocumento, idEntidade, erroDeTipo } from './common';
+import { dataDocumento, idEntidade, erroDeTipo, duasCasas } from './common';
 import { FormaPagamentoEnum, exigirContaBancariaForaDoNumerario } from './faturacao';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ export const NaturezaLinhaPayrollEnum = z.enum([
 /** Valor monetário de formulário (2 casas decimais). */
 const valorMonetario = z
   .number(erroDeTipo('Valor obrigatório'))
-  .multipleOf(0.01, 'Máximo 2 casas decimais');
+  .superRefine(duasCasas('Máximo 2 casas decimais'));
 
 // ---------------------------------------------------------------------------
 // Processamento da folha mensal (lote)

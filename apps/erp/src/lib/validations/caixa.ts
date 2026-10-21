@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia, idEntidade, erroDeTipo } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, idEntidade, erroDeTipo, duasCasas } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -31,7 +31,7 @@ export const AbrirSessaoCaixaSchema = z.object({
   fundoInicial: z
     .number(erroDeTipo('Fundo inicial obrigatório'))
     .nonnegative('Fundo inicial não pode ser negativo')
-    .multipleOf(0.01, 'Máximo 2 casas decimais'),
+    .superRefine(duasCasas('Máximo 2 casas decimais')),
   observacoes: z.string().max(500).optional(),
   /** #267: terminal POS onde o caixa abre; sem ele, caixa sem terminal (comportamento antigo). */
   terminalId: idEntidade().optional(),
@@ -44,7 +44,7 @@ export const FecharSessaoCaixaSchema = z.object({
   fundoFinal: z
     .number(erroDeTipo('Fundo final obrigatório'))
     .nonnegative('Fundo final não pode ser negativo')
-    .multipleOf(0.01, 'Máximo 2 casas decimais'),
+    .superRefine(duasCasas('Máximo 2 casas decimais')),
   observacoes: z.string().max(500).optional(),
 });
 
@@ -71,7 +71,7 @@ export const RegistarMovimentoCaixaSchema = z.object({
   valor: z
     .number(erroDeTipo('Valor obrigatório'))
     .positive('Valor deve ser positivo')
-    .multipleOf(0.01, 'Máximo 2 casas decimais'),
+    .superRefine(duasCasas('Máximo 2 casas decimais')),
   descricao: z.string().min(1, 'Descrição obrigatória').max(255),
   documentoOrigemId: z.string().optional(),
   documentoOrigemTipo: z.string().max(50).optional(),
@@ -90,7 +90,7 @@ export const SangriaSchema = z.object({
   valor: z
     .number(erroDeTipo('Valor de sangria obrigatório'))
     .positive('Valor deve ser positivo')
-    .multipleOf(0.01),
+    .superRefine(duasCasas()),
   motivo: z.string().min(1, 'Motivo obrigatório').max(255),
 });
 
@@ -101,7 +101,7 @@ export const ReforcoSchema = z.object({
   valor: z
     .number(erroDeTipo('Valor de reforço obrigatório'))
     .positive('Valor deve ser positivo')
-    .multipleOf(0.01),
+    .superRefine(duasCasas()),
   motivo: z.string().min(1, 'Motivo obrigatório').max(255),
 });
 

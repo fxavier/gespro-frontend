@@ -39,7 +39,19 @@ export const fimDoDia = () => z.preprocess(fimDoDiaMaputo, z.coerce.date());
  * de vírgula flutuante e passou a aceitar 0.30000000000000004 (#625).
  */
 export const dinheiro = (msg = 'O valor tem no máximo duas casas decimais') =>
-  z.number().refine((v) => Number(v.toFixed(2)) === v, msg);
+  z.number().superRefine(duasCasas(msg));
+
+/**
+ * Check de «no máximo duas casas» para encadear num `z.number()` — o substituto do
+ * `.multipleOf(0.01, msg)` do Zod 3 (ver `dinheiro()`). Sem mensagem, fica a do Zod.
+ */
+export function duasCasas(msg?: string) {
+  return (v: number, ctx: Pick<z.RefinementCtx, 'addIssue'>) => {
+    if (Number(v.toFixed(2)) !== v) {
+      ctx.addIssue({ code: 'not_multiple_of', divisor: 0.01, input: v, ...(msg ? { message: msg } : {}) });
+    }
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Mensagens de tipo (#625)
