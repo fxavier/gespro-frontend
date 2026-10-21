@@ -130,6 +130,18 @@ A anulação POS (acima) devolve pelos meios originais; a devolução, pelo que 
   issue própria. O seed de demonstração não muda (as golden da DFC e da projecção dependem dele).
 - **QR/hash** do documento fiscal: nenhuma `Fatura` os tem hoje; é transversal.
 
+**Adenda (2026-10-21, decisão humana — #612).** As vendas convertidas de encomenda antes do #608 (#563) têm
+lançamento D 411 / C 711 / C 44331 com origem na venda mas nenhum documento. Estas regularizam-se com emissão
+retroactiva (`scripts/regularizar-vendas-encomenda.ts`), por venda numa só transacção (D1): estorno do
+lançamento antigo e emissão pela via do POS (`emitirDocumentoEmTx`, FR ou Factura conforme os pagamentos),
+ambos com a **data do lançamento antigo** (D2); período fechado ou IVA apurado → nada escrito para essa
+venda, motivo no relatório (D3). O que as distingue das vendas POS históricas acima: a receita e o IVA **já
+estão no período** pelo lançamento antigo — a regularização só troca um lançamento sem documento por um com
+documento, no mesmo dia; nas vendas POS (#335) não há lançamento nenhum, e emitir-lhes documento retroactivo
+acrescentaria receita e IVA a períodos passados, com numeração fora de ordem. A objecção da numeração
+mantém-se aqui (os números saem da série do ano, depois dos já emitidos) e foi aceite pelo humano para este
+caso; não decide o #335.
+
 ## Consequências
 
 - O apuramento do IVA passa a ver as vendas POS no razão **e** nos documentos (base 44331 coerente).

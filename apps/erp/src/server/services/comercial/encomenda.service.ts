@@ -222,6 +222,72 @@ function calcularTotaisItens(itens: CreateEncomendaInput['itens']): {
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Documento fiscal de uma venda vinda de encomenda, pela via do POS (ADR-0041, #563), na tx do
+ * chamador: `emitirDocumentoEmTx` com o lançamento D meio de pagamento / C 711 / C 44331, e
+ * `Venda.faturaId` ↔ `Fatura.vendaId`. Paga → Factura-Recibo; com parte a CREDITO → Factura,
+ * vencimento = data + prazo do cliente.
+ *
+ * Partilhado por `converterEmVenda` e pela regularização das vendas convertidas antes do #608
+ * (#612) — uma só montagem de linhas e pagamentos. Não verifica o e-mail: é do chamador.
+ */
+export async function emitirDocumentoVendaEncomendaEmTx(
+  tx: Prisma.TransactionClient,
+  faturacaoService: Pick<IFaturacaoService, 'emitirDocumentoEmTx' | 'motivoIsencaoAutomaticoEmTx'>,
+  dados: {
+    vendaId: string;
+    clienteId: string;
+    dataVenda: Date;
+    /** Prazo do cliente quando há parte a CREDITO; `null` = paga a pronto. */
+    diasPagamentoCredito: number | null;
+    itens: ReadonlyArray<{
+      produtoId: string;
+      nomeProduto: string;
+      quantidade: Prisma.Decimal | number;
+      precoUnitario: Prisma.Decimal | number;
+      taxaIva: Prisma.Decimal | number;
+      subtotal: Prisma.Decimal;
+      ivaItem: Prisma.Decimal;
+      total: Prisma.Decimal;
+    }>;
+    pagamentos: ReadonlyArray<{ tipo: CreatePagamentoVendaInput['tipo']; valor: Prisma.Decimal }>;
+  },
+  ctx: Ctx,
+) {
+  const { vendaId, clienteId, dataVenda, diasPagamentoCredito } = dados;
+  const motivoIsencao = await faturacaoService.motivoIsencaoAutomaticoEmTx(tx, ctx);
+  const fatura = await faturacaoService.emitirDocumentoEmTx(
+    tx,
+    {
+      clienteId,
+      vendaId,
+      moeda: 'MZN',
+      dataEmissao: dataVenda,
+      dataVencimento:
+        diasPagamentoCredito != null ? new Date(dataVenda.getTime() + diasPagamentoCredito * DIA_MS) : dataVenda,
+      linhas: dados.itens.map((item, i) =>
+        linhaDocumentoFiscal(
+          {
+            ...item,
+            quantidade: Number(item.quantidade),
+            precoUnitario: Number(item.precoUnitario),
+            taxaIva: Number(item.taxaIva),
+          },
+          i,
+          motivoIsencao,
+        ),
+      ),
+    },
+    ctx,
+    {
+      tipoSerie: diasPagamentoCredito != null ? 'FATURA' : 'FATURA_RECIBO',
+      pagamentos: dados.pagamentos.map((p) => ({ tipo: p.tipo, valor: p.valor })),
+    },
+  );
+  await tx.venda.updateMany({ where: { id: vendaId, tenantId: ctx.tenantId }, data: { faturaId: fatura.id } });
+  return fatura;
+}
+
 // ---------------------------------------------------------------------------
 // Serviço
 // ---------------------------------------------------------------------------
@@ -634,37 +700,19 @@ export class EncomendaService {
       });
 
       // 4. Documento fiscal + lançamento na MESMA transacção, pela via do POS (ADR-0041, #563).
-      const motivoIsencao = await this.faturacaoService.motivoIsencaoAutomaticoEmTx(tx, ctx);
-      const fatura = await this.faturacaoService.emitirDocumentoEmTx(
+      await emitirDocumentoVendaEncomendaEmTx(
         tx,
+        this.faturacaoService,
         {
-          clienteId: encomenda.clienteId,
           vendaId: venda.id,
-          moeda: 'MZN',
-          dataEmissao: dataVenda,
-          dataVencimento: clienteCredito
-            ? new Date(dataVenda.getTime() + clienteCredito.diasPagamento * DIA_MS)
-            : dataVenda,
-          linhas: encomenda.itens.map((item, i) =>
-            linhaDocumentoFiscal(
-              {
-                ...item,
-                quantidade: Number(item.quantidade),
-                precoUnitario: Number(item.precoUnitario),
-                taxaIva: Number(item.taxaIva),
-              },
-              i,
-              motivoIsencao,
-            ),
-          ),
-        },
-        ctx,
-        {
-          tipoSerie: clienteCredito ? 'FATURA' : 'FATURA_RECIBO',
+          clienteId: encomenda.clienteId,
+          dataVenda,
+          diasPagamentoCredito: clienteCredito?.diasPagamento ?? null,
+          itens: encomenda.itens,
           pagamentos: pagamentos.map((p) => ({ tipo: p.tipo, valor: new Prisma.Decimal(String(p.valor)) })),
         },
+        ctx,
       );
-      await tx.venda.updateMany({ where: { id: venda.id, tenantId: ctx.tenantId }, data: { faturaId: fatura.id } });
 
       // 5. Só o dinheiro entra na gaveta (ADR-0041 §4).
       const dinheiro = pagamentos
