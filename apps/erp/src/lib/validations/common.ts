@@ -63,6 +63,14 @@ export function duasCasas(msg?: string) {
  * do próprio schema (em falta ⇒ `obrigatorio`, também num `z.enum`, cuja issue no Zod 4 é
  * `invalid_value`; outro tipo ⇒ `tipoInvalido`); os checks (`.min`, `.refine`…) ficam com as
  * suas mensagens. Sem mensagem, fica a do Zod, como antes.
+ *
+ * - Com `z.coerce.*` o `obrigatorio` nunca dispara: a coerção corre antes e o Zod vê
+ *   `NaN`/`Invalid Date`, não `undefined` — cai em `tipoInvalido`. No Zod 3 era igual no
+ *   `z.coerce.number`; no `z.coerce.date` a issue era `invalid_date` e saía a mensagem por
+ *   omissão do Zod, por isso hoje um `tipoInvalido` num `z.coerce.date` mostra-se onde antes
+ *   saía «Invalid date» (os três casos existentes ficam assim, em pt-PT, de propósito).
+ * - Num `z.enum`, `null` ou um número dão `invalid_value` com valor presente: fica a mensagem
+ *   do Zod, como no Zod 3 (o `required_error` só valia para `undefined`).
  */
 export const erroDeTipo = (obrigatorio?: string, tipoInvalido?: string) => ({
   error: (iss: { code?: string; input?: unknown }) =>
@@ -76,7 +84,20 @@ export const erroDeTipo = (obrigatorio?: string, tipoInvalido?: string) => ({
  */
 export function parcial<T extends z.ZodRawShape, C extends z.core.$ZodObjectConfig>(schema: z.ZodObject<T, C>) {
   const semDefaults = Object.fromEntries(
-    Object.entries(schema.shape).map(([k, v]) => [k, v instanceof z.ZodDefault ? v.unwrap() : v]),
+    Object.entries(schema.shape).map(([k, v]) => {
+      // Só sabe tirar um `.default()` de topo e sem checks: um default embrulhado
+      // (`.default().optional()`, `.default().transform()`, `.prefault()`…) continuaria a ser
+      // aplicado, e o `unwrap()` de um `.default().refine()` perderia o refine. Recusa já.
+      const embrulhado = v._zod.optin === 'defaulted' && !(v instanceof z.ZodDefault);
+      const comChecks = v instanceof z.ZodDefault && (v._zod.def.checks?.length ?? 0) > 0;
+      if (embrulhado || comChecks) {
+        throw new Error(
+          `parcial(): a chave «${k}» tem um .default() que não é o último passo do campo — ` +
+            'escreva o .default() no fim (sem .optional/.transform/.refine por cima) ou retire-o do schema de criação.',
+        );
+      }
+      return [k, v instanceof z.ZodDefault ? v.unwrap() : v];
+    }),
   );
   return (schema.extend(semDefaults) as unknown as z.ZodObject<T, C>).partial();
 }
