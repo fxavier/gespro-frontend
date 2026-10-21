@@ -37,7 +37,6 @@ export default async function CancelarContaPagarPage({
 
   const detalhe = `/fornecedores/contas-pagar/${conta.id}`;
   const emAberto = conta.status === 'ABERTA' || conta.status === 'PARCIALMENTE_PAGA' || conta.status === 'VENCIDA';
-  const cancelavel = emAberto && conta.valorPago === 0;
   // #567: a dívida de uma recepção não se cancela (CONTA_PAGAR_DE_RECEPCAO).
   const deRecepcao = Boolean(conta.recebimentoCompraId);
   const cancelavel = emAberto && conta.valorPago === 0 && !deRecepcao;
