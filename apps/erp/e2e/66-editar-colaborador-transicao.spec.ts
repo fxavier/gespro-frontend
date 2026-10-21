@@ -11,6 +11,13 @@
  * Fluxo: abre /rh/colaboradores/[id]/editar de um colaborador do `demo`, muda o telefone,
  * grava; espera o toast de sucesso e a ida para o detalhe, e nenhum aviso de transição.
  *
+ * Dois oráculos, porque o aviso de consola só existe no build de DESENVOLVIMENTO do React:
+ *   - em `next dev`, a consola não pode ter «outside of a transition»;
+ *   - em qualquer build (`next start` incluído), o efeito observável: com o POST da Server
+ *     Action atrasado de propósito, o botão passa a «A guardar…» e fica `disabled` enquanto
+ *     a acção está pendente. Fora de uma transição o `isPending` não actualiza e o botão
+ *     continua clicável (duplo envio possível) — contra `next start` só este apanha o defeito.
+ *
  * Dados: o telefone do colaborador é reposto por SQL no afterAll (fica o AuditLog da edição).
  *
  * Correr: BASE_URL=http://localhost:3000 npx playwright test e2e/66-editar-colaborador-transicao.spec.ts --project=e2e
@@ -57,7 +64,17 @@ test('editar colaborador grava dentro de uma transição e volta ao detalhe', as
 
   const telefone = page.getByLabel('Telefone');
   await telefone.fill(TELEFONE_TESTE);
+  // Atrasa o POST da Server Action (header `next-action`) para o pendente ser observável.
+  await page.route(`**/rh/colaboradores/${id}/editar`, async (route) => {
+    if (route.request().method() === 'POST' && route.request().headers()['next-action']) {
+      await new Promise((r) => setTimeout(r, 2_000));
+    }
+    await route.continue();
+  });
   await page.getByRole('button', { name: 'Guardar Alterações' }).click();
+  await expect(page.getByRole('button', { name: 'A guardar…' }), 'isPending não acompanhou a acção').toBeDisabled({
+    timeout: 1_500,
+  });
 
   await expect(page.getByText('Colaborador actualizado com sucesso!').first()).toBeVisible({ timeout: 15_000 });
   await page.waitForURL(new RegExp(`/rh/colaboradores/${id}$`), { timeout: 15_000 });

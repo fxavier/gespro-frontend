@@ -59,7 +59,7 @@ export function AtribuirBeneficioForm({
     },
   });
 
-  const [, formAction] = useActionState(
+  const [, formAction, isPending] = useActionState(
     async (_prev: unknown, data: FormData) => {
       const values = Object.fromEntries(data.entries());
 
@@ -109,8 +109,8 @@ export function AtribuirBeneficioForm({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'A atribuir…' : 'Atribuir Benefício'}
+            <Button type="submit" disabled={isSubmitting || isPending}>
+              {isSubmitting || isPending ? 'A atribuir…' : 'Atribuir Benefício'}
             </Button>
           </>
         }
