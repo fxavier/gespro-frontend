@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { startTransition, useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -109,7 +109,7 @@ export function EditarRiscoForm({ id, risco }: EditarRiscoFormProps) {
           </>
         }
       >
-        <form id="editar-risco-form" onSubmit={handleSubmit((data) => dispatch(data))} className="space-y-6">
+        <form id="editar-risco-form" onSubmit={handleSubmit((data) => startTransition(() => dispatch(data)))} className="space-y-6">
           <div className="space-y-1.5">
             <Label htmlFor="titulo">Título *</Label>
             <Input id="titulo" {...register('titulo')} aria-invalid={!!errors.titulo} />

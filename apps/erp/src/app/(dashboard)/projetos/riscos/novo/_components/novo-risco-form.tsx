@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { startTransition, useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -105,7 +105,7 @@ export function NovoRiscoForm({ projetos }: NovoRiscoFormProps) {
           </>
         }
       >
-        <form id="risco-form" onSubmit={handleSubmit((data) => dispatch(data))} className="space-y-6">
+        <form id="risco-form" onSubmit={handleSubmit((data) => startTransition(() => dispatch(data)))} className="space-y-6">
           {/* Projecto */}
           <div className="space-y-1.5">
             <Label htmlFor="projetoId">Projecto *</Label>

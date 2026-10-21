@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useCallback, useEffect, useState } from 'react';
+import { startTransition, useActionState, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -144,7 +144,7 @@ export function NovoAgendamentoForm({ servicos, clientesIniciais }: Props) {
     ) : null;
 
   return (
-    <form onSubmit={handleSubmit((data) => dispatch(data))}>
+    <form onSubmit={handleSubmit((data) => startTransition(() => dispatch(data)))}>
       <UnsavedChangesGuard isDirty={isDirty && !isPending} />
       <FormPage
         actions={

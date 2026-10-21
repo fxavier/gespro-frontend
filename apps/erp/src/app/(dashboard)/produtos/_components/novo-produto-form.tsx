@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { startTransition, useActionState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
@@ -84,7 +84,7 @@ export function NovoProdutoForm({ categorias }: NovoProdutoFormProps) {
     }
   }, [state, form, router]);
 
-  const onSubmit = form.handleSubmit((data) => dispatch(data));
+  const onSubmit = form.handleSubmit((data) => startTransition(() => dispatch(data)));
   const isDirty = form.formState.isDirty;
 
   return (
