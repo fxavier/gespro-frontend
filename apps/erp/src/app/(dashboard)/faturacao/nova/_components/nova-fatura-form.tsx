@@ -241,15 +241,24 @@ export function NovaFaturaForm({ clientesIniciais, hoje }: Props) {
                 </div>
                 <div className="col-span-4 md:col-span-2 space-y-1">
                   <Label className="md:hidden text-xs">Qtd</Label>
-                  <Input type="number" min="0.01" step="0.01" {...register(`linhas.${i}.quantidade`)} aria-label={`Quantidade linha ${i + 1}`} />
+                  <Input type="number" min="0.01" step="0.01" {...register(`linhas.${i}.quantidade`)} aria-label={`Quantidade linha ${i + 1}`} aria-invalid={!!errors.linhas?.[i]?.quantidade} />
+                  {errors.linhas?.[i]?.quantidade && (
+                    <p className="text-xs text-destructive">{errors.linhas[i]?.quantidade?.message}</p>
+                  )}
                 </div>
                 <div className="col-span-4 md:col-span-2 space-y-1">
                   <Label className="md:hidden text-xs">Preço</Label>
-                  <Input type="number" min="0" step="0.01" {...register(`linhas.${i}.precoUnitario`)} aria-label={`Preço unitário linha ${i + 1}`} />
+                  <Input type="number" min="0" step="0.01" {...register(`linhas.${i}.precoUnitario`)} aria-label={`Preço unitário linha ${i + 1}`} aria-invalid={!!errors.linhas?.[i]?.precoUnitario} />
+                  {errors.linhas?.[i]?.precoUnitario && (
+                    <p className="text-xs text-destructive">{errors.linhas[i]?.precoUnitario?.message}</p>
+                  )}
                 </div>
                 <div className="col-span-4 md:col-span-1 space-y-1">
                   <Label className="md:hidden text-xs">Desc.</Label>
-                  <Input type="number" min="0" step="0.01" {...register(`linhas.${i}.desconto`)} aria-label={`Desconto linha ${i + 1}`} />
+                  <Input type="number" min="0" step="0.01" {...register(`linhas.${i}.desconto`)} aria-label={`Desconto linha ${i + 1}`} aria-invalid={!!errors.linhas?.[i]?.desconto} />
+                  {errors.linhas?.[i]?.desconto && (
+                    <p className="text-xs text-destructive">{errors.linhas[i]?.desconto?.message}</p>
+                  )}
                 </div>
                 <div className="col-span-4 md:col-span-1 space-y-1">
                   <Label className="md:hidden text-xs">IVA %</Label>
