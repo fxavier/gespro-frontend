@@ -72,7 +72,7 @@ Natureza **Bónus**, «Prémio inventário de Outubro», 1 000,00 → o recibo �
 
 | Passo | Efeito |
 |---|---|
-| **Processar na contabilidade** (ainda em Outubro) | Folha **Processada**, valores fixos; lançamento SL: D 622 (bruto) e 623 (INSS entidade) / C 449, 442, 4622 (líquido) |
+| **Processar na contabilidade** (ainda em Outubro) | Folha **Processada**, valores fixos; lançamento SL, datado de 31 de Outubro: D 622 (bruto) e 623 (INSS entidade) / C 449, 442, 4622 (líquido) |
 | Transferência feita no banco → **Marcar como paga**: Forma **Transferência bancária**, a conta do BCI e a data da transferência → **Registar pagamento** | Folha **Paga**; lançamento SL na data indicada: D 4622 / C conta do BCI pelo líquido |
 | **Mapa INSS** e **Mapa IRPS** | CSV para preparar as declarações do mês |
 | Recibo › **Descarregar PDF** | `recibo-COL-001-2026-10.pdf` para entregar à Ana |
@@ -352,7 +352,7 @@ Não há um passo de "aprovação" à parte. A folha Pendente é a fase de revis
 
 **Resultado:** "Folha <mês> <ano> processada — lançamento contabilístico gerado." A folha e os payrolls passam a **Processado** e os valores ficam fixos: já não se recalculam.
 
-**Efeitos noutros módulos:** gera um lançamento no diário de Salários, já lançado, com a data do processamento (ver [Contabilidade](05-contabilidade.md)):
+**Efeitos noutros módulos:** gera um lançamento no diário de Salários, já lançado, **datado do último dia do mês de referência da folha** (e não do dia em que clica) — a folha de Outubro fica lançada em 31 de Outubro, mesmo que a processe em Novembro. Se o período desse mês estiver **fechado**, o sistema recusa («O período … está fechado…») e não grava nada: reabra o período primeiro (ver [Contabilidade](05-contabilidade.md)):
 
 | Conta | Débito | Crédito |
 |---|---|---|
@@ -390,7 +390,7 @@ O período contabilístico da data de hoje tem de estar aberto.
 2. Escreva o **Motivo do cancelamento**. É obrigatório.
 3. Clique em **Confirmar cancelamento**.
 
-**Resultado:** "Folha <mês> <ano> cancelada." Todos os payrolls do mês passam a **Cancelado**. Se a folha já estava Processada, o lançamento contabilístico é **estornado**: não é apagado, é anulado por um lançamento inverso. Depois pode voltar a processar o mesmo mês. Uma folha **Paga** já não se pode cancelar.
+**Resultado:** "Folha <mês> <ano> cancelada." Todos os payrolls do mês passam a **Cancelado**. Se a folha já estava Processada, o lançamento contabilístico é **estornado**: não é apagado, é anulado por um lançamento inverso, **com a mesma data do lançamento da folha** (o último dia do mês de referência), para que o cancelamento e o novo processamento do mesmo mês não deixem o mês duplicado nem o mês seguinte negativo. Se o período desse mês estiver fechado, o cancelamento é recusado e nada é alterado. Depois pode voltar a processar o mesmo mês. Uma folha **Paga** já não se pode cancelar.
 
 ### Como ver e descarregar o recibo de vencimento
 

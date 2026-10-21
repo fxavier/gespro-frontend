@@ -605,7 +605,7 @@ ecrã explica a situação e a saída é sempre subscrever um plano.
 | Sem permissão para esta operação | O seu perfil não tem a permissão exigida (por exemplo, `admin:gerir_utilizadores` ou `assinatura:gerir`). | Peça a um ADMIN. |
 | Para criar utilizadores é preciso confirmar o endereço de e-mail da conta — … | O seu e-mail ainda não está confirmado. | Confirme-o pelo aviso do Dashboard; se já confirmou, termine a sessão e entre de novo. |
 | Para reactivar utilizadores é preciso confirmar o endereço de e-mail da conta — … | Idem, ao marcar de novo **Utilizador activo**. | Idem. |
-| Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — … | O e-mail já é usado noutra conta (desta ou de outra empresa). | Use outro endereço. |
+| Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — … | O e-mail já é usado noutra conta (desta ou de outra empresa) ou já tem uma identidade de acesso no GestPro. Ao criar um utilizador, o sistema recusa-o sem alterar a identidade existente. | Use outro endereço. |
 | Atribua pelo menos um papel ao utilizador | Nenhum papel marcado. | Marque pelo menos um papel. |
 | Não pode conceder permissões que não tem: … | O papel escolhido (ou as permissões marcadas no papel) inclui permissões que o seu perfil não tem. | Escolha outro papel ou retire essas permissões; ou peça a um ADMIN. |
 | Não é possível retirar o papel ADMIN ao último administrador da empresa | Ao editar, desmarcou ADMIN no único administrador activo. | Dê primeiro o papel ADMIN a outra pessoa. |

@@ -187,7 +187,7 @@ são **devedoras**. É a natureza que decide de que lado aparece o saldo no bala
 1. Abra **Lançamentos** e clique **Novo Lançamento**.
 2. Em **Informações Gerais**, preencha **Data do Lançamento**, **Diário**, **Histórico** (a descrição que identifica o lançamento no razão) e, se quiser, **Observações**.
 3. Em **Partidas (Débito = Crédito)**, para cada linha escolha a **Conta**, o **Tipo** (**D — Débito** ou **C — Crédito**), o **Valor (MZN)** e, opcionalmente, o histórico da partida. Use **Adicionar Partida** para mais linhas; são precisas pelo menos duas.
-4. Confira o quadro de totais: tem de aparecer **Lançamento equilibrado**. Enquanto aparecer **Diferença (bloqueia submissão)**, o lançamento não é aceite.
+4. Confira o quadro de totais: tem de aparecer **Lançamento equilibrado**. Enquanto aparecer **Diferença (bloqueia submissão)**, o lançamento não é aceite. O sistema trabalha a **duas casas decimais**: cada partida é arredondada ao cêntimo (meio para cima) **antes** de se verificar o equilíbrio, e é esse valor arredondado que fica gravado. Assim, 86,205 + 13,795 = 100,00 deixa de passar como equilibrado se os arredondamentos derem 86,21 + 13,80 contra 100,00 — indique sempre valores com, no máximo, duas casas.
 5. Clique **Guardar Lançamento**.
 
 **Resultado:** «Lançamento criado com sucesso!». O lançamento fica em **Rascunho**, com número atribuído no diário e período correspondentes. **Ainda não conta** no balancete, no razão nem na DRE — é preciso confirmá-lo.
@@ -249,6 +249,8 @@ Um lançamento **Lançado** nunca se edita. Para o anular, estorna-se.
 **Resultado:** «Lançamento N estornado.» É criado um novo lançamento, já **Lançado**, com as partidas invertidas e o histórico «ESTORNO: …». O original passa a **Estornado** e mantém-se visível. No detalhe de cada um aparece a ligação ao outro («Estornado por …» / «Este é o estorno de …»). Um lançamento só se estorna uma vez.
 
 **Efeitos noutros módulos:** estornar um lançamento criado por uma factura não anula a factura — isso faz-se em [Faturação](06-faturacao-caixa-tesouraria.md).
+
+> **IVA já apurado:** se o período da data do estorno (ou da data de um lançamento novo ou editado) já tem o IVA **Apurado** ou **Declarado à AT**, o sistema recusa qualquer lançamento que toque nas contas de IVA (44…): «O período … já tem o IVA apurado ou declarado: não aceita documentos nem movimentos nas contas de IVA.» Use a data de um período por apurar, ou estorne primeiro o apuramento desse período. A única excepção é o estorno do próprio lançamento do apuramento.
 
 <!-- captura: 05-contabilidade/lancamento-detalhe.png | /contabilidade/lancamentos >primeiro -->
 ![Detalhe de um lançamento](img/05-contabilidade/lancamento-detalhe.png)
@@ -425,6 +427,8 @@ Só enquanto **não** estiver declarado à AT.
 2. Escreva o **Motivo (mínimo 10 caracteres)** e clique **Estornar apuramento**.
 
 **Resultado:** o lançamento do apuramento é estornado **com data no último dia do mesmo período** e o apuramento fica **Estornado**. Pode então corrigir o que faltava e voltar a **Apurar** — nasce uma nova versão (v2, v3…). As versões anteriores ficam no histórico.
+
+> **Porque é que se estorna primeiro:** enquanto um período tem o IVA apurado ou declarado, o sistema não aceita nele facturas, notas de crédito/débito, anulações nem lançamentos que mexam nas contas de IVA — para o apuramento já entregue não deixar de bater com a contabilidade. Para corrigir um documento desse período, estorne o apuramento, faça a correcção e apure de novo (nova versão).
 
 ### Como marcar o IVA como declarado à AT
 
@@ -735,7 +739,8 @@ documento fiscal. O balancete e a DRE não mostram a margem.
 | Mensagem mostrada | Porquê | O que fazer |
 |---|---|---|
 | O período 2026-03 está fechado e não aceita lançamentos. Para lançar nele, reabra-o em Contabilidade › Exercícios (período 2026-03 → Reabrir), indicando o motivo. | A data do lançamento, estorno ou documento cai num período fechado. | Use uma data num período aberto, ou peça ao Administrador para reabrir o período (só ele o pode reabrir). |
-| Débitos (…) devem ser iguais a créditos (…) | O lançamento não está equilibrado. | Corrija os valores até ver «Lançamento equilibrado». |
+| Débitos (…) devem ser iguais a créditos (…) / Débitos (…) ≠ Créditos (…) | O lançamento não está equilibrado (depois de arredondar cada partida a duas casas). | Corrija os valores até ver «Lançamento equilibrado». |
+| O período … já tem o IVA apurado ou declarado: não aceita documentos nem movimentos nas contas de IVA. … | O lançamento, o estorno ou o documento mexe nas contas de IVA num período já apurado ou declarado | Use a data de um período por apurar, ou estorne o apuramento desse período |
 | Mínimo de 2 partidas por lançamento | Só foi indicada uma partida. | Adicione pelo menos uma partida do lado oposto. |
 | Conta "…" não aceita lançamentos directos | A conta escolhida é de agregação. | Escolha uma conta de movimento (subconta). |
 | Conta "…" já existe | Já há uma conta com esse código. | Use outro código. |

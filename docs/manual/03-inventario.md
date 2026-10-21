@@ -50,7 +50,7 @@ Os preços de venda são **sem IVA**; a margem bruta do cimento é 130,00 MT por
 | Vendas do mês (POS e facturas) | CIM-50 | −160 | (automático / Venda) | 40 |
 | 3 sacos molhados pela chuva | CIM-50 | −3 | Saída, Tipo de documento **Perda / quebra** | 37 |
 
-Se tentar dar saída de mais do que há, o sistema recusa com «Stock insuficiente na localização de origem…».
+Se tentar dar saída de mais do que há **disponível** (o saldo menos o que está reservado), o sistema recusa com «Stock insuficiente na localização de origem…». O stock nunca fica negativo, e o reservado nunca passa do saldo: a base de dados garante-o.
 O saldo de cada localização vê-se no separador **Stock** do detalhe do produto.
 
 **3. Contar e acertar** → [Como fazer uma contagem de stock](#como-fazer-uma-contagem-de-stock-e-acertar-o-stock)
@@ -205,7 +205,7 @@ Para alterar, clique na linha (ou em **⋯ › Editar**), mude os campos e cliqu
 
 **Resultado:** aparece «Entrada de stock registada com sucesso.» e o saldo do produto nessa localização aumenta.
 
-> **Nota:** para mercadoria comprada a fornecedores, registe primeiro a recepção no pedido de compra confirmado, em [Compras](01-compras.md) (**Registar recepção**): é ela que fica ligada ao pedido e, quando o pedido fica totalmente recebido, cria a conta a pagar ao fornecedor. Nesta versão, os itens criados nos formulários de Compras não ficam ligados a um produto do catálogo, por isso a recepção **não** mexe no stock deles (o ecrã mostra «sem produto (não entra em stock)»). Dê a entrada aqui, com Tipo de documento **Recebimento de compra** e o número da guia do fornecedor.
+> **Nota:** para mercadoria comprada a fornecedores, registe primeiro a recepção no pedido de compra confirmado, em [Compras](01-compras.md) (**Registar recepção**): é ela que fica ligada ao pedido e cria a conta a pagar ao fornecedor por cada recepção. Nesta versão, os itens criados nos formulários de Compras não ficam ligados a um produto do catálogo, por isso a recepção **não** mexe no stock deles (o ecrã mostra «sem produto (não entra em stock)»). Dê a entrada aqui, com Tipo de documento **Recebimento de compra** e o número da guia do fornecedor.
 
 <!-- captura: 03-inventario/movimentacao-nova.png | /inventario/movimentacoes/nova -->
 ![Escolha do tipo de movimentação](img/03-inventario/movimentacao-nova.png)
@@ -225,7 +225,7 @@ Para alterar, clique na linha (ou em **⋯ › Editar**), mude os campos e cliqu
 
 **Resultado:** aparece «Saída de stock registada com sucesso.» e o saldo diminui.
 
-Se não houver stock suficiente, a saída não é registada. Aparece o aviso «Stock insuficiente na localização de origem para a quantidade indicada. Ajuste a quantidade ou escolha outra localização.» Reduza a quantidade, escolha outra localização ou registe primeiro uma entrada.
+A saída directa só pode tirar o stock **disponível**, isto é, o saldo menos o reservado para encomendas ou produção: com saldo de 10 e 10 reservados, não se pode dar saída de 10 por aqui — o stock reservado só sai quando a encomenda ou a ordem de produção o consome. Se não houver stock suficiente, a saída não é registada. Aparece o aviso «Stock insuficiente na localização de origem para a quantidade indicada. Ajuste a quantidade ou escolha outra localização.» Reduza a quantidade, escolha outra localização ou registe primeiro uma entrada.
 
 ### Como transferir stock entre localizações
 
@@ -504,7 +504,7 @@ Cada **item** da contagem pode estar **Pendente** (por contar), **Contado**, **J
 
 | Mensagem mostrada | Porquê | O que fazer |
 |---|---|---|
-| Stock insuficiente. Disponível: X, solicitado: Y. / Stock insuficiente para a quantidade indicada. | A localização de origem não tem a quantidade pedida | Reduza a quantidade, escolha outra localização ou registe primeiro uma entrada |
+| Stock insuficiente. Disponível: X, solicitado: Y. / Stock insuficiente para a quantidade indicada. | A localização de origem não tem a quantidade pedida **disponível** (saldo menos reservado) | Reduza a quantidade, escolha outra localização ou registe primeiro uma entrada |
 | Localização de origem e destino não podem ser iguais | Na transferência escolheu a mesma localização duas vezes | Escolha um destino diferente |
 | Motivo é obrigatório | Numa transferência de stock ou na movimentação de um activo, o **Motivo** é obrigatório | Preencha o motivo |
 | Quantidade deve ser positiva | A quantidade é zero ou negativa | Indique uma quantidade maior que zero |

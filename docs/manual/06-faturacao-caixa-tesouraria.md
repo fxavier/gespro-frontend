@@ -188,7 +188,7 @@ As séries de outros documentos (vendas, compras, caixa, stock, transporte…) c
 1. Vá a **Faturação** e clique em **Nova Fatura**.
 2. Em **Cliente e datas**, escolha o **Cliente**. Pode escrever parte do nome ou do código do cliente para o encontrar.
 3. Preencha a **Data de Emissão** e a **Data de Vencimento**. O vencimento não pode ser anterior à emissão. A fatura é numerada na série activa de faturas do ano da data de emissão.
-4. Em **Linhas da Fatura**, preencha cada linha: **Descrição**, **Qtd**, **Preço Unit.**, **Desc.** (desconto em valor) e **IVA %** (16% ou 0% (isento)). Numa linha a **0% (isento)** aparece o campo obrigatório **Motivo de isenção \*** — escreva a base legal (ex.: «Isento nos termos do artigo 9.º do Código do IVA»); sem ele a fatura não é emitida. Use **Adicionar linha** para mais linhas. O **Subtotal**, o **IVA** e o **Total** são actualizados à medida que escreve.
+4. Em **Linhas da Fatura**, preencha cada linha: **Descrição**, **Qtd**, **Preço Unit.**, **Desc.** (desconto em valor) e **IVA %** (16% ou 0% (isento)). Numa linha a **0% (isento)** aparece o campo obrigatório **Motivo de isenção \*** — escreva a base legal (ex.: «Isento nos termos do artigo 9.º do Código do IVA»); sem ele a fatura não é emitida. Use **Adicionar linha** para mais linhas. O **Subtotal**, o **IVA** e o **Total** são actualizados à medida que escreve; o valor de cada linha é arredondado a 2 casas (meio para cima), pelo mesmo cálculo do POS.
 5. Se quiser, escreva notas para o cliente em **Observações**.
 6. Clique em **Emitir Fatura**.
 

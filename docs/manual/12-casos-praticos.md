@@ -233,11 +233,11 @@ caminho mais curto.
 ### O que o sistema faz sozinho
 
 - Com o pedido **Recebido**, cria em **Fornecedores › Contas a Pagar** uma conta **Aberta** de
-  **252 880,00** à Cimentos do Índico, «Compra via pedido …», com vencimento **3 dias depois da
+  **252 880,00** à Cimentos do Índico, «Recepção de mercadoria do pedido …», com vencimento **3 dias depois da
   recepção** (a data da recepção mais o prazo de entrega do pedido — não os 30 dias das condições).
-- Lança, no diário de Compras, **débito 211 Mercadorias / crédito 421 Fornecedores c/c 252 880,00**.
-  Não é lançado IVA dedutível: a factura do fornecedor costuma chegar depois e ainda não há forma de a
-  registar sobre esta conta.
+- Lança, no diário de Compras, **débito 211 Mercadorias 218 000,00 e débito 44311 IVA suportado 34 880,00 /
+  crédito 421 Fornecedores c/c 252 880,00**. O IVA não é deduzido: a factura do fornecedor costuma chegar
+  depois e ainda não há forma de a registar sobre esta conta, por isso fica em 44311.
 
 ### Como confirmar que correu bem
 
@@ -634,10 +634,11 @@ e escalões IRPS em vigor para o mês em **Payroll › Tabelas INSS/IRPS**.
 | Processar na contabilidade | 622 (bruto) · 623 (INSS entidade) | 449 (INSS trabalhador + entidade) · 442 (IRPS) · 451 (outros descontos) · 4622 (líquido) |
 | Marcar como paga | 4622 (líquido) | Conta PGC do BCI (líquido) — **111 Caixa**, se pagasse em numerário |
 
-> **Atenção às datas:** **Processar na contabilidade** lança com a **data do dia em que clica**, não com
-> o último dia do mês. Para que os salários de Outubro fiquem em Outubro, processe-os **antes de fechar
-> Outubro** (Caso 10). O pagamento lança na **Data do pagamento** que indica (entre o dia do
-> processamento e hoje): como a transferência saiu a 2 de Novembro, o pagamento fica em Novembro — não
+> **Atenção às datas:** **Processar na contabilidade** lança com a **data do último dia do mês de
+> referência** (31 de Outubro para a folha de Outubro), seja qual for o dia em que clica. Por isso os
+> salários de Outubro ficam sempre em Outubro — mas, se Outubro já estiver **fechado**, o sistema recusa o
+> lançamento e não grava nada: processe-os **antes de fechar Outubro** (Caso 10) ou reabra o período. O
+> pagamento lança na **Data do pagamento** que indica (entre o dia do processamento e hoje): como a transferência saiu a 2 de Novembro, o pagamento fica em Novembro — não
 > entra no extracto nem na reconciliação de Outubro.
 
 ---
@@ -737,7 +738,7 @@ pode reabrir, se for preciso.
 
 | Acção | Documento | Stock | Caixa | Contabilidade | Tesouraria |
 |---|---|---|---|---|---|
-| Recepção de compra (pedido totalmente recebido) | Conta a pagar | — (faça a entrada à mão) | — | 211 ↔ 421 | Saída no vencimento |
+| Recepção de compra (cada recepção) | Conta a pagar (uma por recepção) | — (faça a entrada à mão) | — | 211 + 44311 ↔ 421 | Saída no vencimento |
 | Conta a pagar à mão | Conta a pagar | — | — | conta escolhida ↔ 421 | Saída no vencimento |
 | Venda POS paga | Factura-Recibo | Saída | Só a parte em dinheiro | 111 / conta do meio ↔ 711 + 44331 | — |
 | Venda POS a crédito | Factura | Saída | — | 411 ↔ 711 + 44331 | Entrada no vencimento |
@@ -761,8 +762,10 @@ Sim, mas lembre-se de que tudo o que é emitido é real: durante o Período de T
 fiscais como quaisquer outros. Para treinar, use uma conta de teste com outro e-mail.
 
 **Os meus totais diferem por alguns centavos dos do exemplo.**
-O GestPro arredonda o IVA **por linha**, a 2 casas, e soma as linhas. Uma calculadora que aplica 16 % ao
-total do documento pode diferir em cêntimos. O valor certo é o do documento emitido.
+O GestPro arredonda o IVA **por linha**, a 2 casas (meio para cima), e soma as linhas — nos documentos de
+faturação e no POS, com o mesmo cálculo exacto, sem erros de vírgula flutuante (0,5 × 2,01 dá 1,01).
+Uma calculadora que aplica 16 % ao total do documento pode diferir em cêntimos. O valor certo é o do
+documento emitido.
 
 **Porque é que o custo das vendas não aparece no balancete?**
 Nesta versão as saídas de stock não lançam 61/32. A margem tem de ser vista fora da contabilidade até
