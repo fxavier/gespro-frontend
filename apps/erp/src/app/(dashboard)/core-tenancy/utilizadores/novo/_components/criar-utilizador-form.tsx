@@ -5,7 +5,7 @@
  * Padrão: react-hook-form + zodResolver + useActionState.
  */
 
-import { useActionState, useEffect, useState } from 'react';
+import { startTransition, useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -105,7 +105,7 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
     }
   }, [state, form, router]);
 
-  const onSubmit = form.handleSubmit((data) => dispatch(data));
+  const onSubmit = form.handleSubmit((data) => startTransition(() => dispatch(data)));
   const isDirty = form.formState.isDirty;
 
   const handleCancel = () => {

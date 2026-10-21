@@ -6,7 +6,7 @@
  * Erros do servidor mapeados de volta aos campos via setError.
  */
 
-import { useActionState, useEffect } from 'react';
+import { startTransition, useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -100,7 +100,7 @@ export function NovaContagemForm({
     }
   }, [state, form, router]);
 
-  const onSubmit = form.handleSubmit((data) => dispatch(data));
+  const onSubmit = form.handleSubmit((data) => startTransition(() => dispatch(data)));
   const isDirty = form.formState.isDirty;
 
   const handleCancel = () => {

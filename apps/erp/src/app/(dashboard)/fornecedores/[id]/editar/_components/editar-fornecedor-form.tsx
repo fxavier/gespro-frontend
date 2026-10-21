@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { startTransition, useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -100,7 +100,7 @@ export function EditarFornecedorForm({ fornecedor }: EditarFornecedorFormProps) 
   }, [state, form, router, fornecedor.id]);
 
   const onSubmit = form.handleSubmit((dados) =>
-    dispatch({ id: fornecedor.id, dados })
+    startTransition(() => dispatch({ id: fornecedor.id, dados }))
   );
 
   const isDirty = form.formState.isDirty;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { startTransition, useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -105,7 +105,7 @@ export function ConfiguracaoForm({ projetoId, configuracao }: ConfiguracaoFormPr
           </Button>
         }
       >
-        <form id="config-form" onSubmit={handleSubmit((d) => dispatch(d))} className="space-y-6">
+        <form id="config-form" onSubmit={handleSubmit((d) => startTransition(() => dispatch(d)))} className="space-y-6">
           {/* Política de aprovação */}
           <div className="space-y-1.5">
             <Label htmlFor="politicaAprovacaoTimesheet">Política de Aprovação de Timesheet</Label>

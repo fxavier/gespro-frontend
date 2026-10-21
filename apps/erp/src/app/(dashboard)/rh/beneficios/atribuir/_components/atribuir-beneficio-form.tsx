@@ -4,7 +4,7 @@
  * Formulário de atribuição de benefício a colaborador — CLIENT COMPONENT.
  */
 
-import { useActionState } from 'react';
+import { startTransition, useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -59,7 +59,7 @@ export function AtribuirBeneficioForm({
     },
   });
 
-  const [, formAction] = useActionState(
+  const [, formAction, isPending] = useActionState(
     async (_prev: unknown, data: FormData) => {
       const values = Object.fromEntries(data.entries());
 
@@ -87,12 +87,12 @@ export function AtribuirBeneficioForm({
     null,
   );
 
-  const onSubmit = handleSubmit(async (data) => {
+  const onSubmit = handleSubmit((data) => {
     const formData = new FormData();
     Object.entries(data).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') formData.append(k, String(v));
     });
-    await formAction(formData);
+    startTransition(() => formAction(formData));
   });
 
   return (
@@ -109,8 +109,8 @@ export function AtribuirBeneficioForm({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'A atribuir…' : 'Atribuir Benefício'}
+            <Button type="submit" disabled={isSubmitting || isPending}>
+              {isSubmitting || isPending ? 'A atribuir…' : 'Atribuir Benefício'}
             </Button>
           </>
         }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { startTransition, useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm, type Resolver } from 'react-hook-form';
@@ -92,7 +92,9 @@ export function TransferenciaStockForm({ produtos, localizacoes }: Props) {
   }, [state, form]);
 
   const onSubmit = form.handleSubmit((data) =>
-    dispatch({ ...data, varianteProdutoId: data.varianteProdutoId || undefined }),
+    startTransition(() =>
+      dispatch({ ...data, varianteProdutoId: data.varianteProdutoId || undefined }),
+    ),
   );
 
   const isDirty = form.formState.isDirty;

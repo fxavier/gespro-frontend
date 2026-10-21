@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { startTransition, useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -92,11 +92,13 @@ export function EntradaStockForm({ produtos, localizacoes }: Props) {
   }, [state, form, router]);
 
   const onSubmit = form.handleSubmit((data) =>
-    dispatch({
-      ...data,
-      varianteProdutoId: data.varianteProdutoId || undefined,
-      documentoReferenciaId: data.documentoReferenciaId || undefined,
-    }),
+    startTransition(() =>
+      dispatch({
+        ...data,
+        varianteProdutoId: data.varianteProdutoId || undefined,
+        documentoReferenciaId: data.documentoReferenciaId || undefined,
+      }),
+    ),
   );
 
   const isDirty = form.formState.isDirty;

@@ -5,7 +5,7 @@
  * RHF + zodResolver + useActionState + useFieldArray; zero Dialog.
  */
 
-import { useActionState, useCallback, useEffect } from 'react';
+import { startTransition, useActionState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -99,7 +99,7 @@ export function NovaNotaCreditoForm({ faturasIniciais, hoje }: NovaNotaCreditoFo
     }
   }, [state, form, router]);
 
-  const onSubmit = form.handleSubmit((data) => dispatch(data));
+  const onSubmit = form.handleSubmit((data) => startTransition(() => dispatch(data)));
   const isDirty = form.formState.isDirty;
 
   const handleCancel = () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { startTransition, useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -91,7 +91,7 @@ export function NovaComunicacaoForm({ projetos }: NovaComunicacaoFormProps) {
           </>
         }
       >
-        <form id="comunicacao-form" onSubmit={handleSubmit((d) => dispatch(d))} className="space-y-6">
+        <form id="comunicacao-form" onSubmit={handleSubmit((d) => startTransition(() => dispatch(d)))} className="space-y-6">
           <div className="space-y-1.5">
             <Label htmlFor="projetoId">Projecto *</Label>
             <Combobox
