@@ -194,8 +194,6 @@ export default async function ContaPagarDetalhePage({ params }: Props) {
                 </Button>
                 {emAberto && (
                   <>
-                    {/* #566: só se cancela uma conta sem nada pago. */}
-                    {conta.valorPago === 0 && (
                     {/* #566: só se cancela uma conta sem nada pago; #567: nem uma conta de recepção. */}
                     {conta.valorPago === 0 && !conta.recebimentoCompraId && (
                       <Button variant="outline" size="sm" asChild>

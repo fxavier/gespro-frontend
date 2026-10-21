@@ -1854,34 +1854,6 @@ export async function liquidarNotaCreditoEmTx(
 }
 
 /**
- * O IVA é apurado pelos documentos: mexer num documento cujo período (dia de Maputo da
- * `data`) já tem apuramento activo, ou está fechado, mudaria para trás a base de um mês
- * encerrado. O período fica trancado `FOR SHARE` até ao commit. Cada chamador dá o seu erro.
- */
-export async function exigirPeriodoSemIvaApurado(
-  tx: Prisma.TransactionClient,
-  data: Date,
-  tenantId: string,
-  erro: { codigo: string; mensagem: string },
-): Promise<void> {
-  const codigo = periodoFiscalDe(data);
-  const [periodo] = await tx.$queryRaw<Array<{ id: string; estado: string }>>`
-    SELECT id, estado FROM "PeriodoContabil"
-    WHERE "tenantId" = ${tenantId} AND codigo = ${codigo}
-    FOR SHARE
-  `;
-  if (!periodo) return;
-
-  const apurado =
-    periodo.estado !== 'ABERTO' ||
-    (await tx.apuramentoIva.findFirst({
-      where: { tenantId, periodoId: periodo.id, estado: { in: ['APURADO', 'DECLARADO'] } },
-      select: { id: true },
-    })) !== null;
-  if (apurado) throw new BusinessRuleError(erro.codigo, erro.mensagem);
-}
-
-/**
  * #148 — cancela a NC (só EMITIDA) e estorna o lançamento dela na MESMA transacção,
  * com a data do cancelamento. Período fechado ⇒ PERIODO_FECHADO e nada escrito.
  */
