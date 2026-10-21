@@ -2,7 +2,7 @@
 // Partilhado cliente/servidor. Nunca aceitar `where` cru do cliente.
 
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, parcial } from '@/lib/validations/common';
 
 // ============================================================
 // Enums (espelham os enums Prisma de operacoes.prisma)
@@ -126,7 +126,7 @@ export const CriarViaturaSchema = z.object({
   observacoes: z.string().max(1000).optional(),
 });
 
-export const AtualizarViaturaSchema = CriarViaturaSchema.partial().extend({
+export const AtualizarViaturaSchema = parcial(CriarViaturaSchema).extend({
   estado: EstadoViaturaEnum.optional(),
 });
 
@@ -246,7 +246,7 @@ export const CriarMotoristaSchema = CriarMotoristaBaseSchema.refine(
   { message: 'Validade da carta deve ser posterior à emissão', path: ['validadeCarta'] },
 );
 
-export const AtualizarMotoristaSchema = CriarMotoristaBaseSchema.partial().extend({
+export const AtualizarMotoristaSchema = parcial(CriarMotoristaBaseSchema).extend({
   estadoOperacional: EstadoOperacionalMotoristaEnum.optional(),
 });
 
@@ -322,7 +322,7 @@ export const CriarAtividadeSchema = CriarAtividadeBaseSchema.refine(
   },
 );
 
-export const AtualizarAtividadeSchema = CriarAtividadeBaseSchema.partial();
+export const AtualizarAtividadeSchema = parcial(CriarAtividadeBaseSchema);
 
 export const TransitarAtividadeSchema = z.object({
   atividadeId: z.string().cuid(),
@@ -370,7 +370,7 @@ export const CriarRotaSchema = z.object({
   observacoes: z.string().max(1000).optional(),
 });
 
-export const AtualizarRotaSchema = CriarRotaSchema.partial();
+export const AtualizarRotaSchema = parcial(CriarRotaSchema);
 
 export const TransitarRotaSchema = z.object({
   rotaId: z.string().cuid(),
@@ -429,7 +429,7 @@ export const CriarEntregaSchema = z.object({
   observacoes: z.string().max(1000).optional(),
 });
 
-export const AtualizarEntregaSchema = CriarEntregaSchema.partial();
+export const AtualizarEntregaSchema = parcial(CriarEntregaSchema);
 
 export const TransitarEntregaSchema = z.object({
   entregaId: z.string().cuid(),

@@ -12,6 +12,7 @@ import { useCallback, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -51,7 +52,7 @@ export function NovaDevolucaoForm({ clientesIniciais, produtosIniciais }: Props)
   const [aCarregar, setACarregar] = useState(false);
   const [erroServidor, setErroServidor] = useState<string | null>(null);
 
-  const form = useForm<CreateDevolucaoInput>({
+  const form = useForm<z.input<typeof CreateDevolucaoSchema>, unknown, CreateDevolucaoInput>({
     resolver: zodResolver(CreateDevolucaoSchema),
     defaultValues: {
       clienteId: '',

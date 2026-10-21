@@ -7,6 +7,7 @@
  */
 
 import { useTransition } from "react";
+import type { z } from 'zod';
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -68,7 +69,7 @@ export function CentroTrabalhoForm({
   const [isPending, startTransition] = useTransition();
   const edicao = Boolean(centroId);
 
-  const form = useForm<CreateCentroTrabalhoInput>({
+  const form = useForm<z.input<typeof CreateCentroTrabalhoSchema>, unknown, CreateCentroTrabalhoInput>({
     resolver: zodResolver(CreateCentroTrabalhoSchema),
     defaultValues: {
       codigo: valoresIniciais?.codigo ?? "",

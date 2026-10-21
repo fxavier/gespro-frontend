@@ -34,7 +34,7 @@
     "@aws-sdk/client-s3": "^3.940.0",
     "@aws-sdk/s3-request-presigner": "^3.940.0",
     "@gespro/brand": "workspace:*",
-    "@hookform/resolvers": "^3.10.0",
+    "@hookform/resolvers": "^5.9.2",
     "@opentelemetry/exporter-logs-otlp-http": "^0.57.2",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.2",
     "@opentelemetry/resources": "^1.27.0",

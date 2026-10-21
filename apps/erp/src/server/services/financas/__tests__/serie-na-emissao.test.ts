@@ -468,15 +468,19 @@ describe.each(PORTAS)('$nome — a série gravada é a que numerou', (porta) => 
 // Schemas — a chave saiu
 // ---------------------------------------------------------------------------
 
-/** Desembrulha `.refine`/`.transform` (ZodEffects) até ao ZodObject. */
-function chaves(schema: z.ZodTypeAny): string[] {
-  let s: z.ZodTypeAny = schema;
-  while (s instanceof z.ZodEffects) s = s.innerType();
+/**
+ * Chega ao ZodObject e devolve as suas chaves. No zod 4 o `.refine`/`.superRefine`
+ * já não embrulha (o schema continua `ZodObject`); um `.transform` dá `ZodPipe`,
+ * cujo lado de entrada (`.in`) é o objecto.
+ */
+function chaves(schema: z.ZodType): string[] {
+  let s: z.ZodType = schema;
+  while (s instanceof z.ZodPipe) s = s.in as z.ZodType;
   expect(s).toBeInstanceOf(z.ZodObject);
-  return Object.keys((s as z.AnyZodObject).shape);
+  return Object.keys((s as z.ZodObject).shape);
 }
 
-const SCHEMAS: Array<[string, z.ZodTypeAny, Record<string, unknown>]> = [
+const SCHEMAS: Array<[string, z.ZodType, Record<string, unknown>]> = [
   ['EmitirFaturaSchema', EmitirFaturaSchema, BASE.fatura],
   ['EmitirNotaCreditoSchema', EmitirNotaCreditoSchema, { ...BASE.notaCredito, faturaOriginalId: 'cjld2cjxh0001qzrmn831i7ro' }],
   ['EmitirNotaDebitoSchema', EmitirNotaDebitoSchema, BASE.notaDebito],

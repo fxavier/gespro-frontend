@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, X } from 'lucide-react';
@@ -67,7 +67,7 @@ export function NovaRequisicaoForm() {
   );
 
   const form = useForm<CreateRequisicaoCompraInput>({
-    resolver: zodResolver(CreateRequisicaoCompraSchema),
+    resolver: zodResolver(CreateRequisicaoCompraSchema) as unknown as Resolver<CreateRequisicaoCompraInput>,
     defaultValues: DEFAULT_VALUES,
     mode: 'onBlur',
   });

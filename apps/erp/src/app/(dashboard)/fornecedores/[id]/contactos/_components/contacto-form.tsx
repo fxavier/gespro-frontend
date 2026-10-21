@@ -60,7 +60,7 @@ export function ContactoForm({ fornecedorId, contacto }: Props) {
   const modoEdicao = Boolean(contacto);
   const voltar = `/fornecedores/${fornecedorId}/contactos`;
 
-  const form = useForm<ContactoFormInput>({
+  const form = useForm<z.input<typeof ContactoFormSchema>, unknown, ContactoFormInput>({
     resolver: zodResolver(ContactoFormSchema),
     defaultValues: {
       nome: contacto?.nome ?? '',

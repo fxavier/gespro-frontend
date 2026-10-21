@@ -59,8 +59,8 @@ describe('schemas de emissão recusam o ano de cinco algarismos', () => {
     linhas: [linha],
   };
 
-  const caminhoRecusado = (r: { success: boolean; error?: { issues: { path: (string | number)[] }[] } }) =>
-    r.success ? [] : r.error!.issues.map((i) => i.path.join('.'));
+  const caminhoRecusado = (r: { success: boolean; error?: { issues: { path: PropertyKey[] }[] } }) =>
+    r.success ? [] : r.error!.issues.map((i) => i.path.map(String).join('.'));
 
   it('fatura: emissão e vencimento', () => {
     const valido = EmitirFaturaSchema.safeParse({ ...base, dataEmissao: hoje, dataVencimento: hoje });

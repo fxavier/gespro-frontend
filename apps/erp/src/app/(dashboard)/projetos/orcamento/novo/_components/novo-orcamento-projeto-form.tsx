@@ -58,7 +58,7 @@ export function NovoOrcamentoProjetoForm({ opcoesProjeto }: { opcoesProjeto: Com
     handleSubmit,
     setValue,
     formState: { errors, isDirty },
-  } = useForm<FormValues>({
+  } = useForm<z.input<typeof FormSchema>, unknown, FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       projetoId: '',

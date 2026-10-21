@@ -16,7 +16,7 @@
  */
 
 import { z } from 'zod';
-import { idEntidade } from '@/lib/validations/common';
+import { idEntidade, parcial } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums (espelham prisma/schema/financas.prisma — ADR-0037 §2, E1, E2, E6)
@@ -116,7 +116,7 @@ export type CriarRubricaInput = z.infer<typeof CriarRubricaSchema>;
  * TENANT para ficar apagável); `ativo` é a única forma de «desligar» uma
  * rubrica SISTEMA, porque apagá-la recusa com `RUBRICA_DE_SISTEMA`.
  */
-export const EditarRubricaSchema = RubricaCamposSchema.partial().extend({
+export const EditarRubricaSchema = parcial(RubricaCamposSchema).extend({
   id: idEntidade('ID de rubrica inválido'),
   ativo: z.boolean().optional(),
 });
@@ -168,8 +168,8 @@ export const ValidarVersaoSchema = z.object({
     .string()
     .trim()
     .max(1000, 'Observação demasiado longa (máx. 1000 caracteres)')
-    .optional()
-    .transform((v) => (v === '' ? undefined : v)),
+    .transform((v) => (v === '' ? undefined : v))
+    .optional(),
 });
 
 export type ValidarVersaoInput = z.infer<typeof ValidarVersaoSchema>;

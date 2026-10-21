@@ -45,7 +45,7 @@ export function NovaFisicoForm({ userId, localizacoes }: NovaFisicoFormProps) {
     null
   );
 
-  const form = useForm<FormValues>({
+  const form = useForm<z.input<typeof InventarioFisicoCreateSchema>, unknown, FormValues>({
     resolver: zodResolver(InventarioFisicoCreateSchema),
     defaultValues: {
       codigo: '',

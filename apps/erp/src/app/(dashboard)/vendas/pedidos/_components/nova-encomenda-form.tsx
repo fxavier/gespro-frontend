@@ -13,6 +13,7 @@ import { useCallback, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -91,7 +92,7 @@ export function NovaEncomendaForm({
   // ao escolher um, é daqui que saem o nome, o SKU e o preço.
   const catalogo = useRef(new Map(produtosIniciais.map((p) => [p.id, p])));
 
-  const form = useForm<CreateEncomendaInput>({
+  const form = useForm<z.input<typeof CreateEncomendaSchema>, unknown, CreateEncomendaInput>({
     resolver: zodResolver(CreateEncomendaSchema),
     // O `<input type="date">` registado guarda a string; o schema coage-a em Date.
     defaultValues: (encomenda?.valores as CreateEncomendaInput | undefined) ?? {

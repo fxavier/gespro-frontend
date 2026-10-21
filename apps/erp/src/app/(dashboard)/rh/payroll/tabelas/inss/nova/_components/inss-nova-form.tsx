@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { erroDeTipo } from '@/lib/validations/common';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,20 +34,20 @@ const MSG_INVALIDO =
 // ─── schema do formulário (campos em %) ──────────────────────────────────────
 
 // mes é lido do DOM via FormData no onSubmit; não entra no FormSchema.
-// valueAsNumber:true no register entrega NaN → invalid_type_error captura "Obrigatório"
+// valueAsNumber:true no register entrega NaN → o erroDeTipo devolve "Obrigatório"
 const FormSchema = z.object({
   ano: z
-    .number({ invalid_type_error: 'Obrigatório' })
+    .number(erroDeTipo(undefined, 'Obrigatório'))
     .int('Ano inválido')
     .min(2020, 'Mínimo 2020')
     .max(2100, 'Máximo 2100'),
   // M2: taxas INSS > 0 — 0 % seria gravado e irrecuperável para esse mês
   taxaTrabalhadorPct: z
-    .number({ invalid_type_error: 'Obrigatório' })
+    .number(erroDeTipo(undefined, 'Obrigatório'))
     .gt(0, 'Deve ser maior que zero')
     .max(100, 'Máximo 100 %'),
   taxaEntidadePct: z
-    .number({ invalid_type_error: 'Obrigatório' })
+    .number(erroDeTipo(undefined, 'Obrigatório'))
     .gt(0, 'Deve ser maior que zero')
     .max(100, 'Máximo 100 %'),
   // text input (não number) para não repor 0 ao perder o foco (CLAUDE.md)

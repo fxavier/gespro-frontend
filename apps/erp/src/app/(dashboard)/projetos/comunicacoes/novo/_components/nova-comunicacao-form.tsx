@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { erroDeTipo } from '@/lib/validations/common';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +23,7 @@ import { registarComunicacaoAction } from '@/server/actions/projetos.actions';
 
 const Schema = z.object({
   projetoId: z.string().min(1, 'Projecto obrigatório'),
-  tipo: z.enum(['REUNIAO', 'ATA', 'DECISAO', 'ANUNCIO', 'RELATORIO'], { required_error: 'Tipo obrigatório' }),
+  tipo: z.enum(['REUNIAO', 'ATA', 'DECISAO', 'ANUNCIO', 'RELATORIO'], erroDeTipo('Tipo obrigatório')),
   data: z.string().min(1, 'Data obrigatória'),
   participantes: z.string().min(1, 'Indique pelo menos um participante'),
   resumo: z.string().min(1, 'Resumo obrigatório').max(10000),

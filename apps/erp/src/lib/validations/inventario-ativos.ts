@@ -2,7 +2,7 @@
 // Partilhado cliente/servidor.
 
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, parcial } from '@/lib/validations/common';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ export const CategoriaAtivoCreateSchema = z.object({
   ativa: z.boolean().default(true),
 });
 
-export const CategoriaAtivoUpdateSchema = CategoriaAtivoCreateSchema.partial().omit({
+export const CategoriaAtivoUpdateSchema = parcial(CategoriaAtivoCreateSchema).omit({
   codigo: true,
 });
 
@@ -142,7 +142,7 @@ export const AtivoCreateSchema = z.object({
   imagens: z.array(z.string().url()).default([]),
 });
 
-export const AtivoUpdateSchema = AtivoCreateSchema.partial().omit({ codigoInterno: true });
+export const AtivoUpdateSchema = parcial(AtivoCreateSchema).omit({ codigoInterno: true });
 
 export const AtivoFilterSchema = z.object({
   search: z.string().optional(),

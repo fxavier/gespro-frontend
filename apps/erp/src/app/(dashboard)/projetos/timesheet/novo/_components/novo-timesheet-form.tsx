@@ -55,7 +55,7 @@ export default function NovoTimesheetForm({ projetos, colaboradores }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const form = useForm<FormData>({
+  const form = useForm<z.input<typeof Schema>, unknown, FormData>({
     resolver: zodResolver(Schema),
     defaultValues: {
       data: new Date().toISOString().split('T')[0],

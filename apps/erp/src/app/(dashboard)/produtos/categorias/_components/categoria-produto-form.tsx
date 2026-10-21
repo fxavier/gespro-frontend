@@ -9,6 +9,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -46,7 +47,7 @@ export function CategoriaProdutoForm({ categoria }: CategoriaProdutoFormProps) {
   const [isPending, startTransition] = useTransition();
   const edicao = categoria !== undefined;
 
-  const form = useForm<CategoriaProdutoCreate>({
+  const form = useForm<z.input<typeof CategoriaProdutoCreateSchema>, unknown, CategoriaProdutoCreate>({
     resolver: zodResolver(CategoriaProdutoCreateSchema),
     defaultValues: {
       nome: categoria?.nome ?? '',

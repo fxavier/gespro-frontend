@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { erroDeTipo, parcial } from './common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -64,7 +65,7 @@ export const BeneficioSchema = z.object({
   cargosElegiveis: z.array(z.string()).default([]),
 });
 
-export const UpdateBeneficioSchema = BeneficioSchema.partial();
+export const UpdateBeneficioSchema = parcial(BeneficioSchema);
 
 export type CreateBeneficioInput = z.infer<typeof BeneficioSchema>;
 export type UpdateBeneficioInput = z.infer<typeof UpdateBeneficioSchema>;
@@ -76,7 +77,7 @@ export type UpdateBeneficioInput = z.infer<typeof UpdateBeneficioSchema>;
 export const AtribuirBeneficioSchema = z.object({
   beneficioId: z.string().cuid('ID de benefício inválido'),
   colaboradorId: z.string().cuid('ID de colaborador inválido'),
-  dataInicio: z.coerce.date({ required_error: 'Data de início é obrigatória' }),
+  dataInicio: z.coerce.date(erroDeTipo('Data de início é obrigatória')),
   dataFim: z.coerce.date().optional(),
   comparticipacaoEmpresa: z
     .string()

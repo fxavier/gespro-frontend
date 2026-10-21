@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, parcial } from '@/lib/validations/common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -39,7 +39,7 @@ export const CreateEquipaSchema = z.object({
   status: StatusEquipaEnum.default('ATIVA'),
 });
 
-export const UpdateEquipaSchema = CreateEquipaSchema.partial();
+export const UpdateEquipaSchema = parcial(CreateEquipaSchema);
 
 export const FilterEquipaSchema = z.object({
   search: z.string().optional(),
@@ -85,7 +85,7 @@ export const CreateProjetoSchema = CreateProjetoBaseSchema.refine(
   { message: 'Data de fim prevista não pode ser anterior à data de início', path: ['dataFimPrevista'] },
 );
 
-export const UpdateProjetoSchema = CreateProjetoBaseSchema.partial().omit({ codigo: true });
+export const UpdateProjetoSchema = parcial(CreateProjetoBaseSchema).omit({ codigo: true });
 
 export const FilterProjetoSchema = z.object({
   search: z.string().optional(),
@@ -120,7 +120,7 @@ export const CreateTarefaSchema = z.object({
   observacoes: z.string().max(2000).optional(),
 });
 
-export const UpdateTarefaSchema = CreateTarefaSchema.partial().omit({ projetoId: true, codigo: true });
+export const UpdateTarefaSchema = parcial(CreateTarefaSchema).omit({ projetoId: true, codigo: true });
 
 /** Reordenação via drag-and-drop: o cliente envia a nova posição fraccional calculada. */
 export const ReordenarTarefaSchema = z.object({
@@ -204,7 +204,7 @@ export const RejeitarTimesheetSchema = z.object({
   motivoRejeicao: z.string().trim().min(1, 'Motivo de rejeição é obrigatório').max(500),
 });
 
-export const UpdateMarcoSchema = CreateMarcoSchema.partial().omit({ projetoId: true });
+export const UpdateMarcoSchema = parcial(CreateMarcoSchema).omit({ projetoId: true });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Orçamento de Projecto
@@ -264,7 +264,7 @@ export const CreateRiscoSchema = z.object({
   planoMitigacao: z.string().max(5000).optional(),
 });
 
-export const UpdateRiscoSchema = CreateRiscoSchema.partial().omit({ projetoId: true });
+export const UpdateRiscoSchema = parcial(CreateRiscoSchema).omit({ projetoId: true });
 
 export const FilterRiscoSchema = z.object({
   projetoId: z.string().cuid().optional(),
@@ -292,7 +292,7 @@ export const CreateQualidadeSchema = z.object({
   responsavelId: z.string().cuid().optional(),
 });
 
-export const UpdateQualidadeSchema = CreateQualidadeSchema.partial().omit({ projetoId: true });
+export const UpdateQualidadeSchema = parcial(CreateQualidadeSchema).omit({ projetoId: true });
 
 export const FilterQualidadeSchema = z.object({
   projetoId: z.string().cuid().optional(),

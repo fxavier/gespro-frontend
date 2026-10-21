@@ -88,7 +88,7 @@ export function EditarAvaliacaoForm({ id, defaultValues }: Props) {
     null
   );
 
-  const form = useForm<FormValues>({
+  const form = useForm<z.input<typeof Schema>, unknown, FormValues>({
     resolver: zodResolver(Schema),
     defaultValues: {
       criterios: defaultValues.criterios.map((c) => ({

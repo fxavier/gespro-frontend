@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -43,7 +43,7 @@ export function EditarAtivoForm({ ativo, categorias, localizacoes }: EditarAtivo
   );
 
   const form = useForm<AtivoUpdate>({
-    resolver: zodResolver(AtivoUpdateSchema),
+    resolver: zodResolver(AtivoUpdateSchema) as unknown as Resolver<AtivoUpdate>,
     defaultValues: {
       nome: ativo.nome,
       descricao: ativo.descricao ?? undefined,

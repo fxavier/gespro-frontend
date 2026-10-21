@@ -3,6 +3,7 @@
  * Partilhado entre cliente e servidor — sem `server-only`.
  */
 import { z } from 'zod';
+import { erroDeTipo } from './common';
 import { validarNUIT } from '../validacao-nuit';
 import { validarBI } from '../validacao-bi';
 
@@ -16,7 +17,7 @@ import { validarBI } from '../validacao-bi';
  */
 export function nuit() {
   return z
-    .string({ required_error: 'NUIT é obrigatório' })
+    .string(erroDeTipo('NUIT é obrigatório'))
     .regex(/^\d{9}$/, 'NUIT deve ter exactamente 9 dígitos')
     .refine(validarNUIT, { message: 'NUIT inválido' });
 }
@@ -30,7 +31,7 @@ export function nuit() {
  */
 export function biMocambicano() {
   return z
-    .string({ required_error: 'Bilhete de Identidade é obrigatório' })
+    .string(erroDeTipo('Bilhete de Identidade é obrigatório'))
     .refine(validarBI, {
       message: 'BI inválido — formato esperado: 12 dígitos seguidos de uma letra (ex: 110100123456A)',
     });
@@ -41,7 +42,7 @@ export function biMocambicano() {
  */
 export function emailMz() {
   return z
-    .string({ required_error: 'Email é obrigatório' })
+    .string(erroDeTipo('Email é obrigatório'))
     .email('Email inválido');
 }
 
@@ -51,7 +52,7 @@ export function emailMz() {
  */
 export function telefoneMz() {
   return z
-    .string({ required_error: 'Número de telefone é obrigatório' })
+    .string(erroDeTipo('Número de telefone é obrigatório'))
     .refine(
       (v) => {
         const limpo = v.replace(/[\s\-\(\)]/g, '').replace(/^\+258/, '');

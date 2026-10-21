@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idEntidade, inicioDoDia, fimDoDia } from './common';
+import { idEntidade, inicioDoDia, fimDoDia, parcial } from './common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -89,7 +89,7 @@ export const CreateDepartamentoSchema = z.object({
   ativo: z.boolean().default(true),
 });
 
-export const UpdateDepartamentoSchema = CreateDepartamentoSchema.partial();
+export const UpdateDepartamentoSchema = parcial(CreateDepartamentoSchema);
 
 export const FilterDepartamentoSchema = z.object({
   search: z.string().optional(),
@@ -119,7 +119,7 @@ export const CreateCargoSchema = CreateCargoBaseSchema.refine(
   { message: 'Salário mínimo não pode ser superior ao máximo', path: ['salarioMinimo'] },
 );
 
-export const UpdateCargoSchema = CreateCargoBaseSchema.partial();
+export const UpdateCargoSchema = parcial(CreateCargoBaseSchema);
 
 export const FilterCargoSchema = z.object({
   search: z.string().optional(),
@@ -197,28 +197,28 @@ export const CreateColaboradorSchema = z.object({
  * Só os campos que `ColaboradorService.actualizar` grava (#272/#275). Qualquer outro é RECUSADO
  * (`strict`), nunca despido em silêncio — «sucesso e nada muda» era o defeito.
  */
-export const UpdateColaboradorSchema = CreateColaboradorSchema.pick({
-  nome: true,
-  email: true,
-  telefone: true,
-  tipoContrato: true,
-  regimeTrabalho: true,
-  departamentoId: true,
-  cargoId: true,
-  supervisorId: true,
-  salarioBase: true,
-  subsidioAlimentacao: true,
-  subsidioTransporte: true,
-  subsidioHabitacao: true,
-  subsidiosOutros: true,
-  horarioTrabalho: true,
-  localizacao: true,
-  nivelAcesso: true,
-  observacoes: true,
-  fotoUrl: true,
-})
-  .partial()
-  .strict();
+export const UpdateColaboradorSchema = parcial(
+  CreateColaboradorSchema.pick({
+    nome: true,
+    email: true,
+    telefone: true,
+    tipoContrato: true,
+    regimeTrabalho: true,
+    departamentoId: true,
+    cargoId: true,
+    supervisorId: true,
+    salarioBase: true,
+    subsidioAlimentacao: true,
+    subsidioTransporte: true,
+    subsidioHabitacao: true,
+    subsidiosOutros: true,
+    horarioTrabalho: true,
+    localizacao: true,
+    nivelAcesso: true,
+    observacoes: true,
+    fotoUrl: true,
+  }),
+).strict();
 
 export const FilterColaboradorSchema = z.object({
   search: z.string().optional(),
@@ -406,7 +406,7 @@ export const CreateFormacaoSchema = CreateFormacaoBaseSchema.refine(
   { message: 'Data de fim deve ser igual ou posterior à data de início', path: ['dataFim'] },
 );
 
-export const UpdateFormacaoSchema = CreateFormacaoBaseSchema.partial();
+export const UpdateFormacaoSchema = parcial(CreateFormacaoBaseSchema);
 
 export const InscricaoFormacaoSchema = z.object({
   formacaoId: z.string().cuid(),

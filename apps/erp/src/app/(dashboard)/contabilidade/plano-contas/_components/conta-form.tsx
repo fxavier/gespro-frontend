@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -90,7 +91,7 @@ export function ContaForm({
     return [OPCAO_SEM_PAI, ...r.data.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))];
   };
 
-  const form = useForm<CriarContaPGCInput>({
+  const form = useForm<z.input<typeof CriarContaPGCSchema>, unknown, CriarContaPGCInput>({
     resolver: zodResolver(CriarContaPGCSchema),
     defaultValues: { ...DEFAULT_VALUES, ...valoresIniciais },
     mode: 'onBlur',

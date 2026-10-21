@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
-import { idEntidade, inicioDoDia, fimDoDia } from './common';
+import { idEntidade, inicioDoDia, fimDoDia, erroDeTipo } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums (espelham os enums Prisma em SCREAMING_SNAKE)
@@ -58,10 +58,10 @@ export const CreateItemVendaSchema = z.object({
   nomeProduto: z.string().min(1, 'Nome do produto obrigatório').max(200),
   sku: z.string().max(100).optional(),
   quantidade: z
-    .number({ required_error: 'Quantidade obrigatória' })
+    .number(erroDeTipo('Quantidade obrigatória'))
     .positive('Quantidade deve ser positiva'),
   precoUnitario: z
-    .number({ required_error: 'Preço unitário obrigatório' })
+    .number(erroDeTipo('Preço unitário obrigatório'))
     .nonnegative('Preço não pode ser negativo'),
   desconto: z
     .number()
@@ -77,7 +77,7 @@ export const CreateItemVendaSchema = z.object({
 
 export const CreatePagamentoVendaSchema = z.object({
   tipo: MetodoPagamentoTipoEnum,
-  valor: z.number({ required_error: 'Valor do pagamento obrigatório' }).positive('Valor deve ser positivo'),
+  valor: z.number(erroDeTipo('Valor do pagamento obrigatório')).positive('Valor deve ser positivo'),
   referencia: z.string().max(100).optional(),
   troco: z.number().nonnegative('Troco não pode ser negativo').optional(),
 });

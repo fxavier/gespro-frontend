@@ -82,7 +82,7 @@ export function EditarProdutoForm({ id, categorias, defaultValues }: Props) {
     null
   );
 
-  const form = useForm<FormValues>({
+  const form = useForm<z.input<typeof Schema>, unknown, FormValues>({
     resolver: zodResolver(Schema),
     defaultValues: {
       nome: defaultValues.nome,

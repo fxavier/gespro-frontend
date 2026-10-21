@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { erroDeTipo } from '@/lib/validations/common';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -21,7 +22,7 @@ import { criarRegistoQualidadeAction } from '@/server/actions/projetos.actions';
 
 const Schema = z.object({
   projetoId: z.string().min(1, 'Projecto obrigatório'),
-  tipo: z.enum(['NAO_CONFORMIDADE', 'INSPECAO', 'AUDITORIA', 'REVISAO'], { required_error: 'Tipo obrigatório' }),
+  tipo: z.enum(['NAO_CONFORMIDADE', 'INSPECAO', 'AUDITORIA', 'REVISAO'], erroDeTipo('Tipo obrigatório')),
   descricao: z.string().min(1, 'Descrição obrigatória').max(5000),
   acaoCorretiva: z.string().max(5000).optional(),
 });

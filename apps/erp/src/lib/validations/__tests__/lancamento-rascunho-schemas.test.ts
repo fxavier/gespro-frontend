@@ -13,7 +13,7 @@ import type { z } from 'zod';
 
 // Acedidos pelo namespace: enquanto não existirem, falha cada caso com uma
 // mensagem clara em vez de o ficheiro inteiro rebentar no import.
-const sch = schemas as unknown as Record<string, z.ZodTypeAny>;
+const sch = schemas as unknown as Record<string, z.ZodType<Record<string, unknown>>>;
 const Editar = () => sch.EditarLancamentoSchema;
 const Anular = () => sch.AnularLancamentoSchema;
 

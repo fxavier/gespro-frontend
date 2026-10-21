@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { erroDeTipo } from '@/lib/validations/common';
 import { Save, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,10 +35,10 @@ const MSG_INVALIDO =
 
 // ─── schema do formulário ─────────────────────────────────────────────────────
 
-// valueAsNumber:true no register entrega NaN → invalid_type_error captura "Obrigatório"
+// valueAsNumber:true no register entrega NaN → o erroDeTipo devolve "Obrigatório"
 const EscalaoFormSchema = z.object({
   limiteInferior: z
-    .number({ invalid_type_error: 'Obrigatório' })
+    .number(erroDeTipo(undefined, 'Obrigatório'))
     .min(0, 'Não pode ser negativo'),
   // text input para não repor 0 ao perder foco (CLAUDE.md); '' = último escalão
   // D6: parseDecimalPt — estrito, sem separador de milhares, sem negativos
@@ -49,11 +50,11 @@ const EscalaoFormSchema = z.object({
     }
   }),
   taxaPct: z
-    .number({ invalid_type_error: 'Obrigatório' })
+    .number(erroDeTipo(undefined, 'Obrigatório'))
     .min(0, 'Não pode ser negativo')
     .max(100, 'Máximo 100 %'),
   parcelaAbater: z
-    .number({ invalid_type_error: 'Obrigatório' })
+    .number(erroDeTipo(undefined, 'Obrigatório'))
     .min(0, 'Não pode ser negativo'),
 });
 
@@ -61,7 +62,7 @@ const EscalaoFormSchema = z.object({
 const FormSchema = z
   .object({
     ano: z
-      .number({ invalid_type_error: 'Obrigatório' })
+      .number(erroDeTipo(undefined, 'Obrigatório'))
       .int('Ano inválido')
       .min(2020, 'Mínimo 2020')
       .max(2100, 'Máximo 2100'),

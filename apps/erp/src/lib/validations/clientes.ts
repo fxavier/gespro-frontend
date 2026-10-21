@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { nuit, biMocambicano, provinciaSchema } from '@/lib/validations/common';
+import { nuit, biMocambicano, provinciaSchema, parcial } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums (espelham os enums Prisma em SCREAMING_SNAKE)
@@ -46,7 +46,7 @@ export const CreateEnderecoClienteSchema = z.object({
   principal: z.boolean().default(false),
 });
 
-export const UpdateEnderecoClienteSchema = CreateEnderecoClienteSchema.partial().extend({
+export const UpdateEnderecoClienteSchema = parcial(CreateEnderecoClienteSchema).extend({
   principal: z.boolean().optional(),
 });
 
@@ -64,7 +64,7 @@ export const CreateContactoClienteSchema = z.object({
   ativo: z.boolean().default(true),
 });
 
-export const UpdateContactoClienteSchema = CreateContactoClienteSchema.partial();
+export const UpdateContactoClienteSchema = parcial(CreateContactoClienteSchema);
 
 // ---------------------------------------------------------------------------
 // Segmentação
@@ -79,7 +79,7 @@ export const CreateSegmentacaoClienteSchema = z.object({
   ticketMedio: z.number().nonnegative('Ticket médio não pode ser negativo').default(0),
 });
 
-export const UpdateSegmentacaoClienteSchema = CreateSegmentacaoClienteSchema.partial();
+export const UpdateSegmentacaoClienteSchema = parcial(CreateSegmentacaoClienteSchema);
 
 // ---------------------------------------------------------------------------
 // Representante

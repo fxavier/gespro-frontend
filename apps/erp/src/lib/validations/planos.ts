@@ -4,7 +4,7 @@
  * Partilhado cliente/servidor: sem 'server-only', sem imports de Prisma.
  */
 import { z } from 'zod';
-import { codigoPlano } from './common';
+import { codigoPlano, erroDeTipo } from './common';
 
 export const MAX_FUNCIONALIDADES = 30;
 export const MAX_CARACTERES_FUNCIONALIDADE = 120;
@@ -14,7 +14,7 @@ export const LIMITE_ILIMITADO = -1;
 /** Preço de exibição em USD: >= 0, até duas casas decimais (Decimal(12,2)). */
 const precoUsd = (rotulo: string) =>
   z
-    .string({ invalid_type_error: `${rotulo} obrigatório` })
+    .string(erroDeTipo(undefined, `${rotulo} obrigatório`))
     .trim()
     .min(1, `${rotulo} obrigatório`)
     .regex(/^\d{1,10}(\.\d{1,2})?$/, `${rotulo} inválido: valor igual ou superior a 0, com até duas casas decimais (ex.: 29.90)`);
@@ -22,7 +22,7 @@ const precoUsd = (rotulo: string) =>
 /** Limite inteiro >= -1; -1 = ilimitado. */
 const limite = (rotulo: string) =>
   z
-    .number({ invalid_type_error: `${rotulo} obrigatório` })
+    .number(erroDeTipo(undefined, `${rotulo} obrigatório`))
     .int(`${rotulo}: número inteiro`)
     .min(LIMITE_ILIMITADO, `${rotulo}: use -1 para ilimitado ou um número igual ou superior a 0`)
     .max(1_000_000, `${rotulo} demasiado alto`);
@@ -67,7 +67,7 @@ export const PlanoCamposSchema = z.object({
   suporte: z.string().trim().min(1, 'Suporte obrigatório').max(120, 'Suporte demasiado longo'),
   funcionalidades,
   ordem: z
-    .number({ invalid_type_error: 'Ordem obrigatória' })
+    .number(erroDeTipo(undefined, 'Ordem obrigatória'))
     .int('Ordem: número inteiro')
     .min(0, 'Ordem: igual ou superior a 0')
     .max(1_000_000, 'Ordem demasiado alta'),

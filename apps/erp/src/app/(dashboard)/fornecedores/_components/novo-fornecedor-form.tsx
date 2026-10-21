@@ -4,6 +4,7 @@ import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Save, X, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -65,7 +66,7 @@ export function NovoFornecedorForm() {
     null
   );
 
-  const form = useForm<CreateFornecedorInput>({
+  const form = useForm<z.input<typeof CreateFornecedorSchema>, unknown, CreateFornecedorInput>({
     resolver: zodResolver(CreateFornecedorSchema),
     defaultValues: DEFAULT_VALUES,
     mode: 'onBlur',

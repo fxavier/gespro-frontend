@@ -60,7 +60,7 @@ export default function NovaAvaliacaoForm({ colaboradores }: Props) {
   const [showAddCrit, setShowAddCrit] = useState(false);
   const [novoCrit, setNovoCrit] = useState<Partial<CriterioLocal>>({ ...CRITERIO_DEFAULT });
 
-  const form = useForm<FormData>({
+  const form = useForm<z.input<typeof Schema>, unknown, FormData>({
     resolver: zodResolver(Schema),
     defaultValues: {
       tipo: 'DESEMPENHO',
@@ -73,7 +73,7 @@ export default function NovaAvaliacaoForm({ colaboradores }: Props) {
   function adicionarCriterio() {
     const result = CriterioSchema.safeParse(novoCrit);
     if (!result.success) {
-      toast.error(result.error.errors[0]?.message ?? 'Preencha os campos obrigatórios.');
+      toast.error(result.error.issues[0]?.message ?? 'Preencha os campos obrigatórios.');
       return;
     }
     setCriterios((prev) => [...prev, result.data]);

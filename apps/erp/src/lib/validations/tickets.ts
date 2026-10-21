@@ -2,7 +2,7 @@
 // Partilhado cliente/servidor. Nunca aceitar `where` cru do cliente.
 
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, parcial } from '@/lib/validations/common';
 
 // ============================================================
 // Enums (espelham os enums Prisma de operacoes.prisma)
@@ -153,7 +153,7 @@ export const CriarCategoriaTicketSchema = z.object({
   slaTempoResolucao: z.number().int().positive('Tempo de resolução deve ser positivo'),
 });
 
-export const AtualizarCategoriaTicketSchema = CriarCategoriaTicketSchema.partial().extend({
+export const AtualizarCategoriaTicketSchema = parcial(CriarCategoriaTicketSchema).extend({
   ativa: z.boolean().optional(),
 });
 
@@ -191,7 +191,7 @@ export const CriarEquipeSuporteSchema = z.object({
   membros: z.array(MembroEquipeInputSchema).default([]),
 });
 
-export const AtualizarEquipeSuporteSchema = CriarEquipeSuporteSchema.partial().extend({
+export const AtualizarEquipeSuporteSchema = parcial(CriarEquipeSuporteSchema).extend({
   estado: EstadoEquipeSuporteEnum.optional(),
 });
 
@@ -217,7 +217,7 @@ export const CriarArtigoBaseConhecimentoSchema = z.object({
   visibilidade: VisibilidadeAtividadeTicketEnum.default('PUBLICA'),
 });
 
-export const AtualizarArtigoBaseConhecimentoSchema = CriarArtigoBaseConhecimentoSchema.partial().extend({
+export const AtualizarArtigoBaseConhecimentoSchema = parcial(CriarArtigoBaseConhecimentoSchema).extend({
   estado: EstadoBaseConhecimentoEnum.optional(),
 });
 

@@ -12,6 +12,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { erroDeTipo } from '@/lib/validations/common';
 import { criarBeneficioAction, actualizarBeneficioAction } from '@/server/actions/beneficios.actions';
 import { Button } from '@/components/ui/button';
 import { FormPage, FormSection, UnsavedChangesGuard } from '@/components/patterns';
@@ -67,10 +68,8 @@ const FormSchema = BeneficioSchema.pick({
   comparticipacaoEmpresa: true,
   descontoColaborador: true,
 }).extend({
-  tipo: z.enum(TipoBeneficioEnum.options, { required_error: 'Tipo é obrigatório' }),
-  periodicidade: z.enum(PeriodicidadeBeneficioEnum.options, {
-    required_error: 'Periodicidade é obrigatória',
-  }),
+  tipo: z.enum(TipoBeneficioEnum.options, erroDeTipo('Tipo é obrigatório')),
+  periodicidade: z.enum(PeriodicidadeBeneficioEnum.options, erroDeTipo('Periodicidade é obrigatória')),
   tributavel: z.enum(['true', 'false']).default('false'),
 });
 
@@ -96,7 +95,7 @@ export function BeneficioForm({ beneficioId, defaultValues }: BeneficioFormProps
     getValues,
     control,
     formState: { errors, isDirty },
-  } = useForm<BeneficioFormValues>({
+  } = useForm<z.input<typeof FormSchema>, unknown, BeneficioFormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       custoTotal: '0',

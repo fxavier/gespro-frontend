@@ -53,7 +53,7 @@ export default function NovaSolicitacaoFeriasForm({ periodos }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const form = useForm<FormData>({
+  const form = useForm<z.input<typeof Schema>, unknown, FormData>({
     resolver: zodResolver(Schema),
     defaultValues: { tipo: 'INTEGRAL' },
   });

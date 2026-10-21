@@ -43,7 +43,7 @@ export function NovaCategoriaServicoForm({ categoria }: Props = {}) {
     setValue,
     watch,
     formState: { errors, isDirty },
-  } = useForm<FormValues>({
+  } = useForm<z.input<typeof FormSchema>, unknown, FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: categoria
       ? {

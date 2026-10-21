@@ -17,6 +17,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import {
@@ -56,7 +57,7 @@ export function MarcarDeclaradoAlertDialog({
   const [aCorrer, iniciarTransicao] = useTransition();
   const router = useRouter();
 
-  const form = useForm<MarcarDeclaradoInput>({
+  const form = useForm<z.input<typeof MarcarDeclaradoSchema>, unknown, MarcarDeclaradoInput>({
     resolver: zodResolver(MarcarDeclaradoSchema),
     defaultValues: {
       apuramentoId,

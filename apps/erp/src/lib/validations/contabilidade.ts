@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idEntidade, inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { idEntidade, inicioDoDia, fimDoDia, erroDeTipo, parcial, duasCasas } from '@/lib/validations/common';
 import { METODOS_POS_CONFIGURAVEIS } from '@/lib/meios-pagamento';
 import { NATUREZAS_NOTA_DEBITO } from '@/lib/nota-debito';
 
@@ -107,7 +107,7 @@ export const MSG_CONTA_MAE_NAO_ENCONTRADA = 'Conta mãe não encontrada';
 
 export type CriarContaPGCInput = z.infer<typeof CriarContaPGCSchema>;
 
-export const AtualizarContaPGCSchema = CriarContaPGCSchema.partial().extend({
+export const AtualizarContaPGCSchema = parcial(CriarContaPGCSchema).extend({
   id: idEntidade('ID de conta inválido'),
 });
 
@@ -138,7 +138,7 @@ export const CriarDiarioSchema = z.object({
 
 export type CriarDiarioInput = z.infer<typeof CriarDiarioSchema>;
 
-export const AtualizarDiarioSchema = CriarDiarioSchema.partial().extend({
+export const AtualizarDiarioSchema = parcial(CriarDiarioSchema).extend({
   id: z.string().cuid(),
   ativo: z.boolean().optional(),
 });
@@ -155,12 +155,12 @@ export const CriarCentroCustoSchema = z.object({
   descricao: z.string().max(500).optional(),
   tipo: TipoCentroCustoEnum,
   responsavelId: z.string().cuid().optional(),
-  orcamento: z.number().nonnegative().multipleOf(0.01).optional(),
+  orcamento: z.number().nonnegative().superRefine(duasCasas()).optional(),
 });
 
 export type CriarCentroCustoInput = z.infer<typeof CriarCentroCustoSchema>;
 
-export const AtualizarCentroCustoSchema = CriarCentroCustoSchema.partial().extend({
+export const AtualizarCentroCustoSchema = parcial(CriarCentroCustoSchema).extend({
   id: z.string().cuid(),
   ativo: z.boolean().optional(),
 });
@@ -187,9 +187,9 @@ export const PartidaSchema = z
     centroCustoId: z.string().cuid().optional(),
     tipo: TipoPartidaEnum,
     valor: z
-      .number({ required_error: 'Valor obrigatório' })
+      .number(erroDeTipo('Valor obrigatório'))
       .positive('Valor deve ser positivo')
-      .multipleOf(0.01, 'Máximo 2 casas decimais'),
+      .superRefine(duasCasas('Máximo 2 casas decimais')),
     historico: z.string().max(255).optional(),
   });
 
@@ -197,7 +197,7 @@ export type PartidaInput = z.infer<typeof PartidaSchema>;
 
 /** Campos do lançamento sem o refinement — base partilhada por criar e editar. */
 const LancamentoBaseSchema = z.object({
-  data: z.coerce.date({ required_error: 'Data obrigatória' }),
+  data: z.coerce.date(erroDeTipo('Data obrigatória')),
   diarioId: z.string().cuid('ID de diário inválido'),
   origem: OrigemLancamentoEnum.default('MANUAL'),
   documentoOrigemId: z.string().optional(),
@@ -264,7 +264,7 @@ export type EditarLancamentoInput = z.infer<typeof EditarLancamentoSchema>;
 export const AnularLancamentoSchema = z.object({
   id: idEntidade('ID de lançamento inválido'),
   motivo: z
-    .string({ required_error: 'Motivo obrigatório' })
+    .string(erroDeTipo('Motivo obrigatório'))
     .trim()
     .min(3, 'Indique o motivo (pelo menos 3 caracteres)')
     .max(500, 'Máximo de 500 caracteres'),
@@ -298,7 +298,7 @@ export type FiltroLancamentoInput = z.infer<typeof FiltroLancamentoSchema>;
  */
 export const ConfigReconciliacaoContaSchema = z.object({
   toleranciaDias: z.coerce
-    .number({ invalid_type_error: 'Indique um número de dias' })
+    .number(erroDeTipo(undefined, 'Indique um número de dias'))
     .int('Use um número inteiro de dias')
     .min(0, 'Mínimo 0 dias')
     .max(60, 'Máximo 60 dias'),
@@ -312,13 +312,13 @@ export const ConfigReconciliacaoContaSchema = z.object({
   permitirMatchPorDescricao: z.boolean(),
   autoReconciliacao: z.boolean(),
   limiarConfianca: z.coerce
-    .number({ invalid_type_error: 'Indique o limiar' })
+    .number(erroDeTipo(undefined, 'Indique o limiar'))
     .int('Use um número inteiro')
     .min(50, 'Mínimo 50')
     .max(100, 'Máximo 100'),
   permitirAgregacao: z.boolean(),
   maxMovimentosAgregacao: z.coerce
-    .number({ invalid_type_error: 'Indique o máximo' })
+    .number(erroDeTipo(undefined, 'Indique o máximo'))
     .int('Use um número inteiro')
     // O motor conta os dois lados (banco + contabilidade): uma agregação tem pelo menos 3.
     .min(3, 'Mínimo 3')
@@ -336,11 +336,11 @@ export const CriarContaBancariaSchema = z
     moeda: z.string().length(3).default('MZN'),
     contaContabilId: idEntidade('ID de conta contabilística inválido'),
   })
-  .merge(ConfigReconciliacaoContaSchema.partial());
+  .merge(parcial(ConfigReconciliacaoContaSchema));
 
 export type CriarContaBancariaInput = z.infer<typeof CriarContaBancariaSchema>;
 
-export const AtualizarContaBancariaSchema = CriarContaBancariaSchema.partial().extend({
+export const AtualizarContaBancariaSchema = parcial(CriarContaBancariaSchema).extend({
   id: z.string().cuid(),
   ativo: z.boolean().optional(),
 });

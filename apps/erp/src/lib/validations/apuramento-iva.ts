@@ -3,7 +3,7 @@
  * Partilhado cliente/servidor — sem 'server-only'.
  */
 import { z } from 'zod';
-import { idEntidade } from './common';
+import { idEntidade, erroDeTipo } from './common';
 
 export const ApurarIvaSchema = z.object({
   periodoId: idEntidade('ID do período inválido'),
@@ -18,7 +18,7 @@ export type EstornarApuramentoInput = z.infer<typeof EstornarApuramentoSchema>;
 
 export const MarcarDeclaradoSchema = z.object({
   apuramentoId: idEntidade('ID do apuramento inválido'),
-  declaradoEm: z.coerce.date({ required_error: 'Data de entrega obrigatória' }),
+  declaradoEm: z.coerce.date(erroDeTipo('Data de entrega obrigatória')),
   referenciaEntrega: z
     .string()
     .min(1, 'Referência da entrega obrigatória')

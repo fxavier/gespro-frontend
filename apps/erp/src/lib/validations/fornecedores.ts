@@ -4,7 +4,7 @@
  * Helpers moçambicanos: validarNUIT de src/lib/validacao-nuit.ts
  */
 import { z } from 'zod';
-import { nuit } from '@/lib/validations/common';
+import { nuit, parcial } from '@/lib/validations/common';
 
 // ---- Enums ----
 
@@ -29,7 +29,7 @@ export const CreateEnderecoFornecedorSchema = z.object({
   principal: z.boolean().default(false),
 });
 
-export const UpdateEnderecoFornecedorSchema = CreateEnderecoFornecedorSchema.partial();
+export const UpdateEnderecoFornecedorSchema = parcial(CreateEnderecoFornecedorSchema);
 
 // ---- Contacto ----
 
@@ -44,7 +44,7 @@ export const CreateContactoFornecedorSchema = z.object({
   ativo: z.boolean().default(true),
 });
 
-export const UpdateContactoFornecedorSchema = CreateContactoFornecedorSchema.partial().omit({
+export const UpdateContactoFornecedorSchema = parcial(CreateContactoFornecedorSchema).omit({
   fornecedorId: true,
 });
 
@@ -64,7 +64,7 @@ export const CreateDocumentoFornecedorSchema = z.object({
   observacoes: z.string().max(500).optional(),
 });
 
-export const UpdateDocumentoFornecedorSchema = CreateDocumentoFornecedorSchema.partial().omit({
+export const UpdateDocumentoFornecedorSchema = parcial(CreateDocumentoFornecedorSchema).omit({
   fornecedorId: true,
 });
 

@@ -9,6 +9,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Check, Copy, KeyRound, Mail, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -61,7 +62,7 @@ export function CriarUtilizadorForm({ roles }: CriarUtilizadorFormProps) {
     null
   );
 
-  const form = useForm<CreateUserInput>({
+  const form = useForm<z.input<typeof CreateUserSchema>, unknown, CreateUserInput>({
     resolver: zodResolver(CreateUserSchema),
     defaultValues: DEFAULT_VALUES,
     mode: 'onBlur',

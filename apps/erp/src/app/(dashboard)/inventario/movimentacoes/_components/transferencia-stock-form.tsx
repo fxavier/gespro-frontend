@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X, AlertTriangle, ArrowRight, ArrowDownToLine, ArrowUpFromLine, CheckCircle2 } from 'lucide-react';
@@ -55,7 +55,7 @@ export function TransferenciaStockForm({ produtos, localizacoes }: Props) {
   );
 
   const form = useForm<TransferenciaStockInput>({
-    resolver: zodResolver(TransferenciaStockSchema),
+    resolver: zodResolver(TransferenciaStockSchema) as unknown as Resolver<TransferenciaStockInput>,
     defaultValues: {
       produtoId: '',
       varianteProdutoId: undefined,

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idEntidade } from './common';
+import { idEntidade, erroDeTipo } from './common';
 
 // ADR-0038 — reconciliação bancária automática. Partilhado cliente/servidor.
 
@@ -82,7 +82,7 @@ export const RegraSugestaoSchema = z.object({
   contaContrapartidaId: idEntidade('Escolha a conta de contrapartida'),
   descricao: z.string().trim().max(200, 'Máximo 200 caracteres').optional(),
   prioridade: z.coerce
-    .number({ invalid_type_error: 'Indique a prioridade' })
+    .number(erroDeTipo(undefined, 'Indique a prioridade'))
     .int('Use um número inteiro')
     .min(1, 'Mínimo 1')
     .max(999, 'Máximo 999'),
