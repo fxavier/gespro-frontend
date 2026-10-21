@@ -1,10 +1,17 @@
 /**
- * E2E: Requisição de Compra → Submeter → Aprovação Multi-nível
+ * E2E: Requisição de Compra — criação, listagem, filtros e detalhe
  *
  * Fluxos cobertos:
- * 1. Criar nova requisição de compra
- * 2. Submeter para aprovação
- * 3. Verificar estado após submissão
+ * 1. Criar nova requisição de compra: o formulário grava e volta à listagem
+ *    (`router.push('/compras/requisicoes')`), onde a requisição aparece numerada
+ *    pela série (`REQ/aaaa/nnnnnn`) e em RASCUNHO.
+ * 2. Listagem, filtro de estado no URL e detalhe com tabs.
+ *
+ * Deixa no tenant `demo`, a cada corrida: uma requisição em RASCUNHO com o
+ * departamento `E2E-02 <carimbo>` e a série REQ avançada um número. Limpeza (os
+ * itens caem em cascata):
+ *   DELETE FROM "RequisicaoCompra" WHERE departamento LIKE 'E2E-02 %';
+ * (a série não se recua — o número fica gasto, como em produção).
  *
  * Usa storageState do admin (wave: após setup).
  * Determinístico: sem sleeps; usa expect auto-retry.
@@ -13,79 +20,54 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Requisição de Compra', () => {
-  test('criar requisição e submeter para aprovação', async ({ page }) => {
-    // Navega para a listagem
+  test('criar requisição grava um rascunho numerado e volta à listagem', async ({ page }) => {
+    // Departamento único por corrida: identifica a linha criada sem depender da ordenação.
+    const departamento = `E2E-02 ${Date.now()}`;
+
     await page.goto('/compras/requisicoes');
     await page.waitForLoadState('domcontentloaded');
-
-    // Verifica que a página de listagem carregou (Server Component)
     await expect(page.getByRole('heading', { name: 'Requisições de Compra' })).toBeVisible({
       timeout: 15_000,
     });
 
-    // Clica em "Nova Requisição"
     await page.getByRole('link', { name: 'Nova Requisição' }).click();
-    await page.waitForURL(/\/compras\/requisicoes\/novo/);
+    await expect(page).toHaveURL(/\/compras\/requisicoes\/novo$/);
     await expect(page.getByRole('heading', { name: 'Nova Requisição de Compra' })).toBeVisible({
       timeout: 10_000,
     });
     // Preencher antes da hidratação muda o DOM e não o estado do React.
     await page.waitForLoadState('networkidle');
 
-    // Preenche o formulário
-    const departamentoInput = page.getByLabel('Departamento');
-    await departamentoInput.fill('TI - Tecnologia');
+    await page.getByLabel('Departamento').fill(departamento);
+    await page
+      .getByLabel(/Justificativa/i)
+      .fill('Necessidade de equipamento para o novo colaborador do departamento de TI.');
 
-    // Justificativa
-    const justificativaInput = page.getByLabel(/Justificativa/i);
-    await justificativaInput.fill('Necessidade de equipamento para o novo colaborador do departamento de TI.');
+    // Prioridade (Select Radix) — obrigatório escolher Alta: a linha tem de o mostrar.
+    await page.getByRole('combobox').filter({ hasText: /Média|Prioridade/i }).click();
+    await page.getByRole('option', { name: 'Alta' }).click();
 
-    // Prioridade — usa Select
-    const prioridadeSelect = page.getByRole('combobox').filter({ hasText: /Média|Prioridade/i });
-    if (await prioridadeSelect.isVisible()) {
-      await prioridadeSelect.click();
-      await page.getByRole('option', { name: 'Alta' }).click();
-    }
+    await page.getByLabel(/Descrição/i).first().fill('Laptop Dell Latitude 5540');
+    await page.getByLabel(/Quantidade/i).first().fill('1');
+    await page.getByLabel(/Preço/i).first().fill('85000');
 
-    // Item 1: preenche descrição
-    const descricaoItem = page.getByLabel(/Descrição/i).first();
-    await descricaoItem.fill('Laptop Dell Latitude 5540');
+    await page.getByRole('button', { name: /Guardar|Criar|Criar Requisição/i }).click();
 
-    // Quantidade
-    const qtdInput = page.getByLabel(/Quantidade/i).first();
-    await qtdInput.fill('1');
+    // O produto confirma e navega para a listagem — URL exacto, que `/novo` não satisfaz.
+    // `.first()`: o efeito do formulário volta a correr depois da navegação e o toast sai
+    // duplicado (defeito do produto, reportado à parte) — aqui só se prova que a confirmação existe.
+    await expect(page.getByText('Requisição criada com sucesso!').first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page).toHaveURL(/\/compras\/requisicoes$/, { timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Requisições de Compra' })).toBeVisible();
 
-    // Preço estimado
-    const precoInput = page.getByLabel(/Preço/i).first();
-    await precoInput.fill('85000');
-
-    // Guardar (submeter o form para criar o rascunho)
-    const guardarButton = page.getByRole('button', { name: /Guardar|Criar|Criar Requisição/i });
-    await guardarButton.click();
-
-    // Aguarda redirecionamento para a listagem ou detalhe após criação
-    await page.waitForURL(/\/compras\/requisicoes/, { timeout: 15_000 });
-
-    // Confirma que foi criado (deve aparecer um toast de sucesso ou redirecionar)
-    // A acção criarRequisicao pode redirecionar para o detalhe
-    const successIndicators = [
-      page.getByText(/criada|sucesso/i).first(),
-      page.locator('[data-sonner-toast]').first(),
-    ];
-
-    // Um dos indicadores deve ser visível
-    let found = false;
-    for (const indicator of successIndicators) {
-      if (await indicator.isVisible({ timeout: 5_000 }).catch(() => false)) {
-        found = true;
-        break;
-      }
-    }
-
-    // Se redirecionou para detalhe, verifica o número da requisição
-    if (page.url().includes('/compras/requisicoes/')) {
-      await expect(page.getByText(/REQ-/).first()).toBeVisible({ timeout: 10_000 });
-    }
+    // A requisição criada está na listagem: uma só linha, numerada pela série, em RASCUNHO.
+    const linha = page.getByRole('row').filter({ hasText: departamento });
+    await expect(linha).toHaveCount(1, { timeout: 15_000 });
+    await expect(linha.getByRole('cell').first()).toHaveText(/^REQ\/\d{4}\/\d{6}$/);
+    await expect(linha.getByRole('cell', { name: 'Rascunho', exact: true })).toBeVisible();
+    await expect(linha.getByRole('cell', { name: 'Alta', exact: true })).toBeVisible();
   });
 
   test('listagem de requisições carrega sem erros', async ({ page }) => {
