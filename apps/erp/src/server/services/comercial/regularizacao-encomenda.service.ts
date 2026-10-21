@@ -19,7 +19,9 @@
  *
  * Bloqueios (D3): período fechado, IVA apurado (#564) ou qualquer outra recusa de negócio fazem a
  * transacção dessa venda reverter — nada escrito — e a venda sai no relatório com o código do erro;
- * as outras continuam.
+ * as outras continuam. Ficam também para decisão manual: venda CANCELADA/DEVOLVIDA (`VENDA_ANULADA`), com
+ * factura viva já apontada a ela (`VENDA_JA_COM_DOCUMENTO`), com devolução não rejeitada
+ * (`VENDA_COM_DEVOLUCAO`), ou com um lançamento antigo que não é exactamente um e `LANCADO`.
  *
  * Sem `exigirEmailConfirmadoParaEmitir`: é uma regularização administrativa, sem sessão; o travão
  * do e-mail é do chamador com sessão (ADR-0041), e aqui não há utilizador a emitir em nome próprio.
@@ -113,9 +115,32 @@ async function regularizarVendaEmTx(
 
   const venda = await tx.venda.findFirst({
     where: { id: alvo.vendaId, tenantId },
-    include: { itens: { orderBy: { createdAt: 'asc' } }, pagamentos: true },
+    include: { itens: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, pagamentos: true },
   });
   if (!venda) return null;
+
+  // Uma factura viva já apontada a esta venda (ligação só num sentido): emitir outra duplicaria a receita.
+  const documento = await tx.fatura.findFirst({
+    where: { tenantId, vendaId: venda.id, status: { not: 'CANCELADA' } },
+    select: { numero: true },
+  });
+  if (documento) {
+    throw new BusinessRuleError(
+      'VENDA_JA_COM_DOCUMENTO',
+      `A venda ${venda.numero} já tem o documento ${documento.numero} sem estar ligado na venda. Decisão manual.`,
+    );
+  }
+  // Uma devolução (mesmo parcial) já mexeu na venda: o documento a emitir já não é o da venda inteira.
+  const devolucao = await tx.devolucao.findFirst({
+    where: { tenantId, vendaId: venda.id, status: { not: 'REJEITADA' } },
+    select: { numero: true },
+  });
+  if (devolucao) {
+    throw new BusinessRuleError(
+      'VENDA_COM_DEVOLUCAO',
+      `A venda ${venda.numero} tem a devolução ${devolucao.numero}. Decisão manual.`,
+    );
+  }
   if (venda.status === 'CANCELADA' || venda.status === 'DEVOLVIDA') {
     throw new BusinessRuleError(
       'VENDA_ANULADA',

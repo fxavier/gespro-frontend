@@ -12,6 +12,9 @@
  *   c. Idempotente: a segunda corrida não escreve nada.
  *   d. Período com IVA apurado → nada escrito para essa venda, motivo `PERIODO_IVA_APURADO`.
  *   e. Período fechado → nada escrito para essa venda, motivo `PERIODO_FECHADO`.
+ *   g. Venda regularizada por outra corrida enquanto esta esperava pela tranca → SALTADA, nada escrito.
+ *   h. Factura viva já apontada à venda → `VENDA_JA_COM_DOCUMENTO`, nada escrito.
+ *   i. Venda com devolução → `VENDA_COM_DEVOLUCAO`, nada escrito.
  *   f. Depois de correr, a consulta da issue só devolve as vendas bloqueadas.
  *
  * Requer: Docker em execução + @testcontainers/postgresql
@@ -138,12 +141,33 @@ describe.skipIf(skip)('regularizar vendas de encomenda sem documento fiscal (#61
   }
 
   async function contagens() {
+    const series = await db.serieDocumento.findMany({
+      where: { tenantId: TENANT, tipo: { in: ['FATURA', 'FATURA_RECIBO'] } },
+      select: { id: true, proximoNumero: true },
+      orderBy: { id: 'asc' },
+    });
     return {
       faturas: await db.fatura.count({ where: { tenantId: TENANT } }),
       lancamentos: await db.lancamento.count({ where: { tenantId: TENANT } }),
+      partidas: await db.partidaLancamento.count({ where: { tenantId: TENANT } }),
+      historico: await db.historicoTransacao.count({ where: { tenantId: TENANT } }),
       vendasSemFatura: await db.venda.count({ where: { tenantId: TENANT, faturaId: null } }),
+      series: series.map((x: any) => `${x.id}:${x.proximoNumero}`),
     };
   }
+
+  /** Partidas de um lançamento como `TIPO|conta|valor`, ordenadas. */
+  async function resumoPartidas(lancamentoId: string) {
+    const partidas = await db.partidaLancamento.findMany({ where: { lancamentoId } });
+    const contas = await db.contaPGC.findMany({
+      where: { tenantId: TENANT, id: { in: partidas.map((p: any) => p.contaId) } },
+      select: { id: true, codigo: true },
+    });
+    const codigoDe = new Map(contas.map((c: any) => [c.id, c.codigo]));
+    return partidas.map((p: any) => `${p.tipo}|${codigoDe.get(p.contaId)}|${fx(p.valor)}`).sort();
+  }
+
+  let emitirDocumentoEmTx: (typeof import('@/server/services/financas/faturacao.service'))['emitirDocumentoEmTx'];
 
   beforeAll(async () => {
     ({ prismaBase: db } = await import('@/server/db/client'));
@@ -155,7 +179,7 @@ describe.skipIf(skip)('regularizar vendas de encomenda sem documento fiscal (#61
     ({ registarLancamentoContabilistico: registarLancamento } = await import(
       '@/server/services/financas/contabilidade.service'
     ));
-    ({ proximoNumeroSerie } = await import('@/server/services/financas/faturacao.service'));
+    ({ proximoNumeroSerie, emitirDocumentoEmTx } = await import('@/server/services/financas/faturacao.service'));
     ({ CreateEncomendaSchema } = await import('@/lib/validations/vendas'));
     const { bootstrapContabilidade } = await import('@/server/provisioning/tenant-bootstrap');
 
@@ -226,6 +250,7 @@ describe.skipIf(skip)('regularizar vendas de encomenda sem documento fiscal (#61
     const r = await regularizar(TENANT, { aplicar: true });
     expect(r).toHaveLength(1);
     expect(r[0]).toMatchObject({ vendaId, estado: 'REGULARIZADA', documento: 'FATURA' });
+    expect(r[0].faturaNumero, 'o dry-run previu o número emitido').toBe(simulado[0].faturaNumero);
 
     const venda = await db.venda.findFirst({ where: { id: vendaId, tenantId: TENANT } });
     const fatura = await db.fatura.findFirst({
@@ -282,6 +307,11 @@ describe.skipIf(skip)('regularizar vendas de encomenda sem documento fiscal (#61
     expect(fatura.status).toBe('PAGA');
     const venda = await db.venda.findFirst({ where: { id: vendaId, tenantId: TENANT } });
     expect(venda.faturaId).toBe(fatura.id);
+    expect(await resumoPartidas(fatura.lancamentoId), 'débito na conta do meio (TRANSFERENCIA → 121)').toEqual([
+      'CREDITO|44331|320.00',
+      'CREDITO|711|2000.00',
+      'DEBITO|121|2320.00',
+    ]);
 
     expect(delta(s0, await saldos())).toEqual({ '411': '0.00', '711': '-2000.00', '44331': '-320.00' });
   });
@@ -351,10 +381,108 @@ describe.skipIf(skip)('regularizar vendas de encomenda sem documento fiscal (#61
     expect(antigo.status).toBe('LANCADO');
   });
 
+  it('g: regularizada por outra corrida enquanto esperava pela tranca → SALTADA e nada escrito', async () => {
+    const { vendaId } = await vendaAntiga(dia(6, 10), [{ tipo: 'CREDITO', valor: 2320 }]);
+    let corrida!: Promise<any[]>;
+    let antes!: Awaited<ReturnType<typeof contagens>>;
+
+    // «Outra corrida»: tranca a venda, espera que a regularização fique à espera da tranca, e liga-a.
+    await db.$transaction(
+      async (tx: any) => {
+        await tx.$queryRaw`SELECT id FROM "Venda" WHERE id = ${vendaId} FOR UPDATE`;
+        antes = await contagens();
+        corrida = regularizar(TENANT, { aplicar: true });
+        for (let i = 0; i < 100; i++) {
+          const [{ n }] = await db.$queryRaw`
+            SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock' AND query LIKE '%FOR UPDATE%' AND query LIKE '%"Venda"%'
+          `;
+          if (n > 0) break;
+          await new Promise((res) => setTimeout(res, 100));
+        }
+        await tx.venda.update({ where: { id: vendaId }, data: { faturaId: 'fatura-de-outra-corrida' } });
+      },
+      { timeout: 30_000 },
+    );
+
+    const r = await corrida;
+    expect(r.find((x: any) => x.vendaId === vendaId)).toMatchObject({ estado: 'SALTADA' });
+    // Só a ligação escrita pela «outra corrida»; a regularização não escreveu nada.
+    expect(await contagens()).toEqual({ ...antes, vendasSemFatura: antes.vendasSemFatura - 1 });
+  });
+
+  it('h: factura viva já apontada à venda → VENDA_JA_COM_DOCUMENTO e nada escrito', async () => {
+    const data = dia(6, 12);
+    const { vendaId, lancamentoId } = await vendaAntiga(data, [{ tipo: 'CREDITO', valor: 2320 }]);
+    await runCtx(ctx, () =>
+      db.$transaction((tx: any) =>
+        emitirDocumentoEmTx(
+          tx,
+          {
+            clienteId,
+            vendaId,
+            moeda: 'MZN',
+            dataEmissao: data,
+            dataVencimento: data,
+            linhas: [
+              {
+                produtoId,
+                descricao: 'Artigo 612',
+                quantidade: 2,
+                precoUnitario: 1000,
+                desconto: 0,
+                taxaIva: 0.16,
+                subtotal: 2000,
+                ivaItem: 320,
+                total: 2320,
+                ordemLinha: 0,
+              },
+            ],
+          } as any,
+          ctx,
+        ),
+      ),
+    );
+
+    const antes = await contagens();
+    const r = await regularizar(TENANT, { aplicar: true });
+    expect(r.find((x: any) => x.vendaId === vendaId)).toMatchObject({
+      estado: 'BLOQUEADA',
+      motivo: { codigo: 'VENDA_JA_COM_DOCUMENTO' },
+    });
+    expect(await contagens()).toEqual(antes);
+    expect((await db.lancamento.findFirst({ where: { id: lancamentoId } })).status).toBe('LANCADO');
+  });
+
+  it('i: venda com devolução → VENDA_COM_DEVOLUCAO e nada escrito', async () => {
+    const { vendaId, lancamentoId } = await vendaAntiga(dia(6, 14), [{ tipo: 'CREDITO', valor: 2320 }]);
+    await db.devolucao.create({
+      data: {
+        tenantId: TENANT,
+        numero: `NDV-612-${sufixo}`,
+        clienteId,
+        vendaId,
+        motivo: 'DEFEITO',
+        status: 'PROCESSADA',
+        valorTotal: 1160,
+      },
+    });
+
+    const antes = await contagens();
+    const r = await regularizar(TENANT, { aplicar: true });
+    expect(r.find((x: any) => x.vendaId === vendaId)).toMatchObject({
+      estado: 'BLOQUEADA',
+      motivo: { codigo: 'VENDA_COM_DEVOLUCAO' },
+    });
+    expect(await contagens()).toEqual(antes);
+    expect((await db.lancamento.findFirst({ where: { id: lancamentoId } })).status).toBe('LANCADO');
+  });
+
   it('f: depois de correr, a consulta da issue só devolve as vendas bloqueadas', async () => {
     const r = await regularizar(TENANT, { aplicar: true });
     const bloqueadas = r.filter((x: any) => x.estado === 'BLOQUEADA').map((x: any) => x.vendaId).sort();
-    expect(bloqueadas).toHaveLength(2);
+    // d (IVA apurado), e (fechado), h (com documento), i (com devolução); a g saiu da consulta.
+    expect(bloqueadas).toHaveLength(4);
     expect(r.every((x: any) => x.estado === 'BLOQUEADA')).toBe(true);
 
     // A consulta da issue, à letra: origem ENCOMENDA, sem factura, com lançamento de origem Venda.

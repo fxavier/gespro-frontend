@@ -58,6 +58,9 @@ function linha(r: ResultadoRegularizacao): string {
 
 async function main() {
   const { aplicar, slug } = argumentos();
+  // Tenants com `deletedAt` entram de propósito: nada se apaga nunca (ADR-0027 §6) e um tenant fechado
+  // continua a ter livros e acesso de leitura — a venda sem documento fica errada na mesma. Os períodos
+  // fechados desses tenants caem no D3 (bloqueio no relatório), não aqui.
   const tenants = await prismaBase.tenant.findMany({
     where: slug ? { slug } : {},
     select: { id: true, slug: true },

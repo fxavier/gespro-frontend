@@ -1,5 +1,12 @@
 # Estado do Programa de Modernização — GestPro ERP
 
+## 🧾 Regularização das vendas de encomenda sem factura (#612) — script entregue (2026-10-21)
+
+`apps/erp/scripts/regularizar-vendas-encomenda.ts` (dry-run por omissão, `--aplicar` para escrever): as vendas
+convertidas de encomenda antes do #608 passam a ter documento fiscal — estorno do lançamento antigo + emissão pela
+via do POS, com a data original; período fechado / IVA apurado ficam no relatório sem escrita. Decisão em adenda ao
+ADR-0041 §9. **Por fazer**: correr `--aplicar` nos tenants (no `demo` local o dry-run lista 12 vendas a crédito).
+
 ## 🗂️ Catálogo de planos na base de dados e administrador de plataforma (ADR-0049 · #523) — entregue (2026-10-15)
 
 Run `planos-plataforma`: issues #523 (ADR) e #524–#527, PRs #528–#532. O catálogo saiu da constante `lib/planos.ts`
