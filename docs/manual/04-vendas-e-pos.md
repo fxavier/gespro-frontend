@@ -143,6 +143,9 @@ encomenda está **Confirmada**, com o stock reservado. A cobrança da factura de
 | Vendas & POS › Faturas | `/vendas/faturas` | Lista de faturas e botão **Nova Fatura**. |
 | Vendas & POS › Notas de Crédito | `/vendas/notas-credito` | Lista de notas de crédito e botão **Nova Nota de Crédito**. |
 | Vendas & POS › Notas de Débito | `/vendas/notas-debito` | Lista de notas de débito e botão **Nova Nota de Débito**. |
+| — (clique numa nota de débito) | `/vendas/notas-debito/<nota>` | Detalhe da nota: separadores **Linhas** e **Detalhes**, botões **Cancelar** e **Liquidar** (nota Emitida). |
+| — (botão **Liquidar**) | `/vendas/notas-debito/<nota>/liquidar` | Registar o recebimento do cliente: data, forma de pagamento e conta bancária. |
+| — (botão **Cancelar**) | `/vendas/notas-debito/<nota>/cancelar` | Cancelar a nota com motivo e estornar o lançamento. |
 | Vendas & POS › Clientes | `/clientes` | Lista de clientes, botão **Novo Cliente**, ficha de cada cliente. |
 | — (botão **Desactivar Cliente**) | `/clientes/<cliente>/desactivar` | Desactivação do cliente, com o motivo. |
 | — (sem entrada no menu) | `/clientes/historico` | **Histórico de Transacções** por cliente, com exportação CSV/XLSX. |
@@ -392,7 +395,8 @@ Para reservar o stock e avançar a encomenda, veja a tarefa seguinte.
 - Para confirmar, os produtos têm de ter stock disponível na localização que vai escolher (ver
   [Inventário](03-inventario.md)).
 - Para converter, o cliente da encomenda tem de estar **Activo** e não pode ser o Consumidor Final: a venda criada
-  é a crédito.
+  é a crédito. Como a conversão **emite uma factura**, precisa também do **e-mail confirmado** (o mesmo requisito de
+  qualquer documento fiscal).
 
 **Passos — confirmar (reservar o stock)**
 1. Abra a encomenda em **Vendas & POS › Pedidos**. Numa encomenda em **Rascunho**, clique **Confirmar**.
@@ -405,18 +409,20 @@ Para reservar o stock e avançar a encomenda, veja a tarefa seguinte.
 1. Numa encomenda **Confirmada** (ou **Parcialmente Entregue**), clique **Converter em Venda**.
 2. Na janela **Converter a encomenda … em venda?**, clique **Converter**.
 3. Aparece «Encomenda … convertida em venda.»: é criada uma venda a crédito pelo total da encomenda, com Origem
-   **Encomenda** e estado **Faturada**; o stock reservado é consumido, a venda é lançada na contabilidade (débito
-   **411 Clientes c/c**, crédito **711 Vendas** e **44331 IVA liquidado**) e a encomenda passa a **Concluída**.
+   **Encomenda** e estado **Faturada**, e é **emitida a factura** `FAT/…` correspondente (pelo mesmo caminho do POS), com
+   vencimento a tantos dias quantos os **Dias de Pagamento** do cliente. O stock reservado é consumido, a venda é
+   lançada na contabilidade através da factura (débito **411 Clientes c/c**, crédito **711 Vendas** e **44331 IVA
+   liquidado**) e a encomenda passa a **Concluída**.
 
 **Passos — cancelar**
 1. Numa encomenda em **Rascunho**, **Confirmada** ou **Parcialmente Entregue**, clique **Cancelar Encomenda**.
 2. Na janela **Cancelar a encomenda …?**, clique **Confirmar cancelamento**. Aparece «Encomenda … cancelada.»: o
    stock reservado é libertado e a encomenda deixa de aparecer na listagem. Não se pode reverter.
 
-> **Atenção:** a venda criada pela conversão **não emite factura** nem fica ligada a uma — não aparece em **Faturas**
-> e não tem botão **Anular venda** (o **Cancelar Venda** aparece, mas é recusado). O valor fica lançado na conta do
-> cliente (411), mas não conta para a dívida do cliente, que se mede pelas facturas em aberto. Antes de emitir uma
-> factura manual pelo mesmo valor, fale com o seu contabilista: a venda ficaria lançada duas vezes.
+> **Nota:** a venda criada pela conversão fica ligada à factura emitida: aparece em **Faturas**, conta para a dívida do
+> cliente e, se for preciso desfazê-la ou devolver parte, usa-se a [nota de crédito](#como-emitir-uma-nota-de-crédito)
+> ou a [devolução](#como-registar-uma-devolução) da venda. **Não emita uma factura manual pelo mesmo valor** — a venda
+> já está facturada.
 
 ### Como emitir uma fatura
 
@@ -532,7 +538,7 @@ contratual, uma correcção de preço ou custos logísticos adicionais.
 8. Clique **Emitir Nota de Débito**.
 
 **Resultado**
-- Aparece «Nota de débito emitida com sucesso!» e a nota fica na lista, estado **Emitida**.
+- Aparece «Nota de débito emitida com sucesso!» e a nota fica na lista, estado **Emitida**. Clique na linha para abrir o detalhe, de onde se **liquida** ou se **cancela** — ver [Como liquidar ou cancelar uma nota de débito](#como-liquidar-ou-cancelar-uma-nota-de-débito).
 
 **Efeitos noutros módulos**
 - **Contabilidade:** é criado automaticamente o lançamento: débito **411 Clientes c/c** pelo total; crédito da
@@ -555,6 +561,28 @@ débito** ([Contabilidade](05-contabilidade.md#como-configurar-a-conta-de-cada-n
 <!-- captura: 04-vendas-e-pos/nota-debito-nova.png | /vendas/notas-debito/nova -->
 ![Nova Nota de Débito](img/04-vendas-e-pos/nota-debito-nova.png)
 
+### Como liquidar ou cancelar uma nota de débito
+
+**Antes de começar:** a nota tem de estar **Emitida**. Liquidar exige a permissão de liquidar notas de débito e cancelar a de cancelar notas de débito (Administrador, Gestor, Financeiro). Os botões só aparecem quando a nota está Emitida e o utilizador tem a permissão.
+
+O **detalhe** da nota (`/vendas/notas-debito/<nota>`) mostra, em **Linhas**, as linhas e os totais e, em **Detalhes**, o motivo, a **Natureza**, a **Conta a crédito**, a factura de referência, a ligação ao lançamento da emissão e, depois de cancelada, o **Motivo** do cancelamento e a ligação ao estorno.
+
+**Passos — liquidar (o cliente pagou)**
+1. No detalhe da nota, clique **Liquidar**.
+2. Em **Recebimento**, o sistema indica que recebe o **total** da nota. Preencha a **Data do recebimento \*** e a **Forma de pagamento \*** (só aparecem as formas que a sua permissão permite: Numerário exige poder operar o caixa; as outras exigem poder movimentar contas bancárias).
+3. Fora do numerário, escolha a **Conta bancária**. Em numerário, o ecrã mostra a sua sessão de caixa aberta; sem ela, avisa «Não tem sessão de caixa aberta…» e o botão fica desactivado — abra o caixa primeiro.
+4. Clique em **Liquidar**. Aparece «Nota de débito ‹número› liquidada.» e a nota passa a **Liquidada**.
+
+**Passos — cancelar (a nota estava errada)**
+1. No detalhe da nota, clique **Cancelar**.
+2. Escreva o motivo e confirme. A nota passa a **Cancelada** e o motivo fica registado.
+
+**Efeitos noutros módulos**
+- **Contabilidade (liquidar):** o recebimento é lançado como débito da conta do meio (111 Caixa, ou a conta do banco/carteira) e crédito de **411 Clientes c/c**, pelo total da nota. Em numerário, entra também como recebimento na sua sessão de caixa.
+- **Contabilidade (cancelar):** o lançamento da emissão é **estornado com a data de hoje**.
+- **IVA já apurado:** se o período em que a nota foi emitida já tem o IVA apurado, o cancelamento é recusado e nada é alterado. Corrija com uma nota de crédito.
+- Uma nota **Liquidada** ou **Cancelada** é final: não volta atrás.
+
 ### Como registar uma devolução
 
 **Antes de começar**
@@ -562,12 +590,21 @@ débito** ([Contabilidade](05-contabilidade.md#como-configurar-a-conta-de-cada-n
 
 **Passos**
 1. Abra `/vendas/devolucoes` e clique **Nova Devolução**.
-2. Em **Informações da Devolução**, escolha o **Cliente \*** (pesquise por código, nome ou NUIT) e, opcionalmente, a
+2. Em **Informações da Devolução**, escolha o **Cliente \*** (pesquise por código, nome ou NUIT) e a
    **Venda (opcional)** — pesquise pelo número da venda; só aparecem vendas desse cliente, por isso escolha primeiro o
-   cliente. Escolha o **Motivo \*** (Defeito, Produto errado, Insatisfação, Excesso de pedido, Avaria no transporte,
-   Outro), marque **Reembolso ao cliente** se for devolver o dinheiro em numerário, e escreva **Observações**.
-3. Em **Itens a Devolver**, para cada linha escolha o **Produto \*** (pesquise por nome ou SKU; o sistema propõe o
-   preço de venda) e acerte **Qtd.** e **Valor Unit. (MT)**. Use **Adicionar Item** para mais linhas.
+   cliente. **Escolha a venda sempre que a devolução vier de uma venda facturada**: o sistema vai buscar a factura da
+   venda («Factura de origem: …») e pré-preenche os itens. Escolha o **Motivo \*** (Defeito, Produto errado,
+   Insatisfação, Excesso de pedido, Avaria no transporte, Outro), marque **Reembolso ao cliente** se for devolver o
+   dinheiro, e escreva **Observações**. O **Reembolso ao cliente** só se pode marcar com uma venda que tenha factura: sem
+   factura, o ecrã avisa «O reembolso sai pela nota de crédito: escolha uma venda com factura.»
+3. Em **Itens a Devolver**:
+   - **Com venda facturada**, cada linha da factura aparece já preenchida, com o produto, o preço e o IVA **da factura**
+     (só de leitura) e a indicação «até N de M facturados». Acerte só a **Qtd.** (o máximo é o que foi facturado e ainda
+     não foi creditado por notas de crédito) e retire com o caixote do lixo os itens que não são devolvidos. Se tudo o
+     que foi facturado já foi creditado, o ecrã diz «Tudo o que foi facturado nesta venda já foi creditado: não há nada a
+     devolver.»
+   - **Sem venda facturada**, escolha o **Produto \*** (pesquise por nome ou SKU) e acerte **Qtd.** e **Valor Unit.
+     (MT)**; use **Adicionar Item** para mais linhas. Só dá entrada de stock.
 4. Clique **Registar Devolução**.
 
 **Resultado**
@@ -575,9 +612,10 @@ débito** ([Contabilidade](05-contabilidade.md#como-configurar-a-conta-de-cada-n
 - Nada acontece ainda ao stock, à caixa nem à contabilidade: a devolução tem de ser aprovada e processada (tarefa
   seguinte).
 
-> **Atenção:** a devolução registada neste formulário fica ligada à venda escolhida, mas **não à factura** dessa
-> venda. Por isso, ao processá-la, o sistema dá entrada do stock (e, com reembolso, tira o dinheiro da caixa) mas
-> **não emite nota de crédito**, e o botão **Criar Troca** não aparece. Para desfazer uma venda POS inteira, use
+> **Regras da devolução com factura:** o preço de cada item é sempre o **da factura** (líquido do desconto da linha) e
+> não se altera; só se devolve o que consta da factura e ainda não foi creditado; e **só há reembolso contra uma nota de
+> crédito** — o dinheiro nunca sai da caixa sem documento fiscal. Uma devolução sem factura só dá entrada de stock, sem
+> nota de crédito, sem reembolso e sem o botão **Criar Troca**. Para desfazer uma venda POS inteira, use
 > [Como anular uma venda POS](#como-anular-uma-venda-pos); para corrigir o valor faturado ao cliente, emita uma
 > [nota de crédito](#como-emitir-uma-nota-de-crédito).
 
@@ -775,7 +813,7 @@ abrir o detalhe.
    100 mostradas.
 
 **O que entra no histórico** — o sistema acrescenta uma linha, no mesmo momento, sempre que:
-- é emitida uma **Factura-Recibo** ou uma **Factura** para o cliente (no POS, em **Faturas**, numa troca): Tipo
+- é emitida uma **Factura-Recibo** ou uma **Factura** para o cliente (no POS, em **Faturas**, numa troca, ao converter uma encomenda): Tipo
   **VENDA**, Descrição «Factura-Recibo …» ou «Factura …», Estado **Concluído** (Factura-Recibo, já paga) ou
   **Pendente** (Factura por pagar);
 - é registado um pagamento de uma factura em Faturação: Tipo **PAGAMENTO**, Descrição «Recebimento da factura …»,
@@ -784,7 +822,7 @@ abrir o detalhe.
   desactivado deixa de aparecer na coluna **Clientes**, esta linha fica gravada mas não se consegue abrir neste ecrã.
 
 As linhas nunca se alteram nem se apagam. Não entram no histórico as notas de crédito e de débito, as anulações e
-devoluções, nem a venda criada ao converter uma encomenda (que não emite factura); os documentos emitidos antes desta
+devoluções; os documentos emitidos antes desta
 versão também não foram acrescentados.
 
 <!-- captura: 04-vendas-e-pos/clientes-historico.png | /clientes/historico -->
@@ -800,7 +838,7 @@ versão também não foram acrescentados.
 | Pendente | Venda registada (vendas manuais e as vendas POS antigas). | Confirmada (botão **Confirmar**), Faturada, Cancelada | Confirmar: Administrador, Gestor, Operador. Cancelar: Administrador, Gestor |
 | Confirmada | Venda aceite. | Em Preparação, Faturada, Cancelada | Cancelar: Administrador, Gestor |
 | Em Preparação | A ser preparada para entrega. | Faturada, Cancelada | Cancelar: Administrador, Gestor |
-| Faturada | Venda com fatura (é o estado da venda POS com parte a crédito e da venda criada ao converter uma encomenda). | Concluída, Devolvida (só sem documento fiscal), Cancelada (venda POS, só por **Anular venda**) | Anular: Administrador, Gestor |
+| Faturada | Venda com fatura (é o estado da venda POS com parte a crédito e da venda criada ao converter uma encomenda, que já nasce com a sua factura). | Concluída, Devolvida (só sem documento fiscal), Cancelada (venda POS, só por **Anular venda**) | Anular: Administrador, Gestor |
 | Concluída | Venda terminada (é o estado da venda POS paga). | Cancelada, só por **Anular venda** | Administrador, Gestor |
 | Cancelada | Venda anulada. | — (final) | — |
 | Devolvida | Mercadoria devolvida. | — (final) | — |
@@ -841,7 +879,7 @@ Concluídas ou Faturadas, e a conversão de uma encomenda cria-a já Faturada).
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Emitida | Documento emitido. É o estado com que nasce. | Liquidada, Cancelada | — (sem botão nestes ecrãs) |
+| Emitida | Documento emitido. É o estado com que nasce. | Liquidada, Cancelada | Administrador, Gestor, Financeiro (na nota de débito: **Liquidar** e **Cancelar** no detalhe — ver [Como liquidar ou cancelar uma nota de débito](#como-liquidar-ou-cancelar-uma-nota-de-débito)) |
 | Liquidada | Valor acertado com o cliente. | — (final) | — |
 | Cancelada | Anulada. | — (final) | — |
 
@@ -902,6 +940,11 @@ Concluídas ou Faturadas, e a conversão de uma encomenda cria-a já Faturada).
 | Stock disponível insuficiente. Disponível: …, solicitado: …. | Ao confirmar uma encomenda, a localização escolhida não tem stock livre para reservar. | Escolha outra localização ou dê entrada de stock em [Inventário](03-inventario.md). |
 | A venda VND/… no estado FATURADA não se cancela directamente: só uma nota de crédito a desfaz. | Clicou **Cancelar Venda** numa venda **Faturada** sem documento fiscal (por exemplo, a criada ao converter uma encomenda). | Uma venda Faturada já não se cancela pelos ecrãs; fale com o Financeiro para a correcção. |
 | Só é possível converter encomendas confirmadas em venda. | A encomenda já não está Confirmada (por exemplo, foi convertida ou cancelada entretanto). | Actualize a página e veja o estado da encomenda. |
+| Sem factura de origem não há nota de crédito: a devolução não pode ter reembolso. | Marcou **Reembolso ao cliente** numa devolução sem factura (venda sem factura, ou nenhuma venda escolhida). | Escolha a venda que tem factura; sem factura, registe só a entrada de stock |
+| ‹produto› não consta da factura … / ‹produto›: o preço … não é o facturado na … | O item não está na factura da venda, ou o preço não é o facturado | Devolva só itens da factura e ao preço dela (o ecrã pré-preenche-os) |
+| ‹produto›: só N de M facturados na … ainda não foram creditados. | A quantidade pedida é superior ao facturado menos o que já foi creditado por notas de crédito (também se verifica ao processar a devolução) | Reduza a quantidade; para além disso, só uma nota de crédito manual o corrige |
+| A factura escolhida não é a da venda … | A factura indicada não pertence à venda | Escolha a venda e deixe o sistema usar a sua factura |
+| O período … já tem o IVA apurado ou declarado: não aceita documentos nem movimentos nas contas de IVA. … | Tentou emitir, cancelar ou anular algo que mexe em IVA numa data de um período já apurado (por exemplo cancelar uma nota de débito ou anular uma venda desse período) | Use uma data de um período por apurar, ou estorne o apuramento desse período em Contabilidade |
 | Esta devolução reembolsa o cliente em dinheiro: abra uma sessão de caixa antes de a processar. | Devolução com **Reembolso ao cliente** e sem caixa aberto em seu nome. | Abra o seu caixa e volte a **Processar**. |
 | Esta troca movimenta dinheiro na gaveta: abra uma sessão de caixa … | A diferença da troca paga-se ou devolve-se em dinheiro e não tem caixa aberto. | Abra o seu caixa ou, se o cliente paga, escolha outro meio. |
 | A nota de crédito … da devolução … está CANCELADA: … / … está LIQUIDADA: … | A nota de crédito ligada à devolução já foi cancelada ou já foi liquidada: não tem crédito para usar. | Fale com o Financeiro: a correcção faz-se em Faturação. |

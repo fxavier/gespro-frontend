@@ -13,7 +13,7 @@ O objectivo é que **nenhuma compra aconteça sem justificação, aprovação e 
 | **Que problema resolve** | Compras feitas «de boca» ou por WhatsApp, sem saber quem as autorizou nem se o preço era o melhor. |
 | **Quem usa** | Quem precisa do material (Operador) pede; os aprovadores decidem; o Gestor cota e encomenda; a recepção regista-a o Gestor ou o Operador. |
 | **O que entra** | A necessidade (itens, quantidades, preço estimado, justificação), as propostas dos fornecedores e as quantidades recebidas. |
-| **O que sai** | Requisição aprovada, cotação adjudicada e pedido de compra numerados. Com a recepção completa, a conta a pagar ao fornecedor e o lançamento da dívida na contabilidade. A entrada no stock ainda se faz em Inventário (ver *Limites*). |
+| **O que sai** | Requisição aprovada, cotação adjudicada e pedido de compra numerados. Com cada recepção, a conta a pagar ao fornecedor e o lançamento da dívida na contabilidade (uma por recepção). A entrada no stock ainda se faz em Inventário (ver *Limites*). |
 | **Liga-se a** | [Fornecedores](02-fornecedores-e-servicos.md) (quem vende e as contas a pagar), [Inventário](03-inventario.md) (onde entra a mercadoria), [Contabilidade](05-contabilidade.md) (a dívida ao fornecedor). |
 
 O grupo **Compras & Procurement** aparece no menu lateral a quem tem permissão para consultar Compras. Quem não a tem não vê o grupo e, se abrir um endereço de Compras, vê o aviso «Sem permissão».
@@ -88,9 +88,9 @@ Sitoe (Gestor) aprova as requisições da loja e quer comparar dois fornecedores
 
 **Resultado esperado:** a requisição está **Convertida**; a cotação **Adjudicada**, com «(vencedor)» ao lado
 da Cimentos do Índico; o pedido de 252 880,00 MT está **Recebido**; em **Fornecedores › Contas a Pagar**
-aparece uma conta **Aberta** de 252 880,00 MT à Cimentos do Índico («Compra via pedido …»), com vencimento
-3 dias depois da recepção; a contabilidade tem o lançamento débito 211 Mercadorias / crédito 421 Fornecedores
-c/c de 252 880,00 no diário de Compras; e o stock de `ARM-01` fica com 200 sacos e 300 varões.
+aparece uma conta **Aberta** de 252 880,00 MT à Cimentos do Índico («Recepção de mercadoria do pedido …»), com vencimento
+3 dias depois da recepção; a contabilidade tem o lançamento no diário de Compras: débito 211 Mercadorias
+218 000,00 e débito 44311 IVA suportado 34 880,00 / crédito 421 Fornecedores c/c 252 880,00; e o stock de `ARM-01` fica com 200 sacos e 300 varões.
 
 ## Conceitos
 
@@ -104,7 +104,7 @@ c/c de 252 880,00 no diário de Compras; e o stock de `ARM-01` fica com 200 saco
 | Cotação (RFQ) | Pedido de preços enviado a um ou mais fornecedores, com os itens a cotar e uma data de validade. |
 | Adjudicação | Escolha do fornecedor vencedor de uma cotação, entre os que responderam. |
 | Pedido de compra | Encomenda formal a um fornecedor, com preços, IVA, condições de pagamento, prazo e endereço de entrega. |
-| Recepção | Registo da mercadoria que chegou, com as quantidades por item. Quando o pedido fica totalmente recebido, o sistema cria a conta a pagar ao fornecedor. |
+| Recepção | Registo da mercadoria que chegou, com as quantidades por item. Cada recepção em que entra mercadoria cria a sua própria conta a pagar ao fornecedor, pelo valor do que foi recebido. |
 
 ## Ecrãs
 
@@ -126,6 +126,7 @@ c/c de 252 880,00 no diário de Compras; e o stock de `ARM-01` fica com 200 saco
 | Pedidos de Compra › Novo Pedido | /compras/pedidos/novo | Criar um pedido de compra sem passar pela requisição |
 | Pedidos de Compra › (linha) | /compras/pedidos/‹id› | Detalhe do pedido (separador Itens, com as quantidades já recebidas) |
 | Pedido › Registar recepção | /compras/pedidos/‹id›/receber | Registar a mercadoria recebida |
+| Pedido › Fechar em falta | /compras/pedidos/‹id›/fechar | Fechar um pedido parcialmente recebido, com motivo |
 | Pedido › Cancelar pedido | /compras/pedidos/‹id›/cancelar | Cancelar o pedido, com motivo |
 | Circuitos de aprovação | /compras/configuracoes/circuitos-aprovacao | Lista dos circuitos, com níveis, faixas de valor, quórum e aprovadores |
 | Circuitos de aprovação › Novo circuito | /compras/configuracoes/circuitos-aprovacao/novo | Criar um circuito |
@@ -396,12 +397,26 @@ Como na cotação, **Enviar pedido** regista o envio mas não manda o pedido ao 
 - **Parcialmente Recebido**, se ainda falta mercadoria (pode registar outra recepção mais tarde, só para o que falta);
 - **Recebido**, se todos os itens ficaram recebidos na totalidade.
 
-Não é possível receber mais do que o encomendado.
+Não é possível receber mais do que o encomendado. Se o fornecedor já não vai entregar o que falta, feche o pedido — ver [Como fechar um pedido em falta](#como-fechar-um-pedido-em-falta).
 
 **Efeitos noutros módulos:**
-- **Fornecedores › Contas a Pagar:** quando o pedido fica **Recebido**, o sistema cria uma conta a pagar **Aberta** ao fornecedor, com descrição «Compra via pedido ‹número›», o valor total do pedido (com IVA) e vencimento igual à data em que regista a recepção que completa o pedido mais o **Prazo de entrega** do pedido. Uma recepção parcial ainda não cria conta a pagar. Ver [Fornecedores e Serviços](02-fornecedores-e-servicos.md#como-consultar-as-contas-a-pagar).
-- **Contabilidade:** com a conta a pagar, fica o lançamento de reconhecimento da dívida no diário de Compras: débito *211 Mercadorias* e crédito *421 Fornecedores c/c*, pelo valor total do pedido. Não é lançado IVA dedutível. Se o período contabilístico estiver fechado, a recepção que completa o pedido é recusada. Ver [Contabilidade](05-contabilidade.md).
+- **Fornecedores › Contas a Pagar:** **cada recepção** em que entra mercadoria cria uma conta a pagar **Aberta** ao fornecedor, com descrição «Recepção de mercadoria do pedido ‹número›», o valor do que foi recebido nessa recepção (com IVA) e vencimento igual à **data da recepção** mais o **Prazo de entrega** do pedido. Uma recepção parcial cria, portanto, a sua conta; a recepção seguinte cria outra, e a soma das contas de um pedido completo é o valor total do pedido. Ver [Fornecedores e Serviços](02-fornecedores-e-servicos.md#como-consultar-as-contas-a-pagar).
+- **Contabilidade:** com cada conta a pagar, fica o lançamento de reconhecimento da dívida no diário de Compras, na data da recepção: débito *211 Mercadorias* pelo valor sem IVA, débito *44311 IVA suportado* pelo IVA e crédito *421 Fornecedores c/c* pelo total. O IVA fica em 44311 e **não é deduzido** enquanto não houver o documento do fornecedor. Se o período contabilístico estiver fechado, a recepção é recusada e nada fica gravado (nem stock, nem conta a pagar). Ver [Contabilidade](05-contabilidade.md).
+- **Recepção a valor zero:** se o que entrou vale 0,00 (preço zero, desconto de 100 %), a mercadoria é recebida mas não há conta a pagar, lançamento nem número consumido.
 - **Inventário:** só os itens ligados a um produto do catálogo dão entrada no stock, na localização escolhida. Os itens criados nos formulários de Compras não têm produto (o ecrã mostra «sem produto (não entra em stock)»), por isso dê entrada em [Inventário › Movimentações](03-inventario.md#como-dar-entrada-de-stock) — ver [Limites](#limites-desta-versão).
+
+### Como fechar um pedido em falta
+
+Use quando o fornecedor entregou **parte** da encomenda e **não vai entregar o resto**. O pedido deixa de aceitar recepções; o que já foi recebido continua em stock e a dívida de cada recepção mantém-se.
+
+**Antes de começar:** o pedido tem de estar **Parcialmente Recebido**. Precisa da permissão de cancelar pedidos de compra (Administrador, Gestor).
+
+1. No detalhe do pedido, clique em **Fechar em falta**.
+2. O ecrã **Fechar pedido ‹número› em falta** lista o que fica por receber, item a item.
+3. Em **Motivo do fecho**, escreva o **Motivo** (obrigatório, até 500 caracteres; por exemplo «o fornecedor descontinuou o artigo»).
+4. Clique em **Fechar em falta**.
+
+**Resultado:** aparece a mensagem «Pedido fechado em falta.» e o pedido passa a **Fechado em falta** (final). O detalhe mostra o **Motivo do fecho em falta**. O fecho não lança nada na contabilidade e não cria nem altera contas a pagar. Esta acção não pode ser revertida.
 
 ### Limites desta versão
 
@@ -409,7 +424,7 @@ Não é possível receber mais do que o encomendado.
 - **Rejeitar mercadoria na recepção:** o ecrã regista apenas as quantidades recebidas, todas aceites. Não há campos para quantidades rejeitadas nem motivo de rejeição.
 - **Preços do pedido convertido:** a conversão usa os preços estimados da requisição, não os da proposta adjudicada, e o endereço de entrega fica «A definir». Como não há ecrã para editar um pedido, se os preços forem diferentes, crie o pedido em **Novo Pedido** em vez de converter.
 - **Circuitos para pedidos de compra:** é possível criar um circuito do tipo **Pedidos de compra**, mas enviar um pedido não inicia nenhuma aprovação. Só os circuitos de requisições têm efeito.
-- **IVA dedutível:** a conta a pagar criada pela recepção não regista o IVA dedutível, porque a factura do fornecedor costuma chegar depois. Não há ainda caminho para o completar.
+- **IVA dedutível:** a conta a pagar criada pela recepção não regista o IVA dedutível, porque a factura do fornecedor costuma chegar depois: o IVA fica em 44311 (IVA suportado). Não há ainda caminho para o completar.
 - **Validade das cotações:** quando a data de validade passa, a cotação não muda sozinha para **Vencida**.
 
 ## Estados
@@ -447,8 +462,9 @@ Cada fornecedor convidado tem também um estado próprio, no separador **Fornece
 | Enviado | Enviado ao fornecedor | Confirmado, Cancelado | Administrador, Gestor (**Confirmar pedido**, **Cancelar pedido**) |
 | Confirmado | O fornecedor confirmou | Em Trânsito, Cancelado | Administrador, Gestor (**Marcar em trânsito**, **Cancelar pedido**) |
 | Em Trânsito | Mercadoria a caminho; aceita recepções | Parcialmente Recebido, Recebido | Administrador, Gestor, Operador (**Registar recepção**) |
-| Parcialmente Recebido (filtro: «Recebido Parcial») | Parte da mercadoria recebida; aceita mais recepções | Recebido | Administrador, Gestor, Operador (**Registar recepção**) |
-| Recebido (filtro: «Recebido Total») | Tudo recebido; gerou a conta a pagar (final) | — | — |
+| Parcialmente Recebido (filtro: «Recebido Parcial») | Parte da mercadoria recebida; aceita mais recepções | Recebido, Fechado em falta | Administrador, Gestor, Operador (**Registar recepção**); Administrador, Gestor (**Fechar em falta**) |
+| Recebido (filtro: «Recebido Total») | Tudo recebido; cada recepção gerou a sua conta a pagar (final) | — | — |
+| Fechado em falta (filtro: «Fechado em Falta») | Recebido em parte; o resto não vai chegar, com motivo (final) | — | — |
 | Cancelado | Cancelado com motivo (final) | — | — |
 
 ## Erros frequentes
@@ -499,8 +515,11 @@ São requisições criadas antes de o sistema passar a gravar o nome do utilizad
 **Recebi a mercadoria mas o stock não mudou. Porquê?**
 Os itens criados em Compras não estão ligados a produtos do catálogo, por isso a recepção não mexe no stock. Dê entrada em [Inventário › Movimentações](03-inventario.md#como-dar-entrada-de-stock).
 
-**Registei uma recepção parcial e não apareceu a conta a pagar. É normal?**
-Sim. A conta a pagar só é criada quando o pedido fica **Recebido** (todos os itens recebidos), pelo valor total do pedido.
+**Registei uma recepção parcial. Fica uma conta a pagar?**
+Sim. Cada recepção cria a sua conta a pagar, pelo valor do que chegou (com IVA). Se o pedido for recebido em duas vezes, tem duas contas; a soma é o valor total do pedido. Uma conta nascida de uma recepção não se cancela em Contas a Pagar — se a mercadoria tiver de ser devolvida, o ajuste faz-se com uma nota de crédito do fornecedor.
+
+**O fornecedor não vai entregar o resto do pedido. O que faço?**
+Feche o pedido em falta — ver [Como fechar um pedido em falta](#como-fechar-um-pedido-em-falta).
 
 **Onde registo o pagamento ao fornecedor?**
 Em **Fornecedores › Contas a Pagar**. Veja [Fornecedores e Serviços](02-fornecedores-e-servicos.md#como-registar-um-pagamento-a-um-fornecedor).

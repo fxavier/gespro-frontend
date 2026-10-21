@@ -113,7 +113,8 @@ contrato aparece como `CTRT-0001`, **Activo**.
 | Serviço › Editar | /servicos/lista/‹id›/editar | Alterar o serviço |
 | Agendamentos | /servicos/agendamentos | Lista de agendamentos |
 | Agendamentos › Novo Agendamento | /servicos/agendamentos/novo | Agendar um serviço |
-| Agendamentos › (linha) | /servicos/agendamentos/‹id› | Detalhe do agendamento (só consulta) |
+| Agendamentos › (linha) | /servicos/agendamentos/‹id› | Detalhe do agendamento, com os botões de mudança de estado |
+| Agendamento › Concluir | /servicos/agendamentos/‹id›/concluir | Concluir o agendamento, com notas de conclusão |
 | Contratos | /servicos/contratos | Lista de contratos de serviço |
 | Contratos › Novo Contrato | /servicos/contratos/novo | Criar um contrato |
 | Contratos › (linha) | /servicos/contratos/‹id› | Detalhe do contrato (Informações, Serviços; só consulta) |
@@ -217,7 +218,7 @@ Os fornecedores arquivados não aparecem nesta lista. Para os ver, clique em **A
 
 A tabela mostra Número, Fornecedor, Descrição, Vencimento, Estado e Restante. No detalhe da conta aparecem o Fornecedor (com ligação para a ficha), a Emissão, o Vencimento (com «· N dias de atraso» se estiver fora de prazo), o Valor original, o Valor pago e o Valor restante, além do separador **Pagamentos**.
 
-**De onde vêm as contas:** o sistema cria uma conta a pagar automaticamente quando um pedido de compra fica totalmente recebido (ver [Compras](01-compras.md#como-registar-a-recepção-de-mercadoria)). As dívidas que não passam por um pedido de compra (renda, serviços, uma factura sem pedido) registam-se à mão — ver [Como criar uma conta a pagar à mão](#como-criar-uma-conta-a-pagar-à-mão).
+**De onde vêm as contas:** o sistema cria uma conta a pagar automaticamente em cada recepção de mercadoria de um pedido de compra, pelo valor do que foi recebido (ver [Compras](01-compras.md#como-registar-a-recepção-de-mercadoria)). As dívidas que não passam por um pedido de compra (renda, serviços, uma factura sem pedido) registam-se à mão — ver [Como criar uma conta a pagar à mão](#como-criar-uma-conta-a-pagar-à-mão).
 
 A tabela também assinala, por baixo do vencimento, os dias de atraso («‹N›d atraso»). O filtro **Estado › Vencida** mostra só as contas gravadas com esse estado; para ver todas as que estão fora de prazo, use o indicador **Vencidas** e os dias de atraso.
 
@@ -269,13 +270,17 @@ A tabela também assinala, por baixo do vencimento, os dias de atraso («‹N›
 
 ### Como cancelar uma conta a pagar
 
-**Antes de começar:** precisa do perfil Administrador, Gestor ou Financeiro. A conta tem de estar Aberta, Parcialmente Paga ou Vencida.
+**Antes de começar:** precisa do perfil Administrador, Gestor ou Financeiro. A conta tem de estar Aberta ou Vencida e **sem nenhum pagamento registado**. Uma conta com pagamentos (Parcialmente Paga ou Paga) não se cancela, e uma conta criada por uma recepção de mercadoria também não — ver abaixo.
 
-1. No detalhe da conta, clique em **Cancelar conta**.
+1. No detalhe da conta, clique em **Cancelar conta** (o botão só aparece quando a conta se pode cancelar).
 2. Em **Motivo do cancelamento**, escreva o **Motivo** (obrigatório, até 500 caracteres), por exemplo «factura emitida em duplicado pelo fornecedor».
 3. Clique em **Cancelar conta**.
 
-**Resultado:** aparece a mensagem «Conta ‹número› cancelada.» e a conta passa a **Cancelada**. Uma conta já **Paga** não se cancela. O ecrã explica que um pagamento feito se corrige por estorno do lançamento, não por cancelamento da conta.
+**Resultado:** aparece a mensagem «Conta ‹número› cancelada.» e a conta passa a **Cancelada**. O lançamento de reconhecimento da dívida (crédito 421) é **estornado na data de hoje**, por isso a dívida deixa de constar na contabilidade. O detalhe da conta passa a mostrar o **Motivo do cancelamento**.
+
+**O que não se cancela:**
+- **Conta com pagamentos** (Parcialmente Paga ou Paga): o ecrã avisa «Esta conta já tem pagamentos registados (…) e não pode ser cancelada.» Um pagamento feito corrige-se por estorno do lançamento do pagamento, não por cancelamento da conta.
+- **Conta de uma recepção de mercadoria** (a que o detalhe mostra com **Origem**, «Esta conta nasceu da recepção de mercadoria de um pedido de compra…», e a ligação **Ver pedido**): não tem botão de cancelar. Para corrigir, registe uma nota de crédito do fornecedor. Ver [Compras](01-compras.md#como-registar-a-recepção-de-mercadoria).
 
 ### Como criar um serviço
 
@@ -294,7 +299,7 @@ A tabela também assinala, por baixo do vencimento, os dias de atraso («‹N›
 
 **Resultado:** aparece a mensagem «Serviço criado com sucesso!». O serviço aparece na lista, que tem os indicadores **Total de Serviços**, **Serviços Activos**, **Disponíveis** e **Total de Vendas**. O detalhe do serviço mostra, ao lado, a **Categoria**.
 
-> **Atenção:** nesta versão, a caixa de pesquisa (*Pesquisar por nome, código ou descrição…*) e o filtro **Tipo** da lista de serviços ainda não filtram a lista.
+A lista de serviços pode ser pesquisada na caixa *Pesquisar por nome, código ou descrição…* (sem distinguir maiúsculas) e filtrada por **Tipo**.
 
 **Para alterar um serviço:** no detalhe, clique em **Editar** (ou use **⋯ › Editar** na lista). O formulário é o mesmo da criação, com o **Código** só de leitura. Clique em **Guardar Serviço**; aparece a mensagem «Serviço actualizado com sucesso!». Precisa do perfil Administrador, Gestor ou Operador.
 
@@ -323,7 +328,23 @@ A tabela também assinala, por baixo do vencimento, os dias de atraso («‹N›
 
 A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendentes**, **Confirmados** e **Concluídos** e o filtro **Estado**. As colunas são Código, Serviço, Cliente, Técnico, Data, Estado e Total. Clique numa linha (ou use **⋯ › Ver detalhe**) para abrir o agendamento: o separador **Informações** mostra o serviço, o cliente e os contactos, o técnico, a data, o horário, a duração, o local e as observações; ao lado estão o Código, o Estado, o Preço do serviço, o Desconto, a Taxa IVA e o Total.
 
-> **Atenção:** nesta versão o detalhe do agendamento é só de consulta: não há ecrã para confirmar, iniciar, concluir ou cancelar um agendamento, nem para lhe atribuir um técnico. A caixa de pesquisa da lista (*Pesquisar por serviço, cliente ou código…*) ainda não filtra a lista.
+A caixa de pesquisa da lista (*Pesquisar por serviço, cliente ou código…*) procura no código, no nome do cliente e no nome do serviço, sem distinguir maiúsculas, e combina com o filtro **Estado**.
+
+> **Atenção:** nesta versão não há ecrã para atribuir um técnico a um agendamento.
+
+### Como mudar o estado de um agendamento
+
+**Antes de começar:** precisa do perfil Administrador, Gestor ou Operador.
+
+1. Abra o detalhe do agendamento. No topo aparecem apenas os botões das mudanças permitidas a partir do estado actual:
+   - **Pendente:** **Confirmar** ou **Cancelar agendamento**;
+   - **Confirmado:** **Iniciar**, **Não compareceu** ou **Cancelar agendamento**;
+   - **Em Andamento:** **Concluir** ou **Cancelar agendamento**.
+2. **Confirmar** e **Iniciar** aplicam-se logo («Agendamento confirmado.», «Agendamento em andamento.»).
+3. **Não compareceu** e **Cancelar agendamento** pedem confirmação («O agendamento fica fechado e não pode voltar atrás.»); confirme no botão da janela.
+4. **Concluir** abre o ecrã **Concluir Agendamento** (`/servicos/agendamentos/‹id›/concluir`). Escreva, se quiser, as **Notas de conclusão** (até 2000 caracteres; o que foi feito, material usado, observações) e clique em **Concluir**. Aparece «Agendamento concluído.».
+
+**Resultado:** o agendamento muda de estado e o indicador correspondente da lista é actualizado. **Concluído**, **Cancelado** e **Não Compareceu** são finais.
 
 <!-- captura: 02-fornecedores-e-servicos/agendamentos-lista.png | /servicos/agendamentos -->
 ![Lista de agendamentos](img/02-fornecedores-e-servicos/agendamentos-lista.png)
@@ -377,9 +398,9 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Aberta | Por pagar | Parcialmente Paga, Paga, Cancelada | Administrador, Gestor, Financeiro |
-| Parcialmente Paga | Já tem pagamentos, mas ainda há valor restante | Paga, Cancelada | Administrador, Gestor, Financeiro |
-| Vencida | Fora de prazo. O sistema não muda o estado automaticamente quando a data passa, mas o indicador **Vencidas** e os dias de atraso contam qualquer conta em dívida (Aberta, Parcialmente Paga ou Vencida) com o vencimento anterior a hoje | Paga, Cancelada | Administrador, Gestor, Financeiro |
+| Aberta | Por pagar | Parcialmente Paga, Paga, Cancelada (só sem pagamentos e fora de recepções) | Administrador, Gestor, Financeiro |
+| Parcialmente Paga | Já tem pagamentos, mas ainda há valor restante | Paga | Administrador, Gestor, Financeiro |
+| Vencida | Fora de prazo. O sistema não muda o estado automaticamente quando a data passa, mas o indicador **Vencidas** e os dias de atraso contam qualquer conta em dívida (Aberta, Parcialmente Paga ou Vencida) com o vencimento anterior a hoje | Paga, Cancelada (só sem pagamentos) | Administrador, Gestor, Financeiro |
 | Paga | Liquidada na totalidade (final) | — | — |
 | Cancelada | Cancelada com motivo (final) | — | — |
 
@@ -387,9 +408,9 @@ A lista de agendamentos tem os indicadores **Total de Agendamentos**, **Pendente
 
 | Estado | Significado | Pode passar a | Quem |
 |---|---|---|---|
-| Pendente | Criado, à espera de confirmação | Confirmado, Cancelado | (sem ecrã nesta versão) |
-| Confirmado | Marcação confirmada | Em Andamento, Cancelado, Não Compareceu | — |
-| Em Andamento | Serviço a decorrer | Concluído, Cancelado | — |
+| Pendente | Criado, à espera de confirmação | Confirmado, Cancelado | Administrador, Gestor, Operador (**Confirmar**, **Cancelar agendamento**) |
+| Confirmado | Marcação confirmada | Em Andamento, Cancelado, Não Compareceu | Administrador, Gestor, Operador (**Iniciar**, **Cancelar agendamento**, **Não compareceu**) |
+| Em Andamento | Serviço a decorrer | Concluído, Cancelado | Administrador, Gestor, Operador (**Concluir**, **Cancelar agendamento**) |
 | Concluído | Serviço prestado (final); só estes podem ser avaliados | — | — |
 | Cancelado | Cancelado (final) | — | — |
 | Não Compareceu | O cliente faltou (final) | — | — |

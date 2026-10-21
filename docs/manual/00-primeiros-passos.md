@@ -409,7 +409,7 @@ As regras seguintes valem em todos os módulos.
 | O serviço de identidade não respondeu. Tente de novo dentro de momentos — não é problema das suas credenciais. | Falha temporária do serviço. | Tente de novo daí a pouco. |
 | O plano escolhido não está disponível. Escolha outro plano. | O plano deixou de estar à venda (foi retirado do catálogo) enquanto preenchia o registo. | Actualize a página e escolha um dos planos da lista. |
 | Já existe uma conta registada com este NUIT. Inicie sessão ou recupere a palavra-passe. | O NUIT já tem conta no GestPro. | Entre com a conta existente ou peça acesso ao administrador dela. |
-| Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos. | O e-mail já pertence a outra conta. | Use outro endereço. |
+| Este endereço de e-mail já está associado a uma conta GestPro. Cada pessoa tem uma única identidade, numa única empresa — quem gere duas empresas precisa de dois endereços de e-mail distintos. | O e-mail já pertence a outra conta, ou já tem uma identidade de acesso no GestPro (mesmo sem empresa associada): o registo recusa-o em vez de a reutilizar. Repetir o registo depois de uma falha do servidor que já tenha criado a identidade responde também com esta mensagem. | Use outro endereço, ou inicie sessão / recupere a palavra-passe se a conta é sua. |
 | NUIT inválido (9 dígitos não repetidos) | O NUIT não tem formato válido. | Corrija o NUIT. |
 | As palavras-passe não coincidem | A confirmação é diferente da palavra-passe. | Escreva a mesma nos dois campos. |
 | A palavra-passe tem de ter pelo menos 10 caracteres | Palavra-passe curta. | Escolha uma com 10 ou mais caracteres. |

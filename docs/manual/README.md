@@ -8,7 +8,7 @@ produto.
 
 **Autor:** Xavier Francisco Nhagumbe — Engenheiro de Software
 
-> **Versão:** corresponde ao GestPro de 15 de Outubro de 2026. Onde uma função existe mas ainda não
+> **Versão:** corresponde ao GestPro de 20 de Outubro de 2026. Onde uma função existe mas ainda não
 > está completa, o capítulo diz-o numa caixa **Atenção** — preferimos avisar a deixar descobrir.
 
 ## Por onde começar
