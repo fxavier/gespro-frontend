@@ -34,7 +34,7 @@ const planoSchema = z.object({
   nome: z.string().min(1),
   descricao: z.string().optional(),
   limites: z
-    .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
     .default({}),
   funcionalidades: z.array(z.string()).default([]),
   destaque: z.boolean().default(false),
