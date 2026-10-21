@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useWatch, type Path } from 'react-hook-form';
+import { useForm, useWatch, type Path, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { ArrowDown, ArrowUp, Plus, Save, Trash2, X } from 'lucide-react';
@@ -83,7 +83,7 @@ export function PlanoForm({ plano }: PlanoFormProps) {
   const edicao = !!plano;
 
   const form = useForm<Valores>({
-    resolver: zodResolver(edicao ? PlanoActualizarSchema : PlanoCriarSchema),
+    resolver: zodResolver(edicao ? PlanoActualizarSchema : PlanoCriarSchema) as unknown as Resolver<Valores>,
     defaultValues: plano ? valoresDe(plano) : VAZIO,
     mode: 'onBlur',
   });

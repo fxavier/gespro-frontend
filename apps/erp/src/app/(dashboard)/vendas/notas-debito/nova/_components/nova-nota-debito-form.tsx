@@ -8,7 +8,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, X } from 'lucide-react';
@@ -86,7 +86,7 @@ export function NovaNotaDebitoForm({ clientes, contasPorNatureza, hoje }: NovaNo
   const contasDe = (n: Natureza) => contasPorNatureza.find((c) => c.natureza === n);
 
   const form = useForm<EmitirNotaDebitoInput>({
-    resolver: zodResolver(FormSchema),
+    resolver: zodResolver(FormSchema) as unknown as Resolver<EmitirNotaDebitoInput>,
     defaultValues: {
       moeda: 'MZN',
       natureza: 'ACERTO_PRECO',

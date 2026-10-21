@@ -64,7 +64,7 @@ export function NovaNotaCreditoForm({ hoje, faturasIniciais }: { hoje: string; f
     handleSubmit,
     setValue,
     formState: { errors, isDirty },
-  } = useForm<FormValues>({
+  } = useForm<z.input<typeof FormSchema>, unknown, FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       faturaOriginalId: '',

@@ -7,7 +7,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -126,7 +126,7 @@ export function ContaBancariaForm({
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<CriarContaBancariaInput>({
-    resolver: zodResolver(CriarContaBancariaSchema),
+    resolver: zodResolver(CriarContaBancariaSchema) as unknown as Resolver<CriarContaBancariaInput>,
     defaultValues: {
       banco: valoresIniciais?.banco ?? '',
       agencia: valoresIniciais?.agencia ?? '',

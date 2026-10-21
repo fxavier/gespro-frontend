@@ -7,7 +7,7 @@
 
 import { useActionState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, X } from 'lucide-react';
@@ -88,7 +88,7 @@ export function NovaFaturaForm({ clientes, hoje, vencimento }: NovaFaturaFormPro
   );
 
   const form = useForm<EmitirFaturaInput>({
-    resolver: zodResolver(FormSchema),
+    resolver: zodResolver(FormSchema) as unknown as Resolver<EmitirFaturaInput>,
     // As datas vêm do servidor (dia de Maputo) e estão no estado desde o início:
     // o que o campo mostra é o que a emissão leva, sem lhes tocar.
     defaultValues: {

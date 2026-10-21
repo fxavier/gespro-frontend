@@ -4,7 +4,7 @@ import { taxaIvaSchema } from '@/lib/iva';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 import { NATUREZAS_NOTA_DEBITO, motivoIsencaoEmFalta } from '@/lib/nota-debito';
 import { arredondarLinha } from '@/lib/vendas-totais';
-import { dataDocumento, idEntidade, inicioDoDia, fimDoDia } from './common';
+import { dataDocumento, idEntidade, inicioDoDia, fimDoDia, erroDeTipo } from './common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -71,10 +71,10 @@ export const LinhaDocumentoSchema = z
     produtoId: z.string().cuid().optional(),
     descricao: z.string().min(1, 'Descrição obrigatória').max(500),
     quantidade: z
-      .number({ required_error: 'Quantidade obrigatória' })
+      .number(erroDeTipo('Quantidade obrigatória'))
       .positive('Quantidade deve ser positiva'),
     precoUnitario: z
-      .number({ required_error: 'Preço unitário obrigatório' })
+      .number(erroDeTipo('Preço unitário obrigatório'))
       .nonnegative('Preço não pode ser negativo')
       .multipleOf(0.01),
     desconto: z.number().nonnegative().multipleOf(0.01).default(0),
@@ -101,7 +101,7 @@ export type LinhaDocumentoInput = z.infer<typeof LinhaDocumentoSchema>;
  */
 export function exigirMotivoIsencaoNasLinhas(
   d: { linhas: ReadonlyArray<{ taxaIva: number; motivoIsencao?: string }> },
-  ctx: z.RefinementCtx,
+  ctx: Pick<z.RefinementCtx, 'addIssue'>,
 ): void {
   d.linhas.forEach((l, i) => {
     if (motivoIsencaoEmFalta(l)) {
@@ -129,7 +129,7 @@ const prefixoSerie = z
   .regex(/^[A-Z0-9-]+$/, 'Só letras, algarismos e hífen');
 
 const numeroInicialSerie = z
-  .number({ required_error: 'Número inicial obrigatório', invalid_type_error: 'Número inválido' })
+  .number(erroDeTipo('Número inicial obrigatório', 'Número inválido'))
   .int('Tem de ser inteiro')
   .min(1, 'Mínimo 1')
   .max(999_999, 'Máximo 999999');
@@ -167,7 +167,7 @@ export const FormaPagamentoEnum = z.enum(
 /** Fora do numerário, o dinheiro passa por uma conta bancária — tem de vir escolhida. */
 export function exigirContaBancariaForaDoNumerario(
   d: { formaPagamento: FormaPagamento; contaBancariaId?: string },
-  ctx: z.RefinementCtx,
+  ctx: Pick<z.RefinementCtx, 'addIssue'>,
 ): void {
   if (d.formaPagamento !== 'NUMERARIO' && !d.contaBancariaId) {
     ctx.addIssue({
@@ -207,7 +207,7 @@ export const RegistarPagamentoFaturaSchema = z
   .object({
     faturaId: idEntidade('ID de factura inválido'),
     valor: z
-      .number({ required_error: 'Valor de pagamento obrigatório', invalid_type_error: 'Valor inválido' })
+      .number(erroDeTipo('Valor de pagamento obrigatório', 'Valor inválido'))
       .positive('Valor deve ser positivo')
       .multipleOf(0.01),
     dataPagamento: dataDocumento('Data do pagamento'),

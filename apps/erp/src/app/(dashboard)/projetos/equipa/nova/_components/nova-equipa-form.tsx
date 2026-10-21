@@ -38,7 +38,7 @@ export function NovaEquipaForm() {
     null
   );
 
-  const form = useForm<FormValues>({
+  const form = useForm<z.input<typeof CreateEquipaSchema>, unknown, FormValues>({
     resolver: zodResolver(CreateEquipaSchema),
     defaultValues: {
       nome: '',

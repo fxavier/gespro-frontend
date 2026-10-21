@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia, idEntidade } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, idEntidade, erroDeTipo } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -29,7 +29,7 @@ export const TipoMovimentoCaixaEnum = z.enum([
 
 export const AbrirSessaoCaixaSchema = z.object({
   fundoInicial: z
-    .number({ required_error: 'Fundo inicial obrigatório' })
+    .number(erroDeTipo('Fundo inicial obrigatório'))
     .nonnegative('Fundo inicial não pode ser negativo')
     .multipleOf(0.01, 'Máximo 2 casas decimais'),
   observacoes: z.string().max(500).optional(),
@@ -42,7 +42,7 @@ export type AbrirSessaoCaixaInput = z.infer<typeof AbrirSessaoCaixaSchema>;
 export const FecharSessaoCaixaSchema = z.object({
   sessaoCaixaId: z.string().cuid('ID de sessão inválido'),
   fundoFinal: z
-    .number({ required_error: 'Fundo final obrigatório' })
+    .number(erroDeTipo('Fundo final obrigatório'))
     .nonnegative('Fundo final não pode ser negativo')
     .multipleOf(0.01, 'Máximo 2 casas decimais'),
   observacoes: z.string().max(500).optional(),
@@ -69,7 +69,7 @@ export const RegistarMovimentoCaixaSchema = z.object({
   sessaoCaixaId: z.string().cuid('ID de sessão inválido'),
   tipo: TipoMovimentoCaixaEnum,
   valor: z
-    .number({ required_error: 'Valor obrigatório' })
+    .number(erroDeTipo('Valor obrigatório'))
     .positive('Valor deve ser positivo')
     .multipleOf(0.01, 'Máximo 2 casas decimais'),
   descricao: z.string().min(1, 'Descrição obrigatória').max(255),
@@ -88,7 +88,7 @@ export type RegistarMovimentoCaixaFormInput = z.infer<typeof RegistarMovimentoCa
 export const SangriaSchema = z.object({
   sessaoCaixaId: z.string().cuid('ID de sessão inválido'),
   valor: z
-    .number({ required_error: 'Valor de sangria obrigatório' })
+    .number(erroDeTipo('Valor de sangria obrigatório'))
     .positive('Valor deve ser positivo')
     .multipleOf(0.01),
   motivo: z.string().min(1, 'Motivo obrigatório').max(255),
@@ -99,7 +99,7 @@ export type SangriaInput = z.infer<typeof SangriaSchema>;
 export const ReforcoSchema = z.object({
   sessaoCaixaId: z.string().cuid('ID de sessão inválido'),
   valor: z
-    .number({ required_error: 'Valor de reforço obrigatório' })
+    .number(erroDeTipo('Valor de reforço obrigatório'))
     .positive('Valor deve ser positivo')
     .multipleOf(0.01),
   motivo: z.string().min(1, 'Motivo obrigatório').max(255),

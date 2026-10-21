@@ -4,6 +4,7 @@
  * Reutiliza refinements moçambicanos de mocambique.ts.
  */
 import { z } from 'zod';
+import { parcial } from './common';
 import { validarNUIT } from '../validacao-nuit';
 import { validarBI } from '../validacao-bi';
 
@@ -58,7 +59,7 @@ export const VagaSchema = VagaBaseSchema.refine(
 
 export type VagaInput = z.infer<typeof VagaBaseSchema>;
 
-export const UpdateVagaSchema = VagaBaseSchema.partial();
+export const UpdateVagaSchema = parcial(VagaBaseSchema);
 export type UpdateVagaInput = z.infer<typeof UpdateVagaSchema>;
 
 export const FilterVagaSchema = z.object({
@@ -95,7 +96,7 @@ export const CandidatoSchema = z.object({
 
 export type CandidatoInput = z.infer<typeof CandidatoSchema>;
 
-export const UpdateCandidatoSchema = CandidatoSchema.partial();
+export const UpdateCandidatoSchema = parcial(CandidatoSchema);
 export type UpdateCandidatoInput = z.infer<typeof UpdateCandidatoSchema>;
 
 export const FilterCandidatoSchema = z.object({

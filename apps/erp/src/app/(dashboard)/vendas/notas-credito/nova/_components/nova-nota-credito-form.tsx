@@ -7,7 +7,7 @@
 
 import { useActionState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, X } from 'lucide-react';
@@ -69,7 +69,7 @@ export function NovaNotaCreditoForm({ faturasIniciais, hoje }: NovaNotaCreditoFo
   );
 
   const form = useForm<EmitirNotaCreditoInput>({
-    resolver: zodResolver(FormSchema),
+    resolver: zodResolver(FormSchema) as unknown as Resolver<EmitirNotaCreditoInput>,
     defaultValues: {
       moeda: 'MZN',
       // O dia que o campo mostra está no estado desde o início (#242).

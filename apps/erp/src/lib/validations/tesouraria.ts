@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { idEntidade, inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { idEntidade, inicioDoDia, fimDoDia, erroDeTipo, parcial } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Enums (espelham prisma/schema/financas.prisma e o ADR-0036 §5-6)
@@ -112,16 +112,13 @@ const CompromissoCamposSchema = z.object({
   descricao: z.string().min(1, 'Descrição obrigatória').max(255),
   tipo: TipoCompromissoEnum,
   valor: z
-    .number({ required_error: 'Valor obrigatório' })
+    .number(erroDeTipo('Valor obrigatório'))
     .positive('Valor deve ser positivo')
     .multipleOf(0.01, 'Máximo 2 casas decimais'),
-  dataPrevista: z.coerce.date({
-    required_error: 'Data prevista obrigatória',
-    invalid_type_error: 'Data prevista inválida',
-  }),
+  dataPrevista: z.coerce.date(erroDeTipo('Data prevista obrigatória', 'Data prevista inválida')),
   recorrencia: RecorrenciaCompromissoEnum.default('UNICA'),
   dataFimRecorrencia: z.coerce
-    .date({ invalid_type_error: 'Data de fim de recorrência inválida' })
+    .date(erroDeTipo(undefined, 'Data de fim de recorrência inválida'))
     .optional(),
   rubricaId: idEntidade('ID de rubrica inválido').optional(),
   contaContabilId: idEntidade('ID de conta contabilística inválido').optional(),
@@ -133,7 +130,7 @@ export const CriarCompromissoSchema =
 
 export type CriarCompromissoInput = z.infer<typeof CriarCompromissoSchema>;
 
-export const AtualizarCompromissoSchema = CompromissoCamposSchema.partial()
+export const AtualizarCompromissoSchema = parcial(CompromissoCamposSchema)
   .extend({
     id: idEntidade('ID de compromisso inválido'),
     ativo: z.boolean().optional(),
@@ -143,7 +140,7 @@ export const AtualizarCompromissoSchema = CompromissoCamposSchema.partial()
     // O `nullable` embrulha o `coerce.date` POR FORA: um `null` curto-circuita
     // antes da coerção — `z.coerce.date()` cru faria `new Date(null)` = 1970.
     dataFimRecorrencia: z.coerce
-      .date({ invalid_type_error: 'Data de fim de recorrência inválida' })
+      .date(erroDeTipo(undefined, 'Data de fim de recorrência inválida'))
       .nullable()
       .optional(),
   })

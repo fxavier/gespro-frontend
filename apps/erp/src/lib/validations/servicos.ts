@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
-import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, parcial } from '@/lib/validations/common';
 
 // ---- Enums ----
 
@@ -76,7 +76,7 @@ export const CreateCategoriaServicoSchema = z.object({
 
 export type CreateCategoriaServicoInput = z.infer<typeof CreateCategoriaServicoSchema>;
 
-export const UpdateCategoriaServicoSchema = CreateCategoriaServicoSchema.partial();
+export const UpdateCategoriaServicoSchema = parcial(CreateCategoriaServicoSchema);
 
 // =====================================================================
 // SERVIÇO

@@ -71,7 +71,7 @@ export default function NovaEstruturaForm({ produtosIniciais }: { produtosInicia
   const [novoComp, setNovoComp] = useState<Partial<ComponenteLocal>>({ ...COMP_DEFAULT });
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null);
 
-  const form = useForm<FormData>({
+  const form = useForm<z.input<typeof Schema>, unknown, FormData>({
     resolver: zodResolver(Schema),
     defaultValues: { versao: '1.0', unidadeProducao: 'UN' },
   });
@@ -84,7 +84,7 @@ export default function NovaEstruturaForm({ produtosIniciais }: { produtosInicia
       perdaPrevista: Number(novoComp.perdaPrevista ?? 0),
     });
     if (!result.success) {
-      toast.error(result.error.errors[0]?.message ?? 'Preencha os campos obrigatórios.');
+      toast.error(result.error.issues[0]?.message ?? 'Preencha os campos obrigatórios.');
       return;
     }
     setComponentes((prev) => [...prev, result.data]);

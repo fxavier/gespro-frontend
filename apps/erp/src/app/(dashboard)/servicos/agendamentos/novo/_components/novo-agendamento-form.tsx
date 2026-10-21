@@ -4,6 +4,7 @@ import { useActionState, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -86,7 +87,7 @@ export function NovoAgendamentoForm({ servicos, clientesIniciais }: Props) {
     null,
   );
 
-  const form = useForm<CreateAgendamentoServicoInput>({
+  const form = useForm<z.input<typeof CreateAgendamentoServicoSchema>, unknown, CreateAgendamentoServicoInput>({
     resolver: zodResolver(CreateAgendamentoServicoSchema),
     defaultValues: {
       servicoId: '',

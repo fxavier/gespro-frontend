@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Save, X } from 'lucide-react';
@@ -60,7 +61,7 @@ export function RegistarPagamentoForm({
     setValue,
     control,
     formState: { errors, isDirty },
-  } = useForm<CreatePagamentoInput>({
+  } = useForm<z.input<typeof CreatePagamentoSchema>, unknown, CreatePagamentoInput>({
     resolver: zodResolver(CreatePagamentoSchema),
     defaultValues: {
       contaPagarId,

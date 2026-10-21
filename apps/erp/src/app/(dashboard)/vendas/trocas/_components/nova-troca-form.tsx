@@ -14,6 +14,7 @@ import { useCallback, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -91,7 +92,7 @@ export function NovaTrocaForm({
   const catalogo = useRef(new Map(produtosIniciais.map((p) => [p.id, p])));
   const [meio, setMeio] = useState<MeioDiferenca>(sessaoCaixaId ? 'DINHEIRO' : 'TRANSFERENCIA');
 
-  const form = useForm<CriarTrocaFormInput>({
+  const form = useForm<z.input<typeof CriarTrocaFormSchema>, unknown, CriarTrocaFormInput>({
     resolver: zodResolver(CriarTrocaFormSchema),
     defaultValues: {
       devolucaoId: devolucao.id,

@@ -7,7 +7,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -60,7 +60,7 @@ export function NovoColaboradorForm({ opcoes }: { opcoes: OpcoesColaborador }) {
   );
 
   const form = useForm<CreateColaboradorInput>({
-    resolver: zodResolver(CreateColaboradorSchema),
+    resolver: zodResolver(CreateColaboradorSchema) as unknown as Resolver<CreateColaboradorInput>,
     defaultValues: DEFAULT_VALUES as CreateColaboradorInput,
     mode: 'onBlur',
   });

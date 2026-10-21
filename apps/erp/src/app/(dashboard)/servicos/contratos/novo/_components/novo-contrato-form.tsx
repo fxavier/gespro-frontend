@@ -4,6 +4,7 @@ import { useActionState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -76,7 +77,7 @@ export function NovoContratoForm({ servicos, clientesIniciais }: Props) {
     null,
   );
 
-  const form = useForm<CreateContratoServicoInput>({
+  const form = useForm<z.input<typeof CreateContratoServicoSchema>, unknown, CreateContratoServicoInput>({
     resolver: zodResolver(CreateContratoServicoSchema),
     defaultValues: {
       codigo: '',

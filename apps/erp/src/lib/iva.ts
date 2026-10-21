@@ -48,20 +48,20 @@ export function lerTaxaIva(v: unknown): TaxaIva {
  */
 export function taxaIvaSchema(
   mensagem = MENSAGEM_TAXA_IVA_INVALIDA,
-): z.ZodType<number, z.ZodTypeDef, unknown> {
+): z.ZodType<number, unknown> {
   return z.preprocess(
     (v) => {
       if (v === null || v === undefined) return v;
       if (typeof v === 'string') {
         const t = v.trim();
-        // Mantém como string vazia para que z.number rejeite com invalid_type_error
+        // Mantém como string vazia para que z.number rejeite com a mensagem de tipo
         if (t === '') return v;
         return Number(t);
       }
       return v;
     },
     z
-      .number({ required_error: mensagem, invalid_type_error: mensagem })
+      .number({ error: mensagem })
       .refine((n): n is TaxaIva => ehTaxaIva(n), mensagem),
-  ) as z.ZodType<number, z.ZodTypeDef, unknown>;
+  ) as z.ZodType<number, unknown>;
 }

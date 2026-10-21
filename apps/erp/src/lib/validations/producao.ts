@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, erroDeTipo, parcial } from '@/lib/validations/common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -37,7 +37,7 @@ export const CreateCentroTrabalhoSchema = z.object({
   ativo: z.boolean().default(true),
 });
 
-export const UpdateCentroTrabalhoSchema = CreateCentroTrabalhoSchema.partial();
+export const UpdateCentroTrabalhoSchema = parcial(CreateCentroTrabalhoSchema);
 
 export const FilterCentroTrabalhoSchema = z.object({
   search: z.string().optional(),
@@ -90,7 +90,7 @@ export const CreateEstruturaProdutoSchema = z.object({
   componentes: z.array(CreateComponenteBOMSchema).default([]),
 });
 
-export const UpdateEstruturaProdutoSchema = CreateEstruturaProdutoSchema.partial().omit({
+export const UpdateEstruturaProdutoSchema = parcial(CreateEstruturaProdutoSchema).omit({
   produtoId: true,
   codigo: true,
 });
@@ -141,7 +141,7 @@ export const CreateRoteiroSchema = z.object({
   operacoes: z.array(CreateOperacaoRoteiroSchema).default([]),
 });
 
-export const UpdateRoteiroSchema = CreateRoteiroSchema.partial().omit({ codigo: true });
+export const UpdateRoteiroSchema = parcial(CreateRoteiroSchema).omit({ codigo: true });
 
 export const FilterRoteiroSchema = z.object({
   search: z.string().optional(),
@@ -182,7 +182,7 @@ export const CreateOrdemProducaoSchema = CreateOrdemProducaoBaseSchema.refine(
   { message: 'Data de fim não pode ser anterior ao início previsto', path: ['dataPrevisaoFim'] },
 );
 
-export const UpdateOrdemProducaoSchema = CreateOrdemProducaoBaseSchema.partial().omit({
+export const UpdateOrdemProducaoSchema = parcial(CreateOrdemProducaoBaseSchema).omit({
   produtoId: true,
   codigoProduto: true,
 });
@@ -211,7 +211,7 @@ export const AprovarQualidadeOrdemSchema = z.object({
 export const ReprovarQualidadeOrdemSchema = z.object({
   id: z.string().cuid(),
   motivo: z
-    .string({ required_error: 'Indique o motivo da reprovação' })
+    .string(erroDeTipo('Indique o motivo da reprovação'))
     .trim()
     .min(1, 'Indique o motivo da reprovação')
     .max(1000),

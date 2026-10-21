@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -53,7 +53,7 @@ export function EditarManutencaoForm({ manutencao }: EditarManutencaoFormProps) 
   );
 
   const form = useForm<ManutencaoAtivoUpdate>({
-    resolver: zodResolver(ManutencaoAtivoUpdateSchema),
+    resolver: zodResolver(ManutencaoAtivoUpdateSchema) as unknown as Resolver<ManutencaoAtivoUpdate>,
     defaultValues: {
       titulo: manutencao.titulo,
       descricao: manutencao.descricao,

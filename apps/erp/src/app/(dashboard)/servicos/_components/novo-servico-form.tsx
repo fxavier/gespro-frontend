@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -83,7 +84,7 @@ export function NovoServicoForm({ servico, categorias = [] }: Props = {}) {
   const emEdicao = servico !== undefined;
   const destino = servico ? `/servicos/lista/${servico.id}` : '/servicos/lista';
 
-  const form = useForm<CreateServicoInput>({
+  const form = useForm<z.input<typeof CreateServicoSchema>, unknown, CreateServicoInput>({
     resolver: zodResolver(CreateServicoSchema),
     defaultValues: servico ? valoresDe(servico) : (DEFAULT_VALUES as CreateServicoInput),
     mode: 'onBlur',

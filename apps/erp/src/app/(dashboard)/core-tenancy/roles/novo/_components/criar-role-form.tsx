@@ -7,7 +7,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -65,7 +65,7 @@ export function CriarRoleForm({ permissoes }: CriarRoleFormProps) {
   );
 
   const form = useForm<CreateRoleInput>({
-    resolver: zodResolver(CreateRoleSchema),
+    resolver: zodResolver(CreateRoleSchema) as unknown as Resolver<CreateRoleInput>,
     defaultValues: DEFAULT_VALUES,
     mode: 'onBlur',
   });

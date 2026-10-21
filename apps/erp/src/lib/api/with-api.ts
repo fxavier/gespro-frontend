@@ -64,14 +64,14 @@ interface WithApiOptions<Q, P> {
    * permissão; falha ⇒ 422 `VALIDACAO` com `details = flatten()` e o handler
    * não corre. O resultado chega em `ctx.query`.
    */
-  query?: z.ZodType<Q, z.ZodTypeDef, unknown>;
+  query?: z.ZodType<Q, unknown>;
   /** Schema Zod dos parâmetros de rota (issue #188); resultado em `ctx.params`. */
-  params?: z.ZodType<P, z.ZodTypeDef, unknown>;
+  params?: z.ZodType<P, unknown>;
 }
 
 /** Valida com Zod; falha ⇒ `ValidationError` (422) com `flatten()` em `details`. */
 function validar<T>(
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  schema: z.ZodType<T, unknown>,
   valor: unknown,
   rotulo: string,
 ): T {

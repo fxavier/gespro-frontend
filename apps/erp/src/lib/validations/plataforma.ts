@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { validarNUIT } from '@/lib/validacao-nuit';
 import { getProvincias } from '@/lib/provincias-mocambique';
-import { codigoPlano } from '@/lib/validations/common';
+import { codigoPlano, parcial } from '@/lib/validations/common';
 
 // ---------------------------------------------------------------------------
 // Helpers de refinamento moçambicanos
@@ -68,7 +68,7 @@ export const CreateTenantSchema = z.object({
 export type CreateTenantInput = z.infer<typeof CreateTenantSchema>;
 
 /** Actualização: slug e nuit são imutáveis após criação. */
-export const UpdateTenantSchema = CreateTenantSchema.partial().omit({
+export const UpdateTenantSchema = parcial(CreateTenantSchema).omit({
   slug: true,
   nuit: true,
 });
@@ -285,7 +285,7 @@ export const CreateRoleSchema = z.object({
 });
 export type CreateRoleInput = z.infer<typeof CreateRoleSchema>;
 
-export const UpdateRoleSchema = CreateRoleSchema.partial();
+export const UpdateRoleSchema = parcial(CreateRoleSchema);
 export type UpdateRoleInput = z.infer<typeof UpdateRoleSchema>;
 
 // ---------------------------------------------------------------------------

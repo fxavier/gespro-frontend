@@ -2,7 +2,7 @@
 // Partilhado cliente/servidor.
 
 import { z } from 'zod';
-import { inicioDoDia, fimDoDia } from '@/lib/validations/common';
+import { inicioDoDia, fimDoDia, parcial } from '@/lib/validations/common';
 
 // ─── Localização ──────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export const LocalizacaoCreateSchema = z.object({
   longitude: z.coerce.number().min(-180).max(180).optional(),
 });
 
-export const LocalizacaoUpdateSchema = LocalizacaoCreateSchema.partial().omit({
+export const LocalizacaoUpdateSchema = parcial(LocalizacaoCreateSchema).omit({
   codigo: true,
 });
 

@@ -67,7 +67,7 @@ export default function NovoRoteiroForm({ estruturas, centrosTrabalho }: Props) 
   const [showAddOp, setShowAddOp] = useState(false);
   const [novaOp, setNovaOp] = useState<Partial<OperacaoLocal>>({ ...OPERACAO_DEFAULT });
 
-  const form = useForm<FormData>({
+  const form = useForm<z.input<typeof Schema>, unknown, FormData>({
     resolver: zodResolver(Schema),
     defaultValues: { versao: '1.0' },
   });
@@ -81,7 +81,7 @@ export default function NovoRoteiroForm({ estruturas, centrosTrabalho }: Props) 
       eficienciaEsperada: Number(novaOp.eficienciaEsperada ?? 100),
     });
     if (!result.success) {
-      toast.error(result.error.errors[0]?.message ?? 'Preencha os campos obrigatórios.');
+      toast.error(result.error.issues[0]?.message ?? 'Preencha os campos obrigatórios.');
       return;
     }
     setOperacoes((prev) => [...prev, result.data]);

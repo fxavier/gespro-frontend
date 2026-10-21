@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X, ArrowDownToLine } from 'lucide-react';
@@ -58,7 +58,7 @@ export function EntradaStockForm({ produtos, localizacoes }: Props) {
   );
 
   const form = useForm<EntradaStockInput>({
-    resolver: zodResolver(EntradaStockSchema),
+    resolver: zodResolver(EntradaStockSchema) as unknown as Resolver<EntradaStockInput>,
     defaultValues: {
       produtoId: '',
       varianteProdutoId: undefined,

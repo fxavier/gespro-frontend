@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { VagaSchema } from '@/lib/validations/recrutamento';
 import type { VagaInput } from '@/lib/validations/recrutamento';
@@ -25,7 +26,7 @@ export function VagaForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const form = useForm<VagaInput>({
+  const form = useForm<z.input<typeof VagaSchema>, unknown, VagaInput>({
     resolver: zodResolver(VagaSchema),
     defaultValues: {
       numeroPosicoes: 1,

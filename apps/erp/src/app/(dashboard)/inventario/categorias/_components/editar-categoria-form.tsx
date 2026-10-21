@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -51,7 +51,7 @@ export function EditarCategoriaForm({ categoria }: EditarCategoriaFormProps) {
   );
 
   const form = useForm<CategoriaAtivoUpdate>({
-    resolver: zodResolver(CategoriaAtivoUpdateSchema),
+    resolver: zodResolver(CategoriaAtivoUpdateSchema) as unknown as Resolver<CategoriaAtivoUpdate>,
     defaultValues: {
       nome: categoria.nome,
       descricao: categoria.descricao ?? '',

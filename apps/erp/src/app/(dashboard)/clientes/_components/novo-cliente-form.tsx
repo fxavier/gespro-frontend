@@ -4,6 +4,7 @@ import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -69,7 +70,7 @@ export function NovoClienteForm() {
     null,
   );
 
-  const form = useForm<CreateClienteInput>({
+  const form = useForm<z.input<typeof CreateClienteSchema>, unknown, CreateClienteInput>({
     resolver: zodResolver(CreateClienteSchema),
     defaultValues: DEFAULT_VALUES,
     mode: 'onBlur',

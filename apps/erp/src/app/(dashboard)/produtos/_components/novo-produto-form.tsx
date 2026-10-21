@@ -3,7 +3,7 @@
 import { useActionState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -49,7 +49,7 @@ export function NovoProdutoForm({ categorias }: NovoProdutoFormProps) {
   );
 
   const form = useForm<ProdutoCreate>({
-    resolver: zodResolver(ProdutoCreateSchema),
+    resolver: zodResolver(ProdutoCreateSchema) as unknown as Resolver<ProdutoCreate>,
     defaultValues: {
       sku: '',
       nome: '',

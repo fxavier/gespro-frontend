@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -59,7 +59,7 @@ export function NovoAtivoForm({ categorias, localizacoes }: NovoAtivoFormProps) 
   );
 
   const form = useForm<AtivoCreate>({
-    resolver: zodResolver(AtivoCreateSchema),
+    resolver: zodResolver(AtivoCreateSchema) as unknown as Resolver<AtivoCreate>,
     defaultValues: DEFAULT_VALUES,
     mode: 'onBlur',
   });

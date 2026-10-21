@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { taxaIvaSchema } from '@/lib/iva';
-import { dinheiro, idEntidade, inicioDoDia, fimDoDia } from './common';
+import { dinheiro, idEntidade, inicioDoDia, fimDoDia, erroDeTipo, parcial } from './common';
 import { FORMAS_PAGAMENTO, type FormaPagamento } from '@/lib/meios-pagamento';
 
 // ---- Enums ----
@@ -139,7 +139,7 @@ export const CreateRequisicaoCompraSchema = z.object({
 
 export type CreateRequisicaoCompraInput = z.infer<typeof CreateRequisicaoCompraSchema>;
 
-export const UpdateRequisicaoCompraSchema = CreateRequisicaoCompraSchema.partial().omit({
+export const UpdateRequisicaoCompraSchema = parcial(CreateRequisicaoCompraSchema).omit({
   itens: true,
 });
 
@@ -249,7 +249,7 @@ export type RegistarRespostaCotacaoInput = z.infer<typeof RegistarRespostaCotaca
  */
 export const RegistarRespostaCotacaoFormSchema = z.object({
   prazoEntregaDias: z
-    .number({ invalid_type_error: 'Indique o prazo de entrega em dias' })
+    .number(erroDeTipo(undefined, 'Indique o prazo de entrega em dias'))
     .int('O prazo é um número inteiro de dias')
     .positive('O prazo tem de ser positivo'),
   condicoesPagamento: z.string().max(200).optional(),
@@ -258,7 +258,7 @@ export const RegistarRespostaCotacaoFormSchema = z.object({
       z.object({
         itemCotacaoId: z.string().cuid(),
         precoUnitario: z
-          .number({ invalid_type_error: 'Indique o preço unitário' })
+          .number(erroDeTipo(undefined, 'Indique o preço unitário'))
           .positive('O preço tem de ser positivo'),
       }),
     )

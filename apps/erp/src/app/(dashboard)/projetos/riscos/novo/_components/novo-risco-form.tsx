@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { erroDeTipo } from '@/lib/validations/common';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,9 +25,9 @@ const Schema = z.object({
   projetoId: z.string().min(1, 'Projecto obrigatório'),
   titulo: z.string().min(1, 'Título obrigatório').max(200),
   descricao: z.string().max(2000).optional(),
-  probabilidade: z.enum(['BAIXA', 'MEDIA', 'ALTA', 'MUITO_ALTA'], { required_error: 'Probabilidade obrigatória' }),
-  impacto: z.enum(['BAIXO', 'MEDIO', 'ALTO', 'MUITO_ALTO'], { required_error: 'Impacto obrigatório' }),
-  estrategiaResposta: z.enum(['EVITAR', 'MITIGAR', 'TRANSFERIR', 'ACEITAR'], { required_error: 'Estratégia obrigatória' }),
+  probabilidade: z.enum(['BAIXA', 'MEDIA', 'ALTA', 'MUITO_ALTA'], erroDeTipo('Probabilidade obrigatória')),
+  impacto: z.enum(['BAIXO', 'MEDIO', 'ALTO', 'MUITO_ALTO'], erroDeTipo('Impacto obrigatório')),
+  estrategiaResposta: z.enum(['EVITAR', 'MITIGAR', 'TRANSFERIR', 'ACEITAR'], erroDeTipo('Estratégia obrigatória')),
   planoMitigacao: z.string().max(5000).optional(),
 });
 

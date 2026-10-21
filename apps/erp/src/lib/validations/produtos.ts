@@ -2,6 +2,7 @@
 // Partilhado cliente/servidor. Nunca importar lógica server-only aqui.
 
 import { z } from 'zod';
+import { parcial } from './common';
 import { taxaIvaSchema } from '@/lib/iva';
 
 // ─── Categoria de Produto ─────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ export const CategoriaProdutoCreateSchema = z.object({
   ativo: z.boolean().default(true),
 });
 
-export const CategoriaProdutoUpdateSchema = CategoriaProdutoCreateSchema.partial();
+export const CategoriaProdutoUpdateSchema = parcial(CategoriaProdutoCreateSchema);
 
 export const CategoriaProdutoFilterSchema = z.object({
   search: z.string().optional(),
@@ -50,7 +51,7 @@ export const ProdutoCreateSchema = z.object({
   ativo: z.boolean().default(true),
 });
 
-export const ProdutoUpdateSchema = ProdutoCreateSchema.partial().omit({ sku: true });
+export const ProdutoUpdateSchema = parcial(ProdutoCreateSchema).omit({ sku: true });
 
 export const ProdutoFilterSchema = z.object({
   search: z.string().optional(),
@@ -78,7 +79,7 @@ export const VarianteProdutoCreateSchema = z.object({
   precoAdicional: z.coerce.number().default(0),
 });
 
-export const VarianteProdutoUpdateSchema = VarianteProdutoCreateSchema.partial().omit({
+export const VarianteProdutoUpdateSchema = parcial(VarianteProdutoCreateSchema).omit({
   produtoId: true,
 });
 

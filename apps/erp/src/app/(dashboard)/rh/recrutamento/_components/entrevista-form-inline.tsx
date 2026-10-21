@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { EntrevistaSchema } from '@/lib/validations/recrutamento';
 import type { EntrevistaInput } from '@/lib/validations/recrutamento';
@@ -28,7 +29,7 @@ export function EntrevistaFormInline({ candidaturaId }: EntrevistaFormInlineProp
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const form = useForm<EntrevistaInput>({
+  const form = useForm<z.input<typeof EntrevistaSchema>, unknown, EntrevistaInput>({
     resolver: zodResolver(EntrevistaSchema),
     defaultValues: {
       candidaturaId,

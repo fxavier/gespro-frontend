@@ -43,7 +43,7 @@ export default function NovaOrdemForm({ roteiros, produtosIniciais }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const form = useForm<FormData>({
+  const form = useForm<z.input<typeof Schema>, unknown, FormData>({
     resolver: zodResolver(Schema),
     defaultValues: {
       prioridade: 'MEDIA',

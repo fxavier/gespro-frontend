@@ -10,6 +10,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +50,7 @@ export default function NovoPayrollForm({ totalColaboradoresActivos }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const agora = new Date();
-  const form = useForm<ProcessarFolhaInput>({
+  const form = useForm<z.input<typeof ProcessarFolhaSchema>, unknown, ProcessarFolhaInput>({
     resolver: zodResolver(ProcessarFolhaSchema),
     defaultValues: {
       mes: agora.getMonth() + 1,

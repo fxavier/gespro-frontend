@@ -21,7 +21,7 @@
 
 import { startTransition, useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Save, X } from 'lucide-react';
@@ -139,7 +139,7 @@ export function CompromissoForm({ modo, id, defaults }: CompromissoFormProps) {
   }, null);
 
   const form = useForm<CriarCompromissoInput>({
-    resolver: zodResolver(CriarCompromissoSchema),
+    resolver: zodResolver(CriarCompromissoSchema) as unknown as Resolver<CriarCompromissoInput>,
     defaultValues: defaults
       ? {
           descricao: defaults.descricao,

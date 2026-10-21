@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
 import { toast } from 'sonner';
 import { AdmitirSchema } from '@/lib/validations/recrutamento';
 import type { AdmitirInput } from '@/lib/validations/recrutamento';
@@ -40,7 +41,7 @@ export function AdmitirForm({ candidaturaId, candidato, vaga }: AdmitirFormProps
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const form = useForm<AdmitirInput>({
+  const form = useForm<z.input<typeof AdmitirSchema>, unknown, AdmitirInput>({
     resolver: zodResolver(AdmitirSchema),
     defaultValues: {
       candidaturaId,
