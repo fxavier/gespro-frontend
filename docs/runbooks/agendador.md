@@ -72,9 +72,13 @@ segredo vem do gestor de segredos, nunca do repositório.
 Duas coisas a montar do lado da operação, porque o contentor local não as dá:
 
 1. **Alarme de corrida em falta.** Já existe regra para isto em
-   `infra/local/observabilidade/alerts/rules.yaml` — apontá-la ao ambiente real. Um agendador
-   silenciosamente parado é indistinguível de «não havia nada para fazer», e a diferença só
-   aparece quando um cliente reclama que ainda está a usar um trial de há três meses.
+   `infra/local/observabilidade/alerts/rules.yaml`; no IaC AWS são dois alarmes do
+   `infra/modules/monitoring` (#576), sobre os registos estruturados do `withApi`:
+   `AVISO-cron-falhou` (uma corrida respondeu ≥ 400 ou registou erro) e `AVISO-cron-em-falta`
+   (24 h sem nenhuma corrida com 200) — ver [`alertas-producao.md`](./alertas-producao.md). Um
+   agendador silenciosamente parado é indistinguível de «não havia nada para fazer», e a diferença
+   só aparece quando um cliente reclama que ainda está a usar um trial de há três meses. O
+   agendador em si ainda não existe no IaC (#572): até lá o `AVISO-cron-em-falta` está em ALARM.
 2. **Retentativa.** O `crond` local não tenta de novo: a próxima corrida é no dia seguinte. Como
    tudo é idempotente, um agendador com retentativa é estritamente melhor — use-a se o fornecedor
    a oferecer.

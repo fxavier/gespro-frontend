@@ -17,6 +17,24 @@
 locals {
   name_prefix = "${var.project}-${var.environment}"
   ecr_image   = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${local.name_prefix}:${var.image_tag}"
+
+  # Telemetria OTLP (ADR-0019 §1, #576). O destino é uma VARIÁVEL, não código: o
+  # fornecedor de telemetria de produção está adiado (ADR-0026 §5). Sem endpoint
+  # a app não arranca o SDK OTel (instrumentation-node.ts) e os registos JSON do
+  # logger (com redacção) continuam a chegar ao CloudWatch Logs pelo stdout do
+  # App Runner — é sobre eles que o módulo `monitoring` alarma.
+  # O endpoint não é segredo; os cabeçalhos (token do fornecedor) são — vêm da
+  # chave `headers` do segredo OTEL_CREDENTIALS, só quando há endpoint.
+  otel_ativo = var.otel_exporter_otlp_endpoint != null
+  otel_env = local.otel_ativo ? {
+    OTEL_EXPORTER_OTLP_ENDPOINT = var.otel_exporter_otlp_endpoint
+    OTEL_SERVICE_NAME           = "gespro-erp"
+    OTEL_SAMPLE_RATE            = tostring(var.otel_sample_rate)
+    OTEL_RESOURCE_ATTRIBUTES    = "deployment.environment=${var.environment}"
+  } : {}
+  otel_secrets = local.otel_ativo ? {
+    OTEL_EXPORTER_OTLP_HEADERS = "${var.otel_credentials_secret_arn}:headers::"
+  } : {}
 }
 
 # ------------------------------------------------------------------------------
@@ -202,7 +220,7 @@ resource "aws_apprunner_service" "main" {
         port = "3000"
 
         # Variáveis de ambiente não-sensíveis
-        runtime_environment_variables = {
+        runtime_environment_variables = merge({
           NODE_ENV       = "production"
           PORT           = "3000"
           NEXTAUTH_URL   = var.app_url
@@ -214,14 +232,14 @@ resource "aws_apprunner_service" "main" {
           STORAGE_DRIVER = "s3"
           S3_BUCKET      = var.s3_bucket_name
           S3_REGION      = var.aws_region
-        }
+        }, local.otel_env)
 
         # Segredos injectados do Secrets Manager em runtime.
         # Formato: ARN simples → valor string directo.
         # Formato: "${arn}:json-key::" → extrai a chave json-key do segredo JSON.
         # Permite que o código leia variáveis individuais (SMTP_HOST, etc.)
         # sem deserializar JSON — compatível com specs 13 (nodemailer) e 14 (OTel).
-        runtime_environment_secrets = {
+        runtime_environment_secrets = merge({
           # String secrets — injectados directamente
           DATABASE_URL = var.database_url_secret_arn
           AUTH_SECRET  = var.auth_secret_arn
@@ -233,12 +251,7 @@ resource "aws_apprunner_service" "main" {
           SMTP_USER     = "${var.smtp_credentials_secret_arn}:user::"
           SMTP_PASSWORD = "${var.smtp_credentials_secret_arn}:password::"
           SMTP_FROM     = "${var.smtp_credentials_secret_arn}:from::"
-
-          # OpenTelemetry — extrair chaves individuais do segredo JSON
-          # Formato Secrets Manager JSON: { endpoint, headers }
-          OTEL_EXPORTER_OTLP_ENDPOINT = "${var.otel_credentials_secret_arn}:endpoint::"
-          OTEL_EXPORTER_OTLP_HEADERS  = "${var.otel_credentials_secret_arn}:headers::"
-        }
+        }, local.otel_secrets)
       }
 
       image_identifier      = local.ecr_image

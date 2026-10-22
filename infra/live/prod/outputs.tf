@@ -24,6 +24,21 @@ output "s3_replica_bucket_name" {
   value       = module.storage.replica_bucket_name
 }
 
+output "alertas_sns_topic_arn" {
+  description = "Tópico SNS dos alertas (região principal) — o ensaio sintético publica/observa aqui"
+  value       = module.monitoring.sns_topic_arn
+}
+
+output "alertas_health_check_id" {
+  description = "Health check Route 53 sobre /api/ready (docs/runbooks/alertas-producao.md)"
+  value       = module.monitoring.health_check_id
+}
+
+output "app_log_group" {
+  description = "Grupo de registos da app no CloudWatch Logs"
+  value       = module.monitoring.log_group_name
+}
+
 output "rds_instance_id" {
   description = "Identificador da instância RDS — o que o instantâneo pré-migração usa (docs/runbooks/restauro-bd.md)"
   value       = module.rds.instance_id

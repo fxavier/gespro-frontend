@@ -7,6 +7,7 @@
 #   - App Runner: cpu=256, memory=512, min_size=1, max_size=2
 #   - Backups/PITR: 7 dias (prod: 35) — ADR-0020 §2
 #   - S3: sem Object Lock; réplica só se `replica_region` for dada
+#   - Alertas: só se `alert_email` for dada
 # ==============================================================================
 
 terraform {
@@ -33,6 +34,16 @@ provider "aws" {
 provider "aws" {
   alias  = "replica"
   region = coalesce(var.replica_region, var.aws_region)
+
+  default_tags {
+    tags = local.default_tags
+  }
+}
+
+# us-east-1: métricas dos health checks do Route 53 (modules/monitoring, #576).
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
 
   default_tags {
     tags = local.default_tags
@@ -152,6 +163,7 @@ module "app" {
   auth_secret_arn             = module.secrets.auth_secret_arn
   smtp_credentials_secret_arn = module.secrets.smtp_credentials_secret_arn
   otel_credentials_secret_arn = module.secrets.otel_credentials_secret_arn
+  otel_exporter_otlp_endpoint = var.otel_exporter_otlp_endpoint
 
   # Storage
   s3_bucket_name = module.storage.bucket_name
@@ -159,4 +171,27 @@ module "app" {
 
   app_url = var.app_url
   tags    = local.default_tags
+}
+
+# ------------------------------------------------------------------------------
+# Módulo: monitoring (#576) — opcional em dev: só com `alert_email`
+# ------------------------------------------------------------------------------
+module "monitoring" {
+  source = "../../modules/monitoring"
+  count  = var.alert_email == null ? 0 : 1
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  project     = local.project
+  environment = local.environment
+  alert_email = var.alert_email
+
+  apprunner_service_name = module.app.service_name
+  apprunner_service_id   = module.app.service_id
+  health_check_fqdn      = module.app.service_host
+
+  tags = local.default_tags
 }

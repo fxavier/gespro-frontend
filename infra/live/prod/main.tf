@@ -8,6 +8,7 @@
 #   - Backups/PITR: 35 dias (ADR-0020 §2), mantidos se a instância for apagada
 #   - skip_final_snapshot=false (snapshot obrigatório antes de destruir)
 #   - S3: Object Lock (conservação fiscal) + réplica em `replica_region`
+#   - Alertas: CloudWatch + SNS para `alert_email` (modules/monitoring, #576)
 # ==============================================================================
 
 terraform {
@@ -33,6 +34,16 @@ provider "aws" {
 provider "aws" {
   alias  = "replica"
   region = var.replica_region
+
+  default_tags {
+    tags = local.default_tags
+  }
+}
+
+# us-east-1: onde o Route 53 publica as métricas dos health checks (#576).
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
 
   default_tags {
     tags = local.default_tags
@@ -159,10 +170,35 @@ module "app" {
   smtp_credentials_secret_arn = module.secrets.smtp_credentials_secret_arn
   otel_credentials_secret_arn = module.secrets.otel_credentials_secret_arn
 
+  # Telemetria OTLP (ADR-0019 §1, #576) — null até haver destino escolhido
+  otel_exporter_otlp_endpoint = var.otel_exporter_otlp_endpoint
+
   # Storage
   s3_bucket_name = module.storage.bucket_name
   s3_bucket_arn  = module.storage.bucket_arn
 
   app_url = var.app_url
   tags    = local.default_tags
+}
+
+# ------------------------------------------------------------------------------
+# Módulo: monitoring (alarmes CloudWatch + SNS, #576)
+# ------------------------------------------------------------------------------
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  project     = local.project
+  environment = local.environment
+  alert_email = var.alert_email
+
+  apprunner_service_name = module.app.service_name
+  apprunner_service_id   = module.app.service_id
+  health_check_fqdn      = module.app.service_host
+
+  tags = local.default_tags
 }

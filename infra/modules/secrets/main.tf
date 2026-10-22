@@ -123,8 +123,11 @@ resource "aws_secretsmanager_secret_version" "smtp_credentials" {
 }
 
 # ------------------------------------------------------------------------------
-# OTEL_CREDENTIALS — endpoint e headers para OpenTelemetry (spec 14)
-# Formato JSON: { "endpoint": "...", "headers": "..." }
+# OTEL_CREDENTIALS — cabeçalhos de autenticação OTLP (spec 14, #576)
+# Formato JSON: { "headers": "..." }. Só a chave `headers` é lida pela app
+# (OTEL_EXPORTER_OTLP_HEADERS). O endpoint deixou de viver aqui: é a variável
+# `otel_exporter_otlp_endpoint` do modules/app — não é segredo, e um placeholder
+# não vazio aqui ligava o SDK a um destino inexistente.
 # ------------------------------------------------------------------------------
 resource "aws_secretsmanager_secret" "otel_credentials" {
   name        = "${local.name_prefix}/OTEL_CREDENTIALS"
@@ -139,8 +142,7 @@ resource "aws_secretsmanager_secret" "otel_credentials" {
 resource "aws_secretsmanager_secret_version" "otel_credentials" {
   secret_id = aws_secretsmanager_secret.otel_credentials.id
   secret_string = jsonencode({
-    endpoint = "PLACEHOLDER — ex: https://otel.example.com:4318"
-    headers  = "PLACEHOLDER — ex: Authorization=Bearer xxx"
+    headers = "PLACEHOLDER — ex: Authorization=Bearer xxx"
   })
 
   lifecycle {
