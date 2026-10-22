@@ -54,6 +54,26 @@
 - A conta de serviço do `gespro-erp` tem `view-users`/`manage-users`: é com ela
   que o ERP provisiona utilizadores (registo público e convites — ADR-0013 §2 e
   §5-bis) e dispara o `execute-actions-email`.
+- **Eventos (#54, adenda ao ADR-0011)** — a metade de autenticação do trilho de
+  auditoria. A omissão do Keycloak é *desligado*, por isso as chaves vivem aqui:
+  - `eventsEnabled: true` com `enabledEventTypes` limitado a autenticação e
+    credenciais (login/logout e erros, `CODE_TO_TOKEN`, `CLIENT_LOGIN` da conta
+    de serviço, palavra-passe, verificação de e-mail, `REFRESH_TOKEN_ERROR`).
+    Sem a lista, o Keycloak guardaria quase todos os tipos.
+  - `eventsExpiration: 7776000` — 90 dias, em segundos.
+  - `adminEventsEnabled: true` e `adminEventsDetailsEnabled: false` — regista
+    quem escreveu o quê e onde (incluindo a conta de serviço do ERP), **sem** o
+    corpo do pedido (dados pessoais).
+  - Listener `jboss-logging` mantido. Os eventos ficam no Postgres do
+    Keycloak; a exportação para a pilha OTLP é trabalho futuro.
+  - O teste `apps/erp/src/server/auth/__tests__/realm-eventos.test.ts` falha
+    se as chaves desaparecerem ou se os detalhes de admin forem ligados.
+  - Num Keycloak local que já importou o realm, aplica-se pela Admin API (o
+    import não corre de novo): `PUT /admin/realms/gespro/events/config` com
+    `eventsEnabled`, `eventsExpiration`, `eventsListeners`, `enabledEventTypes`,
+    `adminEventsEnabled` e `adminEventsDetailsEnabled` copiados deste ficheiro
+    (token de `admin-cli` no realm `master`). Consulta:
+    `GET /admin/realms/gespro/events` e `/admin-events`.
 
 ## themes/gespro
 

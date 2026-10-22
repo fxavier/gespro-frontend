@@ -169,7 +169,47 @@ código que a impõe).
   actualizar o `updatedAt`. Nada muda para o administrador do tenant.
 - **Auditoria de acesso fica repartida** — autenticação no Keycloak, autorização no `AuditLog`. É
   aceitável e até desejável: são dois trilhos com retenções e audiências diferentes. O ADR-0015 fixa
-  o lado do negócio; a correlação entre os dois faz-se pelo `keycloakSub`.
+  o lado do negócio; a correlação entre os dois faz-se pelo `keycloakSub`. *(Até 2026-10-22 esta
+  metade não existia — ver a adenda #54, a seguir.)*
+- **Adenda (#54, 2026-10-22) — proposta, a aceitar por humano.**
+  - **O que estava errado.** O ponto anterior afirmava que o Keycloak auditava a autenticação, e não
+    auditava: o realm não definia `eventsEnabled` nem `adminEventsEnabled`, ambos desligados por
+    omissão. Confirmado na pilha local (Keycloak 26.7.0) pela Admin REST API: `events/config` com os
+    dois a `false`, `/events` e `/admin-events` vazios.
+  - **O que passa a existir**, definido em `infra/keycloak/realm-gespro.json` (não na consola — um
+    realm reimportado não pode perder a definição; trancado por
+    `apps/erp/src/server/auth/__tests__/realm-eventos.test.ts`):
+    - `eventsEnabled: true`, só com os tipos de **autenticação e credenciais**: `LOGIN`, `LOGIN_ERROR`,
+      `LOGOUT`, `LOGOUT_ERROR`, `CODE_TO_TOKEN`, `CODE_TO_TOKEN_ERROR`, `CLIENT_LOGIN`,
+      `CLIENT_LOGIN_ERROR`, `UPDATE_PASSWORD`, `UPDATE_PASSWORD_ERROR`, `RESET_PASSWORD`,
+      `RESET_PASSWORD_ERROR`, `SEND_RESET_PASSWORD`, `SEND_VERIFY_EMAIL`, `VERIFY_EMAIL`,
+      `REFRESH_TOKEN_ERROR`. Porquê esta lista: responde a «quem entrou, quem foi recusado, quem mudou
+      de credencial, e quando a conta de serviço do ERP pediu token» (`CLIENT_LOGIN`). Fica de fora o
+      `REFRESH_TOKEN` com sucesso — com a re-resolução de 15 minutos do §3 seria a maior parte do volume
+      e não diz nada que o `LOGIN` não diga; o erro de renovação fica, porque é o sinal de sessão cortada.
+      Sem a lista, o Keycloak guardaria quase uma centena de tipos por omissão.
+    - `eventsExpiration: 7776000` — **90 dias**. Chega para investigar um incidente ou uma tentativa de
+      intrusão dentro de um trimestre; não é o trilho de conservação legal. A obrigação de dez anos do
+      ADR-0015 é sobre documentos fiscais e o que se fez a eles, e esse trilho é o `AuditLog`, que
+      guarda o `userId` (correlacionável pelo `keycloakSub`). Guardar inícios de sessão durante dez anos
+      seria reter dados pessoais sem finalidade que o justifique.
+    - `adminEventsEnabled: true` com **`adminEventsDetailsEnabled: false`**: fica registado quem
+      (cliente/utilizador), o quê (operação e tipo de recurso) e sobre que caminho
+      (`users/<id>`) — as escritas `manage-users` da conta de serviço do `gespro-erp` incluídas —, mas
+      não o corpo do pedido, que traz nome, e-mail e atributos da pessoa. Os detalhes duplicariam dados
+      pessoais num segundo armazenamento, com outra retenção, sem necessidade.
+    - O listener `jboss-logging` mantém-se (os eventos também saem no log do contentor).
+  - **Onde ficam.** No Postgres do próprio Keycloak (base `keycloak`, mesma instância — ADR-0012),
+    consultáveis na consola e pela Admin API (`/admin/realms/gespro/events` e `/admin-events`). Não vão
+    para a pilha OTLP do ADR-0019 (revisto pelo ADR-0026): exportá-los para lá, ou para um armazenamento
+    de retenção mais longa, é trabalho futuro e decide-se em ADR próprio se algum dia for preciso.
+  - **Prova** (2026-10-22, pilha local): depois de aplicar a configuração, um `LOGIN` e um
+    `LOGIN_ERROR` (`invalid_user_credentials`) por password grant do `gespro-erp`, um `CLIENT_LOGIN`
+    (`client_credentials`) e um `UPDATE USER` em `/admin-events` com `authDetails.clientId` = o cliente
+    `gespro-erp` e sem representação.
+  - **Realms que já existem** não reimportam o ficheiro (o `--import-realm` salta um realm presente):
+    aplica-se com `PUT /admin/realms/gespro/events/config` e os mesmos valores — ver
+    `infra/keycloak/README.md`.
 - **Evolução prevista:** se algum dia existir um segundo serviço que precise de autorizar contra as
   mesmas permissões, a saída não é mover o catálogo para o Keycloak — é publicar um endpoint de
   decisão no ERP, que continua dono da regra. Registar-se-á em ADR próprio.
