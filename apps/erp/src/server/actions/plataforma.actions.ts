@@ -5,7 +5,8 @@
  * Leituras: Server Components chamam os serviços directamente.
  *
  * Permissões:
- *   core_tenancy:configurar — gestão de tenants (plataforma)
+ *   plataforma: true        — gestão de tenants (administrador de plataforma, #41)
+ *   core_tenancy:configurar — dados/configuração fiscal do PRÓPRIO tenant
  *   admin:gerir_utilizadores — CRUD de utilizadores do tenant
  *   admin:gerir_roles       — CRUD de papéis/permissões
  *   admin:ver_auditoria     — sem acções de escrita (só leitura)
@@ -28,42 +29,46 @@ import {
 } from '@/lib/validations/plataforma';
 
 // ---------------------------------------------------------------------------
-// Gestão de Tenants — permissão: core_tenancy:configurar (plataforma admin)
+// Gestão de Tenants — só o administrador de plataforma (ADR-0049 §5, #41).
+// `plataforma: true`: sessão SEM tenant e com o papel `plataforma-admin`; a qualquer
+// sessão de tenant (o ADMIN inclusive, que tem `core_tenancy:configurar`) responde
+// NAO_ENCONTRADO. O autor (`sub` do Keycloak) fica no trilho `AuditoriaPlataforma`.
 // ---------------------------------------------------------------------------
 
 export const criarTenant = createSafeAction({
+  plataforma: true,
   schema: CreateTenantSchema,
-  permission: 'core_tenancy:configurar',
   revalidate: { tags: ['tenants'] },
-  handler: async (input, _ctx) => tenantAdminService.criar(input),
+  handler: async (input, ctx) => tenantAdminService.criar(input, { keycloakSub: ctx.userId }),
 });
 
 export const actualizarTenant = createSafeAction({
+  plataforma: true,
   schema: z.object({
     id: z.string().cuid('ID de tenant inválido'),
     data: UpdateTenantSchema,
   }),
-  permission: 'core_tenancy:configurar',
   revalidate: { tags: ['tenants'] },
-  handler: async ({ id, data }, _ctx) => tenantAdminService.actualizar(id, data),
+  handler: async ({ id, data }, ctx) =>
+    tenantAdminService.actualizar(id, data, { keycloakSub: ctx.userId }),
 });
 
 export const desactivarTenant = createSafeAction({
+  plataforma: true,
   schema: z.object({ id: z.string().cuid('ID de tenant inválido') }),
-  permission: 'core_tenancy:configurar',
   revalidate: { tags: ['tenants'] },
-  handler: async ({ id }, _ctx) => {
-    await tenantAdminService.desactivar(id);
+  handler: async ({ id }, ctx) => {
+    await tenantAdminService.desactivar(id, { keycloakSub: ctx.userId });
     return { id };
   },
 });
 
 export const reactivarTenant = createSafeAction({
+  plataforma: true,
   schema: z.object({ id: z.string().cuid('ID de tenant inválido') }),
-  permission: 'core_tenancy:configurar',
   revalidate: { tags: ['tenants'] },
-  handler: async ({ id }, _ctx) => {
-    await tenantAdminService.reactivar(id);
+  handler: async ({ id }, ctx) => {
+    await tenantAdminService.reactivar(id, { keycloakSub: ctx.userId });
     return { id };
   },
 });

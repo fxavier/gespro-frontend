@@ -1,5 +1,6 @@
 import 'server-only';
 import type { Page } from '@/server/db/paginate';
+import type { PlataformaCtx } from './plano-admin.service';
 import type {
   CreateTenantInput,
   UpdateTenantInput,
@@ -61,7 +62,8 @@ export interface Ctx {
 /**
  * ITenantAdminService — operações de plataforma sobre tenants.
  *
- * Permissão necessária: `plataforma:admin` (utilizador PLATFORM_ADMIN).
+ * Só o administrador de plataforma (`createSafeAction({ plataforma: true })`, #41) chama
+ * `criar`/`actualizar`/`desactivar`/`reactivar`, e passa `autor` para o trilho `AuditoriaPlataforma`.
  * Estas operações NÃO usam TenantContext — operam sobre o prismaBase
  * sem isolamento de tenant, uma vez que gerem a própria lista de tenants.
  *
@@ -85,13 +87,13 @@ export interface ITenantAdminService {
    * O slug é validado como único; o nuit é validado e único em Tenant.
    * Lança `BusinessRuleError('TENANT_DUPLICADO')` se slug ou nuit já existirem.
    */
-  criar(input: CreateTenantInput): Promise<TenantRow>;
+  criar(input: CreateTenantInput, autor?: PlataformaCtx): Promise<TenantRow>;
 
   /**
    * Actualiza dados do Tenant e/ou da ConfiguracaoFiscal.
    * Slug e NUIT são imutáveis após criação — quaisquer valores enviados são ignorados.
    */
-  actualizar(tenantId: string, input: UpdateTenantInput): Promise<TenantRow>;
+  actualizar(tenantId: string, input: UpdateTenantInput, autor?: PlataformaCtx): Promise<TenantRow>;
 
   /**
    * Actualiza apenas a ConfiguracaoFiscal de um tenant.
@@ -118,11 +120,11 @@ export interface ITenantAdminService {
    * Impede login de todos os utilizadores do tenant (auth.ts verifica deletedAt).
    * Lança `BusinessRuleError('TENANT_JA_INATIVO')` se já inactivo.
    */
-  desactivar(tenantId: string): Promise<void>;
+  desactivar(tenantId: string, autor?: PlataformaCtx): Promise<void>;
 
   /**
    * Reactiva um tenant desactivado: limpa deletedAt e statusAtivo=true.
    * Lança `BusinessRuleError('TENANT_JA_ATIVO')` se já activo.
    */
-  reactivar(tenantId: string): Promise<void>;
+  reactivar(tenantId: string, autor?: PlataformaCtx): Promise<void>;
 }
