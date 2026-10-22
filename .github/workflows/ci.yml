@@ -303,9 +303,20 @@ jobs:
       - name: Wait for Postgres + Keycloak health
         # Não usa `up --wait`: o one-shot db-init sai com 0 e algumas versões
         # do compose tratam qualquer saída como falha. Espera pelos healthchecks.
+        # Comparação EXACTA (#614): `grep -q healthy` também casa com
+        # «unhealthy», e um Keycloak morto deixava o passo verde.
         run: |
-          timeout 120 bash -c 'until docker inspect -f "{{.State.Health.Status}}" gespro-db 2>/dev/null | grep -q healthy; do sleep 3; done'
-          timeout 300 bash -c 'until docker inspect -f "{{.State.Health.Status}}" gespro-keycloak 2>/dev/null | grep -q healthy; do sleep 3; done'
+          timeout 120 bash -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" gespro-db 2>/dev/null)" = healthy ]; do sleep 3; done'
+          timeout 300 bash -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" gespro-keycloak 2>/dev/null)" = healthy ]; do sleep 3; done'
+          docker compose ps -a
+          curl -sS --fail --max-time 10 http://localhost:8081/realms/gespro/.well-known/openid-configuration -o /dev/null -w 'realm gespro: HTTP %{http_code}\n'
+
+      - name: Keycloak logs (diagnóstico)
+        if: always()
+        run: |
+          docker compose ps -a
+          docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{.State.Health.Status}}' gespro-keycloak || true
+          docker logs --tail 150 gespro-keycloak 2>&1 || true
 
       - name: Apply DB migrations
         working-directory: apps/erp
@@ -383,9 +394,20 @@ jobs:
       - name: Wait for Postgres + Keycloak health
         # Não usa `up --wait`: o one-shot db-init sai com 0 e algumas versões
         # do compose tratam qualquer saída como falha. Espera pelos healthchecks.
+        # Comparação EXACTA (#614): `grep -q healthy` também casa com
+        # «unhealthy», e um Keycloak morto deixava o passo verde.
         run: |
-          timeout 120 bash -c 'until docker inspect -f "{{.State.Health.Status}}" gespro-db 2>/dev/null | grep -q healthy; do sleep 3; done'
-          timeout 300 bash -c 'until docker inspect -f "{{.State.Health.Status}}" gespro-keycloak 2>/dev/null | grep -q healthy; do sleep 3; done'
+          timeout 120 bash -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" gespro-db 2>/dev/null)" = healthy ]; do sleep 3; done'
+          timeout 300 bash -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" gespro-keycloak 2>/dev/null)" = healthy ]; do sleep 3; done'
+          docker compose ps -a
+          curl -sS --fail --max-time 10 http://localhost:8081/realms/gespro/.well-known/openid-configuration -o /dev/null -w 'realm gespro: HTTP %{http_code}\n'
+
+      - name: Keycloak logs (diagnóstico)
+        if: always()
+        run: |
+          docker compose ps -a
+          docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{.State.Health.Status}}' gespro-keycloak || true
+          docker logs --tail 150 gespro-keycloak 2>&1 || true
 
       - name: Apply DB migrations
         working-directory: apps/erp

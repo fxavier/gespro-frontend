@@ -26,10 +26,10 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
+import { IMAGEM_MINIO } from './imagens';
 
 const skip = process.env.SKIP_INTEGRATION === 'true';
 
-const IMAGEM_MINIO = 'minio/minio:RELEASE.2025-09-07T16-13-09Z';
 const UTILIZADOR = 'oraculo430';
 const SENHA = 'oraculo430-minio-efemero';
 const BUCKET = 'gespro-uploads-430';
