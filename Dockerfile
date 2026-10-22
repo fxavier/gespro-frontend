@@ -10,7 +10,7 @@
 #   - Sem segredos na imagem (DATABASE_URL e outros injectados em runtime).
 #   - A imagem traz a CLI do Prisma, mas o arranque NÃO migra (#574): as
 #     migrações são um passo único antes do deploy — `docker-entrypoint.sh
-#     migrar` (preDeployCommand do Railway, apps/erp/railway.json). Só com
+#     migrar` (pre-deploy do Railway, .railway/railway.ts). Só com
 #     MIGRAR_NO_ARRANQUE=1 (pilha local) o entrypoint migra antes do servidor.
 #     Nunca `migrate dev`.
 #   - HEALTHCHECK aponta para GET /api/health (liveness, sem auth).
@@ -77,6 +77,12 @@ RUN mkdir -p apps/erp/public
 # NODE_OPTIONS aumenta heap para a verificação TypeScript de projectos grandes
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+# NEXT_PUBLIC_* é inlinada no bundle no BUILD; em runtime já não conta. A
+# site key do Turnstile (pública por natureza) chega como build arg. O Railway
+# passa ao build as variáveis do serviço que o Dockerfile declare como ARG.
+# Vazia, o widget do /registo não carrega e o registo público é recusado.
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=""
+ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 RUN pnpm --filter erp build
 
 # O output standalone não inclui a CLI do Prisma (não é importada em runtime),

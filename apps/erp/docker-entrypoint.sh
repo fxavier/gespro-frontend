@@ -6,8 +6,8 @@
 #                     MIGRAR_NO_ARRANQUE=1 — bandeira da pilha local
 #                     (docker-compose.yml, perfil `full`), nunca de produção.
 #   migrar            aplica as migrations pendentes e sai. É o passo único de
-#                     pre-deploy (Railway: `preDeployCommand` em
-#                     apps/erp/railway.json), que corre UMA vez, antes de a versão
+#                     pre-deploy (Railway: `preDeploy` do serviço `erp` em
+#                     .railway/railway.ts), que corre UMA vez, antes de a versão
 #                     nova receber tráfego, e falha o deploy se falhar.
 #   <comando…>        corre-o (ex.: `node -v` no CI). É também o que garante o
 #                     `migrar` se a plataforma passar o preDeployCommand como

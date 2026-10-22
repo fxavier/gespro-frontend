@@ -543,7 +543,7 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────────
   # 8b. IMAGEM DE PRODUÇÃO (Dockerfile) — #577, #574
-  #    Constrói a MESMA imagem que o Railway constrói (apps/erp/railway.json),
+  #    Constrói a MESMA imagem que o Railway constrói (.railway/railway.ts),
   #    sem push nem segredos, e prova-a contra um Postgres de serviço:
   #      1. `node -v` da imagem = NODE_VERSION deste ficheiro;
   #      2. o arranque sem MIGRAR_NO_ARRANQUE não migra (base fica vazia);

@@ -16,8 +16,8 @@ todos os serviços e bases.
 
 | Serviço | O que é | Domínio público | Na rede privada | Definido em |
 |---|---|---|---|---|
-| `erp` | ERP (imagem do `Dockerfile` da raiz) | `app.<domínio>` | `erp.railway.internal:3000` | nó do ERP (fora deste runbook) |
-| `erp-db` | Postgres do ERP, com PITR | — | `PGHOST` do serviço | idem |
+| `erp` | ERP (imagem do `Dockerfile` da raiz), 2 réplicas, migrações em pre-deploy | `app.<domínio>` | `erp.railway.internal:3000` | `.railway/railway.ts` |
+| `erp-db` | Postgres do ERP, com PITR | — | `PGHOST` do serviço | `.railway/railway.ts` |
 | `keycloak` | Keycloak 26.7.0, `start --optimized`, tema `gespro` | **nenhum** | `keycloak.railway.internal:8080` (HTTP) e `:9000` (gestão) | `servicos.ts` |
 | `keycloak-db` | Postgres próprio do Keycloak, com PITR | — | `PGHOST` do serviço | `servicos.ts` |
 | `keycloak-borda` | Caddy: só deixa passar `/realms/gespro/*` e `/resources/*` | `auth.<domínio>` | — | `servicos.ts` |
@@ -45,27 +45,26 @@ substituto é um ficheiro de projecto, `.railway/railway.ts`, avaliado pela CLI
 
 `infra/railway/servicos.ts` é um **módulo** desse ficheiro: exporta `servicosDeApoio()` (Keycloak,
 base, borda, Valkey + as variáveis que o ERP tem de receber, `envErp`) e `agendador()` (os cinco
-crons, que precisam do serviço do ERP para lhe ler o domínio privado). O `.railway/railway.ts` da
-raiz junta-os ao ERP:
+crons, que precisam do serviço do ERP para lhe ler o domínio privado). O
+[`.railway/railway.ts`](../../.railway/railway.ts) da raiz junta-os ao ERP e à sua base (`erp-db`).
 
-```ts
-import { defineRailway, postgres, service } from "railway/iac";
-import { agendador, REGIAO, servicosDeApoio } from "../infra/railway/servicos";
+O serviço `erp` declara:
+- build pelo `Dockerfile` da raiz, com `checkSuites: true` (só faz deploy de commits com os checks
+  do GitHub verdes);
+- `preDeploy: /app/docker-entrypoint.sh migrar`, com tecto de 900 s (#574). As migrações correm uma
+  vez, antes de trocar o tráfego, e a imagem já não migra no arranque;
+- `healthcheck: /api/ready` (120 s). O Railway só sonda no deploy, e o `/api/ready` faz `SELECT 1`;
+- 2 réplicas em `europe-west4-drams3a`, `ON_FAILURE`, `drainingSeconds: 30`;
+- o domínio `app.<domínio>` e `privateNetworkEndpoint: erp`;
+- as variáveis de §Variáveis do ERP, só por nome ou referência, nunca com valor.
 
-export default defineRailway((ctx, project) => {
-  const apoio = servicosDeApoio({ ctx, dominioAuth: "auth.<domínio>", urlErp: "https://app.<domínio>" });
-  const erpDb = postgres("erp-db", { region: REGIAO });
-  const erp = service("erp", {
-    /* fonte, build, healthcheck, preDeploy: nó do ERP */
-    env: { DATABASE_URL: erpDb.env.DATABASE_URL, ...apoio.envErp, /* restantes: §Variáveis do ERP */ },
-  });
-  return project("gespro", { resources: [erpDb, erp, ...apoio.recursos, ...agendador({ ctx, erp })] });
-});
-```
+Há três constantes **[HUMANO]** no topo do ficheiro, os domínios (`DOMINIO_APP`, `DOMINIO_AUTH`,
+`URL_SITE`). Confirma-as antes do primeiro `plan`.
 
-Requer a CLI do Railway **≥ 5.42.1** e o pacote `railway` (`npm install railway`; ensaiado com
-3.16.0) disponível onde o plano corre. O `.railway/railway.ts` da raiz e a dependência ficam com
-quem junta o ERP — este nó só entrega o módulo.
+Requer a CLI do Railway **≥ 5.42.1** e o pacote `railway` (ensaiado com 3.16.0) disponível onde o
+plano corre. **[HUMANO]** O pacote **ainda não** é dependência do repositório. Antes do primeiro
+`plan`: `pnpm add -Dw railway@3.16.0` (versão exacta), ou correr o plano a partir de uma cópia com o
+pacote instalado.
 
 Segredos **nunca** no ficheiro: ou variáveis **partilhadas** do ambiente (`ctx.shared.X` compila
 para `${{shared.X}}` — referencia, não cria), ou `preserve()` («mantém o valor que já lá está»),
@@ -96,6 +95,12 @@ postos à mão. Por isso o primeiro `apply` vem **depois** de criar as variávei
    - `keycloak`: `KC_BOOTSTRAP_ADMIN_USERNAME` (ex.: `admin-temporario`) e
      `KC_BOOTSTRAP_ADMIN_PASSWORD` (`openssl rand -hex 24`). São do administrador **temporário** do
      realm `master` — apagado no passo 9.
+   - `erp`: `AUTH_SECRET`, `METRICS_SECRET`, `EMAIL_VERIFY_SECRET` (`openssl rand -hex 32`),
+     `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CAPTCHA_SECRET_KEY`,
+     `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `S3_BUCKET`, `S3_REGION`, `AWS_ACCESS_KEY_ID`,
+     `AWS_SECRET_ACCESS_KEY`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` — origem
+     em §Variáveis do ERP. A `NEXT_PUBLIC_TURNSTILE_SITE_KEY` entra no **build** (é `ARG` do
+     `Dockerfile`): mudá-la exige um redeploy com build, não basta reiniciar.
    - `cron-*`: `CRON_HEARTBEAT_URL` — a URL de batimento de cada rota no monitor externo
      (§Alertas). Vazia, o cron corre na mesma e não avisa ninguém.
 6. **[HUMANO] PITR nas duas bases**: `erp-db` e `keycloak-db` → separador **Backups** → *Enable
