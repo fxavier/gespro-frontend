@@ -311,13 +311,6 @@ jobs:
           docker compose ps -a
           curl -sS --fail --max-time 10 http://localhost:8081/realms/gespro/.well-known/openid-configuration -o /dev/null -w 'realm gespro: HTTP %{http_code}\n'
 
-      - name: Keycloak logs (diagnóstico)
-        if: always()
-        run: |
-          docker compose ps -a
-          docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{.State.Health.Status}}' gespro-keycloak || true
-          docker logs --tail 150 gespro-keycloak 2>&1 || true
-
       - name: Apply DB migrations
         working-directory: apps/erp
         run: npx prisma migrate deploy
@@ -337,6 +330,14 @@ jobs:
       - name: Run E2E tests
         # O playwright.config.ts tem webServer que inicia pnpm dev automaticamente
         run: pnpm e2e
+
+      - name: Keycloak logs (diagnóstico, só em falha)
+        # #614: o Keycloak morria no import do realm e ninguém via porquê.
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{.State.Health.Status}}' gespro-keycloak || true
+          docker logs --tail 150 gespro-keycloak 2>&1 || true
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v7
@@ -402,13 +403,6 @@ jobs:
           docker compose ps -a
           curl -sS --fail --max-time 10 http://localhost:8081/realms/gespro/.well-known/openid-configuration -o /dev/null -w 'realm gespro: HTTP %{http_code}\n'
 
-      - name: Keycloak logs (diagnóstico)
-        if: always()
-        run: |
-          docker compose ps -a
-          docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{.State.Health.Status}}' gespro-keycloak || true
-          docker logs --tail 150 gespro-keycloak 2>&1 || true
-
       - name: Apply DB migrations
         working-directory: apps/erp
         run: npx prisma migrate deploy
@@ -437,6 +431,14 @@ jobs:
         #      turbo) ⇒ prerender de /en/contacto rebenta em useContext null.
         # O axe do site continua a correr — no job `site`, com o seu ambiente.
         run: pnpm e2e:a11y:erp
+
+      - name: Keycloak logs (diagnóstico, só em falha)
+        # #614: o Keycloak morria no import do realm e ninguém via porquê.
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{.State.Health.Status}}' gespro-keycloak || true
+          docker logs --tail 150 gespro-keycloak 2>&1 || true
 
       - name: Upload axe report
         uses: actions/upload-artifact@v7

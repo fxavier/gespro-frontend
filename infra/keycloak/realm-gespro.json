@@ -61,7 +61,7 @@
     "realm": [
       {
         "name": "plataforma-admin",
-        "description": "Administrador geral do sistema — pessoal da GestPro (ADR-0011 §5, #525): dá acesso à área /plataforma do ERP (planos de subscrição) e à consola de identidade. NÃO dá acesso aos dados de nenhum cliente. Sem correspondência em Postgres: quem o tem e não tem User de tenant entra numa sessão sem tenant."
+        "description": "Administrador de plataforma — pessoal da GestPro (ADR-0011 §5, #525): área /plataforma do ERP e consola de identidade. NÃO dá acesso aos dados de nenhum cliente. Sem User de tenant, a sessão abre sem tenant."
       }
     ]
   },
