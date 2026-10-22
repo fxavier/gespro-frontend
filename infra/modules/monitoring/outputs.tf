@@ -14,8 +14,8 @@ output "health_check_id" {
 }
 
 output "log_group_name" {
-  description = "Grupo de registos da aplicação no CloudWatch Logs (criado pelo App Runner)"
-  value       = local.log_group
+  description = "Grupo de registos da aplicação no CloudWatch Logs (declarado aqui com retenção; importar se o App Runner o criar primeiro)"
+  value       = aws_cloudwatch_log_group.app.name
 }
 
 output "alarmes" {
@@ -32,7 +32,7 @@ output "alarmes" {
 }
 
 output "filtros" {
-  description = "Padrões dos filtros de métrica sobre os registos (o teste confere-os contra o formato do logger)"
+  description = "Padrões dos filtros de métrica e caminho sondado. Expostos só para a trava de wiring do live/prod; o contrato com o formato do logger está do lado da app (apps/erp/src/lib/api/__tests__/with-api-linha-log-576.test.ts)."
   value = {
     cron_falhou   = aws_cloudwatch_log_metric_filter.cron_falhou.pattern
     cron_sucesso  = aws_cloudwatch_log_metric_filter.cron_sucesso.pattern

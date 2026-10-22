@@ -4,9 +4,14 @@
 #   terraform -chdir=infra/live/prod init -backend=false
 #   terraform -chdir=infra/live/prod test
 #
-# Fornecedor dobrado: prova o que o plano pede (canal, sonda, janelas, padrões),
-# não que um alerta chega. Isso é o ensaio sintético [HUMANO] de
-# docs/runbooks/alertas-producao.md.
+# Fornecedor dobrado: prova o que o plano pede, não que um alerta chega. Isso é
+# o ensaio sintético [HUMANO] de docs/runbooks/alertas-producao.md.
+#
+# Aqui é só a trava de WIRING (o live/prod liga o módulo e os nomes dizem a
+# severidade), por outputs. Os asserts sobre os recursos (sonda, janelas,
+# retenção, guarda de volume, filtros sobre o grupo) estão em
+# infra/modules/monitoring/tests/; o contrato filtros↔logger está do lado da app,
+# em apps/erp/src/lib/api/__tests__/with-api-linha-log-576.test.ts.
 # ==============================================================================
 
 mock_provider "aws" {
@@ -66,30 +71,3 @@ run "sete_alarmes_com_severidade_no_nome" {
   }
 }
 
-run "sonda_api_ready" {
-  command = plan
-
-  assert {
-    condition     = module.monitoring.filtros.ready_caminho == "/api/ready"
-    error_message = "O health check sonda /api/ready (readiness com SELECT 1), não /api/health."
-  }
-}
-
-run "filtros_de_cron_seguem_o_formato_do_withApi" {
-  command = plan
-
-  assert {
-    condition     = strcontains(module.monitoring.filtros.cron_falhou, "$.url = \"/api/cron/*\"") && strcontains(module.monitoring.filtros.cron_falhou, "$.status >= 400")
-    error_message = "A falha de cron lê `url` e `status` da linha «request end» do withApi."
-  }
-
-  assert {
-    condition     = strcontains(module.monitoring.filtros.cron_sucesso, "$.msg = \"request end\"") && strcontains(module.monitoring.filtros.cron_sucesso, "$.status = 200")
-    error_message = "O sucesso de cron é a linha «request end» com status 200."
-  }
-
-  assert {
-    condition     = module.monitoring.filtros.erros_logger == "{ $.level = \"error\" }"
-    error_message = "Erros inesperados = linhas `level: error` do logger."
-  }
-}

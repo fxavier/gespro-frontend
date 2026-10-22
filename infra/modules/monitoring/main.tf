@@ -28,13 +28,32 @@ locals {
   name_prefix = "${var.project}-${var.environment}"
   namespace   = "GestPro/${var.environment}"
 
-  # O App Runner cria este grupo e envia-lhe o stdout/stderr da app.
+  # O App Runner envia para este grupo o stdout/stderr da app.
   log_group = "/aws/apprunner/${var.apprunner_service_name}/${var.apprunner_service_id}/application"
 
   dimensoes_apprunner = {
     ServiceName = var.apprunner_service_name
     ServiceID   = var.apprunner_service_id
   }
+}
+
+# ------------------------------------------------------------------------------
+# Grupo de registos da app — declarado para lhe fixar a retenção
+#
+# Se o App Runner o criar sozinho, nasce sem expiração (custo a crescer para
+# sempre, e registos com dados de pedido guardados sem prazo). O nome contém o
+# ServiceID, que só existe depois de o serviço ser criado, e o App Runner cria o
+# grupo quando a app escreve a primeira linha — por isso no primeiro apply o
+# create pode falhar com ResourceAlreadyExistsException. Nesse caso importa-se:
+#   terraform import 'module.monitoring.aws_cloudwatch_log_group.app' \
+#     "$(terraform output -raw app_log_group)"
+# (docs/runbooks/alertas-producao.md §Depois do primeiro apply).
+# ------------------------------------------------------------------------------
+resource "aws_cloudwatch_log_group" "app" {
+  name              = local.log_group
+  retention_in_days = var.retencao_registos_dias
+
+  tags = var.tags
 }
 
 # ------------------------------------------------------------------------------
@@ -89,6 +108,9 @@ resource "aws_route53_health_check" "ready" {
   enable_sni        = true
   request_interval  = 30
   failure_threshold = 3
+  # Três regiões de sondagem (o mínimo do Route 53) em vez das oito por omissão:
+  # menos pedidos ao /api/ready (cada um faz SELECT 1) e o mesmo veredicto.
+  regions = var.health_check_regioes
 
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-api-ready"
@@ -136,7 +158,7 @@ resource "aws_cloudwatch_metric_alarm" "taxa_5xx" {
 
   metric_query {
     id          = "taxa"
-    expression  = "IF(pedidos > 0, erros / pedidos, 0)"
+    expression  = "IF(pedidos > ${var.volume_minimo_pedidos}, erros / pedidos, 0)"
     label       = "Fracção de respostas 5xx"
     return_data = true
   }
@@ -183,7 +205,7 @@ resource "aws_cloudwatch_metric_alarm" "budget_slo" {
 
   metric_query {
     id          = "taxa"
-    expression  = "IF(pedidos > 0, erros / pedidos, 0)"
+    expression  = "IF(pedidos > ${var.volume_minimo_pedidos}, erros / pedidos, 0)"
     label       = "Fracção de respostas 5xx (1 h)"
     return_data = true
   }
@@ -251,7 +273,7 @@ resource "aws_cloudwatch_metric_alarm" "latencia_p95" {
 # ------------------------------------------------------------------------------
 resource "aws_cloudwatch_log_metric_filter" "cron_falhou" {
   name           = "${local.name_prefix}-cron-falhou"
-  log_group_name = local.log_group
+  log_group_name = aws_cloudwatch_log_group.app.name
   pattern        = "{ ($.url = \"/api/cron/*\") && (($.status >= 400) || ($.level = \"error\")) }"
 
   metric_transformation {
@@ -264,7 +286,7 @@ resource "aws_cloudwatch_log_metric_filter" "cron_falhou" {
 
 resource "aws_cloudwatch_log_metric_filter" "cron_sucesso" {
   name           = "${local.name_prefix}-cron-sucesso"
-  log_group_name = local.log_group
+  log_group_name = aws_cloudwatch_log_group.app.name
   pattern        = "{ ($.msg = \"request end\") && ($.url = \"/api/cron/*\") && ($.status = 200) }"
 
   metric_transformation {
@@ -324,7 +346,7 @@ resource "aws_cloudwatch_metric_alarm" "cron_em_falta" {
 # ------------------------------------------------------------------------------
 resource "aws_cloudwatch_log_metric_filter" "erros" {
   name           = "${local.name_prefix}-erros-logger"
-  log_group_name = local.log_group
+  log_group_name = aws_cloudwatch_log_group.app.name
   pattern        = "{ $.level = \"error\" }"
 
   metric_transformation {
@@ -358,7 +380,7 @@ resource "aws_cloudwatch_metric_alarm" "erros_inesperados" {
 # ------------------------------------------------------------------------------
 resource "aws_cloudwatch_query_definition" "erros_por_traceid" {
   name            = "${local.name_prefix}/erros-por-traceid"
-  log_group_names = [local.log_group]
+  log_group_names = [aws_cloudwatch_log_group.app.name]
 
   query_string = <<-EOT
     fields @timestamp, requestId, method, url, msg, err.message, tenantId
@@ -370,7 +392,7 @@ resource "aws_cloudwatch_query_definition" "erros_por_traceid" {
 
 resource "aws_cloudwatch_query_definition" "cron_corridas" {
   name            = "${local.name_prefix}/cron-corridas"
-  log_group_names = [local.log_group]
+  log_group_names = [aws_cloudwatch_log_group.app.name]
 
   query_string = <<-EOT
     fields @timestamp, url, status, duration, level, msg, requestId

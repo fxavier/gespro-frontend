@@ -17,9 +17,9 @@ severidade vai no **nome do alarme**, que é o assunto do e-mail: `…-PAGINA-�
 
 | Alarme | Nível | Fonte | Dispara quando | Manual de resposta |
 |---|---|---|---|---|
-| `PAGINA-api-ready-a-falhar` | Página | Route 53 health check HTTPS a `/api/ready` (30 s, 3 falhas) → `AWS/Route53 HealthCheckStatus` (us-east-1) | 3 min seguidos «unhealthy» | Abaixo, §`/api/ready` |
-| `PAGINA-taxa-5xx` | Página | `AWS/AppRunner` `5xxStatusResponses ÷ Requests` | > 1 % em cada um de 5 min | [`alerta-taxa-erro-elevada.md`](./alerta-taxa-erro-elevada.md) |
-| `AVISO-budget-slo` | Aviso | idem, por hora | > 0,5 % numa hora | idem |
+| `PAGINA-api-ready-a-falhar` | Página | Route 53 health check HTTPS a `/api/ready` (30 s, 3 falhas, de 3 regiões) → `AWS/Route53 HealthCheckStatus` (us-east-1) | 3 min seguidos «unhealthy» | Abaixo, §`/api/ready` |
+| `PAGINA-taxa-5xx` | Página | `AWS/AppRunner` `5xxStatusResponses ÷ Requests`, só com mais de 20 pedidos/min (`volume_minimo_pedidos`) | > 1 % em cada um de 5 min | [`alerta-taxa-erro-elevada.md`](./alerta-taxa-erro-elevada.md) |
+| `AVISO-budget-slo` | Aviso | idem, por hora (mesma guarda de volume) | > 0,5 % numa hora | idem |
 | `AVISO-latencia-p95` | Aviso | `AWS/AppRunner RequestLatency` p95 | > 800 ms durante 30 min | consultas lentas, carga da BD |
 | `AVISO-cron-falhou` | Aviso | Filtro de métrica sobre os registos (`CronFalhas`) | uma rota `/api/cron/*` responde ≥ 400 ou regista `level: error` | [`agendador.md`](./agendador.md) §Se falhar |
 | `AVISO-cron-em-falta` | Aviso | Filtro de métrica (`CronSucessos`) | 24 h sem nenhuma corrida de cron com 200 | [`agendador.md`](./agendador.md) |
@@ -56,9 +56,16 @@ Sem endpoint, o SDK OTel não arranca e nada se perde do que estes alarmes usam.
    Confirmation» (região principal e us-east-1). Sem clicar nos dois, os alarmes disparam e o e-mail
    não sai. Verificar: `aws sns list-subscriptions-by-topic --topic-arn <arn>` sem `PendingConfirmation`
    (nas duas regiões).
-2. **Se o apply falhar nos filtros de métrica** com `ResourceNotFoundException`: o grupo de registos é
-   criado pelo App Runner quando a app escreve a primeira linha. Esperar o serviço `RUNNING` e repetir
-   o apply.
+2. **Se o apply falhar no grupo de registos** com `ResourceAlreadyExistsException`: o grupo
+   `/aws/apprunner/<serviço>/<id>/application` é declarado pelo `modules/monitoring` (para lhe fixar a
+   retenção, `retencao_registos_dias`, 90 por omissão), mas o App Runner cria-o sozinho quando a app
+   escreve a primeira linha — e o nome só se conhece depois de o serviço existir. Importar e repetir:
+   ```bash
+   terraform -chdir=infra/live/prod import 'module.monitoring.aws_cloudwatch_log_group.app' \
+     "/aws/apprunner/gespro-prod/<service_id>/application"
+   terraform -chdir=infra/live/prod apply
+   ```
+   (`<service_id>`: `aws apprunner list-services`, ou o output `app_log_group` de um apply parcial.)
 3. **Conferir os padrões contra uma linha real** (os padrões assumem o formato do `withApi`):
    ```bash
    aws logs test-metric-filter \
@@ -101,6 +108,12 @@ Ensaio só do caminho de entrega (não prova a detecção; útil em prod sem toc
 | (pendente — sem produção, ADR-0026 §5) | | | | | | | |
 
 ## `/api/ready` a falhar — resposta
+
+> **Com a BD em baixo chegam DOIS e-mails de PAGINA quase juntos**: `api-ready-a-falhar` e
+> `taxa-5xx` (os pedidos que tocam na base passam a 500). É o mesmo incidente, não dois — tratar
+> pelo de `/api/ready`, que diz qual das duas peças falhou. Com pouco tráfego (≤ 20 pedidos/min) só
+> chega o de `/api/ready`: a guarda de volume da taxa de 5xx é deliberada, e a falha total
+> continua coberta pela sonda.
 
 1. `curl https://<host>/api/health` — sem resposta ou ≠ 200: **o ERP está em baixo** → seguir
    [`alerta-erp-indisponivel.md`](./alerta-erp-indisponivel.md) (estado do serviço App Runner, último
