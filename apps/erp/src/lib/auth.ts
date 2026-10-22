@@ -21,6 +21,7 @@ import {
 } from '@/server/auth/direct-grant';
 import type { JWT } from 'next-auth/jwt';
 import { loginLimiter } from '@/server/security/rate-limiter';
+import { ipDoCliente } from '@/server/security/ip-cliente';
 import { createElement, type ReactElement } from 'react';
 import { redirect } from 'next/navigation';
 import { podeVerRota } from '@/lib/permissoes-rotas';
@@ -246,10 +247,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // `check` agora e `increment` SÓ na falha — de propósito. Contar
         // logins com êxito puniria o escritório inteiro atrás de um NAT e a
         // pessoa que entra em três dispositivos. Força bruta é sobre falhas.
-        const ip =
-          req?.headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-          req?.headers?.get('x-real-ip') ||
-          'desconhecido';
+        // IP pelo proxy de confiança, nunca o 1.º valor do XFF (#552).
+        const ip = ipDoCliente(req?.headers);
         const chaveIp = `${ip}::login`;
         const chaveConta = `${identificador.toLowerCase()}::login`;
 

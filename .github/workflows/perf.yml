@@ -47,6 +47,9 @@ jobs:
       KEYCLOAK_ISSUER: http://localhost:8081/realms/gespro
       KEYCLOAK_CLIENT_ID: gespro-erp
       KEYCLOAK_CLIENT_SECRET: gespro-erp-dev-secret
+      # #552: o standalone corre em produção e recusa arrancar com o limitador em
+      # memória. Aqui é UMA instância e não há Valkey: aceite por escrito.
+      RATE_LIMIT_MEMORIA_EM_PRODUCAO: '1'
       CI: 'true'
     steps:
       - name: Checkout

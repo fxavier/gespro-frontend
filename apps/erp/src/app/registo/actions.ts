@@ -22,6 +22,7 @@
 
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
+import { ipDoCliente } from '@/server/security/ip-cliente';
 import { randomUUID } from 'node:crypto';
 import { signIn } from '@/lib/auth';
 import { registarTenant } from '@/server/provisioning/registo-publico';
@@ -75,11 +76,6 @@ export type EstadoRegisto =
 const MENSAGEM_SEM_SESSAO =
   'A sua conta foi criada, mas não foi possível iniciar a sessão automaticamente. Inicie sessão com o e-mail e a palavra-passe que acabou de escolher.';
 
-function ipDosCabecalhos(h: Headers): string {
-  const encaminhado = h.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return encaminhado || h.get('x-real-ip')?.trim() || 'unknown';
-}
-
 /**
  * O plano, reduzido a algo com a forma de um código de plano — ou a string vazia. Os planos
  * vivem na tabela (ADR-0049), por isso aqui só se garante a FORMA; a existência verifica-a o
@@ -130,7 +126,7 @@ async function executar(
   const utm = normalizarUtm(entrada.utm ?? {});
 
   const h = await headers();
-  const ip = ipDosCabecalhos(h);
+  const ip = ipDoCliente(h);
 
   // Sem PII: o plano é uma de três constantes e não identifica ninguém.
   logger.info({ evento: 'registo.iniciado', plano }, '[registo] submissão recebida');

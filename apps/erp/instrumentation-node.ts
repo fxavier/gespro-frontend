@@ -10,6 +10,11 @@
  * e inclui os pacotes no output standalone (B1 fix).
  */
 export async function registerNode(): Promise<void> {
+  // #552: em produção, sem limitador partilhado, o servidor NÃO arranca — fora
+  // do try de propósito. Ver src/server/security/arranque-rate-limit.ts.
+  const { verificarDriverRateLimit } = await import('./src/server/security/arranque-rate-limit');
+  verificarDriverRateLimit();
+
   // Arrancar sondas de saúde independentemente do OTLP estar ou não configurado.
   // Mesmo sem backend de telemetria, as métricas ficam disponíveis em /api/metrics.
   try {

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { ipDoCliente } from '@/server/security/ip-cliente';
 import { withApi } from '@/lib/api/with-api';
 import { buildCorsHeaders } from '@/lib/api/cors';
 import { getRequestContext } from '@/server/observability/context';
@@ -26,14 +27,6 @@ import {
  */
 
 export const runtime = 'nodejs';
-
-function ipDe(req: NextRequest): string {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    req.headers.get('x-real-ip') ??
-    'unknown'
-  );
-}
 
 function traceId(): string {
   return getRequestContext()?.requestId ?? 'sem-trace';
@@ -92,7 +85,7 @@ export const POST = withApi(
     }
 
     const resultado = await registarTenant(corpo, {
-      ip: ipDe(req),
+      ip: ipDoCliente(req.headers),
       idempotencyKey: req.headers.get('idempotency-key') ?? '',
     });
 

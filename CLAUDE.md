@@ -326,7 +326,7 @@ a colidir no `@@unique([tenantId, numero])` — e o erro aparece ao utilizador, 
 
 **UI** — **sem modais**: criar/editar/detalhar são rotas dedicadas; única excepção é `AlertDialog` para confirmação destrutiva (confirmar, não recolher dados: um campo de texto é formulário, logo é rota). Zero cores hardcoded (só tokens `@theme`); dark mode obrigatório.
 
-**Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`.
+**Build de produção (`output: 'standalone'`)** — apanha o que `pnpm check` e `pnpm dev` não apanham: `useSearchParams()`/`usePathname()` sem `Suspense` boundary partem o prerender (envolve o componente em `<Suspense>`). Corre `pnpm build` antes de entregar mudanças de deploy/routing. O `pnpm start` fixa `--port 3000`; para smoke numa porta livre usa `npx next start -p <porta>`. Em produção (`next start`/standalone) o servidor recusa arrancar sem `RATE_LIMIT_DRIVER=valkey` + `VALKEY_URL` (#552); para um smoke de instância única sem Valkey, `RATE_LIMIT_MEMORIA_EM_PRODUCAO=1`.
 
 **Proxy e probes** — `src/proxy.ts` redirige pedidos não-autenticados para `/auth/login`. Endpoints que têm de responder sem sessão (`/api/health`, `/api/ready`, `/api/metrics` para o HEALTHCHECK do Docker/App Runner; `/api/auth/*`) **têm de estar em `PUBLIC_PATHS`** — senão os health checks recebem 307 em vez de 200.
 O proxy vive **em `apps/erp/src/`** e só aí: com a app em `src/app`, o `next dev` só procura `src/proxy.ts`,
