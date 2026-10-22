@@ -17,6 +17,7 @@ import { Prisma } from '@prisma/client';
 const h = vi.hoisted(() => ({
   tx: null as any,
   registarLancamento: null as any,
+  exigirPeriodoSemIvaApurado: null as any,
 }));
 
 vi.mock('@/lib/auth', () => ({
@@ -25,7 +26,11 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/server/services/financas/contabilidade.service', () => {
   h.registarLancamento = vi.fn().mockResolvedValue({ id: 'lan-77' });
-  return { registarLancamentoContabilistico: h.registarLancamento };
+  h.exigirPeriodoSemIvaApurado = vi.fn();
+  return {
+    registarLancamentoContabilistico: h.registarLancamento,
+    exigirPeriodoSemIvaApurado: h.exigirPeriodoSemIvaApurado,
+  };
 });
 
 vi.mock('@/server/db/client', () => ({
@@ -130,6 +135,7 @@ function somar(partidas: Array<{ tipo: string; valor: string }>, tipo: string) {
 beforeEach(() => {
   h.tx = criarTx();
   h.registarLancamento.mockClear();
+  h.exigirPeriodoSemIvaApurado.mockClear();
 });
 
 describe('emitirFatura com linha a 0% — verde já hoje (não discriminante)', () => {
@@ -154,6 +160,24 @@ describe('emitirFatura com linha a 0% — verde já hoje (não discriminante)', 
     const partidas = partidasDoLancamento();
     expect(partidas.some((p) => p.contaCodigo === PGC_FATURACAO.IVA_LIQUIDADO)).toBe(false);
     expect(somar(partidas, 'DEBITO').equals(somar(partidas, 'CREDITO'))).toBe(true);
+  });
+
+  it('#622: a guarda do IVA apurado é chamada com a data do documento, mesmo a 0%', async () => {
+    const input = EmitirFaturaSchema.parse({
+      clienteId: 'cli-77',
+      dataEmissao: '2026-09-25',
+      dataVencimento: '2026-10-25',
+      linhas: [LINHA_ISENTA],
+    });
+    await emitirFatura(input, ctx);
+
+    expect(h.exigirPeriodoSemIvaApurado).toHaveBeenCalledWith(
+      h.tx,
+      input.dataEmissao,
+      ctx.tenantId,
+      undefined,
+      { fechadoContaComoApurado: false },
+    );
   });
 
   it('linha a 0% + linha a 16%: só a de 16% tem IVA (160), total 2160', async () => {

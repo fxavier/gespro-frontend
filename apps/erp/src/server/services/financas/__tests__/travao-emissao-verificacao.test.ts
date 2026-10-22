@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth', () => ({ auth: mocks.auth }));
 vi.mock('@/server/services/financas/contabilidade.service', () => ({
   registarLancamentoContabilistico: mocks.registarLancamento,
+  exigirPeriodoSemIvaApurado: vi.fn(),
 }));
 vi.mock('@/server/db/client', () => ({
   prisma: {},
