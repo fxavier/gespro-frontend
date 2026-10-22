@@ -63,3 +63,15 @@ A re-execução com a BD carregada por `pnpm db:seed:volume` (gerador do
 fase 1, pelo orquestrador — mesmo comando: `./infra/local/scripts/ensaio-restauro.sh`.
 Também será uma estimativa optimista: mede a dimensão dos dados, mas continua
 sem a rede nem o armazenamento de produção.
+
+## Produção
+
+### [HUMANO] (pendente, sem produção) — Ensaio nº 1 contra o ambiente real
+
+O critério de aceitação da #575 — tempo medido ≤ RTO (4 h) para a BD do ERP **e**
+do Keycloak — só se cumpre aqui, e só quando houver produção (ADR-0026 §5) e a
+base do Keycloak existir no IaC (#572). Procedimento em
+[`restauro-bd.md` §Ensaio contra produção](./restauro-bd.md). Registar nesta
+secção, por passo: restauro PITR do ERP, restauro PITR do Keycloak (mesmo
+instante), app apontada e verificações do ADR-0020 §3, reposição de um objecto
+do S3 e leitura da réplica — e o total contra o RTO.

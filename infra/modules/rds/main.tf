@@ -92,16 +92,23 @@ resource "aws_db_instance" "main" {
   # Alta disponibilidade (activar em prod)
   multi_az = var.multi_az
 
-  # Backups e manutenção
-  backup_retention_period = var.backup_retention_days
-  backup_window           = "03:00-04:00" # UTC — madrugada em Maputo (UTC+2)
-  maintenance_window      = "Mon:04:00-Mon:05:00"
-  copy_tags_to_snapshot   = true
+  # Backups e manutenção (ADR-0020 §2).
+  # Os backups automáticos do RDS SÃO a recuperação a um ponto no tempo: com
+  # retenção > 0 o RDS arquiva os registos de transacções de ~5 em ~5 minutos
+  # (o RPO de 5 min do ADR-0020 §1) e qualquer instante da janela é restaurável
+  # (`aws rds restore-db-instance-to-point-in-time`, docs/runbooks/restauro-bd.md).
+  backup_retention_period  = var.backup_retention_days
+  backup_window            = "03:00-04:00" # UTC — madrugada em Maputo (UTC+2)
+  maintenance_window       = "Mon:04:00-Mon:05:00"
+  copy_tags_to_snapshot    = true
+  delete_automated_backups = !var.retain_automated_backups
 
   # Parâmetros
   parameter_group_name = aws_db_parameter_group.main.name
 
-  # Protecção contra destruição acidental
+  # Protecção contra destruição acidental. Snapshot final ao destruir (prod):
+  # instantâneos manuais não expiram, este fica até alguém o apagar. Um segundo
+  # destroy com o mesmo nome falha — de propósito (renomear o anterior antes).
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${local.name_prefix}-final-snapshot"

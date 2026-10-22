@@ -9,3 +9,4 @@ aws_region     = "af-south-1"
 aws_account_id = "123456789012"  # Substituir pelo ID da conta AWS
 image_tag      = "latest"
 app_url        = "https://dev.gespro.example.com"
+# replica_region = "eu-west-1"  # Opcional em dev; sem ela não há réplica do bucket

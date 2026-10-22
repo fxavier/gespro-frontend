@@ -55,9 +55,20 @@ variable "multi_az" {
 }
 
 variable "backup_retention_days" {
-  description = "Dias de retenção de backups automáticos (0 = desactivado)"
+  description = "Dias de retenção de backups automáticos e, com eles, da janela de recuperação a um ponto no tempo (PITR). ADR-0020 §2: 35 em prod (o máximo do RDS), 7 em dev. 0 desliga os backups — e o PITR."
   type        = number
   default     = 7
+
+  validation {
+    condition     = var.backup_retention_days >= 0 && var.backup_retention_days <= 35
+    error_message = "backup_retention_days tem de estar entre 0 e 35 (máximo do RDS)."
+  }
+}
+
+variable "retain_automated_backups" {
+  description = "Manter os backups automáticos (e o PITR) depois de a instância ser apagada, até expirarem pela retenção. true em prod: apagar a instância por engano não pode levar a janela de recuperação com ela (ADR-0020 §4, «Instância RDS perdida»)."
+  type        = bool
+  default     = false
 }
 
 variable "deletion_protection" {

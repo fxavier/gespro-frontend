@@ -159,10 +159,15 @@ resource "aws_route_table_association" "private" {
 # Security Group: App Runner VPC Connector
 # Egress: RDS (5432) + internet (443) via NAT Gateway.
 # O App Runner controla o ingress externamente (HTTPS gerido).
+#
+# Descrições de SG (grupo e regras): a API EC2 só aceita a-zA-Z0-9, espaço e
+# ._-:/()#,@[]+=&;{}!$* — sem acentos nem travessões. A regra é da AWS; o
+# fornecedor Terraform valida-a já no plan nas descrições das regras (foi assim
+# que o `terraform test` da #575 a revelou), a do grupo só a API a recusa no apply.
 # ------------------------------------------------------------------------------
 resource "aws_security_group" "apprunner" {
   name        = "${local.name_prefix}-apprunner-sg"
-  description = "App Runner VPC Connector — egress para RDS e internet via NAT"
+  description = "App Runner VPC Connector - egress para RDS e internet via NAT"
   vpc_id      = aws_vpc.main.id
 
   egress {
@@ -174,7 +179,7 @@ resource "aws_security_group" "apprunner" {
   }
 
   egress {
-    description = "HTTPS para AWS APIs e serviços externos (via NAT GW)"
+    description = "HTTPS para AWS APIs e servicos externos (via NAT GW)"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -200,7 +205,7 @@ resource "aws_security_group" "apprunner" {
 # ------------------------------------------------------------------------------
 resource "aws_security_group" "rds" {
   name        = "${local.name_prefix}-rds-sg"
-  description = "RDS PostgreSQL — aceita apenas tráfego do App Runner"
+  description = "RDS PostgreSQL - aceita apenas trafego do App Runner"
   vpc_id      = aws_vpc.main.id
 
   ingress {

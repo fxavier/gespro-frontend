@@ -5,7 +5,8 @@
 # Diferenças face ao prod:
 #   - RDS: single-AZ, db.t4g.micro, deletion_protection=false
 #   - App Runner: cpu=256, memory=512, min_size=1, max_size=2
-#   - Backups: 3 dias (prod: 7)
+#   - Backups/PITR: 7 dias (prod: 35) — ADR-0020 §2
+#   - S3: sem Object Lock; réplica só se `replica_region` for dada
 # ==============================================================================
 
 terraform {
@@ -21,6 +22,17 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = local.default_tags
+  }
+}
+
+# Fornecedor da réplica (o módulo storage exige-o). Sem `replica_region` aponta
+# para a própria região e não cria nada.
+provider "aws" {
+  alias  = "replica"
+  region = coalesce(var.replica_region, var.aws_region)
 
   default_tags {
     tags = local.default_tags
@@ -86,7 +98,7 @@ module "rds" {
   allocated_storage         = 20
   max_allocated_storage     = 50
   multi_az                  = false
-  backup_retention_days     = 3
+  backup_retention_days     = 7 # ADR-0020 §2
   deletion_protection       = false
   skip_final_snapshot       = true
   db_credentials_secret_arn = module.secrets.db_credentials_secret_arn
@@ -100,10 +112,16 @@ module "rds" {
 module "storage" {
   source = "../../modules/storage"
 
+  providers = {
+    aws         = aws
+    aws.replica = aws.replica
+  }
+
   project         = local.project
   environment     = local.environment
   expiration_days = 7
   allowed_origins = [var.app_url]
+  replica_region  = var.replica_region
   tags            = local.default_tags
 }
 
