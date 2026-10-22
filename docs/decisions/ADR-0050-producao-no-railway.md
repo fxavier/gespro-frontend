@@ -39,7 +39,8 @@ não cobre e como se tapa, e o que fica em aberto.
 
 ### Factos do Railway em que a decisão assenta
 
-Verificados na documentação oficial a 2026-10-22 (ledger `.scratch/sdlc/railway/RUN.md`). Um ADR
+Verificados na documentação oficial a 2026-10-22 (ledger `.scratch/sdlc/railway/RUN.md`); a linha
+do Config as Code a 2026-10-23. Um ADR
 que assenta em documentação de fornecedor herda o prazo de validade dela: se algum mudar, este ADR é
 revisto, não lido de memória.
 
@@ -52,7 +53,7 @@ revisto, não lido de memória.
 | Alertas: **webhooks de projecto** (deploy `Failed`/`Crashed`, volume, monitores) e **monitores** de CPU, RAM e disco (plano **Pro**) | Cobre o que é da plataforma; não cobre o que é da aplicação — ver §5 |
 | Regiões: `us-west2`, `us-east4-eqdc4a`, `europe-west4-drams3a`, `asia-southeast1-eqsg3a` | Escolhe-se `europe-west4-drams3a` — ver §1 |
 | Tarefas agendadas nativas (serviço com horário cron) | Substitui o contentor `cron` do compose — ver §4 |
-| Configuração como código: `railway.json` por serviço | Substitui o Terraform para a parte de cálculo — ver §6 |
+| **Config as Code (`railway.json`) está descontinuado**: «New services cannot opt into Config as Code», e os ficheiros deixam de ser lidos a **2026-12-01**. O substituto é **Infrastructure as Code**: um `.railway/railway.ts` com o SDK `railway`, aplicado por `railway config plan` / `railway config apply` ([infrastructure-as-code](https://docs.railway.com/infrastructure-as-code), [config-as-code](https://docs.railway.com/reference/config-as-code)) | Substitui o Terraform para a parte de cálculo, por IaC e não por `railway.json` — ver §6 |
 
 ## Decisão
 
@@ -134,7 +135,11 @@ Mantém-se tudo o que o ADR-0012 decidiu e não depende de fornecedor: auto-aloj
   `/admin`. O requisito é inegociável; o mecanismo escolhe-o quem montar o serviço, e prova-o com um
   pedido a `/admin` pelo domínio público que não pode devolver a consola.
 - **Realm de produção sem utilizadores de demonstração** (#572): o `realm-gespro.json` traz
-  `@demo.mz` e `plataforma@gespro.mz`/`demo1234`; produção importa uma variante sem eles.
+  `@demo.mz` e `plataforma@gespro.mz`/`demo1234`; produção importa uma variante sem eles. O defeito
+  que impedia importar o realm numa base Postgres — a descrição do papel `plataforma-admin` excedia o
+  `varchar(255)` da coluna — está corrigido no #650.
+- **Base própria**: o Keycloak usa o serviço `postgres-keycloak` (§1), não uma base dentro do Postgres
+  do ERP — desvio ao ADR-0012 §2, registado nas Consequências.
 
 ### 4. Agendador: tarefa agendada nativa do Railway
 
@@ -159,16 +164,27 @@ regra 3); nenhum SDK do Railway entra no código. A fonte dos horários continua
   (D3).
 - **`healthcheckPath: /api/health`** no `erp` (liveness, sem tocar na base — uma base lenta não deve
   impedir uma versão de arrancar e ficar para sempre em rollback). O `/api/ready` é sondado de fora
-  (§6).
+  (§7).
 - O resto do ADR-0022 §5–§6 mantém-se: imagem etiquetada pelo commit, *smoke* autenticado depois do
   deploy, migrações destrutivas em duas fases, `migrate dev` nunca.
 
-### 6. Configuração como código, e o que é consola
+### 6. Infrastructure as Code do Railway, e o que é consola
 
-- **`railway.json` por serviço**, versionado, com o que o Railway aceita em ficheiro: build,
-  `preDeployCommand`, `healthcheckPath`, política de reinício, horário do `cron`.
-- **O que só existe na consola** — criação do projecto e dos serviços, região, activação do PITR,
-  variáveis e segredos, domínios, webhooks e monitores — vive num **runbook de deploy** passo a passo,
+- **Um `.railway/railway.ts` na raiz do repositório**, escrito com o SDK `railway` e aplicado por
+  `railway config plan` (rever o plano) e `railway config apply`. Compõe os serviços declarados em
+  `infra/railway/servicos.ts` (#664): build, `preDeployCommand`, `healthcheckPath`, política de
+  reinício, horário do `cron`. É o equivalente, para o cálculo, do `terraform plan`/`apply` do
+  ADR-0022 §2: o plano revê-se antes de se aplicar.
+- **Porque não `railway.json` por serviço**, que foi a primeira redacção deste ADR: a documentação do
+  Railway dá o Config as Code como descontinuado — «New services cannot opt into Config as Code», e os
+  ficheiros deixam de ser lidos a 2026-12-01
+  ([config-as-code](https://docs.railway.com/reference/config-as-code),
+  [infrastructure-as-code](https://docs.railway.com/infrastructure-as-code)). Serviços novos — e
+  todos os seis do §1 o são — já não o podem usar; e mesmo que pudessem, a configuração deixava de
+  valer cinco semanas depois do primeiro deploy.
+- **O que o IaC não declarar fica na consola** — tipicamente a criação do projecto, a activação do
+  PITR, os **valores** dos segredos (nunca no repositório), domínios, webhooks e monitores — e vive num
+  **runbook de deploy** passo a passo,
   com quem o fez e quando (o mesmo princípio do bootstrap do ADR-0022: o passo manual é um só, e está
   escrito).
 - **Terraform AWS arquivado, excepto o storage**: `infra/live/*` e `infra/modules/*` saem do caminho
@@ -223,7 +239,7 @@ O critério do #576 — `/api/ready` a 503 durante 5 minutos chega ao canal de s
 
 ### Fecha ou desbloqueia
 
-- **#574** fica resolvido por desenho (§5); a execução é a fatia do `railway.json` e do entrypoint.
+- **#574** fica resolvido por desenho (§5); a execução é a fatia do IaC do Railway (`.railway/railway.ts`) e do entrypoint.
 - **#577** não depende do fornecedor, mas passa a ter alvo: a imagem que o CI constrói é a que o
   Railway publica.
 - **#572** fica resolvido na parte de infraestrutura (Keycloak, Valkey e agendador como serviços).
@@ -243,7 +259,7 @@ O critério do #576 — `/api/ready` a 503 durante 5 minutos chega ao canal de s
   cliente o exigir, é um ADR novo.
 - **ADR-0020 §2 — retenção de 35 dias**: depende da janela de PITR que o plano do Railway der (D3). Se
   for menor, regista-se o número real, não o desejado.
-- **ADR-0022 §2–§3 — Terraform no CI com OIDC**: só para o storage. O cálculo é `railway.json` mais
+- **ADR-0022 §2–§3 — Terraform no CI com OIDC**: só para o storage. O cálculo é o IaC do Railway (`.railway/railway.ts`) mais
   consola com runbook.
 - **ADR-0012 §2 — base do Keycloak na mesma instância**: passa a serviço Postgres próprio (§1).
 
