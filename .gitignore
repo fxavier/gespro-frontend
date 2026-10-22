@@ -126,3 +126,5 @@ infra/**/*.tfstate.backup
 infra/**/*.tfplan
 infra/**/crash.log
 # Nota: .terraform.lock.hcl é COMMITADO em cada stack (fixa versões dos providers)
+# Módulos não são raízes de deploy: o lock do `terraform init` dos testes não conta (#642)
+infra/modules/**/.terraform.lock.hcl
