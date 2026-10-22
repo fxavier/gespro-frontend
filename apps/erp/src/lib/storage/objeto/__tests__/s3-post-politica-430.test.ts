@@ -24,10 +24,14 @@
  * A prova contra um servidor S3 real (MinIO) está em
  * `test/integration/s3-politica-post-minio-430.test.ts`.
  *
+ * #643: sem `S3_ENDPOINT` o destino é a AWS real, que num bucket com Object Lock exige checksum —
+ * o driver passa a recusar um presign sem ele. Por isso este oráculo assina como o cliente real
+ * (`pedido-upload.ts`): com o SHA-256 em base64 do ficheiro (`CHECKSUM`, de um buffer fixo).
+ *
  * Escrito pelo VERIFICADOR antes da implementação. NUNCA `vitest -u`; um agente de
  * implementação que altere este ficheiro é BLOCKER.
  */
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 const AKID = 'AKIAORACULO430TESTE';
@@ -105,10 +109,12 @@ function hmac(chave: Buffer | string, dados: string): Buffer {
 const KEY = 'tenant/tenant-abc/fornecedor/ckxyz0000000000000000000/1700000000000-contrato.pdf';
 const CT = 'application/pdf';
 const DEZ_MB = 10 * 1024 * 1024;
+/** SHA-256 em base64 (32 bytes → 44 caracteres) de um ficheiro fixo, como o browser o calcula. */
+const CHECKSUM = createHash('sha256').update(Buffer.from('ficheiro-do-oraculo-430')).digest('base64');
 
 async function assinar(maxBytes = DEZ_MB, key = KEY, contentType = CT): Promise<Qualquer> {
   const { criarS3Storage } = await import('../s3');
-  return criarS3Storage().presignPut(key, { contentType, maxBytes });
+  return criarS3Storage().presignPut(key, { contentType, maxBytes, checksumSha256: CHECKSUM });
 }
 
 describe('#430 — s3: presignPut assina um POST com política', () => {
@@ -159,6 +165,20 @@ describe('#430 — s3: presignPut assina um POST com política', () => {
     expect(condicaoIgual(p, 'Content-Type')).toEqual([CT]);
     expect(startsWith(p, 'Content-Type')).toHaveLength(0);
     expect(condicaoIgual(p, 'bucket')).toEqual([BUCKET]);
+  });
+
+  it('o checksum dado vai no formulário e preso na política (#575/#643)', async () => {
+    const r = await assinar();
+    expect(r.method).toBe('POST');
+    expect(Buffer.from(CHECKSUM, 'base64')).toHaveLength(32);
+    expect(campo(r.fields, 'x-amz-checksum-algorithm')).toBe('SHA256');
+    expect(campo(r.fields, 'x-amz-checksum-sha256')).toBe(CHECKSUM);
+    const p = decodificarPolitica(r.fields);
+    expect(condicaoIgual(p, 'x-amz-checksum-algorithm')).toEqual(['SHA256']);
+    expect(condicaoIgual(p, 'x-amz-checksum-sha256'), 'o checksum não está preso na política').toEqual(
+      [CHECKSUM],
+    );
+    expect(startsWith(p, 'x-amz-checksum-sha256')).toHaveLength(0);
   });
 
   it('a política tem validade curta (futuro, menos de 10 minutos)', async () => {

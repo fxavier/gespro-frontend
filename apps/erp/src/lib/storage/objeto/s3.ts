@@ -7,6 +7,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { ValidationError } from '@/lib/errors';
 import type { ObjectStorage } from './porta';
 
 /**
@@ -72,6 +73,13 @@ async function assinarPost(
   maxBytes: number,
   checksumSha256?: string,
 ) {
+  // AWS real (sem `S3_ENDPOINT`): o Object Lock recusa o POST sem checksum com um 400 opaco. Sem
+  // `crypto.subtle` (fora de HTTPS) o browser não o calcula — recusa-se aqui, com explicação (#643).
+  if (!checksumSha256 && !process.env.S3_ENDPOINT) {
+    throw new ValidationError(
+      'O browser não conseguiu calcular o checksum do ficheiro. Abra a aplicação em HTTPS e tente de novo.',
+    );
+  }
   const region = process.env.S3_REGION!;
   const b = bucket();
   const cred = await cliente().config.credentials();
