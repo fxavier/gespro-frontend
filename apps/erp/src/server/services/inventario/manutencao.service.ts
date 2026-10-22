@@ -102,8 +102,21 @@ async function obterManutencao(id: string, ctx: Ctx): Promise<ManutencaoAtivoDto
   return mapMan(m);
 }
 
+/** Activo do tenant (#550): `findUnique`/`update` não são scoped e a relação só exige que exista. */
+async function ativoDoTenant(id: string, ctx: Ctx): Promise<{ estado: string }> {
+  const ativo = await prisma.ativo.findFirst({ where: { id, tenantId: ctx.tenantId }, select: { estado: true } });
+  if (!ativo) throw new NotFoundError('Ativo não encontrado');
+  return ativo;
+}
+
 async function criarManutencao(data: ManutencaoAtivoCreate, ctx: Ctx): Promise<ManutencaoAtivoDto> {
   const { pecas, ...rest } = data;
+  await ativoDoTenant(rest.ativoId, ctx);
+  const produtoIds = [...new Set((pecas ?? []).flatMap((p) => (p.produtoId ? [p.produtoId] : [])))];
+  if (produtoIds.length) {
+    const n = await prisma.produto.count({ where: { id: { in: produtoIds }, tenantId: ctx.tenantId } });
+    if (n !== produtoIds.length) throw new NotFoundError('Produto não encontrado');
+  }
   const m = await prisma.manutencaoAtivo.create({
     data: {
       tenantId: ctx.tenantId,
@@ -141,7 +154,7 @@ async function criarManutencao(data: ManutencaoAtivoCreate, ctx: Ctx): Promise<M
 async function actualizarManutencao(id: string, data: ManutencaoAtivoUpdate, ctx: Ctx): Promise<ManutencaoAtivoDto> {
   await obterManutencao(id, ctx);
   const m = await prisma.manutencaoAtivo.update({
-    where: { id },
+    where: { id, tenantId: ctx.tenantId },
     data: {
       ...data,
       atualizadoPor: ctx.userId,
@@ -171,8 +184,8 @@ async function transitarStatus(input: TransicaoManutencaoAtivo, ctx: Ctx): Promi
   if (input.novoStatus === 'EM_ANDAMENTO' && !man.dataInicio) {
     update.dataInicio = agora;
     // Muda estado do ativo para EM_MANUTENCAO se ainda não estiver
-    const ativo = await prisma.ativo.findUnique({ where: { id: man.ativoId }, select: { estado: true } });
-    if (ativo && ativo.estado !== 'EM_MANUTENCAO') {
+    const ativo = await ativoDoTenant(man.ativoId, ctx);
+    if (ativo.estado !== 'EM_MANUTENCAO') {
       try {
         transitar(TRANSICOES_ATIVO as never, ativo.estado as never, 'EM_MANUTENCAO' as never, 'activo');
         await prisma.ativo.update({ where: { id: man.ativoId }, data: { estado: 'EM_MANUTENCAO' as never } });
@@ -183,13 +196,13 @@ async function transitarStatus(input: TransicaoManutencaoAtivo, ctx: Ctx): Promi
   if (input.novoStatus === 'CONCLUIDA') {
     update.dataConclusao = agora;
     // Volta o ativo para EM_USO
-    const ativo = await prisma.ativo.findUnique({ where: { id: man.ativoId }, select: { estado: true } });
-    if (ativo && ativo.estado === 'EM_MANUTENCAO') {
+    const ativo = await ativoDoTenant(man.ativoId, ctx);
+    if (ativo.estado === 'EM_MANUTENCAO') {
       await prisma.ativo.update({ where: { id: man.ativoId }, data: { estado: 'EM_USO' as never } });
     }
   }
 
-  const m = await prisma.manutencaoAtivo.update({ where: { id: input.manutencaoId }, data: update as never, select: MAN_SEL });
+  const m = await prisma.manutencaoAtivo.update({ where: { id: input.manutencaoId, tenantId: ctx.tenantId }, data: update as never, select: MAN_SEL });
   return mapMan(m);
 }
 
