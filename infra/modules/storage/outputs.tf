@@ -1,26 +1,26 @@
 output "bucket_name" {
   description = "Nome do bucket S3 de uploads"
-  value       = aws_s3_bucket.uploads.id
+  value       = local.uploads.id
 }
 
 output "bucket_arn" {
   description = "ARN do bucket S3 de uploads"
-  value       = aws_s3_bucket.uploads.arn
+  value       = local.uploads.arn
 }
 
 output "bucket_domain_name" {
   description = "Domain name do bucket S3"
-  value       = aws_s3_bucket.uploads.bucket_domain_name
+  value       = local.uploads.bucket_domain_name
 }
 
 output "replica_bucket_name" {
   description = "Nome do bucket réplica (null sem replicação)"
-  value       = one(aws_s3_bucket.replica[*].id)
+  value       = local.replica.id
 }
 
 output "replica_bucket_arn" {
   description = "ARN do bucket réplica (null sem replicação)"
-  value       = one(aws_s3_bucket.replica[*].arn)
+  value       = local.replica.arn
 }
 
 output "replicacao_planeada" {
@@ -40,4 +40,9 @@ output "object_lock" {
 output "replication_role_arn" {
   description = "ARN da role IAM usada pelo S3 para replicar (null sem replicação)"
   value       = one(aws_iam_role.replicacao[*].arn)
+}
+
+output "protegido_contra_destruicao" {
+  description = "true quando os buckets são os blocos com prevent_destroy (prod, #644)"
+  value       = length(aws_s3_bucket.uploads_protegido) == 1
 }

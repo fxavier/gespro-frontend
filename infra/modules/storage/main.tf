@@ -41,29 +41,73 @@ locals {
   noncurrent_days = local.object_lock ? ceil((var.object_lock_retencao_anos + 1) * 365.25) : 90
 }
 
-resource "aws_s3_bucket" "uploads" {
-  bucket = local.bucket_name
+# ------------------------------------------------------------------------------
+# O bucket, em dois blocos (#644)
+#
+# `prevent_destroy` só aceita um literal: com um só bloco, a protecção que prod
+# precisa trancava também o `terraform destroy` do dev. Por isso há dois blocos
+# iguais e só um existe por ambiente (`var.proteger_contra_destruicao`):
+#   - `uploads_protegido` (prod): `prevent_destroy = true`. Um plano que o destrua
+#     ou substitua FALHA — incluindo virar a variável para false num estado já
+#     aplicado (a instância [0] sairia por `count` e o bloco ainda a protege).
+#   - `uploads` (dev): sem protecção; o dev desmonta-se com `terraform destroy`
+#     (docs/runbooks/restauro-bd.md, «Desmontar o dev»).
+# Tudo o resto usa `local.uploads`, o que existir. O IaC nunca foi aplicado
+# (docs/status.md), logo não há estado a mover nem blocos `moved`.
+#
+# `object_lock_enabled` é ForceNew: mudá-lo num bucket que já existe planeia
+# DESTRUIR o bucket dos documentos e criar outro. Entra já na criação. Para ligar
+# o Object Lock num bucket existente o caminho é
+# `aws_s3_bucket_object_lock_configuration` com `object_lock_enabled = "Enabled"`
+# (a AWS permite-o desde 2023), nunca esta flag — e o `prevent_destroy` faz o
+# plano de prod falhar antes de alguém tentar.
+# ------------------------------------------------------------------------------
+resource "aws_s3_bucket" "uploads_protegido" {
+  count = var.proteger_contra_destruicao ? 1 : 0
 
-  # `object_lock_enabled` neste recurso é ForceNew: mudá-lo num bucket que já
-  # existe planeia DESTRUIR o bucket dos documentos e criar outro. O IaC nunca foi
-  # aplicado (docs/status.md), por isso entra já na criação. Para ligar o Object
-  # Lock num bucket existente o caminho é `aws_s3_bucket_object_lock_configuration`
-  # com `object_lock_enabled = "Enabled"` (a AWS permite-o desde 2023), nunca esta
-  # flag — e o `prevent_destroy` abaixo faz o plano falhar antes de alguém tentar.
+  bucket              = local.bucket_name
   object_lock_enabled = local.object_lock
-
-  tags = merge(var.tags, {
-    Name    = local.bucket_name
-    Purpose = "uploads-relatorios"
-  })
+  tags                = local.uploads_tags
 
   lifecycle {
     prevent_destroy = true
   }
 }
 
+resource "aws_s3_bucket" "uploads" {
+  count = var.proteger_contra_destruicao ? 0 : 1
+
+  bucket              = local.bucket_name
+  object_lock_enabled = local.object_lock
+  tags                = local.uploads_tags
+}
+
+locals {
+  uploads_tags = merge(var.tags, {
+    Name    = local.bucket_name
+    Purpose = "uploads-relatorios"
+  })
+  replica_tags = merge(var.tags, {
+    Name    = local.replica_bucket_name
+    Purpose = "replica-uploads-relatorios"
+  })
+
+  # O bucket activo (um dos dois blocos) e a réplica activa (ids null sem
+  # replicação). Atributo a atributo: o objecto inteiro arrasta atributos
+  # deprecados do fornecedor (`website_endpoint`) e enche o plano de avisos.
+  uploads = {
+    id                 = one(concat(aws_s3_bucket.uploads_protegido[*].id, aws_s3_bucket.uploads[*].id))
+    arn                = one(concat(aws_s3_bucket.uploads_protegido[*].arn, aws_s3_bucket.uploads[*].arn))
+    bucket_domain_name = one(concat(aws_s3_bucket.uploads_protegido[*].bucket_domain_name, aws_s3_bucket.uploads[*].bucket_domain_name))
+  }
+  replica = {
+    id  = one(concat(aws_s3_bucket.replica_protegido[*].id, aws_s3_bucket.replica[*].id))
+    arn = one(concat(aws_s3_bucket.replica_protegido[*].arn, aws_s3_bucket.replica[*].arn))
+  }
+}
+
 resource "aws_s3_bucket_versioning" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads.id
 
   versioning_configuration {
     status = "Enabled"
@@ -71,7 +115,7 @@ resource "aws_s3_bucket_versioning" "uploads" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -81,7 +125,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
 }
 
 resource "aws_s3_bucket_public_access_block" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads.id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -116,7 +160,7 @@ resource "aws_s3_bucket_public_access_block" "uploads" {
 resource "aws_s3_bucket_object_lock_configuration" "uploads" {
   count = local.object_lock ? 1 : 0
 
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads.id
 
   rule {
     default_retention {
@@ -129,7 +173,7 @@ resource "aws_s3_bucket_object_lock_configuration" "uploads" {
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads.id
 
   rule {
     id     = "expire-tmp-objects"
@@ -175,7 +219,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
 # presigned URL); PUT mantido por compatibilidade. Restrito às
 # origens da app (ALLOWED_ORIGINS). NUNCA wildcard em produção — ver spec 01 §7.
 resource "aws_s3_bucket_cors_configuration" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads.id
 
   cors_rule {
     allowed_headers = ["Content-Type"]
@@ -195,31 +239,35 @@ resource "aws_s3_bucket_cors_configuration" "uploads" {
 # de vez). Mesma cifra, mesmo bloqueio, sem acesso público.
 # ==============================================================================
 
-resource "aws_s3_bucket" "replica" {
-  count    = local.replicar ? 1 : 0
+# Uma origem com Object Lock só replica para um destino com Object Lock — e,
+# pela mesma razão que na origem (ForceNew), a réplica de prod é protegida.
+resource "aws_s3_bucket" "replica_protegido" {
+  count    = local.replicar && var.proteger_contra_destruicao ? 1 : 0
   provider = aws.replica
 
-  bucket = local.replica_bucket_name
-
-  # Uma origem com Object Lock só replica para um destino com Object Lock.
+  bucket              = local.replica_bucket_name
   object_lock_enabled = local.object_lock
+  tags                = local.replica_tags
 
-  tags = merge(var.tags, {
-    Name    = local.replica_bucket_name
-    Purpose = "replica-uploads-relatorios"
-  })
-
-  # Mesma razão que na origem: `object_lock_enabled` é ForceNew.
   lifecycle {
     prevent_destroy = true
   }
+}
+
+resource "aws_s3_bucket" "replica" {
+  count    = local.replicar && !var.proteger_contra_destruicao ? 1 : 0
+  provider = aws.replica
+
+  bucket              = local.replica_bucket_name
+  object_lock_enabled = local.object_lock
+  tags                = local.replica_tags
 }
 
 resource "aws_s3_bucket_versioning" "replica" {
   count    = local.replicar ? 1 : 0
   provider = aws.replica
 
-  bucket = aws_s3_bucket.replica[0].id
+  bucket = local.replica.id
 
   versioning_configuration {
     status = "Enabled"
@@ -230,7 +278,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "replica" {
   count    = local.replicar ? 1 : 0
   provider = aws.replica
 
-  bucket = aws_s3_bucket.replica[0].id
+  bucket = local.replica.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -243,7 +291,7 @@ resource "aws_s3_bucket_public_access_block" "replica" {
   count    = local.replicar ? 1 : 0
   provider = aws.replica
 
-  bucket = aws_s3_bucket.replica[0].id
+  bucket = local.replica.id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -257,7 +305,7 @@ resource "aws_s3_bucket_object_lock_configuration" "replica" {
   count    = local.replicar && local.object_lock ? 1 : 0
   provider = aws.replica
 
-  bucket = aws_s3_bucket.replica[0].id
+  bucket = local.replica.id
 
   rule {
     default_retention {
@@ -273,7 +321,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica" {
   count    = local.replicar ? 1 : 0
   provider = aws.replica
 
-  bucket = aws_s3_bucket.replica[0].id
+  bucket = local.replica.id
 
   rule {
     id     = "abort-incomplete-multipart"
@@ -332,7 +380,7 @@ data "aws_iam_policy_document" "replicacao" {
     sid       = "LerConfiguracaoDaOrigem"
     effect    = "Allow"
     actions   = ["s3:GetReplicationConfiguration", "s3:ListBucket"]
-    resources = [aws_s3_bucket.uploads.arn]
+    resources = [local.uploads.arn]
   }
 
   statement {
@@ -346,7 +394,7 @@ data "aws_iam_policy_document" "replicacao" {
       "s3:GetObjectRetention",
       "s3:GetObjectLegalHold",
     ]
-    resources = ["${aws_s3_bucket.uploads.arn}/*"]
+    resources = ["${local.uploads.arn}/*"]
   }
 
   statement {
@@ -357,7 +405,7 @@ data "aws_iam_policy_document" "replicacao" {
       "s3:ReplicateDelete",
       "s3:ReplicateTags",
     ]
-    resources = ["${aws_s3_bucket.replica[0].arn}/*"]
+    resources = ["${local.replica.arn}/*"]
   }
 }
 
@@ -372,7 +420,7 @@ resource "aws_iam_role_policy" "replicacao" {
 resource "aws_s3_bucket_replication_configuration" "uploads" {
   count = local.replicar ? 1 : 0
 
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads.id
   role   = aws_iam_role.replicacao[0].arn
 
   rule {
@@ -389,7 +437,7 @@ resource "aws_s3_bucket_replication_configuration" "uploads" {
     }
 
     destination {
-      bucket = aws_s3_bucket.replica[0].arn
+      bucket = local.replica.arn
       # Cópia de recuperação: lida raramente; IA paga menos por GB guardado.
       storage_class = "STANDARD_IA"
     }

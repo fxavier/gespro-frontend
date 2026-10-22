@@ -26,6 +26,11 @@ variable "tags" {
   default     = {}
 }
 
+variable "proteger_contra_destruicao" {
+  description = "true = os buckets nascem com `prevent_destroy` (prod: um plano que destrua ou substitua o bucket dos documentos falha). false = sem protecção, o ambiente desmonta-se com `terraform destroy` (dev). Sem omissão: cada ambiente decide de propósito (#644)."
+  type        = bool
+}
+
 # ------------------------------------------------------------------------------
 # Continuidade (ADR-0020 §2, #575)
 # ------------------------------------------------------------------------------

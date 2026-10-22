@@ -133,7 +133,12 @@ module "storage" {
   expiration_days = 7
   allowed_origins = [var.app_url]
   replica_region  = var.replica_region
-  tags            = local.default_tags
+
+  # Sem prevent_destroy: o dev desmonta-se com `terraform destroy`
+  # (docs/runbooks/desmontar-dev.md, #644).
+  proteger_contra_destruicao = false
+
+  tags = local.default_tags
 }
 
 # ------------------------------------------------------------------------------
