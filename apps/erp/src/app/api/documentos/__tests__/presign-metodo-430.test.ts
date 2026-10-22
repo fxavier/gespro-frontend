@@ -13,10 +13,15 @@
  *
  * Credenciais FALSAS só deste teste (não são segredos). Assinar não fala com a rede.
  *
+ * #643: sem `S3_ENDPOINT` o destino é a AWS real, que num bucket com Object Lock exige checksum —
+ * o driver passa a recusar um presign sem ele. O pedido leva por isso o `checksumSha256` que o
+ * cliente real (`pedido-upload.ts`) envia: SHA-256 em base64 de um ficheiro fixo.
+ *
  * Escrito pelo VERIFICADOR antes da implementação. NUNCA `vitest -u`; um agente de
  * implementação que altere este ficheiro é BLOCKER.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn() }));
@@ -36,6 +41,9 @@ afterEach(() => {
   process.env = { ...ENV_ORIGINAL };
 });
 
+/** SHA-256 em base64 (32 bytes → 44 caracteres) de um ficheiro fixo, como o browser o calcula. */
+const CHECKSUM = createHash('sha256').update(Buffer.from('ficheiro-do-oraculo-430')).digest('base64');
+
 function pedido(): NextRequest {
   return new NextRequest('http://localhost:3000/api/documentos/presign', {
     method: 'POST',
@@ -46,6 +54,7 @@ function pedido(): NextRequest {
       nome: 'contrato.pdf',
       contentType: 'application/pdf',
       tamanho: 2048,
+      checksumSha256: CHECKSUM,
     }),
   });
 }
@@ -93,6 +102,12 @@ describe('#430 — presign com STORAGE_DRIVER=s3 devolve um POST com política',
     expect(intervalo, 'a política emitida pela rota não limita o tamanho').toBeDefined();
     expect(Number(intervalo![2])).toBe(MAX_DOCUMENTO_BYTES);
     expect(MAX_DOCUMENTO_BYTES).toBe(10 * 1024 * 1024);
+
+    // O checksum do pedido segue para o formulário e fica preso na política (#575/#643).
+    expect(campo(data.uploadFields, 'x-amz-checksum-algorithm')).toBe('SHA256');
+    expect(campo(data.uploadFields, 'x-amz-checksum-sha256')).toBe(CHECKSUM);
+    expect(politica.conditions).toContainEqual({ 'x-amz-checksum-algorithm': 'SHA256' });
+    expect(politica.conditions).toContainEqual({ 'x-amz-checksum-sha256': CHECKSUM });
 
     const headers = (data.requiredHeaders ?? {}) as Record<string, string>;
     expect(Object.keys(headers).map((h) => h.toLowerCase())).not.toContain('content-type');
