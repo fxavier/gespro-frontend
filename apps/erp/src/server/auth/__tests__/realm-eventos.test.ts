@@ -37,13 +37,37 @@ describe('#54 — eventos do Keycloak ligados no ficheiro de realm', () => {
     expect(realm.adminEventsDetailsEnabled).toBe(false);
   });
 
-  it('guarda os inícios de sessão, as recusas e as escritas da conta de serviço', () => {
-    // Os três critérios observáveis da #54: login com sucesso, login
-    // recusado e o token da conta de serviço do ERP (client_credentials).
-    // Uma lista vazia ou ausente significaria «todos os tipos por omissão».
-    expect(realm.enabledEventTypes).toEqual(
-      expect.arrayContaining(['LOGIN', 'LOGIN_ERROR', 'CLIENT_LOGIN', 'CLIENT_LOGIN_ERROR']),
-    );
+  it('guarda exactamente os tipos de autenticação e credenciais decididos', () => {
+    // A lista é a decisão (adenda #54 do ADR-0011): acrescentar ou retirar um
+    // tipo é mudar a decisão, e o teste obriga a dizê-lo. Uma lista vazia ou
+    // ausente significaria «quase todos os tipos por omissão».
+    // UPDATE_PASSWORD/_ERROR estão @Deprecated no Keycloak 26.7 e coexistem
+    // com UPDATE_CREDENTIAL/_ERROR enquanto o Keycloak os emitir.
+    const decididos = [
+      'LOGIN',
+      'LOGIN_ERROR',
+      'LOGOUT',
+      'LOGOUT_ERROR',
+      'CODE_TO_TOKEN',
+      'CODE_TO_TOKEN_ERROR',
+      'CLIENT_LOGIN',
+      'CLIENT_LOGIN_ERROR',
+      'UPDATE_PASSWORD',
+      'UPDATE_PASSWORD_ERROR',
+      'UPDATE_CREDENTIAL',
+      'UPDATE_CREDENTIAL_ERROR',
+      'RESET_PASSWORD',
+      'RESET_PASSWORD_ERROR',
+      'SEND_RESET_PASSWORD',
+      'SEND_VERIFY_EMAIL',
+      'VERIFY_EMAIL',
+      'EXECUTE_ACTION_TOKEN',
+      'EXECUTE_ACTION_TOKEN_ERROR',
+      'REFRESH_TOKEN_ERROR',
+      'USER_DISABLED_BY_TEMPORARY_LOCKOUT',
+      'USER_DISABLED_BY_PERMANENT_LOCKOUT',
+    ];
+    expect([...(realm.enabledEventTypes ?? [])].sort()).toEqual([...decididos].sort());
   });
 
   it('mantém o listener jboss-logging', () => {

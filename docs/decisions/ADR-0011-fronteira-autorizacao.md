@@ -179,15 +179,26 @@ código que a impõe).
   - **O que passa a existir**, definido em `infra/keycloak/realm-gespro.json` (não na consola — um
     realm reimportado não pode perder a definição; trancado por
     `apps/erp/src/server/auth/__tests__/realm-eventos.test.ts`):
-    - `eventsEnabled: true`, só com os tipos de **autenticação e credenciais**: `LOGIN`, `LOGIN_ERROR`,
-      `LOGOUT`, `LOGOUT_ERROR`, `CODE_TO_TOKEN`, `CODE_TO_TOKEN_ERROR`, `CLIENT_LOGIN`,
-      `CLIENT_LOGIN_ERROR`, `UPDATE_PASSWORD`, `UPDATE_PASSWORD_ERROR`, `RESET_PASSWORD`,
-      `RESET_PASSWORD_ERROR`, `SEND_RESET_PASSWORD`, `SEND_VERIFY_EMAIL`, `VERIFY_EMAIL`,
-      `REFRESH_TOKEN_ERROR`. Porquê esta lista: responde a «quem entrou, quem foi recusado, quem mudou
-      de credencial, e quando a conta de serviço do ERP pediu token» (`CLIENT_LOGIN`). Fica de fora o
-      `REFRESH_TOKEN` com sucesso — com a re-resolução de 15 minutos do §3 seria a maior parte do volume
-      e não diz nada que o `LOGIN` não diga; o erro de renovação fica, porque é o sinal de sessão cortada.
-      Sem a lista, o Keycloak guardaria quase uma centena de tipos por omissão.
+    - `eventsEnabled: true`, só com os 22 tipos de **autenticação e credenciais**: `LOGIN`,
+      `LOGIN_ERROR`, `LOGOUT`, `LOGOUT_ERROR`, `CODE_TO_TOKEN`, `CODE_TO_TOKEN_ERROR`, `CLIENT_LOGIN`,
+      `CLIENT_LOGIN_ERROR`, `UPDATE_PASSWORD`, `UPDATE_PASSWORD_ERROR`, `UPDATE_CREDENTIAL`,
+      `UPDATE_CREDENTIAL_ERROR`, `RESET_PASSWORD`, `RESET_PASSWORD_ERROR`, `SEND_RESET_PASSWORD`,
+      `SEND_VERIFY_EMAIL`, `VERIFY_EMAIL`, `EXECUTE_ACTION_TOKEN`, `EXECUTE_ACTION_TOKEN_ERROR`,
+      `REFRESH_TOKEN_ERROR`, `USER_DISABLED_BY_TEMPORARY_LOCKOUT`, `USER_DISABLED_BY_PERMANENT_LOCKOUT`
+      (nomes confirmados no enum `EventType` do jar do Keycloak 26.7.0). Porquê esta lista: responde a
+      «quem entrou, quem foi recusado, quem mudou de credencial, e quando a conta de serviço do ERP pediu
+      token» (`CLIENT_LOGIN`). Os acréscimos da revisão:
+      - `UPDATE_CREDENTIAL`/`_ERROR`, porque `UPDATE_PASSWORD`/`_ERROR` estão `@Deprecated` no 26.7. Os
+        antigos ficam enquanto o Keycloak os emitir.
+      - `EXECUTE_ACTION_TOKEN`/`_ERROR`, que registam os links do `execute-actions-email` usados nos
+        convites e no registo (ADR-0013 §5-bis).
+      - Os dois `USER_DISABLED_BY_*_LOCKOUT`, porque o `bruteForceProtected` está ligado e um bloqueio
+        tem de deixar rasto.
+
+      Fica de fora o `REFRESH_TOKEN` com sucesso: com a re-resolução de 15 minutos do §3 seria a maior
+      parte do volume e não diz nada que o `LOGIN` não diga. O erro de renovação fica, porque é o sinal
+      de sessão cortada. Sem a lista, o Keycloak guardaria quase uma centena de tipos por omissão. O
+      teste tranca a lista completa: mudar um tipo é mudar esta decisão.
     - `eventsExpiration: 7776000` — **90 dias**. Chega para investigar um incidente ou uma tentativa de
       intrusão dentro de um trimestre; não é o trilho de conservação legal. A obrigação de dez anos do
       ADR-0015 é sobre documentos fiscais e o que se fez a eles, e esse trilho é o `AuditLog`, que

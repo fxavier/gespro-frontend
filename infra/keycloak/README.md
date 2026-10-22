@@ -57,8 +57,9 @@
 - **Eventos (#54, adenda ao ADR-0011)** — a metade de autenticação do trilho de
   auditoria. A omissão do Keycloak é *desligado*, por isso as chaves vivem aqui:
   - `eventsEnabled: true` com `enabledEventTypes` limitado a autenticação e
-    credenciais (login/logout e erros, `CODE_TO_TOKEN`, `CLIENT_LOGIN` da conta
-    de serviço, palavra-passe, verificação de e-mail, `REFRESH_TOKEN_ERROR`).
+    credenciais — 22 tipos (login/logout e erros, `CODE_TO_TOKEN`, `CLIENT_LOGIN` da conta
+    de serviço, palavra-passe e `UPDATE_CREDENTIAL`, verificação de e-mail,
+    `EXECUTE_ACTION_TOKEN` dos convites, `REFRESH_TOKEN_ERROR`, bloqueios por força bruta).
     Sem a lista, o Keycloak guardaria quase todos os tipos.
   - `eventsExpiration: 7776000` — 90 dias, em segundos.
   - `adminEventsEnabled: true` e `adminEventsDetailsEnabled: false` — regista
