@@ -697,37 +697,40 @@ export class VendaService implements IVendaService {
   }
 
   async transitar(input: TransitarVendaInput, ctx: Ctx): Promise<VendaRow> {
-    const venda = await prisma.venda.findUnique({
-      where: { id: input.vendaId },
-      include: { itens: true },
-    });
-
-    if (!venda || venda.tenantId !== ctx.tenantId) {
-      throw new NotFoundError(`Venda ${input.vendaId} não encontrada`);
-    }
-
-    // ADR-0041 §8 — uma venda com documento fiscal só se desfaz por nota de crédito: DEVOLVIDA
-    // reentraria stock sem NC e CANCELADA deixaria a factura viva. FATURADA → CONCLUIDA continua.
-    if (venda.faturaId && (input.paraStatus === 'DEVOLVIDA' || input.paraStatus === 'CANCELADA')) {
-      throw new BusinessRuleError(
-        'VENDA_COM_DOCUMENTO',
-        `A venda ${venda.numero} tem documento fiscal: use «Anular venda» (nota de crédito total) ou registe uma devolução.`,
-      );
-    }
-
-    // #328: as arestas da anulação estão no mapa, mas a porta manual não as percorre.
-    if (ARESTAS_SO_ANULACAO_VENDA.some(([de, para]) => de === venda.status && para === input.paraStatus)) {
-      throw new BusinessRuleError(
-        'TRANSICAO_INVALIDA',
-        `A venda ${venda.numero} no estado ${venda.status} não se cancela directamente: só uma nota de crédito a desfaz.`,
-        { estadoActual: venda.status, estadoAlvo: input.paraStatus },
-      );
-    }
-
-    // Valida transição (lança BusinessRuleError se inválida)
-    transitarVenda(venda.status as StatusVenda, input.paraStatus);
-
     return prisma.$transaction(async (tx) => {
+      // #559 — tranca a venda antes de a ler (como `anular`): dois «Cancelar» concorrentes
+      // libertavam a reserva duas vezes. O estado que decide é o lido sob a tranca.
+      await tx.$queryRaw`SELECT id FROM "Venda" WHERE id = ${input.vendaId} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
+      const venda = await tx.venda.findFirst({
+        where: { id: input.vendaId, tenantId: ctx.tenantId },
+        include: { itens: true },
+      });
+
+      if (!venda) {
+        throw new NotFoundError(`Venda ${input.vendaId} não encontrada`);
+      }
+
+      // ADR-0041 §8 — uma venda com documento fiscal só se desfaz por nota de crédito: DEVOLVIDA
+      // reentraria stock sem NC e CANCELADA deixaria a factura viva. FATURADA → CONCLUIDA continua.
+      if (venda.faturaId && (input.paraStatus === 'DEVOLVIDA' || input.paraStatus === 'CANCELADA')) {
+        throw new BusinessRuleError(
+          'VENDA_COM_DOCUMENTO',
+          `A venda ${venda.numero} tem documento fiscal: use «Anular venda» (nota de crédito total) ou registe uma devolução.`,
+        );
+      }
+
+      // #328: as arestas da anulação estão no mapa, mas a porta manual não as percorre.
+      if (ARESTAS_SO_ANULACAO_VENDA.some(([de, para]) => de === venda.status && para === input.paraStatus)) {
+        throw new BusinessRuleError(
+          'TRANSICAO_INVALIDA',
+          `A venda ${venda.numero} no estado ${venda.status} não se cancela directamente: só uma nota de crédito a desfaz.`,
+          { estadoActual: venda.status, estadoAlvo: input.paraStatus },
+        );
+      }
+
+      // Valida transição (lança BusinessRuleError se inválida)
+      transitarVenda(venda.status as StatusVenda, input.paraStatus);
+
       // Efeitos laterais da transição
       if (input.paraStatus === 'CANCELADA') {
         if (venda.origem === 'ENCOMENDA') {
