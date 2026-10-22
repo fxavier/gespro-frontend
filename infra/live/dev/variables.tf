@@ -30,3 +30,15 @@ variable "replica_region" {
     error_message = "replica_region tem de ser diferente de aws_region."
   }
 }
+
+variable "alert_email" {
+  description = "E-mail que recebe os alertas (opcional em dev; null = sem modules/monitoring)."
+  type        = string
+  default     = null
+}
+
+variable "otel_exporter_otlp_endpoint" {
+  description = "Endpoint OTLP/HTTP (opcional; null = SDK OTel desligado)."
+  type        = string
+  default     = null
+}

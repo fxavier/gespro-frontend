@@ -83,6 +83,28 @@ variable "otel_credentials_secret_arn" {
   type        = string
 }
 
+variable "otel_exporter_otlp_endpoint" {
+  description = "Endpoint OTLP/HTTP do destino de telemetria de produção (ADR-0019 §1), ex.: https://otlp.fornecedor.example:4318. null = SDK OTel desligado; os registos continuam no CloudWatch Logs. Os cabeçalhos de autenticação vêm da chave `headers` do segredo OTEL_CREDENTIALS."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.otel_exporter_otlp_endpoint == null || can(regex("^https://", var.otel_exporter_otlp_endpoint))
+    error_message = "otel_exporter_otlp_endpoint tem de ser https:// (os cabeçalhos levam o token do fornecedor)."
+  }
+}
+
+variable "otel_sample_rate" {
+  description = "Fracção de traces amostrados (0–1) quando há endpoint OTLP (OTEL_SAMPLE_RATE)."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.otel_sample_rate >= 0 && var.otel_sample_rate <= 1
+    error_message = "otel_sample_rate tem de estar entre 0 e 1."
+  }
+}
+
 variable "s3_bucket_name" {
   description = "Nome do bucket S3 de uploads"
   type        = string

@@ -14,3 +14,7 @@ app_url        = "https://gespro.example.com"
 # Continuidade (ADR-0020 §2, #575)
 replica_region = "eu-west-1" # Obrigatória, sem omissão; diferente de aws_region
 # retencao_documentos_fiscais_anos = 10  # Object Lock (GOVERNANCE); mínimo 10 em prod
+
+# Alertas (#576)
+alert_email = "operacao@example.com" # Obrigatória, sem omissão; confirmar a subscrição SNS após o apply
+# otel_exporter_otlp_endpoint = "https://otlp.fornecedor.example:4318"  # Opcional; sem ela o SDK OTel fica desligado

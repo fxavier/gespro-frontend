@@ -41,3 +41,16 @@ variable "retencao_documentos_fiscais_anos" {
     error_message = "Em prod a retenção não pode ser inferior aos 10 anos de conservação fiscal."
   }
 }
+
+# Sem omissão de propósito (#576): um alerta sem destinatário não chega a ninguém,
+# e é exactamente essa a falha que a issue descreve.
+variable "alert_email" {
+  description = "E-mail do canal de serviço que recebe os alertas de produção (SNS). A subscrição tem de ser confirmada no e-mail que a AWS envia após o apply."
+  type        = string
+}
+
+variable "otel_exporter_otlp_endpoint" {
+  description = "Endpoint OTLP/HTTP do destino de telemetria de produção (ADR-0019 §1). null = SDK OTel desligado até haver destino (ADR-0026 §5); os registos continuam no CloudWatch Logs. Cabeçalhos de autenticação no segredo OTEL_CREDENTIALS (chave `headers`)."
+  type        = string
+  default     = null
+}

@@ -35,6 +35,10 @@ mock_provider "aws" {
   alias = "replica"
 }
 
+mock_provider "aws" {
+  alias = "us_east_1"
+}
+
 override_data {
   target = module.rds.data.aws_secretsmanager_secret_version.db_credentials
   values = {
@@ -47,6 +51,7 @@ variables {
   image_tag      = "sha-teste"
   app_url        = "https://gespro.example.com"
   replica_region = "eu-west-1"
+  alert_email    = "operacao@example.com"
 }
 
 run "rds_retem_35_dias_de_pitr" {

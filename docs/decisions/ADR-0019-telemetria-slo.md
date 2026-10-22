@@ -132,3 +132,27 @@ seguinte. Fadiga de alerta mata sistemas de monitorização mais depressa do que
 - **Os SLO ligam-se ao ADR-0018**: os objectivos de latência são os mesmos que o teste de carga
   verifica. Um é medição em laboratório, o outro é observação em produção — e devem convergir. Se
   divergirem muito, é o perfil de carga sintético que está errado.
+
+## Adenda (2026-10-22, #576) — alertas no IaC AWS enquanto o destino OTLP não existe
+
+Não reescreve a decisão (ADR-0023). O §1 continua a ser o destino da telemetria; o que se
+acrescenta é um **chão de alertas** que não depende dele.
+
+- **Alertas em CloudWatch + SNS** (`infra/modules/monitoring`), sobre o que o App Runner já publica
+  sem código novo: métricas `AWS/AppRunner` e o stdout do logger estruturado no CloudWatch Logs.
+  Não é a alternativa «CloudWatch apenas» rejeitada acima — não é destino de traces nem de painéis;
+  é o mínimo para um alerta chegar a uma pessoa enquanto o ADR-0026 §5 adia o resto.
+- **Destino humano**: e-mail do canal de serviço (`alert_email`, obrigatório em prod, sem omissão).
+  A severidade do §4 vai no nome do alarme (`PAGINA`/`AVISO`), porque o canal é um só.
+- **`/api/ready`** é sondado de fora por um health check do Route 53 (o do App Runner sonda
+  `/api/health` e não publica métrica). Cobre «ERP indisponível» e «base de dados inacessível».
+- **Error tracking** sem SDK: linhas `level: error` do logger (com a redacção existente) contadas por
+  filtro de métrica; triagem pelo `traceId` (#187) no Logs Insights. A notificação leva contagens,
+  nunca o conteúdo da linha.
+- **Destino OTLP** passa a ser a variável `otel_exporter_otlp_endpoint` do `modules/app` (o token
+  continua no segredo `OTEL_CREDENTIALS`, chave `headers`). Sem valor, o SDK fica desligado — antes,
+  o segredo tinha um placeholder não vazio que o ligava a um destino inexistente.
+- **Fora, por não existirem no IaC**: Keycloak, Valkey e agendador (#572); *webhook* Stripe e
+  certificado. Mapa completo e ensaio sintético [HUMANO] em `docs/runbooks/alertas-producao.md`.
+- Quando houver destino OTLP com regras próprias, os alarmes que dupliquem as regras provisionadas
+  caem pela regra de higiene do §5 — não se mantêm dois sistemas a acordar a mesma pessoa.
