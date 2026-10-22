@@ -16,6 +16,7 @@ import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { destinoSeguro } from '@/lib/destino-seguro';
 
 /** Motivos devolvidos pelo `authorize` (ver `MotivoRecusaLogin` em lib/auth). */
 const MENSAGENS: Record<string, string> = {
@@ -41,7 +42,8 @@ const OMISSAO = 'Não foi possível iniciar sessão. Tente de novo.';
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard';
+  // Nunca o valor cru: um URL absoluto levava para fora do domínio (#551).
+  const callbackUrl = destinoSeguro(searchParams.get('callbackUrl'));
   // Preenchido por quem nos manda para cá a saber quem é: hoje, o ecrã de
   // registo quando o provisionamento conclui e o `signIn` não (ADR-0031,
   // design §8). Poupa à pessoa reescrever o endereço que acabou de dar — e é
