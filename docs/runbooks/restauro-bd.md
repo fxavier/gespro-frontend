@@ -194,11 +194,25 @@ grep -n proteger_contra_destruicao infra/live/dev/main.tf   # = false
 # 1. Esvaziar cada bucket (origem e, se houver, `gespro-uploads-dev-replica`,
 #    na região da réplica). Versões E marcadores, em lotes de 1000.
 B=gespro-uploads-dev
+# Bypass só com Object Lock: sem configuração de bloqueio o comando abaixo falha
+# e não há retenção a contornar (nem permissão a exigir à role).
+BYPASS=()
+aws s3api get-object-lock-configuration --bucket "$B" >/dev/null 2>&1 &&
+  BYPASS=(--bypass-governance-retention)
 while :; do
   L=$(aws s3api list-object-versions --bucket "$B" --max-items 1000 --output json |
-      jq -c '{Objects: [(.Versions // [])[], (.DeleteMarkers // [])[] | {Key, VersionId}], Quiet: true}')
-  [ "$(echo "$L" | jq '.Objects | length')" -eq 0 ] && break
-  aws s3api delete-objects --bucket "$B" --delete "$L" --bypass-governance-retention
+      jq -c '{Objects: [(.Versions // [])[], (.DeleteMarkers // [])[] | {Key, VersionId}], Quiet: true}') ||
+    { echo "Falhou a listagem de $B — parar." >&2; break; }
+  [ "$(echo "$L" | jq '.Objects | length')" -eq 0 ] && { echo "$B vazio."; break; }
+  # O delete-objects devolve 200 (exit 0) mesmo quando recusa chaves uma a uma:
+  # as recusas vêm em `.Errors`. Sem esta verificação o laço re-lista para sempre.
+  R=$(aws s3api delete-objects --bucket "$B" --delete "$L" "${BYPASS[@]}" --output json) ||
+    { echo "delete-objects falhou em $B — parar." >&2; break; }
+  if echo "$R" | jq -e '(.Errors // []) | length > 0' >/dev/null; then
+    echo "Recusas em $B (role errada, ou COMPLIANCE) — parar:" >&2
+    echo "$R" | jq -c '.Errors[:5]' >&2
+    break
+  fi
 done
 # (Repetir para a réplica com `--region <replica_region>`. Desligar antes a
 #  replicação não é preciso: o destroy apaga a configuração primeiro.)
@@ -208,7 +222,10 @@ terraform -chdir=infra/live/dev destroy
 ```
 
 - `--bypass-governance-retention` só é preciso se o dev tiver Object Lock
-  (`object_lock_retencao_anos > 0`; a omissão do dev é 0) e só funciona com a
+  (`object_lock_retencao_anos > 0`; a omissão do dev é 0). O laço só o passa
+  quando `get-object-lock-configuration` responde: se a role não puder ler essa
+  configuração, segue sem bypass, as versões bloqueadas são recusadas e o laço
+  pára com a lista das recusas. Só funciona com a
   **role de emergência** (`s3:BypassGovernanceRetention` + `s3:DeleteObjectVersion`,
   não criada pelo IaC): assume-a antes do passo 1 e regista o acto (CloudTrail).
   A role da app não consegue — é esse o ponto do GOVERNANCE.
