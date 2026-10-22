@@ -7,6 +7,11 @@
  * de a MinIO deixar de publicar imagens), com o mesmo entrypoint (`docker-entrypoint.sh minio`).
  * Fixada por tag de release E por digest: uma tag reescrita não muda a imagem por baixo do teste.
  *
+ * Origem: o repositório GitHub é hoje `pgsty/silo` (fork comunitário do MinIO; `pgsty/minio`
+ * redirecciona para lá). Risco aceite: o CI depende de um utilizador do Docker Hub que não é nosso.
+ * Seguimento: espelhar a imagem no GHCR da organização, ou passar a `cgr.dev/chainguard/minio`
+ * (fixado por digest) com `withTmpFs({ '/data': 'rw' })`.
+ *
  * Um sítio só: os testes de S3 (#430, #575) importam daqui.
  */
 export const IMAGEM_MINIO =
