@@ -128,3 +128,27 @@ finge que o objectivo está cumprido. Um RTO que nunca foi cronometrado é ficç
 - **O primeiro ensaio é o mais valioso e o mais provável de correr mal.** Faz-se localmente, na
   fase 1, quando falhar não custa nada. O ensaio contra produção — o que valida o RTO a sério — faz
   parte da fase de provisionamento, adiada pelo ADR-0026.
+
+## Adenda (2026-10-22, #575) — o IaC AWS passa a declarar o §2
+
+Não reescreve a decisão (ADR-0023); regista como o IaC candidato a cumpre e o que fica fora.
+
+- **PITR**: `backup_retention_days` 35 em `live/prod` e 7 em `live/dev` (a nota do §2 fica
+  resolvida). Os backups automáticos sobrevivem ao apagamento da instância em prod.
+- **Objectos**: o bucket da app é o dos documentos fiscais (PDF do encerramento, ADR-0035 §8, e os
+  documentos de suporte). Passa a ter **réplica noutra região** (`replica_region`, obrigatória em
+  prod, sem omissão) e **Object Lock em modo GOVERNANCE** com retenção por omissão de 10 anos
+  (variável; prazo do ADR-0015 §4, base fiscal em `docs/research/mocambique-quadro-legal.md`, por
+  confirmar juridicamente). GOVERNANCE e não COMPLIANCE porque o bucket guarda também dados pessoais
+  cuja remoção o ADR-0017 quer efectiva, e porque um prazo errado em COMPLIANCE não se corrige; para
+  a role da app, que não tem `BypassGovernanceRetention`, os dois modos comportam-se igual.
+- **Expiração das versões não correntes**: deixa de ser 90 dias (apagava de vez, ao fim de três
+  meses, o documento sobreposto que o versionamento devia proteger) e passa a retenção + 1 ano.
+- **Instantâneo antes de cada migração**: continua requisito, **sem passo de deploy** — o
+  `migrate deploy` corre no arranque de cada réplica (#574) e o passo cabe à correcção dessa issue.
+  Contrato do passo em `docs/runbooks/restauro-bd.md`.
+- **Keycloak**: não existe no IaC (#572). A base que esse módulo criar herda esta política;
+  requisito escrito em `docs/runbooks/restauro-keycloak.md`.
+- **Ensaio contra produção**: continua [HUMANO], quando houver produção (§3).
+- A réplica de objectos **não** muda a linha «Região inteira em baixa — não coberto» do §4: guarda
+  uma cópia dos documentos fora da região; não serve a aplicação a partir dela.

@@ -54,6 +54,24 @@ utilizadores por `keycloakSub`».)
 4. Os utilizadores recriados recebem fluxo de reposição de credenciais (nunca se
    restauram palavras-passe por outro canal).
 
+## Produção — requisito para a #572 (Keycloak no IaC)
+
+O Keycloak **não existe** no IaC de produção (#572). Localmente partilha a
+instância Postgres com o ERP e herda o arquivo de WAL; em produção, a base que o
+módulo da #572 criar tem de herdar a **mesma política** que o `modules/rds` já
+declara para o ERP (#575, ADR-0020 §1 — «um sistema, não dois»):
+
+- PITR com `backup_retention_days = 35`, backups mantidos após apagar a
+  instância (`retain_automated_backups = true`), `deletion_protection = true`,
+  `skip_final_snapshot = false`, `copy_tags_to_snapshot = true`, Multi-AZ.
+  O caminho mais curto é reutilizar o `modules/rds` (uma segunda instância, ou
+  uma segunda base na mesma instância, como localmente).
+- **Instantâneo manual antes de cada actualização do Keycloak** (ADR-0020 §2,
+  retido 90 dias) — o Keycloak migra o schema da sua base no arranque.
+- Restauro: o mesmo procedimento de `restauro-bd.md` §Produção, para o
+  **mesmo instante** que a base do ERP.
+- Ensaio cronometrado contra produção: [HUMANO], em `restauro-bd.md` §Ensaio.
+
 ## Actualização de versão (contexto)
 
 A versão é fixada no `docker-compose.yml` (`quay.io/keycloak/keycloak:26.7.0`) e

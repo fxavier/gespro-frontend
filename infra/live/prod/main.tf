@@ -5,8 +5,9 @@
 # Diferenças face ao dev:
 #   - RDS: Multi-AZ, db.t4g.small, deletion_protection=true
 #   - App Runner: cpu=512, memory=1024, min_size=2, max_size=10
-#   - Backups: 7 dias
+#   - Backups/PITR: 35 dias (ADR-0020 §2), mantidos se a instância for apagada
 #   - skip_final_snapshot=false (snapshot obrigatório antes de destruir)
+#   - S3: Object Lock (conservação fiscal) + réplica em `replica_region`
 # ==============================================================================
 
 terraform {
@@ -22,6 +23,16 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = local.default_tags
+  }
+}
+
+# Região da réplica dos documentos (ADR-0020 §2, #575).
+provider "aws" {
+  alias  = "replica"
+  region = var.replica_region
 
   default_tags {
     tags = local.default_tags
@@ -87,7 +98,8 @@ module "rds" {
   allocated_storage         = 50
   max_allocated_storage     = 500
   multi_az                  = true
-  backup_retention_days     = 7
+  backup_retention_days     = 35 # ADR-0020 §2 — o máximo do RDS; é a janela do PITR
+  retain_automated_backups  = true
   deletion_protection       = true
   skip_final_snapshot       = false
   db_credentials_secret_arn = module.secrets.db_credentials_secret_arn
@@ -101,11 +113,22 @@ module "rds" {
 module "storage" {
   source = "../../modules/storage"
 
+  providers = {
+    aws         = aws
+    aws.replica = aws.replica
+  }
+
   project         = local.project
   environment     = local.environment
   expiration_days = 30
   allowed_origins = [var.app_url]
-  tags            = local.default_tags
+
+  # Continuidade (ADR-0020 §2, #575)
+  replica_region            = var.replica_region
+  object_lock_retencao_anos = var.retencao_documentos_fiscais_anos
+  object_lock_modo          = "GOVERNANCE" # porquê, em modules/storage/main.tf
+
+  tags = local.default_tags
 }
 
 # ------------------------------------------------------------------------------

@@ -10,3 +10,7 @@ aws_region     = "af-south-1"
 aws_account_id = "123456789012"  # Substituir pelo ID da conta AWS
 image_tag      = "sha-abc1234"   # Sempre usar SHA explícita em prod (nunca "latest")
 app_url        = "https://gespro.example.com"
+
+# Continuidade (ADR-0020 §2, #575)
+replica_region = "eu-west-1" # Obrigatória, sem omissão; diferente de aws_region
+# retencao_documentos_fiscais_anos = 10  # Object Lock (GOVERNANCE); mínimo 10 em prod

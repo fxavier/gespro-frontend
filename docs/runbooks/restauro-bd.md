@@ -76,6 +76,114 @@ exemplo, restaurar para um instante anterior a uma migração destrutiva):
 | Base `keycloak` perdida | Vem no mesmo restauro do cluster; se irrecuperável, ver `restauro-keycloak.md` |
 | Perda do próprio volume `gespro-walarchive` | Sem PITR: resta o último estado do `gespro-pgdata`. Em produção o arquivo vive em armazenamento separado — é exactamente por isso |
 
+## Produção (IaC AWS, nunca aplicado — ADR-0026 §5, #575)
+
+O que o `infra/live/prod` declara, e o que fica por fazer à mão. **Nada disto foi
+exercido**: o IaC nunca foi aplicado (`docs/status.md`). Verificador offline das
+declarações: `terraform -chdir=infra/live/prod init -backend=false && terraform
+-chdir=infra/live/prod test` (fornecedor dobrado — prova o que o plano pede, não
+que a AWS o aceita).
+
+### O que está declarado
+
+| Capacidade (ADR-0020 §2) | Onde | Valor |
+|---|---|---|
+| Recuperação a um ponto no tempo | `modules/rds` — os backups automáticos do RDS **são** o PITR | `backup_retention_days = 35` (prod), `7` (dev) |
+| Backups sobrevivem ao apagamento da instância | `retain_automated_backups = true` → `delete_automated_backups = false` | prod |
+| Snapshot final ao destruir | `skip_final_snapshot = false`, `final_snapshot_identifier = gespro-prod-final-snapshot` | prod |
+| Etiquetas nos snapshots | `copy_tags_to_snapshot = true` | sempre |
+| Destruição acidental | `deletion_protection = true` | prod |
+| Multi-AZ | `multi_az = true` | prod |
+| Objectos: versionamento + réplica noutra região + Object Lock | `modules/storage` — ver «Objectos» abaixo | prod |
+
+### Restaurar a um ponto no tempo (instância perdida, migração destrutiva)
+
+O restauro cria **sempre uma instância nova**; nunca escreve por cima da actual.
+
+```bash
+# 1. Janela restaurável (LatestRestorableTime ≈ agora − 5 min)
+aws rds describe-db-instances --db-instance-identifier gespro-prod-postgres \
+  --query 'DBInstances[0].[LatestRestorableTime,BackupRetentionPeriod]'
+
+# 2. Restaurar para o instante anterior ao erro (UTC), na mesma subnet/SG
+aws rds restore-db-instance-to-point-in-time \
+  --source-db-instance-identifier gespro-prod-postgres \
+  --target-db-instance-identifier gespro-prod-postgres-restauro-<aaaammddhhmm> \
+  --restore-time 2026-10-22T09:41:00Z \
+  --db-subnet-group-name gespro-prod-db-subnet-group \
+  --vpc-security-group-ids <rds_sg_id> \
+  --db-parameter-group-name gespro-prod-pg17 \
+  --multi-az --no-publicly-accessible
+# (instância apagada: --source-dbi-resource-id em vez do identificador; os
+#  backups mantidos aparecem em `aws rds describe-db-instance-automated-backups`)
+
+# 3. Verificar (ADR-0020 §3): contagens de "Tenant"/"User", coerência das séries.
+# 4. Reapontar: actualizar o segredo DATABASE_URL e reimplantar o App Runner.
+#    O Terraform passa a ver deriva — importar a instância nova ou renomear (a
+#    decisão é de quem conduz o incidente; registá-la no relatório).
+```
+
+### Requisito: instantâneo antes de cada migração — **depende da #574**
+
+O ADR-0020 §2 pede um instantâneo manual antes de cada migração de schema,
+retido 90 dias. Hoje o `prisma migrate deploy` corre no `docker-entrypoint.sh`,
+**no arranque de cada réplica** — não há um passo de *deploy* único onde o
+instantâneo caiba (é exactamente a #574). Este runbook não inventa esse passo;
+fixa o que ele tem de fazer quando a #574 o criar:
+
+1. Antes de `migrate deploy`, e só se houver migrações pendentes
+   (`prisma migrate status`):
+   `aws rds create-db-snapshot --db-instance-identifier gespro-prod-postgres
+   --db-snapshot-identifier gespro-prod-pre-migracao-<sha>-<aaaammddhhmm> --tags Key=Motivo,Value=pre-migracao`
+   e esperar `aws rds wait db-snapshot-available`.
+2. Falhar o *deploy* se o instantâneo falhar — sem instantâneo não há migração.
+3. Retenção de 90 dias: os instantâneos manuais **não expiram sozinhos**; o
+   passo apaga os `pre-migracao` com mais de 90 dias (ou uma regra do AWS
+   Backup, se a #574 a preferir).
+4. A role do pipeline precisa de `rds:CreateDBSnapshot`, `rds:DescribeDBSnapshots`,
+   `rds:DeleteDBSnapshot` e `rds:AddTagsToResource`, limitadas à instância.
+
+Enquanto a #574 não fecha, o PITR de 35 dias cobre a migração destrutiva
+(restaurar para o instante anterior ao arranque da réplica que migrou) — com um
+RPO de minutos em vez de zero.
+
+### Objectos (bucket de documentos)
+
+- **Versionamento** + **Object Lock em modo GOVERNANCE**, retenção por omissão de
+  `retencao_documentos_fiscais_anos` (10). A app (Get/Put/DeleteObject) só cria
+  marcadores de apagamento; nenhuma versão é apagável por ela.
+- **Réplica** em `replica_region` (`gespro-uploads-prod-replica`, STANDARD_IA),
+  com versionamento e o mesmo bloqueio. Os marcadores de apagamento replicam.
+- **Repor um objecto apagado**: listar versões
+  (`aws s3api list-object-versions --bucket gespro-uploads-prod --prefix tenant/<id>/…`)
+  e apagar o marcador (`delete-object --version-id <id-do-marcador>`); a versão
+  anterior volta a ser a corrente.
+- **Purgar um objecto bloqueado** (pedido de apagamento de dados pessoais,
+  ficheiro carregado por engano): só uma role de emergência com
+  `s3:BypassGovernanceRetention` + `s3:DeleteObjectVersion`, com
+  `--bypass-governance-retention`, nos **dois** buckets; o acto fica no CloudTrail
+  e é registado no relatório do pedido. Essa role não é criada pelo IaC.
+- **A verificar no primeiro apply [HUMANO]**: o S3 exige um checksum
+  (`Content-MD5`/`x-amz-checksum-*`) nas escritas para um bucket com retenção
+  por omissão. O `PutObject` do SDK v3 da app envia CRC32 por omissão; o
+  **upload do browser por POST assinado** (#430) não envia checksum nenhum.
+  Confirmar que um upload real passa; se o S3 o recusar, a correcção é na app
+  (fora do IaC).
+
+## Ensaio contra produção — [HUMANO], quando houver produção
+
+O critério da #575 («registo de ensaio com tempo medido ≤ RTO para a BD do ERP e
+do Keycloak») **não é exequível sem produção** (ADR-0026 §5). Quando houver:
+
+1. Restaurar a ponto no tempo (acima) as bases do ERP **e** do Keycloak
+   (instância da #572 — ver `restauro-keycloak.md`) para instâncias descartáveis.
+2. Apontar-lhes uma instância da app num ambiente separado; autenticar, emitir
+   uma factura, correr um balancete, confirmar a numeração de série.
+3. Repor um objecto apagado do bucket e ler um objecto da réplica.
+4. Cronometrar cada passo e registar em `ensaio-restauro.md` (secção «Produção»).
+   Tempo acima do RTO de 4 h → ajustar o RTO ou o procedimento, nunca fingir.
+5. Destruir as instâncias descartáveis.
+
 ## Limitações conhecidas (não fingir que não existem)
 
 - O arquivo de WAL vive **no mesmo daemon Docker** que a base de dados: um
