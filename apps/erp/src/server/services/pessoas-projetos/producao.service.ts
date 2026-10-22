@@ -640,6 +640,9 @@ export const OrdemProducaoService = {
     stockService: StockContratoA,
     ctx: Ctx,
   ): Promise<void> {
+    // #557 — tranca a ordem antes de ler o estado: sem isto, dois «Libertar»/«Concluir» em paralelo
+    // passam ambos no `transitar` e duplicam reserva, consumo ou entrada de produto acabado.
+    await tx.$queryRaw`SELECT id FROM "OrdemProducao" WHERE id = ${id} AND "tenantId" = ${ctx.tenantId} FOR UPDATE`;
     const ordem = await tx.ordemProducao.findFirst({
       where: { id, tenantId: ctx.tenantId },
       select: {
