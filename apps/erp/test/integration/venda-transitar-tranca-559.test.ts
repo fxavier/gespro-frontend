@@ -12,6 +12,10 @@
  * Sem a tranca na Venda, ambas já leram a venda PENDENTE/RASCUNHO e a reserva ATIVA e ficam as
  * duas à espera do `update` da reserva; com a tranca, a segunda espera na Venda.
  *
+ * Parte B: uma venda FATURADA convertida de encomenda (`encomendaService.converterEmVenda`,
+ * que emite documento desde a #563) não transita para DEVOLVIDA nem CANCELADA: recusa com
+ * `VENDA_COM_DOCUMENTO`, sem reentrada de stock, sem mexer em saldos e sem NC.
+ *
  * Requer: Docker em execução + @testcontainers/postgresql
  * Degrada graciosamente: SKIP_INTEGRATION=true → saltado.
  */
@@ -30,6 +34,8 @@ describe.skipIf(skip)('#559 — transitar(CANCELADA) concorrente liberta a reser
   let db: any;
   let runCtx: (typeof import('@/server/db/tenant-extension'))['runWithTenantContext'];
   let vendaService: any;
+  let encomendaService: any;
+  let CreateEncomendaSchema: (typeof import('@/lib/validations/vendas'))['CreateEncomendaSchema'];
   let CreateVendaSchema: (typeof import('@/lib/validations/vendas'))['CreateVendaSchema'];
   let TransitarVendaSchema: (typeof import('@/lib/validations/vendas'))['TransitarVendaSchema'];
 
@@ -69,8 +75,8 @@ describe.skipIf(skip)('#559 — transitar(CANCELADA) concorrente liberta a reser
   beforeAll(async () => {
     ({ prismaBase: db } = await import('@/server/db/client'));
     ({ runWithTenantContext: runCtx } = await import('@/server/db/tenant-extension'));
-    ({ vendaService } = (await import('@/server/services/comercial')) as any);
-    ({ CreateVendaSchema, TransitarVendaSchema } = await import('@/lib/validations/vendas'));
+    ({ vendaService, encomendaService } = (await import('@/server/services/comercial')) as any);
+    ({ CreateVendaSchema, TransitarVendaSchema, CreateEncomendaSchema } = await import('@/lib/validations/vendas'));
     const { bootstrapContabilidade } = await import('@/server/provisioning/tenant-bootstrap');
 
     await db.tenant.create({
@@ -160,4 +166,47 @@ describe.skipIf(skip)('#559 — transitar(CANCELADA) concorrente liberta a reser
       'uma só linha de histórico para o cancelamento',
     ).toBe(1);
   });
+  it.each(['DEVOLVIDA', 'CANCELADA'])(
+    'parte B: venda FATURADA convertida de encomenda → %s recusada com VENDA_COM_DOCUMENTO e nada muda',
+    async (paraStatus) => {
+      const input = CreateEncomendaSchema.parse({
+        clienteId,
+        itens: [{ produtoId, nomeProduto: 'Artigo 100', quantidade: 2, precoUnitario: 100, desconto: 0, taxaIva: 0 }],
+      });
+      const enc: any = await noCtx(() => encomendaService.criar(input, ctx));
+      await noCtx(() => encomendaService.transitar({ encomendaId: enc.id, paraStatus: 'CONFIRMADA', localizacaoId }, ctx));
+      const r: any = await noCtx(() => encomendaService.converterEmVenda(enc.id, [{ tipo: 'CREDITO', valor: 200 }], ctx, {}));
+      const venda = await db.venda.findFirst({ where: { id: r.vendaId, tenantId: TENANT } });
+      expect(venda.origem, 'fixture: venda de encomenda').toBe('ENCOMENDA');
+      expect(venda.status, 'fixture: convertida nasce FATURADA').toBe('FATURADA');
+      expect(venda.faturaId, 'fixture: conversão emite documento (#563)').toBeTruthy();
+
+      const retrato = async () => {
+        const s = await db.saldoStock.findFirst({ where: { tenantId: TENANT, produtoId, localizacaoId } });
+        return {
+          saldo: s.saldo.toString(),
+          saldoReservado: s.saldoReservado.toString(),
+          movimentos: await db.movimentoStock.count({ where: { tenantId: TENANT } }),
+          entradasDevolucao: await db.movimentoStock.count({
+            where: { tenantId: TENANT, documentoReferenciaId: venda.id, documentoReferenciaTipo: 'DevolucaoVenda' },
+          }),
+          notasCredito: await db.notaCredito.count({ where: { tenantId: TENANT } }),
+          status: (await db.venda.findFirst({ where: { id: venda.id, tenantId: TENANT } })).status,
+          historico: await db.historicoEstadoVenda.count({ where: { tenantId: TENANT, vendaId: venda.id } }),
+        };
+      };
+      const antes = await retrato();
+
+      let erro: any;
+      try {
+        await noCtx(() => vendaService.transitar(TransitarVendaSchema.parse({ vendaId: venda.id, paraStatus }), ctx));
+      } catch (e) {
+        erro = e;
+      }
+      expect(erro?.code, `esperava VENDA_COM_DOCUMENTO, veio ${erro?.message}`).toBe('VENDA_COM_DOCUMENTO');
+      const depois = await retrato();
+      expect(depois, 'a recusa não escreve nada').toEqual(antes);
+      expect(depois.entradasDevolucao).toBe(0);
+    },
+  );
 });
