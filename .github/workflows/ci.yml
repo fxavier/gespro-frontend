@@ -545,7 +545,7 @@ jobs:
   # 9. TERRAFORM (infra/**) — #641
   #    fmt + `terraform test` dos módulos e de live/prod (mock_provider, sem
   #    credenciais AWS nem backend) + validate de live/dev. Só faz trabalho
-  #    quando o PR/push muda infra/**; nos outros fica verde sem correr nada,
+  #    quando o PR/push muda infra/** (ou este ficheiro); nos outros fica verde sem correr nada,
   #    para poder ser required check sem bloquear PRs que não tocam na infra.
   #    TF_VERSION dentro do required_version dos stacks (>= 1.10, < 2.0).
   # ────────────────────────────────────────────────────────────────────────────
@@ -555,6 +555,7 @@ jobs:
     env:
       TF_VERSION: '1.15.7'
       TF_IN_AUTOMATION: 'true'
+      TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -572,11 +573,11 @@ jobs:
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             echo "mudou=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          if git diff --name-only "$base" "$GITHUB_SHA" -- infra | grep -q .; then
+          if git diff --name-only "$base" "$GITHUB_SHA" -- infra .github/workflows/ci.yml | grep -q .; then
             echo "mudou=true" >> "$GITHUB_OUTPUT"
           else
             echo "mudou=false" >> "$GITHUB_OUTPUT"
-            echo "Sem alterações em infra/** — job sem trabalho."
+            echo "Sem alterações em infra/** nem no ci.yml — job sem trabalho."
           fi
 
       - name: Setup Terraform
@@ -585,6 +586,20 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
+
+      # Um só download do provider para os cinco `init` (e entre corridas).
+      - name: Cache de plugins Terraform
+        if: steps.infra.outputs.mudou == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-tf-plugins-${{ env.TF_VERSION }}-${{ hashFiles('infra/**/.terraform.lock.hcl', 'infra/**/versions.tf', 'infra/**/main.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-tf-plugins-${{ env.TF_VERSION }}-
+
+      - name: Criar directório do cache de plugins
+        if: steps.infra.outputs.mudou == 'true'
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
       - name: terraform fmt -check
         if: steps.infra.outputs.mudou == 'true'
