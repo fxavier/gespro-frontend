@@ -84,6 +84,17 @@ export const LinhaDocumentoSchema = z
     motivoIsencao: z.string().trim().max(500).optional(),
     ordemLinha: z.number().int().nonnegative().default(0),
   })
+  .superRefine((l, ctx) => {
+    // #617: o desconto é um valor e nunca excede a linha — senão o subtotal sai negativo.
+    // Comparado com q·p exacto (Decimal), não arredondado: 0,5 × 22,59 = 11,295 recusa 11,30.
+    if (new Prisma.Decimal(String(l.desconto)).gt(new Prisma.Decimal(String(l.quantidade)).mul(String(l.precoUnitario)))) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['desconto'],
+        message: 'O desconto não pode exceder o valor da linha (quantidade × preço).',
+      });
+    }
+  })
   .transform((l) => {
     // #570: Decimal, meio para cima — a mesma função da linha do POS (`vendas-totais.ts`).
     const base = new Prisma.Decimal(String(l.quantidade)).mul(String(l.precoUnitario)).minus(String(l.desconto));
