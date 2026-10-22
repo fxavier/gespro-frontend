@@ -60,8 +60,18 @@ function hmac(chave: Buffer | string, dados: string): Buffer {
  * Assina um upload por POST com política (SigV4 de POST, ADR-0017 §1). Ao contrário do PUT por
  * query-string, a política aceita `content-length-range`: o S3 recusa (400 EntityTooLarge) um
  * ficheiro acima de `maxBytes`. A key e o Content-Type ficam presos por igualdade exacta.
+ *
+ * Com `checksumSha256` (SHA-256 do ficheiro em base64, calculado no browser), o formulário leva
+ * `x-amz-checksum-algorithm` e `x-amz-checksum-sha256`, também presos por igualdade: um bucket
+ * com Object Lock e retenção por omissão recusa escritas sem `Content-MD5` nem checksum (#575),
+ * e o S3 recusa bytes que não batam com o digest.
  */
-async function assinarPost(key: string, contentType: string, maxBytes: number) {
+async function assinarPost(
+  key: string,
+  contentType: string,
+  maxBytes: number,
+  checksumSha256?: string,
+) {
   const region = process.env.S3_REGION!;
   const b = bucket();
   const cred = await cliente().config.credentials();
@@ -79,6 +89,10 @@ async function assinarPost(key: string, contentType: string, maxBytes: number) {
     'X-Amz-Date': amzDate,
   };
   if (cred.sessionToken) fields['X-Amz-Security-Token'] = cred.sessionToken;
+  if (checksumSha256) {
+    fields['x-amz-checksum-algorithm'] = 'SHA256';
+    fields['x-amz-checksum-sha256'] = checksumSha256;
+  }
 
   const politica = {
     expiration: new Date(agora.getTime() + TTL_PUT_SEGUNDOS * 1000).toISOString(),
@@ -103,8 +117,8 @@ async function assinarPost(key: string, contentType: string, maxBytes: number) {
 
 export function criarS3Storage(): ObjectStorage {
   return {
-    async presignPut(key, { contentType, maxBytes }) {
-      return assinarPost(key, contentType, maxBytes);
+    async presignPut(key, { contentType, maxBytes, checksumSha256 }) {
+      return assinarPost(key, contentType, maxBytes, checksumSha256);
     },
 
     async presignGet(key, ttlSegundos) {

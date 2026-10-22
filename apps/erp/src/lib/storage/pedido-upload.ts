@@ -38,3 +38,18 @@ export function montarPedidoUpload(assinatura: AssinaturaUpload, file: Blob): Pe
   }
   throw new Error(`Método de upload desconhecido: ${uploadMethod}`);
 }
+
+/**
+ * SHA-256 do ficheiro em base64 — vai no pedido de presign e, no driver s3, fica preso na
+ * política do POST (#575: um bucket com Object Lock e retenção por omissão recusa escritas sem
+ * checksum). Lê o ficheiro inteiro em memória; o tecto de upload é `MAX_DOCUMENTO_BYTES` (10 MB).
+ * `undefined` fora de um contexto seguro (sem `crypto.subtle`): o driver local não precisa dele.
+ */
+export async function calcularSha256Base64(file: Blob): Promise<string | undefined> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return undefined;
+  const digest = new Uint8Array(await subtle.digest('SHA-256', await file.arrayBuffer()));
+  let binario = '';
+  for (const b of digest) binario += String.fromCharCode(b);
+  return btoa(binario);
+}
