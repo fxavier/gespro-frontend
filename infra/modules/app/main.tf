@@ -236,7 +236,8 @@ resource "aws_apprunner_service" "main" {
           # IP do cliente para os limitadores (#552): o App Runner acrescenta
           # um salto ao X-Forwarded-For. Um CDN à frente passa a "2".
           # RATE_LIMIT_DRIVER/VALKEY_URL chegam com a #572 — até lá o servidor
-          # recusa arrancar em produção (instrumentation-node.ts).
+          # responde 500 a tudo, /api/health incluído, e o health check não
+          # deixa a instância entrar ao serviço (instrumentation-node.ts).
           TRUSTED_PROXY_HOPS = "1"
         }, local.otel_env)
 

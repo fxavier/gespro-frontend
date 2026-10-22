@@ -1,6 +1,7 @@
 /**
  * Verificação de arranque do limitador (#552). Corre no
- * `instrumentation-node.ts`, antes de o servidor aceitar pedidos.
+ * `instrumentation-node.ts`; se lançar, o Next guarda a falha e responde 500 a
+ * todos os pedidos (`/api/health` incluído) — o processo não termina.
  *
  * Em produção o limitador tem de ser partilhado (Valkey): com o adaptador em
  * memória cada réplica conta sozinha — N réplicas, limite ×N — e o `failClosed`
