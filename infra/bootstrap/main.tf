@@ -2,14 +2,15 @@
 # infra/bootstrap/main.tf
 #
 # Configuração one-time do backend de estado Terraform (S3 + native locking).
-# Executar UMA vez por conta AWS, antes de qualquer stack live/.
+# Executar UMA vez por conta AWS, antes da stack infra/storage-prod (a única
+# stack aplicada desde o ADR-0050; as stacks live/ estão em infra/_arquivo-aws/).
 #
 # Como usar:
 #   cd infra/bootstrap
 #   terraform init   # usa estado LOCAL (bootstrap não tem backend remoto)
 #   terraform apply  # cria o bucket S3 para estado remoto
 #
-# Após criar o bucket, as stacks live/dev e live/prod usam-no como backend.
+# Após criar o bucket, infra/storage-prod usa-o como backend.
 # ==============================================================================
 
 terraform {

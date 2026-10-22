@@ -1,7 +1,7 @@
 variable "aws_region" {
-  description = "Região AWS (af-south-1 = Cape Town, mais próxima de Moçambique)"
+  description = "Região AWS do bucket de estado. Tem de ser a `region` do backend de infra/storage-prod/backend.tf. eu-west-1: na UE, como os documentos (ADR-0050 §2)."
   type        = string
-  default     = "af-south-1"
+  default     = "eu-west-1"
 }
 
 variable "state_bucket_name" {

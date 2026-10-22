@@ -59,7 +59,7 @@ override_resource {
   }
 }
 
-# Os valores que o live/prod passa (o wiring trava-se em infra/live/prod/tests/).
+# Os valores que o storage-prod passa (o wiring trava-se em infra/storage-prod/tests/).
 variables {
   project                    = "gespro"
   environment                = "prod"

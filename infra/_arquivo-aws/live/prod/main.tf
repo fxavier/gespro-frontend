@@ -1,13 +1,14 @@
 # ==============================================================================
-# Stack: live/dev
+# Stack: live/prod
 #
-# Ambiente de desenvolvimento/staging.
-# Diferenças face ao prod:
-#   - RDS: single-AZ, db.t4g.micro, deletion_protection=false
-#   - App Runner: cpu=256, memory=512, min_size=1, max_size=2
-#   - Backups/PITR: 7 dias (prod: 35) — ADR-0020 §2
-#   - S3: sem Object Lock; réplica só se `replica_region` for dada
-#   - Alertas: só se `alert_email` for dada
+# Ambiente de produção.
+# Diferenças face ao dev:
+#   - RDS: Multi-AZ, db.t4g.small, deletion_protection=true
+#   - App Runner: cpu=512, memory=1024, min_size=2, max_size=10
+#   - Backups/PITR: 35 dias (ADR-0020 §2), mantidos se a instância for apagada
+#   - skip_final_snapshot=false (snapshot obrigatório antes de destruir)
+#   - S3: Object Lock (conservação fiscal) + réplica em `replica_region`
+#   - Alertas: CloudWatch + SNS para `alert_email` (modules/monitoring, #576)
 # ==============================================================================
 
 terraform {
@@ -29,18 +30,17 @@ provider "aws" {
   }
 }
 
-# Fornecedor da réplica (o módulo storage exige-o). Sem `replica_region` aponta
-# para a própria região e não cria nada.
+# Região da réplica dos documentos (ADR-0020 §2, #575).
 provider "aws" {
   alias  = "replica"
-  region = coalesce(var.replica_region, var.aws_region)
+  region = var.replica_region
 
   default_tags {
     tags = local.default_tags
   }
 }
 
-# us-east-1: métricas dos health checks do Route 53 (modules/monitoring, #576).
+# us-east-1: onde o Route 53 publica as métricas dos health checks (#576).
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"
@@ -52,7 +52,7 @@ provider "aws" {
 
 locals {
   project     = "gespro"
-  environment = "dev"
+  environment = "prod"
 
   default_tags = {
     Project     = local.project
@@ -68,7 +68,7 @@ data "aws_availability_zones" "available" {
 }
 
 # ------------------------------------------------------------------------------
-# Módulo: secrets (criar primeiro — outros módulos dependem dos ARNs)
+# Módulo: secrets
 # ------------------------------------------------------------------------------
 module "secrets" {
   source = "../../modules/secrets"
@@ -86,13 +86,13 @@ module "network" {
 
   project     = local.project
   environment = local.environment
-  vpc_cidr    = "10.1.0.0/16"
+  vpc_cidr    = "10.2.0.0/16"
   azs         = slice(data.aws_availability_zones.available.names, 0, 2)
   tags        = local.default_tags
 }
 
 # ------------------------------------------------------------------------------
-# Módulo: rds (PostgreSQL 17, single-AZ em dev)
+# Módulo: rds (PostgreSQL 17, Multi-AZ em prod)
 # ------------------------------------------------------------------------------
 module "rds" {
   source = "../../modules/rds"
@@ -105,13 +105,14 @@ module "rds" {
 
   db_name                   = "gespro"
   engine_version            = "17.2"
-  instance_class            = "db.t4g.micro"
-  allocated_storage         = 20
-  max_allocated_storage     = 50
-  multi_az                  = false
-  backup_retention_days     = 7 # ADR-0020 §2
-  deletion_protection       = false
-  skip_final_snapshot       = true
+  instance_class            = "db.t4g.small"
+  allocated_storage         = 50
+  max_allocated_storage     = 500
+  multi_az                  = true
+  backup_retention_days     = 35 # ADR-0020 §2 — o máximo do RDS; é a janela do PITR
+  retain_automated_backups  = true
+  deletion_protection       = true
+  skip_final_snapshot       = false
   db_credentials_secret_arn = module.secrets.db_credentials_secret_arn
 
   tags = local.default_tags
@@ -121,7 +122,7 @@ module "rds" {
 # Módulo: storage (S3)
 # ------------------------------------------------------------------------------
 module "storage" {
-  source = "../../modules/storage"
+  source = "../../../modules/storage" # o storage ficou fora do arquivo (ADR-0050)
 
   providers = {
     aws         = aws
@@ -130,13 +131,16 @@ module "storage" {
 
   project         = local.project
   environment     = local.environment
-  expiration_days = 7
+  expiration_days = 30
   allowed_origins = [var.app_url]
-  replica_region  = var.replica_region
 
-  # Sem prevent_destroy: o dev desmonta-se com `terraform destroy`
-  # (docs/runbooks/restauro-bd.md, «Desmontar o dev», #644).
-  proteger_contra_destruicao = false
+  # Continuidade (ADR-0020 §2, #575)
+  replica_region            = var.replica_region
+  object_lock_retencao_anos = var.retencao_documentos_fiscais_anos
+  object_lock_modo          = "GOVERNANCE" # porquê, em modules/storage/main.tf
+
+  # prevent_destroy nos buckets: substituir o bucket dos documentos falha (#644).
+  proteger_contra_destruicao = true
 
   tags = local.default_tags
 }
@@ -157,17 +161,19 @@ module "app" {
   private_subnet_ids = module.network.private_subnet_ids
   apprunner_sg_id    = module.network.apprunner_sg_id
 
-  # Dimensionamento reduzido para dev
-  cpu      = "256"
-  memory   = "512"
-  min_size = 1
-  max_size = 2
+  # Dimensionamento para produção
+  cpu      = "512"
+  memory   = "1024"
+  min_size = 2
+  max_size = 10
 
   # Secrets ARNs
   database_url_secret_arn     = module.secrets.database_url_secret_arn
   auth_secret_arn             = module.secrets.auth_secret_arn
   smtp_credentials_secret_arn = module.secrets.smtp_credentials_secret_arn
   otel_credentials_secret_arn = module.secrets.otel_credentials_secret_arn
+
+  # Telemetria OTLP (ADR-0019 §1, #576) — null até haver destino escolhido
   otel_exporter_otlp_endpoint = var.otel_exporter_otlp_endpoint
 
   # Storage
@@ -179,11 +185,10 @@ module "app" {
 }
 
 # ------------------------------------------------------------------------------
-# Módulo: monitoring (#576) — opcional em dev: só com `alert_email`
+# Módulo: monitoring (alarmes CloudWatch + SNS, #576)
 # ------------------------------------------------------------------------------
 module "monitoring" {
   source = "../../modules/monitoring"
-  count  = var.alert_email == null ? 0 : 1
 
   providers = {
     aws           = aws

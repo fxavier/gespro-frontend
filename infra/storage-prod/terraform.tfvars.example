@@ -1,0 +1,15 @@
+# ==============================================================================
+# terraform.tfvars.example — Stack: storage-prod
+#
+# Copiar para terraform.tfvars e preencher. NUNCA commitar terraform.tfvars
+# (está no .gitignore). A escolha das regiões é [HUMANO] (ADR-0050 §2).
+# ==============================================================================
+
+aws_region     = "eu-central-1" # Obrigatória, na UE (eu-*)
+replica_region = "eu-west-1"    # Obrigatória, na UE e diferente de aws_region
+
+# Domínio público do serviço `erp` no Railway (CORS do upload directo).
+app_origins = ["https://app.example.com"]
+
+# retencao_documentos_fiscais_anos = 10   # Object Lock GOVERNANCE; mínimo 10
+# app_prefixos = ["tenant/"]              # prefixos onde a app lê/escreve/apaga
