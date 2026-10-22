@@ -10,7 +10,7 @@ o histórico).
 - **Ficheiro**: `ADR-<NNNN>-<slug>.md` (quatro dígitos, zero-padded). Os ADRs 0001–0004 usam o
   prefixo curto `<NNNN>-<slug>.md` por razões históricas; do 0006 em diante a convenção é
   `ADR-<NNNN>-<slug>.md`.
-- **Numeração**: sequencial e **única**. O próximo número livre é **0050**.
+- **Numeração**: sequencial e **única**. O próximo número livre é **0051**.
 - **Estado**: `Proposto` → `Aceite` → (`Substituído por ADR-XXXX` | `Descontinuado`).
 - **Citação**: use sempre o identificador canónico da coluna «ADR» deste índice. Para os três
   documentos que colidem no número 0005, o identificador canónico é `ADR-0005-a`, `-b` ou `-c`
@@ -80,10 +80,15 @@ o histórico).
 | ADR | Título | Estado | Depende de |
 |---|---|---|---|
 | [0026](./ADR-0026-adiamento-fornecedor-infraestrutura.md) | **Adiamento da escolha de fornecedor e ambiente local de referência** | Proposto | revê 0005-b, 0012, 0014, 0019, 0020, 0022 |
+| [0050](./ADR-0050-producao-no-railway.md) | **Produção no Railway** | Proposto | substitui 0026 §4–§5; concretiza 0012, 0014, 0019, 0020, 0022; 0017 |
 
 > O ADR-0026 é o que governa os quatro acima na parte de infraestrutura. Onde eles nomeiam serviços da
 > AWS, lê-se **capacidade requerida**; a AWS passou a ser uma implementação candidata, e o ambiente de
 > referência é local. O Terraform em `infra/live/` e `infra/modules/` fica **dormente**.
+>
+> O ADR-0050 (Proposto) propõe o fornecedor que o 0026 §5 adiava: **Railway** (EU West, Amesterdão),
+> com os documentos num bucket S3 com Object Lock. Se for aceite, o Terraform AWS passa de dormente a
+> **arquivado**, excepto o módulo de armazenamento.
 
 **Qualidade estrutural**
 

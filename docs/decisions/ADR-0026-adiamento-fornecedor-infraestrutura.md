@@ -167,3 +167,18 @@ se ganha é chegar lá com tudo o resto provado, e com liberdade de escolher o �
 - **Risco de adiar demais**: adiar tem um custo que cresce. Se ao fim de um trimestre os três números
   do ponto 5 existirem e a decisão continuar por tomar, o adiamento deixou de ser prudência e passou a
   ser evitamento.
+
+## Adenda (2026-10-22) — a escolha é proposta pelo ADR-0050
+
+Não reescreve este ADR (ADR-0023); aponta para onde a decisão adiada no §5 foi registada.
+
+- O [ADR-0050](./ADR-0050-producao-no-railway.md) (Proposto) escolhe o **Railway**, região EU West
+  (Amesterdão, `europe-west4-drams3a`), com Postgres gerido e recuperação a um ponto no tempo, e os
+  documentos num bucket **S3 da AWS com Object Lock** (`infra/modules/storage`).
+- Substitui o §5 (como e quando se decide) e o §4 (o Terraform deixa de estar dormente e passa a
+  arquivado, excepto o armazenamento). **Os §1–§3 — capacidades, ambiente local de referência e
+  regras de portabilidade — continuam em vigor**; o 0050 apoia-se neles para manter baixo o custo de
+  saída.
+- A escolha foi feita **sem os três números do §5**, por decisão humana, com o peso posto no esforço
+  operacional; o 0050 regista-o como risco, não o esconde.
+- Enquanto o 0050 não for `Aceite`, este ADR continua a governar.
