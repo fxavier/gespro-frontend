@@ -946,6 +946,13 @@ async function calcularHashIntegridade(
 }
 
 /**
+ * #622 — documento fiscal num período com IVA apurado/declarado é sempre recusado, mesmo só com
+ * linhas a 0 % (não toca a 443x, mas entra na base do Modelo A). Antes da numeração; período
+ * fechado fica para o lançamento (`PERIODO_FECHADO`).
+ */
+const SO_APURAMENTO = { fechadoContaComoApurado: false };
+
+/**
  * Núcleo da emissão de factura (ADR-0041 §3): corre na transacção do chamador e
  * NÃO consulta a sessão — o travão de e-mail é de quem chama (`emitirFatura`,
  * `converterProformaEmFatura`; o POS aplica-o na abertura da sessão, §6).
@@ -1001,6 +1008,7 @@ export async function emitirDocumentoEmTx(
     if (!venda) throw new NotFoundError('Venda não encontrada');
   }
 
+  await exigirPeriodoSemIvaApurado(tx, input.dataEmissao, ctx.tenantId, undefined, SO_APURAMENTO);
   const { numero, serieDocumentoId } = await numerarDocumento(tx, tipoSerie, ctx, input.dataEmissao);
 
   const linhas = input.linhas.map((l, i) => ({
@@ -1400,6 +1408,7 @@ export async function emitirNotaCreditoEmTx(
     );
   }
 
+  await exigirPeriodoSemIvaApurado(tx, input.dataEmissao, ctx.tenantId, undefined, SO_APURAMENTO);
   const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_CREDITO', ctx, input.dataEmissao);
 
   const nc = await tx.notaCredito.create({
@@ -1966,6 +1975,7 @@ export async function emitirNotaDebito(input: EmitirNotaDebitoInput, ctx: Ctx): 
     const contaCredito = await resolverContaCreditoNotaDebito(tx, input, ctx);
     if (input.faturaReferenciaId) await validarFaturaReferenciaNotaDebito(tx, input.faturaReferenciaId, input.clienteId, ctx);
 
+    await exigirPeriodoSemIvaApurado(tx, input.dataEmissao, ctx.tenantId, undefined, SO_APURAMENTO);
     const { numero, serieDocumentoId } = await numerarDocumento(tx, 'NOTA_DEBITO', ctx, input.dataEmissao);
 
     let subtotal = new Prisma.Decimal(0);
