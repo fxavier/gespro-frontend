@@ -174,13 +174,18 @@ export interface PatchAssinatura {
  * O Stripe não garante ordem de entrega: uma transição que não encaixa não é um
  * erro fatal — é registada e ignorada (devolve `false`). Transições explícitas
  * da UI usam `estrito: true` e recebem `BusinessRuleError('TRANSICAO_INVALIDA')`.
+ *
+ * `eventoEm` (webhook, issue #561): o `created` do evento Stripe. Entra também no
+ * `where` — só escreve se não houver evento aplicado mais recente — e avança a
+ * marca `ultimoEventoStripeEm`. Quem passa `eventoEm` usa `transitarPorEvento`,
+ * que distingue um evento antigo de uma corrida perdida.
  */
 export async function aplicarTransicao(
   tx: Prisma.TransactionClient,
   assinatura: { id: string; tenantId: string; estado: string },
   novoEstado: EstadoAssinatura,
   patch: PatchAssinatura = {},
-  opts?: { estrito?: boolean },
+  opts?: { estrito?: boolean; eventoEm?: Date },
 ): Promise<boolean> {
   const actual = assinatura.estado as EstadoAssinatura;
 
@@ -200,9 +205,23 @@ export async function aplicarTransicao(
 
   const { count } = await tx.assinatura.updateMany({
     // `estado: actual` é a trava: só escreve quem ainda vê o estado que leu.
-    where: { id: assinatura.id, tenantId: assinatura.tenantId, estado: actual as never },
+    where: {
+      id: assinatura.id,
+      tenantId: assinatura.tenantId,
+      estado: actual as never,
+      // Trava de ordem (#561): empates aplicam-se — ver `transitarPorEvento`.
+      ...(opts?.eventoEm
+        ? {
+            OR: [
+              { ultimoEventoStripeEm: null },
+              { ultimoEventoStripeEm: { lte: opts.eventoEm } },
+            ],
+          }
+        : {}),
+    },
     data: {
       estado: novoEstado as never,
+      ...(opts?.eventoEm ? { ultimoEventoStripeEm: opts.eventoEm } : {}),
       ...(patch.planoAssinatura !== undefined
         ? { planoAssinatura: patch.planoAssinatura }
         : {}),
@@ -728,6 +747,7 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
         subscriptionId,
         objecto,
         pendentes,
+        eventoEm: Number.isFinite(evento.created) ? new Date(evento.created * 1000) : null,
       });
 
       return {
@@ -756,6 +776,67 @@ export async function processarEventoWebhook(evento: Stripe.Event): Promise<Resu
   }
 }
 
+/**
+ * Transição pedida por um evento Stripe, ordenada pelo `created` (issue #561).
+ *
+ * O Stripe não garante a ordem de entrega, e `LEITURA → ATIVA` é uma transição
+ * válida: a trava de estado sozinha não distingue uma reactivação verdadeira de
+ * uma reentrega atrasada de um `subscription.updated (active)` anterior a um
+ * cancelamento. Por isso o `UPDATE` só escreve se a marca
+ * `ultimoEventoStripeEm` não for posterior ao evento (`aplicarTransicao` com
+ * `eventoEm`), e avança-a.
+ *
+ * Empates (`created` igual) APLICAM-SE: o `created` é ao segundo e eventos da
+ * mesma operação nascem no mesmo segundo (checkout + subscription.created +
+ * invoice.paid; mudança de plano + factura de rateio). Descartá-los perdia o
+ * Price/plano de um deles; a reentrega do MESMO evento já é travada pelo id.
+ *
+ * Zero linhas escritas tem duas causas, e relê-se a linha para as separar. O
+ * `UPDATE` tranca a linha até ao fim da transacção, logo dois eventos em
+ * corrida serializam-se, e a releitura (nova instrução, READ COMMITTED) já vê o
+ * que o outro gravou:
+ *  - a marca é posterior → evento antigo: registado (200) e ignorado;
+ *  - o estado mudou sob os nossos pés → o evento é o mais recente e a decisão é
+ *    refeita contra o estado actual (senão um evento novo perdia para um antigo
+ *    que chegou à base primeiro).
+ */
+async function transitarPorEvento(
+  tx: Prisma.TransactionClient,
+  eventoEm: Date | null,
+  alvo: { id: string; tenantId: string; estado: string },
+  novoEstado: EstadoAssinatura,
+  patch: PatchAssinatura = {},
+): Promise<boolean> {
+  if (!eventoEm) return aplicarTransicao(tx, alvo, novoEstado, patch);
+
+  let actual = alvo;
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    if (await aplicarTransicao(tx, actual, novoEstado, patch, { eventoEm })) return true;
+
+    const fresco = await tx.assinatura.findFirst({
+      where: { id: alvo.id, tenantId: alvo.tenantId },
+      select: { id: true, tenantId: true, estado: true, ultimoEventoStripeEm: true },
+    });
+    if (!fresco) return false;
+    if (fresco.ultimoEventoStripeEm && fresco.ultimoEventoStripeEm > eventoEm) {
+      logger.warn(
+        {
+          tenantId: alvo.tenantId,
+          para: novoEstado,
+          eventoEm: eventoEm.toISOString(),
+          ultimoAplicado: fresco.ultimoEventoStripeEm.toISOString(),
+        },
+        '[webhook-stripe] evento mais antigo do que o último aplicado — registado e ignorado',
+      );
+      return false;
+    }
+    // Nada mudou: a transição é simplesmente inválida a partir deste estado.
+    if (fresco.estado === actual.estado) return false;
+    actual = { id: fresco.id, tenantId: fresco.tenantId, estado: fresco.estado };
+  }
+  return false;
+}
+
 async function aplicarEvento(
   tx: Prisma.TransactionClient,
   evento: Stripe.Event,
@@ -766,6 +847,8 @@ async function aplicarEvento(
     objecto: Record<string, unknown>;
     /** Acumulador de notificações a despachar DEPOIS do commit. */
     pendentes: string[];
+    /** `created` do evento (#561); `null` só se o Stripe não o mandasse. */
+    eventoEm: Date | null;
   },
 ): Promise<boolean> {
   const { objecto } = ctx;
@@ -796,7 +879,7 @@ async function aplicarEvento(
       }
 
       const subId = extrairCustomerId(objecto.subscription);
-      return aplicarTransicao(tx, alvo, 'ATIVA', {
+      return transitarPorEvento(tx, ctx.eventoEm, alvo, 'ATIVA', {
         stripeCustomerId: ctx.customerId ?? undefined,
         stripeSubscriptionId: subId ?? undefined,
         dataAtivacao: agora,
@@ -826,11 +909,11 @@ async function aplicarEvento(
           : {}),
         ...(novoEstado === 'LEITURA' ? { leituraFim: fimDaLeitura(agora) } : {}),
       };
-      return aplicarTransicao(tx, alvo, novoEstado, patch);
+      return transitarPorEvento(tx, ctx.eventoEm, alvo, novoEstado, patch);
     }
 
     case 'customer.subscription.deleted': {
-      const transitou = await aplicarTransicao(tx, alvo, 'LEITURA', {
+      const transitou = await transitarPorEvento(tx, ctx.eventoEm, alvo, 'LEITURA', {
         dataCancelamento: agora,
         leituraFim: fimDaLeitura(agora),
       });
@@ -849,7 +932,7 @@ async function aplicarEvento(
     }
 
     case 'invoice.paid': {
-      const transitou = await aplicarTransicao(tx, alvo, 'ATIVA', {
+      const transitou = await transitarPorEvento(tx, ctx.eventoEm, alvo, 'ATIVA', {
         dataAtivacao: alvo.estado === 'ATIVA' ? undefined : agora,
         tentativasFalhadas: 0,
         leituraFim: null,
@@ -889,7 +972,7 @@ async function aplicarEvento(
         proximaTentativa === null || status === 'uncollectible' || tentativas >= 4;
 
       if (dunningEsgotado) {
-        const transitou = await aplicarTransicao(tx, alvo, 'LEITURA', {
+        const transitou = await transitarPorEvento(tx, ctx.eventoEm, alvo, 'LEITURA', {
           leituraFim: fimDaLeitura(agora),
         });
         ctx.pendentes.push(
