@@ -27,10 +27,37 @@ const preco2 = fc.oneof(
 );
 const taxa = fc.constantFrom(...TAXAS_IVA);
 
+/**
+ * #617 — o desconto é um valor a 2 casas e nunca excede q × p: é a fracção k/1000 de q×p, truncada ao
+ * cêntimo em Decimal (truncar garante d ≤ q×p). k = 1000 é a fronteira (d = q×p quando q×p tem
+ * cêntimos exactos, subtotal 0); k = 0 é a linha sem desconto.
+ */
+const linhaComDesconto = fc
+  .tuple(
+    quantidade4,
+    preco2,
+    fc.oneof(fc.constant(0), fc.constant(1_000), fc.integer({ min: 0, max: 1_000 })),
+    taxa,
+  )
+  .map(([q, p, k, t]) => {
+    const d = new Prisma.Decimal(String(q))
+      .mul(String(p))
+      .mul(k)
+      .div(1_000)
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN)
+      .toNumber();
+    return [q, p, d, t] as const;
+  });
+
 describe('#570 — linha de documento = linha do POS', () => {
   it('exemplos: 0,5 × 2,01 = 1,01 e 1,125 × 10,04 = 11,30', () => {
     expect(linha(0.5, 2.01, 0, 0).subtotal).toBe(1.01);
     expect(linha(1.125, 10.04, 0, 0).subtotal).toBe(11.3);
+  });
+
+  it('fronteira #617: desconto = q × p ⇒ subtotal, IVA e total 0', () => {
+    const l = linha(2, 22.59, 45.18);
+    expect([l.subtotal, l.ivaItem, l.total]).toEqual([0, 0, 0]);
   });
 
   it('sem desconto: subtotal, IVA e total iguais a calcularTotaisVendaPOS de uma linha', () => {
@@ -50,8 +77,7 @@ describe('#570 — linha de documento = linha do POS', () => {
 
   it('com desconto em valor: igual ao POS sobre a base exacta q × p − d', () => {
     fc.assert(
-      fc.property(quantidade4, preco2, fc.integer({ min: 0, max: 1_000_000 }), taxa, (q, p, dc, t) => {
-        const d = dc / 100;
+      fc.property(linhaComDesconto, ([q, p, d, t]) => {
         const l = linha(q, p, d, t);
         const exacta = calcularTotaisVendaPOS([
           {

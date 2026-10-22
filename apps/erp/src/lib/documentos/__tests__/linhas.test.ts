@@ -13,7 +13,9 @@ import { calcularLinha, calcularTotais, type LinhaCalculo } from '@/lib/document
 import { TAXAS_IVA } from '@/lib/iva';
 import { LinhaDocumentoSchema } from '@/lib/validations/faturacao';
 
-const round2 = (x: number) => Math.round(x * 100) / 100;
+/** IVA do oráculo em Decimal, a 2 casas, meio para cima — como o produto (#617; o float só acertava a 16 %). */
+const ivaDecimal = (base: number, taxa: string) =>
+  new Prisma.Decimal(String(base)).mul(taxa).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toNumber();
 /** Oráculo independente (#570): q·p − d exacto em Decimal, a 2 casas, meio para cima. */
 const baseDecimal = (l: LinhaCalculo) =>
   new Prisma.Decimal(String(l.quantidade))
@@ -52,11 +54,11 @@ describe('calcularLinha — propriedades', () => {
     );
   });
 
-  it('taxa 0.16 ⇒ iva = round2(base × 0.16)', () => {
+  it('taxa 0.16 ⇒ iva = base × 0.16 em Decimal (meio para cima)', () => {
     fc.assert(
       fc.property(linhaArb, (l) => {
         const r = calcularLinha({ ...l, taxaIva: 0.16 });
-        expect(r.iva).toBe(round2(r.base * 0.16));
+        expect(r.iva).toBe(ivaDecimal(r.base, '0.16'));
       }),
       { numRuns: NUM_RUNS },
     );
