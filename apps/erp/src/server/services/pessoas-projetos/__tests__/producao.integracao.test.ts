@@ -90,6 +90,8 @@ function buildMockTx(overrides: Partial<{
 
   let callCount = 0;
   const mockTx = {
+    // #557 — `transitarStatus` tranca a ordem (`SELECT … FOR UPDATE`) antes de a ler.
+    $queryRaw: vi.fn().mockResolvedValue([{ id: ORDEM_ID }]),
     ordemProducao: {
       findFirst: vi.fn().mockImplementation(() => {
         callCount++;
@@ -396,6 +398,25 @@ describe('OrdemProducao — integração stock (Wave 3)', () => {
       reservarIdxs.forEach((rIdx, i) => {
         expect(rIdx).toBeLessThan(createIdxs[i]!);
       });
+    });
+  });
+
+  describe('#557: tranca a ordem antes de ler o estado', () => {
+    it('pede FOR UPDATE da ordem do tenant antes de ordemProducao.findFirst', async () => {
+      mockTx = buildMockTx({ ordemStatus: 'PLANEADA' });
+      await OrdemProducaoService.transitarStatus(mockTx, ORDEM_ID, 'LIBERADA', spyStock, ctx);
+
+      const txAny = mockTx as unknown as {
+        $queryRaw: ReturnType<typeof vi.fn>;
+        ordemProducao: { findFirst: ReturnType<typeof vi.fn> };
+      };
+      expect(txAny.$queryRaw).toHaveBeenCalledTimes(1);
+      const [strings, ...valores] = txAny.$queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+      expect(strings.join('?')).toMatch(/FROM "OrdemProducao".*FOR UPDATE/);
+      expect(valores).toEqual([ORDEM_ID, TENANT_ID]);
+      expect(txAny.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        txAny.ordemProducao.findFirst.mock.invocationCallOrder[0]!,
+      );
     });
   });
 });
