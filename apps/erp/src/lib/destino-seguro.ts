@@ -15,24 +15,26 @@ const ORIGEM_NEUTRA = 'http://destino-seguro.local';
 export function destinoSeguro(cb: string | null | undefined, origem?: string): string {
   if (!cb) return OMISSAO;
 
-  let descodificado: string;
-  try {
-    descodificado = decodeURIComponent(cb);
-  } catch {
-    return OMISSAO;
-  }
-
   // `//host` e `/\host` são de protocolo relativo para o browser; vale também
-  // depois de descodificar, para `/%2F%2Fhost` não passar por caminho.
-  for (const c of [cb, descodificado]) {
+  // depois de descodificar, para `/%2F%2Fhost` não passar por caminho. Um `%`
+  // solto (`?q=100%`) não descodifica: salta-se só essa verificação.
+  const candidatos = [cb];
+  try {
+    candidatos.push(decodeURIComponent(cb));
+  } catch {
+    // sem forma descodificada — as outras verificações decidem
+  }
+  for (const c of candidatos) {
     if (!c.startsWith('/') || c.startsWith('//') || c.startsWith('/\\')) return OMISSAO;
   }
 
-  // O parser de URL ignora tabs/quebras e trata `\` como `/`: a comparação de
-  // origens apanha o que as regras de texto deixarem passar.
+  // O parser de URL ignora tabs/quebras, trata `\` como `/` e resolve `.`/`..`
+  // (também `%2e`): `/..//host` vira o pathname `//host`, que o router lê como
+  // protocolo relativo. A origem e o pathname resolvidos apanham o resto.
   const base = origem ?? (typeof window !== 'undefined' ? window.location.origin : ORIGEM_NEUTRA);
   try {
-    if (new URL(cb, base).origin !== new URL(base).origin) return OMISSAO;
+    const u = new URL(cb, base);
+    if (u.origin !== new URL(base).origin || u.pathname.startsWith('//')) return OMISSAO;
   } catch {
     return OMISSAO;
   }

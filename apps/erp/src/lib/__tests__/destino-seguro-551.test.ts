@@ -17,6 +17,11 @@ describe('destinoSeguro (#551)', () => {
     ['/%2F%2Fexemplo.invalid'],
     ['  /faturacao'],
     ['/\t/exemplo.invalid'],
+    // Pontos que o parser resolve para pathname `//exemplo.invalid` (revisão G5).
+    ['/.//exemplo.invalid'],
+    ['/..//exemplo.invalid'],
+    ['/./\\exemplo.invalid'],
+    ['/%2e%2e//exemplo.invalid'],
     [''],
     [null],
     [undefined],
@@ -24,7 +29,8 @@ describe('destinoSeguro (#551)', () => {
     expect(destinoSeguro(cb, ORIGEM)).toBe('/dashboard');
   });
 
-  it.each([['/faturacao'], ['/faturacao?x=1#y'], ['/dashboard']])('aceita %j tal como vem', (cb) => {
+  // `100%` não é descodificável: não é motivo para recusar um caminho legítimo.
+  it.each([['/faturacao'], ['/faturacao?x=1#y'], ['/dashboard'], ['/faturacao?q=100%']])('aceita %j tal como vem', (cb) => {
     expect(destinoSeguro(cb, ORIGEM)).toBe(cb);
   });
 

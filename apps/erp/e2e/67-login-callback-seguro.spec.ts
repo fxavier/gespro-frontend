@@ -25,9 +25,16 @@ test.describe('Login: callbackUrl só para a mesma origem (#551)', () => {
     await page.route((url) => url.hostname.endsWith('exemplo.invalid'), (rota) => rota.abort());
   });
 
-  for (const cb of ['https://exemplo.invalid', '//exemplo.invalid', '/\\exemplo.invalid']) {
-    test(`callbackUrl=${cb} termina em /dashboard`, async ({ page, baseURL }) => {
-      await page.goto(`/auth/login?callbackUrl=${encodeURIComponent(cb)}`);
+  // O último vai cru no URL, sem `encodeURIComponent`: a query descodifica-o
+  // para `///exemplo.invalid` (revisão G5).
+  for (const query of [
+    encodeURIComponent('https://exemplo.invalid'),
+    encodeURIComponent('//exemplo.invalid'),
+    encodeURIComponent('/\\exemplo.invalid'),
+    '/%2F%2Fexemplo.invalid',
+  ]) {
+    test(`callbackUrl=${query} termina em /dashboard`, async ({ page, baseURL }) => {
+      await page.goto(`/auth/login?callbackUrl=${query}`);
       await page.waitForLoadState('networkidle');
       await preencherLogin(page, USERS.admin);
 
