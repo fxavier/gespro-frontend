@@ -4,6 +4,7 @@ import { getToken } from 'next-auth/jwt';
 import { buildSecurityHeaders } from '@/lib/security/headers';
 import { cspRegisto } from '@/app/registo/csp';
 import { ROTA_REGULARIZAR_SUBSCRICAO } from '@/lib/state-machines';
+import { destinoSeguro } from '@/lib/destino-seguro';
 
 // ---------------------------------------------------------------------------
 // Rotas públicas — não exigem autenticação.
@@ -152,7 +153,10 @@ export async function proxy(req: NextRequest) {
 
     if (!token) {
       const loginUrl = new URL('/auth/login', req.url);
-      loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname + req.nextUrl.search);
+      loginUrl.searchParams.set(
+        'callbackUrl',
+        destinoSeguro(req.nextUrl.pathname + req.nextUrl.search, req.nextUrl.origin),
+      );
       const redirectResponse = NextResponse.redirect(loginUrl);
       applyHeaders(redirectResponse, securityHeaders);
       return redirectResponse;
