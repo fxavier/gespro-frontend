@@ -49,6 +49,33 @@ function transitarEstado(atual: StatusSessaoCaixa, alvo: StatusSessaoCaixa): voi
   }
 }
 
+/**
+ * #558: tranca a linha da sessão de caixa e devolve o estado lido sob a tranca.
+ * `UPDATE` para quem muda o estado (fecho, cancelamento); `SHARE` para quem só precisa que continue
+ * ABERTA (movimentos) — partilhadas entre si, exclusivas com o fecho.
+ * Ordem de trancas: SessaoPOS antes de SessaoCaixa. A venda POS insere a Venda (FK → SessaoPOS, KEY
+ * SHARE) antes de registar o movimento; o fecho tranca as SessaoPOS antes da SessaoCaixa — a mesma
+ * ordem, logo sem ciclo.
+ */
+async function trancarSessaoCaixa(
+  tx: Prisma.TransactionClient,
+  id: string,
+  ctx: Ctx,
+  modo: 'UPDATE' | 'SHARE',
+): Promise<void> {
+  // Só tranca: quem chama relê pelo Prisma a seguir (READ COMMITTED — a leitura seguinte já vê o
+  // que o detentor anterior da tranca confirmou).
+  await tx.$queryRaw(
+    Prisma.sql`SELECT id FROM "SessaoCaixa" WHERE id = ${id} AND "tenantId" = ${ctx.tenantId} FOR ${Prisma.raw(modo)}`,
+  );
+}
+
+/** Estado actual da sessão, lido depois da tranca. */
+async function estadoSessaoCaixa(tx: Prisma.TransactionClient, id: string, ctx: Ctx): Promise<StatusSessaoCaixa> {
+  const s = await tx.sessaoCaixa.findFirst({ where: { id, tenantId: ctx.tenantId }, select: { status: true } });
+  return s!.status as StatusSessaoCaixa;
+}
+
 /** #267: só quem abriu o caixa o fecha ou cancela (fecho forçado por supervisor fica fora). */
 function assertResponsavel(sessao: { responsavelId: string }, ctx: Ctx): void {
   if (sessao.responsavelId !== ctx.userId) {
@@ -155,6 +182,11 @@ export async function fecharSessao(
     // #270: as sessões POS deste caixa fecham com ele (ou o fecho é recusado se houver vendas pendentes).
     await fecharSessoesPOSDoCaixaEmTx(tx, sessao.id, ctx);
 
+    // #558: o estado que decide é o lido sob a tranca (duplo fecho → o segundo recusa); os movimentos
+    // lidos a seguir são todos — quem regista espera pela tranca e depois vê a sessão FECHADA.
+    await trancarSessaoCaixa(tx, sessao.id, ctx, 'UPDATE');
+    transitarEstado(await estadoSessaoCaixa(tx, sessao.id, ctx), 'FECHADA');
+
     // Calcular totais por tipo de movimento
     const movimentos = await tx.movimentoCaixa.findMany({
       where: { sessaoCaixaId: sessao.id, tenantId: ctx.tenantId },
@@ -213,6 +245,13 @@ export async function cancelarSessao(
 
     transitarEstado(sessao.status as StatusSessaoCaixa, 'CANCELADA');
 
+    // #270: as sessões POS deste caixa fecham com ele (ou o cancelamento é recusado se houver vendas pendentes).
+    await fecharSessoesPOSDoCaixaEmTx(tx, sessao.id, ctx);
+
+    // #558: estado e movimentos lidos sob a tranca (mesma ordem do fecho: SessaoPOS → SessaoCaixa).
+    await trancarSessaoCaixa(tx, sessao.id, ctx, 'UPDATE');
+    transitarEstado(await estadoSessaoCaixa(tx, sessao.id, ctx), 'CANCELADA');
+
     // Verificar se há movimentos (além da abertura)
     const movimentos = await tx.movimentoCaixa.count({
       where: {
@@ -227,9 +266,6 @@ export async function cancelarSessao(
         'Sessão não pode ser cancelada com movimentos registados. Use o fecho.',
       );
     }
-
-    // #270: as sessões POS deste caixa fecham com ele (ou o cancelamento é recusado se houver vendas pendentes).
-    await fecharSessoesPOSDoCaixaEmTx(tx, sessao.id, ctx);
 
     return tx.sessaoCaixa.update({
       where: { id: sessaoCaixaId },
@@ -381,47 +417,55 @@ export async function listarSessoes(
 // ---------------------------------------------------------------------------
 
 export async function registarSangria(input: SangriaInput, ctx: Ctx): Promise<MovimentoCaixa> {
-  const sessao = await prisma.sessaoCaixa.findFirst({
-    where: { id: input.sessaoCaixaId, tenantId: ctx.tenantId },
-  });
-  if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
-  assertSessaoAberta(sessao, 'sangria');
+  // #558: na mesma tx que a tranca partilhada — o fecho espera pelo movimento ou o movimento vê-o.
+  return prisma.$transaction(async (tx) => {
+    await trancarSessaoCaixa(tx as Prisma.TransactionClient, input.sessaoCaixaId, ctx, 'SHARE');
+    const sessao = await tx.sessaoCaixa.findFirst({
+      where: { id: input.sessaoCaixaId, tenantId: ctx.tenantId },
+    });
+    if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
+    assertSessaoAberta(sessao, 'sangria');
 
-  const valor = new Prisma.Decimal(String(input.valor));
-  const mov = await prisma.movimentoCaixa.create({
-    data: {
-      tenantId: ctx.tenantId,
-      sessaoCaixaId: input.sessaoCaixaId,
-      tipo: 'SANGRIA',
-      valor,
-      descricao: `Sangria: ${input.motivo}`,
-      responsavelId: ctx.userId,
-    },
-  });
+    const valor = new Prisma.Decimal(String(input.valor));
+    const mov = await tx.movimentoCaixa.create({
+      data: {
+        tenantId: ctx.tenantId,
+        sessaoCaixaId: input.sessaoCaixaId,
+        tipo: 'SANGRIA',
+        valor,
+        descricao: `Sangria: ${input.motivo}`,
+        responsavelId: ctx.userId,
+      },
+    });
 
-  return mov as unknown as MovimentoCaixa;
+    return mov as unknown as MovimentoCaixa;
+  });
 }
 
 export async function registarReforco(input: ReforcoInput, ctx: Ctx): Promise<MovimentoCaixa> {
-  const sessao = await prisma.sessaoCaixa.findFirst({
-    where: { id: input.sessaoCaixaId, tenantId: ctx.tenantId },
-  });
-  if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
-  assertSessaoAberta(sessao, 'reforço');
+  // #558: na mesma tx que a tranca partilhada — o fecho espera pelo movimento ou o movimento vê-o.
+  return prisma.$transaction(async (tx) => {
+    await trancarSessaoCaixa(tx as Prisma.TransactionClient, input.sessaoCaixaId, ctx, 'SHARE');
+    const sessao = await tx.sessaoCaixa.findFirst({
+      where: { id: input.sessaoCaixaId, tenantId: ctx.tenantId },
+    });
+    if (!sessao) throw new NotFoundError('Sessão de caixa não encontrada');
+    assertSessaoAberta(sessao, 'reforço');
 
-  const valor = new Prisma.Decimal(String(input.valor));
-  const mov = await prisma.movimentoCaixa.create({
-    data: {
-      tenantId: ctx.tenantId,
-      sessaoCaixaId: input.sessaoCaixaId,
-      tipo: 'REFORCO',
-      valor,
-      descricao: `Reforço: ${input.motivo}`,
-      responsavelId: ctx.userId,
-    },
-  });
+    const valor = new Prisma.Decimal(String(input.valor));
+    const mov = await tx.movimentoCaixa.create({
+      data: {
+        tenantId: ctx.tenantId,
+        sessaoCaixaId: input.sessaoCaixaId,
+        tipo: 'REFORCO',
+        valor,
+        descricao: `Reforço: ${input.motivo}`,
+        responsavelId: ctx.userId,
+      },
+    });
 
-  return mov as unknown as MovimentoCaixa;
+    return mov as unknown as MovimentoCaixa;
+  });
 }
 
 export async function listarMovimentos(
@@ -485,7 +529,8 @@ export async function registarMovimentoCaixa(
   input: RegistarMovimentoCaixaInput,
   ctx: Ctx,
 ): Promise<MovimentoCaixa> {
-  // Verificar sessão aberta
+  // Verificar sessão aberta — #558: sob FOR SHARE, para o fecho não apurar sem este movimento.
+  await trancarSessaoCaixa(tx, input.sessaoCaixaId, ctx, 'SHARE');
   const sessao = await tx.sessaoCaixa.findFirst({
     where: { id: input.sessaoCaixaId, tenantId: ctx.tenantId, status: 'ABERTA' },
   });
