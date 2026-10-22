@@ -27,7 +27,11 @@ import {
   contentTypePermitido,
   type RecursoDocumento,
 } from '@/lib/storage/documento-config';
-import { montarPedidoUpload, type AssinaturaUpload } from '@/lib/storage/pedido-upload';
+import {
+  calcularSha256Base64,
+  montarPedidoUpload,
+  type AssinaturaUpload,
+} from '@/lib/storage/pedido-upload';
 
 export interface UploadDocumentoMeta {
   /** Key derivada server-side no storage. */
@@ -142,7 +146,8 @@ export function UploadDocumento({
     setProgresso(0);
 
     try {
-      // 1. Presign
+      // 1. Presign (com o SHA-256 do ficheiro: o S3 com Object Lock exige checksum, #575)
+      const checksumSha256 = await calcularSha256Base64(file);
       const resp = await fetch('/api/documentos/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -152,6 +157,7 @@ export function UploadDocumento({
           nome: file.name,
           contentType: file.type || 'application/octet-stream',
           tamanho: file.size,
+          checksumSha256,
         }),
       });
       if (!resp.ok) {

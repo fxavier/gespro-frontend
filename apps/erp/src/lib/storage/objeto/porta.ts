@@ -28,10 +28,13 @@ export interface ObjectStorage {
    * Assina um upload de curta duração para `key`, ligado ao `contentType`
    * (o cliente tem de enviar o mesmo Content-Type). `maxBytes` é validado
    * a montante (rota de presign) e, no driver s3, imposto pela política do POST.
+   * `checksumSha256` (base64 do SHA-256 do ficheiro): no driver s3 vai preso na política e o
+   * S3 verifica-o — obrigatório num bucket com Object Lock e retenção por omissão (#575).
+   * O driver local ignora-o.
    */
   presignPut(
     key: string,
-    opts: { contentType: string; maxBytes: number },
+    opts: { contentType: string; maxBytes: number; checksumSha256?: string },
   ): Promise<PresignPutResult>;
 
   /** Assina um GET de curta duração (segundos) para `key`. */

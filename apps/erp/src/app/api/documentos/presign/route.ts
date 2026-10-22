@@ -39,6 +39,13 @@ const PresignSchema = z.object({
   nome: z.string().min(1).max(200),
   contentType: z.enum(CONTENT_TYPES_PERMITIDOS),
   tamanho: z.number().int().positive().max(MAX_DOCUMENTO_BYTES),
+  // SHA-256 do ficheiro em base64 (32 bytes → 44 caracteres), calculado no browser. No driver s3
+  // vai preso na política do POST: um bucket com Object Lock e retenção por omissão recusa
+  // escritas sem checksum, e o S3 recusa bytes que não batam com ele (#575).
+  checksumSha256: z
+    .string()
+    .regex(/^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/, 'SHA-256 em base64 inválido')
+    .optional(),
 });
 
 export const POST = withApi(async (req: NextRequest, ctx) => {
@@ -51,7 +58,7 @@ export const POST = withApi(async (req: NextRequest, ctx) => {
   if (!parsed.success) {
     throw new ValidationError('Pedido de upload inválido', parsed.error.flatten());
   }
-  const { recurso, recursoId, nome, contentType, tamanho } = parsed.data;
+  const { recurso, recursoId, nome, contentType, tamanho, checksumSha256 } = parsed.data;
 
   // Permissão dinâmica por recurso.
   const permissao = permissaoUploadDirecto(recurso);
@@ -64,6 +71,7 @@ export const POST = withApi(async (req: NextRequest, ctx) => {
   const { method, url, fields, headers } = await storage.presignPut(key, {
     contentType,
     maxBytes: MAX_DOCUMENTO_BYTES,
+    checksumSha256,
   });
 
   logger.child({ tenantId: ctx.tenantId, userId: ctx.userId }).info(
