@@ -188,7 +188,7 @@ async function transitarStatus(input: TransicaoManutencaoAtivo, ctx: Ctx): Promi
     if (ativo.estado !== 'EM_MANUTENCAO') {
       try {
         transitar(TRANSICOES_ATIVO as never, ativo.estado as never, 'EM_MANUTENCAO' as never, 'activo');
-        await prisma.ativo.update({ where: { id: man.ativoId }, data: { estado: 'EM_MANUTENCAO' as never } });
+        await prisma.ativo.update({ where: { id: man.ativoId, tenantId: ctx.tenantId }, data: { estado: 'EM_MANUTENCAO' as never } });
       } catch { /* ignora se transição inválida — ativo pode já estar em outro estado */ }
     }
   }
@@ -198,7 +198,7 @@ async function transitarStatus(input: TransicaoManutencaoAtivo, ctx: Ctx): Promi
     // Volta o ativo para EM_USO
     const ativo = await ativoDoTenant(man.ativoId, ctx);
     if (ativo.estado === 'EM_MANUTENCAO') {
-      await prisma.ativo.update({ where: { id: man.ativoId }, data: { estado: 'EM_USO' as never } });
+      await prisma.ativo.update({ where: { id: man.ativoId, tenantId: ctx.tenantId }, data: { estado: 'EM_USO' as never } });
     }
   }
 
