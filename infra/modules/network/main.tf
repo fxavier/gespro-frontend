@@ -160,9 +160,10 @@ resource "aws_route_table_association" "private" {
 # Egress: RDS (5432) + internet (443) via NAT Gateway.
 # O App Runner controla o ingress externamente (HTTPS gerido).
 #
-# Descrições de SG (grupo e regras): a API EC2 só aceita a-zA-Z0-9 e
-# ._-:/()#,@[]+=&;{}!$* — sem acentos nem travessões, senão o apply falha
-# (apanhado pelo teste de continuidade de live/prod, #575).
+# Descrições de SG (grupo e regras): a API EC2 só aceita a-zA-Z0-9, espaço e
+# ._-:/()#,@[]+=&;{}!$* — sem acentos nem travessões. A regra é da AWS; o
+# fornecedor Terraform valida-a já no plan nas descrições das regras (foi assim
+# que o `terraform test` da #575 a revelou), a do grupo só a API a recusa no apply.
 # ------------------------------------------------------------------------------
 resource "aws_security_group" "apprunner" {
   name        = "${local.name_prefix}-apprunner-sg"

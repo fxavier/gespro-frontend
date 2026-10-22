@@ -44,14 +44,22 @@ locals {
 resource "aws_s3_bucket" "uploads" {
   bucket = local.bucket_name
 
-  # Object Lock só se liga na criação do bucket neste fornecedor (muda o recurso
-  # → substituição). O IaC nunca foi aplicado (docs/status.md), por isso entra já.
+  # `object_lock_enabled` neste recurso é ForceNew: mudá-lo num bucket que já
+  # existe planeia DESTRUIR o bucket dos documentos e criar outro. O IaC nunca foi
+  # aplicado (docs/status.md), por isso entra já na criação. Para ligar o Object
+  # Lock num bucket existente o caminho é `aws_s3_bucket_object_lock_configuration`
+  # com `object_lock_enabled = "Enabled"` (a AWS permite-o desde 2023), nunca esta
+  # flag — e o `prevent_destroy` abaixo faz o plano falhar antes de alguém tentar.
   object_lock_enabled = local.object_lock
 
   tags = merge(var.tags, {
     Name    = local.bucket_name
     Purpose = "uploads-relatorios"
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_versioning" "uploads" {
@@ -200,6 +208,11 @@ resource "aws_s3_bucket" "replica" {
     Name    = local.replica_bucket_name
     Purpose = "replica-uploads-relatorios"
   })
+
+  # Mesma razão que na origem: `object_lock_enabled` é ForceNew.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_versioning" "replica" {

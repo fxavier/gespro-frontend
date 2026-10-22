@@ -142,6 +142,12 @@ Não reescreve a decisão (ADR-0023); regista como o IaC candidato a cumpre e o 
   confirmar juridicamente). GOVERNANCE e não COMPLIANCE porque o bucket guarda também dados pessoais
   cuja remoção o ADR-0017 quer efectiva, e porque um prazo errado em COMPLIANCE não se corrige; para
   a role da app, que não tem `BypassGovernanceRetention`, os dois modos comportam-se igual.
+- **Ligar o Object Lock**: entra na criação do bucket (`object_lock_enabled` do `aws_s3_bucket`),
+  porque o IaC nunca foi aplicado. Essa flag é ForceNew — num bucket que **já exista** o caminho é
+  `aws_s3_bucket_object_lock_configuration` com `object_lock_enabled = "Enabled"`, nunca mudar a flag
+  (o plano substituiria o bucket dos documentos). Os dois buckets têm `prevent_destroy = true`, que
+  faz esse plano falhar em vez de o executar — e que obriga a retirá-lo à mão para destruir o
+  ambiente de dev.
 - **Expiração das versões não correntes**: deixa de ser 90 dias (apagava de vez, ao fim de três
   meses, o documento sobreposto que o versionamento devia proteger) e passa a retenção + 1 ano.
 - **Instantâneo antes de cada migração**: continua requisito, **sem passo de deploy** — o

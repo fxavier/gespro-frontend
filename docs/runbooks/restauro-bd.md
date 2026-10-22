@@ -114,6 +114,11 @@ aws rds restore-db-instance-to-point-in-time \
   --vpc-security-group-ids <rds_sg_id> \
   --db-parameter-group-name gespro-prod-pg17 \
   --multi-az --no-publicly-accessible
+# Herda da origem: motor e versão, classe, armazenamento e cifra (storage_encrypted).
+# NÃO herda — por isso vão explícitos acima: subnet group, security groups,
+# parameter group e Multi-AZ (sem eles a instância nasce na VPC/SG/parâmetros
+# por omissão da conta, e a app não lhe chega). Tags: só com --copy-tags-to-snapshot
+# na origem (está ligado) e --tags se se quiserem na instância nova.
 # (instância apagada: --source-dbi-resource-id em vez do identificador; os
 #  backups mantidos aparecem em `aws rds describe-db-instance-automated-backups`)
 
@@ -163,12 +168,11 @@ RPO de minutos em vez de zero.
   `s3:BypassGovernanceRetention` + `s3:DeleteObjectVersion`, com
   `--bypass-governance-retention`, nos **dois** buckets; o acto fica no CloudTrail
   e é registado no relatório do pedido. Essa role não é criada pelo IaC.
-- **A verificar no primeiro apply [HUMANO]**: o S3 exige um checksum
-  (`Content-MD5`/`x-amz-checksum-*`) nas escritas para um bucket com retenção
-  por omissão. O `PutObject` do SDK v3 da app envia CRC32 por omissão; o
-  **upload do browser por POST assinado** (#430) não envia checksum nenhum.
-  Confirmar que um upload real passa; se o S3 o recusar, a correcção é na app
-  (fora do IaC).
+- **Checksum nas escritas**: o S3 exige um checksum (`Content-MD5`/`x-amz-checksum-*`)
+  nas escritas para um bucket com retenção por omissão. O `PutObject` do SDK v3 da
+  app envia CRC32 por omissão; o **upload do browser por POST assinado** (#430)
+  passa a enviá-lo com a correcção na app do ramo `fix/575-upload-checksum` (PR
+  próprio, a fundir **antes** do IaC da #575).
 
 ## Ensaio contra produção — [HUMANO], quando houver produção
 

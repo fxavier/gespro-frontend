@@ -7,6 +7,12 @@
 # O fornecedor AWS é um duplo (`mock_provider`): o teste prova o que o `plan`
 # pediria (retenção, replicação, Object Lock), não que a AWS o aceita. Isso só
 # o primeiro `plan`/`apply` real prova — [HUMANO], docs/runbooks/restauro-bd.md.
+#
+# Aqui só se trava o WIRING de prod (que valores o live/prod passa aos módulos),
+# por outputs — o Terraform não deixa um teste da raiz ler recursos de um módulo
+# filho. Os asserts sobre os RECURSOS (regra de replicação, destino, Object Lock,
+# atributos da instância RDS) vivem nos testes dos próprios módulos:
+#   infra/modules/storage/tests/  ·  infra/modules/rds/tests/
 # ==============================================================================
 
 mock_provider "aws" {
