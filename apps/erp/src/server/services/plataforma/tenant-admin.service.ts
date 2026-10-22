@@ -1,11 +1,13 @@
 import 'server-only';
-import { Prisma } from '@prisma/client';
+import { Prisma, type AcaoAuditoriaPlataforma } from '@prisma/client';
 import { prisma, prismaBase } from '@/server/db/client';
 import { runWithTenantContext } from '@/server/db/tenant-extension';
 import { NotFoundError, BusinessRuleError } from '@/lib/errors';
 import { TRIAL_DIAS } from '@/lib/planos';
 import type { Page } from '@/server/db/paginate';
 import { exigirPlanoDisponivel } from './plano.service';
+import type { PlataformaCtx } from './plano-admin.service';
+import { getRequestContext } from '@/server/observability/context';
 import type { Ctx } from '@/server/services/types';
 import type {
   CreateTenantInput,
@@ -72,6 +74,32 @@ async function fetchTenantRow(tenantId: string): Promise<TenantRow> {
   return buildRow(tenant, cfg);
 }
 
+/**
+ * Trilho global da plataforma (#41, como o `plano-admin.service`): na MESMA tx da escrita, para
+ * que uma escrita recusada não deixe linha. `codigo` é o slug (imutável). Desactivar/reactivar
+ * registam-se como ARQUIVAR/DESARQUIVAR — o tenant não se apaga, retira-se.
+ * Sem `autor` (chamadas internas e testes unitários do serviço) não há linha: as actions passam-no sempre.
+ */
+async function registarTrilho(
+  tx: Prisma.TransactionClient,
+  autor: PlataformaCtx | undefined,
+  acao: AcaoAuditoriaPlataforma,
+  slug: string,
+  dados: { antes?: Prisma.InputJsonValue; depois?: Prisma.InputJsonValue },
+): Promise<void> {
+  if (!autor) return;
+  await tx.auditoriaPlataforma.create({
+    data: {
+      keycloakSub: autor.keycloakSub,
+      acao,
+      entidade: 'Tenant',
+      codigo: slug,
+      ...dados,
+      requestId: autor.requestId ?? getRequestContext()?.requestId ?? null,
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Implementação
 // ---------------------------------------------------------------------------
@@ -135,7 +163,7 @@ export const tenantAdminService: ITenantAdminService = {
     return fetchTenantRow(tenantId);
   },
 
-  async criar(input: CreateTenantInput): Promise<TenantRow> {
+  async criar(input: CreateTenantInput, autor?: PlataformaCtx): Promise<TenantRow> {
     const existing = await prismaBase.tenant.findFirst({
       where: { OR: [{ slug: input.slug }, { nuit: input.nuit }] },
     });
@@ -180,13 +208,18 @@ export const tenantAdminService: ITenantAdminService = {
           trialFim: new Date(agora.getTime() + TRIAL_DIAS * 24 * 60 * 60 * 1000),
         },
       });
+      await registarTrilho(tx, autor, 'CRIAR', t.slug, { depois: { id: t.id, ...input } });
       return t;
     });
 
     return fetchTenantRow(tenant.id);
   },
 
-  async actualizar(tenantId: string, input: UpdateTenantInput): Promise<TenantRow> {
+  async actualizar(
+    tenantId: string,
+    input: UpdateTenantInput,
+    autor?: PlataformaCtx,
+  ): Promise<TenantRow> {
     const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId, deletedAt: null } });
     if (!tenant) throw new NotFoundError('Empresa não encontrada');
     // Só se entra num plano disponível; um plano arquivado não se volta a escolher (ADR-0049 §3).
@@ -236,6 +269,10 @@ export const tenantAdminService: ITenantAdminService = {
           create: { tenantId, ...cfgFields },
         });
       }
+      await registarTrilho(tx, autor, 'ACTUALIZAR', tenant.slug, {
+        antes: { id: tenantId, nome: tenant.nome },
+        depois: { id: tenantId, ...input },
+      });
     });
 
     return fetchTenantRow(tenantId);
@@ -305,7 +342,7 @@ export const tenantAdminService: ITenantAdminService = {
     return fetchTenantRow(tenantId);
   },
 
-  async desactivar(tenantId: string): Promise<void> {
+  async desactivar(tenantId: string, autor?: PlataformaCtx): Promise<void> {
     const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundError('Empresa não encontrada');
     if (tenant.deletedAt) throw new BusinessRuleError('TENANT_JA_INATIVO', 'A empresa já está inactiva');
@@ -316,10 +353,11 @@ export const tenantAdminService: ITenantAdminService = {
         where: { tenantId },
         data: { statusAtivo: false },
       });
+      await registarTrilho(tx, autor, 'ARQUIVAR', tenant.slug, { depois: { id: tenantId } });
     });
   },
 
-  async reactivar(tenantId: string): Promise<void> {
+  async reactivar(tenantId: string, autor?: PlataformaCtx): Promise<void> {
     const tenant = await prismaBase.tenant.findFirst({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundError('Empresa não encontrada');
     if (!tenant.deletedAt) throw new BusinessRuleError('TENANT_JA_ATIVO', 'A empresa já está activa');
@@ -330,6 +368,7 @@ export const tenantAdminService: ITenantAdminService = {
         where: { tenantId },
         data: { statusAtivo: true },
       });
+      await registarTrilho(tx, autor, 'DESARQUIVAR', tenant.slug, { depois: { id: tenantId } });
     });
   },
 };
