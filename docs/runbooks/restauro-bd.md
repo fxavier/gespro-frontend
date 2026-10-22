@@ -173,6 +173,70 @@ RPO de minutos em vez de zero.
   app envia CRC32 por omissão; o **upload do browser por POST assinado** (#430)
   passa a enviá-lo com a correcção na app do ramo `fix/575-upload-checksum` (PR
   próprio, a fundir **antes** do IaC da #575).
+- **Protecção contra destruição só em prod** (#644): o módulo `storage` tem o
+  bucket e a réplica em dois blocos, e `proteger_contra_destruicao` escolhe qual
+  existe. Prod (`true`) usa os blocos com `prevent_destroy`: um plano que destrua
+  ou substitua um dos buckets — incluindo virar a variável para `false` — é
+  recusado («Instance cannot be destroyed»). Dev (`false`) usa os blocos sem ela.
+  Prova: `terraform -chdir=infra/modules/storage test`
+  (`desmontagem-dev.tftest.hcl` planeia substituir os buckets do dev).
+
+### Desmontar o dev (#644)
+
+Não se edita o módulo. O que trava o `terraform destroy` é o conteúdo dos
+buckets: o `aws_s3_bucket` não tem `force_destroy`, e o S3 só apaga um bucket sem
+versões nem marcadores de apagamento.
+
+```bash
+# 0. Confirmar que é o dev e que está desprotegido.
+grep -n proteger_contra_destruicao infra/live/dev/main.tf   # = false
+
+# 1. Esvaziar cada bucket (origem e, se houver, `gespro-uploads-dev-replica`,
+#    na região da réplica). Versões E marcadores, em lotes de 1000.
+B=gespro-uploads-dev
+# Bypass só com Object Lock: sem configuração de bloqueio o comando abaixo falha
+# e não há retenção a contornar (nem permissão a exigir à role).
+BYPASS=()
+aws s3api get-object-lock-configuration --bucket "$B" >/dev/null 2>&1 &&
+  BYPASS=(--bypass-governance-retention)
+while :; do
+  L=$(aws s3api list-object-versions --bucket "$B" --max-items 1000 --output json |
+      jq -c '{Objects: [(.Versions // [])[], (.DeleteMarkers // [])[] | {Key, VersionId}], Quiet: true}') ||
+    { echo "Falhou a listagem de $B — parar." >&2; break; }
+  [ "$(echo "$L" | jq '.Objects | length')" -eq 0 ] && { echo "$B vazio."; break; }
+  # O delete-objects devolve 200 (exit 0) mesmo quando recusa chaves uma a uma:
+  # as recusas vêm em `.Errors`. Sem esta verificação o laço re-lista para sempre.
+  R=$(aws s3api delete-objects --bucket "$B" --delete "$L" "${BYPASS[@]}" --output json) ||
+    { echo "delete-objects falhou em $B — parar." >&2; break; }
+  if echo "$R" | jq -e '(.Errors // []) | length > 0' >/dev/null; then
+    echo "Recusas em $B (role errada, ou COMPLIANCE) — parar:" >&2
+    echo "$R" | jq -c '.Errors[:5]' >&2
+    break
+  fi
+done
+# (Repetir para a réplica com `--region <replica_region>`. Desligar antes a
+#  replicação não é preciso: o destroy apaga a configuração primeiro.)
+
+# 2. Destruir.
+terraform -chdir=infra/live/dev destroy
+```
+
+- `--bypass-governance-retention` só é preciso se o dev tiver Object Lock
+  (`object_lock_retencao_anos > 0`; a omissão do dev é 0). O laço só o passa
+  quando `get-object-lock-configuration` responde: se a role não puder ler essa
+  configuração, segue sem bypass, as versões bloqueadas são recusadas e o laço
+  pára com a lista das recusas. Só funciona com a
+  **role de emergência** (`s3:BypassGovernanceRetention` + `s3:DeleteObjectVersion`,
+  não criada pelo IaC): assume-a antes do passo 1 e regista o acto (CloudTrail).
+  A role da app não consegue — é esse o ponto do GOVERNANCE.
+- Em **COMPLIANCE** não há bypass, nem para a conta root: as versões bloqueadas
+  só saem quando a retenção caducar, e o bucket fica até lá. Nunca ligar
+  COMPLIANCE num ambiente que se queira desmontar.
+- Se o `delete-objects` devolver `AccessDenied` em versões bloqueadas, é a role
+  errada (ou COMPLIANCE) — não é motivo para mexer no módulo.
+- **Prod não se desmonta por este caminho**: com `proteger_contra_destruicao =
+  true` o `destroy` falha no plano, de propósito. Retirar a protecção de prod é
+  uma decisão humana registada, não um passo de runbook.
 
 ## Ensaio contra produção — [HUMANO], quando houver produção
 

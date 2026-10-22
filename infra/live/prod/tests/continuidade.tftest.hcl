@@ -82,6 +82,11 @@ run "bucket_replica_noutra_regiao_com_object_lock" {
   }
 
   assert {
+    condition     = module.storage.protegido_contra_destruicao
+    error_message = "Prod usa os buckets com prevent_destroy (#644)."
+  }
+
+  assert {
     condition     = module.storage.object_lock.noncurrent_days > 3650
     error_message = "As versões não correntes não podem expirar antes da conservação fiscal."
   }

@@ -139,6 +139,9 @@ module "storage" {
   object_lock_retencao_anos = var.retencao_documentos_fiscais_anos
   object_lock_modo          = "GOVERNANCE" # porquê, em modules/storage/main.tf
 
+  # prevent_destroy nos buckets: substituir o bucket dos documentos falha (#644).
+  proteger_contra_destruicao = true
+
   tags = local.default_tags
 }
 
