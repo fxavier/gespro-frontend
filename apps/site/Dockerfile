@@ -5,9 +5,16 @@
 # migrations do produto (ADR-0006). Contexto de build = raiz do monorepo.
 #
 #   docker build -f apps/site/Dockerfile -t gespro-site .
+#
+# Node 22 LTS, a mesma base (tag exacta + digest) do Dockerfile do ERP e o
+# NODE_VERSION do CI (#577). Esteve em node:26-alpine, que (1) não é o Node em
+# que o CI testa o site, (2) ainda não é LTS e (3) já não traz o corepack (saiu
+# da distribuição no Node 25) — o `corepack enable` abaixo falhava e a imagem
+# não construía. Actualizar o digest nos dois Dockerfiles em conjunto.
+ARG NODE_IMAGE=node:22.23.4-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
 
 # ─── deps: instala o workspace inteiro a partir dos manifestos ────────────────
-FROM node:26-alpine AS deps
+FROM ${NODE_IMAGE} AS deps
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
@@ -18,7 +25,7 @@ COPY packages/eslint-config/package.json packages/eslint-config/
 RUN pnpm install --frozen-lockfile --filter site...
 
 # ─── build: gera o output standalone do site ─────────────────────────────────
-FROM node:26-alpine AS build
+FROM ${NODE_IMAGE} AS build
 RUN corepack enable
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -36,7 +43,7 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
 RUN pnpm --filter site build
 
 # ─── runner: imagem mínima não-root ──────────────────────────────────────────
-FROM node:26-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
