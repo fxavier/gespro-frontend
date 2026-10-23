@@ -146,8 +146,8 @@ resource "aws_s3_bucket_public_access_block" "uploads" {
 #   - COMPLIANCE é irreversível também no valor: um prazo errado não se encurta.
 #     O prazo vem de investigação jurídica ainda não confirmada por advogado
 #     (docs/research/mocambique-quadro-legal.md, como a #64 para o ADR-0034).
-#   - Para a app, GOVERNANCE comporta-se como COMPLIANCE: a role da instância
-#     (modules/app) só tem Get/Put/DeleteObject — sem `DeleteObjectVersion` nem
+#   - Para a app, GOVERNANCE comporta-se como COMPLIANCE: a credencial da app
+#     (utilizador IAM de infra/storage-prod) só tem Get/Put/DeleteObject — sem `DeleteObjectVersion` nem
 #     `BypassGovernanceRetention`. Um `storage.delete()` (ADR-0017) cria um
 #     marcador de apagamento: o objecto deixa de ser servido, a versão fica.
 #     Credenciais da app comprometidas não destroem o arquivo.

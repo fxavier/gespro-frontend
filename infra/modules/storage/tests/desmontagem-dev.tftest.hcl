@@ -8,7 +8,7 @@
 # buckets (`plan_options.replace`). Um plano que destrói um recurso com
 # `prevent_destroy = true` é recusado («Instance cannot be destroyed»): este
 # plano só passa porque os blocos do dev não o têm — é o mesmo veredicto que o
-# `terraform destroy` em infra/live/dev receberia.
+# `terraform destroy` de uma stack de dev (a arquivada infra/_arquivo-aws/live/dev) receberia.
 #
 # Porque não basta o `apply`: a desmontagem automática do `terraform test` no fim
 # do ficheiro NÃO respeita `prevent_destroy` (verificado: passa com a protecção

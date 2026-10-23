@@ -54,18 +54,18 @@ utilizadores por `keycloakSub`».)
 4. Os utilizadores recriados recebem fluxo de reposição de credenciais (nunca se
    restauram palavras-passe por outro canal).
 
-## Produção — requisito para a #572 (Keycloak no IaC)
+## Produção — Railway (ADR-0050)
 
-O Keycloak **não existe** no IaC de produção (#572). Localmente partilha a
-instância Postgres com o ERP e herda o arquivo de WAL; em produção, a base que o
-módulo da #572 criar tem de herdar a **mesma política** que o `modules/rds` já
-declara para o ERP (#575, ADR-0020 §1 — «um sistema, não dois»):
+Localmente o Keycloak partilha a instância Postgres com o ERP e herda o arquivo
+de WAL; em produção tem o seu próprio Postgres gerido no Railway (`keycloak-db`,
+ADR-0050 §1), que tem de ter a **mesma política** que o `erp-db` (#575,
+ADR-0020 §1 — «um sistema, não dois»):
 
-- PITR com `backup_retention_days = 35`, backups mantidos após apagar a
-  instância (`retain_automated_backups = true`), `deletion_protection = true`,
-  `skip_final_snapshot = false`, `copy_tags_to_snapshot = true`, Multi-AZ.
-  O caminho mais curto é reutilizar o `modules/rds` (uma segunda instância, ou
-  uma segunda base na mesma instância, como localmente).
+- Recuperação a um ponto no tempo activada, com a mesma janela que o `erp-db`
+  (D3 do ADR-0050: confirmar no plano contratado). A política RDS que antes se
+  pedia aqui (`backup_retention_days = 35`, `deletion_protection`, Multi-AZ…)
+  está arquivada com o `modules/rds` em `infra/_arquivo-aws/modules/rds`
+  (ADR-0050).
 - **Instantâneo manual antes de cada actualização do Keycloak** (ADR-0020 §2,
   retido 90 dias) — o Keycloak migra o schema da sua base no arranque.
 - Restauro: o mesmo procedimento de `restauro-bd.md` §Produção, para o

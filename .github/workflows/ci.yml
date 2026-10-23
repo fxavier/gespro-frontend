@@ -543,8 +543,10 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────────
   # 9. TERRAFORM (infra/**) — #641
-  #    fmt + `terraform test` dos módulos e de live/prod (mock_provider, sem
-  #    credenciais AWS nem backend) + validate de live/dev. Só faz trabalho
+  #    fmt + `terraform test` de modules/storage e de storage-prod (+ validate da stack)
+  #    (mock_provider, sem credenciais AWS nem backend). As stacks AWS de
+  #    cálculo estão arquivadas em infra/_arquivo-aws/ (ADR-0050) e não correm
+  #    aqui — o fmt -recursive ainda as cobre. Só faz trabalho
   #    quando o PR/push muda infra/** (ou este ficheiro); nos outros fica verde sem correr nada,
   #    para poder ser required check sem bloquear PRs que não tocam na infra.
   #    TF_VERSION dentro do required_version dos stacks (>= 1.10, < 2.0).
@@ -587,7 +589,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
-      # Um só download do provider para os cinco `init` (e entre corridas).
+      # Um só download do provider para os dois `init` (e entre corridas).
       - name: Cache de plugins Terraform
         if: steps.infra.outputs.mudou == 'true'
         uses: actions/cache@v6
@@ -605,19 +607,16 @@ jobs:
         if: steps.infra.outputs.mudou == 'true'
         run: terraform fmt -check -recursive infra
 
-      - name: terraform test (módulos + live/prod)
+      # `validate` só na stack: num módulo com `configuration_aliases`
+      # (aws.replica) falha por falta do fornecedor, que só quem o chama dá.
+      - name: terraform test (modules/storage + storage-prod) + validate (storage-prod)
         if: steps.infra.outputs.mudou == 'true'
         run: |
           set -euo pipefail
-          for d in infra/modules/storage infra/modules/rds infra/modules/monitoring infra/live/prod; do
+          for d in infra/modules/storage infra/storage-prod; do
             echo "::group::$d"
             terraform -chdir="$d" init -backend=false -input=false
+            if [ "$d" = infra/storage-prod ]; then terraform -chdir="$d" validate; fi
             terraform -chdir="$d" test
             echo "::endgroup::"
           done
-
-      - name: terraform validate (live/dev)
-        if: steps.infra.outputs.mudou == 'true'
-        run: |
-          terraform -chdir=infra/live/dev init -backend=false -input=false
-          terraform -chdir=infra/live/dev validate

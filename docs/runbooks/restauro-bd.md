@@ -76,87 +76,39 @@ exemplo, restaurar para um instante anterior a uma migração destrutiva):
 | Base `keycloak` perdida | Vem no mesmo restauro do cluster; se irrecuperável, ver `restauro-keycloak.md` |
 | Perda do próprio volume `gespro-walarchive` | Sem PITR: resta o último estado do `gespro-pgdata`. Em produção o arquivo vive em armazenamento separado — é exactamente por isso |
 
-## Produção (IaC AWS, nunca aplicado — ADR-0026 §5, #575)
+## Produção (Railway + bucket S3 dos documentos — ADR-0050)
 
-O que o `infra/live/prod` declara, e o que fica por fazer à mão. **Nada disto foi
-exercido**: o IaC nunca foi aplicado (`docs/status.md`). Verificador offline das
-declarações: `terraform -chdir=infra/live/prod init -backend=false && terraform
--chdir=infra/live/prod test` (fornecedor dobrado — prova o que o plano pede, não
-que a AWS o aceita).
+A produção corre no **Railway** (ADR-0050 §1): os dois Postgres (`erp-db`,
+`keycloak-db`, os nomes do IaC do Railway) são serviços geridos com recuperação a um ponto no tempo, e
+**o restauro cria um serviço novo**, nunca escreve por cima do actual. O
+procedimento (consola do Railway: escolher o instante UTC anterior ao erro,
+restaurar as **duas** bases para o mesmo instante, verificar como no passo 6
+acima, reapontar `DATABASE_URL`) e a janela de PITR (D3) vivem no runbook de
+deploy do Railway (ADR-0050 §6); o ensaio cronometrado contra produção é
+[HUMANO] (ADR-0050, passo 7). O instantâneo antes de cada migração é o instante
+anterior ao `preDeployCommand`, que o próprio passo regista no log (ADR-0050 §5,
+#574).
 
-### O que está declarado
+O que era RDS (PITR de 35 dias, `deletion_protection`, Multi-AZ, instantâneo
+pré-migração por `aws rds create-db-snapshot`) está **arquivado, ver ADR-0050**:
+`infra/_arquivo-aws/modules/rds` e `infra/_arquivo-aws/live/prod`, nunca
+aplicados.
 
-| Capacidade (ADR-0020 §2) | Onde | Valor |
-|---|---|---|
-| Recuperação a um ponto no tempo | `modules/rds` — os backups automáticos do RDS **são** o PITR | `backup_retention_days = 35` (prod), `7` (dev) |
-| Backups sobrevivem ao apagamento da instância | `retain_automated_backups = true` → `delete_automated_backups = false` | prod |
-| Snapshot final ao destruir | `skip_final_snapshot = false`, `final_snapshot_identifier = gespro-prod-final-snapshot` | prod |
-| Etiquetas nos snapshots | `copy_tags_to_snapshot = true` | sempre |
-| Destruição acidental | `deletion_protection = true` | prod |
-| Multi-AZ | `multi_az = true` | prod |
-| Objectos: versionamento + réplica noutra região + Object Lock | `modules/storage` — ver «Objectos» abaixo | prod |
-
-### Restaurar a um ponto no tempo (instância perdida, migração destrutiva)
-
-O restauro cria **sempre uma instância nova**; nunca escreve por cima da actual.
-
-```bash
-# 1. Janela restaurável (LatestRestorableTime ≈ agora − 5 min)
-aws rds describe-db-instances --db-instance-identifier gespro-prod-postgres \
-  --query 'DBInstances[0].[LatestRestorableTime,BackupRetentionPeriod]'
-
-# 2. Restaurar para o instante anterior ao erro (UTC), na mesma subnet/SG
-aws rds restore-db-instance-to-point-in-time \
-  --source-db-instance-identifier gespro-prod-postgres \
-  --target-db-instance-identifier gespro-prod-postgres-restauro-<aaaammddhhmm> \
-  --restore-time 2026-10-22T09:41:00Z \
-  --db-subnet-group-name gespro-prod-db-subnet-group \
-  --vpc-security-group-ids <rds_sg_id> \
-  --db-parameter-group-name gespro-prod-pg17 \
-  --multi-az --no-publicly-accessible
-# Herda da origem: motor e versão, classe, armazenamento e cifra (storage_encrypted).
-# NÃO herda — por isso vão explícitos acima: subnet group, security groups,
-# parameter group e Multi-AZ (sem eles a instância nasce na VPC/SG/parâmetros
-# por omissão da conta, e a app não lhe chega). Tags: só com --copy-tags-to-snapshot
-# na origem (está ligado) e --tags se se quiserem na instância nova.
-# (instância apagada: --source-dbi-resource-id em vez do identificador; os
-#  backups mantidos aparecem em `aws rds describe-db-instance-automated-backups`)
-
-# 3. Verificar (ADR-0020 §3): contagens de "Tenant"/"User", coerência das séries.
-# 4. Reapontar: actualizar o segredo DATABASE_URL e reimplantar o App Runner.
-#    O Terraform passa a ver deriva — importar a instância nova ou renomear (a
-#    decisão é de quem conduz o incidente; registá-la no relatório).
-```
-
-### Requisito: instantâneo antes de cada migração — **depende da #574**
-
-O ADR-0020 §2 pede um instantâneo manual antes de cada migração de schema,
-retido 90 dias. Hoje o `prisma migrate deploy` corre no `docker-entrypoint.sh`,
-**no arranque de cada réplica** — não há um passo de *deploy* único onde o
-instantâneo caiba (é exactamente a #574). Este runbook não inventa esse passo;
-fixa o que ele tem de fazer quando a #574 o criar:
-
-1. Antes de `migrate deploy`, e só se houver migrações pendentes
-   (`prisma migrate status`):
-   `aws rds create-db-snapshot --db-instance-identifier gespro-prod-postgres
-   --db-snapshot-identifier gespro-prod-pre-migracao-<sha>-<aaaammddhhmm> --tags Key=Motivo,Value=pre-migracao`
-   e esperar `aws rds wait db-snapshot-available`.
-2. Falhar o *deploy* se o instantâneo falhar — sem instantâneo não há migração.
-3. Retenção de 90 dias: os instantâneos manuais **não expiram sozinhos**; o
-   passo apaga os `pre-migracao` com mais de 90 dias (ou uma regra do AWS
-   Backup, se a #574 a preferir).
-4. A role do pipeline precisa de `rds:CreateDBSnapshot`, `rds:DescribeDBSnapshots`,
-   `rds:DeleteDBSnapshot` e `rds:AddTagsToResource`, limitadas à instância.
-
-Enquanto a #574 não fecha, o PITR de 35 dias cobre a migração destrutiva
-(restaurar para o instante anterior ao arranque da réplica que migrou) — com um
-RPO de minutos em vez de zero.
+Os **documentos** continuam na AWS, na stack `infra/storage-prod` (módulo
+`infra/modules/storage`), numa região da UE com réplica noutra região da UE.
+**Nada disto foi exercido**: nunca aplicado. Verificador offline das
+declarações: `terraform -chdir=infra/storage-prod init -backend=false &&
+terraform -chdir=infra/storage-prod test` (fornecedor dobrado — prova o que o
+plano pede, não que a AWS o aceita).
 
 ### Objectos (bucket de documentos)
 
 - **Versionamento** + **Object Lock em modo GOVERNANCE**, retenção por omissão de
-  `retencao_documentos_fiscais_anos` (10). A app (Get/Put/DeleteObject) só cria
-  marcadores de apagamento; nenhuma versão é apagável por ela.
+  `retencao_documentos_fiscais_anos` (10). A app (utilizador IAM
+  `gespro-app-storage-prod`, chave no serviço `erp` do Railway: só
+  Get/Put/DeleteObject em `tenant/`, com Deny explícito de
+  `BypassGovernanceRetention`/`DeleteObjectVersion`) só cria marcadores de
+  apagamento; nenhuma versão é apagável por ela.
 - **Réplica** em `replica_region` (`gespro-uploads-prod-replica`, STANDARD_IA),
   com versionamento e o mesmo bloqueio. Os marcadores de apagamento replicam.
 - **Repor um objecto apagado**: listar versões
@@ -183,13 +135,16 @@ RPO de minutos em vez de zero.
 
 ### Desmontar o dev (#644)
 
-Não se edita o módulo. O que trava o `terraform destroy` é o conteúdo dos
+Já não há stack de dev activa: a `live/dev` está arquivada (ADR-0050) e nunca
+foi aplicada. O procedimento fica para o caso de ela ter sido aplicada a partir
+do arquivo (`infra/_arquivo-aws/live/dev`) ou de nascer outra stack de storage
+com `proteger_contra_destruicao = false`. Não se edita o módulo. O que trava o `terraform destroy` é o conteúdo dos
 buckets: o `aws_s3_bucket` não tem `force_destroy`, e o S3 só apaga um bucket sem
 versões nem marcadores de apagamento.
 
 ```bash
 # 0. Confirmar que é o dev e que está desprotegido.
-grep -n proteger_contra_destruicao infra/live/dev/main.tf   # = false
+grep -n proteger_contra_destruicao infra/_arquivo-aws/live/dev/main.tf   # = false
 
 # 1. Esvaziar cada bucket (origem e, se houver, `gespro-uploads-dev-replica`,
 #    na região da réplica). Versões E marcadores, em lotes de 1000.
@@ -218,7 +173,7 @@ done
 #  replicação não é preciso: o destroy apaga a configuração primeiro.)
 
 # 2. Destruir.
-terraform -chdir=infra/live/dev destroy
+terraform -chdir=infra/_arquivo-aws/live/dev destroy
 ```
 
 - `--bypass-governance-retention` só é preciso se o dev tiver Object Lock
@@ -234,8 +189,8 @@ terraform -chdir=infra/live/dev destroy
   COMPLIANCE num ambiente que se queira desmontar.
 - Se o `delete-objects` devolver `AccessDenied` em versões bloqueadas, é a role
   errada (ou COMPLIANCE) — não é motivo para mexer no módulo.
-- **Prod não se desmonta por este caminho**: com `proteger_contra_destruicao =
-  true` o `destroy` falha no plano, de propósito. Retirar a protecção de prod é
+- **Prod não se desmonta por este caminho**: a `infra/storage-prod` tem
+  `proteger_contra_destruicao = true` e o `destroy` falha no plano, de propósito. Retirar a protecção de prod é
   uma decisão humana registada, não um passo de runbook.
 
 ## Ensaio contra produção — [HUMANO], quando houver produção

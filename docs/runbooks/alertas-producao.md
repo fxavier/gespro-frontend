@@ -1,5 +1,10 @@
 # Runbook — Alertas de produção (CloudWatch + SNS)
 
+> **Arquivado — produção no Railway (ADR-0050); alertas em `docs/runbooks/deploy-railway.md`.**
+> O código descrito abaixo vive agora em `infra/_arquivo-aws/modules/monitoring` e
+> `infra/_arquivo-aws/live/prod`; os caminhos `infra/modules/monitoring` e `infra/live/*` deste
+> texto são os de antes do arquivo.
+
 **Governa:** ADR-0019 §4 (alertas, dois níveis), ADR-0026 §5 (sem fornecedor escolhido), #576.
 **Código:** `infra/modules/monitoring`, ligado em `infra/live/prod` (e em `live/dev` só com `alert_email`).
 
