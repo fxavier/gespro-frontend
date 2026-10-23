@@ -114,6 +114,9 @@ let pendentePath: string;
 
 test.describe('payroll-recalcular-ajustes-159 — recalcular com confirmação preserva ajustes', () => {
   test.beforeAll(async ({ browser }) => {
+    // Processar a folha pela UI (rota fria em `next dev` + lote no servidor) não cabe nos 30 s
+    // por omissão do hook — no CI estourou assim à primeira (#658).
+    test.setTimeout(180_000);
     const ctx = await browser.newContext({ storageState: AUTH_FILE, baseURL: BASE });
     const page = await ctx.newPage();
     try {
