@@ -3,20 +3,24 @@
 /**
  * Formulário de início de sessão (ADR-0029).
  *
- * As credenciais são submetidas ao Auth.js, que as passa ao `authorize` no
- * servidor — nunca vão para um URL nem para `searchParams`. O campo de
+ * As credenciais vão por Server Action (`entrarComPalavraPasse`) para o
+ * `signIn` do servidor, que as passa ao `authorize` — nunca vão para um URL
+ * nem para `searchParams`. Não se usa o `signIn` de `next-auth/react`: esse
+ * depende de um token CSRF num cookie que os `GET /api/auth/session` do
+ * `SessionProvider` também emitem, e a corrida entre eles recusava logins
+ * certos com `MissingCSRF` (#657). O campo de
  * palavra-passe não tem `defaultValue` nem é controlado: o valor vive no DOM
  * até ao submit e mais nada.
  */
 
 import { useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { destinoSeguro } from '@/lib/destino-seguro';
+import { entrarComPalavraPasse, type ResultadoEntrada } from './actions';
 
 /** Motivos devolvidos pelo `authorize` (ver `MotivoRecusaLogin` em lib/auth). */
 const MENSAGENS: Record<string, string> = {
@@ -51,28 +55,33 @@ export function LoginForm() {
   const identificadorInicial = searchParams.get('identificador') ?? '';
   const [erro, setErro] = useState<string | null>(null);
   const [palavraVisivel, setPalavraVisivel] = useState(false);
-  const [aSubmeter, iniciarTransicao] = useTransition();
+  const [aTransitar, iniciarTransicao] = useTransition();
+  // Da submissão até o documento novo carregar: um duplo clique não envia
+  // duas vezes as credenciais (cada falha conta para o limite de tentativas).
+  const [ocupado, setOcupado] = useState(false);
+  const aSubmeter = ocupado || aTransitar;
 
   async function aoSubmeter(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     setErro(null);
+    setOcupado(true);
     const dados = new FormData(evento.currentTarget);
 
-    const res = await signIn('credentials', {
-      identificador: String(dados.get('identificador') ?? ''),
-      palavraPasse: String(dados.get('palavraPasse') ?? ''),
-      redirect: false,
-    });
+    const identificador = String(dados.get('identificador') ?? '');
+    let res: ResultadoEntrada;
+    try {
+      res = await entrarComPalavraPasse(identificador, String(dados.get('palavraPasse') ?? ''));
+    } catch {
+      // Rede ou erro inesperado no servidor: o botão não fica preso.
+      res = { ok: false };
+    }
 
-    if (!res || res.error) {
-      // `code` chega no erro do Auth.js; o `error` genérico é o resto.
-      const codigo = (res as { code?: string } | undefined)?.code;
-
+    if (!res.ok) {
+      setOcupado(false);
       // Conta com mudança de palavra-passe pendente: o Keycloak recusa o
       // token, mas a recusa só acontece com a palavra-passe CERTA. É primeiro
       // acesso, não é erro — segue para o ecrã onde se resolve (ADR-0030).
-      if (codigo === 'conta-por-activar') {
-        const identificador = String(dados.get('identificador') ?? '');
+      if (res.codigo === 'conta-por-activar') {
         iniciarTransicao(() => {
           router.push(
             `/auth/mudar-palavra-passe?identificador=${encodeURIComponent(identificador)}`,
@@ -81,14 +90,15 @@ export function LoginForm() {
         return;
       }
 
-      setErro(MENSAGENS[codigo ?? ''] ?? OMISSAO);
+      setErro(MENSAGENS[res.codigo ?? ''] ?? OMISSAO);
       return;
     }
 
-    iniciarTransicao(() => {
-      router.push(callbackUrl);
-      router.refresh();
-    });
+    // Carregamento completo, não `router.push`: o cookie de sessão foi escrito
+    // pela action e o `SessionProvider` deste documento ainda guarda a sessão
+    // vazia do mount — só um documento novo o arranca com a sessão certa.
+    // `callbackUrl` já passou pelo `destinoSeguro` (só caminhos internos).
+    window.location.assign(callbackUrl);
   }
 
   return (
