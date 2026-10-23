@@ -104,7 +104,9 @@ WORKDIR /app
 # Variáveis de ambiente de produção (sem segredos — injectados pelo Secrets Manager)
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+# "::" = dual-stack (IPv6 e IPv4). A rede privada do Railway é IPv6-first e os
+# crons chamam erp.railway.internal; com 0.0.0.0 o servidor só escutava IPv4.
+ENV HOSTNAME="::"
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Instalar wget para o HEALTHCHECK (alternativa ao curl em alpine)
