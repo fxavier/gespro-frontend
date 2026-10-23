@@ -8,6 +8,7 @@
 #   2. o realm importado NÃO tem utilizadores (só a conta de serviço, que a
 #      Admin API não lista) — nenhum *@demo.mz, nenhum plataforma@gespro.mz;
 #   3. a borda recusa /admin e /realms/master (ADR-0012 §4);
+#   3b. a consola abre pela porta do serviço (o túnel SSH) com KC_HOSTNAME_ADMIN;
 #   4. o arranque recusa-se sem as variáveis obrigatórias.
 # No fim apaga contentores, rede e imagens. Corre da raiz do repositório:
 #   sh infra/railway/keycloak/ensaio-local.sh
@@ -55,6 +56,7 @@ docker run -d --name "$id-kc" --network "$rede" --network-alias keycloak \
   -p "127.0.0.1:$porta_kc:8080" \
   -e PORT=8080 -e KC_HTTP_ENABLED=true \
   -e KC_HOSTNAME="http://localhost:$porta_borda" -e KC_HOSTNAME_BACKCHANNEL_DYNAMIC=false \
+  -e KC_HOSTNAME_ADMIN="http://localhost:$porta_kc" \
   -e KC_PROXY_HEADERS=xforwarded \
   -e KC_DB_URL_HOST=keycloak-db -e KC_DB_URL_PORT=5432 -e KC_DB_URL_DATABASE=keycloak \
   -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD="$senha_db" \
@@ -119,5 +121,11 @@ for caminho in /admin/ /admin/master/console/ /realms/master/.well-known/openid-
   echo "   $caminho → $codigo"
   [ "$codigo" = "404" ] || falhar "a borda deixou passar $caminho"
 done
+
+echo "== 4. consola pelo «túnel» (porta directa ao serviço, como o ssh -L)"
+consola="$(curl -fsS "http://localhost:$porta_kc/admin/master/console/")" || falhar "a consola não abriu pela porta directa"
+echo "$consola" | grep -q "localhost:$porta_kc" || falhar "a consola não usa o KC_HOSTNAME_ADMIN"
+echo "$consola" | grep -q "localhost:$porta_borda/admin" && falhar "a consola aponta a /admin no domínio público"
+echo "   /admin/master/console/ → 200, URLs em localhost:$porta_kc"
 
 echo "OK: realm de produção sem utilizadores de demonstração; borda fechada à administração"

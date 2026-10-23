@@ -15,6 +15,8 @@
 	# A única entrada pública é a borda do Railway, que termina o TLS e envia
 	# X-Forwarded-Proto/For/Host. Confiar nesses cabeçalhos é o que permite ao
 	# Keycloak (sslRequired: external) saber que o pedido veio por HTTPS.
+	# O Railway não publica as gamas da sua borda; prova no 1.º deploy de que um
+	# X-Forwarded-For forjado não chega aos eventos: deploy-railway.md §Limitações.
 	servers {
 		trusted_proxies static 0.0.0.0/0 ::/0
 	}

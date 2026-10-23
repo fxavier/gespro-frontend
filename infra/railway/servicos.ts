@@ -40,6 +40,9 @@ export const ROTAS_CRON = [
   { rota: "/api/cron/transporte-alertas", horario: "30 3 * * *" },
 ] as const;
 
+/** Porta local do túnel SSH para a consola do Keycloak (runbook §Keycloak). */
+export const PORTA_TUNEL_ADMIN = 18080;
+
 /** Nomes na rede privada (`<nome>.railway.internal`), fixados abaixo. */
 const PRIVADO = {
   keycloak: "keycloak.railway.internal",
@@ -91,6 +94,10 @@ export function servicosDeApoio({ ctx, dominioAuth, urlErp, ramo = "main" }: Opc
       PORT: "8080",
       KC_HTTP_ENABLED: "true",
       KC_HOSTNAME: `https://${dominioAuth}`,
+      // A consola de administração só se abre por túnel SSH (`ssh -L 18080:…`,
+      // runbook §Keycloak): sem isto, os URLs da consola apontariam ao domínio
+      // público, onde a borda responde 404 a /admin.
+      KC_HOSTNAME_ADMIN: `http://localhost:${PORTA_TUNEL_ADMIN}`,
       // false: os tokens pedidos pelo backchannel privado levam iss = KC_HOSTNAME,
       // que é o que o Auth.js valida (ADR-0010 §3) — igual ao compose.
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false",
@@ -101,7 +108,9 @@ export function servicosDeApoio({ ctx, dominioAuth, urlErp, ramo = "main" }: Opc
       KC_DB_USERNAME: keycloakDb.env.PGUSER,
       KC_DB_PASSWORD: keycloakDb.env.PGPASSWORD,
       // Administrador TEMPORÁRIO do realm master: apaga-se depois de criar o
-      // definitivo com MFA (runbook §Keycloak, [HUMANO]).
+      // definitivo com MFA (runbook §Keycloak, [HUMANO]). Depois de apagadas no
+      // painel, estas duas linhas SAEM daqui no mesmo dia — ver o runbook sobre
+      // o que um `config plan` faz a um preserve() sem valor.
       KC_BOOTSTRAP_ADMIN_USERNAME: preserve(),
       KC_BOOTSTRAP_ADMIN_PASSWORD: preserve(),
       JAVA_OPTS_APPEND: "-XX:MaxRAMPercentage=70",

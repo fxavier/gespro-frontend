@@ -123,6 +123,7 @@ Só nomes e origem. `→ ref` é uma referência do Railway a outro serviço (re
 |---|---|
 | `PORT` | `8080` (a sonda do Railway usa o `PORT`) |
 | `KC_HTTP_ENABLED`, `KC_PROXY_HEADERS` | `true`, `xforwarded` — o TLS termina na borda do Railway |
+| `KC_HOSTNAME_ADMIN` | `http://localhost:18080` — a consola só se abre por túnel SSH (§Keycloak) |
 | `KC_HOSTNAME` | `https://auth.<domínio>` |
 | `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` | `false` — tokens pedidos pela rede privada levam `iss` público (ADR-0010 §3) |
 | `KC_DB_URL_HOST`, `KC_DB_URL_PORT`, `KC_DB_URL_DATABASE`, `KC_DB_USERNAME`, `KC_DB_PASSWORD` | → ref `keycloak-db`: `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` |
@@ -203,12 +204,38 @@ reiniciar a seguir.
 
 Depois do primeiro arranque — **[HUMANO]**:
 
-1. **Acesso à consola**: a consola não está na Internet. Para a usar, gerar temporariamente um
-   domínio Railway no serviço `keycloak` (Settings → Networking → Generate Domain, porta 8080),
-   fazer o trabalho e **apagar o domínio** no fim. Fica registado nos eventos de administração do
-   realm.
+1. **Acesso à consola — só por túnel SSH, nunca por domínio.** Gerar um domínio público no
+   serviço `keycloak`, mesmo temporário, publicava `/admin` e o realm `master` — com o
+   administrador temporário ainda vivo — e é exactamente o que a borda existe para impedir. O
+   Railway encaminha portas por SSH (`ssh -L`, limitado ao loopback do contentor e à rede privada
+   do projecto — [docs.railway.com/cli/ssh](https://docs.railway.com/cli/ssh)); o `railway connect`
+   não serve, é só para bases de dados. Com uma chave SSH registada no Railway (`railway ssh keys`)
+   e o *Service Instance ID* do `keycloak` (painel → `Cmd/Ctrl + K` → *Copy Service Instance ID*;
+   o serviço não tem domínio, por isso o utilizador SSH é esse ID):
+
+   ```bash
+   ssh -N -L 18080:127.0.0.1:8080 <service-instance-id>@ssh.railway.com
+   # noutro terminal / no browser:
+   open http://localhost:18080/admin/master/console/
+   ```
+
+   A porta local é **18080** porque o serviço tem `KC_HOSTNAME_ADMIN=http://localhost:18080`
+   (`PORTA_TUNEL_ADMIN` em `servicos.ts`): os URLs da consola e do login do `master` saem para
+   lá, e não para o domínio público, onde a borda responde 404. O pedido chega ao Keycloak pelo
+   loopback do contentor, logo o `sslRequired: external` do `master` aceita-o em HTTP. Fechar o
+   túnel no fim. O ensaio local prova a consola por esta porta (passo 4 de `ensaio-local.sh`).
 2. **Administrador definitivo** no realm `master`, com OTP obrigatório; entrar com ele; **apagar o
-   temporário** e remover `KC_BOOTSTRAP_ADMIN_*` do serviço.
+   temporário**; apagar `KC_BOOTSTRAP_ADMIN_USERNAME`/`_PASSWORD` no painel do serviço **e**, no
+   mesmo dia, as duas linhas `preserve()` de `servicos.ts` (PR).
+
+   Porquê as duas coisas: `preserve()` quer dizer «mantém o valor que já está no Railway»; com a
+   variável apagada não há valor para manter, e o comportamento do `config plan` nesse caso não está
+   documentado (pode planear nada, ou recriá-la vazia). Retirar as linhas do ficheiro deixa o plano
+   determinístico: a variável não é declarada e já não existe → nenhuma alteração. **[HUMANO]** no
+   primeiro `config plan` depois disto, confirmar que o plano do `keycloak` não toca em
+   `KC_BOOTSTRAP_ADMIN_*`; se mostrar uma criação, **não aplicar** e retirar as linhas antes. Mesmo
+   que voltassem, o Keycloak só cria o administrador de arranque quando o `master` não tem nenhum —
+   com o definitivo criado, não recriava ninguém; a variável seria só um segredo morto à vista.
 3. **Primeiro administrador de plataforma** no realm `gespro`: criar o utilizador (e-mail real da
    equipa, nunca `plataforma@gespro.mz`), acção obrigatória *Configure OTP*, papel de realm
    `plataforma-admin`, e enviar-lhe o e-mail de definição de palavra-passe. Sem `User` em Postgres
@@ -327,14 +354,14 @@ variáveis em falta; o `.well-known` não responder (também com o `Host` da son
 `healthcheck.railway.app`); a página de login pela borda não trouxer o tema; o realm tiver um único
 utilizador (`GET /admin/realms/gespro/users` tem de ser `[]`); a conta de serviço faltar; os
 `redirectUris` ou o SMTP não estiverem substituídos; a borda deixar passar `/admin`,
-`/realms/master` ou `/metrics`. No fim apaga contentores, rede e imagens.
+`/realms/master` ou `/metrics`; a consola não abrir pela porta directa do serviço (o túnel) com os URLs do `KC_HOSTNAME_ADMIN`. No fim apaga contentores, rede e imagens.
 
 **Em produção, depois do primeiro deploy — [HUMANO]** (aceitação da #572):
 
 1. `https://app.<domínio>/api/ready` → 200; `https://auth.<domínio>/admin/` → 404.
 2. Login com o administrador de plataforma; registo público de um tenant de teste até ao e-mail.
 3. Forçar `cron-expirar-trials` e ver 200 no registo da execução (e o heartbeat a bater).
-4. `GET /admin/realms/gespro/users` (pela consola temporária) só com as contas criadas à mão.
+4. `GET /admin/realms/gespro/users` (pela consola, por túnel SSH) só com as contas criadas à mão.
 
 ## Limitações conhecidas
 
@@ -342,7 +369,27 @@ utilizador (`GET /admin/realms/gespro/users` tem de ser `[]`); a conta de servi�
   `plataforma-admin` em `infra/keycloak/realm-gespro.json` tem 300 caracteres e o Keycloak guarda-a
   em `varchar(255)`: o arranque rebenta com «value too long for type character varying(255)». Não
   se nota localmente porque o import só corre com o realm ausente. A derivação de produção encurta-a
-  e o build tranca o limite; o ficheiro de dev precisa da mesma correcção (fora deste nó).
+  e o build tranca o limite; o realm de dev é corrigido pelo **#650** (descrição encurtada). Depois
+  desse merge, a substituição em `realm-producao.jq` deixa de ser precisa, mas a guarda do build
+  (nenhuma descrição acima de 255) fica.
+- **A borda confia em `X-Forwarded-*` vindos de qualquer endereço** (`trusted_proxies static
+  0.0.0.0/0 ::/0` no `Caddyfile`). É seguro só enquanto a única entrada da borda for a borda do
+  Railway, que reescreve esses cabeçalhos — e o Railway não publica as gamas de onde ela liga. Se
+  um `X-Forwarded-For` forjado passasse, o IP falso ficava nos eventos de login e enganava o
+  bloqueio por força bruta do Keycloak. **[HUMANO]** no primeiro deploy:
+  um login de cliente falhado com o cabeçalho forjado,
+
+  ```bash
+  curl -s -H 'X-Forwarded-For: 203.0.113.7' -d grant_type=client_credentials \
+    -d client_id=gespro-erp -d client_secret=errado \
+    https://auth.<domínio>/realms/gespro/protocol/openid-connect/token
+  ```
+
+  e ler o `ipAddress` do evento `CLIENT_LOGIN_ERROR` (consola pelo túnel → realm `gespro` →
+  Events). Tem de ser o IP real de quem fez o pedido —
+  se aparecer `203.0.113.7`, a borda do Railway está a passar o cabeçalho do cliente e é preciso
+  deixar de confiar em `X-Forwarded-For` (ou restringir `trusted_proxies`). Se o Railway passar a
+  publicar as gamas da sua borda, restringir o `trusted_proxies` a elas.
 - **Ambientes antigos do Railway só têm IPv6 na rede privada** (os criados depois de 2025-10-16
   têm IPv4 e IPv6). O ERP escuta em `0.0.0.0` (`HOSTNAME` do `Dockerfile` da raiz) e o Keycloak
   também: num projecto novo, como este, não importa.
