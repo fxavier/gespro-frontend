@@ -39,6 +39,16 @@ No serviço `erp` do Railway: `STORAGE_DRIVER=s3`, `S3_BUCKET`, `S3_REGION`, `AW
 `terraform -chdir=infra/storage-prod apply -replace=aws_iam_access_key.app` e actualizar o Railway logo a
 seguir (a chave antiga morre no fim do apply).
 
+**[HUMANO] — região do estado**: o `backend.tf` do `storage-prod` aponta para `eu-west-1`, a omissão
+actual do `bootstrap`. Se o bootstrap já tiver sido aplicado com a omissão antiga (`af-south-1`), o
+bucket de estado está nessa região e o `region` do `infra/storage-prod/backend.tf` tem de passar a
+`af-south-1` antes do primeiro `init` — senão o `init` não encontra o bucket.
+
+**A chave da app fica em claro no estado remoto**: o `aws_iam_access_key` guarda o segredo no
+`terraform.tfstate` (o `sensitive` só o esconde do ecrã). O bucket de estado é cifrado (SSE), versionado
+e privado, e só quem aplica o lê. Se isso não chegar, a alternativa é `pgp_key` no `aws_iam_access_key`:
+o estado guarda só o segredo cifrado (`encrypted_secret`), que se decifra fora do Terraform.
+
 A credencial é uma chave de utilizador IAM e não federação OIDC — desvio ao ADR-0022 §3 registado no
 ADR-0050 §2. A política só dá `Get`/`Put`/`DeleteObject` no prefixo `tenant/` e nega explicitamente
 `BypassGovernanceRetention` e `DeleteObjectVersion`.

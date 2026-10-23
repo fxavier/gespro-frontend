@@ -78,8 +78,8 @@ exemplo, restaurar para um instante anterior a uma migração destrutiva):
 
 ## Produção (Railway + bucket S3 dos documentos — ADR-0050)
 
-A produção corre no **Railway** (ADR-0050 §1): os dois Postgres (`postgres-erp`,
-`postgres-keycloak`) são serviços geridos com recuperação a um ponto no tempo, e
+A produção corre no **Railway** (ADR-0050 §1): os dois Postgres (`erp-db`,
+`keycloak-db`, os nomes do IaC do Railway) são serviços geridos com recuperação a um ponto no tempo, e
 **o restauro cria um serviço novo**, nunca escreve por cima do actual. O
 procedimento (consola do Railway: escolher o instante UTC anterior ao erro,
 restaurar as **duas** bases para o mesmo instante, verificar como no passo 6
