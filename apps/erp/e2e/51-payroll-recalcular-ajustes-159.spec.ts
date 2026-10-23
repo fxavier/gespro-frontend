@@ -18,12 +18,23 @@
  *
  *   Depois recalcular o payroll afectado via «Recalcular» na UI.
  *
+ * Precondição — uma folha PENDENTE: a do seed (mês anterior) é paga pelo 42-payroll-pagar-96, que
+ * corre antes deste na suite. Sem nenhum payroll PENDENTE, o `beforeAll` processa pela UI
+ * (/rh/payroll/novo) a folha do mês mais recente que ainda não esteja PROCESSADO/PAGO. Uma folha
+ * PENDENTE não tem lançamentos; deixa-a no `demo` (a corrida seguinte reutiliza-a). Limpeza:
+ *
+ *   -- F = folhas PENDENTE do demo criadas assim (filtra também por mês/ano)
+ *   DELETE FROM "LinhaPayroll" WHERE "payrollId" IN (SELECT id FROM "Payroll" WHERE "folhaId" IN (F));
+ *   DELETE FROM "Payroll" WHERE "folhaId" IN (F);
+ *   DELETE FROM "FolhaPagamento" WHERE id IN (F);
+ *
  * Correr:
  *   BASE_URL=http://localhost:3000 npx playwright test e2e/51-payroll-recalcular-ajustes-159.spec.ts --project=e2e
  */
 
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
+import { comBaseDados } from './helpers/db';
 
 const AUTH_FILE = path.join(process.cwd(), 'playwright/.auth/admin.json');
 const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
@@ -51,6 +62,50 @@ async function escolherOpcao(page: Page, label: string, visibleText: string): Pr
   }
 }
 
+const MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+/**
+ * Mês de referência mais recente (de hoje em Maputo para trás) sem folha PROCESSADO/PAGO no
+ * `demo` — o único que `processarFolhaMes` aceita sem cancelar nada. Só leitura.
+ */
+async function mesLivreParaFolha(): Promise<{ mes: number; ano: number }> {
+  const ocupados = await comBaseDados(async (c) => {
+    const r = await c.query<{ ano: number; mes: number }>(
+      `SELECT f."anoReferencia" AS ano, f."mesReferencia" AS mes
+         FROM "FolhaPagamento" f JOIN "Tenant" t ON t.id = f."tenantId"
+        WHERE t.slug = 'demo' AND f.status IN ('PROCESSADO', 'PAGO')`,
+    );
+    return new Set(r.rows.map((l) => `${l.ano}-${l.mes}`));
+  });
+  const [ano0, mes0] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Maputo', year: 'numeric', month: '2-digit' })
+    .format(new Date())
+    .split('-')
+    .map(Number);
+  for (let k = 0; k < 24; k++) {
+    const total = ano0 * 12 + (mes0 - 1) - k;
+    const ano = Math.floor(total / 12);
+    const mes = (total % 12) + 1;
+    if (!ocupados.has(`${ano}-${mes}`)) return { mes, ano };
+  }
+  throw new Error('STOP CONDITION: os últimos 24 meses já têm folha processada ou paga no tenant demo.');
+}
+
+/** Processa pela UI a folha de um mês livre; a folha nasce PENDENTE (sem lançamentos). */
+async function processarFolhaPendente(page: Page): Promise<void> {
+  const { mes, ano } = await mesLivreParaFolha();
+  await page.goto(`${BASE}/rh/payroll/novo`);
+  await page.waitForLoadState('networkidle');
+  await page.locator('main').getByRole('combobox').first().click();
+  await page.getByRole('option', { name: MESES[mes - 1], exact: true }).click();
+  await page.locator('input[name="ano"]').fill(String(ano));
+  await page.getByRole('button', { name: 'Processar Folha do Mês', exact: true }).click();
+  await expect(page.locator('[data-sonner-toast]', { hasText: 'processada para' })).toBeVisible({ timeout: 60_000 });
+  await page.waitForURL(/\/rh\/payroll(\?.*)?$/, { timeout: 30_000 });
+}
+
 function totalBruto(page: Page) {
   return page.locator('text=Total bruto').locator('..').locator('span.tabular-nums');
 }
@@ -62,13 +117,21 @@ test.describe('payroll-recalcular-ajustes-159 — recalcular com confirmação p
     const ctx = await browser.newContext({ storageState: AUTH_FILE, baseURL: BASE });
     const page = await ctx.newPage();
     try {
+      // A lista vazia também é uma `tbody tr` («Sem processamentos salariais») — `.first()` no
+      // composto, e o vazio decide-se pelo texto, não pela contagem de linhas.
+      const vazio = page.getByText(/sem processamentos/i);
+      const tabelaOuVazio = page.locator('tbody tr').first().or(vazio).first();
       await page.goto(LISTA_PENDENTE);
-      const tabelaOuVazio = page.locator('tbody tr').first().or(page.getByText(/sem processamentos/i));
       await expect(tabelaOuVazio).toBeVisible({ timeout: 30_000 });
-      const primeiraTr = page.locator('tbody tr').first();
-      if ((await primeiraTr.count()) === 0) {
-        throw new Error('STOP CONDITION: nenhum payroll PENDENTE no tenant demo — corra pnpm db:seed.');
+      if (await vazio.isVisible()) {
+        await processarFolhaPendente(page);
+        await page.goto(LISTA_PENDENTE);
+        await expect(tabelaOuVazio).toBeVisible({ timeout: 30_000 });
+        if (await vazio.isVisible()) {
+          throw new Error('STOP CONDITION: a folha processada não deixou nenhum payroll PENDENTE no tenant demo.');
+        }
       }
+      const primeiraTr = page.locator('tbody tr').first();
       await primeiraTr.click();
       await page.waitForURL(/\/rh\/payroll\/[a-z0-9]{25}$/, { timeout: 30_000 });
       pendentePath = new URL(page.url()).pathname;

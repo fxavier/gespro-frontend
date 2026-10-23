@@ -130,7 +130,11 @@ test.describe(`Formulários escolhem entidades por combobox, não por id colado 
   test.describe.configure({ mode: 'serial' });
 
   // Uma venda do demo com cliente (não o Consumidor Final) e SEM factura, para a nova devolução:
-  // com factura os itens vêm dela, sem combobox de produto (#562).
+  // com factura os itens vêm dela, sem combobox de produto (#562). Desde o ADR-0041/#563 toda a
+  // venda concluída ou facturada com cliente nasce com documento — sem factura só ficam as
+  // anteriores ao ADR-0041 e as que ainda não se concluíram (PENDENTE, no seed). O formulário não
+  // olha ao estado da venda (`procurarVendas` e `linhasDevolviveis` aceitam qualquer um); o que
+  // decide a combobox de produto é só a falta de factura. Preferem-se as concluídas, quando há.
   let vendaDemo: { numero: string; cliente: string } | null = null;
 
   test.beforeAll(async () => {
@@ -148,9 +152,9 @@ test.describe(`Formulários escolhem entidades por combobox, não por id colado 
         `SELECT v.numero, cl.nome AS cliente
            FROM "Venda" v JOIN "Cliente" cl ON cl.id = v."clienteId"
           WHERE v."tenantId" = $1 AND cl."deletedAt" IS NULL AND cl.status = 'ATIVO'
-            AND cl.codigo <> 'CF-000000' AND v.status IN ('CONCLUIDA', 'FATURADA')
+            AND cl.codigo <> 'CF-000000' AND v.status NOT IN ('CANCELADA', 'DEVOLVIDA')
             AND v."faturaId" IS NULL
-          ORDER BY v."dataVenda" DESC LIMIT 1`,
+          ORDER BY (v.status IN ('CONCLUIDA', 'FATURADA')) DESC, v."dataVenda" DESC LIMIT 1`,
         [tenantId],
       );
       vendaDemo = v.rows[0] ?? null;
@@ -178,7 +182,7 @@ test.describe(`Formulários escolhem entidades por combobox, não por id colado 
   });
 
   test('/vendas/devolucoes/nova — cliente, venda do cliente e produto da linha', async ({ page }) => {
-    expect(vendaDemo, 'o demo não tem nenhuma venda concluída/facturada com cliente — corra pnpm db:seed').not.toBeNull();
+    expect(vendaDemo, 'o demo não tem nenhuma venda sem factura (nem cancelada nem devolvida) com cliente — corra pnpm db:seed').not.toBeNull();
     await abrir(page, '/vendas/devolucoes/nova');
     await semCamposDeId(page);
     await escolher(page, /Cliente/i, { termo: vendaDemo!.cliente });
