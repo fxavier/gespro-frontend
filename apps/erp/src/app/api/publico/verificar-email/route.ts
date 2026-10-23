@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { ipDoCliente } from '@/server/security/ip-cliente';
 import { withApi } from '@/lib/api/with-api';
 import { auth } from '@/lib/auth';
 import { verificacaoEmailLimiter } from '@/server/security/rate-limiter';
@@ -54,14 +55,6 @@ import { logger } from '@/server/observability/logger';
 
 export const runtime = 'nodejs';
 
-function ipDe(req: NextRequest): string {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    req.headers.get('x-real-ip') ??
-    'unknown'
-  );
-}
-
 type Desfecho = 'ok' | 'expirada' | 'invalida' | 'erro' | 'limitada';
 
 /**
@@ -89,7 +82,7 @@ export const GET = withApi(
   async (req: NextRequest) => {
     // 1. Limite por IP. Não protege o segredo (isso é a assinatura); trava o
     //    ruído de quem tenta adivinhar e o custo das chamadas ao Keycloak.
-    const rl = await verificacaoEmailLimiter.consume(`${ipDe(req)}::verificar-email`);
+    const rl = await verificacaoEmailLimiter.consume(`${ipDoCliente(req.headers)}::verificar-email`);
     if (rl.limited) {
       return redireccionar(req, 'limitada');
     }

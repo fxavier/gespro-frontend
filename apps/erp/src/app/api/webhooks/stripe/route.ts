@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { withApi } from '@/lib/api/with-api';
 import { webhookLimiter } from '@/server/security/rate-limiter';
+import { ipDoCliente } from '@/server/security/ip-cliente';
 import { AppError } from '@/lib/errors';
 import { logger } from '@/server/observability/logger';
 import { getRequestContext } from '@/server/observability/context';
@@ -32,10 +33,7 @@ export const runtime = 'nodejs';
 
 export const POST = withApi(
   async (req: NextRequest) => {
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-      req.headers.get('x-real-ip') ??
-      'unknown';
+    const ip = ipDoCliente(req.headers);
 
     const rl = await webhookLimiter.consume(`${ip}::stripe-webhook`);
     if (rl.limited) {

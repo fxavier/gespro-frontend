@@ -168,7 +168,11 @@ Limitadores usados por Route Handlers:
 | `webhookLimiter` | 100 / 1 min | aberta | `${ip}::stripe-webhook` | `webhooks/stripe` |
 | `loginLimiter` | 10 / 15 min (conta falhas) | aberta | `${ip}::login` e `${identificador}::login` | `api/auth/*` (`authorize` do provider Credentials, `src/lib/auth.ts`) |
 
-O IP sai de `x-forwarded-for` (primeiro valor) ou `x-real-ip`; sem nenhum, `unknown`. **Não** têm
+O IP sai de `ipDoCliente` (`src/server/security/ip-cliente.ts`, #552): o `x-forwarded-for` lido pela
+direita, descontando `TRUSTED_PROXY_HOPS` (omissão 1) proxies de confiança; `x-real-ip` só sem XFF;
+sem nenhum (ou com 0 saltos), `unknown`. Em produção, sem `RATE_LIMIT_DRIVER=valkey` + `VALKEY_URL`, o
+hook de instrumentação lança e o processo responde 500 a todos os pedidos (`/api/health` incluído): o health
+check impede a instância de entrar ao serviço. **Não** têm
 limitação: `export/[modulo]`, `faturacao/[id]/pdf`, `financas/iva/mapas/[periodo]`, `audit`,
 `documentos/[id]/download`. (Os limitadores `inviteLimiter`, `extractoLimiter` e
 `reenvioVerificacaoLimiter` existem mas são usados por Server Actions.)

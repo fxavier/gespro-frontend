@@ -10,6 +10,13 @@
  * e inclui os pacotes no output standalone (B1 fix).
  */
 export async function registerNode(): Promise<void> {
+  // #552: em produção, sem limitador partilhado, isto lança — fora do try de
+  // propósito. O Next guarda a promessa rejeitada: o processo fica vivo e responde
+  // 500 a todos os pedidos (/api/health incluído), e o health check impede a
+  // instância de entrar ao serviço. Ver src/server/security/arranque-rate-limit.ts.
+  const { verificarDriverRateLimit } = await import('./src/server/security/arranque-rate-limit');
+  verificarDriverRateLimit();
+
   // Arrancar sondas de saúde independentemente do OTLP estar ou não configurado.
   // Mesmo sem backend de telemetria, as métricas ficam disponíveis em /api/metrics.
   try {

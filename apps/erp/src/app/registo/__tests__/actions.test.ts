@@ -89,7 +89,8 @@ async function correr(entrada = { dados: DADOS, idempotencyKey: 'chave-de-teste-
 beforeEach(() => {
   vi.clearAllMocks();
   linhasLog.length = 0;
-  cabecalhos.valor = { 'x-forwarded-for': '41.220.0.9, 10.0.0.1' };
+  // Um só salto de proxy, como a pilha real (Caddy/App Runner): o IP do par é o único valor — ver #552.
+  cabecalhos.valor = { 'x-forwarded-for': '41.220.0.9' };
   signIn.mockResolvedValue('/dashboard');
   enviarEmailVerificacao.mockResolvedValue(true);
   registarEventoPlausible.mockResolvedValue(true);

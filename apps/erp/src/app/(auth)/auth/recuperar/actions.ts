@@ -19,15 +19,11 @@
 import { headers } from 'next/headers';
 import { dispararRecuperacaoPalavraPasse, procurarPorEmail } from '@/server/auth/keycloak';
 import { recuperacaoEmailLimiter, recuperacaoIpLimiter } from '@/server/security/rate-limiter';
+import { ipDoCliente } from '@/server/security/ip-cliente';
 import { RecuperarPalavraPasseSchema } from '@/lib/validations/plataforma';
 import { logger } from '@/server/observability/logger';
 
 export type ResultadoRecuperacao = { ok: true } | { ok: false; erro: string };
-
-function ipDosCabecalhos(h: Headers): string {
-  const encaminhado = h.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return encaminhado || h.get('x-real-ip')?.trim() || 'unknown';
-}
 
 export async function pedirRecuperacaoPalavraPasse(dados: unknown): Promise<ResultadoRecuperacao> {
   const parsed = RecuperarPalavraPasseSchema.safeParse(dados);
@@ -38,7 +34,7 @@ export async function pedirRecuperacaoPalavraPasse(dados: unknown): Promise<Resu
   const { email } = parsed.data;
 
   try {
-    const ip = ipDosCabecalhos(await headers());
+    const ip = ipDoCliente(await headers());
     // IP primeiro: um varrimento parado no IP não gasta a quota dos endereços.
     if ((await recuperacaoIpLimiter.consume(`${ip}::recuperacao`)).limited) return { ok: true };
     if ((await recuperacaoEmailLimiter.consume(`${email}::recuperacao`)).limited) return { ok: true };
