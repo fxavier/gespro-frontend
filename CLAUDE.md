@@ -73,8 +73,12 @@ com uma sessão fresca; depois de qualquer corrida, `git checkout -- apps/erp/pl
 O ficheiro versionado tem uma sessão expirada — um script ad-hoc com esse `storageState` cai no login;
 corre `npx playwright test --project=setup` primeiro, **numa invocação à parte** — juntar ficheiros a um
 comando com `--project=setup` corre só o setup («No tests found»).
-Para correr os E2E contra outro servidor (ex.: worktree na 3109): `BASE_URL=http://localhost:3109 npx playwright test …`
-— o `playwright.config.ts` lê `BASE_URL` e reutiliza um servidor que já esteja a responder. Relatório HTML com trace
+Para correr os E2E contra outro servidor (ex.: worktree na 3109) o `BASE_URL` não chega: o `webServer.url` do
+`playwright.config.ts` está fixo em `:3000`, e o `reuseExistingServer` só olha para essa porta (arranca ou reutiliza o
+da 3000). Usa um config temporário dentro de `apps/erp/` — `import base from './playwright.config'; export default
+{ ...base, webServer: undefined };` — e `BASE_URL=http://localhost:3109 npx playwright test -c <cfg> --project=e2e …`
+(o projecto `e2e` corre o `setup` como dependência). O `next dev` gera `apps/erp/AGENTS.md` e `apps/erp/CLAUDE.md`
+não versionados — não os commites. Relatório HTML com trace
 de cada passo: `npx playwright show-report` (em `apps/erp/playwright-report/`). Os E2E que concluem vendas
 (`27-pos-documento-fiscal`) e os que emitem ou pagam documentos (`13` encomendas, `38` nota de débito, `40`/`41`
 facturas paga e vencidas, e quase todos os `42-…` a `55-…` das lacunas — cada um diz no cabeçalho o que deixa) deixam
@@ -146,6 +150,12 @@ não só o ficheiro novo. Com a máquina carregada (várias worktrees com `next 
 pesados como `reconciliacao/__tests__/extracto.parser.test.ts` estouram o tecto de 5 s — repete-os com a máquina
 livre antes de culpar o código.
 
+Dois avisos do mesmo género: (1) uma **resolução de conflito** num merge pode deixar o `main` sem compilar mesmo
+com os dois lados verdes (o merge do #621 deixou uma função importada **e** declarada e JSX duplicado) — depois de
+resolver conflitos, corre `tsc --noEmit` antes do push; (2) os unitários em `src/**/__tests__` dobram o `tx` à mão:
+uma tranca nova (`tx.$queryRaw` com `FOR UPDATE`) parte-os com `tx.$queryRaw is not a function` — corre os unitários
+do módulo, não só a integração. Ajustar esse duplo é alterar um oráculo (doutrina: verificador distinto).
+
 **Shell do agente é zsh**: `$VAR` sem aspas **não** se parte em palavras (`vitest run $FICHEIROS` passa um
 único argumento) — usa um array `F=(a b); … "${F[@]}"`. O `psql` não está instalado no host e o utilizador
 do Postgres não é `postgres`:
@@ -162,6 +172,12 @@ Outro modo: o **daemon** do Docker Desktop pendura (`docker info` sem resposta) 
 responder — o `next dev` funciona, mas os Testcontainers ficam presos em «RUN» para sempre. O `quit` do Docker
 Desktop não chega; termina o `com.docker.backend`, reabre o Docker e faz `docker compose up -d` — o `gespro-db` e
 o Keycloak não voltam sozinhos. Confirma depois o `pg_stat_archiver` (acima).
+Terceiro modo, com o arquivamento **saudável**: o volume `gespro_gespro-walarchive` não tem retenção e cresce com cada
+seed, suite e E2E (chegou a 299 GB em 2026-10; o disco encheu e o daemon pendurou). Ver `docker system df -v`.
+Poda: `./infra/local/scripts/backup-base.sh` (cópia base nova), depois no contentor
+`pg_archivecleanup -n /var/lib/postgresql/wal-archive <label>.backup` (ensaio) e sem `-n`, com o `.backup` mais
+recente (`ls -t *.backup | head -1`); confirma com `pg_switch_wal()` que o arquivamento continua. Perde-se o PITR
+anterior a essa cópia. O espaço volta ao Mac aos poucos (o `Docker.raw` é esparso).
 
 ### Migrations — só o orquestrador, e **não-interativas**
 Todo o `npx prisma …` corre a partir de `apps/erp/` (é lá que estão `prisma.config.ts` e o schema); na raiz
@@ -314,6 +330,18 @@ FKs cross-domínio são **escalares** (`clienteId String` + índice), **nunca `@
 
 **Identificadores em Zod** — usa `idEntidade()` de `src/lib/validations/common.ts`, não `z.string().cuid()`. O Prisma gera cuid, mas o `tenant-bootstrap` atribui **uuid** às contas PGC (o `createMany` insere por níveis e o filho precisa do id da mãe antes de ela existir). Um `.cuid()` num campo que carregue id de conta rejeita todas as contas reais, em produção inclusive.
 
+**Zod 4 (#625)** — o projecto está em zod 4 e `@hookform/resolvers` 5; três mudanças silenciosas têm helper em
+`src/lib/validations/common.ts`, usa-os:
+
+- `required_error`/`invalid_type_error`/`errorMap` são **ignorados** (a mensagem sai «Invalid input: expected …»):
+  passa `erroDeTipo('Campo obrigatório', 'Valor inválido')` como segundo argumento do construtor.
+- `.partial()` passou a **aplicar os `.default()`** às chaves em falta — uma edição parcial grava `ativo: true`,
+  `status`… sem o utilizador lhes tocar. Usa `parcial(schema)`; recusa na construção as formas em que o default ainda
+  vazaria (`.default().optional()`, `.default().transform()`, `.default().refine()`).
+- `.multipleOf(0.01)` passou a aceitar `0.1 + 0.2`: dinheiro é `dinheiro()` (ou `duasCasas()` para encadear).
+Formulário com coerção/transform: `useForm<z.input<typeof S>, unknown, z.output<typeof S>>`. Oráculo das mensagens
+pt-PT: `src/lib/validations/__tests__/zod4-oraculo-625.test.ts`.
+
 **Séries de documento** — ao estender o enum `TipoSerieDocumento`, acrescenta a série a `SERIES_INICIAIS` (`src/server/provisioning/tenant-bootstrap.ts`). O número é atribuído dentro da transacção: sem série, a operação inteira falha com «série activa não encontrada» em **todos** os tenants. Aconteceu a encomendas, devoluções e contagens de stock.
 
 **Permissões novas** — acrescentar uma permissão a `prisma/seed/rbac.ts` não a liga a papel nenhum nos
@@ -412,6 +440,16 @@ diferente e permitido antes de chamar (ex.: pagamento parcial numa `VENCIDA` man
 utilizador, não um ramo de fluxo normal. A tabela de transições vive em `src/lib/state-machines.ts` (client-safe)
 quando a UI precisa dela para decidir que botões mostra.
 
+**Trancas nas transições** — um duplo clique é uma corrida: duas tx lêem o mesmo estado e as duas transitam
+(caixa fechada duas vezes, stock libertado duas vezes — #554, #555, #557, #558, #559). Dentro da `$transaction`, primeiro
+`SELECT id FROM "<Tabela>" WHERE id = … AND "tenantId" = … FOR UPDATE`, **depois** ler o estado e decidir
+(`trancarLinha` em `faturacao.service`, `trancarSessaoCaixa` em `caixa.service`; quem só precisa que a linha continue
+num estado usa `FOR SHARE`). Respeita a ordem de trancas existente, senão há deadlock: `Venda → Fatura → SessaoCaixa`;
+`SessaoPOS → SessaoCaixa` (o fecho de caixa tranca as sessões POS antes da caixa, como a venda POS);
+`OrdemProducao → SaldoStock`. Teste determinista da corrida: a tx do teste tranca a linha, lança as duas chamadas
+com `Promise.all`, espera em `pg_stat_activity` (`wait_event_type = 'Lock'`) até as ver bloqueadas e só então
+liberta — `Promise.all` sozinho é sorte (molde: `test/integration/caixa-fecho-tranca-558.test.ts`).
+
 **Campos numéricos** — o `ui/Input` base, quando `type="number"`, selecciona o conteúdo ao focar, apaga zeros à
 esquerda enquanto se escreve e repõe `0` se ficar vazio ao sair. Não reimplementar isto nos formulários.
 
@@ -472,6 +510,9 @@ identidade tenha o papel (#549, adenda ao ADR-0049 §5): o `auth.ts` descarta-o 
 callback `session`, e `criarAccaoPlataforma`/`exigirPlataformaAdmin` recusam com 404 se houver tenant. Quem precisa
 das duas coisas usa uma segunda identidade (sub-endereçamento, ADR-0011 §5). As escritas de plataforma ficam no trilho global `AuditoriaPlataforma`,
 **não** no `AuditLog` do tenant (que exige `tenantId`): quem escreve uma acção de plataforma nova grava lá à mão.
+Uma action que recebe o **id de um tenant** do cliente é de plataforma, nunca uma permissão de tenant: as de gestão de
+tenants (`criar/actualizar/desactivar/reactivarTenant`) eram `core_tenancy:configurar` — que o ADMIN de qualquer tenant
+tem (`ADMIN: allCodes()`) — e deixavam um cliente desactivar outro (#41).
 
 **Identidade preexistente nunca se reaproveita (#549)** — `garantirUtilizador` devolve `criado: false` quando o
 e-mail já tem identidade no realm (incluindo a do administrador de plataforma, que não tem `User` local, e as órfãs).
