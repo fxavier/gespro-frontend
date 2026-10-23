@@ -1,0 +1,33 @@
+# Borda pública do Keycloak (Railway) — ADR-0012 §4.
+#
+# O Railway publica um domínio inteiro, sem filtro por caminho. Se o domínio
+# fosse do próprio Keycloak, a consola de administração e o realm `master`
+# ficavam na Internet. Por isso o domínio público (auth.<domínio>) é DESTE
+# serviço, e só passa o que o browser e o ERP precisam do realm `gespro`:
+#   /realms/gespro/*  → OIDC, login, conta, e-mails de acções
+#   /resources/*      → CSS, JS e imagens dos temas (inclui o tema gespro)
+# Tudo o resto (/admin, /realms/master, /metrics…) responde 404.
+#
+# O ERP fala com o Keycloak pela rede privada (KEYCLOAK_ISSUER_INTERNO e a
+# Admin API), sem passar por aqui.
+{
+	admin off
+	# A única entrada pública é a borda do Railway, que termina o TLS e envia
+	# X-Forwarded-Proto/For/Host. Confiar nesses cabeçalhos é o que permite ao
+	# Keycloak (sslRequired: external) saber que o pedido veio por HTTPS.
+	# O Railway não publica as gamas da sua borda; prova no 1.º deploy de que um
+	# X-Forwarded-For forjado não chega aos eventos: deploy-railway.md §Limitações.
+	servers {
+		trusted_proxies static 0.0.0.0/0 ::/0
+	}
+}
+
+:{$PORT:8080} {
+	@realm path /realms/gespro /realms/gespro/* /resources/*
+	handle @realm {
+		reverse_proxy {$KEYCLOAK_INTERNO:keycloak.railway.internal:8080}
+	}
+	handle {
+		respond 404
+	}
+}
