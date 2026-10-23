@@ -267,6 +267,12 @@ model Assinatura {
   /// Falhas de cobrança consecutivas (dunning do Stripe). Zera em invoice.paid.
   tentativasFalhadas Int @default(0)
 
+  /// `created` do último evento Stripe de estado aplicado (issue #561). O Stripe não garante a
+  /// ordem de entrega: um evento com `created` anterior a este é registado e ignorado, senão uma
+  /// reentrega atrasada (ex.: `subscription.updated active`) desfazia um cancelamento posterior.
+  /// Nulo até ao primeiro evento; escrito só pelo webhook, por compare-and-set.
+  ultimoEventoStripeEm DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
