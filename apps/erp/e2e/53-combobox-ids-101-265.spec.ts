@@ -187,6 +187,10 @@ test.describe(`Formulários escolhem entidades por combobox, não por id colado 
     await semCamposDeId(page);
     await escolher(page, /Cliente/i, { termo: vendaDemo!.cliente });
     await escolher(page, /Venda/i, { termo: vendaDemo!.numero });
+    // Escolher a venda carrega as linhas da factura em segundo plano e, sem factura, repõe os
+    // itens (`replace`) — a combobox de produto é remontada. Espera-se pelo aviso antes de a abrir,
+    // senão o popover aberto antes da reposição desaparece (#658: falhou assim no CI, à 1.ª).
+    await expect(page.getByRole('status').filter({ hasText: /não tem factura/i })).toBeVisible({ timeout: 15_000 });
     await escolher(page, /Produto/i);
   });
 
