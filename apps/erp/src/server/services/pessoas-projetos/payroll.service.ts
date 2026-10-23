@@ -764,6 +764,15 @@ export const PayrollService = {
     ctx: Ctx,
   ): Promise<{ folhaId: string; totalColaboradores: number }> {
     const { mes, ano } = input;
+    // #613: a folha lança no último dia do mês de referência (#569) — um mês futuro abriria
+    // o exercício desse ano e lançaria gastos no futuro. O mês corrente é o civil de Maputo.
+    const referencia = `${ano}-${String(mes).padStart(2, '0')}`;
+    if (referencia > diaIsoMaputo().slice(0, 7)) {
+      throw new BusinessRuleError(
+        'MES_REFERENCIA_FUTURO',
+        `A folha ${String(mes).padStart(2, '0')}/${ano} é de um mês futuro: só se processa a partir do próprio mês de referência`,
+      );
+    }
     return prisma.$transaction(async (rawTx) => {
       const tx = rawTx as unknown as Prisma.TransactionClient;
       const existente = await tx.folhaPagamento.findFirst({

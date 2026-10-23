@@ -59,8 +59,9 @@ describe.skipIf(skip)('Aprovar/rejeitar ausências (#94) — DB efémera (Testco
   const ctx = { tenantId: TENANT, userId: USER };
   const noCtx = <T>(fn: () => Promise<T>) => runCtx(ctx, fn);
 
-  // Março de 2027: dentro do período da folha [2027-03-01Z, 2027-04-01Z).
-  const ANO = 2027;
+  // Março de 2025: dentro do período da folha [2025-03-01Z, 2025-04-01Z). Ano passado de
+  // propósito (#613): a folha de mês de referência futuro é recusada (MES_REFERENCIA_FUTURO).
+  const ANO = 2025;
   const MES = 3;
 
   let colaboradorId: string;

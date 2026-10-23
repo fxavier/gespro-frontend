@@ -74,6 +74,21 @@ senão cancelar e reprocessar deixava o mês de referência em duplicado e o mê
 cancelamento negativo; com o período fechado, recusa com `PERIODO_FECHADO`.
 `dataProcessamento` continua a ser o instante real; o pagamento mantém a sua data.
 
+**Mês de referência futuro (#613)**: `processarFolhaMes` recusa um `ano/mes` posterior
+ao mês civil corrente de **Maputo** (`diaIsoMaputo()`, nunca `getMonth()` em UTC) com
+`MES_REFERENCIA_FUTURO`, antes de qualquer escrita — senão a folha de 2030 abria o
+exercício de 2030 e lançava gastos no futuro. O próprio mês continua permitido:
+processar Dezembro a 20/12 é legítimo.
+
+**Data do pagamento e a 4622 (#613, decisão: documentar, sem regra nova)**: `marcarPaga`
+exige `dataPagamento` entre o dia do processamento e hoje (Maputo), **não** `>=`
+`dataLancamentoFolha`. Como a folha do mês corrente se processa antes do fim do mês e
+lança no último dia, pagá-la antes desse dia põe o D 4622 (pagamento) antes do C 4622
+(massa salarial): entre as duas datas, a 4622 fica **temporariamente devedora** e um
+balancete a meio do mês mostra-a assim. Fecha no último dia do mês, e o período desse
+mês fica certo. Não se impõe `dataPagamento >= dataLancamentoFolha` porque, com a regra
+«não pode ser futura», isso impediria pagar salários antes do último dia do mês.
+
 ## Imutabilidade
 
 Após `PROCESSADO`, os valores da folha são append-only; correcção por cancelar +
