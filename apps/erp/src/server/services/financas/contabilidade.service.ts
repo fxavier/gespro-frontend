@@ -598,12 +598,16 @@ export const CONTAS_IVA_FILTRO = [
  * num período (dia de Maputo da `data`) com apuramento activo — ou fechado — ficaria fora de
  * todas as declarações. O período fica trancado `FOR SHARE` até ao commit. Quem chama pode dar
  * o seu erro; por omissão, `PERIODO_IVA_APURADO`.
+ *
+ * `fechadoContaComoApurado: false` (emissão de documento, #622): só o apuramento recusa — um
+ * período fechado fica para a escrita do lançamento, que o recusa com `PERIODO_FECHADO`.
  */
 export async function exigirPeriodoSemIvaApurado(
   tx: Prisma.TransactionClient,
   data: Date,
   tenantId: string,
   erro?: { codigo: string; mensagem: string },
+  { fechadoContaComoApurado = true }: { fechadoContaComoApurado?: boolean } = {},
 ): Promise<void> {
   const codigo = periodoFiscalDe(data);
   const [periodo] = await tx.$queryRaw<Array<{ id: string; estado: string }>>`
@@ -612,6 +616,7 @@ export async function exigirPeriodoSemIvaApurado(
     FOR SHARE
   `;
   if (!periodo) return;
+  if (periodo.estado !== 'ABERTO' && !fechadoContaComoApurado) return;
 
   const apurado =
     periodo.estado !== 'ABERTO' ||

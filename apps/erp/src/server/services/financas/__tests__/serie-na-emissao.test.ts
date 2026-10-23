@@ -37,6 +37,7 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/server/services/financas/contabilidade.service', () => ({
   registarLancamentoContabilistico: vi.fn().mockResolvedValue({ id: 'lan-93' }),
+  exigirPeriodoSemIvaApurado: vi.fn(),
 }));
 
 vi.mock('@/server/db/client', () => ({

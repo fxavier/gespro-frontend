@@ -25,7 +25,7 @@ vi.mock('@/lib/auth', () => ({ auth: h.auth }));
 
 vi.mock('@/server/services/financas/contabilidade.service', () => {
   h.registarLancamento = vi.fn().mockResolvedValue({ id: 'lan-305' });
-  return { registarLancamentoContabilistico: h.registarLancamento };
+  return { registarLancamentoContabilistico: h.registarLancamento, exigirPeriodoSemIvaApurado: vi.fn() };
 });
 
 vi.mock('@/server/db/client', () => {
