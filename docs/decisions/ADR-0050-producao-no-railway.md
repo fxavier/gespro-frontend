@@ -39,9 +39,8 @@ não cobre e como se tapa, e o que fica em aberto.
 
 ### Factos do Railway em que a decisão assenta
 
-Verificados na documentação oficial a 2026-10-22 (ledger `.scratch/sdlc/railway/RUN.md`); a linha
-do Config as Code a 2026-10-23. Um ADR
-que assenta em documentação de fornecedor herda o prazo de validade dela: se algum mudar, este ADR é
+Verificados na documentação oficial do Railway ([docs.railway.com](https://docs.railway.com)) a
+2026-10-22; a linha do Config as Code a 2026-10-23. Um ADR que assenta em documentação de fornecedor herda o prazo de validade dela: se algum mudar, este ADR é
 revisto, não lido de memória.
 
 | Facto | Consequência aqui |
@@ -52,7 +51,7 @@ revisto, não lido de memória.
 | **Railway Buckets: sem versionamento de objectos, sem Object Lock, sem regras de ciclo de vida** (texto da documentação dos Buckets) | Não servem para documentos fiscais — ver §2 |
 | Alertas: **webhooks de projecto** (deploy `Failed`/`Crashed`, volume, monitores) e **monitores** de CPU, RAM e disco (plano **Pro**) | Cobre o que é da plataforma; não cobre o que é da aplicação — ver §5 |
 | Regiões: `us-west2`, `us-east4-eqdc4a`, `europe-west4-drams3a`, `asia-southeast1-eqsg3a` | Escolhe-se `europe-west4-drams3a` — ver §1 |
-| Tarefas agendadas nativas (serviço com horário cron) | Substitui o contentor `cron` do compose — ver §4 |
+| Tarefas agendadas nativas: um horário cron **por serviço** | Substitui o contentor `cron` do compose por cinco serviços, um por rota — ver §4 |
 | **Config as Code (`railway.json`) está descontinuado**: «New services cannot opt into Config as Code», e os ficheiros deixam de ser lidos a **2026-12-01**. O substituto é **Infrastructure as Code**: um `.railway/railway.ts` com o SDK `railway`, aplicado por `railway config plan` / `railway config apply` ([infrastructure-as-code](https://docs.railway.com/infrastructure-as-code), [config-as-code](https://docs.railway.com/reference/config-as-code)) | Substitui o Terraform para a parte de cálculo, por IaC e não por `railway.json` — ver §6 |
 
 ## Decisão
@@ -66,11 +65,12 @@ excepto o armazenamento.**
 | Serviço Railway | O que é | Exposto |
 |---|---|---|
 | `erp` | A imagem de produção do `Dockerfile` (a mesma do compose, ADR-0026 §3 regra 5) | Domínio público |
-| `postgres-erp` | Postgres gerido, com recuperação a um ponto no tempo | Só rede privada |
-| `keycloak` | Contentor `quay.io/keycloak/keycloak` com versão fixada, realm importado de ficheiro (ADR-0012 §1, §7) | Domínio público, consola restrita — §3 |
-| `postgres-keycloak` | Postgres gerido próprio do Keycloak, com a mesma política do `postgres-erp` | Só rede privada |
+| `erp-db` | Postgres gerido, com recuperação a um ponto no tempo | Só rede privada |
+| `keycloak` | Contentor `quay.io/keycloak/keycloak` com versão fixada, realm importado de ficheiro (ADR-0012 §1, §7) | Só rede privada |
+| `keycloak-borda` | Caddy à frente do Keycloak: só deixa passar `/realms/gespro/*` e `/resources/*` (§3) | Domínio público do Keycloak |
+| `keycloak-db` | Postgres gerido próprio do Keycloak, com a mesma política do `erp-db` | Só rede privada |
 | `valkey` | Contentor `valkey:8-alpine` (ADR-0014) | Só rede privada |
-| `cron` | Tarefa agendada que chama as rotas `/api/cron/*` (§4) | Nenhum |
+| `cron-<rota>` × 5 | Uma tarefa agendada por rota `/api/cron/*` — o Railway só aceita um horário por serviço (§4) | Nenhum |
 
 **Porquê o Railway**: o que o ADR-0026 §5 pesava como alto e a equipa sente hoje é o **esforço
 operacional**. Uma equipa que ainda não operou nenhum serviço em produção não opera VPC, ALB, ECS,
@@ -127,29 +127,30 @@ Mantém-se tudo o que o ADR-0012 decidiu e não depende de fornecedor: auto-aloj
 `start --optimized`, realm como código, cadência trimestral. O que muda é só onde:
 
 - **Comunicação ERP→Keycloak pela rede privada** do Railway (`KEYCLOAK_ISSUER_INTERNO`); o domínio
-  público do Keycloak existe porque os fluxos de recuperação por auto-serviço (ADR-0029 §5, ADR-0030)
+  público (servido pelo `keycloak-borda`) existe porque os fluxos de recuperação por auto-serviço (ADR-0029 §5, ADR-0030)
   levam o browser lá.
 - **Consola de administração não pública** (ADR-0012 §4): o domínio público do Keycloak não serve
-  `/admin`. **Decisão aberta (D2)** — como: hostname de administração separado (`KC_HOSTNAME_ADMIN`)
-  sem domínio público, acedido por túnel/CLI do Railway; ou um proxy à frente do Keycloak que recusa
-  `/admin`. O requisito é inegociável; o mecanismo escolhe-o quem montar o serviço, e prova-o com um
-  pedido a `/admin` pelo domínio público que não pode devolver a consola.
+  `/admin`. **D2 — resolvido pelo #664 (proxy de borda)**: o `keycloak` não tem domínio público; o
+  `keycloak-borda` (Caddy) é o único caminho de fora e só deixa passar `/realms/gespro/*` e
+  `/resources/*` — `/admin`, `/realms/master/*` e o resto não chegam ao Keycloak. A prova em produção
+  é [HUMANO]: um pedido a `/admin` pelo domínio público que não pode devolver a consola.
 - **Realm de produção sem utilizadores de demonstração** (#572): o `realm-gespro.json` traz
   `@demo.mz` e `plataforma@gespro.mz`/`demo1234`; produção importa uma variante sem eles. O defeito
   que impedia importar o realm numa base Postgres — a descrição do papel `plataforma-admin` excedia o
   `varchar(255)` da coluna — está corrigido no #650.
-- **Base própria**: o Keycloak usa o serviço `postgres-keycloak` (§1), não uma base dentro do Postgres
+- **Base própria**: o Keycloak usa o serviço `keycloak-db` (§1), não uma base dentro do Postgres
   do ERP — desvio ao ADR-0012 §2, registado nas Consequências.
 
 ### 4. Agendador: tarefa agendada nativa do Railway
 
 O contrato de `docs/runbooks/agendador.md` mantém-se inteiro — **rota, método `GET`, cabeçalho
-`Authorization: Bearer <CRON_SECRET>`, horário em UTC**. Muda só quem chama: o serviço `cron` do
-Railway em vez do contentor `crond` do compose. As rotas continuam HTTP protegidas (ADR-0026 §3
+`Authorization: Bearer <CRON_SECRET>`, horário em UTC**. Muda só quem chama: **cinco serviços `cron-<rota>`**, um
+por rota, em vez do contentor `crond` do compose — o Railway só aceita um horário por serviço, e as
+cinco rotas têm horários diferentes. As rotas continuam HTTP protegidas (ADR-0026 §3
 regra 3); nenhum SDK do Railway entra no código. A fonte dos horários continua a ser
-`infra/local/cron/crontab`, que o teste existente amarra às rotas; o horário do Railway acompanha-o.
+`infra/local/cron/crontab`, que o teste existente amarra às rotas; o horário de cada `cron-<rota>` acompanha-o.
 
-### 5. Migrações por `preDeployCommand`, saúde por `healthcheckPath`
+### 5. Migrações por `preDeployCommand`, prontidão por `healthcheckPath`
 
 - **`prisma migrate deploy` passa a ser o `preDeployCommand` do serviço `erp`** e sai do
   `docker-entrypoint.sh` (#574). Corre uma vez por deploy, nunca em concorrência entre réplicas, e se
@@ -162,9 +163,11 @@ regra 3); nenhum SDK do Railway entra no código. A fonte dos horários continua
   destrutiva aplicada por engano (ADR-0020 §4) é um restauro para esse instante. Não há passo de
   snapshot separado — e fica escrito que a garantia depende de a janela de PITR cobrir esse instante
   (D3).
-- **`healthcheckPath: /api/health`** no `erp` (liveness, sem tocar na base — uma base lenta não deve
-  impedir uma versão de arrancar e ficar para sempre em rollback). O `/api/ready` é sondado de fora
-  (§7).
+- **`healthcheckPath: /api/ready`** no `erp`, com tempo limite de **120 s** (#665): o `/api/ready` faz
+  `SELECT 1`, por isso **uma versão que não chega à base nunca recebe tráfego** — a anterior continua
+  a servir. O `/api/health` continua a ser o `HEALTHCHECK` do Docker (liveness: o processo está vivo,
+  sem tocar na base). Como o `healthcheckPath` só decide a activação do deploy, a sonda contínua do
+  `/api/ready` é externa (§7).
 - O resto do ADR-0022 §5–§6 mantém-se: imagem etiquetada pelo commit, *smoke* autenticado depois do
   deploy, migrações destrutivas em duas fases, `migrate dev` nunca.
 
@@ -173,14 +176,14 @@ regra 3); nenhum SDK do Railway entra no código. A fonte dos horários continua
 - **Um `.railway/railway.ts` na raiz do repositório**, escrito com o SDK `railway` e aplicado por
   `railway config plan` (rever o plano) e `railway config apply`. Compõe os serviços declarados em
   `infra/railway/servicos.ts` (#664): build, `preDeployCommand`, `healthcheckPath`, política de
-  reinício, horário do `cron`. É o equivalente, para o cálculo, do `terraform plan`/`apply` do
+  reinício, horário de cada `cron-<rota>`. É o equivalente, para o cálculo, do `terraform plan`/`apply` do
   ADR-0022 §2: o plano revê-se antes de se aplicar.
 - **Porque não `railway.json` por serviço**, que foi a primeira redacção deste ADR: a documentação do
   Railway dá o Config as Code como descontinuado — «New services cannot opt into Config as Code», e os
   ficheiros deixam de ser lidos a 2026-12-01
   ([config-as-code](https://docs.railway.com/reference/config-as-code),
   [infrastructure-as-code](https://docs.railway.com/infrastructure-as-code)). Serviços novos — e
-  todos os seis do §1 o são — já não o podem usar; e mesmo que pudessem, a configuração deixava de
+  todos os do §1 o são — já não o podem usar; e mesmo que pudessem, a configuração deixava de
   valer cinco semanas depois do primeiro deploy.
 - **O que o IaC não declarar fica na consola** — tipicamente a criação do projecto, a activação do
   PITR, os **valores** dos segredos (nunca no repositório), domínios, webhooks e monitores — e vive num
@@ -211,11 +214,11 @@ As duas linhas «ninguém» são o que o #576 pede e o Railway não dá. **Propo
 - **Monitor externo de disponibilidade** sobre `https://<domínio>/api/ready` (e o equivalente do
   Keycloak), de mais de uma localização, com alerta ao fim de ~3 minutos — é o que o health check do
   Route 53 fazia na adenda do ADR-0019.
-- **Sinal de vida («dead man's switch») para o agendador**: o comando do serviço `cron` faz a chamada
+- **Sinal de vida («dead man's switch») para o agendador**: o comando de cada `cron-<rota>` faz a chamada
   e, **só com resposta 200**, faz um pedido a um URL de sinal de vida; o serviço externo alerta quando
   o sinal não chega dentro do horário mais uma margem. Cobre ao mesmo tempo «falhou» e «não correu»,
-  que é a distinção que o `agendador.md` diz que um agendador parado esconde. Fica no script do
-  `cron`, não na aplicação — nenhum SDK novo (ADR-0026 §3).
+  que é a distinção que o `agendador.md` diz que um agendador parado esconde. Fica no script dos
+  `cron-<rota>`, não na aplicação — nenhum SDK novo (ADR-0026 §3).
 - **Preferência**: se o destino OTLP (D4) tiver verificações sintéticas e regras sobre registos (é o
   caso da Grafana Cloud que o ADR-0019 §1 nomeia), as duas coisas fazem-se lá, reaproveitando as
   regras de `infra/local/observabilidade/alerts/` — um fornecedor de alertas, não dois. Se não tiver,
@@ -228,7 +231,7 @@ O critério do #576 — `/api/ready` a 503 durante 5 minutos chega ao canal de s
 
 | Opção | Prós | Contras |
 |---|---|---|
-| **Railway + S3 com Object Lock para documentos** ✅ | Esforço operacional mínimo; PITR gerido; migração por `preDeployCommand` e saúde por `healthcheckPath` sem orquestração nossa; o storage reutiliza um módulo já escrito e testado | Dois fornecedores; credencial de chave longa para o S3; uma região só; o Railway não alerta sobre a saúde da aplicação |
+| **Railway + S3 com Object Lock para documentos** ✅ | Esforço operacional mínimo; PITR gerido; migração por `preDeployCommand` e prontidão por `healthcheckPath` sem orquestração nossa; o storage reutiliza um módulo já escrito e testado | Dois fornecedores; credencial de chave longa para o S3; uma região só; o Railway não alerta sobre a saúde da aplicação |
 | AWS com o Terraform existente | Já escrito e revisto; um fornecedor só; federação OIDC; multi-AZ | Nunca correu; falta Keycloak, Valkey e agendador (#572); a equipa passa a operar VPC, ALB, IAM e RDS antes de ter clientes — o fardo que o ADR-0012 já temia |
 | Railway com Railway Buckets para documentos | Um fornecedor só; uma factura | Sem versionamento, Object Lock nem ciclo de vida (documentação do Railway): documentos fiscais alteráveis e apagamentos irreversíveis. Contradiz o ADR-0020 §2 |
 | Outro S3 compatível com retenção (R2, B2…) | Possivelmente mais barato | O módulo `storage` é AWS; reescrevê-lo e voltar a provar Object Lock e réplica é trabalho que o #638 já fez. Avaliável mais tarde, sem tocar no código |
@@ -274,7 +277,8 @@ O critério do #576 — `/api/ready` a 503 durante 5 minutos chega ao canal de s
   aqui, o Railway e a AWS são subprocessadores. **A pergunta vai ao mesmo parecer do #55**, que hoje
   trata do acesso de suporte (art. 64) e não da localização; tem de lhe ser acrescentada. Até lá, a
   escolha é um risco declarado, não uma conformidade verificada.
-- **D2 — Consola do Keycloak** (§3): mecanismo por escolher; requisito fixo.
+- **D2 — Consola do Keycloak** (§3): resolvido pelo #664 (proxy de borda `keycloak-borda`); prova em
+  produção [HUMANO].
 - **D3 — Janela de PITR do Railway**: confirmar no plano contratado a retenção e a granularidade, e
   se cobre a base do Keycloak da mesma forma. Condiciona o RPO de 5 minutos e os 35 dias do ADR-0020.
 - **D4 — Destino OTLP**: por escolher (ADR-0019 §1 nomeava Grafana Cloud como candidato). Novo
@@ -294,7 +298,7 @@ O critério do #576 — `/api/ready` a 503 durante 5 minutos chega ao canal de s
 
 ### [HUMANO] — o que só uma pessoa com a conta pode fazer
 
-1. Criar o projecto Railway na região `europe-west4-drams3a` e os seis serviços do §1.
+1. Criar o projecto Railway na região `europe-west4-drams3a` e os serviços do §1.
 2. Activar o PITR nos dois Postgres e confirmar a janela (D3).
 3. Definir variáveis e segredos de cada serviço (lista do #572 mais as do storage e do OTLP).
 4. Domínio próprio e TLS do `erp` e do Keycloak.
