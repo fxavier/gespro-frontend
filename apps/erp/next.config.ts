@@ -38,6 +38,11 @@ const nextConfig: NextConfig = {
   // O spec 17 gere os headers/CSP — não tocar nesse bloco.
   output: 'standalone',
 
+  // O `next dev` regista cada Server Function com os ARGUMENTOS. As de
+  // autenticação recebem palavras-passe (login, primeiro acesso, registo) e
+  // elas acabavam no terminal e nos logs do CI (#657). Só afecta o dev.
+  logging: { serverFunctions: false },
+
   // Pacotes OTel tratados como externos pelo bundler Next.js — garante que
   // @vercel/nft os inclui no output standalone e que não são tree-shaken
   // quando carregados dinamicamente em instrumentation.ts.

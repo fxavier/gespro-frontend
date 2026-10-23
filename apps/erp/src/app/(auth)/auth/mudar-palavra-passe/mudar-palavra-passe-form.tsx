@@ -6,21 +6,19 @@
  * inicia sessão com a nova, para a pessoa não ter de a escrever outra vez.
  */
 
-import { useState, useTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AlertCircle, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { mudarPalavraPasse } from './actions';
+import { entrarComPalavraPasse } from '../login/actions';
 
 export function MudarPalavraPasseForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const identificadorInicial = searchParams.get('identificador') ?? '';
   const [erro, setErro] = useState<string | null>(null);
-  const [aSubmeter, iniciarTransicao] = useTransition();
   const [ocupado, setOcupado] = useState(false);
 
   async function aoSubmeter(evento: React.FormEvent<HTMLFormElement>) {
@@ -45,26 +43,22 @@ export function MudarPalavraPasseForm() {
       return;
     }
 
-    // A conta já não tem acções pendentes: entra directamente.
-    const sessao = await signIn('credentials', {
-      identificador,
-      palavraPasse: nova,
-      redirect: false,
-    });
-    setOcupado(false);
+    // A conta já não tem acções pendentes: entra directamente — pelo servidor,
+    // como o login, e não pelo `signIn` do cliente (corrida do CSRF, #657).
+    const sessao = await entrarComPalavraPasse(identificador, nova).catch(() => ({ ok: false }));
 
-    if (!sessao || sessao.error) {
+    if (!sessao.ok) {
+      setOcupado(false);
       setErro('Palavra-passe alterada. Inicie sessão com a nova para continuar.');
       return;
     }
 
-    iniciarTransicao(() => {
-      router.push('/dashboard');
-      router.refresh();
-    });
+    // Documento novo: o `SessionProvider` arranca já com a sessão (ver login).
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- de propósito: documento novo (#657)
+    window.location.assign('/dashboard');
   }
 
-  const aguardar = ocupado || aSubmeter;
+  const aguardar = ocupado;
 
   return (
     <form onSubmit={aoSubmeter} className="space-y-5" noValidate>
