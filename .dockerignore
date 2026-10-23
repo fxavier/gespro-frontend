@@ -23,6 +23,9 @@ infra/
 
 # Testes e relatórios
 **/e2e/
+# Testes de integração (Testcontainers) não entram na imagem — e, sem o e2e/
+# acima, o `next build` falhava o type check num que importa e2e/helpers (#577).
+apps/erp/test/
 **/test-results/
 **/playwright-report/
 **/playwright/.auth/

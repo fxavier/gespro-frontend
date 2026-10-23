@@ -378,7 +378,11 @@ services:
   # nas duas; diferenças zero (ADR-0026 §3.5). Duas porque é isso que torna
   # verificável o limitador partilhado, a sessão entre instâncias e a publicação
   # em duas fases (task 1.7). O HEALTHCHECK vem do Dockerfile (/api/health).
-  # `prisma migrate deploy` no entrypoint é idempotente e seguro em paralelo.
+  # A imagem já não migra no arranque (#574 — em produção é o passo de
+  # pre-deploy, `docker-entrypoint.sh migrar`). Aqui não há esse passo, por isso
+  # SÓ o erp-1 migra (MIGRAR_NO_ARRANQUE=1) e o erp-2 espera que ele fique
+  # saudável: a pilha continua a subir sozinha sobre uma base vazia e não há
+  # corrida pelo lock consultivo (quem o perde sai com P1002 e fica em baixo).
   # ----------------------------------------------------------------------------
   erp-1:
     build:
@@ -392,6 +396,7 @@ services:
         condition: service_healthy
     environment:
       <<: *erp-ambiente
+      MIGRAR_NO_ARRANQUE: "1"
     deploy:
       resources:
         limits:
@@ -405,7 +410,7 @@ services:
       db:
         condition: service_healthy
       erp-1:
-        condition: service_started
+        condition: service_healthy
     environment:
       <<: *erp-ambiente
     deploy:

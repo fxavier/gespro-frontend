@@ -4,7 +4,7 @@
 # Todos os jobs têm de ser verdes para que o merge seja permitido (branch protection).
 #
 # Branch protection requerida (configurar em Settings → Branches → main):
-#   Required status checks: lint-type, gates, sca, test, integration, e2e, a11y, site, build, terraform
+#   Required status checks: lint-type, gates, sca, test, integration, e2e, a11y, site, build, image, terraform
 #   Require branches to be up to date before merging: ✓
 #   Restrict who can push to matching branches: maintainers
 #
@@ -570,6 +570,96 @@ jobs:
         env:
           NODE_ENV: production
         run: pnpm exec turbo run build --filter=erp
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 8b. IMAGEM DE PRODUÇÃO (Dockerfile) — #577, #574
+  #    Constrói a MESMA imagem que o Railway constrói (.railway/railway.ts),
+  #    sem push nem segredos, e prova-a contra um Postgres de serviço:
+  #      1. `node -v` da imagem = NODE_VERSION deste ficheiro;
+  #      2. o arranque sem MIGRAR_NO_ARRANQUE não migra (base fica vazia);
+  #      3. `docker-entrypoint.sh migrar` (o preDeployCommand) aplica tudo;
+  #      4. o servidor em NODE_ENV=production responde 200 em /api/health e
+  #         em /api/ready (o healthcheckPath do Railway).
+  #    RATE_LIMIT_MEMORIA_EM_PRODUCAO=1: sem Valkey, a guarda de arranque do
+  #    limitador (#552/#655) põe todos os pedidos a 500 — /api/health incluído.
+  # ────────────────────────────────────────────────────────────────────────────
+  image:
+    name: Docker image (build + smoke)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: gespro
+          POSTGRES_PASSWORD: gespro
+          POSTGRES_DB: gespro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gespro -d gespro"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      IMAGEM: gespro-erp:ci
+      # --network host: o contentor chega ao Postgres de serviço por localhost.
+      DATABASE_URL: postgresql://gespro:gespro@localhost:5432/gespro?schema=public
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: docker build (ERP)
+        run: docker build --progress=plain -t "$IMAGEM" .
+
+      - name: Node da imagem = NODE_VERSION do CI
+        run: |
+          v="$(docker run --rm "$IMAGEM" node -v)"
+          echo "imagem: $v · CI: $NODE_VERSION"
+          case "$v" in
+            "v${NODE_VERSION}."*) ;;
+            *) echo "::error::A imagem corre Node $v; o CI testa em $NODE_VERSION (#577)"; exit 1 ;;
+          esac
+
+      - name: Arranque sem MIGRAR_NO_ARRANQUE não migra (#574)
+        run: |
+          set -euo pipefail
+          docker run -d --name erp-smoke --network host \
+            -e NODE_ENV=production \
+            -e RATE_LIMIT_MEMORIA_EM_PRODUCAO=1 \
+            -e DATABASE_URL -e DIRECT_URL="$DATABASE_URL" \
+            -e AUTH_SECRET=ci-image-secret-at-least-32-chars-long-placeholder \
+            -e NEXTAUTH_URL=http://localhost:3000 \
+            "$IMAGEM"
+          timeout 60 bash -c 'until docker logs erp-smoke 2>&1 | grep -q "A iniciar servidor"; do sleep 1; done'
+          docker logs erp-smoke
+          docker logs erp-smoke 2>&1 | grep -q "Sem migrations no arranque"
+          # Nenhuma tabela criada: a base continua vazia.
+          n="$(docker exec "${{ job.services.postgres.id }}" psql -U gespro -d gespro -tAc \
+            "select count(*) from information_schema.tables where table_schema = 'public'")"
+          test "$n" = "0" || { echo "::error::o arranque criou $n tabelas — migrou sem a bandeira"; exit 1; }
+
+      - name: Passo de pre-deploy — docker-entrypoint.sh migrar
+        run: |
+          docker run --rm --network host -e DATABASE_URL -e DIRECT_URL="$DATABASE_URL" \
+            "$IMAGEM" /app/docker-entrypoint.sh migrar
+
+      - name: Smoke — /api/health e /api/ready respondem 200
+        run: |
+          set -euo pipefail
+          for rota in /api/health /api/ready; do
+            ok=0
+            for _ in $(seq 1 60); do
+              code="$(curl -s -o /tmp/corpo -w '%{http_code}' "http://localhost:3000$rota" || true)"
+              if [ "$code" = "200" ]; then ok=1; break; fi
+              sleep 2
+            done
+            echo "$rota → $code: $(cat /tmp/corpo 2>/dev/null || true)"
+            test "$ok" = "1" || { docker logs erp-smoke; echo "::error::$rota não respondeu 200"; exit 1; }
+          done
+
+      - name: Logs do contentor
+        if: always()
+        run: docker logs erp-smoke 2>&1 | tail -n 200 || true
 
   # ────────────────────────────────────────────────────────────────────────────
   # 9. TERRAFORM (infra/**) — #641
