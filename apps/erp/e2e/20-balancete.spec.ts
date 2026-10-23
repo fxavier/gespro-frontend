@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { Client } from 'pg';
-import { urlBaseDados } from './helpers/db';
+import { comBaseDados, urlBaseDados } from './helpers/db';
 
 /**
  * Balancete de Verificação no modelo PHC — oracle E2E (#280 S1, #281 S2, #283 S3, #284 S4, #285 S5, #286 S6).
@@ -14,13 +14,10 @@ import { urlBaseDados } from './helpers/db';
  * Só leitura; não escreve na base.
  *
  * Conta de referência: 121 (Depósitos à ordem, folha DEVEDORA, tenant demo)
- * Valores derivados via SQL de leitura sobre o seed (2026-10-01):
- *   movD  período 6          = 398 555,17 MZN
- *   movC  período 6          = 80 000,00 MZN
- *   acumD períodos 1–6       = 2 534 248,29 MZN   (> movD(6): per. 1–5 também têm D)
- *   acumC períodos 1–6       = 80 000,00 MZN
- *   saldo devedor (1..6)     = 2 454 248,29 MZN   (credor = 0 → «—»)
- *   acumD classe 1 (1..6)    = 2 534 248,29 MZN   (só '121' tem movimento; roll-up via '12')
+ * Os valores esperados derivam-se em tempo de teste por SQL de leitura (`movimentoDemo`): o seed
+ * de vendas data tudo a partir de `new Date()` (`prisma/seed/demo-vendas.ts`, `HOJE`), logo a
+ * distribuição por período muda com o dia em que corre — #658. Em 2026-10-01 eram, p. ex.,
+ * movD(6) = 398 555,17 e acumD(1..6) = 2 534 248,29; num seed de 2026-10-22, movD(6) = 278 772,34.
  *
  * Regras de casa: sem sleeps arbitrários; networkidle antes de interagir com
  * formulários; expect com auto-retry; só leitura da base.
@@ -84,6 +81,57 @@ async function todasLinhas(page: Page): Promise<LinhaTabela[]> {
       cells: Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.trim() ?? ''),
     })),
   );
+}
+
+/**
+ * Débitos e créditos de uma conta do tenant demo nos períodos [de..ate] do exercício (só
+ * leitura) — a mesma regra do balancete de verificação: estado `LANCADO` ou `ESTORNADO`
+ * (`FILTRO_LANCAMENTO_MAPA`) e período pela `ordem` dentro do exercício.
+ */
+async function movimentoDemo(
+  codigo: string,
+  exercicio: string,
+  de: number,
+  ate: number,
+): Promise<{ debito: number; credito: number }> {
+  return comBaseDados(async (c) => {
+    const r = await c.query<{ debito: string; credito: string }>(
+      `SELECT COALESCE(SUM(pl.valor) FILTER (WHERE pl.tipo = 'DEBITO'), 0)::text  AS debito,
+              COALESCE(SUM(pl.valor) FILTER (WHERE pl.tipo = 'CREDITO'), 0)::text AS credito
+         FROM "PartidaLancamento" pl
+         JOIN "Lancamento" l        ON l.id = pl."lancamentoId"
+         JOIN "PeriodoContabil" p   ON p.id = l."periodoId"
+         JOIN "ExercicioContabil" e ON e.id = p."exercicioId"
+         JOIN "ContaPGC" ct         ON ct.id = pl."contaId"
+         JOIN "Tenant" t            ON t.id = pl."tenantId"
+        WHERE t.slug = 'demo' AND ct.codigo = $1 AND e.codigo = $2
+          AND p.ordem BETWEEN $3 AND $4
+          AND l.status IN ('LANCADO', 'ESTORNADO')`,
+      [codigo, exercicio, de, ate],
+    );
+    return { debito: Number(r.rows[0]!.debito), credito: Number(r.rows[0]!.credito) };
+  });
+}
+
+/**
+ * Partidas da conta datadas antes do início do exercício — a «abertura implícita» do balancete,
+ * que `movimentoDemo` não modela. O demo só tem o exercício 2026, logo espera-se 0.
+ */
+async function partidasAntesDoExercicio(codigo: string, exercicio: string): Promise<number> {
+  return comBaseDados(async (c) => {
+    const r = await c.query<{ n: string }>(
+      `SELECT count(*)::text AS n
+         FROM "PartidaLancamento" pl
+         JOIN "Lancamento" l        ON l.id = pl."lancamentoId"
+         JOIN "ContaPGC" ct         ON ct.id = pl."contaId"
+         JOIN "Tenant" t            ON t.id = pl."tenantId"
+         JOIN "ExercicioContabil" e ON e."tenantId" = t.id AND e.codigo = $2
+        WHERE t.slug = 'demo' AND ct.codigo = $1 AND l.data < e."dataInicio"
+          AND l.status IN ('LANCADO', 'ESTORNADO')`,
+      [codigo, exercicio],
+    );
+    return Number(r.rows[0]!.n);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -168,9 +216,22 @@ test('1.3 linha «Totais» presente e indicador «Balancete equilibrado» com tr
 // 2. Acumulado ≥ Movimento — conta 121, período 6 vs. acumulado 1..6
 // ---------------------------------------------------------------------------
 
-test('2. acumulado(1..6) > movimento(6) para conta 121 (valores do seed verificados)', async ({
+test('2. acumulado(1..6) > movimento(6) para conta 121 (valores da base verificados)', async ({
   page,
 }) => {
+  // Esperados derivados da base no momento do teste (#658) — não de uma fotografia do seed.
+  expect(
+    await partidasAntesDoExercicio('121', '2026'),
+    'STOP: 121 tem partidas antes do exercício 2026 (abertura implícita) — este oráculo não a modela',
+  ).toBe(0);
+  const mov6 = await movimentoDemo('121', '2026', 6, 6);
+  const acum16 = await movimentoDemo('121', '2026', 1, 6);
+  expect(mov6.debito, 'STOP: o demo não tem débitos na 121 no período 6/2026 — corra pnpm db:seed').toBeGreaterThan(0);
+  expect(
+    acum16.debito,
+    'STOP: o demo não tem débitos na 121 nos períodos 1–5/2026 — a comparação acumulado > movimento não prova nada',
+  ).toBeGreaterThan(mov6.debito);
+
   await navegar(page, 'exercicio=2026&de=6&ate=6');
 
   const linhas = await linhasDeConta(page);
@@ -181,14 +242,14 @@ test('2. acumulado(1..6) > movimento(6) para conta 121 (valores do seed verifica
   const movD = parsePtNum(l121![2]);
   const acumD = parsePtNum(l121![4]);
 
-  // Seed (2026-10-01 SQL): movD período 6 = 398 555,17
-  expect(movD, 'movD período 6 da conta 121').toBeCloseTo(398_555.17, 2);
+  // Base (SQL): soma dos débitos da 121 no período 6
+  expect(movD, 'movD período 6 da conta 121').toBeCloseTo(mov6.debito, 2);
 
   // Acumulado 1..6 inclui os débitos dos períodos 1..5 → deve ser estritamente maior
   expect(acumD, 'acumD(1..6) deve ser estritamente > movD(6)').toBeGreaterThan(movD);
 
-  // Seed: acumD(1..6) = 2 534 248,29
-  expect(acumD, 'acumD(1..6) da conta 121').toBeCloseTo(2_534_248.29, 2);
+  // Base (SQL): soma dos débitos da 121 nos períodos 1..6
+  expect(acumD, 'acumD(1..6) da conta 121').toBeCloseTo(acum16.debito, 2);
 });
 
 // ---------------------------------------------------------------------------
@@ -829,14 +890,23 @@ test('20. #295 — 421 e 44331 (passivos, CREDORA) e as outras contas com movime
 }) => {
   // Antes da #295 a classe 4 era toda DEVEDORA e 421/44331 apareciam contra natureza.
   // O aviso estava certo face aos dados; os dados é que estavam errados.
-  await navegar(page, BASE_S3);
+  //
+  // O exercício inteiro (1..12), não 1..6 (#658): o seed data os documentos a partir de hoje
+  // (as contas a pagar, que movem a 421, emitem-se entre 100 e 1 dias atrás), logo num seed
+  // de Outubro a 421 não tem movimento até Junho. A precondição vem da base.
+  const CODIGOS = ['421', '44331', '121', '411', '6112', '63299', '711'];
+  for (const codigo of CODIGOS) {
+    const m = await movimentoDemo(codigo, '2026', 1, 12);
+    expect(m.debito + m.credito, `STOP: ${codigo} sem movimento no exercício 2026 do demo — corra pnpm db:seed`).toBeGreaterThan(0);
+  }
+  await navegar(page, 'exercicio=2026&de=1&ate=12');
 
   const linha = (codigo: string) =>
     page.locator('tbody tr[data-nivel]').filter({
       has: page.locator('td:first-child', { hasText: new RegExp(`^${codigo}$`) }),
     });
 
-  for (const codigo of ['421', '44331', '121', '411', '6112', '63299', '711']) {
+  for (const codigo of CODIGOS) {
     await expect(linha(codigo), `linha ${codigo} visível`).toHaveCount(1);
     await expect(
       linha(codigo).locator('[aria-label="Saldo contra natureza"]'),

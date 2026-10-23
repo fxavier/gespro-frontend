@@ -113,7 +113,7 @@ test.describe('A11y: Página de Login (ecrã do GestPro)', () => {
   test('a página de recusa /auth/erro é acessível', async ({ page }) => {
     // A recusa explícita («contacte o administrador…») é nossa e também conta.
     await page.goto('/auth/erro?motivo=nao-provisionado');
-    await expect(page.getByRole('heading')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 });
     await checkA11y(page, 'erro de autenticação');
   });
 });
