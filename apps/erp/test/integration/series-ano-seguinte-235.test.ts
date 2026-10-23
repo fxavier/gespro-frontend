@@ -61,6 +61,20 @@ function anoMaputo(d: Date): number {
   return new Date(d.getTime() + 2 * 3_600_000).getUTCFullYear();
 }
 
+/**
+ * A audit-extension grava `SerieDocumento` em fire-and-forget: a última escrita pode chegar
+ * depois de um `deleteMany` único e prender o `User`/`Tenant` por FK. Apaga até duas voltas
+ * seguidas sem linhas (com uma pausa entre elas), com tecto de tentativas.
+ */
+async function apagarAuditoria(db: any, where: Record<string, unknown>): Promise<void> {
+  let vaziasSeguidas = 0;
+  for (let i = 0; i < 20 && vaziasSeguidas < 2; i += 1) {
+    const { count } = await db.auditLog.deleteMany({ where });
+    vaziasSeguidas = count === 0 ? vaziasSeguidas + 1 : 0;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 describe.skipIf(skip)('Criar séries do ano seguinte pela UI (#235) — DB efémera', () => {
   let db: any;
   let SERIES: Array<{ tipo: string; prefixo: string }>;
@@ -69,6 +83,10 @@ describe.skipIf(skip)('Criar séries do ano seguinte pela UI (#235) — DB efém
   const sufixo = Date.now();
   const tenants: string[] = [];
   let seqTenant = 0;
+  // O `userId` da sessão tem de existir: a audit-extension grava `AuditLog.userId` com FK para
+  // `User`. Sem ele, cada escrita auditada falhava a FK em fire-and-forget (ruído no log do CI).
+  const USER_ID = `user-235-${sufixo}`;
+  const TENANT_FIXTURE = `tenant-series-235-fixture-${sufixo}`;
 
   async function novoTenant(tag: string): Promise<string> {
     seqTenant += 1;
@@ -81,7 +99,7 @@ describe.skipIf(skip)('Criar séries do ano seguinte pela UI (#235) — DB efém
   }
 
   function sessao(tenantId: string, permissions: string[] = [PERMISSAO], acesso: 'aberto' | 'leitura' = 'aberto') {
-    h.sessao = { user: { id: `user-235-${sufixo}`, tenantId, permissions, acesso, emailVerificado: true } };
+    h.sessao = { user: { id: USER_ID, tenantId, permissions, acesso, emailVerificado: true } };
   }
 
   async function correr(): Promise<Resultado> {
@@ -104,6 +122,14 @@ describe.skipIf(skip)('Criar séries do ano seguinte pela UI (#235) — DB efém
     ({ SERIES_INICIAIS: SERIES } = await import('@/server/provisioning/tenant-bootstrap'));
     const actions = (await import('@/server/actions/faturacao.actions')) as unknown as Record<string, any>;
     accao = actions['criarSeriesAnoSeguinte'];
+
+    await db.tenant.create({
+      data: { id: TENANT_FIXTURE, nome: 'Tenant #235 fixture', slug: `series-235-fixture-${sufixo}`, nuit: `${sufixo - 1}`.slice(-9) },
+    });
+    tenants.push(TENANT_FIXTURE);
+    await db.user.create({
+      data: { id: USER_ID, tenantId: TENANT_FIXTURE, nome: 'Utilizador #235', email: `user-235-${sufixo}@test.mz`, keycloakSub: `kc-user-235-${sufixo}` },
+    });
   });
 
   afterEach(() => {
@@ -114,7 +140,8 @@ describe.skipIf(skip)('Criar séries do ano seguinte pela UI (#235) — DB efém
   afterAll(async () => {
     if (!db) return;
     await db.serieDocumento.deleteMany({ where: { tenantId: { in: tenants } } });
-    await db.auditLog.deleteMany({ where: { tenantId: { in: tenants } } });
+    await apagarAuditoria(db, { OR: [{ tenantId: { in: tenants } }, { userId: USER_ID }] });
+    await db.user.deleteMany({ where: { id: USER_ID } });
     await db.tenant.deleteMany({ where: { id: { in: tenants } } });
   });
 
