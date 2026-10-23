@@ -28,6 +28,20 @@ function anoCorrenteMaputo(): number {
   return new Date(Date.now() + 2 * 3_600_000).getUTCFullYear();
 }
 
+/**
+ * A audit-extension grava `SerieDocumento` em fire-and-forget: a última escrita pode chegar
+ * depois de um `deleteMany` único e prender o `User`/`Tenant` por FK. Apaga até duas voltas
+ * seguidas sem linhas (com uma pausa entre elas), com tecto de tentativas.
+ */
+async function apagarAuditoria(db: any, where: Record<string, unknown>): Promise<void> {
+  let vaziasSeguidas = 0;
+  for (let i = 0; i < 20 && vaziasSeguidas < 2; i += 1) {
+    const { count } = await db.auditLog.deleteMany({ where });
+    vaziasSeguidas = count === 0 ? vaziasSeguidas + 1 : 0;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 describe.skipIf(skip)('Séries de documento — DB efémera (Testcontainers)', () => {
   let db: any;
   let runCtx: (typeof import('@/server/db/tenant-extension'))['runWithTenantContext'];
@@ -36,6 +50,9 @@ describe.skipIf(skip)('Séries de documento — DB efémera (Testcontainers)', (
   const sufixo = Date.now();
   const TENANT_A = `tenant-series-a-${sufixo}`;
   const TENANT_B = `tenant-series-b-${sufixo}`;
+  // O `userId` do contexto tem de existir: a audit-extension grava `AuditLog.userId` com FK
+  // para `User` (sem ele, a escrita de auditoria falhava a FK em fire-and-forget).
+  const USER_ID = `user-series-${sufixo}`;
   const ANO = anoCorrenteMaputo();
 
   beforeAll(async () => {
@@ -49,12 +66,16 @@ describe.skipIf(skip)('Séries de documento — DB efémera (Testcontainers)', (
     await db.tenant.create({
       data: { id: TENANT_B, nome: 'Tenant Séries B', slug: `series-b-${sufixo}`, nuit: `${sufixo + 1}`.slice(-9) },
     });
+    await db.user.create({
+      data: { id: USER_ID, tenantId: TENANT_A, nome: 'Utilizador Séries', email: `user-series-${sufixo}@test.mz`, keycloakSub: `kc-user-series-${sufixo}` },
+    });
   });
 
   afterAll(async () => {
     if (!db) return;
     await db.serieDocumento.deleteMany({ where: { tenantId: { in: [TENANT_A, TENANT_B] } } });
-    await db.auditLog.deleteMany({ where: { tenantId: { in: [TENANT_A, TENANT_B] } } });
+    await apagarAuditoria(db, { OR: [{ tenantId: { in: [TENANT_A, TENANT_B] } }, { userId: USER_ID }] });
+    await db.user.deleteMany({ where: { id: USER_ID } });
     await db.tenant.deleteMany({ where: { id: { in: [TENANT_A, TENANT_B] } } });
   });
 
@@ -104,7 +125,7 @@ describe.skipIf(skip)('Séries de documento — DB efémera (Testcontainers)', (
   // -------------------------------------------------------------------------
 
   it('(b) duas criarSerie concorrentes do mesmo tipo+ano: exactamente uma passa, a outra SERIE_ACTIVA_EXISTENTE', async () => {
-    const ctx = { tenantId: TENANT_A, userId: `user-series-${sufixo}` };
+    const ctx = { tenantId: TENANT_A, userId: USER_ID };
     const criar = (prefixo: string) =>
       runCtx(ctx, () => fat.criarSerie({ tipo: 'PROFORMA', prefixo, ano: ANO, numeroInicial: 1 }, ctx));
 
