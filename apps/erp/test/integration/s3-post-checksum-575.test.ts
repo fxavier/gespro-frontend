@@ -29,10 +29,10 @@ import {
   PutObjectLockConfigurationCommand,
 } from '@aws-sdk/client-s3';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
+import { IMAGEM_MINIO } from './imagens';
 
 const skip = process.env.SKIP_INTEGRATION === 'true';
 
-const IMAGEM_MINIO = 'minio/minio:RELEASE.2025-09-07T16-13-09Z';
 const UTILIZADOR = 'oraculo575';
 const SENHA = 'oraculo575-minio-efemero';
 const BUCKET = 'gespro-uploads-575';
