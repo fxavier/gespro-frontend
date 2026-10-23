@@ -24,6 +24,7 @@ import type { IFaturacaoService } from '@/server/services/financas/faturacao.int
 import type { ICaixaService } from '@/server/services/financas/caixa.interface';
 import { exigirEmailConfirmadoParaEmitir, proximoNumeroSerie } from '@/server/services/financas';
 import { TRANSICOES_DEVOLUCAO } from '@/lib/state-machines';
+import { arredondarLinha } from '@/lib/vendas-totais';
 import type {
   CreateDevolucaoInput,
   FilterDevolucaoInput,
@@ -445,7 +446,7 @@ export class DevolucaoService {
           valorUnitario,
           taxaIva: linha.taxaIva,
           // Proporcional ao grupo: devolver tudo credita exactamente o facturado, sem cêntimos a mais.
-          subtotal: r2(linha.subtotal.mul(quantidade).div(linha.quantidade)),
+          subtotal: linha.subtotal.mul(quantidade).div(linha.quantidade),
         }));
       } else {
         itens = input.itens.map((item) => {
@@ -459,16 +460,13 @@ export class DevolucaoService {
             quantidade,
             valorUnitario,
             taxaIva: new Prisma.Decimal(item.taxaIva),
-            subtotal: r2(quantidade.mul(valorUnitario)),
+            subtotal: quantidade.mul(valorUnitario),
           };
         });
       }
 
-      // IVA por linha, a 2 casas, como a facturação (`calcularTotaisVendaPOS`).
-      const comIva = itens.map((i) => {
-        const ivaItem = r2(i.subtotal.mul(i.taxaIva));
-        return { ...i, ivaItem, total: i.subtotal.plus(ivaItem) };
-      });
+      // #617: subtotal e IVA por linha, a 2 casas, pela função da facturação e do POS.
+      const comIva = itens.map((i) => ({ ...i, ...arredondarLinha(i.subtotal, i.taxaIva) }));
       const valorTotal = comIva.reduce((a, i) => a.plus(i.total), new Prisma.Decimal(0));
 
       const numero = await proximoNumeroSerie(tx, 'NOTA_DEVOLUCAO', ctx, new Date());

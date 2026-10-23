@@ -19,6 +19,7 @@ import { prismaBase } from '@/server/db/client';
 import { paginate } from '@/server/db/paginate';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { exigirClienteParaCredito } from '@/lib/cliente-credito';
+import { arredondarLinha } from '@/lib/vendas-totais';
 import type { Ctx } from '@/server/services/types';
 import type { IStockService } from '@/server/services/inventario/stock.interface';
 import type { ICaixaService, IFaturacaoService, RegistarMovimentoCaixaInput } from '@/server/services/financas';
@@ -183,8 +184,11 @@ function linhaEncomenda(item: ItemEncomendaInput, tenantId: string) {
   const preco = new Prisma.Decimal(item.precoUnitario);
   const descontoPct = new Prisma.Decimal(item.desconto ?? 0);
   const taxa = new Prisma.Decimal(item.taxaIva ?? 0.16);
-  const baseItem = qty.mul(preco).mul(new Prisma.Decimal(1).minus(descontoPct.div(100))).toDP(2);
-  const ivaItem = baseItem.mul(taxa).toDP(2);
+  // #617: o arredondamento da linha é o da facturação e do POS (`arredondarLinha`).
+  const { subtotal, ivaItem, total } = arredondarLinha(
+    qty.mul(preco).mul(new Prisma.Decimal(1).minus(descontoPct.div(100))),
+    taxa,
+  );
 
   return {
     tenantId,
@@ -196,9 +200,9 @@ function linhaEncomenda(item: ItemEncomendaInput, tenantId: string) {
     precoUnitario: preco,
     desconto: descontoPct,
     taxaIva: taxa,
-    subtotal: baseItem,
+    subtotal,
     ivaItem,
-    total: baseItem.plus(ivaItem),
+    total,
   };
 }
 

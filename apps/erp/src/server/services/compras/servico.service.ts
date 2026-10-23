@@ -8,6 +8,7 @@ import { prisma } from '@/server/db/client';
 import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import { paginate } from '@/server/db/paginate';
 import { comCodigoUnico } from './codigo-unico';
+import { arredondarLinha } from '@/lib/vendas-totais';
 import type {
   IServicoService,
   CategoriaServicoDto,
@@ -76,7 +77,8 @@ function toServicoResumo(s: any): ServicoResumo {
     categoriaServicoId: s.categoriaServicoId ?? null,
     categoriaNome: s.categoriaServico?.nome ?? null,
     tipoServico: s.tipoServico, preco, taxaIva,
-    precoComIva: Math.round(preco * (1 + taxaIva) * 100) / 100,
+    // #617: em Decimal, pela função de arredondamento da linha (uma unidade).
+    precoComIva: arredondarLinha(preco, taxaIva).total.toNumber(),
     disponivel: s.disponivel, ativo: s.ativo,
     avaliacaoMedia: s.avaliacaoMedia ? Number(s.avaliacaoMedia) : null,
     totalVendas: s.totalVendas ?? 0,
