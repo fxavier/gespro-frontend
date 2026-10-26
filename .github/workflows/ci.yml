@@ -702,7 +702,7 @@ jobs:
 
       - name: Setup Terraform
         if: steps.infra.outputs.mudou == 'true'
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
