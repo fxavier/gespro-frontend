@@ -62,7 +62,7 @@ jobs:
         run: docker compose up -d
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         # Lê a versão do campo "packageManager" em package.json (sem pin aqui)
 
       - name: Setup Node.js
